@@ -2,6 +2,14 @@
 
 This README provides an overview of Motion's API implementation. This system allows for the creation of complex data processing pipelines with customizable map and reduce operations.
 
+## TODOs
+- [ ] Nit: flexible key handling on dataset creation; users should be able to pass in their own key
+- [ ] Make reducer stateful: decompose Reducer's reduce function into aggregate and merge
+- [ ] Embedding-based fuzzy equality/grouping
+- [ ] Allow traces to be accessed in operators (so one can use raw sources if they want)
+- [ ] Flat map operator
+- [ ] Implement optimizations
+
 ## Table of Contents
 
 1. [Overview](#overview)

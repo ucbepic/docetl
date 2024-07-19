@@ -164,15 +164,18 @@ class FuzzyEquality(Equality[float]):
     def are_equal(self, x: float, y: float) -> bool:
         return abs(x - y) <= self.tolerance
 
-    def get_label(self, keys: Set[float]) -> str:
-        return f"[{min(keys):.1f}, {max(keys):.1f}]"
+    def get_label(self, keys: Set[float]) -> float:
+        min_key = min(keys)
+        max_key = max(keys)
+        return sum(keys) / len(keys)
 
     def get_description(self) -> str:
-        return f"Group keys within {self.tolerance} tolerance"
+        return f"Fuzzy Equality: Group keys within {self.tolerance} tolerance"
 
 # Usage
-input_data = [(None, i) for i in range(1, 101)]
-dataset = Dataset(input_data)
+input_data = range(1, 10)  # Numbers from 1 to 9
+
+dataset = Dataset(input_data, enable_tracing=True)
 result = (dataset
     .map(NumberMapper())
     .reduce(SumReducer(), FuzzyEquality(tolerance=0.5))

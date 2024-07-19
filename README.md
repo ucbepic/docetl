@@ -6,9 +6,13 @@ This README provides an overview of Motion's API implementation. This system all
 - [ ] Nit: flexible key handling on dataset creation; users should be able to pass in their own key
 - [ ] Make reducer stateful: decompose Reducer's reduce function into aggregate and merge
 - [ ] Embedding-based fuzzy equality/grouping
-- [ ] Allow traces to be accessed in operators (so one can use raw sources if they want)
 - [ ] Flat map operator
 - [ ] Implement optimizations
+- [ ] Implement accuracy boosters
+    - [ ] "Agentic" decisions, e.g., employing an LLM to write the equality precheck & equality prompts
+    - [ ] "Adaptive" decisions, e.g., using previous results that pass validators as few shot examples in prompts
+    - [ ] Allow traces to be accessed in operators (so one can use raw sources if they want)
+- [ ] Implement streaming API
 
 ## Table of Contents
 

@@ -119,22 +119,37 @@ Here's a simple example of how to use the API:
 
 ```python
 class NumberMapper(Mapper[float, int]):
+    on_fail = ValidatorAction.WARN
+
     def map(self, key: Any, value: int) -> List[Tuple[float, int]]:
         return [(float(value) / 10, value)]
+
+    def validate(self, key: float, value: int) -> bool:
+        return 0 <= key <= 10 and 1 <= value <= 100
 
     def get_description(self) -> str:
         return "Convert value to float key"
 
 class SquareMapper(Mapper[float, int]):
+    on_fail = ValidatorAction.WARN
+
     def map(self, key: float, value: int) -> List[Tuple[float, int]]:
         return [(key, value**2)]
+
+    def validate(self, key: float, value: int) -> bool:
+        return value >= 0
 
     def get_description(self) -> str:
         return "Square the value"
 
 class SumReducer(Reducer[float, int]):
+    on_fail = ValidatorAction.WARN
+
     def reduce(self, key: float, values: List[int]) -> int:
         return sum(values)
+
+    def validate(self, key: float, reduced_value: int) -> bool:
+        return 1 <= reduced_value <= 1000000
 
     def get_description(self) -> str:
         return "Sum all values"

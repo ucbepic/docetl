@@ -10,6 +10,7 @@ This README provides an overview of Motion's API implementation. This system all
 4. [API Usage](#api-usage)
 5. [Example Implementation](#example-implementation)
 6. [Error Handling](#error-handling)
+7. [Tracing](#tracing)
 
 ## Overview
 
@@ -18,23 +19,24 @@ This implementation provides a flexible framework for processing large datasets 
 - Chaining multiple map and reduce operations in any order
 - Custom mapper and reducer implementations
 - Customizable error handling and validation
+- Tracing of operations for debugging and analysis
 
 ## Key Components
 
-### MapReduce
+### Dataset
 
 The main class that orchestrates the entire process. It allows you to define a series of map and reduce operations and execute them on your data.
 
-Methods (the user does not write these):
-- `__init__(data: List[Any], num_workers: int = None)`: Initialize with input data and optional number of worker processes.
-- `map(mapper: Mapper) -> MapReduce`: Add a map operation to the pipeline.
-- `reduce(reducer: Reducer, equality: Equality) -> MapReduce`: Add a reduce operation to the pipeline.
-- `execute() -> List[Tuple[Any, Any]]`: Execute the defined pipeline and return the results.
+Methods:
+- `__init__(data: Iterable[Tuple[Any, Any]], num_workers: int = None, enable_tracing: bool = True)`: Initialize with input data, optional number of worker processes, and tracing option.
+- `map(mapper: Mapper) -> Dataset`: Add a map operation to the pipeline.
+- `reduce(reducer: Reducer, equality: Equality) -> Dataset`: Add a reduce operation to the pipeline.
+- `execute() -> List[Tuple[str, Any, Any, Optional[Dict[str, str]]]]`: Execute the defined pipeline and return the results.
 
 ### ValidatorAction
 
 An enumeration defining possible actions to take when validation fails:
-- `PROMPT`: Prompts the user for corrections when validation fails. The user will provide corrections for all failed records before the next operation executes.
+- `PROMPT`: Prompts the user for corrections when validation fails.
 - `WARN`: Prints a warning message but continues execution.
 - `FAIL`: Raises an exception, halting execution.
 
@@ -48,59 +50,60 @@ Attributes:
 Methods:
 - `validate(key: K, value: V) -> bool`: Abstract method to validate the key-value pair.
 - `correct(key: K, value: V, new_value: Any) -> Tuple[K, V]`: Method to correct invalid values given user-provided new values.
+- `get_description() -> Optional[str]`: Method to provide a description of the operation for tracing.
 
 ### Mapper[K, V] (subclass of Operator)
 
-Abstract base class for defining map operations. The user will subclass this to create custom mappers.
+Abstract base class for defining map operations.
 
 Methods:
-- `map(key: Any, value: Any) -> List[Tuple[K, V]]`: Abstract method to define the mapping operation. Key can be empty.
+- `map(key: Any, value: Any) -> List[Tuple[K, V]]`: Abstract method to define the mapping operation.
 
 ### Reducer[K, V] (subclass of Operator)
 
-Abstract base class for defining reduce operations. Subclass this to create custom reducers.
+Abstract base class for defining reduce operations.
 
 Methods:
-- `reduce(key: K, values: List[V]) -> V`: Abstract method to define the reduce operation. Key can be empty.
+- `reduce(key: K, values: List[V]) -> V`: Abstract method to define the reduce operation.
 
 ### Equality[K]
 
 Abstract base class for defining equality operations used in the reduce step for a fuzzy grouping of keys.
 
 Methods:
-- `precheck(x: K, y: K) -> bool`: Abstract method for a quick check of potential equality. If this returns false, `are_equal` is never run.
-- `are_equal(x: K, y: K) -> bool`: Abstract method to determine if two keys are equal. This can be expensive.
+- `precheck(x: K, y: K) -> bool`: Abstract method for a quick check of potential equality.
+- `are_equal(x: K, y: K) -> bool`: Abstract method to determine if two keys are equal.
 - `get_label(keys: Set[K]) -> Any`: Abstract method to generate a label for a group of keys.
-
-The `precheck` method is an optimization step. It should quickly determine if two keys might be equal, avoiding the potentially more expensive `are_equal` check when keys are clearly not equal. For example, in a fuzzy floating-point comparison, `precheck` might check if the absolute difference is within a larger tolerance, while `are_equal` uses a stricter tolerance.
+- `get_description() -> Optional[str]`: Method to provide a description of the equality operation for tracing.
 
 ## API Usage
 
-### Initializing MapReduce
+### Initializing Dataset
 
 ```python
-mr = MapReduce(input_data, num_workers=None)
+dataset = Dataset(input_data, num_workers=None, enable_tracing=True)
 ```
 
-- `input_data`: A list of input items to process
+- `input_data`: An iterable of key-value pairs to process
 - `num_workers`: Number of worker processes (default: number of CPU cores)
+- `enable_tracing`: Whether to enable operation tracing (default: True)
 
 ### Adding Operations
 
 ```python
-mr.map(mapper: Mapper) -> MapReduce
-mr.reduce(reducer: Reducer, equality: Equality) -> MapReduce
+dataset.map(mapper: Mapper) -> Dataset
+dataset.reduce(reducer: Reducer, equality: Equality) -> Dataset
 ```
 
-Both methods return the MapReduce instance, allowing for method chaining.
+Both methods return the Dataset instance, allowing for method chaining.
 
 ### Executing the Pipeline
 
 ```python
-result = mr.execute()
+result = dataset.execute()
 ```
 
-Returns a list of key-value pairs representing the final output.
+Returns a list of tuples (id, key, value, trace), where trace is an optional dictionary of operation descriptions.
 
 ## Example Implementation
 
@@ -109,15 +112,24 @@ Here's a simple example of how to use the API:
 ```python
 class NumberMapper(Mapper[float, int]):
     def map(self, key: Any, value: int) -> List[Tuple[float, int]]:
-        return [(value / 10, value)]
+        return [(float(value) / 10, value)]
+
+    def get_description(self) -> str:
+        return "Convert value to float key"
 
 class SquareMapper(Mapper[float, int]):
     def map(self, key: float, value: int) -> List[Tuple[float, int]]:
         return [(key, value**2)]
 
+    def get_description(self) -> str:
+        return "Square the value"
+
 class SumReducer(Reducer[float, int]):
     def reduce(self, key: float, values: List[int]) -> int:
         return sum(values)
+
+    def get_description(self) -> str:
+        return "Sum all values"
 
 class FuzzyEquality(Equality[float]):
     def __init__(self, tolerance: float):
@@ -132,10 +144,13 @@ class FuzzyEquality(Equality[float]):
     def get_label(self, keys: Set[float]) -> str:
         return f"[{min(keys):.1f}, {max(keys):.1f}]"
 
+    def get_description(self) -> str:
+        return f"Group keys within {self.tolerance} tolerance"
+
 # Usage
-input_data = list(range(1, 101))
-mr = MapReduce(input_data)
-result = (mr
+input_data = [(None, i) for i in range(1, 101)]
+dataset = Dataset(input_data)
+result = (dataset
     .map(NumberMapper())
     .reduce(SumReducer(), FuzzyEquality(tolerance=0.5))
     .map(SquareMapper())
@@ -160,4 +175,55 @@ class CustomMapper(Mapper[K, V]):
     # ... rest of the implementation
 ```
 
-This allows for fine-grained control over how errors are handled at each stage of the MapReduce pipeline.
+This allows for fine-grained control over how errors are handled at each stage of the data processing pipeline.
+
+## Tracing
+
+The Dataset class supports operation tracing, which can be useful for debugging and understanding the flow of data through your pipeline.
+
+### Enabling/Disabling Tracing
+
+Tracing is enabled by default when creating a Dataset. You can disable it by setting `enable_tracing=False`:
+
+```python
+dataset = Dataset(input_data, enable_tracing=False)
+```
+
+### Trace Information
+
+When tracing is enabled, each item in the result will include a trace dictionary. This dictionary contains descriptions of the operations applied to the data, keyed by operation index.
+
+For example, a trace might look like this:
+
+```python
+{
+    'op_0': 'Convert value to float key',
+    'op_1': 'Sum all values',
+    'op_1_equality': 'Group keys within 0.5 tolerance',
+    'op_2': 'Square the value',
+    'op_3': 'Sum all values',
+    'op_3_equality': 'Group keys within 0.5 tolerance'
+}
+```
+
+This trace shows the sequence of operations applied to the data, including both map and reduce operations, as well as the equality operations used in reductions.
+
+### Implementing Tracing in Custom Operators
+
+To support tracing in your custom Mapper, Reducer, or Equality classes, implement the `get_description()` method:
+
+```python
+class CustomMapper(Mapper[K, V]):
+    def get_description(self) -> str:
+        return "Description of the mapping operation"
+
+class CustomReducer(Reducer[K, V]):
+    def get_description(self) -> str:
+        return "Description of the reducing operation"
+
+class CustomEquality(Equality[K]):
+    def get_description(self) -> str:
+        return "Description of the equality operation"
+```
+
+These descriptions will be included in the trace information when the operations are executed.

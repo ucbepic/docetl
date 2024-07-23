@@ -81,14 +81,10 @@ class KeyResolver(Operator):
         return True  # Default implementation always returns True
 
     def are_equal(self, x: K, y: K) -> bool:
-        if self._use_are_equal:
-            raise NotImplementedError("Implement are_equal method")
-        return self.assign_key(x, [y]) == self.assign_key(y, [x])
+        raise NotImplementedError("Implement are_equal method")
 
     def assign_key(self, key: K, label_keys: List[K]) -> K:
-        if not self._use_are_equal:
-            raise NotImplementedError("Implement assign_key method")
-        return next((label for label in label_keys if self.are_equal(key, label)), key)
+        raise NotImplementedError("Implement assign_key method")
 
     @abstractmethod
     def get_label_key(self, keys: Set[K]) -> K:

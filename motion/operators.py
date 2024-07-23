@@ -59,7 +59,7 @@ class Reducer(Operator, ABC):
 
 
 class KeyResolver(Operator, ABC):
-    compute_embeddings: bool = False
+    compute_embeddings: bool = False  # TODO: implement this
     _use_are_equal: bool = False
 
     def __init__(self):
@@ -88,6 +88,7 @@ class KeyResolver(Operator, ABC):
 
     @abstractmethod
     def get_label_key(self, keys: Set[K]) -> K:
+        # TODO: figure out how to allow embedding-based labels. maybe it's a totally separate class tbh
         pass
 
     def get_embedding(self, key: K) -> Optional[List[float]]:

@@ -29,7 +29,7 @@ class WithinFiveKeyResolver(KeyResolver):
     def are_equal(self, x: int, y: int) -> bool:
         return abs(x - y) <= 5
 
-    def get_label(self, keys: Set[int]) -> int:
+    def get_label_key(self, keys: Set[int]) -> int:
         return sum(keys) / len(keys)  # Return the average of the keys
 
     def validate(self, input_key: int, output_key: int) -> bool:

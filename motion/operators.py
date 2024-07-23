@@ -59,16 +59,47 @@ class Reducer(Operator):
 
 
 class KeyResolver(Operator):
+    compute_embeddings: bool = False
+    _use_are_equal: bool = False
+
+    def __init__(self):
+        self._set_implementation()
+
+    def _set_implementation(self):
+        if (
+            hasattr(self, "are_equal")
+            and self.are_equal.__func__ is not KeyResolver.are_equal
+        ):
+            self._use_are_equal = True
+        elif (
+            not hasattr(self, "assign_key")
+            or self.assign_key.__func__ is KeyResolver.assign_key
+        ):
+            raise NotImplementedError("Implement either are_equal or assign_key")
+
     def precheck(self, x: K, y: K) -> bool:
         return True  # Default implementation always returns True
 
-    @abstractmethod
     def are_equal(self, x: K, y: K) -> bool:
-        pass
+        if self._use_are_equal:
+            raise NotImplementedError("Implement are_equal method")
+        return self.assign_key(x, [y]) == self.assign_key(y, [x])
+
+    def assign_key(self, key: K, label_keys: List[K]) -> K:
+        if not self._use_are_equal:
+            raise NotImplementedError("Implement assign_key method")
+        return next((label for label in label_keys if self.are_equal(key, label)), key)
 
     @abstractmethod
-    def get_label(self, keys: Set[K]) -> K:
+    def get_label_key(self, keys: Set[K]) -> K:
         pass
+
+    def get_embedding(self, key: K) -> Optional[List[float]]:
+        if self.compute_embeddings:
+            raise NotImplementedError(
+                "Embedding computation is not implemented. Set compute_embeddings to True if you want to use this method."
+            )
+        return None
 
     def validate(self, input_key: K, output_key: K) -> bool:
         return True

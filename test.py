@@ -63,10 +63,12 @@ def test_reducer():
 
 # Test KeyResolver
 class TestKeyResolver(KeyResolver):
+    __test__ = False
+
     def are_equal(self, x: int, y: int) -> bool:
         return abs(x - y) <= 1
 
-    def get_label(self, keys: Set[int]) -> int:
+    def get_label_key(self, keys: Set[int]) -> int:
         return min(keys)
 
 

@@ -224,22 +224,34 @@ class Dataset:
             record_id = str(uuid.uuid4())
             groups[key].append((record_id, key, value))
 
-        # Second pass: merge groups based on equality
+        # Second pass: merge groups based on equality or assign keys
         final_groups: Dict[str, List[Tuple[str, str, Any]]] = {}
         for key, records in groups.items():
             merged = False
-            for final_key, final_records in final_groups.items():
-                if operation.operator.precheck(
-                    key, final_key
-                ) and operation.operator.are_equal(final_key, key):
-                    merged = True
-                    merged_keys = {r[1] for r in final_records} | {key}
-                    new_label = operation.operator.get_label(merged_keys)
-                    if new_label != final_key:
-                        # If the label changed, we need to update the dictionary key
-                        final_groups[new_label] = final_groups.pop(final_key)
-                    final_groups[new_label].extend(records)
-                    break
+            eligible_keys = [
+                final_key
+                for final_key in final_groups.keys()
+                if operation.operator.precheck(key, final_key)
+            ]
+            for final_key in eligible_keys:
+                if operation.operator._use_are_equal:
+                    if operation.operator.are_equal(final_key, key):
+                        merged = True
+                        merged_keys = {r[1] for r in final_groups[final_key]} | {key}
+                        new_label = operation.operator.get_label_key(merged_keys)
+                        if new_label != final_key:
+                            # If the label changed, we need to update the dictionary key
+                            final_groups[new_label] = final_groups.pop(final_key)
+                        final_groups[new_label].extend(records)
+                        break
+                else:
+                    new_label = operation.operator.assign_keys(
+                        key, list(final_groups.keys())
+                    )
+                    if new_label != key:
+                        merged = True
+                        final_groups[new_label].extend(records)
+                        break
             if not merged:
                 final_groups[key] = records
 

@@ -1,235 +1,141 @@
 import pytest
-from typing import List, Tuple, Any, Set
-import random
-
-from motion import (
-    Dataset,
-    ValidatorAction,
-    Mapper,
-    Reducer,
-    Equality,
-)
+from typing import List, Tuple, Set
+from motion.dataset import Dataset
+from motion.operators import Mapper, Reducer, KeyResolver, Filterer, FlatMapper
+from motion.types import ValidatorAction
 
 
-class IdentityMapper(Mapper[float, int]):
-    on_fail = ValidatorAction.WARN
+# Test Mapper
+class TestMapper(Mapper):
+    def map(self, key: str, value: int) -> Tuple[str, int]:
+        return (key, value * 2)
 
-    def map(self, key: Any, value: int) -> List[Tuple[float, int]]:
-        return [(float(value), value)]
-
-    def validate(self, key: float, value: int) -> bool:
-        if random.random() < 0.2:
-            return False
-        return 0 <= key <= 10 and 1 <= value <= 100
-
-    def get_description(self) -> str:
-        return "Identity Mapper: Convert value to float key"
+    def validate(
+        self, input_key: str, input_value: int, output_key: str, output_value: int
+    ) -> bool:
+        return output_value == input_value * 2
 
 
-class SquareMapper(Mapper[float, int]):
-    on_fail = ValidatorAction.WARN
-
-    def map(self, key: float, value: int) -> List[Tuple[float, int]]:
-        return [(key, value**2)]
-
-    def validate(self, key: float, value: int) -> bool:
-        return value >= 0
-
-    def get_description(self) -> str:
-        return "Square Mapper: Square the value"
+def test_mapper():
+    data = [("a", 1), ("b", 2), ("c", 3)]
+    dataset = Dataset(data)
+    result = dataset.map(TestMapper()).execute()
+    assert result == [("a", 2), ("b", 4), ("c", 6)]
 
 
-class SumReducer(Reducer[float, int]):
-    on_fail = ValidatorAction.WARN
+# Test FlatMapper
+class TestFlatMapper(FlatMapper):
+    def map(self, key: str, value: int) -> List[Tuple[str, int]]:
+        return [(key, value), (key, value + 1)]
 
-    def reduce(self, key: float, values: List[int]) -> int:
+    def validate(
+        self,
+        key: str,
+        value: int,
+        output_kv_pairs: List[Tuple[str, int]],
+    ) -> bool:
+        return len(output_kv_pairs) == 2 and output_kv_pairs[1][1] == value + 1
+
+
+def test_flatmapper():
+    data = [("a", 1), ("b", 2)]
+    dataset = Dataset(data)
+    result = dataset.flatmap(TestFlatMapper()).execute()
+    print(result)
+    assert result == [("a", 1), ("a", 2), ("b", 2), ("b", 3)]
+
+
+# Test Reducer
+class TestReducer(Reducer):
+    def reduce(self, key: str, values: List[int]) -> int:
         return sum(values)
 
-    def validate(self, key: float, reduced_value: int) -> bool:
-        return 1 <= reduced_value <= 1000000  # Increased upper bound due to squaring
-
-    def get_description(self) -> str:
-        return "Sum Reducer: Sum all values"
+    def validate(self, key: str, input_values: List[int], output_value: int) -> bool:
+        return output_value == sum(input_values)
 
 
-class TrueEquality(Equality[str]):
-    def precheck(self, x, y) -> bool:
-        return True
-
-    def are_equal(self, x, y) -> bool:
-        return True
-
-    def get_label(self, keys) -> str:
-        return list(keys)[0]
+def test_reducer():
+    data = [("a", 1), ("a", 2), ("b", 3), ("b", 4)]
+    dataset = Dataset(data)
+    result = dataset.reduce(TestReducer()).execute()
+    assert result == [("a", 3), ("b", 7)]
 
 
-class FuzzyEquality(Equality[float]):
-    def __init__(self, tolerance: float):
-        self.tolerance = tolerance
+# Test KeyResolver
+class TestKeyResolver(KeyResolver):
+    def are_equal(self, x: int, y: int) -> bool:
+        return abs(x - y) <= 1
 
-    def precheck(self, x: float, y: float) -> bool:
-        return abs(x - y) <= 2 * self.tolerance
-
-    def are_equal(self, x: float, y: float) -> bool:
-        return abs(x - y) <= self.tolerance
-
-    def get_label(self, keys: Set[float]) -> float:
-        min_key = min(keys)
-        max_key = max(keys)
-        return sum(keys) / len(keys)
-
-    def get_description(self) -> str:
-        return f"Fuzzy Equality: Group keys within {self.tolerance} tolerance"
+    def get_label(self, keys: Set[int]) -> int:
+        return min(keys)
 
 
-@pytest.fixture
-def input_data():
-    return list(range(1, 10))  # Numbers from 1 to 9
+def test_key_resolver():
+    data = [(1, "a"), (2, "b"), (3, "c"), (5, "d")]
+    dataset = Dataset(data)
+    result = dataset.resolve_keys(TestKeyResolver()).execute()
+    assert set(result) == {(1, "a"), (1, "b"), (3, "c"), (5, "d")}
 
 
-@pytest.fixture
-def keyed_data():
-    return [(1, elem) for elem in list(range(1, 10))]
+# Test Filterer
+class TestFilterer(Filterer):
+    def filter(self, key: str, value: int) -> bool:
+        return value % 2 == 0
 
 
-def test_identity_mapper():
-    mapper = IdentityMapper()
-    result = mapper.map(None, 5)
-    assert result == [(5.0, 5)]
+def test_filterer():
+    data = [("a", 1), ("b", 2), ("c", 3), ("d", 4)]
+    dataset = Dataset(data)
+    result = dataset.filter(TestFilterer()).execute()
+    assert result == [("b", 2), ("d", 4)]
 
 
-def test_square_mapper():
-    mapper = SquareMapper()
-    result = mapper.map(2.0, 5)
-    assert result == [(2.0, 25)]
+class TestMapper2(Mapper):
+    def map(self, key: str, value: int) -> Tuple[str, int]:
+        if value % 2 == 0:
+            return ("even", value)
+        return ("odd", value)
 
 
-def test_sum_reducer():
-    reducer = SumReducer()
-    result = reducer.reduce(1.0, [1, 2, 3, 4, 5])
-    assert result == 15
+class TestReducer2(Reducer):
+    def reduce(self, key: str, values: List[int]) -> int:
+        return sum(values)
 
 
-def test_fuzzy_equality():
-    equality = FuzzyEquality(tolerance=1.0)
-    assert equality.are_equal(1.0, 1.5)
-    assert not equality.are_equal(1.0, 2.5)
-
-
-def test_dataset_map(input_data):
-    dataset = Dataset(input_data)
-    result = dataset.map(IdentityMapper()).execute()
-    assert len(result) == len(input_data)
-    for _, key, value, _ in result:
-        assert isinstance(key, float)
-        assert isinstance(value, int)
-
-
-def test_dataset_reduce(input_data):
-    dataset = Dataset(input_data)
-    result = dataset.reduce(SumReducer(), TrueEquality()).execute()
-    assert len(result) == 1  # All inputs should be reduced to one group
-    _, key, value, _ = result[0]
-    assert isinstance(key, str)
-    assert value == sum(input_data)
-
-
-def test_dataset_map_reduce(input_data):
-    dataset = Dataset(input_data)
+# Test chaining operations
+def test_chained_operations():
+    data = [("a", 1), ("b", 2), ("c", 3), ("d", 4), ("e", 5)]
+    dataset = Dataset(data)
     result = (
-        dataset.map(IdentityMapper())
-        .reduce(SumReducer(), FuzzyEquality(tolerance=2))
-        .map(SquareMapper())
-        .reduce(SumReducer(), FuzzyEquality(tolerance=5))
+        dataset.map(TestMapper2())
+        .reduce(TestReducer2())
+        .filter(TestFilterer())
         .execute()
     )
-    assert len(result) == 2
-    _, _, value, _ = result[0]
-    expected_value = 261
-    assert value == expected_value
+    assert result == [("even", 6)]
 
 
-def test_tracing_enabled(input_data):
-    dataset = Dataset(input_data, enable_tracing=True)
-    result = (
-        dataset.map(IdentityMapper())
-        .reduce(SumReducer(), FuzzyEquality(tolerance=2))
-        .execute()
-    )
-    _, _, _, trace = result[0]
-    assert trace is not None
-    assert "op_0" in trace
-    assert "op_1" in trace
+# Test error handling
+class ErrorMapper(Mapper):
+    def map(self, key: str, value: int) -> Tuple[str, int]:
+        if value == 2:
+            raise ValueError("Error processing value 2")
+        return (key, value * 2)
 
+    def validate(
+        self, input_key: str, input_value: int, output_key: str, output_value: int
+    ) -> bool:
+        return output_value != 4  # Fail validation for input value 2
 
-def test_tracing_disabled(input_data):
-    dataset = Dataset(input_data, enable_tracing=False)
-    result = (
-        dataset.map(IdentityMapper())
-        .reduce(SumReducer(), FuzzyEquality(tolerance=2))
-        .execute()
-    )
-    _, _, _, trace = result[0]
-    assert trace is None
-
-
-class AlwaysFailMapper(Mapper[int, int]):
-    on_fail = ValidatorAction.WARN
-
-    def map(self, key: Any, value: int) -> List[Tuple[int, int]]:
-        return [(value, value)]
-
-    def validate(self, key: int, value: int) -> bool:
-        return False
-
-    def get_description(self) -> str:
-        return "Always Fail Mapper"
-
-
-def test_validation_warning(input_data, capsys):
-
-    dataset = Dataset(input_data)
-    dataset.map(AlwaysFailMapper()).execute()
-    captured = capsys.readouterr()
-    assert "Warning: Validation failed" in captured.err
-
-
-class PromptMapper(Mapper[int, int]):
-    on_fail = ValidatorAction.PROMPT
-
-    def map(self, key: Any, value: int) -> List[Tuple[int, int]]:
-        return [(value, value)]
-
-    def validate(self, key: int, value: int) -> bool:
-        return False
-
-    def get_description(self) -> str:
-        return "Prompt Mapper"
-
-
-# TODO: fix this
-# def test_validation_prompt(input_data, monkeypatch):
-#     monkeypatch.setattr("builtins.input", lambda _: '{"some_id": 42}')
-#     dataset = Dataset(input_data)
-#     result = dataset.map(PromptMapper()).execute()
-#     assert any(value == 42 for _, _, value, _ in result)
-
-
-class FailMapper(Mapper[int, int]):
     on_fail = ValidatorAction.FAIL
 
-    def map(self, key: Any, value: int) -> List[Tuple[int, int]]:
-        return [(value, value)]
 
-    def validate(self, key: int, value: int) -> bool:
-        return False
-
-    def get_description(self) -> str:
-        return "Fail Mapper"
-
-
-def test_validation_fail(input_data):
-
-    dataset = Dataset(input_data)
+def test_error_handling():
+    data = [("a", 1), ("b", 2), ("c", 3)]
+    dataset = Dataset(data)
     with pytest.raises(ValueError):
-        dataset.map(FailMapper()).execute()
+        dataset.map(ErrorMapper()).execute()
+
+
+if __name__ == "__main__":
+    test_chained_operations()

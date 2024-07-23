@@ -10,7 +10,7 @@ class Operator(ABC):
         return None  # Default implementation returns None
 
 
-class Mapper(Operator):
+class Mapper(Operator, ABC):
     @abstractmethod
     def map(self, key: Any, value: Any) -> Tuple[K, V]:
         pass
@@ -29,7 +29,7 @@ class Mapper(Operator):
         )  # Default implementation returns original output
 
 
-class FlatMapper(Mapper):
+class FlatMapper(Mapper, ABC):
     @abstractmethod
     def map(self, key: Any, value: Any) -> List[Tuple[K, V]]:
         pass
@@ -43,7 +43,7 @@ class FlatMapper(Mapper):
         return mapped_kv_pairs
 
 
-class Reducer(Operator):
+class Reducer(Operator, ABC):
     @abstractmethod
     def reduce(self, key: K, values: List[V]) -> V:
         pass
@@ -58,7 +58,7 @@ class Reducer(Operator):
         )  # Default implementation returns original key and output value
 
 
-class KeyResolver(Operator):
+class KeyResolver(Operator, ABC):
     compute_embeddings: bool = False
     _use_are_equal: bool = False
 
@@ -104,7 +104,7 @@ class KeyResolver(Operator):
         return output_key
 
 
-class Filterer(Operator):
+class Filterer(Operator, ABC):
     @abstractmethod
     def filter(self, key: K, value: V) -> bool:
         pass

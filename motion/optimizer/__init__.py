@@ -1,11 +1,12 @@
-from motion.operators import Operator
+from motion.workers import Operation
 from typing import List, Tuple, Any
 
 
 def optimize(
-    operator: Operator,
+    operation: Operation,
     sample_data: List[Tuple[Any, Any]],
     errors: List[Tuple[str, Any, int]],
-) -> Operator:
+    num_workers: int,
+) -> Operation:
     """Optimize the given operator."""
-    return operator
+    return operation

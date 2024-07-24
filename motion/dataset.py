@@ -1,3 +1,4 @@
+import random
 import sys
 import json
 import multiprocessing
@@ -17,7 +18,9 @@ from motion.operators import (
 
 
 class Operation:
-    def __init__(self, operator: Union[Mapper, Reducer, KeyResolver]):
+    def __init__(
+        self, operator: Union[Mapper, Reducer, KeyResolver, FlatMapper, Filterer]
+    ):
         self.operator = operator
 
 
@@ -30,12 +33,13 @@ class Dataset:
         self.data = list(data)
         self.num_workers = num_workers or multiprocessing.cpu_count()
         self.operations: List[Operation] = []
+        self.optimized_operations: List[Operation] = []
 
     def map(self, mapper: Mapper) -> "Dataset":
         self.operations.append(Operation(mapper))
         return self
 
-    def flatmap(self, flatmapper: FlatMapper) -> "Dataset":
+    def flat_map(self, flatmapper: FlatMapper) -> "Dataset":
         self.operations.append(Operation(flatmapper))
         return self
 
@@ -51,9 +55,45 @@ class Dataset:
         self.operations.append(Operation(filterer))
         return self
 
-    def execute(self) -> List[Tuple[str, Any, Any]]:
-        current_data = self.data
+    def build(self, sample_size: int = 1000) -> "Dataset":
+        # Sample the data
+        sample_data = random.sample(self.data, min(sample_size, len(self.data)))
+
+        optimized_operations = []
+
         for operation in self.operations:
+            # Apply the operation to the sample data
+            try:
+                result, errors = self._apply_operation(sample_data, operation)
+
+                if errors:
+                    # If there are validation errors, attempt to optimize the operation
+                    optimized_operation = optimize(operation, sample_data, errors)
+                    optimized_operations.append(optimized_operation)
+                    sample_data = result
+                else:
+                    # If no errors, keep the original operation
+                    optimized_operations.append(operation)
+                    sample_data = result
+
+            except Exception as e:
+                print(
+                    f"Error applying operation: {str(e)}. Keeping original operation."
+                )
+                optimized_operations.append(operation)
+
+        # Update the operations with the optimized version
+        self.optimized_operations = optimized_operations
+
+        return self
+
+    def execute(self) -> List[Tuple[str, Any, Any]]:
+        ops = (
+            self.optimized_operations if self.optimized_operations else self.operations
+        )
+
+        current_data = self.data
+        for operation in ops:
             current_data = self._apply_operation(current_data, operation)
         return current_data
 

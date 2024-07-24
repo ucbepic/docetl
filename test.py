@@ -1,7 +1,14 @@
 import pytest
-from typing import List, Tuple, Set
+from typing import List, Tuple, Set, Callable
 from motion.dataset import Dataset
-from motion.operators import Mapper, Reducer, KeyResolver, Filterer, FlatMapper
+from motion.operators import (
+    Mapper,
+    Reducer,
+    KeyResolver,
+    Filterer,
+    FlatMapper,
+    ParallelFlatMapper,
+)
 from motion.types import ValidatorAction
 
 
@@ -40,7 +47,7 @@ class TestFlatMapper(FlatMapper):
 def test_flatmapper():
     data = [("a", 1), ("b", 2)]
     dataset = Dataset(data)
-    result = dataset.flatmap(TestFlatMapper()).execute()
+    result = dataset.flat_map(TestFlatMapper()).execute()
     print(result)
     assert result == [("a", 1), ("a", 2), ("b", 2), ("b", 3)]
 
@@ -137,6 +144,36 @@ def test_error_handling():
     dataset = Dataset(data)
     with pytest.raises(ValueError):
         dataset.map(ErrorMapper()).execute()
+
+
+# Test ParallelFlatMapper
+class TestParallelFlatMapper(ParallelFlatMapper):
+    def get_mappers(self) -> List[Callable[[str, int], Tuple[str, int]]]:
+        return [
+            lambda k, v: (k + "_1", v * 2),
+            lambda k, v: (k + "_2", v * 3),
+            lambda k, v: (k + "_3", v * 4),
+        ]
+
+
+def test_parallel_flat_mapper():
+    data = [("a", 1), ("b", 2), ("c", 3)]
+    dataset = Dataset(data)
+    result = dataset.flat_map(TestParallelFlatMapper()).execute()
+
+    expected = [
+        ("a_1", 2),
+        ("a_2", 3),
+        ("a_3", 4),
+        ("b_1", 4),
+        ("b_2", 6),
+        ("b_3", 8),
+        ("c_1", 6),
+        ("c_2", 9),
+        ("c_3", 12),
+    ]
+
+    assert sorted(result) == sorted(expected)
 
 
 if __name__ == "__main__":

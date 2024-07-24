@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, Any, Tuple, Set, Optional
+from typing import List, Any, Tuple, Set, Optional, Callable
 from motion.types import ValidatorAction, K, V
+from concurrent.futures import ThreadPoolExecutor
 
 
 class Operator(ABC):
@@ -41,6 +42,19 @@ class FlatMapper(Mapper, ABC):
         self, key: K, value: V, mapped_kv_pairs: List[Tuple[K, V]]
     ) -> List[Tuple[K, V]]:
         return mapped_kv_pairs
+
+
+# Create a type of FlatMapper that employs many map calls in parallel
+class ParallelFlatMapper(FlatMapper):
+    @abstractmethod
+    def get_mappers(self) -> List[Callable[[K, V], Tuple[K, V]]]:
+        pass
+
+    def map(self, key: K, value: V) -> List[Tuple[K, V]]:
+        mappers = self.get_mappers()
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(lambda f: f(key, value), mappers))
+        return results
 
 
 class Reducer(Operator, ABC):

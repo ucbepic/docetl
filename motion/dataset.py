@@ -16,6 +16,8 @@ from motion.operators import (
     Filterer,
 )
 
+from motion.optimizer import optimize
+
 
 class Operation:
     def __init__(

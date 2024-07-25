@@ -21,6 +21,7 @@ from motion.executor.workers import (
     split_worker,
 )
 from motion.executor.validation import handle_validation_errors
+from tqdm import tqdm
 
 
 def apply_operation(
@@ -45,7 +46,7 @@ def apply_operation(
 
             processed_data = []
             errors = []
-            for future in futures:
+            for future in tqdm(futures, total=len(futures), desc="Flatmapping..."):
                 result, error = future.result()
                 processed_data.extend(result)
                 errors.extend(error)
@@ -61,7 +62,7 @@ def apply_operation(
 
             processed_data = []
             errors = []
-            for future in futures:
+            for future in tqdm(futures, total=len(futures), desc="Splitting..."):
                 result, error = future.result()
                 processed_data.extend(result)
                 errors.extend(error)
@@ -77,7 +78,7 @@ def apply_operation(
 
             processed_data = []
             errors = []
-            for future in futures:
+            for future in tqdm(futures, total=len(futures), desc="Mapping..."):
                 result, error = future.result()
                 processed_data.extend(result)
                 errors.extend(error)
@@ -93,7 +94,10 @@ def apply_operation(
 
             processed_data = []
             errors = []
-            results = [future.result() for future in futures]
+            results = [
+                future.result()
+                for future in tqdm(futures, total=len(futures), desc="Filtering...")
+            ]
             for result, error in results:
                 processed_data.extend(result)
                 errors.extend(error)

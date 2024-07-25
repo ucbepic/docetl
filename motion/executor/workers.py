@@ -10,8 +10,7 @@ from motion.operators import (
     LLMListKeyResolver,
 )
 from motion.executor.operation import Operation
-from motion.executor.utils import chunk_data
-from motion.executor.validation import handle_validation_errors
+from tqdm import tqdm
 
 
 def map_worker(
@@ -192,7 +191,9 @@ def reduce_worker(
         for key, values in grouped_data.items():
             futures.append(executor.submit(process_key, key, values, operation))
 
-        for future in as_completed(futures):
+        for future in tqdm(
+            as_completed(futures), total=len(futures), desc="Reducing..."
+        ):
             record_id, key, reduced_value, p_and_r, is_valid = future.result()
 
             result.append(
@@ -235,7 +236,7 @@ def resolve_keys_worker(
 
     # Second pass: merge groups based on equality or assign keys
     final_groups: Dict[str, List[Tuple[str, K, V, Dict]]] = {}
-    for key, records in groups.items():
+    for key, records in tqdm(groups.items(), desc="Resolving keys..."):
         eligible_keys = [
             final_key
             for final_key in final_groups.keys()

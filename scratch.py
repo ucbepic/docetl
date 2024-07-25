@@ -147,7 +147,12 @@ result = (
 )
 
 # Print results
+
+
 for category, story in result:
     print(f"\nCategory: {category}")
     print(f"Story: {story}")
     print("-" * 50)
+
+# Print the number of categories
+print(f"Number of categories: {len(result)}")

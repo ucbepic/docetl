@@ -30,21 +30,47 @@ OpFilterOutput = namedtuple(
 
 OpError = namedtuple(
     "OpError",
-    ["id", "old_key", "old_value", "prompt", "response", "new_key", "new_value"],
+    [
+        "id",
+        "old_key",
+        "old_value",
+        "prompt",
+        "response",
+        "new_key",
+        "new_value",
+        "error_msg",
+    ],
 )
 
 OpFlatError = namedtuple(
     "OpFlatError",
-    ["id", "old_key", "old_value", "prompt", "response", "new_key_value_pairs"],
+    [
+        "id",
+        "old_key",
+        "old_value",
+        "prompt",
+        "response",
+        "new_key_value_pairs",
+        "error_msg",
+    ],
 )
 
 OpParallelFlatError = namedtuple(
     "OpParallelFlatError",
-    ["id", "old_key", "old_value", "prompts", "responses", "new_key_value_pairs"],
+    [
+        "id",
+        "old_key",
+        "old_value",
+        "prompts",
+        "responses",
+        "new_key_value_pairs",
+        "error_msg",
+    ],
 )
 
 OpReduceError = namedtuple(
-    "OpReduceError", ["id", "old_key", "old_values", "prompt", "response", "new_value"]
+    "OpReduceError",
+    ["id", "old_key", "old_values", "prompt", "response", "new_value", "error_msg"],
 )
 
 OpInput = namedtuple("OpInput", ["key", "value"])

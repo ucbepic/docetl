@@ -10,6 +10,7 @@ class LLMMapper(Operator, ABC):
     def __init__(self, model: str, **llm_kwargs):
         self.model = model
         self.llm_kwargs = llm_kwargs
+        super().__init__()
 
     @abstractmethod
     def generate_prompt(self, key: K, value: V) -> list:
@@ -29,8 +30,8 @@ class LLMMapper(Operator, ABC):
 
     def validate(
         self, input_key: K, input_value: V, output_key: RK, output_value: RV
-    ) -> bool:
-        return True
+    ) -> None:
+        pass
 
     def correct(
         self, input_key: K, input_value: V, output_key: RK, output_value: RV
@@ -42,6 +43,7 @@ class LLMFlatMapper(Operator, ABC):
     def __init__(self, model: str, **llm_kwargs):
         self.model = model
         self.llm_kwargs = llm_kwargs
+        super().__init__()
 
     @abstractmethod
     def generate_prompt(self, key: K, value: V) -> list:
@@ -59,8 +61,8 @@ class LLMFlatMapper(Operator, ABC):
             "response": response,
         }
 
-    def validate(self, key: K, value: V, mapped_kv_pairs: List[Tuple[RK, RV]]) -> bool:
-        return True
+    def validate(self, key: K, value: V, mapped_kv_pairs: List[Tuple[RK, RV]]) -> None:
+        pass
 
     def correct(
         self, key: K, value: V, mapped_kv_pairs: List[Tuple[RK, RV]]
@@ -86,8 +88,8 @@ class LLMParallelFlatMapper(Operator, ABC):
         responses = [result[1]["response"] for result in results]
         return return_values, {"prompts": prompts, "responses": responses}
 
-    def validate(self, key: K, value: V, mapped_kv_pairs: List[Tuple[RK, RV]]) -> bool:
-        return True
+    def validate(self, key: K, value: V, mapped_kv_pairs: List[Tuple[RK, RV]]) -> None:
+        pass
 
     def correct(
         self, key: K, value: V, mapped_kv_pairs: List[Tuple[RK, RV]]

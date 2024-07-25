@@ -10,6 +10,7 @@ class LLMFilterer(Operator, ABC):
     def __init__(self, model: str, **llm_kwargs):
         self.model = model
         self.llm_kwargs = llm_kwargs
+        super().__init__()
 
     @abstractmethod
     def generate_prompt(self, key: K, value: V) -> list:
@@ -27,8 +28,8 @@ class LLMFilterer(Operator, ABC):
             "response": response,
         }
 
-    def validate(self, key: K, value: V, output: bool) -> bool:
-        return True
+    def validate(self, key: K, value: V, output: bool) -> None:
+        pass
 
     def correct(self, key: K, value: V, output: bool) -> bool:
         return output

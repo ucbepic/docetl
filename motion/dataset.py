@@ -60,6 +60,7 @@ class Dataset:
         for operation in self.operations:
             # Apply the operation to the sample data
             try:
+                operation.operator.set_build_phase(True)
                 result, errors, cost = apply_operation(
                     sample_data, operation, self.num_workers, building=True
                 )
@@ -69,6 +70,7 @@ class Dataset:
                     optimized_operation, sample_data = optimize(
                         operation,
                         sample_data,
+                        result,
                         errors,
                         self.num_workers,
                     )
@@ -83,6 +85,8 @@ class Dataset:
                     f"Error applying operation: {str(e)}. Keeping original operation."
                 )
                 optimized_operations.append(operation)
+            finally:
+                operation.operator.set_build_phase(False)
 
         # Update the operations with the optimized version
         self.optimized_operations = optimized_operations

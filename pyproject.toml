@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "motion"
+version = "0.1.0"
+description = "ETL with LLM operations."
+authors = ["Shreya Shankar <ss.shankar505@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+    { include = "motion" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+litellm = "^1.42.1"
+tqdm = "^4.66.4"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.2"
+python-dotenv = "^1.0.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

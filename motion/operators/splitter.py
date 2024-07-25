@@ -27,11 +27,11 @@ class Splitter(Operator, ABC):
 
 class ChunkSplitter(Splitter):
     def __init__(self, chunk_size: int, overlap_size: int = 0, model: str = "gpt-4o"):
-        super().__init__()
         self.chunk_size = chunk_size
         self.overlap_size = overlap_size
         self.model = model
         self.encoder = tiktoken.encoding_for_model(model)
+        super().__init__()
 
     def split(self, key: K, value: V) -> List[Tuple[RK, RV]]:
         if not isinstance(value, str):

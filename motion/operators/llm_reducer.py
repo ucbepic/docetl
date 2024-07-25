@@ -9,6 +9,7 @@ class LLMReducer(Operator, ABC):
     def __init__(self, model: str, **llm_kwargs):
         self.model = model
         self.llm_kwargs = llm_kwargs
+        super().__init__()
 
     @abstractmethod
     def generate_prompt(self, key: K, values: List[V]) -> list:
@@ -26,8 +27,8 @@ class LLMReducer(Operator, ABC):
             "response": response,
         }
 
-    def validate(self, key: K, input_values: List[V], output_value: RV) -> bool:
-        return True
+    def validate(self, key: K, input_values: List[V], output_value: RV) -> None:
+        pass
 
     def correct(self, key: K, input_values: List[V], output_value: RV) -> Tuple[K, V]:
         return key, output_value

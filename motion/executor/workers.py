@@ -32,7 +32,9 @@ def map_worker(
                 new_value=new_value,
             )
         )
-        if not operation.operator.validate(key, value, new_key, new_value):
+        try:
+            operation.operator.validate(key, value, new_key, new_value)
+        except Exception as e:
             errors.append(
                 OpError(
                     id=record_id,
@@ -42,6 +44,7 @@ def map_worker(
                     response=p_and_r["response"],
                     new_key=new_key,
                     new_value=new_value,
+                    error_msg=str(e),
                 )
             )
     return results, errors
@@ -66,7 +69,9 @@ def filter_worker(
                 filter=result,
             )
         )
-        if not operation.operator.validate(key, value, result):
+        try:
+            operation.operator.validate(key, value, result)
+        except Exception as e:
             errors.append(
                 OpError(
                     id=record_id,
@@ -76,6 +81,7 @@ def filter_worker(
                     response=p_and_r["response"],
                     new_key=key,
                     new_value=result,
+                    error_msg=str(e),
                 )
             )
     return results, errors
@@ -107,7 +113,9 @@ def flatmap_worker(
             output_type(id=record_id, **p_and_r, new_key_value_pairs=mapped_kv_pairs)
         )
 
-        if not operation.operator.validate(key, value, mapped_kv_pairs):
+        try:
+            operation.operator.validate(key, value, mapped_kv_pairs)
+        except Exception as e:
             if isinstance(operation.operator, LLMParallelFlatMapper):
                 errors.append(
                     error_type(
@@ -117,6 +125,7 @@ def flatmap_worker(
                         new_key_value_pairs=mapped_kv_pairs,
                         prompts=p_and_r["prompts"],
                         responses=p_and_r["responses"],
+                        error_msg=str(e),
                     )
                 )
             elif isinstance(operation.operator, LLMFlatMapper):
@@ -128,6 +137,7 @@ def flatmap_worker(
                         new_key_value_pairs=mapped_kv_pairs,
                         prompt=p_and_r["prompt"],
                         response=p_and_r["response"],
+                        error_msg=str(e),
                     )
                 )
 
@@ -154,7 +164,9 @@ def split_worker(
             )
         )
 
-        if not operation.operator.validate(key, value, split_kv_pairs):
+        try:
+            operation.operator.validate(key, value, split_kv_pairs)
+        except Exception as e:
             errors.append(
                 OpFlatError(
                     id=record_id,
@@ -163,6 +175,7 @@ def split_worker(
                     new_key_value_pairs=split_kv_pairs,
                     prompt=None,
                     response=None,
+                    error_msg=str(e),
                 )
             )
 
@@ -183,8 +196,20 @@ def reduce_worker(
     def process_key(key, values, operation):
         record_id = str(uuid.uuid4())
         reduced_value, p_and_r = operation.operator.execute(key, list(values))
-        is_valid = operation.operator.validate(key, list(values), reduced_value)
-        return record_id, key, reduced_value, p_and_r, is_valid
+        try:
+            operation.operator.validate(key, list(values), reduced_value)
+            is_valid = True
+        except Exception as e:
+            is_valid = False
+            error_msg = str(e)
+        return (
+            record_id,
+            key,
+            reduced_value,
+            p_and_r,
+            is_valid,
+            error_msg if not is_valid else None,
+        )
 
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = []
@@ -194,7 +219,9 @@ def reduce_worker(
         for future in tqdm(
             as_completed(futures), total=len(futures), desc="Reducing..."
         ):
-            record_id, key, reduced_value, p_and_r, is_valid = future.result()
+            record_id, key, reduced_value, p_and_r, is_valid, error_msg = (
+                future.result()
+            )
 
             result.append(
                 OpOutput(
@@ -211,10 +238,11 @@ def reduce_worker(
                     OpReduceError(
                         id=record_id,
                         old_key=key,
-                        old_values=list(values),
+                        old_values=list(grouped_data[key]),
                         prompt=p_and_r["prompt"],
                         response=p_and_r["response"],
                         new_value=reduced_value,
+                        error_msg=error_msg,
                     )
                 )
 
@@ -287,7 +315,9 @@ def resolve_keys_worker(
                     new_value=value,
                 )
             )
-            if not operation.operator.validate(original_key, final_key):
+            try:
+                operation.operator.validate(original_key, final_key, value)
+            except Exception as e:
                 errors.append(
                     OpError(
                         id=record_id,
@@ -297,6 +327,7 @@ def resolve_keys_worker(
                         response=p_and_r["response"],
                         new_key=final_key,
                         new_value=value,
+                        error_msg=str(e),
                     )
                 )
 

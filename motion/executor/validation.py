@@ -33,6 +33,7 @@ def handle_validation_errors(
                     prompts,
                     responses,
                     output_kv_pairs,
+                    error_msg,
                 ) = error
                 print(
                     f"  - ID: {record_id}, Input: ({input_key}, {input_value})",
@@ -46,10 +47,17 @@ def handle_validation_errors(
                         f"    Output: ({output_key}, {output_value})",
                         file=sys.stderr,
                     )
+                print(f"    Error: {error.error_msg}", file=sys.stderr)
             elif isinstance(operator, LLMFlatMapper):
-                record_id, input_key, input_value, prompt, response, output_kv_pairs = (
-                    error
-                )
+                (
+                    record_id,
+                    input_key,
+                    input_value,
+                    prompt,
+                    response,
+                    output_kv_pairs,
+                    error_msg,
+                ) = error
                 print(
                     f"  - ID: {record_id}, Input: ({input_key}, {input_value})",
                     file=sys.stderr,
@@ -61,6 +69,7 @@ def handle_validation_errors(
                         f"    Output: ({output_key}, {output_value})",
                         file=sys.stderr,
                     )
+                print(f"    Error: {error.error_msg}", file=sys.stderr)
             elif isinstance(operator, LLMMapper):
                 (
                     record_id,
@@ -70,6 +79,7 @@ def handle_validation_errors(
                     response,
                     output_key,
                     output_value,
+                    error_msg,
                 ) = error
                 print(
                     f"  - ID: {record_id}, Input: ({input_key}, {input_value}), Output: ({output_key}, {output_value})",
@@ -77,24 +87,43 @@ def handle_validation_errors(
                 )
                 print(f"    Prompt: {prompt}", file=sys.stderr)
                 print(f"    Response: {response}", file=sys.stderr)
+                print(f"    Error: {error.error_msg}", file=sys.stderr)
             elif isinstance(operator, LLMReducer):
-                record_id, key, input_values, prompt, response, output_value = error
+                (
+                    record_id,
+                    key,
+                    input_values,
+                    prompt,
+                    response,
+                    output_value,
+                    error_msg,
+                ) = error
                 print(
                     f"  - ID: {record_id}, Key: {key}, Input Values: {input_values}, Output: {output_value}",
                     file=sys.stderr,
                 )
                 print(f"    Prompt: {prompt}", file=sys.stderr)
                 print(f"    Response: {response}", file=sys.stderr)
+                print(f"    Error: {error.error_msg}", file=sys.stderr)
             elif isinstance(operator, KeyResolver):
-                record_id, input_key, output_key, prompt, response = error
+                record_id, input_key, output_key, prompt, response, error_msg = error
                 print(
                     f"  - ID: {record_id}, Input Key: {input_key}, Resolved Key: {output_key}",
                     file=sys.stderr,
                 )
                 print(f"    Prompt: {prompt}", file=sys.stderr)
                 print(f"    Response: {response}", file=sys.stderr)
+                print(f"    Error: {error.error_msg}", file=sys.stderr)
             elif isinstance(operator, LLMFilterer):
-                record_id, input_key, input_value, prompt, response, output = error
+                (
+                    record_id,
+                    input_key,
+                    input_value,
+                    prompt,
+                    response,
+                    output,
+                    error_msg,
+                ) = error
                 print(
                     f"  - ID: {record_id}, Input: ({input_key}, {input_value})",
                     file=sys.stderr,
@@ -102,6 +131,7 @@ def handle_validation_errors(
                 print(f"    Prompt: {prompt}", file=sys.stderr)
                 print(f"    Response: {response}", file=sys.stderr)
                 print(f"    Filtered: {'True' if output else 'False'}", file=sys.stderr)
+                print(f"    Error: {error.error_msg}", file=sys.stderr)
 
         print(
             "\nEnter corrections as a JSON dictionary mapping ID to [new_key, new_value] for Mapper, [[new_key1, new_value1], [new_key2, new_value2], ...] for FlatMapper, [new_value] for Reducer, or [new_key] for KeyResolver, or press Enter to skip:",
@@ -171,37 +201,43 @@ def handle_validation_errors(
                 )
                 error_messages.append(
                     f"Warning: Validation failed for ID: {error.id}, Input: ({error.old_key}, {error.old_value}), Output: {error.new_key_value_pairs}\n"
-                    f"{prompts_responses}"
+                    f"{prompts_responses}\n"
+                    f"\tError: {error.error_msg}"
                 )
             elif isinstance(operator, LLMFlatMapper):
                 error_messages.append(
                     f"Warning: Validation failed for ID: {error.id}, Input: ({error.old_key}, {error.old_value}), Output: {error.new_key_value_pairs}\n"
                     f"\tPrompt: {error.prompt}\n"
-                    f"\tResponse: {error.response}"
+                    f"\tResponse: {error.response}\n"
+                    f"\tError: {error.error_msg}"
                 )
             elif isinstance(operator, LLMMapper):
                 error_messages.append(
                     f"Warning: Validation failed for ID: {error.id}, Input: ({error.old_key}, {error.old_value}), Output: ({error.new_key}, {error.new_value})\n"
                     f"\tPrompt: {error.prompt}\n"
-                    f"\tResponse: {error.response}"
+                    f"\tResponse: {error.response}\n"
+                    f"\tError: {error.error_msg}"
                 )
             elif isinstance(operator, LLMReducer):
                 error_messages.append(
                     f"Warning: Validation failed for ID: {error.id}, Key: {error.old_key}, Input Values: {error.old_values}, Output: {error.new_value}\n"
                     f"\tPrompt: {error.prompt}\n"
-                    f"\tResponse: {error.response}"
+                    f"\tResponse: {error.response}\n"
+                    f"\tError: {error.error_msg}"
                 )
             elif isinstance(operator, KeyResolver):
                 error_messages.append(
                     f"Warning: Validation failed for ID: {error.id}, Input Key: {error.old_key}, Resolved Key: {error.new_key}\n"
                     f"\tPrompt: {error.prompt}\n"
-                    f"\tResponse: {error.response}"
+                    f"\tResponse: {error.response}\n"
+                    f"\tError: {error.error_msg}"
                 )
             elif isinstance(operator, LLMFilterer):
                 error_messages.append(
                     f"Warning: Validation failed for ID: {error.id}, Input: ({error.old_key}, {error.old_value}), Output: {error.new_value}\n"
                     f"\tPrompt: {error.prompt}\n"
-                    f"\tResponse: {error.response}"
+                    f"\tResponse: {error.response}\n"
+                    f"\tError: {error.error_msg}"
                 )
         if action == ValidatorAction.WARN:
             # Just print

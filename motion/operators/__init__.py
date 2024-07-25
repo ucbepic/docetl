@@ -7,7 +7,7 @@ from motion.operators.key_resolver import (
 )
 from motion.operators.llm_filterer import LLMFilterer
 from motion.operators.splitter import Splitter
-from motion.operators.base_operator import Operator
+from motion.operators.base_operator import Operator, build_only
 
 __all__ = [
     "Operator",
@@ -20,4 +20,5 @@ __all__ = [
     "Splitter",
     "LLMPairwiseKeyResolver",
     "LLMListKeyResolver",
+    "build_only",
 ]

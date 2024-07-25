@@ -22,8 +22,8 @@ class KeyResolver(Operator, ABC):
             )
         return None
 
-    def validate(self, input_key: K, output_key: K) -> bool:
-        return True
+    def validate(self, input_key: K, output_key: K) -> None:
+        pass
 
     def correct(self, input_key: K, output_key: K) -> K:
         return output_key
@@ -39,6 +39,7 @@ class LLMPairwiseKeyResolver(PairwiseKeyResolver):
     def __init__(self, model: str, **llm_kwargs):
         self.model = model
         self.llm_kwargs = llm_kwargs
+        super().__init__()
 
     def generate_prompt(self, x: K, y: K) -> list:
         return [
@@ -69,8 +70,8 @@ class LLMPairwiseKeyResolver(PairwiseKeyResolver):
     def execute(self, x: K, y: K) -> Tuple[bool, Dict]:
         return self.are_equal(x, y)
 
-    def validate(self, input_key: K, output_key: K) -> bool:
-        return True
+    def validate(self, input_key: K, output_key: K) -> None:
+        pass
 
     def correct(self, input_key: K, output_key: K) -> K:
         return output_key
@@ -86,6 +87,7 @@ class LLMListKeyResolver(ListKeyResolver):
     def __init__(self, model: str, **llm_kwargs):
         self.model = model
         self.llm_kwargs = llm_kwargs
+        super().__init__()
 
     def generate_prompt(self, key: K, label_keys: List[K]) -> list:
         return [
@@ -114,8 +116,8 @@ class LLMListKeyResolver(ListKeyResolver):
     def execute(self, key: K, label_keys: List[K]) -> Tuple[K, Dict]:
         return self.assign_key(key, label_keys)
 
-    def validate(self, input_key: K, output_key: K) -> bool:
-        return True
+    def validate(self, input_key: K, output_key: K) -> None:
+        pass
 
     def correct(self, input_key: K, output_key: K) -> K:
         return output_key

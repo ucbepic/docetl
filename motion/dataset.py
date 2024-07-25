@@ -1,14 +1,14 @@
+import os
 import random
-import multiprocessing
 from typing import List, Any, Tuple, Iterable
 
 from motion.types import K, V
 from motion.operators import (
-    Mapper,
-    Reducer,
+    LLMMapper,
+    LLMReducer,
     KeyResolver,
-    FlatMapper,
-    Filterer,
+    LLMFlatMapper,
+    LLMFilterer,
 )
 
 from motion.optimizer import optimize
@@ -22,15 +22,15 @@ class Dataset:
                 raise ValueError("Each item must be a tuple of (K, V)")
 
         self.data = list(data)
-        self.num_workers = num_workers or multiprocessing.cpu_count()
+        self.num_workers = num_workers or (os.cpu_count() or 1) * 4
         self.operations: List[Operation] = []
         self.optimized_operations: List[Operation] = []
 
-    def map(self, mapper: Mapper) -> "Dataset":
+    def map(self, mapper: LLMMapper) -> "Dataset":
         self.operations.append(Operation(mapper))
         return self
 
-    def flat_map(self, flatmapper: FlatMapper) -> "Dataset":
+    def flat_map(self, flatmapper: LLMFlatMapper) -> "Dataset":
         self.operations.append(Operation(flatmapper))
         return self
 
@@ -38,11 +38,11 @@ class Dataset:
         self.operations.append(Operation(key_resolver))
         return self
 
-    def reduce(self, reducer: Reducer) -> "Dataset":
+    def reduce(self, reducer: LLMReducer) -> "Dataset":
         self.operations.append(Operation(reducer))
         return self
 
-    def filter(self, filterer: Filterer) -> "Dataset":
+    def filter(self, filterer: LLMFilterer) -> "Dataset":
         self.operations.append(Operation(filterer))
         return self
 
@@ -91,5 +91,6 @@ class Dataset:
 
         current_data = self.data
         for operation in ops:
+            print(f"Executing operation: {operation.operator.__class__.__name__}")
             current_data = apply_operation(current_data, operation, self.num_workers)
         return current_data

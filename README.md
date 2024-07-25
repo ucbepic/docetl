@@ -1,6 +1,6 @@
 # Motion API
 
-Motion API is a powerful and flexible data processing framework that allows you to create complex data processing pipelines with customizable operations.
+Motion API is a powerful and flexible data processing framework that allows you to create complex data processing pipelines with customizable operations, leveraging Large Language Models (LLMs) for advanced data manipulation.
 
 ## Table of Contents
 
@@ -9,17 +9,17 @@ Motion API is a powerful and flexible data processing framework that allows you 
 3. [Installation](#installation)
 4. [Usage](#usage)
 5. [Operator Types](#operator-types)
-6. [Error Handling](#error-handling)
-7. [Example](#example)
+6. [Complete Example](#complete-example)
+7. [Testing](#testing)
 
 ## Overview
 
-Motion API provides a flexible framework for processing large datasets using a series of operations such as map, reduce, filter, and key resolution. It supports:
+Motion API provides a flexible framework for processing datasets using a series of LLM-powered operations such as map, reduce, filter, and key resolution. It supports:
 
 - Chaining multiple operations in any order
-- Custom implementations of various operator types
-- Customizable error handling and validation
+- Custom implementations of various LLM-based operator types
 - Easy-to-use API for defining and executing data processing pipelines
+- Integration with OpenAI's GPT models
 
 ## Key Components
 
@@ -27,17 +27,26 @@ Motion API provides a flexible framework for processing large datasets using a s
 
 The main class that orchestrates the entire process. It allows you to define a series of operations and execute them on your data.
 
-### Operator
+### Operators
 
-The base class for all operation types. It includes common functionality such as error handling and description methods.
+Various operator types that can be applied to the dataset:
 
-### Operator Types
+- LLMMapper
+- LLMReducer
+- LLMPairwiseKeyResolver
+- LLMListKeyResolver
+- LLMFilterer
+- LLMFlatMapper
+- LLMParallelFlatMapper
+- Splitter
 
-- **Mapper**: Transforms each key-value pair into a new key-value pair.
-- **FlatMapper**: Transforms each key-value pair into multiple key-value pairs.
-- **Reducer**: Combines multiple values for each key into a single value.
-- **KeyResolver**: Groups similar keys together.
-- **Filterer**: Removes certain key-value pairs based on a condition.
+## Installation
+
+To install Motion API, use pip:
+
+```
+pip install .
+```
 
 ## Usage
 
@@ -45,141 +54,156 @@ The base class for all operation types. It includes common functionality such as
 
 ```python
 from motion.dataset import Dataset
-from motion.operators import Mapper, Reducer, KeyResolver, Filterer
+from motion.operators import LLMMapper, LLMReducer, LLMListKeyResolver  # and other operators as needed
 ```
 
-2. Create custom operators by subclassing the appropriate operator type.
+2. Create a Dataset object and define your operations:
 
-3. Initialize a Dataset with your input data.
-
-4. Chain operations using the Dataset methods.
-
-5. Execute the pipeline using the `execute()` method.
+```python
+dataset = Dataset(your_data)
+result = (
+    dataset.map(YourCustomMapper())
+           .resolve_keys(YourCustomKeyResolver())
+           .reduce(YourCustomReducer())
+           .execute()
+)
+```
 
 ## Operator Types
 
-### Mapper
+### LLMMapper
+
+Transforms each key-value pair using an LLM. Implement the `generate_prompt` and `process_response` methods:
 
 ```python
-class CustomMapper(Mapper):
-    def map(self, key: Any, value: Any) -> Tuple[K, V]:
-        # Implementation here
+class CustomMapper(LLMMapper):
+    def generate_prompt(self, key: str, value: Any) -> list:
+        # Generate the prompt for the LLM
+        pass
 
-    def validate(self, input_key: K, input_value: V, output_key: K, output_value: V) -> bool:
-        # Validation logic here
+    def process_response(self, response: Any, **prompt_kwargs) -> Tuple[str, Any]:
+        # Process the LLM's response
+        pass
 ```
 
-### FlatMapper
+### LLMReducer
+
+Combines multiple values for each key using an LLM. Implement the `generate_prompt` and `process_response` methods:
 
 ```python
-class CustomFlatMapper(FlatMapper):
-    def map(self, key: Any, value: Any) -> List[Tuple[K, V]]:
-        # Implementation here
+class CustomReducer(LLMReducer):
+    def generate_prompt(self, key: str, values: List[Any]) -> list:
+        # Generate the prompt for the LLM
+        pass
 
-    def validate(self, key: K, value: V, mapped_kv_pairs: List[Tuple[K, V]]) -> bool:
-        # Validation logic here
+    def process_response(self, response: Any, **prompt_kwargs) -> Any:
+        # Process the LLM's response
+        pass
 ```
 
-### Reducer
+### LLMListKeyResolver
+
+Resolves and consolidates keys using an LLM. Implement the `generate_prompt`, `process_response`, and `get_label_key` methods:
 
 ```python
-class CustomReducer(Reducer):
-    def reduce(self, key: K, values: List[V]) -> V:
-        # Implementation here
+class CustomListKeyResolver(LLMListKeyResolver):
+    def generate_prompt(self, key: str, label_keys: List[str]) -> list:
+        # Generate the prompt for the LLM
+        pass
 
-    def validate(self, key: K, input_values: List[V], output_value: V) -> bool:
-        # Validation logic here
+    def process_response(self, response: Any, **prompt_kwargs) -> str:
+        # Process the LLM's response
+        pass
+
+    def get_label_key(self, keys: set) -> str:
+        # Define how to select a label key
+        pass
 ```
 
-### KeyResolver
+## Complete Example
+
+Here's a complete example that demonstrates how to use the Motion API to process a dataset of items, categorize them, resolve categories, and generate stories for each category:
 
 ```python
-class CustomKeyResolver(KeyResolver):
-    def are_equal(self, x: K, y: K) -> bool:
-        # Implementation here
-
-    def get_label_key(self, keys: Set[K]) -> K:
-        # Implementation here
-
-    def validate(self, input_key: K, output_key: K) -> bool:
-        # Validation logic here
-```
-
-### Filterer
-
-```python
-class CustomFilterer(Filterer):
-    def filter(self, key: K, value: V) -> bool:
-        # Implementation here
-
-    def validate(self, key: K, value: V, output: bool) -> bool:
-        # Validation logic here
-```
-
-## Error Handling
-
-Motion API provides flexible error handling through the `ValidatorAction` enum and the `on_fail` attribute of Operators:
-
-- `ValidatorAction.PROMPT`: Prompts the user for corrections when validation fails.
-- `ValidatorAction.WARN`: Prints a warning message but continues execution.
-- `ValidatorAction.FAIL`: Raises an exception, halting execution.
-
-To set the error handling behavior for a custom operator:
-
-```python
-class CustomMapper(Mapper):
-    on_fail = ValidatorAction.PROMPT
-    # ... rest of the implementation
-```
-
-## Example
-
-Here's a simple example demonstrating the usage of Motion API:
-
-```python
-from typing import List, Tuple, Set
+import random
+from typing import List, Tuple, Any
 from motion.dataset import Dataset
-from motion.operators import Mapper, Reducer, KeyResolver, Filterer
-from motion.types import ValidatorAction
+from motion.operators import LLMMapper, LLMReducer, LLMListKeyResolver
 
-class SquareMapper(Mapper):
-    def map(self, key: int, value: int) -> Tuple[int, int]:
-        return (value**2, value**2)
+MODEL = "gpt-4-mini"
 
-    def validate(self, input_key: int, input_value: int, output_key: int, output_value: int) -> bool:
-        return output_value == input_value**2
+# Synthetic data
+items = ["apple", "banana", "car", "dog", "elephant", "fish", "guitar", "house", "igloo", "jacket"]
+data = [(item, random.randint(1, 5)) for item in items]
+dataset = Dataset(data)
 
-class SumReducer(Reducer):
-    def reduce(self, key: int, values: List[int]) -> int:
-        return sum(values)
+class CategoryMapper(LLMMapper):
+    def generate_prompt(self, key: str, value: int) -> list:
+        return [
+            {"role": "system", "content": "You are a helpful assistant that categorizes items."},
+            {"role": "user", "content": f"Please categorize this item into a higher-level category. Item: {key}\nYour answer should be a single word."},
+        ]
 
-    def validate(self, key: int, input_values: List[int], output_value: int) -> bool:
-        return output_value == sum(input_values)
+    def process_response(self, response: Any, **prompt_kwargs) -> Tuple[str, Tuple[str, int]]:
+        category = response.choices[0].message.content.strip()
+        return (category, (prompt_kwargs["key"], prompt_kwargs["value"]))
 
-class WithinFiveKeyResolver(KeyResolver):
-    def are_equal(self, x: int, y: int) -> bool:
-        return abs(x - y) <= 5
+class CategoryResolver(LLMListKeyResolver):
+    def generate_prompt(self, key: str, label_keys: List[str]) -> list:
+        return [
+            {"role": "system", "content": "You are a helpful assistant that determines the most appropriate category for an item."},
+            {"role": "user", "content": f"Given the category '{key}' and the existing categories {label_keys}, which category should it be assigned to? If it doesn't match any existing categories, respond with 'NEW'. Provide your answer as a single word or 'NEW'."},
+        ]
 
-    def get_label_key(self, keys: Set[int]) -> int:
-        return sum(keys) // len(keys)  # Return the average of the keys
+    def process_response(self, response: Any, **prompt_kwargs) -> str:
+        content = response.choices[0].message.content.strip()
+        return content if content != "NEW" else prompt_kwargs["key"]
 
-class PositiveFilter(Filterer):
-    def filter(self, key: int, value: int) -> bool:
-        return value > 0
+    def get_label_key(self, keys: set) -> str:
+        return random.choice(list(keys))
 
-if __name__ == "__main__":
-    data = [("", i) for i in range(1, 11)]
-    dataset = Dataset(data)
+class StoryGenerator(LLMReducer):
+    def generate_prompt(self, key: str, values: List[Tuple[str, int]]) -> list:
+        items = ", ".join([f"{item} (importance: {importance}/5)" for item, importance in values])
+        return [
+            {"role": "system", "content": "You are a creative storyteller that creates cute, short stories."},
+            {"role": "user", "content": f"Create a cute, short story about these items in the category '{key}'. Focus more on items with higher importance: {items}"},
+        ]
 
-    result = (
-        dataset.map(SquareMapper())
-        .filter(PositiveFilter())
-        .resolve_keys(WithinFiveKeyResolver())
-        .reduce(SumReducer())
-        .execute()
-    )
+    def process_response(self, response: Any, **prompt_kwargs) -> str:
+        return response.choices[0].message.content.strip()
 
-    print(result)
+# Apply operations
+result = (
+    dataset.map(CategoryMapper(model=MODEL))
+    .resolve_keys(CategoryResolver(model=MODEL))
+    .reduce(StoryGenerator(model=MODEL))
+    .execute()
+)
+
+# Print results
+for category, story in result:
+    print(f"\nCategory: {category}")
+    print(f"Story: {story}")
+    print("-" * 50)
+
+print(f"Number of categories: {len(result)}")
 ```
 
-This example demonstrates a pipeline that squares numbers, filters out non-positive values, resolves keys that are within 5 of each other, and then sums the values for each resolved key.
+This example demonstrates the following steps:
+
+1. Creates a synthetic dataset of items with random importance scores.
+2. Uses an LLMMapper to categorize each item.
+3. Applies an LLMListKeyResolver to resolve and consolidate categories.
+4. Generates a story for each category using an LLMReducer.
+5. Prints the resulting stories and the number of categories.
+
+## Testing
+
+The Motion API includes a comprehensive test suite. To run the tests, use pytest:
+
+```
+pytest test_motion_api.py
+```
+
+For more detailed information and advanced usage, please refer to the source code and tests.

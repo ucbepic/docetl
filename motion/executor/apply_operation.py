@@ -22,6 +22,7 @@ from motion.executor.workers import (
 )
 from motion.executor.validation import handle_validation_errors
 from tqdm import tqdm
+from litellm import completion_cost
 
 
 def apply_operation(
@@ -30,9 +31,10 @@ def apply_operation(
     num_workers: int,
     building: bool = False,
 ) -> Union[
-    List[Tuple[Any, Any]],
-    Tuple[List[Tuple[Any, Any]], List[Tuple[str, Any, Any]]],
+    Tuple[List[Tuple[Any, Any]], float],
+    Tuple[List[Tuple[Any, Any]], List[Tuple[str, Any, Any]], float],
 ]:
+    total_cost = 0
     if isinstance(operation.operator, LLMFlatMapper) or isinstance(
         operation.operator, LLMParallelFlatMapper
     ):
@@ -46,7 +48,11 @@ def apply_operation(
 
             processed_data = []
             errors = []
-            for future in tqdm(futures, total=len(futures), desc="Flatmapping..."):
+            for future in tqdm(
+                futures,
+                total=len(futures),
+                desc=f"Executing {operation.operator.__class__.__name__}...",
+            ):
                 result, error = future.result()
                 processed_data.extend(result)
                 errors.extend(error)
@@ -62,7 +68,11 @@ def apply_operation(
 
             processed_data = []
             errors = []
-            for future in tqdm(futures, total=len(futures), desc="Splitting..."):
+            for future in tqdm(
+                futures,
+                total=len(futures),
+                desc=f"Executing {operation.operator.__class__.__name__}...",
+            ):
                 result, error = future.result()
                 processed_data.extend(result)
                 errors.extend(error)
@@ -78,7 +88,11 @@ def apply_operation(
 
             processed_data = []
             errors = []
-            for future in tqdm(futures, total=len(futures), desc="Mapping..."):
+            for future in tqdm(
+                futures,
+                total=len(futures),
+                desc=f"Executing {operation.operator.__class__.__name__}...",
+            ):
                 result, error = future.result()
                 processed_data.extend(result)
                 errors.extend(error)
@@ -96,7 +110,11 @@ def apply_operation(
             errors = []
             results = [
                 future.result()
-                for future in tqdm(futures, total=len(futures), desc="Filtering...")
+                for future in tqdm(
+                    futures,
+                    total=len(futures),
+                    desc=f"Executing {operation.operator.__class__.__name__}...",
+                )
             ]
             for result, error in results:
                 processed_data.extend(result)
@@ -111,8 +129,28 @@ def apply_operation(
     else:
         raise ValueError(f"Unsupported operator type: {type(operation.operator)}")
 
+    # Compute the cost
+    if processed_data:
+        if isinstance(processed_data[0], OpParallelFlatOutput):
+            total_cost = sum(
+                [
+                    completion_cost(r)
+                    for item in processed_data
+                    for r in item.responses
+                    if item.responses and r
+                ]
+            )
+        else:
+            total_cost = sum(
+                [
+                    completion_cost(item.response)
+                    for item in processed_data
+                    if item.response
+                ]
+            )
+
     if building:
-        return processed_data, errors
+        return processed_data, errors, total_cost
 
     corrected_data = handle_validation_errors(
         errors, operation.operator.on_fail, operation.operator
@@ -151,12 +189,14 @@ def apply_operation(
         or isinstance(operation.operator, LLMParallelFlatMapper)
         or isinstance(operation.operator, Splitter)
     ):
-        return [(k, v) for value in processed_data_dict.values() for k, v in value[1]]
+        return [
+            (k, v) for value in processed_data_dict.values() for k, v in value[1]
+        ], total_cost
 
     # Apply filter
     elif isinstance(operation.operator, LLMFilterer):
         return [
             (k, v) for k, v, keep in processed_data_dict.values() if keep is not False
-        ]
+        ], total_cost
 
-    return list(processed_data_dict.values())
+    return list(processed_data_dict.values()), total_cost

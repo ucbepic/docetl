@@ -60,7 +60,7 @@ class Dataset:
         for operation in self.operations:
             # Apply the operation to the sample data
             try:
-                result, errors = apply_operation(
+                result, errors, cost = apply_operation(
                     sample_data, operation, self.num_workers, building=True
                 )
 
@@ -93,9 +93,16 @@ class Dataset:
         ops = (
             self.optimized_operations if self.optimized_operations else self.operations
         )
+        total_cost = 0
 
         current_data = self.data
         for operation in ops:
-            print(f"Executing operation: {operation.operator.__class__.__name__}")
-            current_data = apply_operation(current_data, operation, self.num_workers)
+            current_data, cost = apply_operation(
+                current_data, operation, self.num_workers
+            )
+            print(f"{operation.operator.__class__.__name__} cost: ${cost:.2f}")
+            total_cost += cost
+
+        print(f"Total cost: ${total_cost:.2f}")
+
         return current_data

@@ -5,7 +5,8 @@ from typing import List, Tuple, Any
 def optimize(
     operation: Operation,
     sample_data: List[Tuple[Any, Any]],
-    errors: List[Tuple[str, Any, int]],
+    initial_results: List[Tuple[Any, Any]],
+    initial_errors: List[Tuple[str, Any, int]],
     num_workers: int,
 ) -> Operation:
     """Optimize the given operator."""

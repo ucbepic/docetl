@@ -1,5 +1,5 @@
 from motion.operators.base_operator import Operator
-from motion.llm_profiler import LLMCallTracker
+from litellm import completion
 from typing import List, Any, Tuple, Dict
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
@@ -8,7 +8,6 @@ from motion.types import RK, RV, K, V
 
 class LLMMapper(Operator, ABC):
     def __init__(self, model: str, **llm_kwargs):
-        self.tracker = LLMCallTracker()
         self.model = model
         self.llm_kwargs = llm_kwargs
 
@@ -20,19 +19,12 @@ class LLMMapper(Operator, ABC):
     def process_response(self, response: Any, **prompt_kwargs) -> Tuple[RK, RV]:
         pass
 
-    def map(self, key: RK, value: RV) -> Tuple[RK, RV]:
-        with self.tracker.track_call():
-            prompt = self.generate_prompt(key, value)
-            response = self.tracker.completion(
-                messages=prompt, model=self.model, **self.llm_kwargs
-            )
-            return self.process_response(response, key=key, value=value)
-
     def execute(self, key: K, value: V) -> Tuple[Tuple[RK, RV], Dict]:
-        result = self.map(key, value)
-        return result, {
-            "prompt": self.tracker.last_prompt,
-            "response": self.tracker.last_response,
+        prompt = self.generate_prompt(key, value)
+        response = completion(messages=prompt, model=self.model, **self.llm_kwargs)
+        return self.process_response(response, key=key, value=value), {
+            "prompt": prompt,
+            "response": response,
         }
 
     def validate(
@@ -48,7 +40,6 @@ class LLMMapper(Operator, ABC):
 
 class LLMFlatMapper(Operator, ABC):
     def __init__(self, model: str, **llm_kwargs):
-        self.tracker = LLMCallTracker()
         self.model = model
         self.llm_kwargs = llm_kwargs
 
@@ -60,19 +51,12 @@ class LLMFlatMapper(Operator, ABC):
     def process_response(self, response: Any, **prompt_kwargs) -> List[Tuple[RK, RV]]:
         pass
 
-    def map(self, key: K, value: V) -> List[Tuple[RK, RV]]:
-        with self.tracker.track_call():
-            prompt = self.generate_prompt(key, value)
-            response = self.tracker.completion(
-                messages=prompt, model=self.model, **self.llm_kwargs
-            )
-            return self.process_response(response, key=key, value=value)
-
     def execute(self, key: K, value: V) -> Tuple[List[Tuple[RK, RV]], Dict]:
-        result = self.map(key, value)
-        return result, {
-            "prompt": self.tracker.last_prompt,
-            "response": self.tracker.last_response,
+        prompt = self.generate_prompt(key, value)
+        response = completion(messages=prompt, model=self.model, **self.llm_kwargs)
+        return self.process_response(response, key=key, value=value), {
+            "prompt": prompt,
+            "response": response,
         }
 
     def validate(self, key: K, value: V, mapped_kv_pairs: List[Tuple[RK, RV]]) -> bool:

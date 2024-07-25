@@ -1,5 +1,5 @@
 from motion.operators.base_operator import Operator
-from motion.llm_profiler import LLMCallTracker
+from litellm import completion
 from typing import List, Any, Tuple, Set, Optional, Dict
 from abc import ABC, abstractmethod
 from motion.types import RK, RV, K, V
@@ -37,7 +37,6 @@ class PairwiseKeyResolver(KeyResolver, ABC):
 
 class LLMPairwiseKeyResolver(PairwiseKeyResolver):
     def __init__(self, model: str, **llm_kwargs):
-        self.tracker = LLMCallTracker()
         self.model = model
         self.llm_kwargs = llm_kwargs
 
@@ -56,23 +55,19 @@ class LLMPairwiseKeyResolver(PairwiseKeyResolver):
     def process_response(self, response: Any, **prompt_kwargs) -> bool:
         return response.choices[0].message.content.strip().lower() == "yes"
 
-    def are_equal(self, x: K, y: K) -> bool:
-        with self.tracker.track_call():
-            prompt = self.generate_prompt(x, y)
-            response = self.tracker.completion(
-                messages=prompt, model=self.model, **self.llm_kwargs
-            )
-            return self.process_response(response, x=x, y=y)
-
     def get_label_key(self, keys: Set[K]) -> K:
         return next(iter(keys))
 
-    def execute(self, x: K, y: K) -> Tuple[bool, Dict]:
-        result = self.are_equal(x, y)
-        return result, {
-            "prompt": self.tracker.last_prompt,
-            "response": self.tracker.last_response,
+    def are_equal(self, x: K, y: K) -> Tuple[bool, Dict]:
+        prompt = self.generate_prompt(x, y)
+        response = completion(messages=prompt, model=self.model, **self.llm_kwargs)
+        return self.process_response(response, x=x, y=y), {
+            "prompt": prompt,
+            "response": response,
         }
+
+    def execute(self, x: K, y: K) -> Tuple[bool, Dict]:
+        return self.are_equal(x, y)
 
     def validate(self, input_key: K, output_key: K) -> bool:
         return True
@@ -89,7 +84,6 @@ class ListKeyResolver(KeyResolver, ABC):
 
 class LLMListKeyResolver(ListKeyResolver):
     def __init__(self, model: str, **llm_kwargs):
-        self.tracker = LLMCallTracker()
         self.model = model
         self.llm_kwargs = llm_kwargs
 
@@ -109,20 +103,16 @@ class LLMListKeyResolver(ListKeyResolver):
         content = response.choices[0].message.content.strip()
         return content if content != "NEW" else prompt_kwargs["key"]
 
-    def assign_key(self, key: K, label_keys: List[K]) -> K:
-        with self.tracker.track_call():
-            prompt = self.generate_prompt(key, label_keys)
-            response = self.tracker.completion(
-                messages=prompt, model=self.model, **self.llm_kwargs
-            )
-            return self.process_response(response, key=key, label_keys=label_keys)
+    def assign_key(self, key: K, label_keys: List[K]) -> Tuple[K, Dict]:
+        prompt = self.generate_prompt(key, label_keys)
+        response = completion(messages=prompt, model=self.model, **self.llm_kwargs)
+        return self.process_response(response, key=key, label_keys=label_keys), {
+            "prompt": prompt,
+            "response": response,
+        }
 
     def execute(self, key: K, label_keys: List[K]) -> Tuple[K, Dict]:
-        result = self.assign_key(key, label_keys)
-        return result, {
-            "prompt": self.tracker.last_prompt,
-            "response": self.tracker.last_response,
-        }
+        return self.assign_key(key, label_keys)
 
     def validate(self, input_key: K, output_key: K) -> bool:
         return True

@@ -10,6 +10,7 @@ from motion.executor import Operation
 def try_gleaning(
     operation: Operation,
     sample_data: List[Tuple[Any, Any]],
+    results: List[Tuple[Any, Any]],
     errors: List[Tuple[str, Any, int]],
 ):
     # Keep querying an LLM

@@ -1,3 +1,14 @@
+"""
+This demo script performs the following steps:
+1. Creates a synthetic dataset of items with random importance scores.
+2. Uses an LLMMapper to categorize each item.
+3. Applies an LLMListKeyResolver to resolve and consolidate categories.
+4. Generates a story for each category using an LLMReducer.
+5. Prints the resulting stories and the number of categories.
+
+This example showcases the chaining of multiple LLM operations in a data processing pipeline.
+"""
+
 import random
 from typing import List, Tuple, Any
 from motion.dataset import Dataset
@@ -5,18 +16,16 @@ from motion.operators import (
     LLMMapper,
     LLMReducer,
     LLMListKeyResolver,
-    LLMFlatMapper,
 )
 
 from dotenv import load_dotenv
 import os
 
-# Load environment variables from .env file
 load_dotenv()
 
 MODEL = "gpt-4o-mini"
 
-# Generate synthetic data
+# Synthetic data
 items = [
     "apple",
     "banana",
@@ -114,7 +123,8 @@ class CategoryResolver(LLMListKeyResolver):
         return content if content != "NEW" else prompt_kwargs["key"]
 
     def get_label_key(self, keys: set) -> str:
-        return min(keys)
+        # Pick a key at random
+        return random.choice(list(keys))
 
 
 # LLMReducer to generate a story for each category

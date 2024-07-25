@@ -8,6 +8,7 @@ from motion.operators import (
     LLMFilterer,
     LLMFlatMapper,
     LLMParallelFlatMapper,
+    Splitter,
 )
 
 MODEL = "gpt-4o-mini"
@@ -193,5 +194,29 @@ def test_llm_parallel_flat_mapper():
     assert result == [("a", 2), ("a", 2), ("a", 2)]
 
 
+# Test Splitter
+class TestSplitter(Splitter):
+    __test__ = False
+
+    def split(self, key: str, value: Any) -> List[Tuple[str, Any]]:
+        if isinstance(value, str):
+            return [(key, char) for char in value]
+        return [(key, value)]
+
+
+def test_splitter():
+    data = [("a", "hello"), ("b", 123)]
+    dataset = Dataset(data)
+    result = dataset.split(TestSplitter()).execute()
+    assert result == [
+        ("a", "h"),
+        ("a", "e"),
+        ("a", "l"),
+        ("a", "l"),
+        ("a", "o"),
+        ("b", 123),
+    ]
+
+
 if __name__ == "__main__":
-    test_chained_llm_operations()
+    test_splitter()

@@ -1,4 +1,4 @@
-from motion.workers import Operation
+from motion.executor import Operation
 from typing import List, Tuple, Any
 
 

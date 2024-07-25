@@ -4,7 +4,8 @@ from collections import namedtuple
 
 K = TypeVar("K")
 V = TypeVar("V")
-R = TypeVar("R")
+RK = TypeVar("RK")
+RV = TypeVar("RV")
 
 
 class ValidatorAction(Enum):

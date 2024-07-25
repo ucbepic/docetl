@@ -9,10 +9,11 @@ from motion.operators import (
     KeyResolver,
     LLMFlatMapper,
     LLMFilterer,
+    Splitter,
 )
 
 from motion.optimizer import optimize
-from motion.workers import apply_operation, Operation
+from motion.executor import apply_operation, Operation
 
 
 class Dataset:
@@ -32,6 +33,10 @@ class Dataset:
 
     def flat_map(self, flatmapper: LLMFlatMapper) -> "Dataset":
         self.operations.append(Operation(flatmapper))
+        return self
+
+    def split(self, splitter: Splitter) -> "Dataset":
+        self.operations.append(Operation(splitter))
         return self
 
     def resolve_keys(self, key_resolver: KeyResolver) -> "Dataset":

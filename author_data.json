@@ -1,0 +1,62 @@
+[
+    {
+      "name": "Jane Austen",
+      "birth_year": 1775
+    },
+    {
+      "name": "George Orwell",
+      "birth_year": 1903
+    },
+    {
+      "name": "Gabriel García Márquez",
+      "birth_year": 1927
+    },
+    {
+      "name": "Virginia Woolf",
+      "birth_year": 1882
+    },
+    {
+      "name": "Haruki Murakami",
+      "birth_year": 1949
+    },
+    {
+      "name": "Toni Morrison",
+      "birth_year": 1931
+    },
+    {
+      "name": "Leo Tolstoy",
+      "birth_year": 1828
+    },
+    {
+      "name": "Chimamanda Ngozi Adichie",
+      "birth_year": 1977
+    },
+    {
+      "name": "Jorge Luis Borges",
+      "birth_year": 1899
+    },
+    {
+      "name": "Margaret Atwood",
+      "birth_year": 1939
+    },
+    {
+      "name": "Fyodor Dostoevsky",
+      "birth_year": 1821
+    },
+    {
+      "name": "Zadie Smith",
+      "birth_year": 1975
+    },
+    {
+      "name": "Albert Camus",
+      "birth_year": 1913
+    },
+    {
+      "name": "Ursula K. Le Guin",
+      "birth_year": 1929
+    },
+    {
+      "name": "Salman Rushdie",
+      "birth_year": 1947
+    }
+  ]

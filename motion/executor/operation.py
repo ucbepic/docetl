@@ -7,6 +7,7 @@ from motion.operators import (
     LLMFilterer,
     Splitter,
     LLMParallelFlatMapper,
+    Mapper,
 )
 
 
@@ -21,6 +22,7 @@ class Operation:
             LLMFilterer,
             Splitter,
             LLMParallelFlatMapper,
+            Mapper,
         ],
     ):
         self.operator = operator

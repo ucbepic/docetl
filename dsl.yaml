@@ -117,7 +117,7 @@ operations:
       - len(output["primary_genre"]) > 0
 
   generate_summaries:
-    type: flatmap
+    type: map
     model: gpt-4o-mini
     input:
       schema:
@@ -125,12 +125,12 @@ operations:
         theme: str
     output:
       schema:
-        summary: str
+        summaries: list[str]
     prompt: |
       Generate two summaries for the book "{{ input.title }}" with theme "{{ input.theme }}".
     validate:
-      - len(output) == 2
-      - all(len(summary["summary"]) > 0 for summary in output)
+      - len(output["summaries"]) == 2
+      - all(len(summary) > 0 for summary in output["summaries"])
     tests:
       - input:
           title: "To Kill a Mockingbird"
@@ -140,6 +140,10 @@ operations:
             summary: "A story about racial injustice and loss of innocence in the American South."
           - title: "To Kill a Mockingbird"
             summary: "Set in the 1930s Alabama, the novel follows Scout Finch as she learns about injustice when her father defends a black man falsely accused of a crime. It explores themes of racial inequality, moral growth, and the loss of innocence."
+
+  explode_summaries:
+    type: explode
+    explode_key: summaries
 
   genre_summary:
     type: reduce
@@ -268,6 +272,7 @@ pipeline:
         - resolve_genres
         - is_fiction
         - generate_summaries
+        - explode_summaries
         - genre_summary
 
     - name: author_analysis

@@ -132,8 +132,8 @@ class DSLRunner:
             return self.execute_map(operation, input_data)
         elif operation_type == "filter":
             return self.execute_filter(operation, input_data)
-        elif operation_type == "flatmap":
-            return self.execute_flatmap(operation, input_data)
+        elif operation_type == "explode":
+            return self.execute_explode(operation, input_data)
         elif operation_type == "parallel_flatmap":
             return self.execute_parallel_flatmap(operation, input_data)
         elif operation_type == "equijoin":
@@ -148,6 +148,25 @@ class DSLRunner:
             return self.execute_resolve(operation, input_data)
         else:
             raise ValueError(f"Unsupported operation type: {operation_type}")
+
+    def execute_explode(
+        self, operation: Dict, input_data: List[Dict]
+    ) -> Tuple[List[Dict], float]:
+        explode_key = operation["explode_key"]
+        results = []
+
+        for item in input_data:
+            if explode_key not in item:
+                raise KeyError(f"Explode key '{explode_key}' not found in item")
+            if not isinstance(item[explode_key], (list, tuple, set)):
+                raise TypeError(f"Value of explode key '{explode_key}' is not iterable")
+
+            for value in item[explode_key]:
+                new_item = item.copy()
+                new_item[explode_key] = value
+                results.append(new_item)
+
+        return results, 0
 
     def execute_equijoin(
         self, operation: Dict, left_data: List[Dict], right_data: List[Dict]
@@ -456,7 +475,6 @@ class DSLRunner:
                 "map",
                 prompt,
                 operation["output"]["schema"],
-                is_flatmap=False,
             )
             item_cost = completion_cost(response)
             output = self.parse_llm_response(response)[0]
@@ -525,46 +543,6 @@ class DSLRunner:
                 total_cost += item_cost
                 if result is not None:
                     results.append(result)
-
-        return results, total_cost
-
-    def execute_flatmap(
-        self, operation: Dict, input_data: List[Dict]
-    ) -> Tuple[List[Dict], float]:
-        results = []
-        total_cost = 0
-
-        def process_item(item):
-            prompt_template = Template(operation["prompt"])
-            prompt = prompt_template.render(input=item)
-            response = self.call_llm(
-                operation.get("model", self.default_model),
-                "flatmap",
-                prompt,
-                operation["output"]["schema"],
-                is_flatmap=True,
-            )
-            item_cost = completion_cost(response)
-            outputs = self.parse_llm_response(response, is_flatmap=True)
-            for output in outputs:
-                # Add key-value pairs from item that are not in output_schema
-                for key, value in item.items():
-                    if key not in operation["output"]["schema"]:
-                        output[key] = value
-            return outputs, item_cost
-
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = [executor.submit(process_item, item) for item in input_data]
-            for future in tqdm(
-                as_completed(futures),
-                total=len(futures),
-                desc="Processing flatmap items",
-                leave=True,
-            ):
-                outputs, item_cost = future.result()
-                total_cost += item_cost
-                if self.validate_output(operation, outputs):
-                    results.extend(outputs)
 
         return results, total_cost
 
@@ -700,24 +678,13 @@ class DSLRunner:
         op_type: str,
         prompt: str,
         output_schema: Dict[str, str],
-        is_flatmap: bool = False,
     ) -> str:
         props = {key: convert_val(value) for key, value in output_schema.items()}
-
-        if is_flatmap:
-            props = {
-                "output": {
-                    "type": "array",
-                    "items": {"type": "object", "properties": props},
-                }
-            }
 
         parameters = {"type": "object", "properties": props}
         parameters["required"] = list(props.keys())
 
         system_prompt = f"You are a helpful assistant to intelligently process data, writing outputs to a database. This is a {op_type} operation."
-        if is_flatmap:
-            system_prompt += " You may write outputs multiple times for the same input."
 
         response = completion(
             model=model,
@@ -746,20 +713,15 @@ class DSLRunner:
         )
         return response
 
-    def parse_llm_response(
-        self, response: Any, is_flatmap: bool = False
-    ) -> List[Dict[str, Any]]:
+    def parse_llm_response(self, response: Any) -> List[Dict[str, Any]]:
         # This is a simplified parser
         tool_calls = response.choices[0].message.tool_calls
         tools = []
         for tool_call in tool_calls:
             if tool_call.function.name == "write_output":
-                if not is_flatmap:
-                    tools.append(json.loads(tool_call.function.arguments))
-                else:
-                    args = json.loads(tool_call.function.arguments)
-                    for arg in args["output"]:
-                        tools.append(arg)
+                args = json.loads(tool_call.function.arguments)
+                for arg in args["output"]:
+                    tools.append(arg)
         return tools
 
     def validate_output(self, operation: Dict, output: Dict) -> bool:

@@ -4,9 +4,9 @@ TODO:
 - [x] Support equijoins
 - [x] Inputs should be accessed as input['title'] instead of just title / everything be jinja
 - [x] Make flatten a separate operator with flatten_key (or nothing)
-- [ ] Convert parallel flatmap to parallel map
-- [ ] Write tests
+- [x] Convert parallel flatmap to parallel map
 - [ ] Write documentation & restructure codebase
+- [ ] Write tests
 - [ ] Chunking/splitting with peripheral chunks
 - [ ] Write build phase
 - [ ] Optimize maps

@@ -10,19 +10,40 @@ default_model: gpt-4o-mini
 
 operations:
   analyze_title:
-    type: map
+    type: parallel_map
     input:
       schema:
         title: str
     output:
       schema:
-        title: str
         word_count: int
         theme: str
         genre: str
-    prompt: |
-      Analyze the book title: {{ input.title }}
-      Provide the word count, theme, and genre.
+    prompts:
+      - name: word_count_analysis
+        model: gpt-4o-mini
+        prompt: |
+          Count the number of words in the following book title:
+          Title: {{ input.title }}
+          Provide only the word count as an integer.
+        output_keys:
+          - word_count
+      - name: theme_analysis
+        model: gpt-4o-mini
+        prompt: |
+          Analyze the theme of the following book title:
+          Title: {{ input.title }}
+          Provide a concise description of the theme suggested by this title.
+        output_keys:
+          - theme
+      - name: genre_analysis
+        model: gpt-4o-mini
+        prompt: |
+          Determine the likely genre based on the following book title:
+          Title: {{ input.title }}
+          Provide a concise genre classification.
+        output_keys:
+          - genre
     validate:
       - output["word_count"] > 0
       - len(output["theme"]) > 0

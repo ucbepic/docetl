@@ -134,8 +134,8 @@ class DSLRunner:
             return self.execute_filter(operation, input_data)
         elif operation_type == "explode":
             return self.execute_explode(operation, input_data)
-        elif operation_type == "parallel_flatmap":
-            return self.execute_parallel_flatmap(operation, input_data)
+        elif operation_type == "parallel_map":
+            return self.execute_parallel_map(operation, input_data)
         elif operation_type == "equijoin":
             left_data = self.datasets[operation["left"]]
             right_data = self.datasets[operation["right"]]
@@ -546,52 +546,74 @@ class DSLRunner:
 
         return results, total_cost
 
-    def execute_parallel_flatmap(
+    def execute_parallel_map(
         self, operation: Dict, input_data: List[Dict]
     ) -> Tuple[List[Dict], float]:
         results = []
         total_cost = 0
+        output_schema = operation["output"]["schema"]
 
-        def process_prompt(item, prompt_template, model, output_schema):
-            prompt = Template(prompt_template).render(input=item)
+        # Check if all output schema keys are covered by the prompts
+        output_keys_covered = set()
+        for prompt_config in operation["prompts"]:
+            output_keys_covered.update(prompt_config["output_keys"])
+
+        missing_keys = set(output_schema.keys()) - output_keys_covered
+        if missing_keys:
+            raise ValueError(
+                f"The following output schema keys are not covered by any prompt: {missing_keys}"
+            )
+
+        def process_prompt(item, prompt_config):
+            prompt_template = Template(prompt_config["prompt"])
+            prompt = prompt_template.render(input=item)
+            local_output_schema = {
+                key: output_schema[key] for key in prompt_config["output_keys"]
+            }
             response = self.call_llm(
-                model,
-                "map",
+                prompt_config.get("model", self.default_model),
+                "parallel_map",
                 prompt,
-                output_schema,
+                local_output_schema,
             )
             output = self.parse_llm_response(response)[0]
-            # Add key-value pairs from item that are not in output_schema
-            for key, value in item.items():
-                if key not in output_schema:
-                    output[key] = value
             return output, completion_cost(response)
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = []
-            for item in input_data:
-                item_futures = []
-                for i, prompt_template in enumerate(operation["prompts"]):
-                    future = executor.submit(
-                        process_prompt,
-                        item,
-                        prompt_template,
-                        operation["models"][i],
-                        operation["output"]["schema"],
-                    )
-                    item_futures.append(future)
-                futures.append(item_futures)
+            # Create all futures at once
+            all_futures = [
+                executor.submit(process_prompt, item, prompt_config)
+                for item in input_data
+                for prompt_config in operation["prompts"]
+            ]
 
-            for item_futures in tqdm(
-                futures, desc="Processing parallel flatmap items", leave=True
+            # Process results in order
+            for i, future in enumerate(
+                tqdm(
+                    all_futures,
+                    total=len(all_futures),
+                    desc="Processing parallel map items",
+                )
             ):
-                item_results = []
-                for future in as_completed(item_futures):
-                    output, item_cost = future.result()
-                    total_cost += item_cost
-                    if self.validate_output(operation, output):
-                        item_results.append(output)
-                results.extend(item_results)
+                output, cost = future.result()
+                total_cost += cost
+
+                # Determine which item this future corresponds to
+                item_index = i // len(operation["prompts"])
+                prompt_index = i % len(operation["prompts"])
+
+                # Initialize or update the item_result
+                if prompt_index == 0:
+                    item_result = input_data[item_index].copy()
+                    results.append(item_result)
+
+                # Update the item_result with the output
+                item_result.update(output)
+
+                # Validate the item_result if this is the last prompt for this item
+                if prompt_index == len(operation["prompts"]) - 1:
+                    if not self.validate_output(operation, item_result):
+                        results.pop()  # Remove the invalid result
 
         return results, total_cost
 
@@ -719,9 +741,7 @@ class DSLRunner:
         tools = []
         for tool_call in tool_calls:
             if tool_call.function.name == "write_output":
-                args = json.loads(tool_call.function.arguments)
-                for arg in args["output"]:
-                    tools.append(arg)
+                tools.append(json.loads(tool_call.function.arguments))
         return tools
 
     def validate_output(self, operation: Dict, output: Dict) -> bool:

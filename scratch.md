@@ -4,7 +4,6 @@ TODO:
 - [ ] Support equijoins
 - [ ] Make flatten a separate operator with flatten_key (or nothing)
 - [ ] Write tests
-- [ ] Write cli
 - [ ] Write documentation & restructure codebase
 - [ ] Optimize maps
 - [ ] Operator reordering

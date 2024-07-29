@@ -499,8 +499,3 @@ class DSLRunner:
                 return json.load(file)
         else:
             raise ValueError(f"Unsupported input type for join: {input_config['type']}")
-
-
-if __name__ == "__main__":
-    runner = DSLRunner("dsl.yaml")
-    runner.run()

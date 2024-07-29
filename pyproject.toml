@@ -8,6 +8,8 @@ readme = "README.md"
 packages = [
     { include = "motion" }
 ]
+[tool.poetry.scripts]
+motion = "motion.cli:app"
 
 [tool.poetry.dependencies]
 python = "^3.10"

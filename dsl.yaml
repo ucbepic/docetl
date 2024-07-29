@@ -11,7 +11,6 @@ default_model: gpt-4o-mini
 operations:
   analyze_title:
     type: map
-    model: gpt-4o-mini
     input:
       schema:
         title: str
@@ -39,7 +38,6 @@ operations:
 
   analyze_author:
     type: map
-    model: gpt-4o-mini
     input:
       schema:
         name: str
@@ -82,7 +80,6 @@ operations:
 
   genre_summary:
     type: reduce
-    model: gpt-4o-mini
     reduce_key: genre
     input:
       schema:
@@ -147,7 +144,6 @@ operations:
 
   is_fiction:
     type: filter
-    model: gpt-4o-mini
     input:
       schema:
         genre: str

@@ -11,9 +11,6 @@ default_model: gpt-4o-mini
 operations:
   analyze_title:
     type: parallel_map
-    input:
-      schema:
-        title: str
     output:
       schema:
         word_count: int
@@ -59,17 +56,12 @@ operations:
 
   resolve_genres:
     type: resolve
-    input:
-      schema:
-        genre: str
-        title: str
-        theme: str
     output:
       schema:
         genre: str
     embedding_model: "text-embedding-3-small"
     comparison_model: "gpt-4o-mini"
-    reduction_model: "gpt-4o-mini"
+    resolution_model: "gpt-4o-mini"
     blocking_keys:
       - genre
     blocking_threshold: 0.9
@@ -88,7 +80,7 @@ operations:
       Theme: {{ input2.theme }}
 
       Are these genres likely to be the same or closely related?
-    reduction_prompt: |
+    resolution_prompt: |
       Given the following matched genre entries:
       {% for entry in matched_entries %}
       Entry {{ loop.index }}:
@@ -122,10 +114,6 @@ operations:
 
   analyze_author:
     type: map
-    input:
-      schema:
-        name: str
-        birth_year: int
     output:
       schema:
         writing_style: str
@@ -140,10 +128,6 @@ operations:
   generate_summaries:
     type: map
     model: gpt-4o-mini
-    input:
-      schema:
-        title: str
-        theme: str
     output:
       schema:
         summaries: list[str]
@@ -169,12 +153,6 @@ operations:
   genre_summary:
     type: reduce
     reduce_key: genre
-    input:
-      schema:
-        title: str
-        word_count: int
-        theme: str
-        genre: str
     output:
       schema:
         book_count: int
@@ -232,9 +210,6 @@ operations:
 
   is_fiction:
     type: filter
-    input:
-      schema:
-        genre: str
     output:
       schema:
         is_fiction: bool

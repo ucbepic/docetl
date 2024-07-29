@@ -1,250 +1,368 @@
 import pytest
-from typing import List, Tuple, Any
-from motion.dataset import Dataset
-from motion.operators import (
-    LLMMapper,
-    LLMReducer,
-    LLMPairwiseKeyResolver,
-    LLMFilterer,
-    LLMFlatMapper,
-    LLMParallelFlatMapper,
-    Splitter,
-)
-from motion.operators.mapper import AddUniqueIDToKey, RemoveUniqueIDFromKey
-import uuid
-
-MODEL = "gpt-4o-mini"
-
+from motion.operations.map import MapOperation, ParallelMapOperation
+from motion.operations.filter import FilterOperation
+from motion.operations.explode import ExplodeOperation
+from motion.operations.equijoin import EquijoinOperation
+from motion.operations.split import SplitOperation
+from motion.operations.reduce import ReduceOperation
+from motion.operations.resolve import ResolveOperation
 from dotenv import load_dotenv
-import os
 
-# Load environment variables from .env file
 load_dotenv()
 
 
-# Test LLMMapper
-class TestLLMMapper(LLMMapper):
-    __test__ = False
-
-    def generate_prompt(self, key: str, value: int) -> list:
-        return [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that doubles numbers.",
-            },
-            {
-                "role": "user",
-                "content": f"Please double the number: {value}. Return only the number.",
-            },
-        ]
-
-    def process_response(self, response: Any, **prompt_kwargs) -> Tuple[str, int]:
-        doubled_value = int(response.choices[0].message.content.strip())
-        return (prompt_kwargs["key"], doubled_value)
+@pytest.fixture
+def default_model():
+    return "gpt-4o-mini"
 
 
-def test_llm_mapper():
-    data = [("a", 2), ("b", 3)]
-    dataset = Dataset(data)
-    result = dataset.map(TestLLMMapper(model=MODEL)).execute()
-    assert result == [("a", 4), ("b", 6)]
+@pytest.fixture
+def max_threads():
+    return 4
 
 
-# Test LLMFlatMapper
-class TestLLMFlatMapper(LLMFlatMapper):
-    __test__ = False
-
-    def generate_prompt(self, key: str, value: int) -> list:
-        return [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that generates two numbers: the original and its successor.",
-            },
-            {
-                "role": "user",
-                "content": f"Please provide the original number and its successor for: {value}. Return your answer only as the two numbers, comma-separated.",
-            },
-        ]
-
-    def process_response(self, response: Any, **prompt_kwargs) -> List[Tuple[str, int]]:
-        numbers = [
-            int(num.strip()) for num in response.choices[0].message.content.split(",")
-        ]
-        return [(prompt_kwargs["key"], numbers[0]), (prompt_kwargs["key"], numbers[1])]
+# Map Operation Tests
+@pytest.fixture
+def map_config():
+    return {
+        "type": "map",
+        "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+        "output": {"schema": {"sentiment": "string"}},
+        "model": "gpt-4o-mini",
+    }
 
 
-def test_llm_flatmapper():
-    data = [("a", 2)]
-    dataset = Dataset(data)
-    result = dataset.flat_map(TestLLMFlatMapper(model=MODEL)).execute()
-    assert result == [("a", 2), ("a", 3)]
-
-
-# Test LLMReducer
-class TestLLMReducer(LLMReducer):
-    __test__ = False
-
-    def generate_prompt(self, key: str, values: List[int]) -> list:
-        return [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that sums numbers.",
-            },
-            {
-                "role": "user",
-                "content": f"Please sum these numbers: {', '.join(map(str, values))}\nOnly return the sum of the numbers.",
-            },
-        ]
-
-    def process_response(self, response: Any, **prompt_kwargs) -> int:
-        return int(response.choices[0].message.content.strip())
-
-
-def test_llm_reducer():
-    data = [("a", 2), ("a", 5)]
-    dataset = Dataset(data)
-    result = dataset.reduce(TestLLMReducer(model=MODEL)).execute()
-    assert result == [("a", 7)]
-
-
-# Test LLMPairwiseKeyResolver
-class TestLLMPairwiseKeyResolver(LLMPairwiseKeyResolver):
-    __test__ = False
-
-    def generate_prompt(self, x: int, y: int) -> list:
-        return [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that determines if two numbers are close (within 1 of each other).",
-            },
-            {
-                "role": "user",
-                "content": f"Are these two numbers close (within 1 of each other)? {x} and {y}. Answer only Yes or No.",
-            },
-        ]
-
-    def process_response(self, response: Any, **prompt_kwargs) -> bool:
-        return "yes" in response.choices[0].message.content.strip().lower()
-
-
-def test_llm_pairwise_key_resolver():
-    __test__ = False
-
-    resolver = TestLLMPairwiseKeyResolver(model=MODEL)
-    data = [(1, "a"), (2, "b"), (5, "c")]
-    dataset = Dataset(data)
-    result = dataset.resolve_keys(resolver).execute()
-    assert set(result) == {(1, "a"), (1, "b"), (5, "c")}
-
-
-# Test LLMFilterer
-class TestLLMFilterer(LLMFilterer):
-    __test__ = False
-
-    def generate_prompt(self, key: str, value: int) -> list:
-        return [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that determines if a number is even.",
-            },
-            {
-                "role": "user",
-                "content": f"Is this number even: {value}? Answer Yes or No.",
-            },
-        ]
-
-    def process_response(self, response: Any, **prompt_kwargs) -> bool:
-        return "yes" in response.choices[0].message.content.strip().lower()
-
-
-def test_llm_filterer():
-    data = [("a", 1), ("b", 2)]
-    dataset = Dataset(data)
-    result = dataset.filter(TestLLMFilterer(model=MODEL)).execute()
-    assert result == [("b", 2)]
-
-
-# Test chaining operations
-def test_chained_llm_operations():
-    data = [("a", 1), ("a", 2), ("c", 4)]
-    dataset = Dataset(data)
-    result = (
-        dataset.filter(TestLLMFilterer(model=MODEL))
-        .map(TestLLMMapper(model=MODEL))
-        .reduce(TestLLMReducer(model=MODEL))
-        .execute()
-    )
-    assert set(result) == {("a", 4), ("c", 8)}
-
-
-def test_llm_parallel_flat_mapper():
-    data = [("a", 1)]
-    dataset = Dataset(data)
-    result = dataset.flat_map(
-        LLMParallelFlatMapper(
-            [
-                TestLLMMapper(model=MODEL),
-                TestLLMMapper(model=MODEL),
-                TestLLMMapper(model=MODEL),
-            ]
-        )
-    ).execute()
-    assert result == [("a", 2), ("a", 2), ("a", 2)]
-
-
-# Test Splitter
-class TestSplitter(Splitter):
-    __test__ = False
-
-    def split(self, key: str, value: Any) -> List[Tuple[str, Any]]:
-        if isinstance(value, str):
-            return [(key, char) for char in value]
-        return [(key, value)]
-
-
-def test_splitter():
-    data = [("a", "hello"), ("b", 123)]
-    dataset = Dataset(data)
-    result = dataset.split(TestSplitter()).execute()
-    assert result == [
-        ("a", "h"),
-        ("a", "e"),
-        ("a", "l"),
-        ("a", "l"),
-        ("a", "o"),
-        ("b", 123),
+@pytest.fixture
+def map_sample_data():
+    return [
+        {"text": "This is a positive sentence.", "sentiment": "unknown"},
+        {"text": "This is a negative sentence.", "sentiment": "unknown"},
+        {"text": "This is a neutral sentence.", "sentiment": "unknown"},
     ]
 
 
-# Test Mapper
-def test_mapper():
-    # Test AddUniqueIDToKey
-    data = [("a", 1), ("b", 2)]
-    dataset = Dataset(data)
-    result = dataset.map(AddUniqueIDToKey()).execute()
+def test_map_operation(map_config, default_model, max_threads, map_sample_data):
+    operation = MapOperation(map_config, default_model, max_threads)
+    results, cost = operation.execute(map_sample_data)
 
-    assert len(result) == 2
-    for (key, uid), value in result:
-        assert key in ["a", "b"]
-        assert isinstance(uid, uuid.UUID)
-        assert value in [1, 2]
-
-    # Test RemoveUniqueIDFromKey
-    data_with_uid = [((key, uuid.uuid4()), value) for key, value in data]
-    dataset = Dataset(data_with_uid)
-    result = dataset.map(RemoveUniqueIDFromKey()).execute()
-
-    assert result == data
+    assert len(results) == len(map_sample_data)
+    assert all("sentiment" in result for result in results)
+    assert all(
+        result["sentiment"] in ["positive", "negative", "neutral"] for result in results
+    )
+    assert cost > 0
 
 
-# Test chaining AddUniqueIDToKey and RemoveUniqueIDFromKey
-def test_chained_mappers():
-    data = [("a", 1), ("b", 2)]
-    dataset = Dataset(data)
-    result = dataset.map(AddUniqueIDToKey()).map(RemoveUniqueIDFromKey()).execute()
+def test_map_operation_empty_input(map_config, default_model, max_threads):
+    operation = MapOperation(map_config, default_model, max_threads)
+    results, cost = operation.execute([])
 
-    assert result == data
+    assert len(results) == 0
+    assert cost == 0
 
 
-if __name__ == "__main__":
-    test_splitter()
+# Parallel Map Operation Tests
+@pytest.fixture
+def parallel_map_config():
+    return {
+        "type": "parallel_map",
+        "prompts": [
+            {
+                "name": "sentiment",
+                "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+                "output_keys": ["sentiment"],
+                "model": "gpt-4o-mini",
+            },
+            {
+                "name": "word_count",
+                "prompt": "Count the number of words in the following text: '{{ input.text }}'. Return the count as an integer.",
+                "output_keys": ["word_count"],
+                "model": "gpt-4o-mini",
+            },
+        ],
+        "output": {"schema": {"sentiment": "string", "word_count": "integer"}},
+    }
+
+
+@pytest.fixture
+def parallel_map_sample_data():
+    return [
+        {"text": "This is a positive sentence."},
+        {"text": "This is a negative sentence."},
+        {"text": "This is a neutral sentence."},
+    ]
+
+
+def test_parallel_map_operation(
+    parallel_map_config, default_model, max_threads, parallel_map_sample_data
+):
+    operation = ParallelMapOperation(parallel_map_config, default_model, max_threads)
+    results, cost = operation.execute(parallel_map_sample_data)
+
+    assert len(results) == len(parallel_map_sample_data)
+    assert all("sentiment" in result for result in results)
+    assert all("word_count" in result for result in results)
+    assert all(
+        result["sentiment"] in ["positive", "negative", "neutral"] for result in results
+    )
+    assert all(isinstance(result["word_count"], int) for result in results)
+    assert cost > 0
+
+
+def test_parallel_map_operation_empty_input(
+    parallel_map_config, default_model, max_threads
+):
+    operation = ParallelMapOperation(parallel_map_config, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+# Filter Operation Tests
+@pytest.fixture
+def filter_config():
+    return {
+        "type": "filter",
+        "prompt": "Determine if the following text is longer than 3 words: '{{ input.text }}'. Return true if it is, false otherwise.",
+        "output": {"schema": {"keep": "boolean"}},
+        "model": "gpt-4o-mini",
+    }
+
+
+@pytest.fixture
+def filter_sample_data():
+    return [
+        {"text": "This is a short sentence.", "word_count": 5},
+        {"text": "This is a longer sentence with more words.", "word_count": 8},
+        {"text": "Brief.", "word_count": 1},
+    ]
+
+
+def test_filter_operation(
+    filter_config, default_model, max_threads, filter_sample_data
+):
+    operation = FilterOperation(filter_config, default_model, max_threads)
+    results, cost = operation.execute(filter_sample_data)
+
+    assert len(results) < len(filter_sample_data)
+    assert all(len(result["text"].split()) > 3 for result in results)
+    assert cost > 0
+
+
+def test_filter_operation_empty_input(filter_config, default_model, max_threads):
+    operation = FilterOperation(filter_config, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+# Explode Operation Tests
+@pytest.fixture
+def explode_config():
+    return {"type": "explode", "explode_key": "tag"}
+
+
+@pytest.fixture
+def explode_sample_data():
+    return [
+        {"id": 1, "tag": ["python", "testing", "pytest"]},
+        {"id": 2, "tag": ["java", "spring"]},
+        {"id": 3, "tag": []},
+    ]
+
+
+def test_explode_operation(
+    explode_config, default_model, max_threads, explode_sample_data
+):
+    operation = ExplodeOperation(explode_config, default_model, max_threads)
+    results, cost = operation.execute(explode_sample_data)
+
+    assert len(results) == 5  # 3 + 2 + 0
+    assert all("tag" in result for result in results)
+    assert cost == 0  # Explode operation doesn't use LLM
+
+
+def test_explode_operation_empty_input(explode_config, default_model, max_threads):
+    operation = ExplodeOperation(explode_config, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+# Equijoin Operation Tests
+@pytest.fixture
+def equijoin_config():
+    return {
+        "type": "equijoin",
+        "join_key": {"left": {"name": "id"}, "right": {"name": "user_id"}},
+        "comparison_prompt": "Compare the following two entries and determine if they are the same id: Left: {{ left }} Right: {{ right }}",
+        "embedding_model": "text-embedding-3-small",
+        "comparison_model": "gpt-4o-mini",
+    }
+
+
+@pytest.fixture
+def left_data():
+    return [
+        {"id": 1, "name": "John"},
+        {"id": 2, "name": "Jane"},
+        {"id": 3, "name": "Bob"},
+    ]
+
+
+@pytest.fixture
+def right_data():
+    return [
+        {"user_id": 1, "email": "john@example.com"},
+        {"user_id": 2, "email": "jane@example.com"},
+        {"user_id": 4, "email": "alice@example.com"},
+    ]
+
+
+def test_equijoin_operation(
+    equijoin_config, default_model, max_threads, left_data, right_data
+):
+    operation = EquijoinOperation(equijoin_config, default_model, max_threads)
+    results, cost = operation.execute(left_data, right_data)
+
+    assert len(results) == 2  # Only 2 matches
+    assert all("name" in result and "email" in result for result in results)
+    assert cost > 0
+
+
+def test_equijoin_operation_empty_input(equijoin_config, default_model, max_threads):
+    operation = EquijoinOperation(equijoin_config, default_model, max_threads)
+    results, cost = operation.execute([], [])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+# Split Operation Tests
+@pytest.fixture
+def split_config():
+    return {
+        "type": "split",
+        "split_key": "content",
+        "chunk_size": 10,
+        "overlap_size": 0,
+    }
+
+
+@pytest.fixture
+def split_sample_data():
+    return [
+        {
+            "id": 1,
+            "content": "This is a long piece of content that needs to be split into smaller chunks for processing.",
+        },
+        {"id": 2, "content": "Another long piece of content."},
+    ]
+
+
+def test_split_operation(split_config, default_model, max_threads, split_sample_data):
+    operation = SplitOperation(split_config, default_model, max_threads)
+    results, cost = operation.execute(split_sample_data)
+
+    assert len(results) > len(split_sample_data)
+    assert all("chunk_id" in result and "chunk_content" in result for result in results)
+    assert cost == 0  # Split operation doesn't use LLM
+
+
+def test_split_operation_empty_input(split_config, default_model, max_threads):
+    operation = SplitOperation(split_config, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+# Reduce Operation Tests
+@pytest.fixture
+def reduce_config():
+    return {
+        "type": "reduce",
+        "reduce_key": "group",
+        "prompt": "Summarize the following group of values: {{ values }} Provide a total and any other relevant statistics.",
+        "output": {"schema": {"total": "number", "avg": "number"}},
+        "model": "gpt-4o-mini",
+    }
+
+
+@pytest.fixture
+def reduce_sample_data():
+    return [
+        {"group": "A", "value": 10},
+        {"group": "B", "value": 20},
+        {"group": "A", "value": 15},
+        {"group": "C", "value": 30},
+        {"group": "B", "value": 25},
+    ]
+
+
+def test_reduce_operation(
+    reduce_config, default_model, max_threads, reduce_sample_data
+):
+    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    results, cost = operation.execute(reduce_sample_data)
+
+    assert len(results) == 3  # 3 unique groups
+    assert all(
+        "group" in result and "total" in result and "avg" in result
+        for result in results
+    )
+    assert cost > 0
+
+
+def test_reduce_operation_empty_input(reduce_config, default_model, max_threads):
+    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+# Resolve Operation Tests
+@pytest.fixture
+def resolve_config():
+    return {
+        "type": "resolve",
+        "blocking_keys": ["name", "email"],
+        "blocking_threshold": 0.8,
+        "comparison_prompt": "Compare the following two entries and determine if they likely refer to the same person: Person 1: {{ input1 }} Person 2: {{ input2 }} Return true if they likely match, false otherwise.",
+        "output": {"schema": {"name": "string", "email": "string"}},
+        "embedding_model": "text-embedding-3-small",
+        "comparison_model": "gpt-4o-mini",
+        "resolution_model": "gpt-4o-mini",
+        "resolution_prompt": "Given the following list of similar entries, determine one common name and email. {{ matched_entries }}",
+    }
+
+
+@pytest.fixture
+def resolve_sample_data():
+    return [
+        {"name": "John Doe", "email": "john@example.com"},
+        {"name": "John D.", "email": "johnd@example.com"},
+        {"name": "J. Smith", "email": "jane@example.com"},
+        {"name": "J. Smith", "email": "jsmith@example.com"},
+    ]
+
+
+def test_resolve_operation(resolve_config, max_threads, resolve_sample_data):
+    operation = ResolveOperation(resolve_config, "text-embedding-3-small", max_threads)
+    results, cost = operation.execute(resolve_sample_data)
+
+    distinct_names = set(result["name"] for result in results)
+    assert len(distinct_names) < len(results)
+    assert cost > 0
+
+
+def test_resolve_operation_empty_input(resolve_config, max_threads):
+    operation = ResolveOperation(resolve_config, "text-embedding-3-small", max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0

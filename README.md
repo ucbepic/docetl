@@ -161,7 +161,7 @@ The Equijoin operation performs a join between two datasets based on a key, usin
 Required parameters:
 
 - `type`: Must be set to `"equijoin"`.
-- `join_key`: Specification of the join keys for left and right datasets. Both left and right must have at least a `name` field, and may optionally include a `limit` field.
+- `join_key`: Specification of the join keys for left and right datasets. Both left and right must have at least a `name` field, and may optionally include a `limit` field. The `limit` field specifies that for each tuple from the relevant dataset, there are at most `limit` matching tuples from the other dataset.
 - `comparison_model`: The language model to use for comparing join candidates.
 - `comparison_prompt`: The prompt template to use for comparing join candidates. This should be designed to elicit a yes or no answer.
 

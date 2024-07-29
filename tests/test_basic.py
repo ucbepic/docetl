@@ -10,6 +10,8 @@ from motion.operators import (
     LLMParallelFlatMapper,
     Splitter,
 )
+from motion.operators.mapper import AddUniqueIDToKey, RemoveUniqueIDFromKey
+import uuid
 
 MODEL = "gpt-4o-mini"
 
@@ -175,22 +177,18 @@ def test_chained_llm_operations():
     assert set(result) == {("a", 4), ("c", 8)}
 
 
-# Test LLMParallelFlatMapper
-class TestLLMParallelFlatMapper(LLMParallelFlatMapper):
-    __test__ = False
-
-    def get_mappers(self) -> List[LLMMapper]:
-        return [
-            TestLLMMapper(model=MODEL),
-            TestLLMMapper(model=MODEL),
-            TestLLMMapper(model=MODEL),
-        ]
-
-
 def test_llm_parallel_flat_mapper():
     data = [("a", 1)]
     dataset = Dataset(data)
-    result = dataset.flat_map(TestLLMParallelFlatMapper()).execute()
+    result = dataset.flat_map(
+        LLMParallelFlatMapper(
+            [
+                TestLLMMapper(model=MODEL),
+                TestLLMMapper(model=MODEL),
+                TestLLMMapper(model=MODEL),
+            ]
+        )
+    ).execute()
     assert result == [("a", 2), ("a", 2), ("a", 2)]
 
 
@@ -216,6 +214,36 @@ def test_splitter():
         ("a", "o"),
         ("b", 123),
     ]
+
+
+# Test Mapper
+def test_mapper():
+    # Test AddUniqueIDToKey
+    data = [("a", 1), ("b", 2)]
+    dataset = Dataset(data)
+    result = dataset.map(AddUniqueIDToKey()).execute()
+
+    assert len(result) == 2
+    for (key, uid), value in result:
+        assert key in ["a", "b"]
+        assert isinstance(uid, uuid.UUID)
+        assert value in [1, 2]
+
+    # Test RemoveUniqueIDFromKey
+    data_with_uid = [((key, uuid.uuid4()), value) for key, value in data]
+    dataset = Dataset(data_with_uid)
+    result = dataset.map(RemoveUniqueIDFromKey()).execute()
+
+    assert result == data
+
+
+# Test chaining AddUniqueIDToKey and RemoveUniqueIDFromKey
+def test_chained_mappers():
+    data = [("a", 1), ("b", 2)]
+    dataset = Dataset(data)
+    result = dataset.map(AddUniqueIDToKey()).map(RemoveUniqueIDFromKey()).execute()
+
+    assert result == data
 
 
 if __name__ == "__main__":

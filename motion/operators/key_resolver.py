@@ -116,7 +116,7 @@ class LLMListKeyResolver(ListKeyResolver):
     def execute(self, key: K, label_keys: List[K]) -> Tuple[K, Dict]:
         return self.assign_key(key, label_keys)
 
-    def validate(self, input_key: K, output_key: K) -> None:
+    def validate(self, input_key: K, label_keys: List[K], output_key: K) -> None:
         pass
 
     def correct(self, input_key: K, output_key: K) -> K:

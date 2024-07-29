@@ -26,8 +26,8 @@ def map_worker(
         results.append(
             OpOutput(
                 id=record_id,
-                prompt=p_and_r["prompt"],
-                response=p_and_r["response"],
+                prompt=p_and_r.get("prompt"),
+                response=p_and_r.get("response"),
                 new_key=new_key,
                 new_value=new_value,
             )
@@ -40,8 +40,8 @@ def map_worker(
                     id=record_id,
                     old_key=key,
                     old_value=value,
-                    prompt=p_and_r["prompt"],
-                    response=p_and_r["response"],
+                    prompt=p_and_r.get("prompt"),
+                    response=p_and_r.get("response"),
                     new_key=new_key,
                     new_value=new_value,
                     error_msg=str(e),
@@ -264,7 +264,10 @@ def resolve_keys_worker(
 
     # Second pass: merge groups based on equality or assign keys
     final_groups: Dict[str, List[Tuple[str, K, V, Dict]]] = {}
-    for key, records in tqdm(groups.items(), desc="Resolving keys..."):
+    for key, records in tqdm(
+        groups.items(),
+        desc=f"Resolving keys for {operation.operator.__class__.__name__}...",
+    ):
         eligible_keys = [
             final_key
             for final_key in final_groups.keys()

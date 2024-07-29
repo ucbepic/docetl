@@ -15,9 +15,8 @@ class LLMReducer(Operator, ABC):
     def generate_prompt(self, key: K, values: List[V]) -> list:
         pass
 
-    @abstractmethod
     def process_response(self, response: Any, **prompt_kwargs) -> RV:
-        pass
+        return response.choices[0].message.content
 
     def execute(self, key: K, values: List[V]) -> Tuple[RV, Dict]:
         prompt = self.generate_prompt(key, values)

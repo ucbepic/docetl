@@ -16,9 +16,8 @@ class LLMMapper(Operator, ABC):
     def generate_prompt(self, key: K, value: V) -> list:
         pass
 
-    @abstractmethod
     def process_response(self, response: Any, **prompt_kwargs) -> Tuple[RK, RV]:
-        pass
+        return prompt_kwargs["key"], response.choices[0].message.content
 
     def execute(self, key: K, value: V) -> Tuple[Tuple[RK, RV], Dict]:
         prompt = self.generate_prompt(key, value)
@@ -71,9 +70,12 @@ class LLMFlatMapper(Operator, ABC):
 
 
 class LLMParallelFlatMapper(Operator, ABC):
-    @abstractmethod
+    def __init__(self, mappers: List[LLMMapper]):
+        self.mappers = mappers
+        super().__init__()
+
     def get_mappers(self) -> List[LLMMapper]:
-        pass
+        return self.mappers
 
     def map(self, key: K, value: V) -> List[Tuple[RK, RV]]:
         mappers = self.get_mappers()

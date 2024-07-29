@@ -9,6 +9,7 @@ from motion.operators import (
     LLMReducer,
     KeyResolver,
     Splitter,
+    Mapper,
 )
 from motion.executor.operation import Operation
 from motion.executor.utils import chunk_data
@@ -23,6 +24,52 @@ from motion.executor.workers import (
 from motion.executor.validation import handle_validation_errors
 from tqdm import tqdm
 from litellm import completion_cost
+
+
+def process_operation_results(
+    processed_data: List[OpOutput], corrected_data: List[OpOutput], operation: Operation
+) -> List[Tuple[Any, Any]]:
+    processed_data_dict = {}
+    for item in processed_data:
+        if isinstance(item, OpOutput):
+            processed_data_dict[item.id] = (item.new_key, item.new_value)
+        elif isinstance(item, OpFlatOutput):
+            processed_data_dict[item.id] = (None, item.new_key_value_pairs)
+        elif isinstance(item, OpParallelFlatOutput):
+            processed_data_dict[item.id] = (None, item.new_key_value_pairs)
+        elif isinstance(item, OpFilterOutput):
+            processed_data_dict[item.id] = (item.new_key, item.new_value, item.filter)
+        else:
+            raise ValueError(f"Unsupported Op Output type: {type(item)}")
+
+    for corrected_output in corrected_data:
+        if isinstance(item, OpFilterOutput):
+            processed_data_dict[corrected_output.id] = (
+                processed_data_dict[corrected_output.id].key,
+                processed_data_dict[corrected_output.id].value,
+                corrected_output.value,
+            )
+        else:
+            processed_data_dict[corrected_output.id] = (
+                corrected_output.key,
+                corrected_output.value,
+            )
+
+    # Flatten flatmapper
+    if (
+        isinstance(operation.operator, LLMFlatMapper)
+        or isinstance(operation.operator, LLMParallelFlatMapper)
+        or isinstance(operation.operator, Splitter)
+    ):
+        return [(k, v) for value in processed_data_dict.values() for k, v in value[1]]
+
+    # Apply filter
+    elif isinstance(operation.operator, LLMFilterer):
+        return [
+            (k, v) for k, v, keep in processed_data_dict.values() if keep is not False
+        ]
+
+    return list(processed_data_dict.values())
 
 
 def apply_operation(
@@ -51,7 +98,7 @@ def apply_operation(
             for future in tqdm(
                 futures,
                 total=len(futures),
-                desc=f"Executing {operation.operator.__class__.__name__}...",
+                desc=f"Running {operation.operator.__class__.__name__}...",
             ):
                 result, error = future.result()
                 processed_data.extend(result)
@@ -71,13 +118,15 @@ def apply_operation(
             for future in tqdm(
                 futures,
                 total=len(futures),
-                desc=f"Executing {operation.operator.__class__.__name__}...",
+                desc=f"Running {operation.operator.__class__.__name__}...",
             ):
                 result, error = future.result()
                 processed_data.extend(result)
                 errors.extend(error)
 
-    elif isinstance(operation.operator, LLMMapper):
+    elif isinstance(operation.operator, LLMMapper) or isinstance(
+        operation.operator, Mapper
+    ):
         chunk_size = max(len(data) // num_workers, 1)
         chunks = chunk_data(data, chunk_size)
 
@@ -91,7 +140,7 @@ def apply_operation(
             for future in tqdm(
                 futures,
                 total=len(futures),
-                desc=f"Executing {operation.operator.__class__.__name__}...",
+                desc=f"Running {operation.operator.__class__.__name__}...",
             ):
                 result, error = future.result()
                 processed_data.extend(result)
@@ -113,7 +162,7 @@ def apply_operation(
                 for future in tqdm(
                     futures,
                     total=len(futures),
-                    desc=f"Executing {operation.operator.__class__.__name__}...",
+                    desc=f"Running {operation.operator.__class__.__name__}...",
                 )
             ]
             for result, error in results:
@@ -156,47 +205,5 @@ def apply_operation(
         errors, operation.operator.on_fail, operation.operator
     )
 
-    processed_data_dict = {}
-    for item in processed_data:
-        if isinstance(item, OpOutput):
-            processed_data_dict[item.id] = (item.new_key, item.new_value)
-        elif isinstance(item, OpFlatOutput):
-            processed_data_dict[item.id] = (None, item.new_key_value_pairs)
-        elif isinstance(item, OpParallelFlatOutput):
-            processed_data_dict[item.id] = (None, item.new_key_value_pairs)
-        elif isinstance(item, OpFilterOutput):
-            processed_data_dict[item.id] = (item.new_key, item.new_value, item.filter)
-        else:
-            raise ValueError(f"Unsupported Op Output type: {type(item)}")
-
-    for corrected_output in corrected_data:
-        if isinstance(item, OpFilterOutput):
-            processed_data_dict[corrected_output.id] = (
-                processed_data_dict[corrected_output.id].key,
-                processed_data_dict[corrected_output.id].value,
-                corrected_output.value,
-            )
-
-        else:
-            processed_data_dict[corrected_output.id] = (
-                corrected_output.key,
-                corrected_output.value,
-            )
-
-    # Flatten flatmapper
-    if (
-        isinstance(operation.operator, LLMFlatMapper)
-        or isinstance(operation.operator, LLMParallelFlatMapper)
-        or isinstance(operation.operator, Splitter)
-    ):
-        return [
-            (k, v) for value in processed_data_dict.values() for k, v in value[1]
-        ], total_cost
-
-    # Apply filter
-    elif isinstance(operation.operator, LLMFilterer):
-        return [
-            (k, v) for k, v, keep in processed_data_dict.values() if keep is not False
-        ], total_cost
-
-    return list(processed_data_dict.values()), total_cost
+    result = process_operation_results(processed_data, corrected_data, operation)
+    return result, total_cost

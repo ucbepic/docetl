@@ -1,6 +1,6 @@
 import os
 import random
-from typing import List, Any, Tuple, Iterable
+from typing import List, Any, Tuple, Iterable, Union
 
 from motion.types import K, V
 from motion.operators import (
@@ -10,10 +10,13 @@ from motion.operators import (
     LLMFlatMapper,
     LLMFilterer,
     Splitter,
+    Mapper,
 )
 
 from motion.optimizer import optimize
 from motion.executor import apply_operation, Operation
+from rich.console import Console
+from rich import print as rprint
 
 
 class Dataset:
@@ -26,8 +29,9 @@ class Dataset:
         self.num_workers = num_workers or (os.cpu_count() or 1) * 4
         self.operations: List[Operation] = []
         self.optimized_operations: List[Operation] = []
+        self.console = Console()
 
-    def map(self, mapper: LLMMapper) -> "Dataset":
+    def map(self, mapper: Union[LLMMapper, Mapper]) -> "Dataset":
         self.operations.append(Operation(mapper))
         return self
 
@@ -52,61 +56,75 @@ class Dataset:
         return self
 
     def build(self, sample_size: int = 1000) -> "Dataset":
+        # Create a new dataset
+        ds = Dataset(self.data, self.num_workers)
+
         # Sample the data
         sample_data = random.sample(self.data, min(sample_size, len(self.data)))
 
-        optimized_operations = []
-
         for operation in self.operations:
             # Apply the operation to the sample data
-            try:
+            # try:
+            with self.console.status(
+                f"Building [cyan]{operation.operator.__class__.__name__}[/cyan]..."
+            ) as status:
                 operation.operator.set_build_phase(True)
-                result, errors, cost = apply_operation(
+                result, errors, base_cost = apply_operation(
                     sample_data, operation, self.num_workers, building=True
                 )
 
                 if errors:
                     # If there are validation errors, attempt to optimize the operation
-                    optimized_operation, sample_data = optimize(
+                    status.stop()
+                    status = self.console.status(
+                        f"Optimizing [cyan]{operation.operator.__class__.__name__}[/cyan]..."
+                    )
+                    status.start()
+                    optimized_operations, sample_data = optimize(
                         operation,
+                        len(self.data),
                         sample_data,
                         result,
                         errors,
                         self.num_workers,
+                        base_cost,
                     )
-                    optimized_operations.append(optimized_operation)
+                    ds.operations.extend(optimized_operations)
                 else:
                     # If no errors, keep the original operation
-                    optimized_operations.append(operation)
+                    ds.operations.append(operation)
                     sample_data = result
 
-            except Exception as e:
-                print(
-                    f"Error applying operation: {str(e)}. Keeping original operation."
+                status.stop()
+                status = self.console.status(
+                    f"[cyan]{operation.operator.__class__.__name__}[/cyan] built successfully."
                 )
-                optimized_operations.append(operation)
-            finally:
-                operation.operator.set_build_phase(False)
+                status.start()
 
-        # Update the operations with the optimized version
-        self.optimized_operations = optimized_operations
+        # except Exception as e:
+        #     self.console.print(f"[bold red]Error applying operation:[/bold red] {str(e)}. Keeping original operation.")
+        #     optimized_operations.append(operation)
+        # finally:
+        #     operation.operator.set_build_phase(False)
 
-        return self
+        return ds
 
     def execute(self) -> List[Tuple[str, Any, Any]]:
-        ops = (
-            self.optimized_operations if self.optimized_operations else self.operations
-        )
         total_cost = 0
 
         current_data = self.data
-        for operation in ops:
-            current_data, cost = apply_operation(
-                current_data, operation, self.num_workers
-            )
-            print(f"{operation.operator.__class__.__name__} cost: ${cost:.2f}")
+        for operation in self.operations:
+            with self.console.status(
+                f"Running [cyan]{operation.operator.__class__.__name__}[/cyan]...",
+            ) as status:
+                current_data, cost = apply_operation(
+                    current_data, operation, self.num_workers
+                )
+                status.update(
+                    f"[cyan]{operation.operator.__class__.__name__}[/cyan] completed. Cost: [green]${cost:.2f}[/green]"
+                )
             total_cost += cost
 
-        print(f"Total cost: ${total_cost:.2f}")
+        rprint(f"[bold]Total cost:[/bold] [green]${total_cost:.2f}[/green]")
 
         return current_data

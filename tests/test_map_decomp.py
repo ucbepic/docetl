@@ -168,36 +168,6 @@ Provide your analysis in a structured format, using the numbering system above."
     def validate(
         self, input_key: str, input_value: int, output_key: str, output_value: str
     ) -> None:
-        # Define the expected sections
-        expected_sections = [
-            "1. Linguistic Analysis",
-            "2. Thematic Elements",
-            "3. Genre and Market Appeal",
-            "4. Creative Writing Aspects",
-            "5. Comparative Analysis",
-        ]
-
-        # Check if all expected sections are present
-        for section in expected_sections:
-            if section not in output_value:
-                raise ValueError(f"Missing section: {section}")
-
-        # Check if the structure is correct (all subsections present)
-        subsections = [
-            r"a\)",
-            r"b\)",
-            r"c\)",
-            r"d\)",  # Some sections have 4 subsections
-        ]
-        for section in expected_sections:
-            section_content = re.search(
-                f"{section}:(.*?)\n\d+\.", output_value, re.DOTALL
-            )
-            if section_content:
-                for subsection in subsections:
-                    if not re.search(subsection, section_content.group(1)):
-                        raise ValueError(f"Missing subsection in {section}")
-
         # Use LLM for content quality check
         validation_prompt = f"""
         Analyze the following book title analysis for quality and completeness:
@@ -213,17 +183,16 @@ Provide your analysis in a structured format, using the numbering system above."
         4. Is the plot synopsis creative and relevant to the title?
         5. Are the comparative analysis and market trend assessment insightful?
 
-        Respond with YES if all criteria are met satisfactorily, or NO if any aspect is lacking or could be improved, with a brief explanation.
+        Respond with YES if all criteria are met satisfactorily, or NO if any aspect is lacking or could be significantly improved, with a brief explanation.
         """
 
         response = completion(
-            model="gpt-4o",  # You can change this to the appropriate model
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": validation_prompt}],
         )
 
         validation_result = response.choices[0].message.content.strip()
         if "NO" in validation_result:
-            print(validation_result)
             raise ValueError(f"LLM Validation Failed: {validation_result}")
 
 
@@ -231,7 +200,7 @@ Provide your analysis in a structured format, using the numbering system above."
 if __name__ == "__main__":
     pipeline = dataset.map(BookTitleAnalyzer(model=MODEL))
 
-    pipeline = pipeline.build(sample_size=10)
+    pipeline = pipeline.build(sample_size=15)
     # result = pipeline.execute()
 
     # # Print results

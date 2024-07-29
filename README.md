@@ -167,8 +167,8 @@ Required parameters:
 
 Optional parameters:
 
-- `embedding_model`: The model to use for creating embeddings. Only used if blocking is set.
-- `blocking_threshold`: Similarity threshold for considering entries as potential matches.
+- `embedding_model`: The model to use for creating embeddings. Only used if blocking threshold is set.
+- `blocking_threshold`: Embedding similarity threshold for considering entries as potential matches.
 - `blocking_conditions`: List of conditions for initial blocking.
 
 Example:
@@ -278,9 +278,9 @@ Required parameters:
 
 Optional parameters:
 
-- `embedding_model`: The model to use for creating embeddings. Only used if blocking is set.
+- `embedding_model`: The model to use for creating embeddings. Only used if blocking threshold is set.
 - `blocking_keys`: List of keys to use for initial blocking.
-- `blocking_threshold`: Similarity threshold for considering entries as potential matches.
+- `blocking_threshold`: Embedding similarity threshold for considering entries as potential matches.
 - `blocking_conditions`: List of conditions for initial blocking.
 
 Example:

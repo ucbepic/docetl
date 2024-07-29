@@ -21,7 +21,7 @@ operations:
         theme: str
         genre: str
     prompt: |
-      Analyze the book title: {{ title }}
+      Analyze the book title: {{ input.title }}
       Provide the word count, theme, and genre.
     validate:
       - output["word_count"] > 0
@@ -36,6 +36,69 @@ operations:
           theme: "wealth and decadence"
           genre: "fiction"
 
+  resolve_genres:
+    type: resolve
+    input:
+      schema:
+        genre: str
+        title: str
+        theme: str
+    output:
+      schema:
+        genre: str
+    embedding_model: "text-embedding-3-small"
+    comparison_model: "gpt-4o-mini"
+    reduction_model: "gpt-4o-mini"
+    blocking_keys:
+      - genre
+    blocking_threshold: 0.9
+    blocking_conditions:
+      - "len(input1['genre']) > 0 and len(input2['genre']) > 0"
+    comparison_prompt: |
+      Compare the following two genre entries:
+      Entry 1:
+      Genre: {{ input1.genre }}
+      Example Book: {{ input1.title }}
+      Theme: {{ input1.theme }}
+
+      Entry 2:
+      Genre: {{ input2.genre }}
+      Example Book: {{ input2.title }}
+      Theme: {{ input2.theme }}
+
+      Are these genres likely to be the same or closely related?
+    reduction_prompt: |
+      Given the following matched genre entries:
+      {% for entry in matched_entries %}
+      Entry {{ loop.index }}:
+      Genre: {{ entry.genre }}
+      Example Book: {{ entry.title }}
+      Theme: {{ entry.theme }}
+      {% endfor %}
+
+      Determine the best resolved genre for this group of entries. The resolved genre should be a standardized, widely recognized genre category that best represents all matched entries.
+    validate:
+      - len(output["genre"]) > 0
+    tests:
+      - input:
+          - genre: "sci-fi"
+            title: "Dune"
+            theme: "political intrigue and ecology"
+          - genre: "science fiction"
+            title: "Neuromancer"
+            theme: "cyberpunk and artificial intelligence"
+        expect:
+          genre: "Science Fiction"
+      - input:
+          - genre: "mystery"
+            title: "The Girl with the Dragon Tattoo"
+            theme: "crime and corruption"
+          - genre: "thriller"
+            title: "Gone Girl"
+            theme: "psychological manipulation"
+        expect:
+          genre: "Mystery/Thriller"
+
   analyze_author:
     type: map
     input:
@@ -47,7 +110,7 @@ operations:
         writing_style: str
         primary_genre: str
     prompt: |
-      Analyze the author: {{ name }} (born {{ birth_year }})
+      Analyze the author: {{ input.name }} (born {{ input.birth_year }})
       Provide their writing style and primary genre. The genre should be at most a few words, not a full sentence.
     validate:
       - len(output["writing_style"]) > 0
@@ -64,7 +127,7 @@ operations:
       schema:
         summary: str
     prompt: |
-      Generate two summaries for the book "{{ title }}" with theme "{{ theme }}".
+      Generate two summaries for the book "{{ input.title }}" with theme "{{ input.theme }}".
     validate:
       - len(output) == 2
       - all(len(summary["summary"]) > 0 for summary in output)
@@ -151,7 +214,7 @@ operations:
       schema:
         is_fiction: bool
     prompt: |
-      Is the genre '{{ genre }}' fiction? Answer 'Yes' or 'No'.
+      Is the genre '{{ input.genre }}' fiction? Answer 'Yes' or 'No'.
     tests:
       - input:
           genre: "fiction"
@@ -160,8 +223,41 @@ operations:
 
   join_book_author:
     type: equijoin
-    left_key: genre
-    right_key: primary_genre
+    join_key:
+      left:
+        name: genre
+        limit: 3
+      right:
+        name: primary_genre
+        limit: 3
+    embedding_model: "text-embedding-3-small"
+    comparison_model: "gpt-4o-mini"
+    blocking_threshold: 0.5
+    blocking_conditions:
+      - "len(left['genre']) > 0 and len(right['primary_genre']) > 0"
+    comparison_prompt: |
+      Compare the following two genre entries:
+      Book Genre: {{ left.genre }}
+      Author's Primary Genre: {{ right.primary_genre }}
+
+      Are these genres likely to be the same or closely related?
+    validate:
+      - output is not None
+    tests:
+      - input:
+          left:
+            genre: "science fiction"
+          right:
+            primary_genre: "sci-fi"
+        expect:
+          matched: true
+      - input:
+          left:
+            genre: "mystery"
+          right:
+            primary_genre: "romance"
+        expect:
+          matched: false
 
 pipeline:
   steps:
@@ -169,6 +265,7 @@ pipeline:
       input: books
       operations:
         - analyze_title
+        - resolve_genres
         - is_fiction
         - generate_summaries
         - genre_summary

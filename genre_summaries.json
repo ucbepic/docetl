@@ -1,1 +1,214 @@
-[]
+[
+  {
+    "book_count": 4,
+    "common_themes": [
+      "Alienation and Loss of Innocence",
+      "The American Dream",
+      "Decadence",
+      "Love and Loss"
+    ],
+    "average_word_count": 247.5,
+    "summary": "The Fiction genre often explores deep emotional and social themes through complex characters and intricate narratives. The selected books showcase a focus on themes such as alienation, loss of innocence, and the pursuit and disillusionment of the American Dream, highlighting the emotional struggles and moral conflicts faced by individuals in society.",
+    "genre": "Fiction",
+    "writing_style": "Lyrical, imaginative, and often dystopian, with a focus on themes of gender, identity, and society.",
+    "primary_genre": "Speculative fiction",
+    "name": "Margaret Atwood",
+    "birth_year": 1939
+  },
+  {
+    "book_count": 4,
+    "common_themes": [
+      "Friendship",
+      "Power",
+      "Sacrifice",
+      "Adventure",
+      "Good vs Evil"
+    ],
+    "average_word_count": 48649,
+    "summary": "The Fantasy genre explores themes of friendship, power dynamics, sacrifice, and the hero's journey. Books like 'The Lord of the Rings' and 'The Hobbit' illustrate epic struggles between good and evil, emphasizing personal growth and adventure.",
+    "genre": "Fantasy",
+    "writing_style": "Lyrical, philosophical, and richly imaginative, often exploring social and political themes through speculative fiction.",
+    "primary_genre": "Science Fiction/Fantasy",
+    "name": "Ursula K. Le Guin",
+    "birth_year": 1929
+  },
+  {
+    "book_count": 4,
+    "common_themes": [
+      "Alienation and Loss of Innocence",
+      "The American Dream",
+      "Decadence",
+      "Love and Loss"
+    ],
+    "average_word_count": 247.5,
+    "summary": "The Fiction genre often explores deep emotional and social themes through complex characters and intricate narratives. The selected books showcase a focus on themes such as alienation, loss of innocence, and the pursuit and disillusionment of the American Dream, highlighting the emotional struggles and moral conflicts faced by individuals in society.",
+    "genre": "Fiction",
+    "writing_style": "Realistic, philosophical, moralistic",
+    "primary_genre": "Literary fiction",
+    "name": "Leo Tolstoy",
+    "birth_year": 1828
+  },
+  {
+    "book_count": 4,
+    "common_themes": [
+      "Alienation and Loss of Innocence",
+      "The American Dream",
+      "Decadence",
+      "Love and Loss"
+    ],
+    "average_word_count": 247.5,
+    "summary": "The Fiction genre often explores deep emotional and social themes through complex characters and intricate narratives. The selected books showcase a focus on themes such as alienation, loss of innocence, and the pursuit and disillusionment of the American Dream, highlighting the emotional struggles and moral conflicts faced by individuals in society.",
+    "genre": "Fiction",
+    "writing_style": "Rich, lyrical prose with sharp social commentary and complex characters",
+    "primary_genre": "Literary Fiction",
+    "name": "Zadie Smith",
+    "birth_year": 1975
+  },
+  {
+    "book_count": 2,
+    "common_themes": [
+      "The cyclical nature of time",
+      "solitude",
+      "the struggles of human existence"
+    ],
+    "average_word_count": 417,
+    "summary": "Magical Realism is a literary genre where fantastical elements are interwoven with realistic settings and events. In the examples of 'One Hundred Years of Solitude,' themes such as the cyclical nature of time and solitude are prominently explored, reflecting on human struggles through a lens that blends the ordinary with the extraordinary.",
+    "genre": "Magical Realism",
+    "writing_style": "Labyrinthine, philosophical, rich in metaphors and allusions",
+    "primary_genre": "Magical realism",
+    "name": "Jorge Luis Borges",
+    "birth_year": 1899
+  },
+  {
+    "book_count": 2,
+    "common_themes": [
+      "The cyclical nature of time",
+      "solitude",
+      "the struggles of human existence"
+    ],
+    "average_word_count": 417,
+    "summary": "Magical Realism is a literary genre where fantastical elements are interwoven with realistic settings and events. In the examples of 'One Hundred Years of Solitude,' themes such as the cyclical nature of time and solitude are prominently explored, reflecting on human struggles through a lens that blends the ordinary with the extraordinary.",
+    "genre": "Magical Realism",
+    "writing_style": "Lyric, rich in symbolism with intricate narratives and magical realism",
+    "primary_genre": "Magical Realism",
+    "name": "Salman Rushdie",
+    "birth_year": 1947
+  },
+  {
+    "book_count": 2,
+    "common_themes": [
+      "The cyclical nature of time",
+      "solitude",
+      "the struggles of human existence"
+    ],
+    "average_word_count": 417,
+    "summary": "Magical Realism is a literary genre where fantastical elements are interwoven with realistic settings and events. In the examples of 'One Hundred Years of Solitude,' themes such as the cyclical nature of time and solitude are prominently explored, reflecting on human struggles through a lens that blends the ordinary with the extraordinary.",
+    "genre": "Magical Realism",
+    "writing_style": "Surreal, introspective, blending reality with dreamlike elements",
+    "primary_genre": "Magical Realism",
+    "name": "Haruki Murakami",
+    "birth_year": 1949
+  },
+  {
+    "book_count": 4,
+    "common_themes": [
+      "Friendship",
+      "Power",
+      "Sacrifice",
+      "Adventure",
+      "Good vs Evil"
+    ],
+    "average_word_count": 48649,
+    "summary": "The Fantasy genre explores themes of friendship, power dynamics, sacrifice, and the hero's journey. Books like 'The Lord of the Rings' and 'The Hobbit' illustrate epic struggles between good and evil, emphasizing personal growth and adventure.",
+    "genre": "Fantasy",
+    "writing_style": "Lyrical, imaginative, and often dystopian, with a focus on themes of gender, identity, and society.",
+    "primary_genre": "Speculative fiction",
+    "name": "Margaret Atwood",
+    "birth_year": 1939
+  },
+  {
+    "book_count": 6,
+    "common_themes": [
+      "Censorship and the Destructive Power of Ignorance",
+      "Dystopia, Technological Advancement, and Human Conditioning",
+      "Totalitarianism",
+      "Surveillance",
+      "Individualism vs. Collectivism"
+    ],
+    "average_word_count": 82669,
+    "summary": "The Dystopian Fiction genre explores the consequences of oppressive societal structures, often highlighting themes of censorship, technological advancement, and the struggle between individualism and collectivism. The featured books depict worlds where ignorance is enforced, technology shapes human experience, and totalitarian regimes exert control over personal freedoms, reflecting concerns about the potential futures humanity may face.",
+    "genre": "Dystopian Fiction",
+    "writing_style": "Clear, concise, and direct with a focus on social commentary and political critique",
+    "primary_genre": "Dystopian fiction, Political writing",
+    "name": "George Orwell",
+    "birth_year": 1903
+  },
+  {
+    "book_count": 6,
+    "common_themes": [
+      "Censorship and the Destructive Power of Ignorance",
+      "Dystopia, Technological Advancement, and Human Conditioning",
+      "Totalitarianism",
+      "Surveillance",
+      "Individualism vs. Collectivism"
+    ],
+    "average_word_count": 82669,
+    "summary": "The Dystopian Fiction genre explores the consequences of oppressive societal structures, often highlighting themes of censorship, technological advancement, and the struggle between individualism and collectivism. The featured books depict worlds where ignorance is enforced, technology shapes human experience, and totalitarian regimes exert control over personal freedoms, reflecting concerns about the potential futures humanity may face.",
+    "genre": "Dystopian Fiction",
+    "writing_style": "Lyrical, philosophical, and richly imaginative, often exploring social and political themes through speculative fiction.",
+    "primary_genre": "Science Fiction/Fantasy",
+    "name": "Ursula K. Le Guin",
+    "birth_year": 1929
+  },
+  {
+    "book_count": 6,
+    "common_themes": [
+      "Censorship and the Destructive Power of Ignorance",
+      "Dystopia, Technological Advancement, and Human Conditioning",
+      "Totalitarianism",
+      "Surveillance",
+      "Individualism vs. Collectivism"
+    ],
+    "average_word_count": 82669,
+    "summary": "The Dystopian Fiction genre explores the consequences of oppressive societal structures, often highlighting themes of censorship, technological advancement, and the struggle between individualism and collectivism. The featured books depict worlds where ignorance is enforced, technology shapes human experience, and totalitarian regimes exert control over personal freedoms, reflecting concerns about the potential futures humanity may face.",
+    "genre": "Dystopian Fiction",
+    "writing_style": "Lyrical, imaginative, and often dystopian, with a focus on themes of gender, identity, and society.",
+    "primary_genre": "Speculative fiction",
+    "name": "Margaret Atwood",
+    "birth_year": 1939
+  },
+  {
+    "book_count": 5,
+    "common_themes": [
+      "Censorship and the Destructive Power of Ignorance",
+      "Dystopia and Technological Advancement",
+      "Power and Ecology",
+      "Artificial Intelligence and Cybernetics",
+      "Absurdity and Adventure"
+    ],
+    "average_word_count": 86910,
+    "summary": "The Science Fiction genre, as illustrated by these foundational works, explores complex themes such as censorship, dystopia, and the consequences of technological advancement. Notable titles like 'Fahrenheit 451' and 'Brave New World' warn against the dangers of ignorance and loss of freedom, while 'Dune' and 'Neuromancer' delve into the interplay of power, ecology, and artificial intelligence. Through rich narratives and imaginative worlds, these books challenge readers to reflect on the implications of humanity's choices and the nature of existence.",
+    "genre": "Science Fiction",
+    "writing_style": "Clear, concise, and direct with a focus on social commentary and political critique",
+    "primary_genre": "Dystopian fiction, Political writing",
+    "name": "George Orwell",
+    "birth_year": 1903
+  },
+  {
+    "book_count": 5,
+    "common_themes": [
+      "Censorship and the Destructive Power of Ignorance",
+      "Dystopia and Technological Advancement",
+      "Power and Ecology",
+      "Artificial Intelligence and Cybernetics",
+      "Absurdity and Adventure"
+    ],
+    "average_word_count": 86910,
+    "summary": "The Science Fiction genre, as illustrated by these foundational works, explores complex themes such as censorship, dystopia, and the consequences of technological advancement. Notable titles like 'Fahrenheit 451' and 'Brave New World' warn against the dangers of ignorance and loss of freedom, while 'Dune' and 'Neuromancer' delve into the interplay of power, ecology, and artificial intelligence. Through rich narratives and imaginative worlds, these books challenge readers to reflect on the implications of humanity's choices and the nature of existence.",
+    "genre": "Science Fiction",
+    "writing_style": "Lyrical, philosophical, and richly imaginative, often exploring social and political themes through speculative fiction.",
+    "primary_genre": "Science Fiction/Fantasy",
+    "name": "Ursula K. Le Guin",
+    "birth_year": 1929
+  }
+]

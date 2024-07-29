@@ -2,7 +2,7 @@ import yaml
 import json
 from typing import Dict, List, Any, Optional, Tuple
 import tiktoken
-from litellm import completion
+from litellm import completion, embedding
 from itertools import groupby
 from operator import itemgetter
 from dotenv import load_dotenv
@@ -14,6 +14,8 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from litellm import completion_cost
 from jinja2 import Template
+from sklearn.metrics.pairwise import cosine_similarity
+from collections import defaultdict
 
 load_dotenv()
 
@@ -102,6 +104,7 @@ class DSLRunner:
 
             op_object = self.config["operations"][operation_name].copy()
             op_object.update(operation_config)
+            op_object["name"] = operation_name
 
             op_task = progress.add_task(
                 f"Running operation [cyan]{operation_name}[/cyan]...", total=1
@@ -121,6 +124,10 @@ class DSLRunner:
     ) -> Tuple[List[Dict], float]:
         operation_type = operation["type"]
 
+        self.console.print(f"[bold]Running Operation:[/bold]")
+        self.console.print(f"  Type: [cyan]{operation_type}[/cyan]")
+        self.console.print(f"  Name: [cyan]{operation.get('name', 'Unnamed')}[/cyan]")
+
         if operation_type == "map":
             return self.execute_map(operation, input_data)
         elif operation_type == "filter":
@@ -133,45 +140,317 @@ class DSLRunner:
             left_data = self.datasets[operation["left"]]
             right_data = self.datasets[operation["right"]]
             return self.execute_equijoin(operation, left_data, right_data)
-        elif operation_type == "splitter":
-            return self.execute_splitter(operation, input_data)
+        elif operation_type == "split":
+            return self.execute_split(operation, input_data)
         elif operation_type == "reduce":
             return self.execute_reduce(operation, input_data)
+        elif operation_type == "resolve":
+            return self.execute_resolve(operation, input_data)
         else:
             raise ValueError(f"Unsupported operation type: {operation_type}")
 
     def execute_equijoin(
         self, operation: Dict, left_data: List[Dict], right_data: List[Dict]
     ) -> Tuple[List[Dict], float]:
-        left_key = operation["left_key"]
-        right_key = operation["right_key"]
+        left_key = operation["join_key"]["left"]["name"]
+        right_key = operation["join_key"]["right"]["name"]
+        left_limit = operation["join_key"]["left"].get("limit", float("inf"))
+        right_limit = operation["join_key"]["right"].get("limit", float("inf"))
+        blocking_threshold = operation.get("blocking_threshold")
+        blocking_conditions = operation.get("blocking_conditions", [])
+        total_cost = 0
+
+        def is_match(left_item: Dict[str, Any], right_item: Dict[str, Any]) -> bool:
+            return any(
+                eval(condition, {"left": left_item, "right": right_item})
+                for condition in blocking_conditions
+            )
+
+        # Initial blocking
+        blocked_pairs = []
+        for left_item in left_data:
+            for right_item in right_data:
+                if is_match(left_item, right_item):
+                    blocked_pairs.append((left_item, right_item))
+
+        if blocking_threshold is not None:
+            embedding_model = operation.get("embedding_model", self.default_model)
+
+            def get_embedding(
+                item: Dict[str, Any], keys: List[str]
+            ) -> Tuple[List[float], float]:
+                text = " ".join(str(item[key]) for key in keys if key in item)
+                response = embedding(model=embedding_model, input=[text])
+                return response["data"][0]["embedding"], completion_cost(response)
+
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                left_embeddings = list(
+                    executor.map(
+                        lambda x: get_embedding(x, [left_key]),
+                        left_data,
+                    )
+                )
+                right_embeddings = list(
+                    executor.map(
+                        lambda x: get_embedding(x, [right_key]),
+                        right_data,
+                    )
+                )
+
+            left_embeddings, left_costs = zip(*left_embeddings)
+            right_embeddings, right_costs = zip(*right_embeddings)
+            total_cost += sum(left_costs) + sum(right_costs)
+
+            # Additional blocking based on embeddings
+            for i, left_item in enumerate(left_data):
+                for j, right_item in enumerate(right_data):
+                    if (left_item, right_item) not in blocked_pairs:
+                        if (
+                            cosine_similarity(
+                                [left_embeddings[i]], [right_embeddings[j]]
+                            )[0][0]
+                            >= blocking_threshold
+                        ):
+                            blocked_pairs.append((left_item, right_item))
+
+        # LLM-based comparison for blocked pairs
+        def get_hashable_key(item: Dict) -> str:
+            return json.dumps(item, sort_keys=True)
+
+        left_match_counts = defaultdict(int)
+        right_match_counts = defaultdict(int)
+        results = []
+        comparison_costs = 0
+
+        def compare_pair(left_item: Dict, right_item: Dict) -> Tuple[bool, float]:
+            prompt_template = Template(operation["comparison_prompt"])
+            prompt = prompt_template.render(left=left_item, right=right_item)
+            response = self.call_llm(
+                operation.get("comparison_model", self.default_model),
+                "compare",
+                prompt,
+                {"matched": "bool"},
+            )
+            output = self.parse_llm_response(response)[0]
+            return output["matched"], completion_cost(response)
+
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            future_to_pair = {
+                executor.submit(compare_pair, left, right): (left, right)
+                for left, right in blocked_pairs
+            }
+
+            for future in tqdm(
+                as_completed(future_to_pair),
+                total=len(future_to_pair),
+                desc="Comparing pairs",
+            ):
+                pair = future_to_pair[future]
+                is_match, cost = future.result()
+                comparison_costs += cost
+
+                if is_match:
+                    joined_item = {}
+                    left_item, right_item = pair
+                    left_key_hash = get_hashable_key(left_item)
+                    right_key_hash = get_hashable_key(right_item)
+                    if (
+                        left_match_counts[left_key_hash] >= left_limit
+                        or right_match_counts[right_key_hash] >= right_limit
+                    ):
+                        continue
+
+                    for key, value in left_item.items():
+                        joined_item[f"{key}_left" if key in right_item else key] = value
+                    for key, value in right_item.items():
+                        joined_item[f"{key}_right" if key in left_item else key] = value
+                    if self.validate_output(operation, joined_item):
+                        results.append(joined_item)
+                        left_match_counts[left_key_hash] += 1
+                        right_match_counts[right_key_hash] += 1
+
+        total_cost += comparison_costs
+
+        # Calculate and print the join selectivity
+        join_selectivity = len(results) / (len(left_data) * len(right_data))
+        self.console.print(f"Equijoin selectivity: {join_selectivity:.4f}")
+
+        return results, total_cost
+
+    def execute_resolve(
+        self, operation: Dict, input_data: List[Dict]
+    ) -> Tuple[List[Dict], float]:
+        blocking_keys = operation.get("blocking_keys", [])
+        blocking_threshold = operation.get("blocking_threshold")
+        blocking_conditions = operation.get("blocking_conditions", [])
+        total_cost = 0
+
+        def is_match(item1: Dict[str, Any], item2: Dict[str, Any]) -> bool:
+            return any(
+                eval(condition, {"input1": item1, "input2": item2})
+                for condition in blocking_conditions
+            )
+
+        # Initial clustering
+        clusters = {}
+        for i, item in enumerate(input_data):
+            matched = False
+            for rep, cluster in clusters.items():
+                if is_match(item, input_data[rep]):
+                    cluster.append(i)
+                    matched = True
+                    break
+            if not matched:
+                clusters[i] = [i]
+
+        if blocking_threshold is not None:
+            embedding_model = operation.get("embedding_model", self.default_model)
+
+            def get_embedding(item: Dict[str, Any]) -> Tuple[List[float], float]:
+                text = " ".join(str(item[key]) for key in blocking_keys if key in item)
+                response = embedding(model=embedding_model, input=[text])
+                return response["data"][0]["embedding"], completion_cost(response)
+
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                embeddings = list(executor.map(get_embedding, input_data))
+                embeddings, costs = zip(*embeddings)
+                total_cost += sum(costs)
+
+            # Additional clustering based on embeddings
+            for i, item in enumerate(input_data):
+                for rep, cluster in list(clusters.items()):
+                    if (
+                        i not in cluster
+                        and cosine_similarity([embeddings[i]], [embeddings[rep]])[0][0]
+                        >= blocking_threshold
+                    ):
+                        clusters[rep].append(i)
+
+        # Pairwise comparisons within clusters
+        true_matches = {}
+        pair_costs = 0
+
+        def compare_pair(item1: Dict, item2: Dict) -> Tuple[bool, float]:
+            prompt_template = Template(operation["comparison_prompt"])
+            prompt = prompt_template.render(input1=item1, input2=item2)
+            response = self.call_llm(
+                operation.get("comparison_model", self.default_model),
+                "compare",
+                prompt,
+                {"is_match": "bool"},
+            )
+            output = self.parse_llm_response(response)[0]
+            return output["is_match"], completion_cost(response)
+
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            future_to_pair = {}
+            for cluster in clusters.values():
+                cluster_items = [input_data[i] for i in cluster]
+                for i, item1 in enumerate(cluster_items):
+                    for j, item2 in enumerate(cluster_items):
+                        if i < j:
+                            future = executor.submit(compare_pair, item1, item2)
+                            future_to_pair[future] = (cluster[i], cluster[j])
+
+            total_pairs = len(future_to_pair)
+            for future in tqdm(
+                as_completed(future_to_pair), total=total_pairs, desc="Comparing pairs"
+            ):
+                pair = future_to_pair[future]
+                is_match, cost = future.result()
+                pair_costs += cost
+                if is_match:
+                    if pair[0] not in true_matches:
+                        true_matches[pair[0]] = set()
+                    if pair[1] not in true_matches:
+                        true_matches[pair[1]] = set()
+                    true_matches[pair[0]].add(pair[1])
+                    true_matches[pair[1]].add(pair[0])
+
+        # Calculate and print the true match selectivity
+        n = len(input_data)
+        total_possible_pairs = n * (n - 1) // 2
+        true_match_count = sum(len(matches) for matches in true_matches.values()) // 2
+        true_match_selectivity = true_match_count / total_possible_pairs
+        self.console.print(f"Self-join selectivity: {true_match_selectivity:.4f}")
+        total_cost += pair_costs
+
+        # Group true matches into sub-clusters
+        sub_clusters = []
+        processed = set()
+        for i, matches in true_matches.items():
+            if i not in processed:
+                sub_cluster = {i} | matches
+                for j in matches:
+                    sub_cluster |= true_matches.get(j, set())
+                sub_clusters.append(list(sub_cluster))
+                processed |= sub_cluster
+
+        # Add items that didn't match anything as their own clusters
+        for i in range(len(input_data)):
+            if i not in processed:
+                sub_clusters.append([i])
+
+        # Process each sub-cluster
         results = []
 
-        # Create a dictionary for faster lookups
-        right_dict = {item[right_key]: item for item in right_data}
+        def process_sub_cluster(sub_cluster):
+            if len(sub_cluster) > 1:
+                true_match_items = [input_data[i] for i in sub_cluster]
+                reduction_template = Template(operation["reduction_prompt"])
+                reduction_prompt = reduction_template.render(
+                    matched_entries=true_match_items
+                )
+                reduction_response = self.call_llm(
+                    operation.get("reduction_model", self.default_model),
+                    "reduce",
+                    reduction_prompt,
+                    operation["output"]["schema"],
+                )
+                reduction_output = self.parse_llm_response(reduction_response)[0]
+                reduction_cost = completion_cost(reduction_response)
 
-        print([item[left_key] for item in left_data])
-        print([item[right_key] for item in right_data])
+                if self.validate_output(operation, reduction_output):
+                    return (
+                        [
+                            {
+                                **item,
+                                **{
+                                    k: reduction_output[k]
+                                    for k in operation["output"]["schema"]
+                                },
+                            }
+                            for item in true_match_items
+                        ],
+                        reduction_cost,
+                    )
+                return [], reduction_cost
+            else:
+                return [input_data[sub_cluster[0]]], 0
 
-        for left_item in left_data:
-            if left_item[left_key] in right_dict:
-                right_item = right_dict[left_item[left_key]]
-                joined_item = {}
-                for key, value in left_item.items():
-                    joined_item[f"{key}_left" if key in right_item else key] = value
-                for key, value in right_item.items():
-                    joined_item[f"{key}_right" if key in left_item else key] = value
-                if self.validate_output(operation, joined_item):
-                    results.append(joined_item)
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = [
+                executor.submit(process_sub_cluster, sub_cluster)
+                for sub_cluster in sub_clusters
+            ]
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="Processing sub-clusters",
+                leave=True,
+            ):
+                sub_results, sub_cost = future.result()
+                results.extend(sub_results)
+                total_cost += sub_cost
 
-        return results, 0  # Assuming no cost for join operation
+        return results, total_cost
 
     def execute_map(
         self, operation: Dict, input_data: List[Dict]
     ) -> Tuple[List[Dict], float]:
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(operation["prompt"])
-            prompt = prompt_template.render(**item)
+            prompt = prompt_template.render(input=item)
             response = self.call_llm(
                 operation.get("model", self.default_model),
                 "map",
@@ -214,7 +493,7 @@ class DSLRunner:
 
         def _process_filter_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(operation["prompt"])
-            prompt = prompt_template.render(**item)
+            prompt = prompt_template.render(input=item)
             response = self.call_llm(
                 operation.get("model", self.default_model),
                 "filter",
@@ -257,7 +536,7 @@ class DSLRunner:
 
         def process_item(item):
             prompt_template = Template(operation["prompt"])
-            prompt = prompt_template.render(**item)
+            prompt = prompt_template.render(input=item)
             response = self.call_llm(
                 operation.get("model", self.default_model),
                 "flatmap",
@@ -296,7 +575,7 @@ class DSLRunner:
         total_cost = 0
 
         def process_prompt(item, prompt_template, model, output_schema):
-            prompt = Template(prompt_template).render(**item)
+            prompt = Template(prompt_template).render(input=item)
             response = self.call_llm(
                 model,
                 "map",
@@ -381,14 +660,14 @@ class DSLRunner:
 
         return results, total_cost
 
-    def execute_splitter(
+    def execute_split(
         self, operation: Dict, input_data: List[Dict]
     ) -> Tuple[List[Dict], float]:
         """
         EXAMPLE
 
         split_content:
-            type: splitter
+            type: split
             chunk_size: 1000
             overlap_size: 100
             model: gpt-4o-mini
@@ -488,8 +767,10 @@ class DSLRunner:
             return True
         for validation in operation["validate"]:
             if not eval(validation, {"output": output}):
-                rprint(f"[bold red]Validation failed:[/bold red] {validation}")
-                rprint(f"[yellow]Output:[/yellow] {output}")
+                self.console.print(
+                    f"[bold red]Validation failed:[/bold red] {validation}"
+                )
+                self.console.print(f"[yellow]Output:[/yellow] {output}")
                 return False
         return True
 

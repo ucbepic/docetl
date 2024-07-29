@@ -16,8 +16,8 @@ class Splitter(Operator, ABC):
 
     def validate(
         self, input_key: K, input_value: V, output_pairs: List[Tuple[RK, RV]]
-    ) -> bool:
-        return True
+    ) -> None:
+        pass
 
     def correct(
         self, input_key: K, input_value: V, output_pairs: List[Tuple[RK, RV]]

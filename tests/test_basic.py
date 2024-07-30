@@ -241,14 +241,23 @@ def test_equijoin_operation_empty_input(equijoin_config, default_model, max_thre
     assert cost == 0
 
 
-# Split Operation Tests
 @pytest.fixture
 def split_config():
     return {
         "type": "split",
         "split_key": "content",
-        "chunk_size": 10,
-        "overlap_size": 0,
+        "chunk_size": 4,
+        "peripheral_chunks": {
+            "previous": {
+                "head": {"type": "full", "count": 1},
+                "middle": {"type": "summary"},
+                "tail": {"type": "full", "count": 1.5},
+            },
+            "next": {
+                "head": {"type": "full", "count": 1},
+                "tail": {"type": "summary", "count": 2},
+            },
+        },
     }
 
 
@@ -257,9 +266,12 @@ def split_sample_data():
     return [
         {
             "id": 1,
-            "content": "This is a long piece of content that needs to be split into smaller chunks for processing.",
+            "content": "This is a long piece of content that needs to be split into smaller chunks for processing. It should create multiple chunks to test all aspects of the split operation.",
         },
-        {"id": 2, "content": "Another long piece of content."},
+        {
+            "id": 2,
+            "content": "Another piece of content that is just long enough to create two chunks.",
+        },
     ]
 
 
@@ -268,8 +280,109 @@ def test_split_operation(split_config, default_model, max_threads, split_sample_
     results, cost = operation.execute(split_sample_data)
 
     assert len(results) > len(split_sample_data)
-    assert all("chunk_id" in result and "chunk_content" in result for result in results)
+    assert all("chunk_id" in result and "content" in result for result in results)
     assert cost == 0  # Split operation doesn't use LLM
+
+    # Check that chunks are created correctly
+    assert len(results) == 12  # 8 chunks for first item, 4 for second
+
+    # Check previous chunks for the middle chunk of the first item
+    middle_chunk = results[3][
+        "_chunk_intermediates"
+    ]  # 4th chunk (index 3) should be the middle chunk
+    assert "previous_chunks" in middle_chunk
+    assert (
+        len(middle_chunk["previous_chunks"]) == 3
+    )  # 1 head + 1 middle summary + 1.5 tail
+    assert middle_chunk["previous_chunks"][0]["chunk_id"] == "chunk_0"
+    assert middle_chunk["previous_chunks"][2]["chunk_id"] == "chunk_2"
+
+    # Check next chunks for the middle chunk of the first item
+    assert "next_chunks" in middle_chunk
+    assert len(middle_chunk["next_chunks"]) == 3  # 1 head + 2 tail summaries
+    assert middle_chunk["next_chunks"][0]["chunk_id"] == "chunk_4"
+
+    # Check the first chunk of the second item
+    second_item_first_chunk = results[8]["_chunk_intermediates"]
+    assert len(second_item_first_chunk["previous_chunks"]) == 0, "No previous chunks"
+    assert len(second_item_first_chunk["next_chunks"]) >= 1, "Some next chunks"
+
+
+def test_split_operation_without_peripheral_chunks(
+    split_config, default_model, max_threads, split_sample_data
+):
+    # Remove peripheral_chunks from config
+    split_config.pop("peripheral_chunks")
+    operation = SplitOperation(split_config, default_model, max_threads)
+    results, cost = operation.execute(split_sample_data)
+
+    assert len(results) > len(split_sample_data)
+    assert all("chunk_id" in result and "content" in result for result in results)
+    assert all(
+        result["_chunk_intermediates"]["previous_chunks"] == []
+        and result["_chunk_intermediates"]["next_chunks"] == []
+        for result in results
+    )
+    assert cost == 0
+
+
+def test_split_operation_with_partial_config(
+    split_config, default_model, max_threads, split_sample_data
+):
+    # Modify config to only include previous chunks
+    split_config["peripheral_chunks"] = {
+        "previous": {"head": {"type": "full", "count": 1}}
+    }
+    operation = SplitOperation(split_config, default_model, max_threads)
+    results, cost = operation.execute(split_sample_data)
+
+    assert len(results) > len(split_sample_data)
+    assert all(
+        "next_chunks" in result["_chunk_intermediates"]
+        and result["_chunk_intermediates"]["next_chunks"] == []
+        for result in results
+    )
+    assert cost == 0
+
+    # Check that only head is included in previous chunks
+    for result in results:
+        chunk_id = result["chunk_id"]
+        if chunk_id == "chunk_0":
+            continue
+        result = result["_chunk_intermediates"]
+        if "previous_chunks" in result:
+            assert len(result["previous_chunks"]) == 1
+            assert "chunk_id" in result["previous_chunks"][0]
+            assert "summary" not in result["previous_chunks"][0]
+
+
+@pytest.mark.parametrize(
+    "invalid_config",
+    [
+        {"type": "split", "split_key": "content"},  # Missing chunk_size
+        {"type": "split", "chunk_size": 10},  # Missing split_key
+        {
+            "type": "split",
+            "split_key": "content",
+            "chunk_size": "10",
+        },  # Invalid chunk_size type
+        {
+            "type": "split",
+            "split_key": "content",
+            "chunk_size": 10,
+            "peripheral_chunks": {"previous": {"head": {"type": "invalid"}}},
+        },  # Invalid type in peripheral_chunks
+        {
+            "type": "split",
+            "split_key": "content",
+            "chunk_size": 10,
+            "peripheral_chunks": {"previous": {"head": {"count": "1"}}},
+        },  # Invalid count type in peripheral_chunks
+    ],
+)
+def test_split_operation_invalid_config(invalid_config, default_model, max_threads):
+    with pytest.raises((ValueError, TypeError)):
+        SplitOperation(invalid_config, default_model, max_threads)
 
 
 def test_split_operation_empty_input(split_config, default_model, max_threads):

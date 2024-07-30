@@ -210,14 +210,33 @@ Note that the comparison prompt should be designed to elicit a clear yes or no a
 
 ### Split
 
-The Split operation divides long text content into smaller chunks.
+The Split operation divides long text content into smaller chunks and optionally includes contextual information from surrounding chunks.
 
 Required parameters:
 
 - `type`: Must be set to `"split"`.
 - `split_key`: The key of the field containing the text to split.
-- `chunk_size`: The maximum size of each chunk.
-- `overlap_size`: The number of overlapping tokens between chunks.
+- `chunk_size`: The maximum size of each chunk in tokens.
+- `model` (optional): The language model's tokenizer to use; falls back to `default_model` if not specified. Note that we don't actually run a language model here.
+
+Optional parameters:
+
+- `main_chunk_start`: A string to prefix the main chunk content (default: "<MAIN_CHUNK>"). Only used when there are peripheral chunks.
+- `main_chunk_end`: A string to suffix the main chunk content (default: "</MAIN_CHUNK>"). Only used when there are peripheral chunks.
+- `peripheral_chunks`: A dictionary specifying how to handle chunks before and after the current chunk.
+  - `previous`: Configuration for chunks before the current chunk.
+  - `next`: Configuration for chunks after the current chunk.
+
+Both `previous` and `next` can contain the following optional sections:
+
+- `head`: Chunks at the beginning of the document.
+- `middle`: Chunks between the head and tail.
+- `tail`: Chunks closest to the current chunk.
+
+Each section (`head`, `middle`, `tail`) can have the following properties:
+
+- `type`: Either "full" (include entire chunk) or "summary" (include a summary of the chunk). We default to "full" if the section is specified. If the section is not specified, we will not include any chunks/summaries from that section
+- `count`: The number of chunks to include (for `head` and `tail` only). Can be a fractional value.
 
 Example:
 
@@ -225,9 +244,48 @@ Example:
 split_operation:
   type: split
   split_key: content
+  model: gpt-4o-mini
   chunk_size: 50
-  overlap_size: 10
+  main_chunk_start: "<MAIN_CHUNK>"
+  main_chunk_end: "</MAIN_CHUNK>"
+  peripheral_chunks:
+    previous:
+      head:
+        type: full
+        count: 2
+      middle:
+        type: summary
+      tail:
+        type: full
+        count: 1.5
+    next:
+      head:
+        type: full
+        count: 1
+      tail:
+        type: summary
+        count: 2
 ```
+
+In this example:
+
+- The content is split into chunks of 50 tokens each.
+- For previous chunks:
+  - The first 2 chunks are included in full.
+  - All middle chunks are summarized.
+  - The 1.5 chunks immediately before the current chunk are included in full.
+- For next chunks:
+  - The first chunk after the current one is included in full.
+  - The last 2 chunks are summarized.
+
+Notes:
+
+- All sections in `peripheral_chunks` are optional. If omitted, no context will be included for that section.
+- If `count` is omitted for `head` or `tail`, it defaults to 0 (effectively omitting that section).
+- The `middle` section doesn't use a `count` parameter as it covers all chunks between `head` and `tail`.
+- Fractional values for `count` will include a partial chunk. For example, `1.5` includes the first chunk and half of the next chunk.
+- The split key will get replaced with the chunk content, and the operation acts like a flatmap. In other words, for each input item, it will produce multiple output items, one for each chunk. Each output item will contain all the original key-value pairs from the input item, plus the chunk_id and the chunked content replacing the original content of the split key.
+- The operation also adds a `_chunk_intermediates` key to each output item, containing the full chunk content, previous chunks, and next chunks. This can be used for debugging or further processing.
 
 ### Reduce
 

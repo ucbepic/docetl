@@ -6,7 +6,7 @@ from motion.utils import load_config
 from rich.console import Console
 import random
 import json
-from litellm import completion
+from litellm import completion, completion_cost
 import os
 import jinja2
 
@@ -14,6 +14,7 @@ import jinja2
 class LLMClient:
     def __init__(self, model="gpt-4o"):
         self.model = model
+        self.total_cost = 0
 
     def generate(self, messages, system_prompt, parameters):
         response = completion(
@@ -38,6 +39,8 @@ class LLMClient:
             parallel_tool_calls=False,
             tool_choice={"type": "function", "function": {"name": "write_output"}},
         )
+        cost = completion_cost(response)
+        self.total_cost += cost
         return response
 
 
@@ -49,12 +52,14 @@ class Optimizer:
         sample_size: int = 5,
         model: str = "gpt-4o",
     ):
+        self.yaml_file_path = yaml_file
         self.config = load_config(yaml_file)
         self.sample_size = sample_size
         self.console = Console()
         self.optimized_config = self.config.copy()
         self.llm_client = LLMClient(model)
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
+        self.operations_cost = 0
 
     def optimize(self):
         optimized_steps = []
@@ -67,6 +72,16 @@ class Optimizer:
         self.optimized_config["operations"] = optimized_operations
         self.optimized_config["pipeline"]["steps"] = optimized_steps
         self._save_optimized_config()
+
+        self.console.print(
+            f"[bold]Total agent cost: ${self.llm_client.total_cost:.2f}[/bold]"
+        )
+        self.console.print(
+            f"[bold]Total operations cost: ${self.operations_cost:.2f}[/bold]"
+        )
+        self.console.print(
+            f"[bold]Total cost: ${self.llm_client.total_cost + self.operations_cost:.2f}[/bold]"
+        )
 
     def _optimize_step(
         self, step: Dict[str, Any]
@@ -1021,7 +1036,8 @@ class Optimizer:
         operation_instance = operation_class(
             op_config, self.config["default_model"], self.max_threads, self.console
         )
-        output_data, _ = operation_instance.execute(input_data)
+        output_data, cost = operation_instance.execute(input_data)
+        self.operations_cost += cost
         return output_data
 
     def _save_optimized_config(self):
@@ -1040,7 +1056,13 @@ class Optimizer:
         resolved_config = resolve_anchors(config_to_save)
 
         # Use safe_dump to avoid creating anchors and aliases
-        with open("optimized_config.yaml", "w") as f:
+        # Get the base filename without extension
+        base_filename = os.path.splitext(self.yaml_file_path)[0]
+
+        # Append '_opt' to the base filename
+        optimized_filename = f"{base_filename}_opt.yaml"
+
+        with open(optimized_filename, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False)
 
         self.console.print(

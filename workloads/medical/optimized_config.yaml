@@ -1,0 +1,63 @@
+datasets:
+  transcripts:
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/raw_with_id.json
+    type: file
+default_model: gpt-4o-mini
+operations:
+  split_extract_medical_info:
+    chunk_size: 1390
+    peripheral_chunks:
+      previous:
+        head:
+          count: 2
+        tail:
+          count: 1.5
+    split_key: src
+    type: split
+  submap_extract_medical_info:
+    model: gpt-4o-mini
+    output:
+      schema:
+        dosages: list[str]
+        medications: list[str]
+        symptoms: list[str]
+    prompt: "Analyze the following segment of the conversation between a doctor and\
+      \ a patient:\n\n{{ chunk }}\n\nExtract and list all medications, dosages, and\
+      \ symptoms mentioned in the segment. If a piece of information is not found,\
+      \ return an empty list for that category.\n\nProvide your response in the following\
+      \ JSON format:\n{\n  \"medications\": [\"medication1\", \"medication2\", ...],\n\
+      \  \"dosages\": [\"dosage1\", \"dosage2\", ...],\n  \"symptoms\": [\"symptom1\"\
+      , \"symptom2\", ...]\n}"
+    type: map
+  subreduce_extract_medical_info:
+    model: gpt-4o-mini
+    output:
+      schema:
+        dosages: list[str]
+        medications: list[str]
+        symptoms: list[str]
+    prompt: "Combine the following results from multiple chunks into a coherent final\
+      \ result in the schema provided below:\n\n{\n  \"medications\": \"list[str]\"\
+      ,\n  \"dosages\": \"list[str]\",\n  \"symptoms\": \"list[str]\"\n}\n\nResults:\n\
+      {{ values }}\n\nInstructions:\n1. Initialize three empty sets to store unique\
+      \ medications, dosages, and symptoms.\n2. Iterate through each chunk's result\
+      \ in the `values` list.\n3. For each chunk's result, add unique medications\
+      \ to the medications set, unique dosages to the dosages set, and unique symptoms\
+      \ to the symptoms set.\n4. Convert each set to a list and ensure the final lists\
+      \ are unique and ordered.\n5. Formulate the final combined result in the JSON\
+      \ format provided below:\n{\n  \"medications\": [\"medication1\", \"medication2\"\
+      , ...],\n  \"dosages\": [\"dosage1\", \"dosage2\", ...],\n  \"symptoms\": [\"\
+      symptom1\", \"symptom2\", ...]\n}"
+    reduce_key: document_id
+    type: reduce
+pipeline:
+  output:
+    path: extracted_medical_info.json
+    type: file
+  steps:
+  - input: transcripts
+    name: medical_info_extraction
+    operations:
+    - split_extract_medical_info
+    - submap_extract_medical_info
+    - subreduce_extract_medical_info

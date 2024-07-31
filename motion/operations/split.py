@@ -43,7 +43,7 @@ class SplitOperation(BaseOperation):
                                     f"'peripheral_chunks.{direction}.{section}' must be a dictionary"
                                 )
 
-                            if "type" not in section_config or section_config[
+                            if "type" in section_config and section_config[
                                 "type"
                             ] not in ["full", "summary"]:
                                 raise ValueError(
@@ -252,6 +252,13 @@ class SplitOperation(BaseOperation):
                 previous_chunks, combined_parts, encoder
             )
             combined_parts.append("--- End Previous Context ---\n")
+        else:
+            # Show skipped tokens even if there are no previous chunks
+            main_chunk_num = int(main_chunk["chunk_id"].split("_")[1])
+            skipped_tokens = (main_chunk_num - 1) * self.config["chunk_size"]
+            combined_parts.append(
+                f"[... {skipped_tokens} tokens skipped before this chunk ...]"
+            )
 
         # Process main chunk
         if not previous_chunks and not next_chunks:
@@ -270,6 +277,15 @@ class SplitOperation(BaseOperation):
                 next_chunks, combined_parts, encoder
             )
             combined_parts.append("--- End Next Context ---")
+        else:
+            # Show skipped tokens even if there are no next chunks
+            total_chunks = int(main_chunk["chunk_id"].split("_")[1])
+            skipped_tokens = (
+                total_chunks - int(main_chunk["chunk_id"].split("_")[1])
+            ) * self.config["chunk_size"]
+            combined_parts.append(
+                f"[... {skipped_tokens} tokens skipped after this chunk ...]"
+            )
 
         return "\n".join(combined_parts)
 

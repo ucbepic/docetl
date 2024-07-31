@@ -7,9 +7,18 @@ TODO:
 - [x] Convert parallel flatmap to parallel map
 - [x] Write documentation & restructure codebase
 - [x] Write tests
-- [ ] Chunking/splitting with peripheral chunks
-- [ ] Write build phase
+- [x] Chunking/splitting with peripheral chunks
+- [x] Write build phase
 - [ ] Optimize maps
+  - [ ] Track costs for the optimizer
+  - [ ] Don't use an LLM to determine the right chunk size; try binary search
+  - [ ] Call llm agent multiple times on different random inputs & average results
+  - [ ] Generate multiple plans and evaluate them instead of generating one plan
+  - [ ] Allow splitting to be based on a regex, not just tokens
+  - [ ] Have a more principled way of determining peripheral chunks? Right now we've hardcoded values
+- [ ] Optimize reduce
+  - [ ] Auto-generate resolver
+- [ ] Optimize equijoins
 - [ ] Operator reordering
 - [ ] Support passing expectations
 - [ ] Write intermediates to disk

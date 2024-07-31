@@ -1,0 +1,40 @@
+datasets:
+  transcripts:
+    type: file
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/raw_with_id.json"
+
+default_model: gpt-4o-mini
+
+operations:
+  extract_medical_info:
+    type: map
+    output:
+      schema:
+        medications: list[str]
+        dosages: list[str]
+        symptoms: list[str]
+    prompt: |
+      Analyze the following transcript of a conversation between a doctor and a patient:
+
+      {{ input.src }}
+
+      Extract and list all medications, dosages, and symptoms mentioned in the transcript.
+      If a piece of information is not found, return an empty list for that category.
+
+      Provide your response in the following JSON format:
+      {
+        "medications": ["medication1", "medication2", ...],
+        "dosages": ["dosage1", "dosage2", ...],
+        "symptoms": ["symptom1", "symptom2", ...]
+      }
+
+pipeline:
+  steps:
+    - name: medical_info_extraction
+      input: transcripts
+      operations:
+        - extract_medical_info
+
+  output:
+    type: file
+    path: "extracted_medical_info.json"

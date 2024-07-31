@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import copy
 import yaml
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Union
 from motion.operations import get_operation
 from motion.utils import load_config
 from rich.console import Console
@@ -9,6 +10,28 @@ import json
 from litellm import completion, completion_cost
 import os
 import jinja2
+from jinja2 import Environment, meta
+import re
+
+
+def extract_jinja_variables(template_string):
+    # Create a Jinja2 environment
+    env = Environment()
+
+    # Parse the template
+    ast = env.parse(template_string)
+
+    # Find all the variables referenced in the template
+    variables = meta.find_undeclared_variables(ast)
+
+    # Use regex to find any additional variables that might be missed
+    # This regex looks for {{ variable }} patterns
+    regex_variables = set(re.findall(r"{{\s*(\w+)\s*}}", template_string))
+
+    # Combine both sets of variables
+    all_variables = variables.union(regex_variables)
+
+    return list(all_variables)
 
 
 class LLMClient:
@@ -101,13 +124,10 @@ class Optimizer:
             op_object.update(operation_config)
             op_object["name"] = operation_name
 
-            optimized_ops = self._optimize_operation(op_object, input_data)
+            optimized_ops, input_data = self._optimize_operation(op_object, input_data)
             for op in optimized_ops:
                 op_name = op.pop("name")
                 optimized_operations[op_name] = op
-
-            for op in optimized_ops:
-                input_data = self._run_operation(op, input_data)
 
         optimized_step = step.copy()
         optimized_step["operations"] = list(optimized_operations.keys())
@@ -127,39 +147,14 @@ class Optimizer:
 
     def _optimize_operation(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        operation_class = get_operation(op_config["type"])
-        operation_instance = operation_class(
-            op_config, self.config["default_model"], self.max_threads, self.console
-        )
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        # Execute the original operation on the sample data
+        output_data = self._run_operation(op_config, input_data)
 
-        try:
-            output_data, cost = operation_instance.execute(input_data)
-            self.console.print(f"Operation {op_config['name']} cost: ${cost:.2f}")
-        except Exception as e:
-            self.console.print(
-                f"[red]Error in operation {op_config['name']}: {str(e)}[/red]"
-            )
-            return [op_config]
-
-        optimized_ops = self._analyze_and_breakdown(op_config, input_data, output_data)
-        return optimized_ops
-
-    def _analyze_and_breakdown(
-        self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        output_data: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        # Step 1: Generate custom validator prompt
+        # Generate custom validator prompt
         validator_prompt = self._generate_validator_prompt(
             op_config, input_data, output_data
         )
-
-        # Print out the validator prompt
-        self.console.print("[bold]Generated Validator Prompt:[/bold]")
-        self.console.print(validator_prompt)
-        self.console.print("\n")  # Add a newline for better readability
 
         # Step 2: Use the validator prompt to assess the operation's performance
         assessment = self._assess_operation(
@@ -167,20 +162,51 @@ class Optimizer:
         )
 
         # Print out the assessment
-        self.console.print("[bold]Assessment:[/bold]")
+        self.console.print(
+            f"[bold]Assessment for whether we should improve operation {op_config['name']}:[/bold]"
+        )
         self.console.print(json.dumps(assessment, indent=2))
         self.console.print("\n")  # Add a newline for better readability
 
-        # Step 3: Based on the assessment, decide whether to break down or improve the operation
-        if assessment["needs_improvement"]:
-            return self._improve_or_breakdown_operation(
-                op_config, assessment, input_data[:5]
-            )  # Pass a sample of input data
-        else:
+        # Check if improvement is needed based on the assessment
+        if assessment.get("needs_improvement", True) == False:
             self.console.print(
-                f"[green]Operation {op_config['name']} performs well. No changes needed.[/green]"
+                f"[green]No improvement needed for operation {op_config['name']}[/green]"
             )
-            return [op_config]
+            return [op_config], output_data
+
+        # Evaluate both plans
+        plans_to_evaluate = {
+            "improved_prompt_plan": self._get_improved_prompt(
+                op_config, assessment, input_data
+            ),
+            "breakdown_plan": self._get_split_config(op_config, input_data),
+        }
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = {
+                executor.submit(
+                    self._evaluate_plan,
+                    plan_name,
+                    op_config,
+                    plan,
+                    copy.deepcopy(input_data),
+                    validator_prompt,
+                ): plan_name
+                for plan_name, plan in plans_to_evaluate.items()
+            }
+            results = {}
+            for future in as_completed(futures):
+                plan_name = futures[future]
+                score, output = future.result()
+                results[plan_name] = (score, output)
+
+        # Choose the best plan
+        best_plan_name = max(results, key=lambda x: results[x][0])
+        _, best_output = results[best_plan_name]
+        self.console.print(
+            f"[green]Choosing {best_plan_name} for operation {op_config['name']}[/green]"
+        )
+        return plans_to_evaluate[best_plan_name], best_output
 
     def _generate_validator_prompt(
         self,
@@ -195,8 +221,8 @@ class Optimizer:
 
         Operation Name: {op_config['name']}
         Operation Type: {op_config['type']}
-        Input Schema: {json.dumps(input_data[0] if input_data else {}, indent=2)}
-        Output Schema: {json.dumps(output_data[0] if output_data else {}, indent=2)}
+        Sample Input: {json.dumps(input_data[0] if input_data else {}, indent=2)}
+        Sample Output: {json.dumps(output_data[0] if output_data else {}, indent=2)}
         Current Prompt: {op_config.get('prompt', 'N/A')}
 
         Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask specific questions about the quality and completeness of the output, such as:
@@ -251,77 +277,12 @@ class Optimizer:
             "properties": {
                 "needs_improvement": {"type": "boolean"},
                 "reasons": {"type": "array", "items": {"type": "string"}},
-                "suggested_improvements": {
+                "improvements": {
                     "type": "array",
                     "items": {"type": "string"},
                 },
             },
-            "required": ["needs_improvement", "reasons", "suggested_improvements"],
-        }
-
-        response = self.llm_client.generate(
-            [
-                {"role": "user", "content": prompt},
-            ],
-            system_prompt,
-            parameters,
-        )
-        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)
-
-    def _improve_or_breakdown_operation(
-        self,
-        op_config: Dict[str, Any],
-        assessment: Dict[str, Any],
-        input_data_sample: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        should_split = self._determine_if_splitting_necessary(
-            op_config, assessment, input_data_sample
-        )
-
-        # Print the decision about splitting and the reason
-        self.console.print("[bold]Splitting Decision:[/bold]")
-        self.console.print(f"Should split: {should_split['should_split']}")
-        self.console.print(f"Reason: {should_split['reason']}")
-
-        if should_split["should_split"]:
-            return self._get_split_config(op_config, input_data_sample)
-        else:
-            return self._get_improved_prompt(op_config, input_data_sample)
-
-    def _determine_if_splitting_necessary(
-        self,
-        op_config: Dict[str, Any],
-        assessment: Dict[str, Any],
-        input_data_sample: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        system_prompt = "You are an AI assistant tasked with determining if a data processing operation should be split into smaller chunks."
-
-        random_sample = random.choice(input_data_sample) if input_data_sample else {}
-
-        prompt = f"""
-        Operation Name: {op_config['name']}
-        Operation Type: {op_config['type']}
-        Current Prompt: {op_config.get('prompt', 'N/A')}
-        Assessment:
-        Needs Improvement: {assessment['needs_improvement']}
-        Reasons: {json.dumps(assessment['reasons'], indent=2)}
-        Suggested Improvements: {json.dumps(assessment['suggested_improvements'], indent=2)}
-
-        Input Data Sample:
-        {json.dumps(random_sample, indent=2)}
-
-        Based on this assessment and the input data sample, determine if we should split the input into chunks and process each chunk separately.
-
-        Provide your response in the following format:
-        """
-
-        parameters = {
-            "type": "object",
-            "properties": {
-                "should_split": {"type": "boolean"},
-                "reason": {"type": "string"},
-            },
-            "required": ["should_split", "reason"],
+            "required": ["needs_improvement", "reasons", "improvements"],
         }
 
         response = self.llm_client.generate(
@@ -336,6 +297,7 @@ class Optimizer:
     def _get_improved_prompt(
         self,
         op_config: Dict[str, Any],
+        assessment: Dict[str, Any],
         input_data_sample: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         system_prompt = "You are an AI assistant tasked with improving prompts for data processing operations."
@@ -350,7 +312,10 @@ class Optimizer:
         Input Data Sample:
         {json.dumps(random_sample, indent=2)}
 
-        Improve the current prompt to better handle the input data and produce more accurate results.
+        Use the following feedback to improve the current prompt:
+        {json.dumps(assessment['improvements'], indent=2)}
+
+        Improve the current prompt to better handle the input data and produce more accurate results.     
         Note: The new prompt should only include the variables present in the current prompt verbatim. Do not introduce any new variables.
 
         Provide your response in the following format:
@@ -375,9 +340,6 @@ class Optimizer:
             response.choices[0].message.tool_calls[0].function.arguments
         )
 
-        self.console.print(
-            f"[green]Improving prompt for operation {op_config['name']} without splitting[/green]"
-        )
         improved_op_config = op_config.copy()
         improved_op_config["prompt"] = result["new_prompt"]
         return [improved_op_config]
@@ -402,12 +364,16 @@ class Optimizer:
 
         Determine the split key and subprompt for processing chunks of the input data.
         The split key should be a key in the input data that contains a string to be split.
-        The subprompt should be designed to process individual chunks of the split data.
+        The subprompt should be designed to process individual chunks of the split data. 
         Note that the subprompt's output schema will be: {json.dumps(output_schema, indent=2)}.
+
+        Important:
+        - The subprompt should be a Jinja template.
+        - The only variable in the subprompt should be `input.chunk_content`.
 
         Provide your response in the following format:
         - split_key: The key in the input data to be used for splitting
-        - subprompt: The prompt to be applied to each chunk
+        - subprompt: The Jinja template prompt to be applied to each chunk
         """
 
         parameters = {
@@ -433,9 +399,18 @@ class Optimizer:
         # Strip out "input." from split_key if it exists
         result["split_key"] = result["split_key"].replace("input.", "")
 
+        variables_in_subprompt = extract_jinja_variables(result["subprompt"])
+        # Replace variables in subprompt with f"input.chunk_{split_key}"
+        for variable in variables_in_subprompt:
+            inp_split_key = "input.chunk_content"
+            result["subprompt"] = result["subprompt"].replace(
+                f"{{{{ {variable} }}}}", f"{{{{ {inp_split_key} }}}}"
+            )
+
         self.console.print(
             f"[yellow]Breaking down operation {op_config['name']}[/yellow]"
         )
+        self.console.print(f"[cyan]Subprompt:[/cyan] {result['subprompt']}")
         return self._handle_split_operation(
             op_config,
             result["subprompt"],
@@ -702,7 +677,6 @@ class Optimizer:
         metadata_info = self._determine_metadata_needs(
             op_config, subprompt, chunk_info["chunk_size"], split_key, input_data_sample
         )
-
         # Print the metadata info
         self.console.print("[bold]Metadata Information:[/bold]")
         self.console.print(f"Needs metadata: {metadata_info['needs_metadata']}")
@@ -711,17 +685,8 @@ class Optimizer:
         )
         self.console.print(f"Reason: {metadata_info['reason']}")
 
-        combine_prompt = self._get_combine_prompt(
-            op_config,
-            subprompt,
-            chunk_info["chunk_size"],
-        )
-
-        # Print the combine prompt
-        self.console.print("[bold]Combine Prompt:[/bold]")
-        self.console.print(combine_prompt)
-
         operations = []
+        sample_output = copy.deepcopy(input_data_sample)
 
         if metadata_info["needs_metadata"]:
             operations.append(
@@ -732,13 +697,95 @@ class Optimizer:
                 )
             )
 
-        operations.append(
-            self._create_split_operation(op_config, chunk_info, context_info, split_key)
+            # Execute the operations to get sample output
+            sample_output = self._run_operation(operations[0], sample_output)
+
+            # edit the subprompt to reflect the metadata
+            subprompt = self._edit_subprompt_to_reflect_metadata(
+                subprompt, metadata_info["output_schema"], sample_output
+            )
+
+            # Print the updated subprompt
+            self.console.print("[bold]Updated Subprompt:[/bold]")
+            self.console.print(subprompt)
+
+        split_op = self._create_split_operation(
+            op_config, chunk_info, context_info, split_key
         )
-        operations.append(self._create_map_operation(op_config, subprompt))
-        operations.append(self._create_reduce_operation(op_config, combine_prompt))
+        map_op = self._create_map_operation(
+            op_config, subprompt + " Only process the main chunk."
+        )
+
+        operations.append(split_op)
+        operations.append(map_op)
+
+        # Execute the operations to get sample output
+        for op in [split_op, map_op]:
+            sample_output = self._run_operation(op, sample_output)
+
+        # Generate the combine prompt using the sample output
+        combine_prompt = self._get_combine_prompt(op_config, sample_output)
+
+        # Print the combine prompt
+        self.console.print("[bold]Combine Prompt:[/bold]")
+        self.console.print(combine_prompt)
+
+        # Create the reduce operation
+        reduce_op = self._create_reduce_operation(op_config, combine_prompt)
+        operations.append(reduce_op)
 
         return operations
+
+    def _edit_subprompt_to_reflect_metadata(
+        self,
+        subprompt: str,
+        metadata_schema: Dict[str, Any],
+        sample_output: List[Dict[str, Any]],
+    ) -> str:
+        # Select only metadata_schema keys from sample_output
+        filtered_sample_output = []
+        for item in sample_output:
+            filtered_item = {key: item[key] for key in metadata_schema if key in item}
+            filtered_sample_output.append(filtered_item)
+
+        system_prompt = "You are an AI data processing agent. We have some metadata we can add to every document, and your job is to modify the data processing task prompt to reflect the new metadata."
+
+        prompt = f"""
+        Original task prompt:
+        {subprompt}
+
+        Metadata schema:
+        {json.dumps(metadata_schema, indent=2)}
+
+        Sample metadata output (from some docs):
+        {json.dumps(filtered_sample_output[:3], indent=2)}
+
+        Edit the original subprompt to incorporate the metadata. The new subprompt should:
+        1. Reference the metadata fields where relevant
+        2. Provide guidance on how to use the metadata in the context of the original task
+        3. Maintain the original intent and requirements of the subprompt
+
+        Provide the edited subprompt as a single string.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {"edited_subprompt": {"type": "string"}},
+            "required": ["edited_subprompt"],
+        }
+
+        response = self.llm_client.generate(
+            [
+                {"role": "user", "content": prompt},
+            ],
+            system_prompt,
+            parameters,
+        )
+        result = json.loads(
+            response.choices[0].message.tool_calls[0].function.arguments
+        )
+
+        return result["edited_subprompt"]
 
     def _determine_chunk_size(
         self,
@@ -918,24 +965,37 @@ class Optimizer:
         return json.loads(response.choices[0].message.tool_calls[0].function.arguments)
 
     def _get_combine_prompt(
-        self, op_config: Dict[str, Any], subprompt: str, chunk_size: int
+        self,
+        op_config: Dict[str, Any],
+        sample_output: List[Dict[str, Any]],
     ) -> str:
-        # TODO: put results of the previous step here
-        system_prompt = "You are an expert data processing assistant."
+        system_prompt = "You are an expert data processing assistant, decomposing a task into subtasks and joining the reults."
 
-        base_prompt = f"""
-        Given the following subtask prompt that will be applied to document chunks:
-        {subprompt}
+        # Prepare sample inputs for the combine prompt
+        schema = op_config["output"]["schema"]
+        schema_keys = schema.keys()
+        sample_inputs = json.dumps(
+            [{sk: item[sk] for sk in schema_keys} for item in sample_output[:3]],
+            indent=2,
+        )  # Limit to 3 samples for brevity
 
-        Create a prompt that will be used to combine the results of these subtasks applied to various chunks of size {chunk_size} words of a document.
-        This combine prompt should synthesize the information from all chunks into a coherent final result. The final result's schema is:
+        base_prompt = f"""Original prompt (that operates on the full input, not the individual chunks):
+        {op_config['prompt']}
+        
+        Output schema:
         {json.dumps(op_config['output']['schema'], indent=2)}
 
-        The reduce prompt will be a Jinja template that only takes in the variable `values`, which is a list of results from all chunks. You can use loops and if statements, but don't use any Jinja filters.
+        Sample inputs from processing various chunks:
+        {sample_inputs}
 
-        Provide your response as a single string containing the combine prompt.
+        Modify the original prompt to be a prompt that will combine these chunk results to accomplish the original task. 
+
+        Guidelines for your prompt template:
+        - The only variable you are allowed to use is the `values` variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(op_config['output']['schema'].keys())}
+        - Avoid using filters or complex logic, even though Jinja technically supports it
+
+        Provide your prompt template as a single string.
         """
-
         parameters = {
             "type": "object",
             "properties": {"combine_prompt": {"type": "string"}},
@@ -946,6 +1006,91 @@ class Optimizer:
             base_prompt, system_prompt, parameters, op_config, is_metadata=False
         )
         return result["combine_prompt"]
+
+    def _evaluate_plan(
+        self,
+        plan_name: str,
+        op_config: Dict[str, Any],
+        plan: Union[Dict[str, Any], List[Dict[str, Any]]],
+        input_data: List[Dict[str, Any]],
+        validator_prompt: str,
+    ) -> Tuple[float, List[Dict[str, Any]]]:
+        if isinstance(plan, dict):
+            plan = [plan]
+
+        output_data = input_data
+        for op in plan:
+            output_data = self._run_operation(op, output_data)
+
+        # Evaluate the quality of the output using the custom validator prompt
+        quality = self._assess_output_quality(
+            op_config, input_data, output_data, validator_prompt
+        )
+        # Print the quality assessment
+        self.console.print(f"[bold]Quality assessment for plan {plan_name}:[/bold]")
+        self.console.print(f"\tCategory: {quality['quality_category']}")
+        self.console.print(f"\tReason: {quality['reason']}")
+        self.console.print("\n")  # Add a newline for better readability
+        score_map = {
+            "Satisfactory": 3,
+            "Partially Satisfactory": 2,
+            "Unsatisfactory": 1,
+        }
+        return score_map.get(quality["quality_category"], 0), output_data
+
+    def _assess_output_quality(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        output_data: List[Dict[str, Any]],
+        validator_prompt: str,
+    ) -> str:
+        system_prompt = "You are an AI assistant tasked with evaluating the quality of data processing outputs."
+        output_schema_keys = op_config["output"]["schema"].keys()
+        random_idx = random.randint(0, len(input_data) - 1)
+        prompt = f"""
+        {validator_prompt}
+
+        Input and Output Data Sample:
+        {json.dumps({"input": input_data[random_idx], "output": {key: output_data[random_idx][key] for key in output_schema_keys}}, indent=2)}
+
+        Based on the validator prompt and the input-output data samples, assess the quality of the output.
+        Categorize the quality into one of these three categories:
+        1. "Unsatisfactory": The output failed to meet the validator prompt requirements.
+        2. "Partially Satisfactory": The output partially met the validator prompt requirements but has significant room for improvement.
+        3. "Satisfactory": The output fully met the validator prompt requirements.
+
+        Provide your response in the following format:
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "quality_category": {
+                    "type": "string",
+                    "enum": [
+                        "Unsatisfactory",
+                        "Partially Satisfactory",
+                        "Satisfactory",
+                    ],
+                },
+                "reason": {"type": "string"},
+            },
+            "required": ["quality_category", "reason"],
+        }
+
+        response = self.llm_client.generate(
+            [
+                {"role": "user", "content": prompt},
+            ],
+            system_prompt,
+            parameters,
+        )
+        result = json.loads(
+            response.choices[0].message.tool_calls[0].function.arguments
+        )
+
+        return result
 
     def _create_metadata_operation(
         self,
@@ -1019,6 +1164,7 @@ class Optimizer:
             "type": "reduce",
             "name": name,
             "reduce_key": "document_id",
+            "input": op_config["output"],  # subselect keys
             "prompt": combine_prompt,
             "model": (
                 op_config["model"]
@@ -1026,13 +1172,13 @@ class Optimizer:
                 else self.config["default_model"]
             ),
             "output": op_config["output"],
+            "pass_through": True,
         }
 
     def _run_operation(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         operation_class = get_operation(op_config["type"])
-        print(op_config)
         operation_instance = operation_class(
             op_config, self.config["default_model"], self.max_threads, self.console
         )
@@ -1071,5 +1217,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/map.yaml")
+    optimizer = Optimizer("workloads/medical/map.yaml", model="gpt-4o")
     optimizer.optimize()

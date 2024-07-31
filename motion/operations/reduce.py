@@ -49,13 +49,29 @@ class ReduceOperation(BaseOperation):
         if not isinstance(self.config["reduce_key"], str):
             raise TypeError("'reduce_key' must be a string")
 
+        # Check if input schema is provided and valid (optional)
+        if "input" in self.config:
+            if "schema" not in self.config["input"]:
+                raise ValueError("Missing 'schema' in 'input' configuration")
+            if not isinstance(self.config["input"]["schema"], dict):
+                raise TypeError(
+                    "'schema' in 'input' configuration must be a dictionary"
+                )
+
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         reduce_key = self.config["reduce_key"]
         sorted_data = sorted(input_data, key=itemgetter(reduce_key))
         grouped_data = groupby(sorted_data, key=itemgetter(reduce_key))
 
+        input_schema = self.config.get("input", {}).get("schema", {})
+
         def process_group(key: Any, group: List[Dict]) -> Tuple[Optional[Dict], float]:
             group_list = list(group)
+            if input_schema:
+                group_list = [
+                    {k: item[k] for k in input_schema.keys() if k in item}
+                    for item in group_list
+                ]
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(reduce_key=key, values=group_list)
             response = call_llm(
@@ -67,6 +83,10 @@ class ReduceOperation(BaseOperation):
             output = parse_llm_response(response)[0]
             output[reduce_key] = key
             item_cost = completion_cost(response)
+            if self.config.get("pass_through", False) and group_list[0]:
+                for key, value in group_list[0].items():
+                    if key not in self.config["output"]["schema"]:
+                        output[key] = value
             if validate_output(self.config, output, self.console):
                 return output, item_cost
             return None, item_cost

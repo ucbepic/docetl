@@ -9,6 +9,7 @@ def add_document_id(input_file, output_file):
 
     for item in data:
         item["document_id"] = str(uuid.uuid4())
+        del item["tgt"]
 
     with open(output_file, "w") as f:
         json.dump(data, f, indent=2)

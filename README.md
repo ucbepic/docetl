@@ -295,9 +295,11 @@ Required parameters:
 
 - `type`: Must be set to `"reduce"`.
 - `reduce_key`: The key to use for grouping data.
-- `prompt`: The prompt template to use for the reduction operation. This template can access the grouped values using `{{ values }}` and the reduce key using `{{ reduce_key }}`.
+- `prompt`: The prompt template to use for the reduction operation. This template can access the grouped values using `{{ values }}` (a list of dictionary objects or records) and the reduce key using `{{ reduce_key }}`.
 - `output`: Schema definition for the output from the LLM.
 - `model` (optional): The language model to use, falls back to `default_model` if not specified.
+- `input` (optional): Specifies the schema or keys to subselect from each item or value to pass into the prompt. If omitted, all keys from the input items will be used.
+- `pass_through` (optional): Boolean flag. If true, keys (not on input) from the first item in the group will be passed through to the output. Default is false.
 
 Example:
 
@@ -305,6 +307,9 @@ Example:
 reduce_operation:
   type: reduce
   reduce_key: group
+  input:
+    schema:
+      age: integer
   prompt: |
     Analyze the following group of values for the group '{{ reduce_key }}':
     {% for value in values %}

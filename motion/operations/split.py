@@ -125,7 +125,7 @@ class SplitOperation(BaseOperation):
                 result.update(
                     {
                         "chunk_id": chunk["chunk_id"],
-                        split_key: self.combine_chunks(
+                        "chunk_content": self.combine_chunks(
                             previous_chunks,
                             chunk,
                             next_chunks,
@@ -255,10 +255,11 @@ class SplitOperation(BaseOperation):
         else:
             # Show skipped tokens even if there are no previous chunks
             main_chunk_num = int(main_chunk["chunk_id"].split("_")[1])
-            skipped_tokens = (main_chunk_num - 1) * self.config["chunk_size"]
-            combined_parts.append(
-                f"[... {skipped_tokens} tokens skipped before this chunk ...]"
-            )
+            skipped_tokens = max(0, (main_chunk_num - 1) * self.config["chunk_size"])
+            if skipped_tokens > 0:
+                combined_parts.append(
+                    f"[... {skipped_tokens} tokens skipped before this chunk ...]"
+                )
 
         # Process main chunk
         if not previous_chunks and not next_chunks:

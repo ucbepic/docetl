@@ -1,10 +1,11 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import copy
 import yaml
 from typing import Dict, List, Any, Optional, Tuple, Union
 from motion.operations import get_operation
 from motion.utils import load_config
 from rich.console import Console
+from rich.table import Table
 import random
 import json
 from litellm import completion, completion_cost
@@ -12,6 +13,7 @@ import os
 import jinja2
 from jinja2 import Environment, meta
 import re
+from tqdm import tqdm
 
 
 def extract_jinja_variables(template_string):
@@ -74,6 +76,7 @@ class Optimizer:
         max_threads: Optional[int] = None,
         sample_size: int = 5,
         model: str = "gpt-4o",
+        timeout: int = 60,
     ):
         self.yaml_file_path = yaml_file
         self.config = load_config(yaml_file)
@@ -83,6 +86,7 @@ class Optimizer:
         self.llm_client = LLMClient(model)
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.operations_cost = 0
+        self.timeout = timeout
 
     def optimize(self):
         optimized_steps = []
@@ -188,7 +192,7 @@ class Optimizer:
             "improved_prompt_plan": improved_prompt_plan,
             **chunk_size_plans,
         }
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+        with ThreadPoolExecutor() as executor:
             futures = {
                 executor.submit(
                     self._evaluate_plan,
@@ -202,10 +206,31 @@ class Optimizer:
                 for plan_name, plan in plans_to_evaluate.items()
             }
             results = {}
-            for future in as_completed(futures):
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="Evaluating plans",
+            ):
                 plan_name = futures[future]
-                score, output = future.result()
+                score, output = future.result(timeout=self.timeout)
                 results[plan_name] = (score, output)
+
+        # Create a table of scores sorted in descending order
+        scores = sorted(
+            [(score, plan) for plan, (score, _) in results.items()], reverse=True
+        )
+
+        self.console.print(
+            f"\n[bold]Score Distribution for {op_config['name']} ({op_config['type']}, {len(scores)} plans):[/bold]"
+        )
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Plan", style="dim", width=30)
+        table.add_column("Score", justify="right")
+        for score, plan in scores:
+            table.add_row(plan, f"{score:.2f}")
+
+        self.console.print(table)
+        self.console.print("\n")
 
         # Choose the best plan
         best_plan_name = max(results, key=lambda x: results[x][0])
@@ -361,39 +386,50 @@ class Optimizer:
         self.console.print("[bold]Chunk Sizes to Evaluate:[/bold]")
         self.console.print(f"{chunk_sizes}")
 
+        avg_doc_size = sum(
+            len(doc[split_result["split_key"]].split()) for doc in input_data
+        ) // len(input_data)
         avg_chunk_size = sum(chunk_sizes) // len(chunk_sizes)
-        context_info = self._determine_context_needs(
-            op_config,
-            split_result["subprompt"],
-            avg_chunk_size,
-            split_result["split_key"],
-            input_data,
-        )
 
-        # Print the context info
-        self.console.print("[bold]Context Information:[/bold]")
-        self.console.print(
-            f"Needs peripherals: {context_info['needs_peripherals']} because {context_info['reason']}"
-        )
-        self.console.print(f"Previous context: {context_info['previous_context']}")
-        self.console.print(f"Next context: {context_info['next_context']}")
+        def determine_metadata_with_retry():
+            try:
+                metadata_info = self._determine_metadata_needs(
+                    op_config,
+                    split_result["subprompt"],
+                    avg_chunk_size,
+                    split_result["split_key"],
+                    input_data,
+                )
+                return metadata_info
+            except Exception as e:
+                self.console.print(
+                    f"[yellow]Error determining metadata needs: {e}. Retrying...[/yellow]"
+                )
+                try:
+                    # Retry once
+                    return self._determine_metadata_needs(
+                        op_config,
+                        split_result["subprompt"],
+                        avg_chunk_size,
+                        split_result["split_key"],
+                        input_data,
+                    )
+                except Exception:
+                    # Silently fail on second attempt
+                    return {"needs_metadata": False}
 
-        metadata_info = self._determine_metadata_needs(
-            op_config,
-            split_result["subprompt"],
-            avg_chunk_size,
-            split_result["split_key"],
-            input_data,
-        )
+        metadata_info = determine_metadata_with_retry()
         # Print the metadata info
         self.console.print("[bold]Metadata Information:[/bold]")
         self.console.print(f"Needs metadata: {metadata_info['needs_metadata']}")
-        self.console.print(
-            f"Metadata prompt and output schema: {metadata_info.get('metadata_prompt', 'N/A')}; {metadata_info.get('output_schema', 'N/A')}"
-        )
-        self.console.print(f"Reason: {metadata_info['reason']}")
+        if metadata_info["needs_metadata"]:
+            self.console.print(
+                f"Metadata prompt and output schema: {metadata_info.get('metadata_prompt', 'N/A')}; {metadata_info.get('output_schema', 'N/A')}"
+            )
+            self.console.print(f"Reason: {metadata_info.get('reason', 'N/A')}")
 
         # Create base operations
+        # TODO: try with and without metadata
         base_operations = []
         if metadata_info["needs_metadata"]:
             base_operations.append(
@@ -406,13 +442,16 @@ class Optimizer:
 
         # Generate sample output for the max chunk size to create the combine prompt
         max_chunk_size = max(chunk_sizes)
+        peripheral_configs = self._generate_peripheral_configs(
+            max_chunk_size, avg_doc_size
+        )
         sample_output = copy.deepcopy(input_data)
         max_plan = copy.deepcopy(base_operations)
 
         split_op = self._create_split_operation(
             op_config,
             {"chunk_size": max_chunk_size},
-            context_info,
+            peripheral_configs[-1],
             split_result["split_key"],
         )
         map_op = self._create_map_operation(
@@ -437,21 +476,28 @@ class Optimizer:
         # Create plans for each chunk size
         plans = {}
         for chunk_size in chunk_sizes:
-            plan = copy.deepcopy(base_operations)
-
-            split_op = self._create_split_operation(
-                op_config,
-                {"chunk_size": chunk_size},
-                context_info,
-                split_result["split_key"],
+            peripheral_configs = self._generate_peripheral_configs(
+                chunk_size, avg_doc_size
             )
-            map_op = self._create_map_operation(
-                op_config, split_result["subprompt"] + " Only process the main chunk."
-            )
+            for peripheral_config in peripheral_configs:
+                plan = copy.deepcopy(base_operations)
 
-            plan.extend([split_op, map_op, reduce_op])
-            plan_name = f"chunk_size_{chunk_size}"
-            plans[plan_name] = plan
+                split_op = self._create_split_operation(
+                    op_config,
+                    {"chunk_size": chunk_size},
+                    peripheral_config,
+                    split_result["split_key"],
+                )
+                map_op = self._create_map_operation(
+                    op_config,
+                    split_result["subprompt"] + " Only process the main chunk.",
+                )
+
+                plan.extend([split_op, map_op, reduce_op])
+                plan_name = (
+                    f"chunk_size_{chunk_size}_peripheral_{hash(str(peripheral_config))}"
+                )
+                plans[plan_name] = plan
 
         return plans
 
@@ -749,14 +795,14 @@ class Optimizer:
         self,
         split_key: str,
         input_data_sample: List[Dict[str, Any]],
-        num_chunks: int = 10,
+        num_chunks: int = 5,
     ) -> List[int]:
         # Get the average document length
         avg_doc_length = sum(
             len(doc[split_key].split()) for doc in input_data_sample
         ) / len(input_data_sample)
 
-        # Create a linspace of 10 chunk sizes from 100 to half the average document length
+        # Create a linspace of chunk sizes from 100 to half the average document length
         max_chunk_size = int(avg_doc_length / 2)
         return [
             int(100 + i * (max_chunk_size - 100) / (num_chunks - 1))
@@ -813,6 +859,59 @@ class Optimizer:
         )
 
         return result["edited_subprompt"]
+
+    def _generate_peripheral_configs(
+        self, chunk_size: int, avg_doc_size: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate a list of peripheral chunk configurations, considering:
+        * Adaptive scaling: this scales the config based on the ratio of document to chunk size
+        * Extensive context: this adds a config for when the chunk size is small relative to the document size
+        """
+
+        configs = [{}]  # Always include no peripheral context as an option
+
+        max_chunks = max(1, avg_doc_size // chunk_size)
+
+        # Define base configurations
+        base_configs = [
+            {"previous": {"tail": {"count": 1}}},
+            {"previous": {"tail": {"count": 1}}, "next": {"head": {"count": 1}}},
+        ]
+
+        # Scale configurations based on document and chunk size
+        scaled_configs = []
+        for config in base_configs:
+            scaled_config = copy.deepcopy(config)
+            for direction in ["previous", "next"]:
+                if direction in scaled_config:
+                    for part in scaled_config[direction]:
+                        count = scaled_config[direction][part]["count"]
+                        scaled_count = min(
+                            max_chunks,
+                            max(1, int(count * (avg_doc_size / chunk_size) ** 0.5)),
+                        )
+                        scaled_config[direction][part]["count"] = scaled_count
+            scaled_configs.append(scaled_config)
+
+        final_configs = configs + scaled_configs
+
+        # Add a configuration with more extensive context if the chunk size is small relative to the document size
+        if chunk_size < avg_doc_size / 10:
+            extensive_config = {
+                "previous": {"tail": {"count": min(5, max_chunks)}},
+                "next": {"head": {"count": min(2, max_chunks)}},
+            }
+            final_configs.append(extensive_config)
+
+        # Deduplicate configs
+        unique_configs = []
+        for config in final_configs:
+            if config not in unique_configs:
+                unique_configs.append(config)
+        final_configs = unique_configs
+
+        return final_configs
 
     def _determine_context_needs(
         self,
@@ -969,11 +1068,11 @@ class Optimizer:
 
         average_score = sum(scores) / num_evaluations
         # Print the quality assessment for the last evaluation
-        self.console.print(f"[bold]Quality assessment for plan {plan_name}:[/bold]")
-        self.console.print(f"\tCategory: {quality['quality_category']}")
-        self.console.print(f"\tReason: {quality['reason']}")
-        self.console.print(f"\tAverage Score: {average_score:.2f}")
-        self.console.print("\n")  # Add a newline for better readability
+        # self.console.print(f"[bold]Quality assessment for plan {plan_name}:[/bold]")
+        # self.console.print(f"\tCategory: {quality['quality_category']}")
+        # self.console.print(f"\tReason: {quality['reason']}")
+        # self.console.print(f"\tAverage Score: {average_score:.2f}")
+        # self.console.print("\n")  # Add a newline for better readability
 
         return average_score, output_data
 
@@ -1070,14 +1169,11 @@ class Optimizer:
             "peripheral_chunks": {},
         }
 
-        if context_info["previous_context"]:
-            split_config["peripheral_chunks"]["previous"] = {
-                "head": {"count": 2},
-                "tail": {"count": 1.5},
-            }
+        if "previous" in context_info:
+            split_config["peripheral_chunks"]["previous"] = context_info["previous"]
 
-        if context_info["next_context"]:
-            split_config["peripheral_chunks"]["next"] = {"head": {"count": 1}}
+        if "next" in context_info:
+            split_config["peripheral_chunks"]["next"] = context_info["next"]
 
         # Remove peripheral_chunks if it's empty
         if not split_config["peripheral_chunks"]:
@@ -1157,7 +1253,7 @@ class Optimizer:
             yaml.safe_dump(resolved_config, f, default_flow_style=False)
 
         self.console.print(
-            "[green]Optimized config saved to optimized_config.yaml[/green]"
+            f"[green]Optimized config saved to {optimized_filename}[/green]"
         )
 
 

@@ -5,13 +5,11 @@ datasets:
 default_model: gpt-4o-mini
 operations:
   split_extract_medical_info:
-    chunk_size: 541
+    chunk_size: 351
     peripheral_chunks:
       previous:
-        head:
-          count: 2
         tail:
-          count: 1.5
+          count: 2
     split_key: src
     type: split
   submap_extract_medical_info:
@@ -21,13 +19,13 @@ operations:
         dosages: list[str]
         medications: list[str]
         symptoms: list[str]
-    prompt: "Extract and list all medications, dosages, and symptoms mentioned in\
-      \ the following chunk of a medical conversation transcript:\n\n{{ input.chunk_content\
-      \ }}\n\nIf a piece of information is not found, return an empty list for that\
-      \ category.\n\nProvide your response in the following JSON format:\n{\n  \"\
-      medications\": [\"medication1\", \"medication2\", ...],\n  \"dosages\": [\"\
-      dosage1\", \"dosage2\", ...],\n  \"symptoms\": [\"symptom1\", \"symptom2\",\
-      \ ...]\n} Only process the main chunk."
+    prompt: "Analyze the following chunk of a conversation between a doctor and a\
+      \ patient:\n\n{{ input.chunk_content }}\n\nExtract and list all medications,\
+      \ dosages, and symptoms mentioned in the chunk.\nIf a piece of information is\
+      \ not found, return an empty list for that category.\n\nProvide your response\
+      \ in the following JSON format:\n{\n  \"medications\": [\"medication1\", \"\
+      medication2\", ...],\n  \"dosages\": [\"dosage1\", \"dosage2\", ...],\n  \"\
+      symptoms\": [\"symptom1\", \"symptom2\", ...]\n} Only process the main chunk."
     type: map
   subreduce_extract_medical_info:
     input:
@@ -42,12 +40,14 @@ operations:
         medications: list[str]
         symptoms: list[str]
     pass_through: true
-    prompt: "Combine the following chunks of extracted information from a conversation\
-      \ transcript into a single, comprehensive list:\n\n{{ values }}\n\nMerge all\
-      \ medications, dosages, and symptoms mentioned into their respective categories.\n\
-      \nProvide your response in the following JSON format:\n{\n  \"medications\"\
-      : [\"medication1\", \"medication2\", ...],\n  \"dosages\": [\"dosage1\", \"\
-      dosage2\", ...],\n  \"symptoms\": [\"symptom1\", \"symptom2\", ...]\n}"
+    prompt: "Combine the following chunked results of medication, dosage, and symptom\
+      \ information extracted from a transcript of a conversation between a doctor\
+      \ and a patient to create a final comprehensive list for each category. If a\
+      \ piece of information is not found, it will be an empty list.\n\nInput:\n{{\
+      \ values }}\n\nProvide your response in the following JSON format:\n{\n  \"\
+      medications\": [\"medication1\", \"medication2\", ...],\n  \"dosages\": [\"\
+      dosage1\", \"dosage2\", ...],\n  \"symptoms\": [\"symptom1\", \"symptom2\",\
+      \ ...]\n}\n"
     reduce_key: document_id
     type: reduce
 pipeline:

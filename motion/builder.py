@@ -4,6 +4,7 @@ import yaml
 from typing import Dict, List, Any, Optional, Tuple, Union
 from motion.operations import get_operation
 from motion.optimizers.map_optimizer import MapOptimizer
+from motion.optimizers.resolve_optimizer import ResolveOptimizer
 from motion.utils import load_config
 from rich.console import Console
 from rich.table import Table
@@ -37,7 +38,7 @@ def extract_jinja_variables(template_string):
     return list(all_variables)
 
 
-SUPPORTED_OPS = ["map"]
+SUPPORTED_OPS = ["map", "resolve"]
 
 
 class LLMClient:
@@ -78,7 +79,7 @@ class Optimizer:
         self,
         yaml_file: str,
         max_threads: Optional[int] = None,
-        sample_size: int = 5,
+        sample_size: int = 20,
         model: str = "gpt-4o",
         timeout: int = 60,
     ):
@@ -137,19 +138,33 @@ class Optimizer:
                 or op_object.get("type") not in SUPPORTED_OPS
             ):
                 # If optimize is False or operation type is not supported, just run the operation without optimization
-                input_data = self._run_operation(op_object, input_data)
-                optimized_operations[operation_name] = op_object
+                # Use rich console status to indicate running the operation
+                with self.console.status(
+                    f"[bold green]Running operation: {operation_name} (Type: {op_object['type']})[/bold green]"
+                ):
+                    input_data = self._run_operation(op_object, input_data)
+                    optimized_operations[operation_name] = op_object
             else:
-                if op_object.get("type") == "map":
-                    optimized_ops, input_data = self._optimize_map(
-                        op_object, input_data
-                    )
-                else:
-                    raise ValueError(f"Unsupported operation type: {op_object['type']}")
+                # Use rich console status to indicate optimization of the operation
+                with self.console.status(
+                    f"[bold blue]Optimizing operation: {operation_name} (Type: {op_object['type']})[/bold blue]"
+                ):
+                    if op_object.get("type") == "map":
+                        optimized_ops, input_data = self._optimize_map(
+                            op_object, input_data
+                        )
+                    elif op_object.get("type") == "resolve":
+                        optimized_ops, input_data = self._optimize_resolve(
+                            op_object, input_data
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unsupported operation type: {op_object['type']}"
+                        )
 
-                for op in optimized_ops:
-                    op_name = op.pop("name")
-                    optimized_operations[op_name] = op
+                    for op in optimized_ops:
+                        op_name = op.pop("name")
+                        optimized_operations[op_name] = op
 
         optimized_step = step.copy()
         optimized_step["operations"] = list(optimized_operations.keys())
@@ -167,6 +182,22 @@ class Optimizer:
         else:
             raise ValueError(f"Unsupported dataset type: {dataset['type']}")
 
+    def _optimize_resolve(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        optimized_config, cost = ResolveOptimizer(
+            self.config, op_config, self.console, self.llm_client, self.max_threads
+        ).optimize(input_data)
+        self.operations_cost += cost
+
+        # Update the operation config with the optimized values
+        op_config.update(optimized_config)
+
+        # Run the optimized operation
+        output_data = self._run_operation(op_config, input_data)
+
+        return [op_config], output_data
+
     def _optimize_map(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -174,7 +205,11 @@ class Optimizer:
         output_data = self._run_operation(op_config, input_data)
 
         map_optimizer = MapOptimizer(
-            self.config, self.console, self.llm_client, self._run_operation
+            self.config,
+            self.console,
+            self.llm_client,
+            self.max_threads,
+            self._run_operation,
         )
 
         # Generate custom validator prompt

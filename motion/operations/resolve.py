@@ -12,6 +12,21 @@ from sklearn.metrics.pairwise import cosine_similarity
 import jinja2
 
 
+def compare_pair(
+    comparison_prompt: str, model: str, item1: Dict, item2: Dict
+) -> Tuple[bool, float]:
+    prompt_template = Template(comparison_prompt)
+    prompt = prompt_template.render(input1=item1, input2=item2)
+    response = call_llm(
+        model,
+        "compare",
+        prompt,
+        {"is_match": "bool"},
+    )
+    output = parse_llm_response(response)[0]
+    return output["is_match"], completion_cost(response)
+
+
 class ResolveOperation(BaseOperation):
     def syntax_check(self) -> None:
         required_keys = ["comparison_prompt", "output"]
@@ -158,18 +173,6 @@ class ResolveOperation(BaseOperation):
         true_matches = {}
         pair_costs = 0
 
-        def compare_pair(item1: Dict, item2: Dict) -> Tuple[bool, float]:
-            prompt_template = Template(self.config["comparison_prompt"])
-            prompt = prompt_template.render(input1=item1, input2=item2)
-            response = call_llm(
-                self.config.get("comparison_model", self.default_model),
-                "compare",
-                prompt,
-                {"is_match": "bool"},
-            )
-            output = parse_llm_response(response)[0]
-            return output["is_match"], completion_cost(response)
-
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             future_to_pair = {}
             for cluster in clusters.values():
@@ -177,7 +180,13 @@ class ResolveOperation(BaseOperation):
                 for i, item1 in enumerate(cluster_items):
                     for j, item2 in enumerate(cluster_items):
                         if i < j:
-                            future = executor.submit(compare_pair, item1, item2)
+                            future = executor.submit(
+                                compare_pair,
+                                self.config["comparison_prompt"],
+                                self.config.get("comparison_model", self.default_model),
+                                item1,
+                                item2,
+                            )
                             future_to_pair[future] = (cluster[i], cluster[j])
 
             total_pairs = len(future_to_pair)

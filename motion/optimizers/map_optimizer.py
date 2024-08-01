@@ -14,12 +14,14 @@ class MapOptimizer:
         config: Dict[str, Any],
         console: Console,
         llm_client: LLMClient,
+        max_threads: int,
         run_operation: Callable,
     ):
         self.config = config
         self.console = console
         self.llm_client = llm_client
         self._run_operation = run_operation
+        self.max_threads = max_threads
 
     def _generate_validator_prompt(
         self,

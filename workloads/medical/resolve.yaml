@@ -11,7 +11,7 @@ operations:
     type: map
     output:
       schema:
-        medications: list[str]
+        medication: list[str]
     prompt: |
       Analyze the following transcript of a conversation between a doctor and a patient:
 
@@ -22,7 +22,7 @@ operations:
 
   explode_medications:
     type: explode
-    explode_key: medications
+    explode_key: medication
 
   resolve_medications:
     type: resolve

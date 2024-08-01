@@ -5,7 +5,7 @@ datasets:
 default_model: gpt-4o-mini
 operations:
   explode_medications:
-    explode_key: medications
+    explode_key: medication
     name: explode_medications
     type: explode
   extract_medications:
@@ -13,7 +13,7 @@ operations:
     optimize: false
     output:
       schema:
-        medications: list[str]
+        medication: list[str]
     prompt: 'Analyze the following transcript of a conversation between a doctor and
       a patient:
 
@@ -28,6 +28,9 @@ operations:
       '
     type: map
   resolve_medications:
+    blocking_keys:
+    - medication
+    blocking_threshold: 0.7677
     comparison_prompt: 'Compare the following two medication entries:
 
       Entry 1: {{ input1.medication }}
@@ -39,7 +42,6 @@ operations:
 
       '
     embedding_model: text-embedding-3-small
-    name: resolve_medications
     output:
       schema:
         medication: str

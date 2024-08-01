@@ -11,18 +11,16 @@ TODO:
 - [x] Write build phase
 - [x] Add keys / inputs to reduce
 - [x] For reduce we should pass through keys
-- [ ] Optimize maps
+- [x] Optimize maps
   - [x] Track costs for the optimizer
   - [x] Generate multiple plans and evaluate them instead of generating one plan
   - [x] Don't use an LLM to determine the right chunk size; try searching many chunk sizes
   - [x] Call llm agent multiple times on different random inputs & average results
-  - [x] Try out many chunks
-  - [ ] Human in the loop evaluation? Or pairwise comparisons of plans
-  - [ ] Allow splitting to be based on a regex, or llm emitting chunks itself, not just tokens
 - [ ] Optimize resolvers (add blocking rules)
 - [ ] Optimize reduce
   - [ ] Auto-generate resolver
   - [ ] Implement fold & merge pattern
+- [ ] Support model pools
 - [ ] Optimize equijoins
 - [ ] Operator reordering
 - [ ] Support passing expectations

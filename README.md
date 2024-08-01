@@ -333,59 +333,21 @@ The Resolve operation identifies and merges duplicate entities in the data.
 Required parameters:
 
 - `type`: Must be set to `"resolve"`.
-- `comparison_model`: The language model to use for comparing potential matches.
 - `comparison_prompt`: The prompt template to use for comparing potential matches.
-- `resolution_model`: The language model to use for reducing matched entries.
-- `resolution_prompt`: The prompt template to use for reducing matched entries.
+- `resolution_prompt`: The prompt template to use for reducing matched entries. The matched entries are accessed via the `matched_entries` variable.
 - `output`: Schema definition for the output from the LLM. This should include the resolved key.
 
 Optional parameters:
 
 - `embedding_model`: The model to use for creating embeddings. Only used if blocking threshold is set.
+- `resolution_model`: The language model to use for reducing matched entries.
+- `comparison_model`: The language model to use for comparing potential matches.
 - `blocking_keys`: List of keys to use for initial blocking.
 - `blocking_threshold`: Embedding similarity threshold for considering entries as potential matches.
 - `blocking_conditions`: List of conditions for initial blocking.
+- `input`: Specifies the schema or keys to subselect from each item to pass into the prompts. If omitted, all keys from the input items will be used.
 
 Example:
-
-```yaml
-resolve_operation:
-  type: resolve
-  output:
-    schema:
-      genre: str
-  embedding_model: "text-embedding-3-small"
-  comparison_model: "gpt-4o-mini"
-  resolution_model: "gpt-4o-mini"
-  blocking_keys:
-    - genre
-  blocking_threshold: 0.9
-  blocking_conditions:
-    - "len(input1['genre']) > 0 and len(input2['genre']) > 0"
-  comparison_prompt: |
-    Compare the following two genre entries:
-    Entry 1:
-    Genre: {{ input1.genre }}
-    Example Book: {{ input1.title }}
-    Theme: {{ input1.theme }}
-
-    Entry 2:
-    Genre: {{ input2.genre }}
-    Example Book: {{ input2.title }}
-    Theme: {{ input2.theme }}
-
-    Are these genres likely to be the same or closely related?
-  resolution_prompt: |
-    Given the following matched genre entries:
-    {% for entry in matched_entries %}
-    Entry {{ loop.index }}:
-    Genre: {{ entry.genre }}
-    Example Book: {{ entry.title }}
-    Theme: {{ entry.theme }}
-    {% endfor %}
-
-    Determine the best resolved genre for this group of entries. The resolved genre should be a standardized, widely recognized genre category that best represents all matched entries.
-```
 
 ## Schema Pass-through
 

@@ -1,10 +1,12 @@
 import json
 from typing import Dict, List, Any, Optional, Tuple
 from litellm import completion, embedding
+import litellm
 from dotenv import load_dotenv
 from rich.console import Console
 
 load_dotenv()
+# litellm.set_verbose = True
 
 
 def convert_val(value: Any) -> Dict[str, Any]:
@@ -61,7 +63,8 @@ def call_llm(
                 },
             }
         ],
-        parallel_tool_calls=False,
+        # parallel_tool_calls=False,
+        num_retries=2,
         tool_choice={"type": "function", "function": {"name": "write_output"}},
     )
     return response

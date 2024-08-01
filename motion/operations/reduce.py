@@ -87,8 +87,6 @@ class ReduceOperation(BaseOperation):
             output = parse_llm_response(response)[0]
             output[reduce_key] = key
             item_cost = completion_cost(response)
-            if len(group_list) == 0:
-                print(key)
 
             if self.config.get("pass_through", False) and group_list[0]:
                 for key, value in group_list[0].items():

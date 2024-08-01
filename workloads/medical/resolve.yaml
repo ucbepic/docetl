@@ -1,0 +1,58 @@
+datasets:
+  transcripts:
+    type: file
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/raw_with_id.json"
+
+default_model: gpt-4o-mini
+
+operations:
+  extract_medications:
+    optimize: false
+    type: map
+    output:
+      schema:
+        medications: list[str]
+    prompt: |
+      Analyze the following transcript of a conversation between a doctor and a patient:
+
+      {{ input.src }}
+
+      Extract and list all medications mentioned in the transcript.
+      If no medications are mentioned, return an empty list.
+
+  explode_medications:
+    type: explode
+    explode_key: medications
+
+  resolve_medications:
+    type: resolve
+    output:
+      schema:
+        medication: str
+    embedding_model: "text-embedding-3-small"
+    comparison_prompt: |
+      Compare the following two medication entries:
+      Entry 1: {{ input1.medication }}
+      Entry 2: {{ input2.medication }}
+
+      Are these medications likely to be the same or closely related?
+    resolution_prompt: |
+      Given the following matched medication entries:
+      {% for entry in matched_entries %}
+      Entry {{ loop.index }}: {{ entry.medication }}
+      {% endfor %}
+
+      Determine the best resolved medication name for this group of entries. The resolved name should be a standardized, widely recognized medication name that best represents all matched entries.
+
+pipeline:
+  steps:
+    - name: medical_info_extraction
+      input: transcripts
+      operations:
+        - extract_medications
+        - explode_medications
+        - resolve_medications
+
+  output:
+    type: file
+    path: "extracted_medical_info.json"

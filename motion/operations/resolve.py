@@ -85,55 +85,74 @@ class ResolveOperation(BaseOperation):
             ):
                 raise TypeError("All items in 'blocking_conditions' must be strings")
 
+        # Check if input schema is provided and valid (optional)
+        if "input" in self.config:
+            if "schema" not in self.config["input"]:
+                raise ValueError("Missing 'schema' in 'input' configuration")
+            if not isinstance(self.config["input"]["schema"], dict):
+                raise TypeError(
+                    "'schema' in 'input' configuration must be a dictionary"
+                )
+
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
+        input_schema = self.config.get("input", {}).get("schema", {})
         total_cost = 0
 
         if len(input_data) == 0:
             return [], 0
 
-        def is_match(item1: Dict[str, Any], item2: Dict[str, Any]) -> bool:
-            return any(
-                eval(condition, {"input1": item1, "input2": item2})
-                for condition in blocking_conditions
-            )
+        # If there's no blocking, put all elements in one cluster
+        if not blocking_keys and blocking_threshold is None and not blocking_conditions:
+            clusters = {0: list(range(len(input_data)))}
+        else:
 
-        # Initial clustering
-        clusters = {}
-        for i, item in enumerate(input_data):
-            matched = False
-            for rep, cluster in clusters.items():
-                if is_match(item, input_data[rep]):
-                    cluster.append(i)
-                    matched = True
-                    break
-            if not matched:
-                clusters[i] = [i]
+            def is_match(item1: Dict[str, Any], item2: Dict[str, Any]) -> bool:
+                return any(
+                    eval(condition, {"input1": item1, "input2": item2})
+                    for condition in blocking_conditions
+                )
 
-        if blocking_threshold is not None:
-            embedding_model = self.config.get("embedding_model", self.default_model)
-
-            def get_embedding(item: Dict[str, Any]) -> Tuple[List[float], float]:
-                text = " ".join(str(item[key]) for key in blocking_keys if key in item)
-                response = embedding(model=embedding_model, input=[text])
-                return response["data"][0]["embedding"], completion_cost(response)
-
-            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                embeddings = list(executor.map(get_embedding, input_data))
-                embeddings, costs = zip(*embeddings)
-                total_cost += sum(costs)
-
-            # Additional clustering based on embeddings
+            # Initial clustering
+            clusters = {}
             for i, item in enumerate(input_data):
-                for rep, cluster in list(clusters.items()):
-                    if (
-                        i not in cluster
-                        and cosine_similarity([embeddings[i]], [embeddings[rep]])[0][0]
-                        >= blocking_threshold
-                    ):
-                        clusters[rep].append(i)
+                matched = False
+                for rep, cluster in clusters.items():
+                    if is_match(item, input_data[rep]):
+                        cluster.append(i)
+                        matched = True
+                        break
+                if not matched:
+                    clusters[i] = [i]
+
+            if blocking_threshold is not None:
+                embedding_model = self.config.get("embedding_model", self.default_model)
+
+                def get_embedding(item: Dict[str, Any]) -> Tuple[List[float], float]:
+                    text = " ".join(
+                        str(item[key]) for key in blocking_keys if key in item
+                    )
+                    response = embedding(model=embedding_model, input=[text])
+                    return response["data"][0]["embedding"], completion_cost(response)
+
+                with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                    embeddings = list(executor.map(get_embedding, input_data))
+                    embeddings, costs = zip(*embeddings)
+                    total_cost += sum(costs)
+
+                # Additional clustering based on embeddings
+                for i, item in enumerate(input_data):
+                    for rep, cluster in list(clusters.items()):
+                        if (
+                            i not in cluster
+                            and cosine_similarity([embeddings[i]], [embeddings[rep]])[
+                                0
+                            ][0]
+                            >= blocking_threshold
+                        ):
+                            clusters[rep].append(i)
 
         # Pairwise comparisons within clusters
         true_matches = {}
@@ -207,6 +226,12 @@ class ResolveOperation(BaseOperation):
             if len(sub_cluster) > 1:
                 true_match_items = [input_data[i] for i in sub_cluster]
                 reduction_template = Template(self.config["resolution_prompt"])
+                if input_schema:
+                    true_match_items = [
+                        {k: item[k] for k in input_schema.keys() if k in item}
+                        for item in true_match_items
+                    ]
+
                 resolution_prompt = reduction_template.render(
                     matched_entries=true_match_items
                 )
@@ -229,7 +254,7 @@ class ResolveOperation(BaseOperation):
                                     for k in self.config["output"]["schema"]
                                 },
                             }
-                            for item in true_match_items
+                            for item in [input_data[i] for i in sub_cluster]
                         ],
                         reduction_cost,
                     )

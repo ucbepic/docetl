@@ -439,7 +439,7 @@ class Optimizer:
             yaml.safe_dump(resolved_config, f, default_flow_style=False)
 
         self.console.print(
-            f"[green]Optimized config saved to {optimized_filename}[/green]"
+            f"[green italic]Optimized config saved to {optimized_filename}[/green italic]"
         )
 
 

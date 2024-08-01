@@ -3,7 +3,7 @@ from typing import Optional
 from pathlib import Path
 
 from motion.runner import DSLRunner
-from motion.optimizer import Optimizer
+from motion.builder import Optimizer
 
 app = typer.Typer()
 

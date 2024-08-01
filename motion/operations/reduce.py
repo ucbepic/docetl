@@ -60,13 +60,17 @@ class ReduceOperation(BaseOperation):
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         reduce_key = self.config["reduce_key"]
-        sorted_data = sorted(input_data, key=itemgetter(reduce_key))
-        grouped_data = groupby(sorted_data, key=itemgetter(reduce_key))
-
         input_schema = self.config.get("input", {}).get("schema", {})
 
-        def process_group(key: Any, group: List[Dict]) -> Tuple[Optional[Dict], float]:
-            group_list = list(group)
+        # Sort the input data by the reduce key
+        sorted_data = sorted(input_data, key=itemgetter(reduce_key))
+
+        grouped_data = groupby(sorted_data, key=itemgetter(reduce_key))
+        grouped_data = [(key, list(group)) for key, group in grouped_data]
+
+        def process_group(
+            key: Any, group_list: List[Dict]
+        ) -> Tuple[Optional[Dict], float]:
             if input_schema:
                 group_list = [
                     {k: item[k] for k in input_schema.keys() if k in item}
@@ -83,6 +87,9 @@ class ReduceOperation(BaseOperation):
             output = parse_llm_response(response)[0]
             output[reduce_key] = key
             item_cost = completion_cost(response)
+            if len(group_list) == 0:
+                print(key)
+
             if self.config.get("pass_through", False) and group_list[0]:
                 for key, value in group_list[0].items():
                     if key not in self.config["output"]["schema"]:

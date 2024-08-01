@@ -73,6 +73,14 @@ class MapOperation(BaseOperation):
 
         return results, total_cost
 
+    def validate_output(self, output: Dict) -> bool:
+        schema = self.config["output"]["schema"]
+        for key in schema:
+            if key not in output:
+                self.console.print(f"[red]Error: Missing key '{key}' in output[/red]")
+                return False
+        return True
+
 
 class ParallelMapOperation(BaseOperation):
     def syntax_check(self) -> None:

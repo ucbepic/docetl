@@ -127,3 +127,8 @@ class DSLRunner:
             )
 
         return input_data, total_cost
+
+
+if __name__ == "__main__":
+    runner = DSLRunner("workloads/medical/map_opt.yaml")
+    runner.run()

@@ -14,9 +14,10 @@ TODO:
 - [ ] Optimize maps
   - [x] Track costs for the optimizer
   - [x] Generate multiple plans and evaluate them instead of generating one plan
-  - [ ] Don't use an LLM to determine the right chunk size; try binary search
+  - [x] Don't use an LLM to determine the right chunk size; try searching many chunk sizes
   - [ ] Call llm agent multiple times on different random inputs & average results
   - [ ] Human in the loop evaluation?
+  - [ ] Pairwise comparisons of plans
   - [ ] Allow splitting to be based on a regex, or llm emitting chunks itself, not just tokens
   - [ ] Have a more principled way of determining peripheral chunks? Right now we've hardcoded values
 - [ ] Optimize resolvers (add blocking rules)

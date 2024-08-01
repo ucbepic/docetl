@@ -175,12 +175,18 @@ class Optimizer:
             )
             return [op_config], output_data
 
+        # Generate improved prompt plan
+        improved_prompt_plan = self._get_improved_prompt(
+            op_config, assessment, input_data
+        )
+
+        # Generate chunk size plans
+        chunk_size_plans = self._generate_chunk_size_plans(op_config, input_data)
+
         # Evaluate both plans
         plans_to_evaluate = {
-            "improved_prompt_plan": self._get_improved_prompt(
-                op_config, assessment, input_data
-            ),
-            "breakdown_plan": self._get_split_config(op_config, input_data),
+            "improved_prompt_plan": improved_prompt_plan,
+            **chunk_size_plans,
         }
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = {
@@ -191,6 +197,7 @@ class Optimizer:
                     plan,
                     copy.deepcopy(input_data),
                     validator_prompt,
+                    num_evaluations=3,
                 ): plan_name
                 for plan_name, plan in plans_to_evaluate.items()
             }
@@ -344,11 +351,115 @@ class Optimizer:
         improved_op_config["prompt"] = result["new_prompt"]
         return [improved_op_config]
 
+    def _generate_chunk_size_plans(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        split_result = self._get_split_config(op_config, input_data)
+
+        chunk_sizes = self._generate_chunk_sizes(split_result["split_key"], input_data)
+
+        self.console.print("[bold]Chunk Sizes to Evaluate:[/bold]")
+        self.console.print(f"{chunk_sizes}")
+
+        avg_chunk_size = sum(chunk_sizes) // len(chunk_sizes)
+        context_info = self._determine_context_needs(
+            op_config,
+            split_result["subprompt"],
+            avg_chunk_size,
+            split_result["split_key"],
+            input_data,
+        )
+
+        # Print the context info
+        self.console.print("[bold]Context Information:[/bold]")
+        self.console.print(
+            f"Needs peripherals: {context_info['needs_peripherals']} because {context_info['reason']}"
+        )
+        self.console.print(f"Previous context: {context_info['previous_context']}")
+        self.console.print(f"Next context: {context_info['next_context']}")
+
+        metadata_info = self._determine_metadata_needs(
+            op_config,
+            split_result["subprompt"],
+            avg_chunk_size,
+            split_result["split_key"],
+            input_data,
+        )
+        # Print the metadata info
+        self.console.print("[bold]Metadata Information:[/bold]")
+        self.console.print(f"Needs metadata: {metadata_info['needs_metadata']}")
+        self.console.print(
+            f"Metadata prompt and output schema: {metadata_info.get('metadata_prompt', 'N/A')}; {metadata_info.get('output_schema', 'N/A')}"
+        )
+        self.console.print(f"Reason: {metadata_info['reason']}")
+
+        # Create base operations
+        base_operations = []
+        if metadata_info["needs_metadata"]:
+            base_operations.append(
+                self._create_metadata_operation(
+                    op_config,
+                    metadata_info["metadata_prompt"],
+                    metadata_info["output_schema"],
+                )
+            )
+
+        # Generate sample output for the max chunk size to create the combine prompt
+        max_chunk_size = max(chunk_sizes)
+        sample_output = copy.deepcopy(input_data)
+        max_plan = copy.deepcopy(base_operations)
+
+        split_op = self._create_split_operation(
+            op_config,
+            {"chunk_size": max_chunk_size},
+            context_info,
+            split_result["split_key"],
+        )
+        map_op = self._create_map_operation(
+            op_config, split_result["subprompt"] + " Only process the main chunk."
+        )
+
+        max_plan.extend([split_op, map_op])
+
+        for op in max_plan:
+            sample_output = self._run_operation(op, sample_output)
+
+        # Generate the combine prompt using the sample output
+        combine_prompt = self._get_combine_prompt(op_config, sample_output)
+
+        # Print the combine prompt
+        self.console.print("[bold]Combine Prompt:[/bold]")
+        self.console.print(combine_prompt)
+
+        # Create the reduce operation
+        reduce_op = self._create_reduce_operation(op_config, combine_prompt)
+
+        # Create plans for each chunk size
+        plans = {}
+        for chunk_size in chunk_sizes:
+            plan = copy.deepcopy(base_operations)
+
+            split_op = self._create_split_operation(
+                op_config,
+                {"chunk_size": chunk_size},
+                context_info,
+                split_result["split_key"],
+            )
+            map_op = self._create_map_operation(
+                op_config, split_result["subprompt"] + " Only process the main chunk."
+            )
+
+            plan.extend([split_op, map_op, reduce_op])
+            plan_name = f"chunk_size_{chunk_size}"
+            plans[plan_name] = plan
+
+        return plans
+
     def _get_split_config(
         self,
         op_config: Dict[str, Any],
         input_data_sample: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         system_prompt = "You are an AI assistant tasked with configuring split operations for data processing."
 
         random_sample = random.choice(input_data_sample) if input_data_sample else {}
@@ -411,12 +522,7 @@ class Optimizer:
             f"[yellow]Breaking down operation {op_config['name']}[/yellow]"
         )
         self.console.print(f"[cyan]Subprompt:[/cyan] {result['subprompt']}")
-        return self._handle_split_operation(
-            op_config,
-            result["subprompt"],
-            result["split_key"],
-            input_data_sample,
-        )
+        return result
 
     def _determine_metadata_needs(
         self,
@@ -639,102 +745,23 @@ class Optimizer:
             f"Failed to generate a valid prompt after {max_retries} attempts."
         )
 
-    def _handle_split_operation(
+    def _generate_chunk_sizes(
         self,
-        op_config: Dict[str, Any],
-        subprompt: str,
         split_key: str,
         input_data_sample: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        chunk_info = self._determine_chunk_size(
-            op_config, subprompt, split_key, input_data_sample
-        )
+        num_chunks: int = 10,
+    ) -> List[int]:
+        # Get the average document length
+        avg_doc_length = sum(
+            len(doc[split_key].split()) for doc in input_data_sample
+        ) / len(input_data_sample)
 
-        # Print the chunk info
-        self.console.print("[bold]Chunk Information:[/bold]")
-        self.console.print(f"Minimum chunk size: {chunk_info['min_chunk_size']} words")
-        self.console.print(f"Maximum chunk size: {chunk_info['max_chunk_size']} words")
-        self.console.print(f"Reason: {chunk_info['reason']}")
-
-        # Set chunk_size to the average of the min and max
-        # TODO: explore relevant chunk sizes here
-        chunk_info["chunk_size"] = int(
-            (chunk_info["min_chunk_size"] + chunk_info["max_chunk_size"]) / 2
-        )
-
-        context_info = self._determine_context_needs(
-            op_config, subprompt, chunk_info["chunk_size"], split_key, input_data_sample
-        )
-
-        # Print the context info
-        self.console.print("[bold]Context Information:[/bold]")
-        self.console.print(
-            f"Needs peripherals: {context_info['needs_peripherals']} because {context_info['reason']}"
-        )
-        self.console.print(f"Previous context: {context_info['previous_context']}")
-        self.console.print(f"Next context: {context_info['next_context']}")
-
-        metadata_info = self._determine_metadata_needs(
-            op_config, subprompt, chunk_info["chunk_size"], split_key, input_data_sample
-        )
-        # Print the metadata info
-        self.console.print("[bold]Metadata Information:[/bold]")
-        self.console.print(f"Needs metadata: {metadata_info['needs_metadata']}")
-        self.console.print(
-            f"Metadata prompt and output schema: {metadata_info.get('metadata_prompt', 'N/A')}; {metadata_info.get('output_schema', 'N/A')}"
-        )
-        self.console.print(f"Reason: {metadata_info['reason']}")
-
-        operations = []
-        sample_output = copy.deepcopy(input_data_sample)
-
-        if metadata_info["needs_metadata"]:
-            operations.append(
-                self._create_metadata_operation(
-                    op_config,
-                    metadata_info["metadata_prompt"],
-                    metadata_info["output_schema"],
-                )
-            )
-
-            # Execute the operations to get sample output
-            sample_output = self._run_operation(operations[0], sample_output)
-
-            # edit the subprompt to reflect the metadata
-            subprompt = self._edit_subprompt_to_reflect_metadata(
-                subprompt, metadata_info["output_schema"], sample_output
-            )
-
-            # Print the updated subprompt
-            self.console.print("[bold]Updated Subprompt:[/bold]")
-            self.console.print(subprompt)
-
-        split_op = self._create_split_operation(
-            op_config, chunk_info, context_info, split_key
-        )
-        map_op = self._create_map_operation(
-            op_config, subprompt + " Only process the main chunk."
-        )
-
-        operations.append(split_op)
-        operations.append(map_op)
-
-        # Execute the operations to get sample output
-        for op in [split_op, map_op]:
-            sample_output = self._run_operation(op, sample_output)
-
-        # Generate the combine prompt using the sample output
-        combine_prompt = self._get_combine_prompt(op_config, sample_output)
-
-        # Print the combine prompt
-        self.console.print("[bold]Combine Prompt:[/bold]")
-        self.console.print(combine_prompt)
-
-        # Create the reduce operation
-        reduce_op = self._create_reduce_operation(op_config, combine_prompt)
-        operations.append(reduce_op)
-
-        return operations
+        # Create a linspace of 10 chunk sizes from 100 to half the average document length
+        max_chunk_size = int(avg_doc_length / 2)
+        return [
+            int(100 + i * (max_chunk_size - 100) / (num_chunks - 1))
+            for i in range(num_chunks)
+        ]
 
     def _edit_subprompt_to_reflect_metadata(
         self,
@@ -786,104 +813,6 @@ class Optimizer:
         )
 
         return result["edited_subprompt"]
-
-    def _determine_chunk_size(
-        self,
-        op_config: Dict[str, Any],
-        subprompt: str,
-        split_key: str,
-        input_data_sample: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        # TODO: posibly just binary search for the right chunk size
-
-        system_prompt = "You are an AI assistant helping with processing documents, identifying how to split documents into smaller chunks that can be processed one at a time."
-
-        chunk_sizes = []
-
-        def process_sample(sample_input):
-            sample_input_length = len(sample_input.split())
-
-            prompt = f"""
-            Given the following subtask prompt:
-            {subprompt}
-
-            And a sample input (of {sample_input_length} words):
-            {sample_input}
-
-            Identify a small, cohesive chunk of text that forms a logical unit and can be understood independently for this task.
-            Provide the first few words and last few words of this chunk; preserving the exact formatting/punctuation/etc. so we can programmatically extract them. Also provide an estimate for the number of words in this chunk.
-
-            Provide your response in the following format:
-            """
-
-            parameters = {
-                "type": "object",
-                "properties": {
-                    "start_words": {"type": "string"},
-                    "end_words": {"type": "string"},
-                    "num_words": {"type": "integer"},
-                },
-                "required": ["start_words", "end_words", "num_words"],
-            }
-
-            response = self.llm_client.generate(
-                [
-                    {"role": "user", "content": prompt},
-                ],
-                system_prompt,
-                parameters,
-            )
-            result = json.loads(
-                response.choices[0].message.tool_calls[0].function.arguments
-            )
-
-            # Extract the chunk and calculate its size
-            start_index = sample_input.index(result["start_words"])
-            end_index = sample_input.index(result["end_words"]) + len(
-                result["end_words"]
-            )
-            chunk = sample_input[start_index:end_index]
-            chunk_size = len(chunk.split())
-
-            return chunk_size
-
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = [
-                executor.submit(
-                    process_sample, random.choice(input_data_sample)[split_key]
-                )
-                for _ in range(8)
-            ]
-            for future in as_completed(futures):
-                try:
-                    chunk_size = future.result()
-                    chunk_sizes.append(chunk_size)
-                except Exception as e:
-                    pass
-            self.console.print(
-                f"Identified chunk sizes: {', '.join(map(str, chunk_sizes))} words"
-            )
-
-        # Calculate min, max, and average chunk sizes
-        min_chunk_size = min(chunk_sizes)
-        max_chunk_size = max(chunk_sizes)
-        remainders = [
-            chunk_size
-            for chunk_size in chunk_sizes
-            if chunk_size not in [min_chunk_size, max_chunk_size]
-        ]
-        avg_chunk_size = sum(remainders) / len(remainders)
-
-        self.console.print(f"Minimum chunk size: {min_chunk_size} words")
-        self.console.print(f"Maximum chunk size: {max_chunk_size} words")
-        self.console.print(f"Average chunk size: {avg_chunk_size} words")
-
-        return {
-            "min_chunk_size": min_chunk_size,
-            "max_chunk_size": max_chunk_size,
-            "avg_chunk_size": avg_chunk_size,
-            "reason": f"Based on {len(chunk_sizes)} sample chunks, sizes ranging from {min_chunk_size} to {max_chunk_size} words, with an average of {avg_chunk_size:.2f} words.",
-        }
 
     def _determine_context_needs(
         self,
@@ -1014,6 +943,7 @@ class Optimizer:
         plan: Union[Dict[str, Any], List[Dict[str, Any]]],
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
+        num_evaluations: int,
     ) -> Tuple[float, List[Dict[str, Any]]]:
         if isinstance(plan, dict):
             plan = [plan]
@@ -1022,21 +952,30 @@ class Optimizer:
         for op in plan:
             output_data = self._run_operation(op, output_data)
 
-        # Evaluate the quality of the output using the custom validator prompt
-        quality = self._assess_output_quality(
-            op_config, input_data, output_data, validator_prompt
-        )
-        # Print the quality assessment
+        scores = []
+
+        for _ in range(num_evaluations):
+            # Evaluate the quality of the output using the custom validator prompt
+            quality = self._assess_output_quality(
+                op_config, input_data, output_data, validator_prompt
+            )
+            score_map = {
+                "Satisfactory": 4,
+                "Mostly Satisfactory": 3,
+                "Partially Satisfactory": 2,
+                "Unsatisfactory": 1,
+            }
+            scores.append(score_map.get(quality["quality_category"], 0))
+
+        average_score = sum(scores) / num_evaluations
+        # Print the quality assessment for the last evaluation
         self.console.print(f"[bold]Quality assessment for plan {plan_name}:[/bold]")
         self.console.print(f"\tCategory: {quality['quality_category']}")
         self.console.print(f"\tReason: {quality['reason']}")
+        self.console.print(f"\tAverage Score: {average_score:.2f}")
         self.console.print("\n")  # Add a newline for better readability
-        score_map = {
-            "Satisfactory": 3,
-            "Partially Satisfactory": 2,
-            "Unsatisfactory": 1,
-        }
-        return score_map.get(quality["quality_category"], 0), output_data
+
+        return average_score, output_data
 
     def _assess_output_quality(
         self,
@@ -1048,16 +987,24 @@ class Optimizer:
         system_prompt = "You are an AI assistant tasked with evaluating the quality of data processing outputs."
         output_schema_keys = op_config["output"]["schema"].keys()
         random_idx = random.randint(0, len(input_data) - 1)
+        document_id = input_data[random_idx]["document_id"]
+        input_elem = input_data[random_idx]
+        output_elem = [
+            item for item in output_data if item["document_id"] == document_id
+        ][0]
+        output_elem = {key: output_elem[key] for key in output_schema_keys}
+
         prompt = f"""
         {validator_prompt}
 
         Input and Output Data Sample:
-        {json.dumps({"input": input_data[random_idx], "output": {key: output_data[random_idx][key] for key in output_schema_keys}}, indent=2)}
+        {json.dumps({"input": input_elem, "output": output_elem}, indent=2)}
 
         Based on the validator prompt and the input-output data samples, assess the quality of the output.
-        Categorize the quality into one of these three categories:
+        Categorize the quality into one of these four categories:
         1. "Unsatisfactory": The output failed to meet the validator prompt requirements.
-        2. "Partially Satisfactory": The output partially met the validator prompt requirements but has significant room for improvement.
+        2. "Partially Satisfactory": The output met some of the validator prompt requirements but not all.
+        3. "Mostly Satisfactory": The output mostly met the validator prompt requirements but has some room for improvement.
         3. "Satisfactory": The output fully met the validator prompt requirements.
 
         Provide your response in the following format:
@@ -1113,9 +1060,7 @@ class Optimizer:
         context_info: Dict[str, Any],
         split_key: str,
     ) -> Dict[str, Any]:
-        chunk_size = int(
-            chunk_info["max_chunk_size"] * 1.5
-        )  # Using max_chunk_size * 1.5 as suggested
+        chunk_size = int(chunk_info["chunk_size"] * 1.5)
         name = f"split_{op_config['name']}"
         split_config = {
             "type": "split",

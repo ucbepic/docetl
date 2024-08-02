@@ -46,33 +46,46 @@ class ResolveOptimizer:
 
         self._print_similarity_histogram(similarities, comparison_results)
 
-        threshold = self._find_optimal_threshold(comparison_results, similarities)
+        threshold, estimated_selectivity, ci_upper = self._find_optimal_threshold(
+            comparison_results, similarities
+        )
 
         blocking_rules = self._generate_blocking_rules(
             blocking_keys, input_data, comparison_results
         )
 
         if blocking_rules:
-            false_negatives = self._verify_blocking_rule(
-                input_data, blocking_rules[0], blocking_keys, comparison_results
+            false_negatives, rule_selectivity = self._verify_blocking_rule(
+                input_data,
+                blocking_rules[0],
+                blocking_keys,
+                comparison_results,
+                ci_upper,
             )
-            if not false_negatives:
+            if not false_negatives and rule_selectivity <= ci_upper:
                 self.console.print(
-                    "[green]Blocking rule verified. No false negatives detected in the sample.[/green]"
+                    "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within bounds.[/green]"
                 )
             else:
-                self.console.print(
-                    f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample.[/red]"
-                )
-                for i, j in false_negatives[:5]:  # Show up to 5 examples
+                if false_negatives:
                     self.console.print(
-                        f"  Filtered pair: {{ {blocking_keys[0]}: {input_data[i][blocking_keys[0]]} }} and {{ {blocking_keys[0]}: {input_data[j][blocking_keys[0]]} }}"
+                        f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample.[/red]"
                     )
-                if len(false_negatives) > 5:
-                    self.console.print(f"  ... and {len(false_negatives) - 5} more.")
+                    for i, j in false_negatives[:5]:  # Show up to 5 examples
+                        self.console.print(
+                            f"  Filtered pair: {{ {blocking_keys[0]}: {input_data[i][blocking_keys[0]]} }} and {{ {blocking_keys[0]}: {input_data[j][blocking_keys[0]]} }}"
+                        )
+                    if len(false_negatives) > 5:
+                        self.console.print(
+                            f"  ... and {len(false_negatives) - 5} more."
+                        )
+                if rule_selectivity > ci_upper:
+                    self.console.print(
+                        f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the upper bound of the CI ({ci_upper:.4f}).[/red]"
+                    )
                 blocking_rules = (
                     []
-                )  # Clear the blocking rule if it introduces false negatives
+                )  # Clear the blocking rule if it introduces false negatives or is too selective
 
         optimized_config = self._update_config(threshold, blocking_keys, blocking_rules)
         return optimized_config, embedding_cost + comparison_cost
@@ -221,7 +234,7 @@ class ResolveOptimizer:
         self,
         comparisons: List[Tuple[int, int, bool]],
         similarities: List[Tuple[int, int, float]],
-    ) -> float:
+    ) -> Tuple[float, float, float]:
         true_labels = np.array([comp[2] for comp in comparisons])
         sim_dict = {(i, j): sim for i, j, sim in similarities}
         sim_scores = np.array([sim_dict[(i, j)] for i, j, _ in comparisons])
@@ -290,7 +303,7 @@ class ResolveOptimizer:
             f"[bold]Chosen similarity threshold for blocking: {optimal_threshold:.4f}[/bold]"
         )
 
-        return round(optimal_threshold, 4)
+        return round(optimal_threshold, 4), estimated_selectivity, ci_upper
 
     def _generate_blocking_rules(
         self,
@@ -458,7 +471,7 @@ class ResolveOptimizer:
         blocking_rule: str,
         blocking_keys: List[str],
         comparison_results: List[Tuple[int, int, bool]],
-    ) -> List[Tuple[int, int]]:
+    ) -> Tuple[List[Tuple[int, int]], float]:
         def apply_blocking_rule(item1, item2):
             try:
                 return eval(blocking_rule, {"input1": item1, "input2": item2})
@@ -467,20 +480,22 @@ class ResolveOptimizer:
                 return True  # If there's an error, we default to comparing the pair
 
         false_negatives = []
+        total_pairs = 0
+        blocked_pairs = 0
 
         for i, j, is_match in comparison_results:
-            if is_match:
-                item1 = {
-                    k: input_data[i][k] for k in blocking_keys if k in input_data[i]
-                }
-                item2 = {
-                    k: input_data[j][k] for k in blocking_keys if k in input_data[j]
-                }
+            total_pairs += 1
+            item1 = {k: input_data[i][k] for k in blocking_keys if k in input_data[i]}
+            item2 = {k: input_data[j][k] for k in blocking_keys if k in input_data[j]}
 
-                if not apply_blocking_rule(item1, item2):
+            if apply_blocking_rule(item1, item2):
+                blocked_pairs += 1
+                if is_match:
                     false_negatives.append((i, j))
 
-        return false_negatives
+        rule_selectivity = blocked_pairs / total_pairs if total_pairs > 0 else 0
+
+        return false_negatives, rule_selectivity
 
     def _update_config(
         self, threshold: float, blocking_keys: List[str], blocking_rules: List[str]

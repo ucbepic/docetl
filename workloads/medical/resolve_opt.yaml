@@ -28,12 +28,9 @@ operations:
       '
     type: map
   resolve_medications:
-    blocking_conditions:
-    - '"ibuprofen" in input1[''medication''].lower() or "ibuprofen" in input2[''medication''].lower()
-      or input1[''medication''].lower()[:3] == input2[''medication''].lower()[:3]'
     blocking_keys:
     - medication
-    blocking_threshold: 0.6465
+    blocking_threshold: 0.5455
     comparison_prompt: 'Compare the following two medication entries:
 
       Entry 1: {{ input1.medication }}

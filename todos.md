@@ -20,6 +20,7 @@ TODO:
 - [ ] Optimize reduce
   - [x] Implement fold pattern
   - [ ] Optimize folds
+    - [ ] Stratified sample the reduce operations based on the groupby results
     - [ ] Synthesize multiple fold prompts
   - [ ] Implement merge pattern
   - [ ] Optimize merges

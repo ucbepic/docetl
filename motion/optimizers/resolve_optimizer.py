@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 import random
 import re
 from typing import List, Dict, Any, Tuple
@@ -20,6 +21,7 @@ class ResolveOptimizer:
         target_recall: float = 0.95,
         sample_size: int = 300,
         sampling_weight: float = 5,
+        agent_max_retries: int = 5,
     ):
         self.config = config
         self.op_config = op_config
@@ -29,6 +31,7 @@ class ResolveOptimizer:
         self.target_recall = target_recall
         self.sample_size = sample_size
         self.sampling_weight = sampling_weight
+        self.agent_max_retries = agent_max_retries
 
     def optimize(
         self, input_data: List[Dict[str, Any]]
@@ -44,7 +47,32 @@ class ResolveOptimizer:
         self._print_similarity_histogram(similarities, comparison_results)
 
         threshold = self._find_optimal_threshold(comparison_results, similarities)
-        blocking_rules = self._generate_blocking_rules(input_data, comparison_results)
+
+        blocking_rules = self._generate_blocking_rules(
+            blocking_keys, input_data, comparison_results
+        )
+
+        if blocking_rules:
+            false_negatives = self._verify_blocking_rule(
+                input_data, blocking_rules[0], blocking_keys, comparison_results
+            )
+            if not false_negatives:
+                self.console.print(
+                    "[green]Blocking rule verified. No false negatives detected in the sample.[/green]"
+                )
+            else:
+                self.console.print(
+                    f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample.[/red]"
+                )
+                for i, j in false_negatives[:5]:  # Show up to 5 examples
+                    self.console.print(
+                        f"  Filtered pair: {{ {blocking_keys[0]}: {input_data[i][blocking_keys[0]]} }} and {{ {blocking_keys[0]}: {input_data[j][blocking_keys[0]]} }}"
+                    )
+                if len(false_negatives) > 5:
+                    self.console.print(f"  ... and {len(false_negatives) - 5} more.")
+                blocking_rules = (
+                    []
+                )  # Clear the blocking rule if it introduces false negatives
 
         optimized_config = self._update_config(threshold, blocking_keys, blocking_rules)
         return optimized_config, embedding_cost + comparison_cost
@@ -160,15 +188,6 @@ class ResolveOptimizer:
             (sorted_similarities[i][0], sorted_similarities[i][1])
             for i in sampled_indices
         ]
-
-        # Print sampling statistics
-        sampled_similarities = [sorted_similarities[i][2] for i in sampled_indices]
-        self.console.print(f"[bold]Sampled similarities stats:[/bold]")
-        self.console.print(f"  Min: {min(sampled_similarities):.4f}")
-        self.console.print(f"  Max: {max(sampled_similarities):.4f}")
-        self.console.print(f"  Mean: {np.mean(sampled_similarities):.4f}")
-        self.console.print(f"  Median: {np.median(sampled_similarities):.4f}")
-
         return sampled_pairs
 
     def _perform_comparisons(
@@ -274,13 +293,195 @@ class ResolveOptimizer:
         return round(optimal_threshold, 4)
 
     def _generate_blocking_rules(
-        self, input_data: List[Dict[str, Any]], comparisons: List[Tuple[int, int, bool]]
+        self,
+        blocking_keys: List[str],
+        input_data: List[Dict[str, Any]],
+        comparisons: List[Tuple[int, int, bool]],
     ) -> List[str]:
-        rules = []
-        for key in self.op_config.get("blocking_keys", []):
-            if all(item.get(key) for item in input_data):
-                rules.append(f"input1['{key}'] == input2['{key}']")
-        return rules
+        # Sample 2 true and 2 false comparisons
+        true_comparisons = [comp for comp in comparisons if comp[2]][:2]
+        false_comparisons = [comp for comp in comparisons if not comp[2]][:2]
+        sample_datas = [
+            (
+                {key: input_data[i][key] for key in blocking_keys},
+                {key: input_data[j][key] for key in blocking_keys},
+                is_match,
+            )
+            for i, j, is_match in true_comparisons + false_comparisons
+        ]
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"""Given the following sample comparisons between entities, generate a single-line Python statement that acts as a blocking rule for entity resolution. This rule will be used in the form: `eval(blocking_rule, {{"input1": item1, "input2": item2}})`.
+
+    Sample comparisons (note: these are just a few examples and may not represent all possible cases):
+    {json.dumps(sample_datas, indent=2)}
+
+    For context, here is the comparison prompt that will be used for the more expensive, detailed comparison:
+    {self.op_config.get('comparison_prompt', 'No comparison prompt provided.')}
+
+    Please generate ONE one-line blocking rule that adheres to the following criteria:
+    1. The rule should evaluate to True if the entities are possibly a match and require further comparison.
+    2. The rule should evaluate to False ONLY if the entities are definitely not a match.
+    3. The rule must be a single Python expression that can be evaluated using the eval() function.
+    4. The rule should be much faster to evaluate than the full comparison prompt.
+    5. The rule should capture the essence of the comparison prompt but in a simplified manner.
+    6. The rule should be general enough to work well on the entire dataset, not just these specific examples.
+    7. The rule should handle inconsistent casing by using string methods like .lower() when comparing string values.
+    8. The rule should err on the side of inclusivity - it's better to have false positives than false negatives.
+
+    Example structure of a one-line blocking rule:
+    "(condition1) or (condition2) or (condition3)"
+
+    Where conditions could be comparisons like:
+    "input1['field'].lower() == input2['field'].lower()"
+    "abs(len(input1['text']) - len(input2['text'])) <= 5"
+    "any(word in input1['description'].lower() for word in input2['description'].lower().split())"
+
+    If there's no clear rule that can be generated based on the given information, return the string "True" to ensure all pairs are compared.
+
+    Remember, the primary goal of the blocking rule is to safely reduce the number of comparisons by quickly identifying pairs that are definitely not matches, while keeping all potential matches for further evaluation.""",
+            }
+        ]
+
+        for attempt in range(self.agent_max_retries):  # Up to 3 attempts
+            # Generate blocking rule using the LLM
+            response = self.llm_client.generate(
+                messages,
+                "You are an expert in entity resolution and Python programming. Your task is to generate one efficient blocking rule based on the given sample comparisons and data structure.",
+                {
+                    "type": "object",
+                    "properties": {
+                        "blocking_rule": {
+                            "type": "string",
+                            "description": "One-line Python statement acting as a blocking rule",
+                        }
+                    },
+                },
+            )
+
+            # Extract the blocking rule from the LLM response
+            blocking_rule = response.choices[0].message.tool_calls[0].function.arguments
+            blocking_rule = json.loads(blocking_rule).get("blocking_rule")
+
+            if blocking_rule:
+                self.console.print("")  # Print a newline
+
+                if blocking_rule.strip() == "True":
+                    self.console.print(
+                        "[yellow]No suitable blocking rule could be found. Proceeding without a blocking rule.[/yellow]"
+                    )
+                    return []
+
+                self.console.print(
+                    f"[bold]Generated blocking rule (Attempt {attempt + 1}):[/bold] {blocking_rule}"
+                )
+
+                # Test the blocking rule
+                filtered_pairs = self._test_blocking_rule(
+                    input_data, blocking_keys, blocking_rule, comparisons
+                )
+
+                if not filtered_pairs:
+                    self.console.print(
+                        "[green]Blocking rule looks good! No known matches were filtered out.[/green]"
+                    )
+                    return [blocking_rule]
+                else:
+                    feedback = f"The previous rule incorrectly filtered out {len(filtered_pairs)} known matches. "
+                    feedback += (
+                        "Here are up to 3 examples of incorrectly filtered pairs:\n"
+                    )
+                    for i, j in filtered_pairs[:3]:
+                        feedback += f"Pair 1: {json.dumps({key: input_data[i][key] for key in blocking_keys})}\n"
+                        feedback += f"Pair 2: {json.dumps({key: input_data[j][key] for key in blocking_keys})}\n"
+                        feedback += "These pairs are known matches but were filtered out by the rule.\n"
+                    feedback += "Please generate a new rule that doesn't filter out these matches."
+
+                    messages.append({"role": "assistant", "content": blocking_rule})
+                    messages.append({"role": "user", "content": feedback})
+            else:
+                self.console.print("[yellow]No blocking rule generated.[/yellow]")
+                return []
+
+        self.console.print(
+            f"[yellow]Failed to generate a suitable blocking rule after {self.agent_max_retries} attempts. Proceeding without a blocking rule.[/yellow]"
+        )
+        return []
+
+    def _test_blocking_rule(
+        self,
+        input_data: List[Dict[str, Any]],
+        blocking_keys: List[str],
+        blocking_rule: str,
+        comparisons: List[Tuple[int, int, bool]],
+    ) -> List[Tuple[int, int]]:
+        def apply_blocking_rule(item1, item2):
+            try:
+                return eval(blocking_rule, {"input1": item1, "input2": item2})
+            except Exception as e:
+                self.console.print(f"[red]Error applying blocking rule: {e}[/red]")
+                return True  # If there's an error, we default to comparing the pair
+
+        filtered_pairs = []
+
+        for i, j, is_match in comparisons:
+            if is_match:
+                item1 = {
+                    k: input_data[i][k] for k in blocking_keys if k in input_data[i]
+                }
+                item2 = {
+                    k: input_data[j][k] for k in blocking_keys if k in input_data[j]
+                }
+
+                if not apply_blocking_rule(item1, item2):
+                    filtered_pairs.append((i, j))
+
+        if filtered_pairs:
+            self.console.print(
+                f"[yellow italic]LLM Correction: The blocking rule incorrectly filtered out {len(filtered_pairs)} known positive matches.[/yellow italic]"
+            )
+            for i, j in filtered_pairs[:5]:  # Show up to 5 examples
+                self.console.print(
+                    f"  Incorrectly filtered pair 1: {json.dumps({key: input_data[i][key] for key in blocking_keys})}  and pair 2: {json.dumps({key: input_data[j][key] for key in blocking_keys})}"
+                )
+            if len(filtered_pairs) > 5:
+                self.console.print(
+                    f"  ... and {len(filtered_pairs) - 5} more incorrect pairs."
+                )
+
+        return filtered_pairs
+
+    def _verify_blocking_rule(
+        self,
+        input_data: List[Dict[str, Any]],
+        blocking_rule: str,
+        blocking_keys: List[str],
+        comparison_results: List[Tuple[int, int, bool]],
+    ) -> List[Tuple[int, int]]:
+        def apply_blocking_rule(item1, item2):
+            try:
+                return eval(blocking_rule, {"input1": item1, "input2": item2})
+            except Exception as e:
+                self.console.print(f"[red]Error applying blocking rule: {e}[/red]")
+                return True  # If there's an error, we default to comparing the pair
+
+        false_negatives = []
+
+        for i, j, is_match in comparison_results:
+            if is_match:
+                item1 = {
+                    k: input_data[i][k] for k in blocking_keys if k in input_data[i]
+                }
+                item2 = {
+                    k: input_data[j][k] for k in blocking_keys if k in input_data[j]
+                }
+
+                if not apply_blocking_rule(item1, item2):
+                    false_negatives.append((i, j))
+
+        return false_negatives
 
     def _update_config(
         self, threshold: float, blocking_keys: List[str], blocking_rules: List[str]

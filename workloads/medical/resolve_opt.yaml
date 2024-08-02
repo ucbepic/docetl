@@ -30,7 +30,7 @@ operations:
   resolve_medications:
     blocking_keys:
     - medication
-    blocking_threshold: 0.5152
+    blocking_threshold: 0.5758
     comparison_prompt: 'Compare the following two medication entries:
 
       Entry 1: {{ input1.medication }}

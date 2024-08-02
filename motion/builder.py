@@ -93,6 +93,18 @@ class Optimizer:
         self.operations_cost = 0
         self.timeout = timeout
 
+        self.print_optimizer_config()
+
+    def print_optimizer_config(self):
+        self.console.print("[bold cyan]Optimizer Configuration:[/bold cyan]")
+        self.console.print("─" * 40)
+        self.console.print(f"[yellow]YAML File:[/yellow] {self.yaml_file_path}")
+        self.console.print(f"[yellow]Sample Size:[/yellow] {self.sample_size}")
+        self.console.print(f"[yellow]Max Threads:[/yellow] {self.max_threads}")
+        self.console.print(f"[yellow]Model:[/yellow] {self.llm_client.model}")
+        self.console.print(f"[yellow]Timeout:[/yellow] {self.timeout} seconds")
+        self.console.print("─" * 40)
+
     def optimize(self):
         optimized_steps = []
         optimized_operations = {}
@@ -142,6 +154,10 @@ class Optimizer:
                 with self.console.status(
                     f"[bold green]Running operation: {operation_name} (Type: {op_object['type']})[/bold green]"
                 ):
+                    # Print the number of elements in input_data
+                    self.console.print(
+                        f"[yellow]Running {operation_name} on a sample of {len(input_data)} input elements...[/yellow]"
+                    )
                     input_data = self._run_operation(op_object, input_data)
                     optimized_operations[operation_name] = op_object
             else:
@@ -149,6 +165,10 @@ class Optimizer:
                 with self.console.status(
                     f"[bold blue]Optimizing operation: {operation_name} (Type: {op_object['type']})[/bold blue]"
                 ):
+                    # Print the number of elements in input_data
+                    self.console.print(
+                        f"[yellow]Optimizing {operation_name} on a sample of {len(input_data)} input elements...[/yellow]"
+                    )
                     if op_object.get("type") == "map":
                         optimized_ops, input_data = self._optimize_map(
                             op_object, input_data

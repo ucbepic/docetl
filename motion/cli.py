@@ -13,14 +13,26 @@ def build(
     yaml_file: Path = typer.Argument(
         ..., help="Path to the YAML file containing the pipeline configuration"
     ),
-    sample_size: int = typer.Option(10, help="Sample size for optimization"),
+    max_threads: Optional[int] = typer.Option(
+        None, help="Maximum number of threads to use for parallel operations"
+    ),
+    sample_size: int = typer.Option(20, help="Sample size for optimization"),
     model: str = typer.Option("gpt-4o", help="Model to use for optimization"),
+    timeout: int = typer.Option(
+        60, help="Timeout for optimization operations in seconds"
+    ),
 ):
     """
     Build and optimize the configuration specified in the YAML file.
     """
     try:
-        optimizer = Optimizer(str(yaml_file), sample_size=sample_size, model=model)
+        optimizer = Optimizer(
+            str(yaml_file),
+            max_threads=max_threads,
+            sample_size=sample_size,
+            model=model,
+            timeout=timeout,
+        )
         optimizer.optimize()
         typer.echo("Optimization complete. Check the optimized configuration.")
     except Exception as e:

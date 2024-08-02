@@ -73,7 +73,9 @@ class ResolveOptimizer:
         )
         embeddings = [data["embedding"] for data in response["data"]]
         cost = completion_cost(response)
-        self.console.print(f"[bold]Cost of creating embeddings: ${cost:.4f}[/bold]")
+        self.console.print(
+            f"[bold]Cost of creating embeddings on the sample: ${cost:.4f}[/bold]"
+        )
         return embeddings, blocking_keys, cost
 
     def _calculate_cosine_similarities(
@@ -192,7 +194,7 @@ class ResolveOptimizer:
                 total_cost += cost
 
         self.console.print(
-            f"[bold]Cost of pairwise comparisons: ${total_cost:.4f}[/bold]"
+            f"[bold]Cost of pairwise comparisons on the sample: ${total_cost:.4f}[/bold]"
         )
         return comparisons, total_cost
 
@@ -251,7 +253,19 @@ class ResolveOptimizer:
         ci_upper = min(1, estimated_selectivity + 1.96 * se_estimated)
 
         self.console.print(
-            f"[bold]Estimated self-join selectivity at {self.target_recall:.0%} recall: {estimated_selectivity:.4f} (95% CI: {ci_lower:.4f} - {ci_upper:.4f})[/bold]"
+            f"[bold cyan]┌─ Estimated Self-Join Selectivity ─────────────────────────┐[/bold cyan]"
+        )
+        self.console.print(
+            f"[bold cyan]│[/bold cyan] [yellow]Target Recall:[/yellow] {self.target_recall:.0%}"
+        )
+        self.console.print(
+            f"[bold cyan]│[/bold cyan] [yellow]Estimate:[/yellow] {estimated_selectivity:.4f}"
+        )
+        self.console.print(
+            f"[bold cyan]│[/bold cyan] [yellow]95% Confidence Interval:[/yellow] [{ci_lower:.4f} - {ci_upper:.4f}]"
+        )
+        self.console.print(
+            f"[bold cyan]└───────────────────────────────────────────────────────────┘[/bold cyan]"
         )
         self.console.print(
             f"[bold]Chosen similarity threshold for blocking: {optimal_threshold:.4f}[/bold]"

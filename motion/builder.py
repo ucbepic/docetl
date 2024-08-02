@@ -4,6 +4,7 @@ import yaml
 from typing import Dict, List, Any, Optional, Tuple, Union
 from motion.operations import get_operation
 from motion.optimizers.map_optimizer import MapOptimizer
+from motion.optimizers.reduce_optimizer import ReduceOptimizer
 from motion.optimizers.resolve_optimizer import ResolveOptimizer
 from motion.utils import load_config
 from rich.console import Console
@@ -38,7 +39,7 @@ def extract_jinja_variables(template_string):
     return list(all_variables)
 
 
-SUPPORTED_OPS = ["map", "resolve"]
+SUPPORTED_OPS = ["map", "resolve", "reduce"]
 
 
 class LLMClient:
@@ -179,6 +180,10 @@ class Optimizer:
                         optimized_ops, input_data = self._optimize_map(
                             op_object, input_data
                         )
+                    elif op_object.get("type") == "reduce":
+                        optimized_ops, input_data = self._optimize_reduce(
+                            op_object, input_data
+                        )
                     elif op_object.get("type") == "resolve":
                         optimized_ops, input_data = self._optimize_resolve(
                             op_object, input_data
@@ -207,6 +212,19 @@ class Optimizer:
             return random.sample(data, min(self.sample_size, len(data)))
         else:
             raise ValueError(f"Unsupported dataset type: {dataset['type']}")
+
+    def _optimize_reduce(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        reduce_optimizer = ReduceOptimizer(
+            self.config,
+            self.console,
+            self.llm_client,
+            self.max_threads,
+            self._run_operation,
+        )
+        optimized_op, input_data = reduce_optimizer.optimize(op_config, input_data)
+        return [optimized_op], input_data
 
     def _optimize_resolve(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -470,5 +488,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/resolve.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/reduce.yaml", model="gpt-4o")
     optimizer.optimize()

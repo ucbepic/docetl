@@ -1,0 +1,1145 @@
+[
+  {
+    "context_summary": "A patient takes Carafate to help coat the lining of the esophagus and stomach due to acute esophagitis, which is causing difficulty swallowing and chest pain when consuming larger pieces of food. The doctor prescribes Carafate alongside Protonix, to manage the condition and decrease acid production in the stomach.",
+    "side_effects": [],
+    "interactions": [
+      "Protonix (prescribed concurrently)"
+    ],
+    "medication": "Carafate"
+  },
+  {
+    "context_summary": "The patient takes antibiotics prescribed for a nonhealing diabetic foot ulcer that developed following a blister, which became infected. The infection has caused symptoms such as foul odor, yellow drainage, and pain. The antibiotics are intended to treat the infection and prevent further complications.",
+    "side_effects": [
+      "Slight fever",
+      "Chills"
+    ],
+    "interactions": [
+      "Potential interaction with blood sugar levels, necessitating close monitoring of diabetes management alongside the antibiotic therapy."
+    ],
+    "medication": "antibiotics"
+  },
+  {
+    "context_summary": "Patients take Mobic (Meloxicam) for pain relief and to reduce swelling associated with injuries. In the first transcript, a patient hurt her knee resulting in pain and swelling, while the second patient had a contusion on her leg resulting from a bowling incident. Both patients received Mobic as a part of their treatment plan.",
+    "side_effects": [],
+    "interactions": [
+      "In the second transcript, the patient mentions alternating between ibuprofen and Tylenol for pain relief, indicating a potential interaction or consideration when using Mobic."
+    ],
+    "medication": "Mobic (Meloxicam)"
+  },
+  {
+    "context_summary": "The patient, Miss Russell, is prescribed Lortab due to severe pain in her right upper arm caused by a proximal humerus fracture sustained during a volleyball game. The pain is rated as a nine out of ten, and she reports that over-the-counter ibuprofen has not been effective in alleviating the pain.",
+    "side_effects": [],
+    "interactions": [
+      "The patient is taking Pepcid for gallstones, but no Direct interactions with Lortab were mentioned in the transcripts."
+    ],
+    "medication": "Lortab"
+  },
+  {
+    "context_summary": "The patient takes Symbicort to manage asthma symptoms, particularly to prevent exacerbations during the summer months when pollen is active. The medication is added to the patient's current regimen, which includes albuterol for as-needed relief of symptoms.",
+    "side_effects": [],
+    "interactions": [
+      "The patient is also taking albuterol (two puffs every four to six hours as needed) and has previously taken Prozac, which he has weaned off, and will start Zoloft as a new medication for depression."
+    ],
+    "medication": "Symbicort"
+  },
+  {
+    "context_summary": "The patient takes amlodipine as part of their medication regimen for hypertension management. They reported their blood pressure readings at home were stable and not interfering with their daily activities. Amlodipine is mentioned alongside other blood pressure medications such as lisinopril and hydrochlorothiazide, indicating it is part of a multi-drug approach to control blood pressure.",
+    "side_effects": [
+      "None mentioned in the transcript."
+    ],
+    "interactions": [
+      "The patient is taking amlodipine alongside lisinopril, hydrochlorothiazide, metformin, and farxiga, which suggests possible interactions with blood pressure and diabetes medications but specifics on interactions were not discussed."
+    ],
+    "medication": "amlodipine"
+  },
+  {
+    "context_summary": "In the transcript, a 57-year-old female patient named Sophia Jackson is allergic to Augmentin. The doctor notes this allergy during a surgical consult for melanoma, suggesting that she has a history or potential need for antibiotics, which Augmentin typically provides. However, the reasons for taking Augmentin were not discussed, and the focus was instead on the melanoma diagnosis and surgery.",
+    "side_effects": [
+      "Allergic reaction (specific symptoms not mentioned)"
+    ],
+    "interactions": [
+      "None mentioned"
+    ],
+    "medication": "augmentin"
+  },
+  {
+    "context_summary": "In the provided transcript, the patient, Christine Hernandez, is prescribed benzoyl peroxide as part of her treatment plan for acne vulgaris. The doctor suggests using benzoyl peroxide in conjunction with clindamycin topical, indicating that it may improve her skin condition. This medication is intended to help manage her acne, especially since she has not previously tried treatments for it.",
+    "side_effects": [
+      "The doctor warns that benzoyl peroxide may bleach sheets."
+    ],
+    "interactions": [
+      "Benzoyl peroxide is prescribed alongside clindamycin topical for acne treatment."
+    ],
+    "medication": "benzoyl peroxide"
+  },
+  {
+    "context_summary": "The medication 'Icy Heat' is used by the patient, Logan, as a topical analgesic for managing back pain following a strain he experienced while lifting heavy boxes. He utilized it in conjunction with other pain relievers, including Tylenol and ibuprofen.",
+    "side_effects": [
+      "The patient mentions that using 'Icy Heat' did not seem to help relieve the pain, but no specific side effects were noted in the transcript."
+    ],
+    "interactions": [
+      "Logan also took Tylenol and ibuprofen for pain relief, but there was no indication of any interactions or issues between these medications and 'Icy Heat'."
+    ],
+    "medication": "Icy Heat"
+  },
+  {
+    "context_summary": "The patient takes Zoloft as part of a treatment plan to manage depression. The doctor discussed considering a different medication due to the patient's previous experience with Prozac, mentioning that the patient had weaned himself off it but still battles depression periodically. The new plan is to start Zoloft at a low dose of 25 mg once a day to see how the patient tolerates it.",
+    "side_effects": [
+      "The patient expressed concerns about side effects from previous medication (Prozac), but no specific side effects from Zoloft were mentioned. It was noted that the patient wishes to lower the dose of their current medication to minimize side effects."
+    ],
+    "interactions": [
+      "The patient was previously on Prozac, but no specific interactions with Zoloft were discussed. The doctor indicated a plan to change medications due to past side effects."
+    ],
+    "medication": "Zoloft"
+  },
+  {
+    "context_summary": "Patients take Synthroid for managing hypothyroidism, as indicated by the patient's confirmation of taking it regularly. In this transcript, the patient, Andrew, mentions that he is taking Synthroid on schedule and reports no issues with fatigue, weight gain, or other symptoms commonly associated with thyroid issues.",
+    "side_effects": [
+      "No side effects mentioned."
+    ],
+    "interactions": [
+      "No interactions with other medications or treatments mentioned."
+    ],
+    "medication": "Synthroid"
+  },
+  {
+    "context_summary": "In the transcripts, two patients mentioned taking Miralax primarily for the treatment of constipation. The first patient, Ms. Brooks, indicated she had been suffering from constipation and had been using Miralax as her main medication for relief. The second patient, Christine Hernandez, also confirmed that her doctor recommended Miralax for her constipation issue. Both patients did not elaborate on the severity of their constipation or their overall experience with Miralax, suggesting it may be a common, uncomplicated case of occasional use for constipation.",
+    "side_effects": [],
+    "interactions": [
+      "Christine Hernandez's doctor mentioned that Miralax could help with her constipation but did not mention any specific interactions with other medications. No interactions with other treatments or medications were discussed in detail in the transcripts."
+    ],
+    "medication": "Miralax"
+  },
+  {
+    "context_summary": "In the transcript, the patient, Gloria, takes Atrovent to help alleviate shortness of breath exacerbated by her congestive heart failure (CHF) and chronic obstructive pulmonary disease (COPD). The doctor suggests using Atrovent in conjunction with albuterol and increases the dosage of Lasix to help with fluid retention and improve her breathing.",
+    "side_effects": [
+      "Not mentioned"
+    ],
+    "interactions": [
+      "Atrovent is mentioned to be used alongside albuterol and Lasix, implying a treatment regimen involving multiple medications for shortness of breath and fluid management. No specific interactions were discussed in the transcript."
+    ],
+    "medication": "atrovent"
+  },
+  {
+    "context_summary": "In the provided transcripts, Losartan is prescribed to patients who are experiencing hypertension and congestive heart failure. It is part of their regimen to manage blood pressure and reduce the risk associated with heart conditions. One patient, David, mentioned that he has been instructed to take Losartan (referred to as 'cozaar') 100 mg daily as part of his treatment for uncontrolled hypertension linked to dietary indiscretion. The second patient, Christina, was similarly prescribed Losartan 100 mg daily as part of her hypertension management following hospitalization for heart failure. Overall, both patients are under treatment for high blood pressure and related cardiac issues.",
+    "side_effects": [],
+    "interactions": [
+      "Losartan is mentioned alongside Bumex (a diuretic) and Norvasc (an antihypertensive), indicating a potential interaction in the context of managing hypertension and heart failure. Both patients discussed their use of these medications in relation to their overall treatment plan."
+    ],
+    "medication": "Losartan"
+  },
+  {
+    "context_summary": "In the transcripts, 'Hydrochlorothiazide' is prescribed to manage high blood pressure. In Transcript 1, the doctor decides to switch the patient from Norvasc due to ankle swelling that started after beginning that medication, suggesting a potential side effect. In Transcript 2, the patient mentions taking Hydrochlorothiazide as part of their regimen for blood pressure management along with Amlodipine, Lisinopril, and Farxiga. There are indications of the patient's blood pressure being generally controlled, but higher fasting blood sugar levels were also noted.",
+    "side_effects": [
+      "Swelling in the ankles (mentioned in Transcript 1, possibly related to Norvasc)"
+    ],
+    "interactions": [
+      "Used alongside Amlodipine, Lisinopril, and Farxiga in Transcript 2. Possible interaction mentioned between blood pressure medications."
+    ],
+    "medication": "Hydrochlorothiazide"
+  },
+  {
+    "context_summary": "Amoxicillin is prescribed for two patients in the transcripts. The first patient, Keith, is prescribed amoxicillin 500 mg three times a day to treat a positive rapid strep test, which is believed to be contributing to his elevated blood sugar levels. The second patient, Teresa, is also prescribed amoxicillin 500 mg three times a day for her sore throat, which is suspected to be due to a strep infection. Both prescriptions are for a duration of 10 days.",
+    "side_effects": [
+      "None mentioned"
+    ],
+    "interactions": [
+      "Keith is taking protonix (for reflux), lisinopril (for hypertension), and metformin (for diabetes), but no specific interactions with amoxicillin are mentioned. Teresa is taking lisinopril and metformin, but no interactions with amoxicillin are discussed either."
+    ],
+    "medication": "amoxicillin"
+  },
+  {
+    "context_summary": "Gabapentin is prescribed for patients experiencing chronic pain, neuropathy, and possibly nerve-related issues. In the first transcript, Rachel takes gabapentin (also known as neurontin) for chronic back pain and feels it is helping to control her pain. In the second transcript, Donald takes gabapentin for nerve pain associated with a possible pinched nerve due to cervical issues.",
+    "side_effects": [
+      "None explicitly mentioned in the transcripts."
+    ],
+    "interactions": [
+      "Donald mentions taking eliquis, an anticoagulant, but no specific interactions with gabapentin are mentioned. Both patients are receiving other medications like prednisone and exercise programs alongside gabapentin."
+    ],
+    "medication": "Gabapentin"
+  },
+  {
+    "context_summary": "In the transcripts, patients take Lidocaine primarily to address pain associated with swallowing difficulties due to inflammation in the esophagus or throat. Patient Beverly uses Lidocaine as a swish and swallow solution to alleviate painful swallowing caused by radiation pneumonitis. Patient Teresa is prescribed Lidocaine for pain relief associated with a sore throat, potentially due to a strep infection. The Lidocaine is intended to help both patients manage their symptoms and allow them to eat and drink more comfortably.",
+    "side_effects": [
+      "No specific side effects were mentioned in the transcripts."
+    ],
+    "interactions": [
+      "Lidocaine is mentioned to be used in conjunction with prednisone for inflammation and with ibuprofen for pain management in Teresa's case. It is also used alongside ongoing chemotherapy for Beverly. The potential interactions with other medications provided in the transcripts were not specifically detailed."
+    ],
+    "medication": "Lidocaine"
+  },
+  {
+    "context_summary": "In the provided doctor-patient transcript, the patient takes aldactone 12.5 mg as part of the treatment plan for newly reduced left ventricular dysfunction and moderate mitral regurgitation following a heart attack. The physician believes that aldactone will help manage the patient's condition and notes that the patient is very compliant with their medications.",
+    "side_effects": [
+      "No side effects were mentioned in the transcript."
+    ],
+    "interactions": [
+      "The doctor mentioned that the patient is taking other medications including aspirin, brilinta, atorvastatin, toprol, and lisinopril, but no specific interactions with aldactone were discussed."
+    ],
+    "medication": "aldactone 12.5 mg"
+  },
+  {
+    "context_summary": "In the transcript, the patient Anna mentions that she has kidney stones and has been experiencing back pain and blood in her urine. The doctor inquires about the patient's pain management strategies and asks if she has taken the medication 'azo'. The patient confirms that she has not taken 'azo', but rather took ibuprofen for pain relief. Therefore, while 'azo' is suggested as a medication for the patient's condition, it is not actually taken, and no specific context surrounding its use or effectiveness is detailed.",
+    "side_effects": [
+      "No side effects of 'azo' were mentioned as the patient did not take the medication."
+    ],
+    "interactions": [
+      "The patient took ibuprofen, which was mentioned in relation to pain management, but no specific interactions with 'azo' were discussed."
+    ],
+    "medication": "azo"
+  },
+  {
+    "context_summary": "In the transcript, atorvastatin 80 mg is prescribed to the patient, Russell, as part of his ongoing treatment for coronary artery disease (CAD) following an anterior STEMI (ST-Elevation Myocardial Infarction) and stent placement. The medication is intended to help manage his cholesterol levels and reduce the risk of further cardiac events since he has a history of heart disease and is recovering from a recent heart attack. Russell is compliant with his medication regimen and understands the importance of its use.",
+    "side_effects": [
+      "No specific side effects were mentioned or experienced by the patient."
+    ],
+    "interactions": [
+      "Atorvastatin is mentioned alongside aspirin (81 mg daily), Brilinta (90 mg twice daily), Lisinopril (20 mg daily), and Toprol (50 mg daily). However, specific interactions between atorvastatin and these medications are not discussed."
+    ],
+    "medication": "atorvastatin 80 mg"
+  },
+  {
+    "context_summary": "Patients take allopurinol primarily for the management of gout, a condition characterized by the accumulation of uric acid in the body, leading to painful swelling and inflammation in joints. In the transcripts, one patient is specifically noted to have a history of gout and arthritis, and allopurinol is used to help prevent flare-ups and maintain uric acid levels within a normal range. Another patient also mentions allopurinol in the context of managing their gout, emphasizing dietary modifications to prevent exacerbation of uric acid levels.",
+    "side_effects": [
+      "No side effects were mentioned in the transcripts. Patients reported no issues with taking allopurinol."
+    ],
+    "interactions": [
+      "Allopurinol was mentioned alongside dietary modifications and the use of a nicotine patch as part of a quit smoking plan, but no specific drug interactions with other medications were detailed."
+    ],
+    "medication": "allopurinol"
+  },
+  {
+    "context_summary": "Patients are prescribed Toprol-XL for managing conditions related to heart function, particularly coronary artery disease, reduced ejection fraction, and congestive heart failure. In both transcripts, it is noted that patients are advised to continue taking Toprol-XL as part of their treatment regimen to help with heart function and blood pressure management.",
+    "side_effects": [
+      "tiredness",
+      "dizziness",
+      "swelling in legs"
+    ],
+    "interactions": [
+      "Lisinopril (10 mg daily)",
+      "Aspirin (81 mg daily)",
+      "Brilinta (90 mg twice daily)",
+      "Atorvastatin (80 mg daily)",
+      "Lasix (40 mg once daily)",
+      "Aldactone (12.5 mg daily)"
+    ],
+    "medication": "Toprol-XL"
+  },
+  {
+    "context_summary": "In the transcript, the patient stopped taking Camila birth control due to increased hunger levels. The patient did not report any additional concerns about the medication.",
+    "side_effects": [
+      "Increased hunger levels"
+    ],
+    "interactions": [
+      "Mentioned in relation to hormonal changes and anxiety but no specific interactions with other medications or treatments were explicitly stated."
+    ],
+    "medication": "camila"
+  },
+  {
+    "context_summary": "Montelukast is taken by patients for the management of asthma and allergies. In one transcript, a patient expressed difficulty breathing during sports activities and that they typically use an inhaler during asthma attacks. The doctor suggested considering Montelukast as a daily medication to help control asthma symptoms, especially given the patient's other allergic symptoms. In another transcript, a patient mentioned being prescribed Montelukast (referred to as Singulair) but reported anxiety as a potential side effect, as suggested by a previous doctor. The connection between Montelukast and mood-related issues was made, indicating a concern about its potential association with anxiety.",
+    "side_effects": [
+      "anxiety",
+      "mood changes"
+    ],
+    "interactions": [
+      "Montelukast may interact with other medications such as Buspar (buspirone) which was mentioned in relation to anxiety in one transcript."
+    ],
+    "medication": "Montelukast"
+  },
+  {
+    "context_summary": "The patient takes brilinta 90 mg as part of a management plan for coronary artery disease (CAD) following an anterior STEMI (ST-elevation myocardial infarction), specifically after receiving a drug-eluting stent. The medication is prescribed to prevent the closure of blood vessels after the procedure and to ensure adequate heart function. The patient expresses understanding of the importance of adhering to the medication regimen to maintain heart health.",
+    "side_effects": [
+      "The transcripts do not mention any specific side effects experienced by the patient while taking brilinta."
+    ],
+    "interactions": [
+      "Brilinta is prescribed alongside aspirin (81 mg daily) and atorvastatin (80 mg daily). It is also mentioned in the context of the patient's overall medication plan that includes lisinopril (20 mg daily) and toprol (50 mg daily)."
+    ],
+    "medication": "brilinta 90 mg"
+  },
+  {
+    "context_summary": "In the transcript, the patient, Donna Torres, was prescribed 'buspar' for her anxiety, which had significantly worsened during November and December. It was noted that buspar was a new medication for her and had helped in alleviating her anxiety during the appointment. Furthermore, the patient discussed her experience with hormonal factors and prior medication (singulair) that might have contributed to her anxiety worsening around the time she began buspar.",
+    "side_effects": [
+      "none specifically mentioned"
+    ],
+    "interactions": [
+      "the patient mentioned using singulair, which was previously prescribed and can cause anxiety, raising questions about whether that contributed to her anxiety issues before starting buspar."
+    ],
+    "medication": "buspar"
+  },
+  {
+    "context_summary": "The patient, Nicole Miller, is advised to stop taking clopidogrel a week before her scheduled knee surgery to minimize the risk of complications during the procedure. Clopidogrel is often used as an antiplatelet medication to prevent blood clots, particularly in patients with a history of cardiovascular issues.",
+    "side_effects": [],
+    "interactions": [
+      "The doctor mentioned the need to stop clopidogrel before surgery, indicating a potential interaction with surgical procedures due to its anticoagulant effects."
+    ],
+    "medication": "clopidogrel"
+  },
+  {
+    "context_summary": "The patient, Ms. Sophia Brown, takes elderberry fruit as part of her management for overall health, specifically for its potential immune-boosting properties. It is noted alongside other supplements such as coq10, vitamin D, vitamin C, and fish oil.",
+    "side_effects": [],
+    "interactions": [],
+    "medication": "elderberry fruit"
+  },
+  {
+    "context_summary": "In the provided transcript, the patient, Barbara, is experiencing symptoms indicative of scalp psoriasis, characterized by itchy and scaly patches on her scalp. The doctor prescribes clobetasol, a topical steroid solution, to help manage these symptoms. Barbara is instructed to apply clobetasol twice daily on the affected areas of her scalp and to continue using T-Gel shampoo, which is recommended as a complementary treatment.",
+    "side_effects": [],
+    "interactions": [
+      "The patient mentioned using T-Gel shampoo, which she was advised to continue using alongside clobetasol. There were no other medications or treatments discussed that might interact with clobetasol."
+    ],
+    "medication": "clobetasol"
+  },
+  {
+    "context_summary": "The patient, Eugene Walker, takes clindamycin prior to dental procedures as a precautionary measure to avoid infections and complications during such treatments. This usage is typically indicated for those with specific health concerns that may predispose them to infections due to dental work.",
+    "side_effects": [],
+    "interactions": [
+      "The patient also takes vitamin D3 at specified doses, but there are no direct mentions of interactions between clindamycin and other medications or treatments in the transcript."
+    ],
+    "medication": "clindamycin"
+  },
+  {
+    "context_summary": "The patient, Sophia Brown, takes CoQ10 as part of her supplement regimen. There is an implication that it is used for health maintenance, possibly related to her concerns with high cholesterol based on her discussion with her doctor. However, specific indications for taking CoQ10 were not explicitly detailed in the transcript.",
+    "side_effects": [],
+    "interactions": [
+      "Vitamin D, Vitamin C, Fish Oil, Elderberry fruit, potential interaction with treatments for high cholesterol or health maintenance but not explicitly detailed in the transcript."
+    ],
+    "medication": "coq10"
+  },
+  {
+    "context_summary": "Patients take Celestone (betamethasone) as a corticosteroid injection to alleviate pain and inflammation associated with conditions such as tenosynovitis and tendon tears. In the provided transcript, Mr. Gutierrez is considering this medication to manage post-traumatic severe stenosing tenosynovitis of his right index finger following a motor vehicle accident.",
+    "side_effects": [
+      "itching",
+      "painful reaction to injection"
+    ],
+    "interactions": [
+      "patient has previously experienced a heart racing reaction to dexamethasone",
+      "patient mentioned experiencing itching with methylprednisolone"
+    ],
+    "medication": "celestone"
+  },
+  {
+    "context_summary": "The patient, Rachel, is diagnosed with chronic obstructive pulmonary disease (COPD) characterized by shortness of breath and mild wheezing. She is prescribed Combivent, an inhaler medication, to help open her lungs and ease her breathing. This decision follows the review of her pulmonary function tests and chest x-ray results. Additionally, she is prescribed albuterol for acute shortness of breath and prednisone for inflammation.",
+    "side_effects": [
+      "Not mentioned"
+    ],
+    "interactions": [
+      "Combivent is prescribed alongside albuterol and prednisone, but specific interactions are not detailed. The patient's ongoing medications include Effexor for depression and Neurontin for back pain, but no interactions are explicitly stated."
+    ],
+    "medication": "combivent"
+  },
+  {
+    "context_summary": "The patient uses the cream once a week to alleviate discomfort when experiencing lumps in the breast, which may be associated with hormonal changes. It has been reported to help manage the symptoms effectively.",
+    "side_effects": [
+      "The patient did not experience any specific side effects from using the cream, but it was mentioned that they need to get it refilled."
+    ],
+    "interactions": [
+      "The cream is used alongside other medications such as progesterone, which the patient is taking for regulating periods, but no direct interactions or contraindications were specified."
+    ],
+    "medication": "cream"
+  },
+  {
+    "context_summary": "Mr. Allen takes Crestor (rosuvastatin) for cholesterol management. He has been taking it for about 18 months and is being monitored due to slightly elevated liver enzymes and an enlarged liver that may indicate potential liver toxicity from the medication.",
+    "side_effects": [
+      "slightly elevated liver enzymes",
+      "hepatomegaly (enlarged liver)"
+    ],
+    "interactions": [
+      "Dr. Edwards mentions that Crestor can be toxic to the liver, suggesting that alternatives should be discussed with the primary care physician."
+    ],
+    "medication": "crestor"
+  },
+  {
+    "context_summary": "Cardura is prescribed to the patient primarily for the management of uncontrolled hypertension. The doctor assesses the patient's blood pressure and renal health, ultimately deciding to introduce Cardura to help in regulating blood pressure levels the patient struggles to control despite current medications.",
+    "side_effects": [],
+    "interactions": [
+      "The patient is on Norvasc and carvedilol, and the doctor advises to stop taking nonsteroidal anti-inflammatory drugs (NSAIDs) like Advil or Motrin due to potential interactions and risks."
+    ],
+    "medication": "cardura"
+  },
+  {
+    "context_summary": "In the discussed transcript, the patient, Christine Hernandez, is considering using clindamycin gel as a topical antibiotic to treat acne vulgaris. The doctor suggests clindamycin gel alongside benzoyl peroxide as a treatment option because the previous medication (epiduo) was not covered. The patient has not previously used any prescribed treatments for her acne.",
+    "side_effects": [
+      "Potential bleaching of sheets from benzoyl peroxide"
+    ],
+    "interactions": [
+      "The doctor advises caution with clindamycin gel in conjunction with benzoyl peroxide, highlighting that applying benzoyl peroxide may cause reactions from sun exposure if used during the day."
+    ],
+    "medication": "clindamycin gel"
+  },
+  {
+    "context_summary": "Patients take Oxycodone primarily for pain management due to kidney stones. In recent encounters, patients report severe, constant pain associated with acute nephrolithiasis (kidney stones). In one case, a patient experienced nausea along with severe pain, highlighting the need for effective pain relief measures.",
+    "side_effects": [
+      "Nausea",
+      "Chills"
+    ],
+    "interactions": [
+      "Tylenol (Acetaminophen) to be taken for breakthrough pain",
+      "Ibuprofen (noting caution due to the patient's hypertension)"
+    ],
+    "medication": "Oxycodone"
+  },
+  {
+    "context_summary": "In the transcripts, two patients take digoxin for atrial fibrillation (AFib). Patient 1, Ms. Thompson, mentions using digoxin during a consultation about knee pain, while Patient 2, Ms. Hill, discusses taking digoxin as she inquires about the safety of tramadol in relation to her medication for AFib.",
+    "side_effects": [],
+    "interactions": [
+      "Tramadol is mentioned, and it is confirmed to be safe to take alongside digoxin."
+    ],
+    "medication": "digoxin"
+  },
+  {
+    "context_summary": "The patient, Donald Clark, is taking Eliquis as a blood thinner. This medication is commonly prescribed for preventing blood clots and reducing the risk of stroke in patients with certain conditions such as atrial fibrillation or after specific surgeries.",
+    "side_effects": [
+      "No specific side effects were mentioned in the transcript."
+    ],
+    "interactions": [
+      "The doctor inquired about other blood thinners, but no interactions with other specific medications were noted. The patient is also taking gabapentin, prescribed for nerve pain, but no direct interactions between Eliquis and gabapentin were mentioned."
+    ],
+    "medication": "eliquis"
+  },
+  {
+    "context_summary": "Epiduo is prescribed as treatment for acne vulgaris. In this transcript, the doctor notes that the medication is not covered by insurance for the patient Christine Hernandez, leading to a decision to try alternatives like benzoyl peroxide with clindamycin instead.",
+    "side_effects": [
+      "No specific side effects were mentioned regarding Epiduo in the transcripts."
+    ],
+    "interactions": [
+      "The doctor suggested combining benzoyl peroxide with clindamycin instead of using Epiduo due to insurance coverage issues."
+    ],
+    "medication": "epiduo"
+  },
+  {
+    "context_summary": "Dexamethasone is mentioned in two transcripts: In the first transcript, Christine Hernandez underwent a dexamethasone suppression test to check for Cushing's syndrome, and the results indicated that she does not have the condition. In the second transcript, Philip Gutierrez has a history of a reaction to dexamethasone, which causes his heart to race. He is advised against using it due to this side effect, suggesting concerns about its application in managing his injury-related complications.",
+    "side_effects": [
+      "Heart racing experienced by Philip Gutierrez",
+      "Itching experienced by Philip Gutierrez with methylprednisolone, indicating potential sensitivity to steroids"
+    ],
+    "interactions": [
+      "Philip mentioned he would not take dexamethasone due to adverse reactions, preferring betamethasone for his injection therapy."
+    ],
+    "medication": "dexamethasone"
+  },
+  {
+    "context_summary": "Cisplatin is mentioned in two transcripts related to the treatment of cancer. In the first transcript, a patient with newly diagnosed ovarian cancer is planned to receive cisplatin as part of chemotherapy following surgery. In the second transcript, the patient is undergoing chemotherapy for stage three non-small cell lung cancer and is currently on a regimen that includes cisplatin. The doctor assures the patient about their favorable prognosis and discusses ongoing treatment plans.",
+    "side_effects": [
+      "fatigue",
+      "sore throat",
+      "dry cough"
+    ],
+    "interactions": [
+      "cisplatin is used in combination with taxol (paclitaxel) in ovarian cancer treatment and with etoposide in lung cancer treatment; low doses of prednisone are also prescribed for inflammation due to treatment."
+    ],
+    "medication": "cisplatin"
+  },
+  {
+    "context_summary": "Albuterol is prescribed to patients for managing asthma and COPD symptoms, particularly shortness of breath. In the first transcript, a patient named Joseph uses Albuterol as a rescue inhaler due to asthma exacerbations during sports, experiencing symptoms like wheezing and a feeling of phlegm buildup. In the second transcript, Rachel is prescribed Albuterol for COPD to alleviate shortness of breath that occurs during mild exertion, such as walking. Both patients face chronic respiratory conditions necessitating the use of Albuterol, with Joseph specifically indicating the need for the inhaler during aerobic activities and Rachel using it for acute breathing issues. Additionally, both patients report the common side effect of shakiness after using Albuterol.",
+    "side_effects": [
+      "shakiness (reported by Joseph)"
+    ],
+    "interactions": [
+      "Joseph is using Albuterol alongside a proposed daily medication (Singulair) for asthma management; Rachel is using Albuterol in conjunction with Combivent (for COPD) and a steroid (prednisone)."
+    ],
+    "medication": "Albuterol"
+  },
+  {
+    "context_summary": "Cialis is taken by the patient Paul Edwards primarily to manage erectile dysfunction associated with his hypogonadism and potentially to aid in sexual health due to its mechanism as a PDE5 inhibitor. The patient mentions taking it in a flexible manner, adjusting the dose based on his workout days: 5 mg on workout days and 2.5 mg otherwise. He has expressed positive effects from his testosterone therapy, which may also suggest improved sexual functioning.",
+    "side_effects": [],
+    "interactions": [
+      "Cialis is mentioned to be taken in conjunction with finasteride, which the patient currently uses. However, no specific side effects or adverse interactions were detailed in the transcript."
+    ],
+    "medication": "cialis"
+  },
+  {
+    "context_summary": "Protonix, a proton pump inhibitor, has been prescribed to multiple patients for managing stomach-related issues. In the current cases, Raymond was diagnosed with acute esophagitis, experiencing difficulty swallowing and discomfort, while Vincent had gastritis, leading to anemia. John, a new patient, is also prescribed Protonix for his acid reflux as part of his treatment plan. He is trying to manage his reflux through diet but has resorted to take-out food due to back pain.",
+    "side_effects": [
+      "Nausea (mentioned by Vincent)"
+    ],
+    "interactions": [
+      "Advice given to Vincent to cut down on caffeine, avoid ibuprofen, and limit alcohol intake."
+    ],
+    "medication": "Protonix"
+  },
+  {
+    "context_summary": "The patient, Beverly, is a 53-year-old female diagnosed with stage three non-small cell lung cancer. She is undergoing chemotherapy treatment that includes the medication etoposide as part of her regimen alongside another drug, cisplatin. The purpose of taking etoposide is to manage her cancer, potentially shrink the tumor for surgical removal, and help with symptom relief during treatment.",
+    "side_effects": [
+      "minimal cough",
+      "sore throat",
+      "slight fatigue",
+      "dry cough",
+      "radiation pneumonitis related symptoms"
+    ],
+    "interactions": [
+      "The patient is also taking cisplatin as part of her chemotherapy regimen and has been prescribed prednisone to help with inflammation related to radiation pneumonitis and a lidocaine swish for painful swallowing."
+    ],
+    "medication": "etoposide"
+  },
+  {
+    "context_summary": "Doxycycline is prescribed to treat a tick bite with concern for Lyme disease. The patient exhibits symptoms such as a headache, warmth, and a bull's-eye rash on the knee, which are indicative of a potential Lyme disease infection. The treatment plan includes taking doxycycline 100 mg twice a day for three weeks, with additional tests ordered to confirm Lyme disease diagnosis.",
+    "side_effects": [
+      "No side effects mentioned during the consultation."
+    ],
+    "interactions": [
+      "The patient is concurrently taking lisinopril for hypertension and metformin for diabetes, but no specific interactions are noted with doxycycline."
+    ],
+    "medication": "doxycycline"
+  },
+  {
+    "context_summary": "In the doctor-patient transcript, a patient mentions taking fluocinonide for the treatment of eczema, specifically when it becomes very itchy. The patient indicates that this medication usually effectively alleviates the itchiness associated with the condition.",
+    "side_effects": [
+      "No specific side effects were mentioned in the transcript."
+    ],
+    "interactions": [
+      "The patient is currently taking ibuprofen and Tylenol for leg pain, but no direct interactions with fluocinonide were discussed."
+    ],
+    "medication": "fluocinonide"
+  },
+  {
+    "context_summary": "Ultram (tramadol) is prescribed to relieve moderate to severe pain in patients with specific conditions. In the new transcripts, a 61-year-old male is prescribed Ultram for back pain, suspected to be a recurrence of kidney stones, and a 62-year-old female is prescribed it for severe pain due to a Colles' fracture in her wrist following an injury. In both cases, the medication is intended to help manage pain related to acute physical injuries and conditions. The doctor suggested Ultram as needed for pain relief, highlighting its importance in the patients' pain management plans.",
+    "side_effects": [],
+    "interactions": [
+      "In the first transcript, the patient is prescribed Ultram with a recommendation to push fluids and strain urine, but no specific drug interactions are noted. In the second transcript, the patient receives Ultram in conjunction with a brace for a wrist fracture, with no direct drug interactions mentioned."
+    ],
+    "medication": "Ultram"
+  },
+  {
+    "context_summary": "The patient, Mr. Gutierrez, takes betamethasone as a cortisone injection to alleviate pain and inflammation associated with post-traumatic tenosynovitis and a partial tear in the flexor tendon of his right index finger. The injection aims to reduce soreness and encourage movement in a previously injured finger that remains stiff and painful after therapy attempts.",
+    "side_effects": [
+      "Itching experienced with methylprednisolone (not directly with betamethasone but indicates sensitivity to steroid medications).",
+      "Report of heart racing with dexamethasone, leading to preference avoidance."
+    ],
+    "interactions": [
+      "Mr. Gutierrez has a history of adverse reactions to other steroids, suggesting potential sensitivity or contraindications to similarly acting medications like dexamethasone and methylprednisolone."
+    ],
+    "medication": "betamethasone"
+  },
+  {
+    "context_summary": "Lipitor is prescribed for the patient as part of the treatment for coronary artery disease and to manage cholesterol levels. In the transcript, the doctor mentions continuing Lipitor alongside other medications.",
+    "side_effects": [],
+    "interactions": [
+      "Lipitor is mentioned to be prescribed along with aspirin and metoprolol."
+    ],
+    "medication": "lipitor"
+  },
+  {
+    "context_summary": "Naproxen is mentioned in the context of managing pain for patients. In Transcript 1, the patient mentioned taking nonsteroidal anti-inflammatories (NSAIDs) like Advil and Motrin for knee or back pain, which suggests an awareness of medications like Naproxen for similar uses. In Transcript 2, the patient has knee pain and has used ibuprofen and Aleve (both NSAIDs) to alleviate the discomfort. The doctor recommends continuing anti-inflammatories as needed for pain management related to patellofemoral pain syndrome. This indicates that patients may take Naproxen for pain relief associated with knees or arthritis-related symptoms.",
+    "side_effects": [
+      "No specific side effects associated with Naproxen were mentioned in the transcripts."
+    ],
+    "interactions": [
+      "The first transcript suggests avoiding other NSAIDs like Advil or Motrin during treatment, which may indicate a potential interaction with Naproxen if both were to be taken. In the second transcript, the patient uses ibuprofen, which may also suggest caution if they were prescribed Naproxen or if they were taking it concurrently."
+    ],
+    "medication": "Naproxen"
+  },
+  {
+    "context_summary": "Bumetanide is prescribed for patients experiencing symptoms related to heart failure, such as swelling in the ankles and shortness of breath due to fluid retention. In both transcripts, patients are advised to take bumetanide as a part of their treatment for congestive heart failure and hypertension, particularly due to dietary indiscretion and high blood pressure readings. The dosage mentioned is 2 milligrams once daily. Patients are instructed to adhere to their medication schedules to manage their conditions effectively.",
+    "side_effects": [
+      "Increased urination (described as almost incontinence by one patient)"
+    ],
+    "interactions": [
+      "Cozaar (Losartan) and Norvasc (Amlodipine) are mentioned as other medications being taken, but no direct interactions are stated. It is implied that these medications are part of a combination treatment for hypertension and heart failure."
+    ],
+    "medication": "bumetanide"
+  },
+  {
+    "context_summary": "In the updated transcripts, 'Aspirin 81 mg' continues to be prescribed primarily for its antiplatelet effects in patients with cardiovascular disease. In Transcript 1, the patient, who has a history of coronary artery disease and a stent placement, is advised to continue taking Aspirin to help in the healing of a nonhealing ulcer on the foot due to improved blood supply. In Transcript 2, the patient, who has a history of coronary artery disease, is also prescribed Aspirin as part of his treatment plan post-heart attack and following the placement of a drug-eluting stent. Both instances highlight its role in preventing further cardiac events and complications. Additionally, there's a focus on the importance of controlling other risk factors such as diabetes when prescribing Aspirin. Overall, Aspirin is part of the broader strategy to manage heart disease and prevent complications related to cardiovascular health.",
+    "side_effects": [
+      "None mentioned in the new transcripts."
+    ],
+    "interactions": [
+      "Aspirin is mentioned alongside Brilinta and atorvastatin but specific interactions are not detailed in the transcripts."
+    ],
+    "medication": "Aspirin 81 mg"
+  },
+  {
+    "context_summary": "Keppra is prescribed to patients for the management of epilepsy, as in the case of a 55-year-old male patient who had been seizure-free for several months prior to his visit, indicating effective management of his condition. The doctor confirms that the patient is to continue the medication during his treatment plan.",
+    "side_effects": [],
+    "interactions": [
+      "Patient is also taking Metformin for newly diagnosed diabetes, but no specific interactions with Keppra were mentioned."
+    ],
+    "medication": "keppra"
+  },
+  {
+    "context_summary": "The patient, Andrea, takes Farxiga as part of her medication regimen for managing her blood pressure and diabetes. It is mentioned alongside amlodipine, lisinopril, and hydrochlorothiazide. The patient reported that her blood sugar levels have been running a little higher at about 130 in the morning, which may indicate an ongoing struggle with diabetes management.",
+    "side_effects": [],
+    "interactions": [
+      "Farxiga is mentioned to be taken with amlodipine, lisinopril, and hydrochlorothiazide. The patient also takes metformin for diabetes."
+    ],
+    "medication": "farxiga"
+  },
+  {
+    "context_summary": "The patient, Christina Cooper, was diagnosed with iron deficiency anemia and is taking ferrous sulfate as a supplement to manage her condition. She has been anemic since she was 13 years old and was informed of her anemia again when attempting to donate blood. The doctor advised her to take the ferrous sulfate with orange juice to enhance absorption of the iron.",
+    "side_effects": [
+      "Fatigue",
+      "Chills",
+      "Headaches"
+    ],
+    "interactions": [
+      "Vitamin B12 (over the counter)",
+      "Orange juice (to enhance absorption of iron)"
+    ],
+    "medication": "ferrous sulfate"
+  },
+  {
+    "context_summary": "The transcript indicates that the patient, Ms. Sophia Brown, takes fish oil as part of her regimen for managing high cholesterol. There is no specific mention of why she has chosen fish oil, but it is often considered for its potential benefits in heart health and lowering triglycerides.",
+    "side_effects": [],
+    "interactions": [
+      "Fish oil is mentioned alongside other supplements such as coq10, vitamin d, vitamin c, and elderberry fruit, but no specific interactions or side effects are addressed in the transcript."
+    ],
+    "medication": "fish oil"
+  },
+  {
+    "context_summary": "The patient Nicole Miller is taking an iron supplement primarily for the management of anemia, as noted by the doctor during the check-up where they discussed her hemoglobin levels. The doctor affirmed that her hemoglobin level is doing well after previous episodes of anemia, indicating the supplement's effectiveness in maintaining her blood levels. No specific side effects related to the iron supplement were discussed in the transcript, suggesting that it is well-tolerated. Furthermore, there were no recorded interactions with other medications or treatments; however, it was noted that she is also on other medications, including potassium supplements, but there was no direct mention of how they interact with the iron supplement.",
+    "side_effects": [],
+    "interactions": [],
+    "medication": "iron supplement"
+  },
+  {
+    "context_summary": "In the provided transcript, the patient, John, takes Imitrex for the management of his migraines. The doctor confirms that John has been diligent about taking his medication. There are no specific details on side effects experienced with Imitrex mentioned in the transcript, nor are there interactions with other medications indicated. The patient also discussed other medications, like Tylenol and Protonix, which are used for different conditions, but no interactions with Imitrex were specified.",
+    "side_effects": [],
+    "interactions": [],
+    "medication": "imitrex"
+  },
+  {
+    "context_summary": "Prednisone is prescribed for two patients with differing medical conditions. The first patient, Rachel, is diagnosed with COPD (chronic obstructive pulmonary disease) and is prescribed prednisone to manage inflammation and enhance respiratory function. The second patient, Beverly, has stage three lung cancer and is on a low dose of prednisone to mitigate inflammation caused by radiation pneumonitis, which results in cough and shortness of breath. She experiences painful swallowing due to esophageal inflammation, for which supplementary treatment is provided. The new transcript mentions a third patient, Donald, who is taking gabapentin for neuropathic pain stemming from a suspected cervical radicularopathy due to disc degeneration. Although he is not prescribed prednisone, it is important to note that his treatment plan may involve anti-inflammatory approaches.",
+    "side_effects": [],
+    "interactions": [
+      "Beverly is taking chemotherapy drugs (cisplatin and etoposide) and is receiving radiation therapy, which could interact with the effects of prednisone."
+    ],
+    "medication": "Prednisone"
+  },
+  {
+    "context_summary": "The patient, Nicole Miller, is prescribed magnesium supplement due to her having chronic congestive heart failure and needing to stabilize her heart muscle. Her magnesium level was slightly below the desired range, warranting the recommendation of supplementation to help optimize her cardiovascular health before her knee surgery.",
+    "side_effects": [
+      "None mentioned in the transcript."
+    ],
+    "interactions": [
+      "The doctor mentions that magnesium should be monitored while the patient is on torsemide, a diuretic, due to the potential of urinating out magnesium. No specific interactions with other medications are detailed."
+    ],
+    "medication": "magnesium supplement"
+  },
+  {
+    "context_summary": "Cyclobenzaprine is prescribed to patients primarily for muscle pain relief, specifically in cases of muscular sprains or tension headaches. In the latest transcript, Gloria is prescribed Cyclobenzaprine (referred to as Flexeril) for muscular pain related to her back issues. This reflects a similar pattern of use for muscle relaxation and pain relief as seen with previous patients, Gabriel and Carolyn. Gabriel was treated for back pain likely from a muscular sprain, while Carolyn received it for tension-type headaches associated with muscle tightness due to stress and computer work.",
+    "side_effects": [
+      "Mild muscle relaxation is intended",
+      "Additional side effects were not explicitly mentioned in the latest transcript."
+    ],
+    "interactions": [
+      "Gabriel was taking Metformin for diabetes and had changes in blood pressure medication; Carolyn was on Metformin and received advice on lifestyle changes.",
+      "In the latest transcript, Gloria is also taking Metformin and has been encouraged to monitor her blood sugar; she is prescribed Lasix in addition to Cyclobenzaprine and Naprosyn for her symptoms."
+    ],
+    "medication": "Cyclobenzaprine"
+  },
+  {
+    "context_summary": "The patient takes flomax primarily for difficulty urinating, which is associated with an enlarged prostate. The doctor notes that flomax can help improve urination by addressing issues tied to the prostate. Additionally, the patient has a history of cardiac issues and diabetes, but these are not directly linked to the urination problem being treated with flomax.",
+    "side_effects": [
+      "can cause dizziness if taken in the morning"
+    ],
+    "interactions": [
+      "not mentioned any specific interactions with other medications; however, the patient is also taking metformin for diabetes and lipitor, aspirin, and metoprolol for coronary artery disease, but no interactions were specifically discussed in relation to flomax."
+    ],
+    "medication": "flomax"
+  },
+  {
+    "context_summary": "The patient, Pamela Cook, uses Mederma scar gel primarily to manage and improve the appearance of scars post bilateral reduction mammoplasty. The doctor encourages its continued use to help lighten scar color and reduce their appearance, particularly for high-tension areas that may cause discomfort. They recommend applying the gel twice a day and note that it can also be used on other scars if needed.",
+    "side_effects": [
+      "No specific side effects were mentioned in the transcript."
+    ],
+    "interactions": [
+      "Mederma scar gel is used in conjunction with massages for scar management. No interactions with other medications were mentioned."
+    ],
+    "medication": "mederma scar gel"
+  },
+  {
+    "context_summary": "Carvedilol is prescribed to patients for the management of hypertension (high blood pressure) and to improve heart function, particularly in cases of coronary disease or reduced heart pumping function. The current transcripts indicate that one patient, Louis, was prescribed carvedilol in response to an episode of shortness of breath that he experienced after playing tennis in hot and humid conditions. His condition was assessed to be an exacerbation of heart failure, likely due to dietary indiscretion related to salt intake, leading to fluid retention. This patient is also on an additional medication, Lasix, to manage his heart failure.",
+    "side_effects": [
+      "Mild headaches during high blood pressure episodes",
+      "Light-headedness and dizziness, as reported by the patient after a shortness of breath episode."
+    ],
+    "interactions": [
+      "Other medications mentioned include Lasix (to address fluid retention) and notes on avoiding salty foods that could exacerbate the condition."
+    ],
+    "medication": "Carvedilol"
+  },
+  {
+    "context_summary": "In the provided transcript, the patient, Paul Edwards, takes finasteride as part of his treatment plan. He is a 59-year-old man with hypogonadism, and the use of finasteride is likely associated with managing hormonal levels. The patient mentions he is taking half of the 5 milligram finasteride pill. He is also undergoing testosterone replacement therapy, which seems to be having positive effects on his overall health and bloodwork.",
+    "side_effects": [],
+    "interactions": [
+      "The patient is also taking Cialis daily, both of which were discussed during the consultation. There is a concern mentioned about testosterone levels and their potential effect on blood thickness, but there were no specific interactions noted between finasteride and Cialis in the transcript."
+    ],
+    "medication": "finasteride"
+  },
+  {
+    "context_summary": "The patient takes metoprolol as part of their treatment for coronary artery disease (CAD) following a stent placement in their right coronary artery. The doctor plans to continue this medication along with lipitor and aspirin to manage their heart condition. Metoprolol is used to help control blood pressure and heart rate, which is important for patients with CAD.",
+    "side_effects": [],
+    "interactions": [
+      "The doctor mentions continuing metoprolol in conjunction with lipitor and aspirin, but no specific side effects or interactions are detailed in the transcript."
+    ],
+    "medication": "metoprolol"
+  },
+  {
+    "context_summary": "In the transcript, the patient, Christine, is considering taking Phexxi as a form of birth control after discontinuing her previous contraceptive method. The doctor describes Phexxi as a spermicide that is to be applied before intercourse.",
+    "side_effects": [
+      "Not mentioned."
+    ],
+    "interactions": [
+      "Not mentioned."
+    ],
+    "medication": "phexxi"
+  },
+  {
+    "context_summary": "Fluoxetine is prescribed to patients for managing depression. In the latest transcripts, two patients, a 27-year-old female and a 59-year-old male, are discussed. The female patient (Sarah) is currently on Prozac (Fluoxetine) but expresses a desire to increase her dosage from 20 mg to 40 mg due to ongoing struggles with her depression and the effects of pandemic-related isolation. The male patient (Joseph) has been weaning himself off Fluoxetine, as he felt he was experiencing side effects, but he continues to manage persistent depression. He expressed a willingness to try a different medication, potentially with a lower dose or a switch to another antidepressant.",
+    "side_effects": [
+      "Numbing sensations reported by the female patient, especially when sitting for long periods, though it is unclear if this is directly tied to Fluoxetine.",
+      "The male patient mentioned experiencing side effects from Fluoxetine which led him to wean off the medication."
+    ],
+    "interactions": [
+      "The female patient is on a regimen including aspirin for a history of heart conditions, while the male patient is managing diabetes and asthma with separate medications. No specific interactions with Fluoxetine were discussed in the new transcripts."
+    ],
+    "medication": "Fluoxetine"
+  },
+  {
+    "context_summary": "The patient takes an oral steroid to decrease inflammation in the lungs due to hypersensitivity pneumonitis, also known as farmer's lung, which is a reaction to inhaling bacteria or mold from hay.",
+    "side_effects": [
+      "No specific side effects were mentioned in the transcript."
+    ],
+    "interactions": [
+      "The patient is currently taking robitussin for cough symptoms, but no direct interactions with the oral steroid were mentioned."
+    ],
+    "medication": "oral steroid"
+  },
+  {
+    "context_summary": "The patient is advised to take NSAIDs as needed to help manage pain and discomfort associated with right hip degenerative joint disease. The doctor suggests NSAIDs in conjunction with low impact exercises and the use of a cane to help alleviate pain.",
+    "side_effects": [],
+    "interactions": [
+      "The use of NSAIDs is mentioned alongside the recommendation of a cortisone injection into the right hip joint, but no specific interactions with other medications were detailed in the transcript."
+    ],
+    "medication": "nsaids"
+  },
+  {
+    "context_summary": "The patient, Jeremy, takes insulin as part of his diabetes management. He experiences higher than normal blood sugar levels, which indicates that his diabetes may not be well-controlled. There is a specific concern regarding a non-healing ulcer on his foot, which may be exacerbated by his diabetes. The doctor emphasizes the need to better control his diabetes to improve wound healing and suggests consulting with his primary care physician for better diabetes management.",
+    "side_effects": [
+      "Higher than normal blood sugar levels"
+    ],
+    "interactions": [
+      "Need for better diabetes management may involve adjusting insulin dose or regimen in conjunction with other diabetes medications. Potential interaction with aspirin noted as part of his heart disease management, but specific interactions with insulin were not mentioned."
+    ],
+    "medication": "insulin"
+  },
+  {
+    "context_summary": "In the transcript, the patient is prescribed statins as part of the management of coronary artery disease, following a history of a heart attack and a stent placement. The doctor emphasizes the continuation of the statin medication to help manage the patient's heart health.",
+    "side_effects": [],
+    "interactions": [
+      "The doctor mentions that the patient is also taking baby aspirin daily, and concerns about diabetes control are noted as impacting overall health and medication effectiveness."
+    ],
+    "medication": "statin"
+  },
+  {
+    "context_summary": "Progesterone is taken by the patient, Donna, primarily to regulate her menstrual periods. The doctor speculates that it might also contribute to managing her anxiety, which spikes premenstrually. Donna observes an increase in anxiety around her menstrual cycle, indicating a potential hormonal relationship.",
+    "side_effects": [
+      "Irritability"
+    ],
+    "interactions": [
+      "The patient was previously taking Camila birth control, which she stopped, and also Singulair, which the doctor noted could potentially cause anxiety."
+    ],
+    "medication": "progesterone"
+  },
+  {
+    "context_summary": "Two patients mentioned taking naproxen for managing pain related to their medical conditions. The first patient, Gloria, was prescribed naproxen along with flexeril to help alleviate back pain. The second patient, Gabriel, was also prescribed naproxen in conjunction with flexeril for his back pain, specifically after experiencing a muscular sprain.",
+    "side_effects": [
+      "Not explicitly mentioned in the transcripts."
+    ],
+    "interactions": [
+      "Naproxen is prescribed alongside flexeril in both cases; no other interactions with other medications were mentioned. Gabriel was advised to discontinue norvasc due to ankle swelling, but the interaction with naproxen was not discussed."
+    ],
+    "medication": "naproxen"
+  },
+  {
+    "context_summary": "The patient takes 'numbing medicine' to alleviate pain and discomfort associated with left arm neuropathy, likely stemming from a pinched nerve in the neck. The patient reports that this medication helped a little with the symptoms they were experiencing.",
+    "side_effects": [
+      "None specifically mentioned in the transcript."
+    ],
+    "interactions": [
+      "The patient is also taking gabapentin and oral steroids, which may interact with the numbing medicine, although interactions were not detailed in the transcript. Additionally, the patient mentioned taking eliquis, a blood thinner, but no interactions with the numbing medication were specified."
+    ],
+    "medication": "numbing medicine"
+  },
+  {
+    "context_summary": "Patients take furosemide primarily for managing chronic congestive heart failure (CHF) and controlling fluid retention. In the provided transcript, furosemide is mentioned in the context of increasing dyspnea and weight retention in a patient with CHF. The doctor indicates that the patient's furosemide dosage was switched to torsemide to improve her condition and manage symptoms effectively.",
+    "side_effects": [
+      "Leg cramps (not directly attributed to furosemide, but mentioned in context)"
+    ],
+    "interactions": [
+      "Patient is also taking lisinopril, potassium supplements (not currently), and possibly magnesium supplements, but no specific interactions with furosemide were detailed."
+    ],
+    "medication": "furosemide"
+  },
+  {
+    "context_summary": "The patient, Rachel, takes Neurontin (gabapentin) primarily for chronic back pain. It is indicated that the medication has been helping her control the pain, but she does experience pain occasionally despite the treatment. Additionally, her doctor emphasizes that no changes will be made to her regimen for her depression medication, Effexor, and she is advised to incorporate yoga as a complementary treatment for both her depression and back pain.",
+    "side_effects": [],
+    "interactions": [
+      "Patient is also taking Effexor for depression, and no changes have been made to this medication while continuing with Neurontin."
+    ],
+    "medication": "neurontin"
+  },
+  {
+    "context_summary": "The patient, Nicole Miller, takes oxybutynin to manage her urgency to use the bathroom, which she reports has improved significantly. This change is part of her overall treatment plan as she prepares for knee surgery while managing her chronic congestive heart failure.",
+    "side_effects": [
+      "Leg cramps (possibly related to medication but not confirmed)"
+    ],
+    "interactions": [
+      "Mentioned magnesium supplementation as being possibly beneficial due to the usage of medications like water pills (torsemide) which can affect magnesium levels."
+    ],
+    "medication": "oxygutinin"
+  },
+  {
+    "context_summary": "In the provided transcript, the patient (who is a doctor) mentioned taking Robitussin to alleviate symptoms of a lower respiratory infection, specifically coughing, mucus production, and shortness of breath, which the patient experienced recently, leading to improvement in their condition over the weekend. Despite the improvement, the patient expresses ongoing concerns with recurrent pneumonia due to their farming occupation and exposure to hay.",
+    "side_effects": [
+      "The transcript does not mention any specific side effects experienced from taking Robitussin."
+    ],
+    "interactions": [
+      "The transcript does not provide information on interactions with other medications or treatments mentioned."
+    ],
+    "medication": "robitussin"
+  },
+  {
+    "context_summary": "In the transcript, the patient (Ms. Reyes) mentioned that she is allergic to Regulin, which implies past use of this medication. However, no specific reason for taking Regulin was discussed, nor was there a direct mention of how it impacted the patient's health or current treatment plan. The context indicates that Ms. Reyes has a history of surgeries and ongoing issues with her right hip, which may suggest her need for various medications, although Regulin's role in her treatment is not specified.",
+    "side_effects": [
+      "Patient is allergic to Regulin, but no specific side effects or reactions were detailed in the transcript."
+    ],
+    "interactions": [
+      "No interactions with other medications or treatments were mentioned in relation to Regulin."
+    ],
+    "medication": "regulin"
+  },
+  {
+    "context_summary": "The patient, Anna, takes omeprazole to manage symptoms related to gastroesophageal reflux disease (GERD). Despite dietary modifications, she has been experiencing symptoms such as nausea, vomiting (actually vomiting rather than just reflux), and abdominal pain, which suggests that the medication may not be effectively controlling her reflux symptoms. The doctor mentions that the omeprazole dosage is 40 milligrams, once a day, as part of the treatment plan while further investigations are conducted to rule out gallstones due to her abdominal pain.",
+    "side_effects": [
+      "Nausea",
+      "Vomiting",
+      "Abdominal pain",
+      "Bloating"
+    ],
+    "interactions": [
+      "None mentioned. Patient is also taking allopurinol for gout and has made dietary modifications."
+    ],
+    "medication": "omeprazole"
+  },
+  {
+    "context_summary": "The patient uses thc cream to help alleviate pain and inflammation in the knee following a skiing injury. This topical treatment appears to provide some level of relief, particularly in managing pain associated with the injury.",
+    "side_effects": [
+      "swelling",
+      "stiffness"
+    ],
+    "interactions": [
+      "The patient mentioned using another form of thc in the form of gummies. The doctor advised against consuming gummies simultaneously with prescribed medications (meloxicam and ibuprofen)."
+    ],
+    "medication": "thc cream"
+  },
+  {
+    "context_summary": "The patient, Rachel, takes Effexor (venlafaxine) to manage her depression. She reports fluctuating moods, with some days feeling extremely low, indicating that the medication is part of her treatment plan for maintaining emotional stability.",
+    "side_effects": [
+      "The patient did not explicitly mention any side effects related to Effexor during the consultation."
+    ],
+    "interactions": [
+      "No specific interactions with other medications were mentioned in the transcript, although it was noted that she is also taking gabapentin (neurontin) for chronic back pain and that no changes will be made to her medication regimen."
+    ],
+    "medication": "effexor"
+  },
+  {
+    "context_summary": "Prilosec is mentioned in the context of managing heartburn symptoms for a patient named Nicole Miller. She had taken Prilosec for about two weeks in January due to bad heartburn but stopped taking it, as she has not encountered further issues since resuming her previous stomach medication.",
+    "side_effects": [
+      "No side effects were explicitly mentioned in the transcript related to Prilosec."
+    ],
+    "interactions": [
+      "Patient mentioned changing medications and having no further heartburn issues after stopping Prilosec and returning to a different stomach medication. Other medications mentioned include furosemide, torsemide, and lisinopril, but no direct interactions with Prilosec were noted."
+    ],
+    "medication": "prilosec"
+  },
+  {
+    "context_summary": "Taxol is recommended as part of the chemotherapy regimen for a patient with newly diagnosed stage 3 ovarian cancer. The doctor suggests Taxol to be administered after the patient recovers from surgery, alongside cisplatin as the primary chemotherapeutic agents.",
+    "side_effects": [],
+    "interactions": [
+      "cisplatin"
+    ],
+    "medication": "taxol"
+  },
+  {
+    "context_summary": "In the transcript, the patient, Mr. Allen, takes olmesartan as a medication for managing high blood pressure, as indicated by the doctor's recommendation to discuss it with his primary care physician, who follows him for blood pressure management. Olmesartan is commonly prescribed for hypertension and is likely included in his regimen to help control his blood pressure levels.",
+    "side_effects": [
+      "Patient has slightly elevated liver enzymes, which may be related to the use of Crestor and potentially olmesartan, but specific side effects of olmesartan itself were not directly mentioned in the transcript."
+    ],
+    "interactions": [
+      "Doctor advised the patient to discuss potential interactions between olmesartan and Crestor with his primary care physician because of concerns regarding liver toxicity."
+    ],
+    "medication": "olmesartan"
+  },
+  {
+    "context_summary": "The patient, Mr. Gutierrez, has a history of a hyperextension injury to his right index finger, causing pain, swelling, and difficulty moving the finger, which has persisted since a motor vehicle accident in March. He has been advised to receive a cortisone injection, specifically methylprednisolone, to alleviate pain and inflammation. The injection is intended to facilitate movement in the affected tendon and address post-traumatic stenosing tenosynovitis. Additionally, the doctor recommended outpatient therapy to improve range of motion after the injection.",
+    "side_effects": [
+      "Itching experienced with methylprednisolone"
+    ],
+    "interactions": [
+      "The patient expressed a previous adverse reaction to dexamethasone, causing his heart to race; the doctor suggested avoiding dexamethasone in favor of betamethasone."
+    ],
+    "medication": "methylprednisolone"
+  },
+  {
+    "context_summary": "The patient, Ms. Reyes, is allergic to Percocet and has not taken it recently. The discussion primarily focused on her ongoing hip pain and alternative treatment options, including NSAIDs and a cortisone injection. There is no indication that she takes Percocet, nor does she express a desire to take it due to her allergy.",
+    "side_effects": [
+      "Allergic reaction to Percocet is mentioned, but no specific side effects are detailed for the drug itself since the patient is not taking it."
+    ],
+    "interactions": [
+      "Patient is advised to use NSAIDs as needed for pain relief, but no direct interactions with other medications are mentioned. The patient's allergy to Percocet suggests a contraindication to combining it with her current or suggested treatments."
+    ],
+    "medication": "percocet"
+  },
+  {
+    "context_summary": "The patient took the 'neck pill' as part of their treatment for left arm pain, likely due to cervical radiculopathy, which may have been caused by a pinched nerve and associated with arthritis and disc degeneration in the neck. The medication was reportedly helpful in easing the pain, especially during the night.",
+    "side_effects": [
+      "None mentioned"
+    ],
+    "interactions": [
+      "Gabapentin was mentioned as another medication the patient is taking. No direct interactions with the neck pill were specified."
+    ],
+    "medication": "neck pill"
+  },
+  {
+    "context_summary": "The patient, Elizabeth, takes thc gummies primarily for pain relief related to a recent knee injury sustained while skiing. She mentioned using thc cream as well and indicated that the gummies were given to her by her grandmother. Elizabeth uses these gummies as a supplement for managing her pain, especially when engaged in activities that exacerbate her knee condition.",
+    "side_effects": [
+      "Swelling",
+      "Stiffness"
+    ],
+    "interactions": [
+      "The doctor advised against consuming gummies while prescribing other medications, including meloxicam and ibuprofen, which were prescribed to address swelling and pain."
+    ],
+    "medication": "thc gummies"
+  },
+  {
+    "context_summary": "Paul Edwards, a 59-year-old HIV positive patient, takes testosterone for hypogonadism. He reports positive effects from the medication, including increased vigor, improved sleep, and positive changes in bloodwork, particularly cholesterol and triglyceride levels. He is currently receiving testosterone injections at a dosage of 1 milliliter every 10 days and is considering increasing his dose.",
+    "side_effects": [
+      "None explicitly mentioned, but gynecomastia is a concern noted for discussion."
+    ],
+    "interactions": [
+      "Patient is taking finasteride and cialis concurrently, and there is a discussion about the potential influence of testosterone on cholesterol and triglyceride levels."
+    ],
+    "medication": "testosterone"
+  },
+  {
+    "context_summary": "The medication 'vitamin c' is taken by the patient, Sophia Brown, as part of her supplement regimen following a diagnosis of stage 0 DCIS (ductal carcinoma in situ). It is included in her list of supplements that also contains coq10, vitamin d, fish oil, and elderberry fruit. The patient did not specify the exact purpose for taking vitamin c, but it is commonly used for its antioxidant properties and potential benefits for immune health.",
+    "side_effects": [],
+    "interactions": [],
+    "medication": "vitamin c"
+  },
+  {
+    "context_summary": "In the transcript, the patient, Ms. Reyes, mentions being allergic to Vicodin. Therefore, she does not take it as a medication. The context suggests that Vicodin is generally used for pain management, but the patient's history indicates she has had negative experiences with it, making it a drug she avoids. The discussion primarily revolves around her current pain issues related to her hip and the alternative treatments being considered, such as NSAIDs and a cortisone injection.",
+    "side_effects": [
+      "Allergy to Vicodin noted by the patient."
+    ],
+    "interactions": [
+      "No interactions with other medications mentioned; however, alternatives like NSAIDs and potential cortisone injection were discussed as treatments."
+    ],
+    "medication": "vicodin"
+  },
+  {
+    "context_summary": "The patient, Ms. Hill, takes tramadol for pain management following a distal phalanx fracture of her right middle finger sustained in a motor vehicle accident. The doctor prescribes tramadol at a dosage of 50 milligrams every six hours as needed for pain relief for a duration of two days.",
+    "side_effects": [
+      "Not mentioned in the transcript"
+    ],
+    "interactions": [
+      "The patient inquired about the interaction between tramadol and digoxin, a medication she takes for atrial fibrillation. The doctor confirmed that it would be okay to take tramadol with digoxin."
+    ],
+    "medication": "tramadol"
+  },
+  {
+    "context_summary": "In the transcript, the patient, Pamela Cook, uses scar gel after undergoing bilateral reduction mammoplasty to manage scar appearance. During her follow-up visit, she mentions that the scar gel was bothering her and that she does not feel the need to use it as much anymore. However, the doctor advises her to continue using the gel twice a day to help with the scars, noting that it can lighten their color and that massaging can also assist in healing.",
+    "side_effects": [
+      "Bothering sensation from the scar gel (not severe side effects were explicitly mentioned)."
+    ],
+    "interactions": [
+      "The patient's use of scar gel is discussed alongside her prior treatment (bilateral reduction mammoplasty) and the advice to massage the scars. No specific interactions with other medications were mentioned."
+    ],
+    "medication": "scar gel"
+  },
+  {
+    "context_summary": "In the transcript, the patient, Ms. Christina Cooper, takes vitamin B12 as an over-the-counter supplement to manage her long-standing iron deficiency anemia. She is also taking ferrous sulfate iron pills to address her anemia, indicating a concurrent use of both supplements to improve iron levels in her body, which may be low due to her history of anemia since childhood.",
+    "side_effects": [
+      "No specific side effects of vitamin B12 were mentioned in the transcript."
+    ],
+    "interactions": [
+      "The doctor advised Ms. Cooper to take her iron pills (ferrous sulfate) with orange juice to enhance iron absorption, indicating a positive interaction between vitamin C and iron."
+    ],
+    "medication": "vitamin B12"
+  },
+  {
+    "context_summary": "The patient, Nicole Miller, takes torsemide for the management of chronic congestive heart failure (CHF) with diastolic dysfunction. The medication was switched from furosemide to torsemide to improve her symptoms, and she has experienced some weight loss, likely related to fluid management.",
+    "side_effects": [
+      "Leg cramps during the medication regimen",
+      "Possible dehydration indicated by elevated BUN level"
+    ],
+    "interactions": [
+      "Lisinopril is mentioned to have been increased in dosage concurrently with torsemide",
+      "Magnesium supplement was discussed due to the potential for magnesium loss with diuretics",
+      "Doctor advised caution with potassium supplements due to changes in blood potassium levels",
+      "Clopidogrel to be held one week prior to upcoming surgery"
+    ],
+    "medication": "torsemide"
+  },
+  {
+    "context_summary": "The patient, Christine Hernandez, takes Unithroid primarily for her thyroid condition. She had previously struggled with the cost of this medication, stating that she could not afford the $75 charge and was looking for alternative options and discounts to make it more affordable. The doctor reassured her that with a discount coupon, the medication could be significantly cheaper, approximately $9 for a 90-day supply. Christine also expressed concern over weight gain and a thyroid issue, which prompted discussions about her overall health and potential nutritional support.",
+    "side_effects": [
+      "Not mentioned"
+    ],
+    "interactions": [
+      "The doctor mentioned that the Unithroid cost could be affected by where it's purchased and suggested trying different pharmacies. There were mentions of other medications and treatments but no direct interactions with Unithroid specifically."
+    ],
+    "medication": "unithroid"
+  },
+  {
+    "context_summary": "The patient, Mr. Walker, takes vitamin d3 at a dosage of 50,000 units on Sundays and 2,000 units on the other six days. The vitamin D level from a recent test was at the high end of normal at 94, suggesting that the supplementation is being monitored for adequacy, likely for bone health and overall wellness, especially considering his history of aortic valve replacement and concerns about his elevated alkaline phosphatase levels.",
+    "side_effects": [
+      "None specifically mentioned."
+    ],
+    "interactions": [
+      "Clindamycin prior to dental procedures as a concurrent medication."
+    ],
+    "medication": "vitamin d3"
+  },
+  {
+    "context_summary": "In the two transcripts analyzed, vitamin D is taken for addressing a deficiency. In Transcript 1, the patient (Christine) has been diagnosed with a vitamin D deficiency and agrees to take a daily dose of 2000 IU to maintain her levels. In Transcript 2, the patient (Sophia) has included vitamin D in her list of supplements but no specific reason for its use or any deficiency is discussed. Christine is informed about her vitamin D status as she manages other health issues, and it is implied that vitamin D might relate to overall health improvement after liver enzyme abnormalities.",
+    "side_effects": [],
+    "interactions": [
+      "In Transcript 1, vitamin D is mentioned in conjunction with thyroid hormone therapy (Unithroid), as Christine discusses her thyroid issues and vitamin D deficiency. There is an implication of managing hormone levels, but no direct interaction is highlighted."
+    ],
+    "medication": "vitamin D"
+  },
+  {
+    "context_summary": "The patient, Christine Hernandez, takes thyroid medicine (Unithroid) primarily for thyroid issues, specifically noted during her visit with the doctor. The patient previously had problems affording her medication, which led to a discussion about cost-saving options. There was a significant mention of discount coupons to help reduce the price. Additionally, the conversation hinted at a connection between thyroid issues and vitamin D deficiency, suggesting that the patient may have overlapping health concerns. Concerns about potential weight gain and the influence of previous birth control on her health were also discussed, but no direct side effects of the thyroid medication itself were mentioned.",
+    "side_effects": [],
+    "interactions": [
+      "The potential for interactions with other medications was discussed, specifically mentioning her previous birth control and its potential impact on weight gain, though no direct interactions with the thyroid medication were indicated. There was also a mention of vitamin D deficiency, which is sometimes found in patients with thyroid issues."
+    ],
+    "medication": "thyroid medicine"
+  },
+  {
+    "context_summary": "In the transcript, the patient mentions experiencing an itchy scalp, dandruff, and scaly patches. The doctor diagnoses the patient with scalp psoriasis and recommends continuing the use of T-gel shampoo as part of the treatment plan to help control these symptoms. The patient had previously tried over-the-counter treatments, including Head and Shoulders and castor oil, but these were ineffective. The T-gel shampoo is considered a good solution for the patient's condition.",
+    "side_effects": [],
+    "interactions": [
+      "The patient had previously used over-the-counter treatments like Head and Shoulders and castor oil, but no interactions with these treatments and T-gel shampoo were specified. The doctor also prescribes a steroid solution to be used in conjunction with T-gel shampoo, but specific interactions between these medications were not mentioned."
+    ],
+    "medication": "t-gel shampoo"
+  },
+  {
+    "context_summary": "The patient takes the nicotine patch as part of a smoking cessation plan. The patient has a long history of smoking, reports high stress levels that have previously triggered smoking, and is motivated to quit smoking as they are about to become a father. The doctor encourages the use of nicotine patches to aid in ceasing smoking, indicating a dosed approach to tapering off the medication over time. The patient plans to start using the nicotine patch coinciding with a quit date on their birthday.",
+    "side_effects": [
+      "Possible skin irritation from the patch application site, though specific side effects were not discussed by the patient or mentioned by the doctor."
+    ],
+    "interactions": [
+      "The doctor advised the patient to monitor stress and suggested meditation and exercise as complementary approaches to managing their smoking cessation, but no specific drug interactions were mentioned."
+    ],
+    "medication": "nicotine patch"
+  },
+  {
+    "context_summary": "Furosemide, also known as Lasix, continues to be prescribed primarily for managing fluid retention associated with congestive heart failure (CHF). Brian and Louis have both experienced symptoms related to their CHF. Brian has presented with slight fluid retention indicated by 1+ pitting edema in legs and describes feeling fatigued and lightheaded as well as experiencing some bloating. His medication dosage has been increased to 80 mg/day due to this fluid retention. Louis had an exacerbation of his heart failure symptoms characterized by shortness of breath after playing tennis in hot conditions; he was also prescribed Furosemide at a dose of 80 mg/day. Both patients have struggled with dietary indiscretion, which seems to correlate with their fluid retention. The management plan for each includes monitoring weight and symptoms with the addition of other treatments.",
+    "side_effects": [
+      "Swelling in legs",
+      "Shortness of breath",
+      "Weight gain",
+      "Fatigue",
+      "Dizziness",
+      "Bloating",
+      "Lightheadedness"
+    ],
+    "interactions": [
+      "Brian reports challenges with diet as his renovations limited healthy meal preparation, which could counteract Furosemide's effectiveness. Louis admits to occasional consumption of salty foods, which may also contribute to fluid retention. Both patients need to continue monitoring their dietary intake to manage their CHF effectively."
+    ],
+    "medication": "Furosemide"
+  },
+  {
+    "context_summary": "Patients take Norvasc (amlodipine) primarily for the management of hypertension (high blood pressure) and related heart conditions. Recent discussions reaffirm the necessity for Norvasc given the patients' fluctuating hypertension levels. One patient reports stable blood pressure with occasional readings requiring attention; they continue to work closely with a physician to adjust their treatment plan depending on their current condition. Another patient, who is regular with their medication during the week but often forgets on weekends, has experienced swelling in their ankles after starting Norvasc. A new patient reports persistent high blood pressure, prompting their physician to consider medication adjustments, while still on Norvasc.",
+    "side_effects": [
+      "Swelling in ankles (mentioned by two patients)",
+      "Mild headaches (reported by a new patient during high blood pressure episodes)",
+      "Pitting edema (noted during a physical examination)"
+    ],
+    "interactions": [
+      "Norvasc was mentioned in conjunction with Bumex (a diuretic) and Cozaar (losartan).",
+      "One patient is switching from Norvasc to hydrochlorothiazide due to side effects.",
+      "Nonsteroidal medications (Advil, Motrin) were advised to be avoided. New prescription for Cardura added."
+    ],
+    "medication": "Norvasc"
+  },
+  {
+    "context_summary": "An updated summary indicates that five patients are currently taking meloxicam: Bryan, James, Logan, Virginia, and now Elizabeth. Bryan is taking meloxicam for muscle strains in the lumbar region following an incident while moving a refrigerator. James was prescribed meloxicam for pain after a golfing incident consistent with muscle strains. Logan, a 58-year-old male, has a lumbar strain from lifting heavy equipment and has been prescribed meloxicam as well. Virginia, who has knee pain after a basketball injury involving a medial collateral ligament strain, is using meloxicam to manage her pain and swelling. Elizabeth was prescribed meloxicam for a posterior cruciate ligament strain and associated swelling after injuring her knee while skiing. Additionally, Andrea continues to receive meloxicam for arthritis-related symptoms and has been referred for physical therapy.",
+    "side_effects": [
+      "Possible stomach irritation, including heartburn or pain, especially mentioned regarding Virginia's use of meloxicam.",
+      "Additional swelling and bruising noted in Elizabeth's case, which may relate to her knee injury."
+    ],
+    "interactions": [
+      "Virginia was advised to stop taking nonsteroidal anti-inflammatory drugs like Motrin or Advil while starting meloxicam.",
+      "No interactions with other medications for Bryan, James, Logan, or Andrea.",
+      "Elizabeth was not recommended to consume gummies (THC) while taking meloxicam."
+    ],
+    "medication": "meloxicam"
+  },
+  {
+    "context_summary": "Patients take Lisinopril primarily for hypertension management and heart conditions, including congestive heart failure. Recent updates include patient Virginia, who was previously on Lisinopril but had her dosage changed to Norvasc and carvedilol due to uncontrolled hypertension despite medication adjustments. Virginia's blood pressure remains high, prompting further investigation into possible underlying causes. Previous patients Martha, Nicole, Philip, Stephanie, Teresa, and Russell continue to take Lisinopril, with varying experiences related to blood pressure control and heart management.",
+    "side_effects": [
+      "Leg cramps (reported by Nicole)",
+      "Dizziness and tiredness (reported by Stephanie, likely related to her condition rather than Lisinopril specifically)",
+      "Low-grade fever (observed in Teresa)",
+      "Mild headaches (reported by Virginia due to high blood pressure)",
+      "Pitting edema (observed in Virginia during physical examination)"
+    ],
+    "interactions": [
+      "Philip is taking Lisinopril alongside ibuprofen for knee pain management; no negative interactions were reported.",
+      "Stephanie is taking Lisinopril with Lasix (furosemide) for fluid management due to congestive heart failure; monitoring diet and sodium intake is necessary.",
+      "Russell is taking Lisinopril alongside other heart medications including aspirin, Brilinta, atorvastatin, and Toprol.",
+      "Virginia occasionally takes nonsteroidal medications like ibuprofen for knee pain."
+    ],
+    "medication": "Lisinopril"
+  },
+  {
+    "context_summary": "Julie uses Tylenol for knee pain caused by patellofemoral pain syndrome, finding it effective but not always fully relieving. Abigail manages knee pain related to a running sprain, recommending 500 mg three times daily. Mrs. Peterson alternates Tylenol with ibuprofen for pain from a contusion. Andrew takes Tylenol for joint pain but finds it ineffective. Matthew uses Tylenol for limited relief following an ankle sprain. Russell has used it for kidney stone pain, which has been ineffective, and another patient finds it insufficient for the same issue, leading to the addition of oxycodone. A new patient uses Tylenol for left shoulder pain, reporting it usually helps, but the pain persists. Patrick Allen takes Tylenol occasionally for abdominal pain, using it about once a month. Carolyn uses Tylenol for tension headaches that have not been fully relieved even when combined with Advil. Bryan takes Tylenol along with ibuprofen for back pain, reporting some relief. Wayne takes two extra strength Tylenol every six to eight hours for shoulder pain, which only takes the edge off but does not fully relieve it. Recently, James took Tylenol along with ibuprofen for back pain following an injury from golfing, but reported no significant relief from either medication.",
+    "side_effects": [],
+    "interactions": [
+      "Julie uses ibuprofen alongside Tylenol, and Mrs. Peterson alternates between ibuprofen and Tylenol.",
+      "Matthew has taken ibuprofen with Tylenol for his ankle pain.",
+      "James took Tylenol and ibuprofen for back pain following an injury while golfing."
+    ],
+    "medication": "Tylenol"
+  },
+  {
+    "context_summary": "Metformin is prescribed for managing blood sugar levels in patients with type 2 diabetes. Kyle is taking Metformin after being diagnosed with type 2 diabetes, expressing concern over his family's donut shop's impact on his diabetes management. Joseph, a 59-year-old male, had dosing adjustments due to challenges in maintaining his diet while traveling. Richard continues regular monitoring of blood sugar levels while on Metformin. Logan, a new patient, is experiencing elevated HbA1c levels and will have his Metformin dosage increased to 1000 mg twice a day for better control. Andrea, another new patient, reports blood sugar levels around 130 mg/dL and is taking Metformin as part of her diabetes management while being on multiple antihypertensives for blood pressure control. Carolyn, a 34-year-old female, continues on Metformin, although she has been under stress and not managing her blood sugar checks. Gloria, a 46-year-old female, is also on Metformin but struggles with controlling her diet and reports high blood sugar levels. New patient John is also taking Metformin after a recent high blood sugar episode, which he attributed to stress and poor monitoring of his diet. Billy is continuing on Metformin and has expressed that he is trying to manage his sugars. Gabriel is taking Metformin (500 mg twice a day) and reports his blood sugars are generally in the 120-140 range, though he acknowledges room for improvement. Teresa reports taking Metformin (1000 mg twice a day) and mentions fluctuations in her blood sugar levels, ranging from 80-90 in the morning to 140 at night. Additionally, a new patient, Virginia, has been mentioned as taking Metformin 500 mg twice a day in the context of managing her diabetes while dealing with a knee injury, which may affect her activity levels and blood sugar monitoring.",
+    "side_effects": [
+      "Nausea (reported by Linda)",
+      "Lightheadedness and dizziness (reported by Joseph, attributed to heat and fatigue)",
+      "Dizziness (reported by Carolyn when experiencing headaches)",
+      "Low-grade fever (reported by Teresa)"
+    ],
+    "interactions": [
+      "Lisinopril (for hypertension) taken by Richard with no reported side effects and no direct interactions with Metformin noted; Joseph's Metformin is used in conjunction with Zoloft for depression management; Andrea is on Farxiga, amlodipine, lisinopril, and hydrochlorothiazide; Gloria is also taking Lasix for fluid management and may have dietary challenges affecting blood sugar control; Billy continues on Metformin along with Lipitor, aspirin, and metoprolol; Gabriel is on Norvasc and undergoing changes in hypertension management; Teresa is taking Lisinopril and a multivitamin; Virginia is currently taking Mobic for knee pain."
+    ],
+    "medication": "Metformin"
+  },
+  {
+    "context_summary": "Patients are using ibuprofen for pain management related to various conditions. Specific cases include Ms. Thompson using ibuprofen for knee pain after a skiing injury, Carolyn taking Advil (another name for ibuprofen) for headaches but finding it ineffective, and Bryan combining ibuprofen with Tylenol for back pain relief. New cases reveal Anna taking ibuprofen for kidney stone-related pain, reporting that it helped a little but the pain persists, and Brittany using ibuprofen for a foot injury after a tennis accident, stating it helps a bit but wears off after a while. Additionally, Teresa has been advised to take ibuprofen for sore throat pain related to a possible upper respiratory infection. Jean uses ibuprofen for foot pain following a soccer injury. There's also a new case of James, who took ibuprofen for back pain resulting from a golfing injury, but he reports that it was not effective. Overall, these cases highlight ongoing challenges in effectively managing pain with ibuprofen across different conditions.",
+    "side_effects": [
+      "Limited relief as reported by multiple patients, including Ms. Thompson and Linda.",
+      "Increased discomfort with continued use despite taking ibuprofen.",
+      "Significant pain after using ibuprofen for her finger injury as reported by Ms. Brooks.",
+      "Soreness from back pain reported by Bryan.",
+      "Dull pain in the back of the head and tightness in the neck and shoulders observed in Carolyn.",
+      "Persistent pain for Anna with kidney stones despite taking ibuprofen.",
+      "Brittany mentions ibuprofen helps but wears off after a while.",
+      "Pain level without ibuprofen reported by Jean as 3, but rises to 7-8 with ibuprofen, indicating that ibuprofen may not provide sufficient relief.",
+      "James reports that ibuprofen did not provide adequate pain relief for his back pain."
+    ],
+    "interactions": [
+      "Linda is advised to be cautious of her blood pressure when using ibuprofen due to her existing hypertension management.",
+      "Bryan has combined ibuprofen with Tylenol for additional pain relief, which he found helpful.",
+      "Carolyn has attempted using both Tylenol and Advil (ibuprofen) for headaches without significant relief.",
+      "Doctor prescribed ibuprofen to Anna for kidney stone pain as needed, and Brittany took ibuprofen after her foot injury.",
+      "Teresa has been advised to take ibuprofen as needed in conjunction with prescribed amoxicillin and lidocaine for throat pain.",
+      "Jean has been using ibuprofen for foot pain after applying treatment as advised.",
+      "James combined ibuprofen with Tylenol for back pain, but reported ineffective results."
+    ],
+    "medication": "ibuprofen"
+  }
+]

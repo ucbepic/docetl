@@ -18,8 +18,11 @@ TODO:
   - [x] Call llm agent multiple times on different random inputs & average results
 - [x] Optimize resolvers (add blocking rules)
 - [ ] Optimize reduce
-  - [ ] Auto-generate resolver
-  - [ ] Implement fold & merge pattern
+  - [x] Implement fold pattern
+  - [ ] Optimize folds
+  - [ ] Implement merge pattern
+  - [ ] Optimize merges
+- [ ] Auto-generate resolver
 - [ ] Support model pools
 - [ ] Optimize equijoins
 - [ ] Operator reordering

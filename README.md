@@ -289,7 +289,7 @@ Notes:
 
 ### Reduce
 
-The Reduce operation aggregates data based on a key.
+The Reduce operation aggregates data based on a key. It supports both batch reduction and incremental folding for large datasets.
 
 Required parameters:
 
@@ -297,11 +297,16 @@ Required parameters:
 - `reduce_key`: The key to use for grouping data.
 - `prompt`: The prompt template to use for the reduction operation. This template can access the grouped values using `{{ values }}` (a list of dictionary objects or records) and the reduce key using `{{ reduce_key }}`.
 - `output`: Schema definition for the output from the LLM.
-- `model` (optional): The language model to use, falls back to `default_model` if not specified.
-- `input` (optional): Specifies the schema or keys to subselect from each item or value to pass into the prompt. If omitted, all keys from the input items will be used.
-- `pass_through` (optional): Boolean flag. If true, keys (not on input) from the first item in the group will be passed through to the output. Default is false.
 
-Example:
+Optional parameters:
+
+- `model`: The language model to use, falls back to `default_model` if not specified.
+- `input`: Specifies the schema or keys to subselect from each item or value to pass into the prompt. If omitted, all keys from the input items will be used.
+- `pass_through`: Boolean flag. If true, keys (not on input) from the first item in the group will be passed through to the output. Default is false.
+- `fold_prompt`: A prompt template for incremental folding. This enables processing of large groups in smaller batches. The template should access the current reduced values using `{{ output.field_name }}` and the new batch of values using `{{ values }}`.
+- `fold_batch_size`: The number of items to process in each fold operation when using incremental folding.
+
+Example of a basic reduce operation:
 
 ```yaml
 reduce_operation:
@@ -325,6 +330,44 @@ reduce_operation:
       avg: number
   model: gpt-4o-mini
 ```
+
+Example of a reduce operation with incremental folding:
+
+```yaml
+reduce_operation:
+  type: reduce
+  reduce_key: group
+  prompt: |
+    Analyze the following group of values for the group '{{ reduce_key }}':
+    {% for value in values %}
+    - {{ value }}
+    {% endfor %}
+
+    Based on these values, provide:
+    1. The total sum of all numeric values
+    2. The average (mean) of all numeric values
+  fold_prompt: |
+    Current reduced value:
+    Total: {{ output.total }}
+    Average: {{ output.avg }}
+
+    New values to be folded in:
+    {% for value in values %}
+    - {{ value }}
+    {% endfor %}
+
+    Update the current reduced value by incorporating the new values. Provide:
+    1. The updated total sum of all numeric values
+    2. The updated average (mean) of all numeric values
+  fold_batch_size: 50
+  output:
+    schema:
+      total: number
+      avg: number
+  model: gpt-4o-mini
+```
+
+When `fold_prompt` and `fold_batch_size` are specified, the reduce operation will process the data in batches, using the fold prompt to incrementally update the reduced value. This is particularly useful for large datasets or when working with streaming data.
 
 ### Resolve
 

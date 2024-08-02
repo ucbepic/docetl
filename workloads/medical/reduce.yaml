@@ -1,0 +1,73 @@
+datasets:
+  deduped_meds:
+    type: file
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/exploded_and_deduped_meds.json"
+
+default_model: gpt-4o-mini
+
+operations:
+  summarize_medication_contexts:
+    type: reduce
+    reduce_key: medication
+    input:
+      schema:
+        medication: str
+        src: str
+    output:
+      schema:
+        context_summary: str
+        side_effects: list[str]
+        interactions: list[str]
+    prompt: |
+      Analyze the following doctor-patient transcripts where the medication "{{ reduce_key }}" is mentioned:
+
+      {% for item in values %}
+      Transcript {{ loop.index }}:
+      {{ item.src }}
+
+      ---
+      {% endfor %}
+
+      Based on these doctor-patient transcripts, provide a summary of the contexts in which patients take the medication "{{ reduce_key }}". Include the following information:
+
+      1. A brief summary of why a patient takes this medication.
+      2. Any side effects experienced or mentioned.
+      3. Any interactions with other medications or treatments mentioned.
+
+      If any of this information is not available in the transcripts, indicate that it was not mentioned.
+
+    fold_prompt: |
+      Current summary for the medication "{{ output.medication }}":
+
+      Context Summary: {{ output.context_summary }}
+      Side Effects: {{ output.side_effects | join(", ") }}
+      Interactions: {{ output.interactions | join(", ") }}
+
+      New doctor-patient transcripts to analyze:
+      {% for item in values %}
+      Transcript {{ loop.index }}:
+      {{ item.src }}
+
+      ---
+      {% endfor %}
+
+      Based on these new transcripts and the current summary, provide an updated summary of the contexts in patients take the medication "{{ output.medication }}". Include the following information:
+
+      1. An updated brief summary of why the patient is taking this medication.
+      2. Any additional side effects mentioned.
+      3. Any additional interactions with other medications or treatments mentioned.
+
+      If any of this information is not available in the new transcripts or differs from the current summary, maintain the most comprehensive and up-to-date information.
+
+    fold_batch_size: 5
+
+pipeline:
+  steps:
+    - name: medication_context_summarization
+      input: deduped_meds
+      operations:
+        - summarize_medication_contexts
+
+  output:
+    type: file
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/medication_context_summaries.json"

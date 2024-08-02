@@ -20,6 +20,7 @@ TODO:
 - [ ] Optimize reduce
   - [x] Implement fold pattern
   - [ ] Optimize folds
+    - [ ] Synthesize multiple fold prompts
   - [ ] Implement merge pattern
   - [ ] Optimize merges
 - [ ] Auto-generate resolver

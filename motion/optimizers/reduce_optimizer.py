@@ -240,6 +240,11 @@ class ReduceOptimizer:
 
         compression_ratio = self._calculate_compression_ratio(op_config, input_data)
 
+        # Print the compression ratio
+        self.console.print(
+            f"[bold]Estimated Compression Ratio:[/bold] {compression_ratio:.2f}"
+        )
+
         plans = []
 
         if "fold_prompt" in op_config:
@@ -262,7 +267,8 @@ class ReduceOptimizer:
             ]
 
             # Add compression ratio-based batch size
-            compression_batch_size = max(1, int(1000 / compression_ratio))
+            # TODO: try batch sizes that are compression_ratio of the p75, p90, p95
+            compression_batch_size = max(1, int(compression_ratio * max_values))
             batch_sizes.append(compression_batch_size)
 
         # Remove duplicates and sort
@@ -283,22 +289,65 @@ class ReduceOptimizer:
         sample_input = random.sample(input_data, sample_size)
         sample_output = self._run_operation(op_config, sample_input)
 
-        input_chars = sum(len(json.dumps(item)) for item in sample_input)
-        output_chars = sum(len(json.dumps(item)) for item in sample_output)
+        reduce_key = op_config["reduce_key"]
+        input_schema = op_config.get("input", {}).get("schema", {})
+        output_schema = op_config["output"]["schema"]
 
-        return input_chars / output_chars if output_chars > 0 else 1
+        compression_ratios = {}
+        for key in set(item[reduce_key] for item in sample_input):
+            key_input = [item for item in sample_input if item[reduce_key] == key]
+            key_output = [item for item in sample_output if item[reduce_key] == key]
+
+            if input_schema:
+                key_input_chars = sum(
+                    len(json.dumps({k: item[k] for k in input_schema if k in item}))
+                    for item in key_input
+                )
+            else:
+                key_input_chars = sum(len(json.dumps(item)) for item in key_input)
+
+            key_output_chars = sum(
+                len(json.dumps({k: item[k] for k in output_schema if k in item}))
+                for item in key_output
+            )
+
+            compression_ratios[key] = (
+                key_output_chars / key_input_chars if key_input_chars > 0 else 1
+            )
+
+        if not compression_ratios:
+            return 1
+
+        # Calculate importance weights based on the number of items for each key
+        total_items = sum(
+            len([item for item in sample_input if item[reduce_key] == key])
+            for key in compression_ratios
+        )
+        importance_weights = {
+            key: len([item for item in sample_input if item[reduce_key] == key])
+            / total_items
+            for key in compression_ratios
+        }
+
+        # Calculate weighted average of compression ratios
+        weighted_sum = sum(
+            compression_ratios[key] * importance_weights[key]
+            for key in compression_ratios
+        )
+        return weighted_sum
 
     def _synthesize_fold_prompt(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> str:
         system_prompt = "You are an AI assistant tasked with creating fold prompts for reduce operations in data processing pipelines."
+        original_prompt = op_config["prompt"]
 
         sample_input = random.sample(input_data, min(5, len(input_data)))
         sample_output = self._run_operation(op_config, sample_input)
 
         prompt = f"""
-        Original Reduce Operation Config:
-        {json.dumps(op_config, indent=2)}
+        Original Reduce Operation Prompt:
+        {original_prompt}
 
         Sample Input:
         {json.dumps(sample_input, indent=2)}
@@ -307,10 +356,9 @@ class ReduceOptimizer:
         {json.dumps(sample_output, indent=2)}
 
         Create a fold prompt for the reduce operation. The fold prompt should:
-        1. Take two parameters: the current reduced value (output) and new values to be folded in
+        1. Minimally modify the original reduce prompt
         2. Describe how to combine the new values with the current reduced value
-        3. Maintain the original intent and requirements of the reduce operation
-        4. Be designed to work iteratively, allowing for multiple fold operations
+        3. Be designed to work iteratively, allowing for multiple fold operations. In the first iteration, we will apply the original prompt as is. On subsequent iterations, we will apply the fold prompt to the output of the previous iteration.
 
         The fold prompt should be a Jinja2 template with the following variables available:
         - {{ output }}: The current reduced value (a dictionary with the current output schema)
@@ -358,8 +406,10 @@ class ReduceOptimizer:
                 plan, score = future.result()
                 plan_scores.append((plan, score))
 
-        # Sort plans by score in descending order
-        sorted_plans = sorted(plan_scores, key=lambda x: x[1], reverse=True)
+        # Sort plans by score in descending order, then by fold_batch_size in descending order
+        sorted_plans = sorted(
+            plan_scores, key=lambda x: (x[1], x[0]["fold_batch_size"]), reverse=True
+        )
 
         self.console.print("\n[bold]Reduce Plan Scores:[/bold]")
         for i, (plan, score) in enumerate(sorted_plans):
@@ -369,7 +419,7 @@ class ReduceOptimizer:
 
         best_plan, best_score = sorted_plans[0]
         self.console.print(
-            f"\n[green]Selected best plan with score: {best_score:.2f}[/green]"
+            f"\n[green]Selected best plan with score: {best_score:.2f} and batch size: {best_plan['fold_batch_size']}[/green]"
         )
 
         return best_plan

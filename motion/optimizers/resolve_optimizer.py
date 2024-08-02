@@ -394,8 +394,7 @@ class ResolveOptimizer:
                         "Here are up to 3 examples of incorrectly filtered pairs:\n"
                     )
                     for i, j in filtered_pairs[:3]:
-                        feedback += f"Pair 1: {json.dumps({key: input_data[i][key] for key in blocking_keys})}\n"
-                        feedback += f"Pair 2: {json.dumps({key: input_data[j][key] for key in blocking_keys})}\n"
+                        feedback += f"Item 1: {json.dumps({key: input_data[i][key] for key in blocking_keys})}\Item 2: {json.dumps({key: input_data[j][key] for key in blocking_keys})}\n"
                         feedback += "These pairs are known matches but were filtered out by the rule.\n"
                     feedback += "Please generate a new rule that doesn't filter out these matches."
 

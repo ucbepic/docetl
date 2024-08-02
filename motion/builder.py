@@ -155,8 +155,11 @@ class Optimizer:
                     f"[bold green]Running operation: {operation_name} (Type: {op_object['type']})[/bold green]"
                 ):
                     # Print the number of elements in input_data
+                    self.console.print(f"[yellow]Running Operation:[/yellow]")
+                    self.console.print(f"[yellow]  Type: {op_object['type']}[/yellow]")
+                    self.console.print(f"[yellow]  Name: {operation_name}[/yellow]")
                     self.console.print(
-                        f"[yellow]Running {operation_name} on a sample of {len(input_data)} input elements...[/yellow]"
+                        f"[yellow]  Sample size: {len(input_data)}[/yellow]"
                     )
                     input_data = self._run_operation(op_object, input_data)
                     optimized_operations[operation_name] = op_object
@@ -166,8 +169,11 @@ class Optimizer:
                     f"[bold blue]Optimizing operation: {operation_name} (Type: {op_object['type']})[/bold blue]"
                 ):
                     # Print the number of elements in input_data
+                    self.console.print(f"[yellow]Optimizing Operation:[/yellow]")
+                    self.console.print(f"[yellow]  Type: {op_object['type']}[/yellow]")
+                    self.console.print(f"[yellow]  Name: {operation_name}[/yellow]")
                     self.console.print(
-                        f"[yellow]Optimizing {operation_name} on a sample of {len(input_data)} input elements...[/yellow]"
+                        f"[yellow]  Sample size: {len(input_data)}[/yellow]"
                     )
                     if op_object.get("type") == "map":
                         optimized_ops, input_data = self._optimize_map(

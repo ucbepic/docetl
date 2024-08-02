@@ -14,7 +14,8 @@ operations:
     output:
       schema:
         medication: list[str]
-    prompt: 'Analyze the following transcript of a conversation between a doctor and
+    prompt:
+      "Analyze the following transcript of a conversation between a doctor and
       a patient:
 
 
@@ -25,13 +26,13 @@ operations:
 
       If no medications are mentioned, return an empty list.
 
-      '
+      "
     type: map
   resolve_medications:
     blocking_keys:
-    - medication
-    blocking_threshold: 0.5758
-    comparison_prompt: 'Compare the following two medication entries:
+      - medication
+    blocking_threshold: 0.6465
+    comparison_prompt: "Compare the following two medication entries:
 
       Entry 1: {{ input1.medication }}
 
@@ -40,12 +41,12 @@ operations:
 
       Are these medications likely to be the same or closely related?
 
-      '
+      "
     embedding_model: text-embedding-3-small
     output:
       schema:
         medication: str
-    resolution_prompt: 'Given the following matched medication entries:
+    resolution_prompt: "Given the following matched medication entries:
 
       {% for entry in matched_entries %}
 
@@ -58,16 +59,16 @@ operations:
       name should be a standardized, widely recognized medication name that best represents
       all matched entries.
 
-      '
+      "
     type: resolve
 pipeline:
   output:
     path: extracted_medical_info.json
     type: file
   steps:
-  - input: transcripts
-    name: medical_info_extraction
-    operations:
-    - extract_medications
-    - explode_medications
-    - resolve_medications
+    - input: transcripts
+      name: medical_info_extraction
+      operations:
+        - extract_medications
+        - explode_medications
+        - resolve_medications

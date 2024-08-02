@@ -328,7 +328,13 @@ reduce_operation:
 
 ### Resolve
 
-The Resolve operation identifies and merges duplicate entities in the data.
+The Resolve operation identifies and merges duplicate entities in the data. The process works as follows:
+
+1. Initialize each entity as its own cluster.
+2. Generate all possible pairs of entities.
+3. Apply blocking rules to filter pairs for comparison.
+4. Compare filtered pairs in batches, updating clusters in real-time.
+5. Process final clusters to generate resolved entities.
 
 Required parameters:
 
@@ -346,6 +352,8 @@ Optional parameters:
 - `blocking_threshold`: Embedding similarity threshold for considering entries as potential matches.
 - `blocking_conditions`: List of conditions for initial blocking.
 - `input`: Specifies the schema or keys to subselect from each item to pass into the prompts. If omitted, all keys from the input items will be used.
+- `embedding_batch_size`: The number of entries to send to the embedding model at a time.
+- `compare_batch_size`: The number of entity pairs processed in each batch during the comparison phase. Increasing the batch size may improve overall speed but will increase memory usage. Decreasing it will reduce memory usage but may slightly increase total processing time due to increased overhead.
 
 Example:
 

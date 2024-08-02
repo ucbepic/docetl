@@ -119,130 +119,149 @@ class ResolveOperation(BaseOperation):
         if len(input_data) == 0:
             return [], 0
 
-        # If there's no blocking, put all elements in one cluster
-        if not blocking_keys and blocking_threshold is None and not blocking_conditions:
-            clusters = {0: list(range(len(input_data)))}
-        else:
+        def is_match(item1: Dict[str, Any], item2: Dict[str, Any]) -> bool:
+            return any(
+                eval(condition, {"input1": item1, "input2": item2})
+                for condition in blocking_conditions
+            )
 
-            def is_match(item1: Dict[str, Any], item2: Dict[str, Any]) -> bool:
-                return any(
-                    eval(condition, {"input1": item1, "input2": item2})
-                    for condition in blocking_conditions
-                )
+        # Calculate embeddings if blocking_threshold is set
+        embeddings = None
+        if blocking_threshold is not None:
+            embedding_model = self.config.get("embedding_model", self.default_model)
 
-            # Initial clustering
-            clusters = {}
-            for i, item in enumerate(input_data):
-                matched = False
-                for rep, cluster in clusters.items():
-                    if is_match(item, input_data[rep]):
-                        cluster.append(i)
-                        matched = True
-                        break
-                if not matched:
-                    clusters[i] = [i]
+            def get_embeddings_batch(
+                items: List[Dict[str, Any]]
+            ) -> List[Tuple[List[float], float]]:
+                texts = [
+                    " ".join(str(item[key]) for key in blocking_keys if key in item)
+                    for item in items
+                ]
+                response = embedding(model=embedding_model, input=texts)
+                return [
+                    (data["embedding"], completion_cost(response))
+                    for data in response["data"]
+                ]
 
+            embeddings = []
+            costs = []
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                for i in range(
+                    0, len(input_data), self.config.get("embedding_batch_size", 1000)
+                ):
+                    batch = input_data[
+                        i : i + self.config.get("embedding_batch_size", 1000)
+                    ]
+                    batch_results = list(executor.map(get_embeddings_batch, [batch]))
+                    for result in batch_results:
+                        embeddings.extend([r[0] for r in result])
+                        costs.extend([r[1] for r in result])
+
+                total_cost += sum(costs)
+
+        # Initialize clusters
+        clusters = [{i} for i in range(len(input_data))]
+        cluster_map = {i: i for i in range(len(input_data))}
+
+        def find_cluster(item):
+            while item != cluster_map[item]:
+                cluster_map[item] = cluster_map[cluster_map[item]]
+                item = cluster_map[item]
+            return item
+
+        def merge_clusters(item1, item2):
+            root1, root2 = find_cluster(item1), find_cluster(item2)
+            if root1 != root2:
+                if len(clusters[root1]) < len(clusters[root2]):
+                    root1, root2 = root2, root1
+                clusters[root1] |= clusters[root2]
+                cluster_map[root2] = root1
+                clusters[root2] = set()
+
+        # Generate all pairs to compare
+        # TODO: virtualize this if possible
+        all_pairs = [
+            (i, j)
+            for i in range(len(input_data))
+            for j in range(i + 1, len(input_data))
+        ]
+
+        # Filter pairs based on blocking rules
+        def should_compare(pair):
+            i, j = pair
+            if find_cluster(i) == find_cluster(j):
+                return False
             if blocking_threshold is not None:
-                embedding_model = self.config.get("embedding_model", self.default_model)
+                if (
+                    cosine_similarity([embeddings[i]], [embeddings[j]])[0][0]
+                    < blocking_threshold
+                ):
+                    return False
+            if blocking_conditions:
+                if not is_match(input_data[i], input_data[j]):
+                    return False
+            return True
 
-                def get_embedding(item: Dict[str, Any]) -> Tuple[List[float], float]:
-                    text = " ".join(
-                        str(item[key]) for key in blocking_keys if key in item
-                    )
-                    response = embedding(model=embedding_model, input=[text])
-                    return response["data"][0]["embedding"], completion_cost(response)
+        filtered_pairs = list(filter(should_compare, all_pairs))
 
-                with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                    embeddings = list(executor.map(get_embedding, input_data))
-                    embeddings, costs = zip(*embeddings)
-                    total_cost += sum(costs)
+        # Calculate and print statistics
+        total_possible_comparisons = len(input_data) * (len(input_data) - 1) // 2
+        comparisons_made = len(filtered_pairs)
+        comparisons_saved = total_possible_comparisons - comparisons_made
+        self.console.print(
+            f"[green]Comparisons saved by blocking: {comparisons_saved} "
+            f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
+        )
 
-                # Additional clustering based on embeddings
-                for i, item in enumerate(input_data):
-                    for rep, cluster in list(clusters.items()):
-                        if (
-                            i not in cluster
-                            and cosine_similarity([embeddings[i]], [embeddings[rep]])[
-                                0
-                            ][0]
-                            >= blocking_threshold
-                        ):
-                            clusters[rep].append(i)
-
-        # Pairwise comparisons within clusters
-        true_matches = {}
+        # Compare pairs and update clusters in real-time
+        batch_size = self.config.get("compare_batch_size", 100)
         pair_costs = 0
 
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            future_to_pair = {}
-            for cluster in clusters.values():
-                cluster_items = [input_data[i] for i in cluster]
-                for i, item1 in enumerate(cluster_items):
-                    for j, item2 in enumerate(cluster_items):
-                        if i < j:
-                            future = executor.submit(
-                                compare_pair,
-                                self.config["comparison_prompt"],
-                                self.config.get("comparison_model", self.default_model),
-                                item1,
-                                item2,
-                            )
-                            future_to_pair[future] = (cluster[i], cluster[j])
+        for i in tqdm(
+            range(0, len(filtered_pairs), batch_size),
+            desc=f"Processing batches of {batch_size} LLM comparisons",
+        ):
+            batch = filtered_pairs[i : i + batch_size]
 
-            total_pairs = len(future_to_pair)
-            for future in tqdm(
-                as_completed(future_to_pair), total=total_pairs, desc="Comparing pairs"
-            ):
-                pair = future_to_pair[future]
-                is_match, cost = future.result()
-                pair_costs += cost
-                if is_match:
-                    if pair[0] not in true_matches:
-                        true_matches[pair[0]] = set()
-                    if pair[1] not in true_matches:
-                        true_matches[pair[1]] = set()
-                    true_matches[pair[0]].add(pair[1])
-                    true_matches[pair[1]].add(pair[0])
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                future_to_pair = {
+                    executor.submit(
+                        compare_pair,
+                        self.config["comparison_prompt"],
+                        self.config.get("comparison_model", self.default_model),
+                        input_data[pair[0]],
+                        input_data[pair[1]],
+                    ): pair
+                    for pair in batch
+                }
 
-        # Calculate and print the true match selectivity
-        n = len(input_data)
-        total_possible_pairs = n * (n - 1) // 2
-        true_match_count = sum(len(matches) for matches in true_matches.values()) // 2
-        true_match_selectivity = true_match_count / total_possible_pairs
-        self.console.print(f"Self-join selectivity: {true_match_selectivity:.4f}")
+                for future in as_completed(future_to_pair):
+                    pair = future_to_pair[future]
+                    is_match, cost = future.result()
+                    pair_costs += cost
+                    if is_match:
+                        merge_clusters(pair[0], pair[1])
+
         total_cost += pair_costs
 
-        # Group true matches into sub-clusters
-        sub_clusters = []
-        processed = set()
-        for i, matches in true_matches.items():
-            if i not in processed:
-                sub_cluster = {i} | matches
-                for j in matches:
-                    sub_cluster |= true_matches.get(j, set())
-                sub_clusters.append(list(sub_cluster))
-                processed |= sub_cluster
+        # Collect final clusters
+        final_clusters = [cluster for cluster in clusters if cluster]
 
-        # Add items that didn't match anything as their own clusters
-        for i in range(len(input_data)):
-            if i not in processed:
-                sub_clusters.append([i])
-
-        # Process each sub-cluster
+        # Process each cluster
         results = []
 
-        def process_sub_cluster(sub_cluster):
-            if len(sub_cluster) > 1:
-                true_match_items = [input_data[i] for i in sub_cluster]
+        def process_cluster(cluster):
+            if len(cluster) > 1:
+                cluster_items = [input_data[i] for i in cluster]
                 reduction_template = Template(self.config["resolution_prompt"])
                 if input_schema:
-                    true_match_items = [
+                    cluster_items = [
                         {k: item[k] for k in input_schema.keys() if k in item}
-                        for item in true_match_items
+                        for item in cluster_items
                     ]
 
                 resolution_prompt = reduction_template.render(
-                    matched_entries=true_match_items
+                    matched_entries=cluster_items
                 )
                 reduction_response = call_llm(
                     self.config.get("resolution_model", self.default_model),
@@ -263,27 +282,36 @@ class ResolveOperation(BaseOperation):
                                     for k in self.config["output"]["schema"]
                                 },
                             }
-                            for item in [input_data[i] for i in sub_cluster]
+                            for item in [input_data[i] for i in cluster]
                         ],
                         reduction_cost,
                     )
                 return [], reduction_cost
             else:
-                return [input_data[sub_cluster[0]]], 0
+                return [input_data[list(cluster)[0]]], 0
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
-                executor.submit(process_sub_cluster, sub_cluster)
-                for sub_cluster in sub_clusters
+                executor.submit(process_cluster, cluster) for cluster in final_clusters
             ]
             for future in tqdm(
                 as_completed(futures),
                 total=len(futures),
-                desc="Processing sub-clusters",
-                leave=True,
+                desc="Determining resolved key for each group of equivalent keys",
             ):
-                sub_results, sub_cost = future.result()
-                results.extend(sub_results)
-                total_cost += sub_cost
+                cluster_results, cluster_cost = future.result()
+                results.extend(cluster_results)
+                total_cost += cluster_cost
+
+        total_pairs = len(input_data) * (len(input_data) - 1) // 2
+        true_match_count = sum(
+            len(cluster) * (len(cluster) - 1) // 2
+            for cluster in final_clusters
+            if len(cluster) > 1
+        )
+        true_match_selectivity = (
+            true_match_count / total_pairs if total_pairs > 0 else 0
+        )
+        self.console.print(f"Self-join selectivity: {true_match_selectivity:.4f}")
 
         return results, total_cost

@@ -21,13 +21,16 @@ TODO:
 - [ ] Optimize reduce
   - [x] Implement fold pattern
   - [ ] Optimize folds
-    - [ ] Stratified sample the reduce operations based on the groupby results
-    - [ ] Synthesize multiple fold prompts
-  - [ ] Implement merge pattern
+    - [x] Stratified sample the reduce operations based on the groupby results
+    - [x] Synthesize multiple fold prompts
+  - [x] Implement merge pattern
   - [ ] Optimize merges
-- [ ] Auto-generate resolver
-- [ ] Support model pools
+    - [ ] Synthesize merge prompts
+    - [ ] Try various batch sizes
 - [ ] Optimize equijoins
+- [ ] Auto-generate resolver
+- [ ] Write documentation on how all the operators work
+- [ ] Support model pools
 - [ ] Operator reordering
 - [ ] Support passing expectations
 - [ ] Write intermediates to disk

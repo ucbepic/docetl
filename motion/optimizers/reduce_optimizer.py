@@ -17,12 +17,14 @@ class ReduceOptimizer:
         llm_client: LLMClient,
         max_threads: int,
         run_operation: Callable,
+        num_fold_prompts: int = 2,
     ):
         self.config = config
         self.console = console
         self.llm_client = llm_client
         self._run_operation = run_operation
         self.max_threads = max_threads
+        self.num_fold_prompts = num_fold_prompts
 
     def optimize(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -176,8 +178,8 @@ class ReduceOptimizer:
                 prompt = f"""
                 {validator_prompt}
 
-                Reduce Operation Config:
-                {json.dumps(op_config, indent=2)}
+                Reduce Operation Task:
+                {op_config["prompt"]}
 
                 Input Data Sample:
                 {json.dumps(sample_input, indent=2)}
@@ -238,7 +240,15 @@ class ReduceOptimizer:
         median_values = median(values_per_key)
         max_values = max(values_per_key)
 
-        compression_ratio = self._calculate_compression_ratio(op_config, input_data)
+        # Run the operation once on a sample of the input data
+        sample_size = min(100, len(input_data))
+        sample_input = random.sample(input_data, sample_size)
+        sample_output = self._run_operation(op_config, sample_input)
+
+        # Calculate compression ratio
+        compression_ratio = self._calculate_compression_ratio(
+            op_config, sample_input, sample_output
+        )
 
         # Print the compression ratio
         self.console.print(
@@ -255,9 +265,8 @@ class ReduceOptimizer:
                 max(1, int(current_batch_size * 0.75)),
                 current_batch_size,
             ]
-            fold_prompt = op_config["fold_prompt"]
+            fold_prompts = [op_config["fold_prompt"]]
         else:
-            fold_prompt = self._synthesize_fold_prompt(op_config, input_data)
             batch_sizes = [
                 max(1, int(avg_values * 0.5)),
                 max(1, int(avg_values)),
@@ -267,28 +276,35 @@ class ReduceOptimizer:
             ]
 
             # Add compression ratio-based batch size
-            # TODO: try batch sizes that are compression_ratio of the p75, p90, p95
             compression_batch_size = max(1, int(compression_ratio * max_values))
             batch_sizes.append(compression_batch_size)
 
-        # Remove duplicates and sort
-        batch_sizes = sorted(set(batch_sizes))
+            # Remove duplicates and sort
+            batch_sizes = sorted(set(batch_sizes))
+
+            # Generate multiple fold prompts
+            fold_prompts = self._synthesize_fold_prompts(
+                op_config,
+                sample_input,
+                sample_output,
+                num_prompts=self.num_fold_prompts,
+            )
 
         for batch_size in batch_sizes:
-            plan = op_config.copy()
-            plan["fold_prompt"] = op_config.get("fold_prompt", fold_prompt)
-            plan["fold_batch_size"] = batch_size
-            plans.append(plan)
+            for fold_prompt in fold_prompts:
+                plan = op_config.copy()
+                plan["fold_prompt"] = fold_prompt
+                plan["fold_batch_size"] = batch_size
+                plans.append(plan)
 
         return plans
 
     def _calculate_compression_ratio(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+        self,
+        op_config: Dict[str, Any],
+        sample_input: List[Dict[str, Any]],
+        sample_output: List[Dict[str, Any]],
     ) -> float:
-        sample_size = min(100, len(input_data))
-        sample_input = random.sample(input_data, sample_size)
-        sample_output = self._run_operation(op_config, sample_input)
-
         reduce_key = op_config["reduce_key"]
         input_schema = op_config.get("input", {}).get("schema", {})
         output_schema = op_config["output"]["schema"]
@@ -336,52 +352,88 @@ class ReduceOptimizer:
         )
         return weighted_sum
 
-    def _synthesize_fold_prompt(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> str:
-        system_prompt = "You are an AI assistant tasked with creating fold prompts for reduce operations in data processing pipelines."
+    def _synthesize_fold_prompts(
+        self,
+        op_config: Dict[str, Any],
+        sample_input: List[Dict[str, Any]],
+        sample_output: List[Dict[str, Any]],
+        num_prompts: int = 2,
+    ) -> List[str]:
+        system_prompt = "You are an AI assistant tasked with creating a fold prompt for reduce operations in data processing pipelines."
         original_prompt = op_config["prompt"]
 
-        sample_input = random.sample(input_data, min(5, len(input_data)))
-        sample_output = self._run_operation(op_config, sample_input)
+        input_schema = op_config.get("input", {}).get("schema", {})
+        output_schema = op_config["output"]["schema"]
+        reduce_key = op_config["reduce_key"]
 
-        prompt = f"""
-        Original Reduce Operation Prompt:
-        {original_prompt}
-
-        Sample Input:
-        {json.dumps(sample_input, indent=2)}
-
-        Sample Output:
-        {json.dumps(sample_output, indent=2)}
-
-        Create a fold prompt for the reduce operation. The fold prompt should:
-        1. Minimally modify the original reduce prompt
-        2. Describe how to combine the new values with the current reduced value
-        3. Be designed to work iteratively, allowing for multiple fold operations. In the first iteration, we will apply the original prompt as is. On subsequent iterations, we will apply the fold prompt to the output of the previous iteration.
-
-        The fold prompt should be a Jinja2 template with the following variables available:
-        - {{ output }}: The current reduced value (a dictionary with the current output schema)
-        - {{ values }}: A list of new values to be folded in
-        - {{ reduce_key }}: The key used for grouping in the reduce operation
-
-        Provide the fold prompt as a single string.
-        """
+        def get_random_examples():
+            random_key = random.choice(
+                [item[reduce_key] for item in sample_input if reduce_key in item]
+            )
+            input_example = random.choice(
+                [item for item in sample_input if item[reduce_key] == random_key]
+            )
+            if input_schema:
+                input_example = {
+                    k: input_example[k] for k in input_schema if k in input_example
+                }
+            output_example = random.choice(
+                [item for item in sample_output if item[reduce_key] == random_key]
+            )
+            output_example = {
+                k: output_example[k] for k in output_schema if k in output_example
+            }
+            return input_example, output_example
 
         parameters = {
             "type": "object",
-            "properties": {"fold_prompt": {"type": "string"}},
+            "properties": {
+                "fold_prompt": {
+                    "type": "string",
+                }
+            },
             "required": ["fold_prompt"],
         }
 
-        response = self.llm_client.generate(
-            [{"role": "user", "content": prompt}],
-            system_prompt,
-            parameters,
-        )
-        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)[
-            "fold_prompt"
-        ]
+        def generate_single_prompt():
+            input_example, output_example = get_random_examples()
+            prompt = f"""
+            Original Reduce Operation Prompt:
+            {original_prompt}
+            
+            Sample Input:
+            {json.dumps(input_example, indent=2)}
+
+            Sample Output:
+            {json.dumps(output_example, indent=2)}
+
+            Create a fold prompt for the reduce operation to run on batches of inputs. The fold prompt should:
+            1. Minimally modify the original reduce prompt
+            2. Describe how to combine the new values with the current reduced value
+            3. Be designed to work iteratively, allowing for multiple fold operations. The first iteration will use the original prompt, and all successive iterations will use the fold prompt.
+
+            The fold prompt should be a Jinja2 template with the following variables available:
+            - {{ output }}: The current reduced value (a dictionary with the current output schema)
+            - {{ values }}: A list of new values to be folded in
+            - {{ reduce_key }}: The key used for grouping in the reduce operation
+
+            Provide the fold prompt as a string.
+            """
+            response = self.llm_client.generate(
+                [{"role": "user", "content": prompt}],
+                system_prompt,
+                parameters,
+            )
+            return json.loads(
+                response.choices[0].message.tool_calls[0].function.arguments
+            )["fold_prompt"]
+
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            fold_prompts = list(
+                executor.map(lambda _: generate_single_prompt(), range(num_prompts))
+            )
+
+        return fold_prompts
 
     def _evaluate_reduce_plans(
         self,

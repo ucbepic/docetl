@@ -1,3 +1,4 @@
+from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import copy
 import yaml
@@ -80,13 +81,16 @@ class Optimizer:
         self,
         yaml_file: str,
         max_threads: Optional[int] = None,
-        sample_size: int = 20,
         model: str = "gpt-4o",
         timeout: int = 60,
     ):
         self.yaml_file_path = yaml_file
         self.config = load_config(yaml_file)
-        self.sample_size = sample_size
+        self.sample_size = {
+            "reduce": 40,
+            "map": 10,
+            "resolve": 20,
+        }
         self.console = Console()
         self.optimized_config = self.config.copy()
         self.llm_client = LLMClient(model)
@@ -131,9 +135,9 @@ class Optimizer:
     def _optimize_step(
         self, step: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        input_data = self._get_sample_data(step.get("input"))
-
         optimized_operations = {}
+        input_data = None
+
         for operation in step["operations"]:
             if isinstance(operation, dict):
                 operation_name = list(operation.keys())[0]
@@ -145,6 +149,9 @@ class Optimizer:
             op_object = self.config["operations"][operation_name].copy()
             op_object.update(operation_config)
             op_object["name"] = operation_name
+
+            if input_data is None:
+                input_data = self._get_sample_data(step.get("input"), op_object)
 
             if (
                 op_object.get("optimize", True) == False
@@ -201,7 +208,9 @@ class Optimizer:
         optimized_step["operations"] = list(optimized_operations.keys())
         return optimized_step, optimized_operations
 
-    def _get_sample_data(self, dataset_name: str) -> List[Dict[str, Any]]:
+    def _get_sample_data(
+        self, dataset_name: str, op_config: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         if dataset_name is None:
             return []
 
@@ -209,9 +218,77 @@ class Optimizer:
         if dataset["type"] == "file":
             with open(dataset["path"], "r") as f:
                 data = json.load(f)
-            return random.sample(data, min(self.sample_size, len(data)))
+
+            if op_config.get("type") == "reduce":
+                return self._get_reduce_sample(data, op_config.get("reduce_key"))
+            else:
+                return random.sample(
+                    data, min(self.sample_size[op_config.get("type")], len(data))
+                )
         else:
             raise ValueError(f"Unsupported dataset type: {dataset['type']}")
+
+    def _get_reduce_sample(
+        self, data: List[Dict[str, Any]], reduce_key: str
+    ) -> List[Dict[str, Any]]:
+        # Group data by reduce key
+        grouped_data = defaultdict(list)
+        for item in data:
+            grouped_data[item[reduce_key]].append(item)
+
+        # Sort groups by size in descending order
+        sorted_groups = sorted(
+            grouped_data.items(), key=lambda x: len(x[1]), reverse=True
+        )
+
+        sample = []
+
+        # Take the top 5 groups
+        top_5_groups = sorted_groups[:5]
+
+        # Calculate the total count of items in the top 5 groups
+        total_count = sum(len(items) for _, items in top_5_groups)
+
+        sample = []
+        for _, items in top_5_groups:
+            # Calculate the proportion of items to sample from this group
+            group_proportion = len(items) / total_count
+            group_sample_size = int(self.sample_size["reduce"] * group_proportion)
+
+            # Sample from the group
+            group_sample = random.sample(items, min(group_sample_size, len(items)))
+            sample.extend(group_sample)
+
+        # If we haven't reached the desired sample size, add more items randomly
+        if len(sample) < self.sample_size["reduce"]:
+            remaining_items = [
+                item
+                for _, items in top_5_groups
+                for item in items
+                if item not in sample
+            ]
+            additional_sample = random.sample(
+                remaining_items, self.sample_size["reduce"] - len(sample)
+            )
+            sample.extend(additional_sample)
+
+        # Create a histogram of group sizes
+        group_sizes = [len(items) for _, items in grouped_data.items()]
+        size_counts = Counter(group_sizes)
+
+        # Sort the sizes for a more readable output
+        sorted_sizes = sorted(size_counts.items())
+
+        # Print the histogram
+        self.console.print("\n[bold]Histogram of Group Sizes:[/bold]")
+        max_bar_width, max_count = 2, max(size_counts.values())
+        for size, count in sorted_sizes[:5]:
+            normalized_count = int(count / max_count * max_bar_width)
+            bar = "█" * normalized_count
+            self.console.print(f"{size:3d}: {bar} ({count})")
+        self.console.print("\n")
+
+        return sample
 
     def _optimize_reduce(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]

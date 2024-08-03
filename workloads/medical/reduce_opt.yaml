@@ -5,53 +5,6 @@ datasets:
 default_model: gpt-4o-mini
 operations:
   summarize_medication_contexts:
-    fold_batch_size: 1
-    fold_prompt: '{% set current_output = output %}
-
-
-      Analyze the following doctor-patient transcripts where the medication "{{ reduce_key
-      }}" is mentioned:
-
-
-      {% for item in values %}
-
-      Transcript {{ loop.index }}:
-
-      {{ item.src }}
-
-
-      ---
-
-      {% endfor %}
-
-
-      Based on these doctor-patient transcripts and the current summary, provide an
-      updated summary of the contexts in which patients take the medication "{{ reduce_key
-      }}". Include the following information:
-
-
-      1. A brief summary of why a patient takes this medication (update or add if
-      new context is found).
-
-      2. Any side effects experienced or mentioned (combine new mentions with current
-      ones, avoid duplicates).
-
-      3. Any interactions with other medications or treatments mentioned (combine
-      new interactions with current ones, avoid duplicates).
-
-
-      If any of this information is not available in the transcripts, indicate that
-      it was not mentioned.
-
-
-      Previous summary for reference:
-
-
-      Context Summary: {{ current_output.context_summary }}
-
-      Side Effects: {{ current_output.side_effects | join('', '') }}
-
-      Interactions: {{ current_output.interactions | join('', '') }}'
     input:
       schema:
         medication: str
@@ -59,8 +12,6 @@ operations:
     output:
       schema:
         context_summary: str
-        interactions: list[str]
-        side_effects: list[str]
     prompt: 'Analyze the following doctor-patient transcripts where the medication
       "{{ reduce_key }}" is mentioned:
 
@@ -87,10 +38,6 @@ operations:
       2. Any side effects experienced or mentioned.
 
       3. Any interactions with other medications or treatments mentioned.
-
-
-      If any of this information is not available in the transcripts, indicate that
-      it was not mentioned.
 
       '
     reduce_key: medication

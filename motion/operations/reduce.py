@@ -1,3 +1,4 @@
+import math
 from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm.auto import tqdm
@@ -41,7 +42,16 @@ class ReduceOperation(BaseOperation):
         except Exception as e:
             raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}")
 
-        # Check if fold_prompt is a valid Jinja2 template (if present)
+        # Check if fold_prompt is a valid Jinja2 template (now required if merge exists)
+        if "merge_prompt" in self.config:
+            if (
+                "fold_prompt" not in self.config
+                or "num_parallel_folds" not in self.config
+            ):
+                raise ValueError(
+                    "'fold_prompt' and 'num_parallel_folds' are required when 'merge_prompt' is specified"
+                )
+
         if "fold_prompt" in self.config:
             if "fold_batch_size" not in self.config:
                 raise ValueError(
@@ -62,6 +72,26 @@ class ReduceOperation(BaseOperation):
             except Exception as e:
                 raise ValueError(f"Invalid Jinja2 template in 'fold_prompt': {str(e)}")
 
+        # Check merge_prompt and merge_batch_size
+        if "merge_prompt" in self.config:
+            if "merge_batch_size" not in self.config:
+                raise ValueError(
+                    "'merge_batch_size' is required when 'merge_prompt' is specified"
+                )
+
+            try:
+                merge_template = Template(self.config["merge_prompt"])
+                merge_template_vars = merge_template.environment.parse(
+                    self.config["merge_prompt"]
+                ).find_all(jinja2.nodes.Name)
+                merge_template_var_names = {var.name for var in merge_template_vars}
+                if "outputs" not in merge_template_var_names:
+                    raise ValueError(
+                        "Merge template must include the 'outputs' variable"
+                    )
+            except Exception as e:
+                raise ValueError(f"Invalid Jinja2 template in 'merge_prompt': {str(e)}")
+
         # Check if the model is specified (optional)
         if "model" in self.config and not isinstance(self.config["model"], str):
             raise TypeError("'model' in configuration must be a string")
@@ -79,13 +109,19 @@ class ReduceOperation(BaseOperation):
                     "'schema' in 'input' configuration must be a dictionary"
                 )
 
-        # Check if fold_batch_size is a positive integer (if present)
-        if "fold_batch_size" in self.config:
+        # Check if fold_batch_size and merge_batch_size are positive integers
+        for key in ["fold_batch_size", "merge_batch_size"]:
+            if key in self.config:
+                if not isinstance(self.config[key], int) or self.config[key] <= 0:
+                    raise ValueError(f"'{key}' must be a positive integer")
+
+        # Add check for num_parallel_folds
+        if "num_parallel_folds" in self.config:
             if (
-                not isinstance(self.config["fold_batch_size"], int)
-                or self.config["fold_batch_size"] <= 0
+                not isinstance(self.config["num_parallel_folds"], int)
+                or self.config["num_parallel_folds"] <= 0
             ):
-                raise ValueError("'fold_batch_size' must be a positive integer")
+                raise ValueError("'num_parallel_folds' must be a positive integer")
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         reduce_key = self.config["reduce_key"]
@@ -106,10 +142,24 @@ class ReduceOperation(BaseOperation):
                     for item in group_list
                 ]
 
-            if "fold_prompt" in self.config and "fold_batch_size" in self.config:
-                return self._incremental_reduce(key, group_list)
+            if "merge_prompt" in self.config:
+                result, cost = self._parallel_fold_and_merge(key, group_list)
+            elif "fold_prompt" in self.config:
+                result, cost = self._incremental_reduce(key, group_list)
             else:
-                return self._batch_reduce(key, group_list)
+                result, cost = self._batch_reduce(key, group_list)
+
+            # Apply pass-through at the group level
+            if (
+                result is not None
+                and self.config.get("pass_through", False)
+                and group_list
+            ):
+                for k, v in group_list[0].items():
+                    if k not in self.config["output"]["schema"] and k not in result:
+                        result[k] = v
+
+            return result, cost
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
@@ -131,29 +181,74 @@ class ReduceOperation(BaseOperation):
 
         return results, total_cost
 
-    def _batch_reduce(
+    def _parallel_fold_and_merge(
         self, key: Any, group_list: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
-        prompt_template = Template(self.config["prompt"])
-        prompt = prompt_template.render(reduce_key=key, values=group_list)
+        num_parallel_folds = self.config["num_parallel_folds"]
+        merge_batch_size = self.config["merge_batch_size"]
+        total_cost = 0
+
+        # Divide group_list into num_parallel_folds subgroups
+        subgroup_size = math.ceil(len(group_list) / num_parallel_folds)
+        subgroups = [
+            group_list[i : i + subgroup_size]
+            for i in range(0, len(group_list), subgroup_size)
+        ]
+
+        # Parallel folding
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            fold_futures = []
+            for subgroup in subgroups:
+                fold_futures.append(
+                    executor.submit(self._incremental_reduce, key, subgroup)
+                )
+
+            fold_results = []
+            for future in as_completed(fold_futures):
+                result, cost = future.result()
+                total_cost += cost
+                if result is not None:
+                    fold_results.append(result)
+
+        # Recursive merging
+        while len(fold_results) > 1:
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                merge_futures = []
+                for i in range(0, len(fold_results), merge_batch_size):
+                    batch = fold_results[i : i + merge_batch_size]
+                    merge_futures.append(
+                        executor.submit(self._merge_results, key, batch)
+                    )
+
+                new_results = []
+                for future in as_completed(merge_futures):
+                    result, cost = future.result()
+                    total_cost += cost
+                    if result is not None:
+                        new_results.append(result)
+
+                fold_results = new_results
+
+        return (fold_results[0], total_cost) if fold_results else (None, total_cost)
+
+    def _merge_results(
+        self, key: Any, outputs: List[Dict]
+    ) -> Tuple[Optional[Dict], float]:
+        merge_prompt_template = Template(self.config["merge_prompt"])
+        merge_prompt = merge_prompt_template.render(outputs=outputs)
         response = call_llm(
             self.config.get("model", self.default_model),
-            "reduce",
-            prompt,
+            "merge",
+            merge_prompt,
             self.config["output"]["schema"],
         )
-        output = parse_llm_response(response)[0]
-        output[self.config["reduce_key"]] = key
-        item_cost = completion_cost(response)
+        merged_output = parse_llm_response(response)[0]
+        merged_output[self.config["reduce_key"]] = key
+        merge_cost = completion_cost(response)
 
-        if self.config.get("pass_through", False) and group_list[0]:
-            for key, value in group_list[0].items():
-                if key not in self.config["output"]["schema"]:
-                    output[key] = value
-
-        if validate_output(self.config, output, self.console):
-            return output, item_cost
-        return None, item_cost
+        if validate_output(self.config, merged_output, self.console):
+            return merged_output, merge_cost
+        return None, merge_cost
 
     def _incremental_reduce(
         self, key: Any, group_list: List[Dict]
@@ -195,3 +290,22 @@ class ReduceOperation(BaseOperation):
                     return None, total_cost
 
         return current_output, total_cost
+
+    def _batch_reduce(
+        self, key: Any, group_list: List[Dict]
+    ) -> Tuple[Optional[Dict], float]:
+        prompt_template = Template(self.config["prompt"])
+        prompt = prompt_template.render(reduce_key=key, values=group_list)
+        response = call_llm(
+            self.config.get("model", self.default_model),
+            "reduce",
+            prompt,
+            self.config["output"]["schema"],
+        )
+        output = parse_llm_response(response)[0]
+        output[self.config["reduce_key"]] = key
+        item_cost = completion_cost(response)
+
+        if validate_output(self.config, output, self.console):
+            return output, item_cost
+        return None, item_cost

@@ -86,16 +86,14 @@ class EquijoinOperation(BaseOperation):
             right_embeddings, right_costs = zip(*right_embeddings)
             total_cost += sum(left_costs) + sum(right_costs)
 
+            # Compute all cosine similarities in one call
+            similarities = cosine_similarity(left_embeddings, right_embeddings)
+
             # Additional blocking based on embeddings
             for i, left_item in enumerate(left_data):
                 for j, right_item in enumerate(right_data):
                     if (left_item, right_item) not in blocked_pairs:
-                        if (
-                            cosine_similarity(
-                                [left_embeddings[i]], [right_embeddings[j]]
-                            )[0][0]
-                            >= blocking_threshold
-                        ):
+                        if similarities[i][j] >= blocking_threshold:
                             blocked_pairs.append((left_item, right_item))
 
         # If there are no blocking conditions or embedding threshold, use all pairs

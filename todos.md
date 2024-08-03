@@ -16,6 +16,7 @@ TODO:
   - [x] Generate multiple plans and evaluate them instead of generating one plan
   - [x] Don't use an LLM to determine the right chunk size; try searching many chunk sizes
   - [x] Call llm agent multiple times on different random inputs & average results
+  - [ ] Decompose map to be a chain or parallel map
 - [x] Optimize resolvers (add blocking rules)
 - [ ] Optimize reduce
   - [x] Implement fold pattern

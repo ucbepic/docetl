@@ -16,8 +16,6 @@ operations:
     output:
       schema:
         context_summary: str
-        side_effects: list[str]
-        interactions: list[str]
     prompt: |
       Analyze the following doctor-patient transcripts where the medication "{{ reduce_key }}" is mentioned:
 
@@ -33,8 +31,6 @@ operations:
       1. A brief summary of why a patient takes this medication.
       2. Any side effects experienced or mentioned.
       3. Any interactions with other medications or treatments mentioned.
-
-      If any of this information is not available in the transcripts, indicate that it was not mentioned.
 
 pipeline:
   steps:

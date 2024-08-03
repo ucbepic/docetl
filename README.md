@@ -400,6 +400,8 @@ Optional parameters:
 
 Example:
 
+TODO generate this
+
 ## Schema Pass-through
 
 It's important to note that all schema items pass through the pipeline. The `output` schema in each operation is ONLY for what is extracted from the LLM. All other fields from the input data are automatically passed through to the next step in the pipeline.

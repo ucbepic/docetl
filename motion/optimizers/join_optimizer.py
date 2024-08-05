@@ -7,10 +7,11 @@ import numpy as np
 from litellm import embedding, completion_cost
 from uuid import uuid4
 from rich.console import Console
-from motion.operations.resolve import compare_pair
+from motion.operations.resolve import compare_pair as compare_pair_resolve
+from motion.operations.equijoin import compare_pair as compare_pair_equijoin
 
 
-class ResolveOptimizer:
+class JoinOptimizer:
     def __init__(
         self,
         config: Dict[str, Any],
@@ -33,14 +34,18 @@ class ResolveOptimizer:
         self.sampling_weight = sampling_weight
         self.agent_max_retries = agent_max_retries
 
-    def optimize(
+    def optimize_resolve(
         self, input_data: List[Dict[str, Any]]
     ) -> Tuple[Dict[str, Any], float]:
         embeddings, blocking_keys, embedding_cost = self._compute_embeddings(input_data)
+        self.console.print(
+            f"[bold]Cost of creating embeddings on the sample: ${embedding_cost:.4f}[/bold]"
+        )
+
         similarities = self._calculate_cosine_similarities(embeddings)
 
         sampled_pairs = self._sample_pairs(similarities)
-        comparison_results, comparison_cost = self._perform_comparisons(
+        comparison_results, comparison_cost = self._perform_comparisons_resolve(
             input_data, sampled_pairs
         )
 
@@ -60,7 +65,6 @@ class ResolveOptimizer:
                 blocking_rules[0],
                 blocking_keys,
                 comparison_results,
-                ci_upper,
             )
             if not false_negatives and rule_selectivity <= ci_upper:
                 self.console.print(
@@ -90,22 +94,100 @@ class ResolveOptimizer:
         optimized_config = self._update_config(threshold, blocking_keys, blocking_rules)
         return optimized_config, embedding_cost + comparison_cost
 
-    def _compute_embeddings(
-        self, input_data: List[Dict[str, Any]]
-    ) -> Tuple[List[List[float]], List[str], float]:
-        blocking_keys = self.op_config.get("blocking_keys", [])
-        if not blocking_keys:
-            prompt_template = self.op_config.get("comparison_prompt", "")
-            keys = set(re.findall(r"input[12]\.(\w+)", prompt_template))
-            blocking_keys = list(keys)
-        if not blocking_keys:
-            self.console.print(
-                "[yellow]Warning: No blocking keys found. Using all keys for blocking.[/yellow]"
+    def optimize_equijoin(
+        self, left_data: List[Dict[str, Any]], right_data: List[Dict[str, Any]]
+    ) -> Tuple[Dict[str, Any], float]:
+        left_key = self.op_config["join_key"]["left"]["name"]
+        right_key = self.op_config["join_key"]["right"]["name"]
+
+        left_embeddings, _, left_embedding_cost = self._compute_embeddings(
+            left_data, [left_key]
+        )
+        right_embeddings, _, right_embedding_cost = self._compute_embeddings(
+            right_data, [right_key]
+        )
+        self.console.print(
+            f"[bold]Cost of creating embeddings on the sample: ${left_embedding_cost + right_embedding_cost:.4f}[/bold]"
+        )
+
+        similarities = self._calculate_cross_similarities(
+            left_embeddings, right_embeddings
+        )
+
+        sampled_pairs = self._sample_pairs(similarities)
+        comparison_results, comparison_cost = self._perform_comparisons_equijoin(
+            left_data, right_data, sampled_pairs
+        )
+
+        self._print_similarity_histogram(similarities, comparison_results)
+
+        threshold, estimated_selectivity, ci_upper = self._find_optimal_threshold(
+            comparison_results, similarities
+        )
+
+        blocking_rules = self._generate_blocking_rules_equijoin(
+            left_key, right_key, left_data, right_data, comparison_results
+        )
+
+        if blocking_rules:
+            false_negatives, rule_selectivity = self._verify_blocking_rule_equijoin(
+                left_data,
+                right_data,
+                blocking_rules[0],
+                left_key,
+                right_key,
+                comparison_results,
+                ci_upper,
             )
-            blocking_keys = list(input_data[0].keys())
+            if not false_negatives and rule_selectivity <= ci_upper:
+                self.console.print(
+                    "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within bounds.[/green]"
+                )
+            else:
+                if false_negatives:
+                    self.console.print(
+                        f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample.[/red]"
+                    )
+                    for i, j in false_negatives[:5]:  # Show up to 5 examples
+                        self.console.print(
+                            f"  Filtered pair: {{ {left_key}: {left_data[i][left_key]} }} and {{ {right_key}: {right_data[j][right_key]} }}"
+                        )
+                    if len(false_negatives) > 5:
+                        self.console.print(
+                            f"  ... and {len(false_negatives) - 5} more."
+                        )
+                if rule_selectivity > ci_upper:
+                    self.console.print(
+                        f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the upper bound of the CI ({ci_upper:.4f}).[/red]"
+                    )
+                blocking_rules = (
+                    []
+                )  # Clear the blocking rule if it introduces false negatives or is too selective
+
+        optimized_config = self._update_config_equijoin(
+            threshold, left_key, right_key, blocking_rules
+        )
+        return (
+            optimized_config,
+            left_embedding_cost + right_embedding_cost + comparison_cost,
+        )
+
+    def _compute_embeddings(
+        self, input_data: List[Dict[str, Any]], keys: List[str] = None
+    ) -> Tuple[List[List[float]], List[str], float]:
+        if keys is None:
+            keys = self.op_config.get("blocking_keys", [])
+            if not keys:
+                prompt_template = self.op_config.get("comparison_prompt", "")
+                keys = list(set(re.findall(r"input[12]\.(\w+)", prompt_template)))
+            if not keys:
+                self.console.print(
+                    "[yellow]Warning: No blocking keys found. Using all keys for blocking.[/yellow]"
+                )
+                keys = list(input_data[0].keys())
 
         texts = [
-            " ".join(str(item[key]) for key in blocking_keys if key in item)
+            " ".join(str(item[key]) for key in keys if key in item)
             for item in input_data
         ]
         response = embedding(
@@ -114,10 +196,7 @@ class ResolveOptimizer:
         )
         embeddings = [data["embedding"] for data in response["data"]]
         cost = completion_cost(response)
-        self.console.print(
-            f"[bold]Cost of creating embeddings on the sample: ${cost:.4f}[/bold]"
-        )
-        return embeddings, blocking_keys, cost
+        return embeddings, keys, cost
 
     def _calculate_cosine_similarities(
         self, embeddings: List[List[float]]
@@ -203,20 +282,65 @@ class ResolveOptimizer:
         ]
         return sampled_pairs
 
-    def _perform_comparisons(
+    def _calculate_cross_similarities(
+        self, left_embeddings: List[List[float]], right_embeddings: List[List[float]]
+    ) -> List[Tuple[int, int, float]]:
+        left_array = np.array(left_embeddings)
+        right_array = np.array(right_embeddings)
+        dot_product = np.dot(left_array, right_array.T)
+        norm_left = np.linalg.norm(left_array, axis=1)
+        norm_right = np.linalg.norm(right_array, axis=1)
+        similarities = dot_product / np.outer(norm_left, norm_right)
+        return [
+            (i, j, sim)
+            for i, row in enumerate(similarities)
+            for j, sim in enumerate(row)
+        ]
+
+    def _perform_comparisons_resolve(
         self, input_data: List[Dict[str, Any]], pairs: List[Tuple[int, int]]
     ) -> Tuple[List[Tuple[int, int, bool]], float]:
         comparisons, total_cost = [], 0
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
                 executor.submit(
-                    compare_pair,
+                    compare_pair_resolve,
                     self.op_config["comparison_prompt"],
                     self.op_config.get(
                         "comparison_model", self.config.get("model", "gpt-4o-mini")
                     ),
                     input_data[i],
                     input_data[j],
+                )
+                for i, j in pairs
+            ]
+            for future, (i, j) in zip(futures, pairs):
+                is_match, cost = future.result()
+                comparisons.append((i, j, is_match))
+                total_cost += cost
+
+        self.console.print(
+            f"[bold]Cost of pairwise comparisons on the sample: ${total_cost:.4f}[/bold]"
+        )
+        return comparisons, total_cost
+
+    def _perform_comparisons_equijoin(
+        self,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        pairs: List[Tuple[int, int]],
+    ) -> Tuple[List[Tuple[int, int, bool]], float]:
+        comparisons, total_cost = [], 0
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = [
+                executor.submit(
+                    compare_pair_equijoin,
+                    self.op_config["comparison_prompt"],
+                    self.op_config.get(
+                        "comparison_model", self.config.get("model", "gpt-4o-mini")
+                    ),
+                    left_data[i],
+                    right_data[j] if right_data else left_data[j],
                 )
                 for i, j in pairs
             ]
@@ -464,6 +588,222 @@ class ResolveOptimizer:
                 )
 
         return filtered_pairs
+
+    def _generate_blocking_rules_equijoin(
+        self,
+        left_key: str,
+        right_key: str,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        comparisons: List[Tuple[int, int, bool]],
+    ) -> List[str]:
+        # Sample 2 true and 2 false comparisons
+        true_comparisons = [comp for comp in comparisons if comp[2]][:2]
+        false_comparisons = [comp for comp in comparisons if not comp[2]][:2]
+        sample_datas = [
+            (
+                {left_key: left_data[i][left_key]},
+                {right_key: right_data[j][right_key]},
+                is_match,
+            )
+            for i, j, is_match in true_comparisons + false_comparisons
+        ]
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"""Given the following sample comparisons between entities, generate a single-line Python statement that acts as a blocking rule for equijoin. This rule will be used in the form: `eval(blocking_rule, {{"left": item1, "right": item2}})`.
+
+    Sample comparisons (note: these are just a few examples and may not represent all possible cases):
+    {json.dumps(sample_datas, indent=2)}
+
+    For context, here is the comparison prompt that will be used for the more expensive, detailed comparison:
+    {self.op_config.get('comparison_prompt', 'No comparison prompt provided.')}
+
+    Please generate ONE one-line blocking rule that adheres to the following criteria:
+    1. The rule should evaluate to True if the entities are possibly a match and require further comparison.
+    2. The rule should evaluate to False ONLY if the entities are definitely not a match.
+    3. The rule must be a single Python expression that can be evaluated using the eval() function.
+    4. The rule should be much faster to evaluate than the full comparison prompt.
+    5. The rule should capture the essence of the comparison prompt but in a simplified manner.
+    6. The rule should be general enough to work well on the entire dataset, not just these specific examples.
+    7. The rule should handle inconsistent casing by using string methods like .lower() when comparing string values.
+    8. The rule should err on the side of inclusivity - it's better to have false positives than false negatives.
+
+    Example structure of a one-line blocking rule:
+    "(condition1) or (condition2) or (condition3)"
+
+    Where conditions could be comparisons like:
+    "left['{left_key}'].lower() == right['{right_key}'].lower()"
+    "abs(len(left['{left_key}']) - len(right['{right_key}'])) <= 5"
+    "any(word in left['{left_key}'].lower() for word in right['{right_key}'].lower().split())"
+
+    If there's no clear rule that can be generated based on the given information, return the string "True" to ensure all pairs are compared.
+
+    Remember, the primary goal of the blocking rule is to safely reduce the number of comparisons by quickly identifying pairs that are definitely not matches, while keeping all potential matches for further evaluation.""",
+            }
+        ]
+
+        for attempt in range(self.agent_max_retries):
+            response = self.llm_client.generate(
+                messages,
+                "You are an expert in entity resolution and Python programming. Your task is to generate one efficient blocking rule based on the given sample comparisons and data structure.",
+                {
+                    "type": "object",
+                    "properties": {
+                        "blocking_rule": {
+                            "type": "string",
+                            "description": "One-line Python statement acting as a blocking rule",
+                        }
+                    },
+                },
+            )
+
+            blocking_rule = response.choices[0].message.tool_calls[0].function.arguments
+            blocking_rule = json.loads(blocking_rule).get("blocking_rule")
+
+            if blocking_rule:
+                self.console.print("")
+
+                if blocking_rule.strip() == "True":
+                    self.console.print(
+                        "[yellow]No suitable blocking rule could be found. Proceeding without a blocking rule.[/yellow]"
+                    )
+                    return []
+
+                self.console.print(
+                    f"[bold]Generated blocking rule (Attempt {attempt + 1}):[/bold] {blocking_rule}"
+                )
+
+                # Test the blocking rule
+                filtered_pairs = self._test_blocking_rule_equijoin(
+                    left_data,
+                    right_data,
+                    left_key,
+                    right_key,
+                    blocking_rule,
+                    comparisons,
+                )
+
+                if not filtered_pairs:
+                    self.console.print(
+                        "[green]Blocking rule looks good! No known matches were filtered out.[/green]"
+                    )
+                    return [blocking_rule]
+                else:
+                    feedback = f"The previous rule incorrectly filtered out {len(filtered_pairs)} known matches. "
+                    feedback += (
+                        "Here are up to 3 examples of incorrectly filtered pairs:\n"
+                    )
+                    for i, j in filtered_pairs[:3]:
+                        feedback += (
+                            f"Left: {json.dumps({left_key: left_data[i][left_key]})}\n"
+                        )
+                        feedback += f"Right: {json.dumps({right_key: right_data[j][right_key]})}\n"
+                        feedback += "These pairs are known matches but were filtered out by the rule.\n"
+                    feedback += "Please generate a new rule that doesn't filter out these matches."
+
+                    messages.append({"role": "assistant", "content": blocking_rule})
+                    messages.append({"role": "user", "content": feedback})
+            else:
+                self.console.print("[yellow]No blocking rule generated.[/yellow]")
+                return []
+
+        self.console.print(
+            f"[yellow]Failed to generate a suitable blocking rule after {self.agent_max_retries} attempts. Proceeding without a blocking rule.[/yellow]"
+        )
+        return []
+
+    def _test_blocking_rule_equijoin(
+        self,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        left_key: str,
+        right_key: str,
+        blocking_rule: str,
+        comparisons: List[Tuple[int, int, bool]],
+    ) -> List[Tuple[int, int]]:
+        def apply_blocking_rule(left, right):
+            try:
+                return eval(blocking_rule, {"left": left, "right": right})
+            except Exception as e:
+                self.console.print(f"[red]Error applying blocking rule: {e}[/red]")
+                return True  # If there's an error, we default to comparing the pair
+
+        filtered_pairs = []
+
+        for i, j, is_match in comparisons:
+            if is_match:
+                left = {left_key: left_data[i][left_key]}
+                right = {right_key: right_data[j][right_key]}
+
+                if not apply_blocking_rule(left, right):
+                    filtered_pairs.append((i, j))
+
+        if filtered_pairs:
+            self.console.print(
+                f"[yellow italic]LLM Correction: The blocking rule incorrectly filtered out {len(filtered_pairs)} known positive matches.[/yellow italic]"
+            )
+            for i, j in filtered_pairs[:5]:  # Show up to 5 examples
+                self.console.print(
+                    f"  Incorrectly filtered pair - Left: {json.dumps({left_key: left_data[i][left_key]})}  Right: {json.dumps({right_key: right_data[j][right_key]})}"
+                )
+            if len(filtered_pairs) > 5:
+                self.console.print(
+                    f"  ... and {len(filtered_pairs) - 5} more incorrect pairs."
+                )
+
+        return filtered_pairs
+
+    def _verify_blocking_rule_equijoin(
+        self,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        blocking_rule: str,
+        left_key: str,
+        right_key: str,
+        comparison_results: List[Tuple[int, int, bool]],
+        ci_upper: float,
+    ) -> Tuple[List[Tuple[int, int]], float]:
+        def apply_blocking_rule(left, right):
+            try:
+                return eval(blocking_rule, {"left": left, "right": right})
+            except Exception as e:
+                self.console.print(f"[red]Error applying blocking rule: {e}[/red]")
+                return True  # If there's an error, we default to comparing the pair
+
+        false_negatives = []
+        total_pairs = 0
+        blocked_pairs = 0
+
+        for i, j, is_match in comparison_results:
+            total_pairs += 1
+            left = {left_key: left_data[i][left_key]}
+            right = {right_key: right_data[j][right_key]}
+
+            if apply_blocking_rule(left, right):
+                blocked_pairs += 1
+                if is_match:
+                    false_negatives.append((i, j))
+
+        rule_selectivity = blocked_pairs / total_pairs if total_pairs > 0 else 0
+
+        return false_negatives, rule_selectivity
+
+    def _update_config_equijoin(
+        self, threshold: float, left_key: str, right_key: str, blocking_rules: List[str]
+    ) -> Dict[str, Any]:
+        optimized_config = self.op_config.copy()
+        optimized_config["join_key"] = {
+            "left": {"name": left_key},
+            "right": {"name": right_key},
+        }
+        optimized_config["blocking_threshold"] = threshold
+        if blocking_rules:
+            optimized_config["blocking_conditions"] = blocking_rules
+        if "embedding_model" not in optimized_config:
+            optimized_config["embedding_model"] = "text-embedding-3-small"
+        return optimized_config
 
     def _verify_blocking_rule(
         self,

@@ -28,9 +28,12 @@ TODO:
     - [x] Synthesize merge prompts
     - [x] Derive num_parallel_folds in the reduce op itself (saving the runtimes of folds and merges)
     - [ ] Try various batch sizes
-- [ ] Optimize equijoins
+- [x] Optimize equijoins
 - [ ] Auto-generate resolver
+- [ ] Support multiple step workflows in the optimizer
 - [ ] Write documentation on how all the operators work
+- [ ] Change validation to be pairwise comparisons
+- [ ] Write gleaning operations
 - [ ] Support model pools
 - [ ] Operator reordering
 - [ ] Support passing expectations

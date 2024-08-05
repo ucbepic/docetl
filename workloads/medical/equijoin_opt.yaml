@@ -1,0 +1,48 @@
+datasets:
+  meds:
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/meds.json
+    type: file
+  transcripts:
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/exploded_and_deduped_meds.json
+    type: file
+default_model: gpt-4o-mini
+name: medical_record_join
+operations:
+  join_meds_transcripts:
+    blocking_threshold: 0.8586
+    comparison_prompt: 'Compare the following medication names:
+
+      {{ left.medicine }}
+
+      {{ right.medication }}
+
+
+      Determine if these entries refer to the same medication. Consider the following:
+
+      1. Do the medication names match exactly?
+
+      2. Are there any minor spelling differences or abbreviations?
+
+      3. Could any differences be due to brand name vs. generic name?
+
+
+      Respond with true if you believe these entries match, or false if they do not.
+
+      '
+    embedding_model: text-embedding-3-small
+    join_key:
+      left:
+        name: medicine
+      right:
+        name: medication
+    left: meds
+    right: transcripts
+    type: equijoin
+pipeline:
+  output:
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/joined_meds_transcripts.json
+    type: file
+  steps:
+  - name: join_meds_transcripts
+    operations:
+    - join_meds_transcripts

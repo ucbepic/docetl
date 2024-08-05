@@ -130,5 +130,5 @@ class DSLRunner:
 
 
 if __name__ == "__main__":
-    runner = DSLRunner("workloads/medical/map_opt.yaml")
+    runner = DSLRunner("workloads/medical/equijoin.yaml")
     runner.run()

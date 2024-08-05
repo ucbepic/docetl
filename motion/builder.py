@@ -7,7 +7,7 @@ from motion.operations import get_operation
 from motion.operations.base import BaseOperation
 from motion.optimizers.map_optimizer import MapOptimizer
 from motion.optimizers.reduce_optimizer import ReduceOptimizer
-from motion.optimizers.resolve_optimizer import ResolveOptimizer
+from motion.optimizers.join_optimizer import JoinOptimizer
 from motion.utils import load_config
 from rich.console import Console
 from rich.table import Table
@@ -19,29 +19,10 @@ import jinja2
 from jinja2 import Environment, meta
 import re
 from tqdm import tqdm
+from motion.optimizers.utils import extract_jinja_variables
 
 
-def extract_jinja_variables(template_string):
-    # Create a Jinja2 environment
-    env = Environment()
-
-    # Parse the template
-    ast = env.parse(template_string)
-
-    # Find all the variables referenced in the template
-    variables = meta.find_undeclared_variables(ast)
-
-    # Use regex to find any additional variables that might be missed
-    # This regex looks for {{ variable }} patterns
-    regex_variables = set(re.findall(r"{{\s*(\w+)\s*}}", template_string))
-
-    # Combine both sets of variables
-    all_variables = variables.union(regex_variables)
-
-    return list(all_variables)
-
-
-SUPPORTED_OPS = ["map", "resolve", "reduce"]
+SUPPORTED_OPS = ["map", "resolve", "reduce", "equijoin"]
 
 
 class LLMClient:
@@ -90,7 +71,8 @@ class Optimizer:
         self.sample_size = {
             "reduce": 40,
             "map": 10,
-            "resolve": 20,
+            "resolve": 100,
+            "equijoin": 100,
         }
         self.console = Console()
         self.optimized_config = self.config.copy()
@@ -154,6 +136,12 @@ class Optimizer:
             if input_data is None:
                 input_data = self._get_sample_data(step.get("input"), op_object)
 
+            # For equijoin operations, load both left and right datasets
+            if op_object.get("type") == "equijoin":
+                left_data = self._get_sample_data(op_object.get("left"), op_object)
+                right_data = self._get_sample_data(op_object.get("right"), op_object)
+                input_data = {"left": left_data, "right": right_data}
+
             if (
                 op_object.get("optimize", True) == False
                 or op_object.get("type") not in SUPPORTED_OPS
@@ -167,9 +155,17 @@ class Optimizer:
                     self.console.print(f"[yellow]Running Operation:[/yellow]")
                     self.console.print(f"[yellow]  Type: {op_object['type']}[/yellow]")
                     self.console.print(f"[yellow]  Name: {operation_name}[/yellow]")
-                    self.console.print(
-                        f"[yellow]  Sample size: {len(input_data)}[/yellow]"
-                    )
+                    if op_object.get("type") == "equijoin":
+                        self.console.print(
+                            f"[yellow]  Sample size (left): {len(input_data['left'])}[/yellow]"
+                        )
+                        self.console.print(
+                            f"[yellow]  Sample size (right): {len(input_data['right'])}[/yellow]"
+                        )
+                    else:
+                        self.console.print(
+                            f"[yellow]  Sample size: {len(input_data)}[/yellow]"
+                        )
                     input_data = self._run_operation(op_object, input_data)
                     optimized_operations[operation_name] = op_object
             else:
@@ -181,9 +177,19 @@ class Optimizer:
                     self.console.print(f"[yellow]Optimizing Operation:[/yellow]")
                     self.console.print(f"[yellow]  Type: {op_object['type']}[/yellow]")
                     self.console.print(f"[yellow]  Name: {operation_name}[/yellow]")
-                    self.console.print(
-                        f"[yellow]  Sample size: {len(input_data)}[/yellow]"
-                    )
+                    if op_object.get("type") == "equijoin":
+                        self.console.print(
+                            f"[yellow]  Sample size (left): {len(input_data['left'])}[/yellow]"
+                        )
+                        self.console.print(
+                            f"[yellow]  Sample size (right): {len(input_data['right'])}[/yellow]"
+                        )
+                    else:
+                        self.console.print(
+                            f"[yellow]  Sample size: {len(input_data)}[/yellow]"
+                        )
+
+                    # Run optimization
                     if op_object.get("type") == "map":
                         optimized_ops, input_data = self._optimize_map(
                             op_object, input_data
@@ -195,6 +201,10 @@ class Optimizer:
                     elif op_object.get("type") == "resolve":
                         optimized_ops, input_data = self._optimize_resolve(
                             op_object, input_data
+                        )
+                    elif op_object.get("type") == "equijoin":
+                        optimized_ops, input_data = self._optimize_equijoin(
+                            op_object, input_data["left"], input_data["right"]
                         )
                     else:
                         raise ValueError(
@@ -304,12 +314,34 @@ class Optimizer:
         optimized_op, input_data = reduce_optimizer.optimize(op_config, input_data)
         return [optimized_op], input_data
 
+    def _optimize_equijoin(
+        self,
+        op_config: Dict[str, Any],
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        join_optimizer = JoinOptimizer(
+            self.config, op_config, self.console, self.llm_client, self.max_threads
+        )
+        optimized_config, cost = join_optimizer.optimize_equijoin(left_data, right_data)
+        self.operations_cost += cost
+
+        # Update the operation config with the optimized values
+        op_config.update(optimized_config)
+
+        # Run the optimized operation
+        output_data = self._run_operation(
+            op_config, {"left": left_data, "right": right_data}
+        )
+
+        return [op_config], output_data
+
     def _optimize_resolve(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        optimized_config, cost = ResolveOptimizer(
+        optimized_config, cost = JoinOptimizer(
             self.config, op_config, self.console, self.llm_client, self.max_threads
-        ).optimize(input_data)
+        ).optimize_resolve(input_data)
         self.operations_cost += cost
 
         # Update the operation config with the optimized values
@@ -534,7 +566,12 @@ class Optimizer:
         operation_instance = operation_class(
             op_config, self.config["default_model"], self.max_threads, self.console
         )
-        output_data, cost = operation_instance.execute(input_data)
+        if op_config["type"] == "equijoin":
+            left_data = input_data["left"]
+            right_data = input_data["right"]
+            output_data, cost = operation_instance.execute(left_data, right_data)
+        else:
+            output_data, cost = operation_instance.execute(input_data)
         self.operations_cost += cost
         if return_instance:
             return output_data, operation_instance
@@ -572,5 +609,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/reduce.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/equijoin.yaml", model="gpt-4o")
     optimizer.optimize()

@@ -11,6 +11,21 @@ from litellm import completion_cost
 from sklearn.metrics.pairwise import cosine_similarity
 
 
+def compare_pair(
+    comparison_prompt: str, model: str, item1: Dict, item2: Dict
+) -> Tuple[bool, float]:
+    prompt_template = Template(comparison_prompt)
+    prompt = prompt_template.render(left=item1, right=item2)
+    response = call_llm(
+        model,
+        "compare",
+        prompt,
+        {"is_match": "bool"},
+    )
+    output = parse_llm_response(response)[0]
+    return output["is_match"], completion_cost(response)
+
+
 class EquijoinOperation(BaseOperation):
     def syntax_check(self) -> None:
         required_keys = ["join_key", "comparison_prompt"]
@@ -104,6 +119,15 @@ class EquijoinOperation(BaseOperation):
                 for right_item in right_data
             ]
 
+        # Calculate and print statistics
+        total_possible_comparisons = len(left_data) * len(right_data)
+        comparisons_made = len(blocked_pairs)
+        comparisons_saved = total_possible_comparisons - comparisons_made
+        self.console.print(
+            f"[green]Comparisons saved by blocking: {comparisons_saved} "
+            f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
+        )
+
         # LLM-based comparison for blocked pairs
         def get_hashable_key(item: Dict) -> str:
             return json.dumps(item, sort_keys=True)
@@ -113,21 +137,15 @@ class EquijoinOperation(BaseOperation):
         results = []
         comparison_costs = 0
 
-        def compare_pair(left_item: Dict, right_item: Dict) -> Tuple[bool, float]:
-            prompt_template = Template(self.config["comparison_prompt"])
-            prompt = prompt_template.render(left=left_item, right=right_item)
-            response = call_llm(
-                self.config.get("comparison_model", self.default_model),
-                "compare",
-                prompt,
-                {"matched": "bool"},
-            )
-            output = parse_llm_response(response)[0]
-            return output["matched"], completion_cost(response)
-
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             future_to_pair = {
-                executor.submit(compare_pair, left, right): (left, right)
+                executor.submit(
+                    compare_pair,
+                    self.config["comparison_prompt"],
+                    self.config.get("comparison_model", self.default_model),
+                    left,
+                    right,
+                ): (left, right)
                 for left, right in blocked_pairs
             }
 

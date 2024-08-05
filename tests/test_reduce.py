@@ -27,7 +27,6 @@ def reduce_config():
         "output": {"schema": {"summary": "string", "themes": "list[string]"}},
         "fold_batch_size": 3,
         "merge_batch_size": 2,
-        "num_parallel_folds": 3,
     }
 
 
@@ -79,9 +78,7 @@ def reduce_sample_data():
         else:
             return {"category": category, "item": random.choice(culture_items)}
 
-    return [
-        generate_item(random.choice(categories)) for _ in range(150)
-    ]  # 150 items for a larger dataset
+    return [generate_item(random.choice(categories)) for _ in range(300)]
 
 
 def test_reduce_operation(
@@ -134,21 +131,15 @@ def test_reduce_operation_pass_through(
 
 
 def test_reduce_operation_error_handling(reduce_config, default_model, max_threads):
-    # Test with invalid num_parallel_folds
-    invalid_config = reduce_config.copy()
-    invalid_config["num_parallel_folds"] = 0
-
-    with pytest.raises(
-        ValueError, match="'num_parallel_folds' must be a positive integer"
-    ):
-        ReduceOperation(invalid_config, default_model, max_threads)
 
     # Test with missing fold_prompt when merge_prompt is present
     invalid_config = reduce_config.copy()
-    del invalid_config["fold_prompt"]
+    invalid_config["merge_prompt"] = "Some merge prompt"
+    if "fold_prompt" in invalid_config:
+        del invalid_config["fold_prompt"]
 
     with pytest.raises(
         ValueError,
-        match="'fold_prompt' and 'num_parallel_folds' are required when 'merge_prompt' is specified",
+        match="'fold_prompt' is required when 'merge_prompt' is specified",
     ):
         ReduceOperation(invalid_config, default_model, max_threads)

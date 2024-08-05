@@ -67,6 +67,10 @@ def call_llm(
         num_retries=2,
         tool_choice={"type": "function", "function": {"name": "write_output"}},
     )
+    # if op_type == "merge":
+    #     print(prompt)
+    #     print(response)
+
     return response
 
 

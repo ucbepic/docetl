@@ -1,6 +1,7 @@
 import json
 import random
-from typing import Any, Dict, List, Callable, Tuple
+from typing import Any, Dict, List, Callable, Tuple, Union
+from motion.operations.base import BaseOperation
 from rich.console import Console
 from motion.optimizers.utils import LLMClient, extract_jinja_variables
 from motion.operations import get_operation
@@ -17,7 +18,8 @@ class ReduceOptimizer:
         llm_client: LLMClient,
         max_threads: int,
         run_operation: Callable,
-        num_fold_prompts: int = 2,
+        num_fold_prompts: int = 1,
+        num_samples_in_validation: int = 10,
     ):
         self.config = config
         self.console = console
@@ -25,6 +27,7 @@ class ReduceOptimizer:
         self._run_operation = run_operation
         self.max_threads = max_threads
         self.num_fold_prompts = num_fold_prompts
+        self.num_samples_in_validation = num_samples_in_validation
 
     def optimize(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -138,7 +141,6 @@ class ReduceOptimizer:
         input_data: List[Dict[str, Any]],
         output_data: List[Dict[str, Any]],
         validator_prompt: str,
-        num_samples: int = 5,
     ) -> Dict[str, Any]:
         system_prompt = "You are an AI assistant tasked with validating the output of reduce operations in data processing pipelines."
 
@@ -151,7 +153,7 @@ class ReduceOptimizer:
         validation_results = []
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = []
-            for _ in range(num_samples):
+            for _ in range(self.num_samples_in_validation):
 
                 # Select a key weighted by its count
                 selected_key = random.choices(
@@ -446,6 +448,7 @@ class ReduceOptimizer:
             self.console.print(f"Plan {i+1} (batch size: {plan['fold_batch_size']})")
 
         plan_scores = []
+        plan_outputs = {}
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
@@ -455,8 +458,9 @@ class ReduceOptimizer:
                 for plan in plans
             ]
             for future in as_completed(futures):
-                plan, score = future.result()
+                plan, score, output = future.result()
                 plan_scores.append((plan, score))
+                plan_outputs[id(plan)] = output
 
         # Sort plans by score in descending order, then by fold_batch_size in descending order
         sorted_plans = sorted(
@@ -474,17 +478,66 @@ class ReduceOptimizer:
             f"\n[green]Selected best plan with score: {best_score:.2f} and batch size: {best_plan['fold_batch_size']}[/green]"
         )
 
-        return best_plan
+        # Create a new plan with merge prompt and updated parameters
+        merged_plan = best_plan.copy()
+
+        # Synthesize merge prompt if it doesn't exist
+        if "merge_prompt" not in merged_plan:
+            merged_plan["merge_prompt"] = self._synthesize_merge_prompt(
+                merged_plan, plan_outputs[id(best_plan)]
+            )
+            # Print the synthesized merge prompt
+            self.console.print("\n[bold]Synthesized Merge Prompt:[/bold]")
+            self.console.print(merged_plan["merge_prompt"])
+
+        # Set merge_batch_size to 2 and num_parallel_folds to 5
+        merged_plan["merge_batch_size"] = 2
+
+        # Evaluate the merged plan
+        _, merged_plan_score, _, operation_instance = self._evaluate_single_plan(
+            merged_plan, input_data, validator_prompt, return_instance=True
+        )
+
+        # Get the merge and fold times from the operation instance
+        merge_times = operation_instance.merge_times
+        fold_times = operation_instance.fold_times
+        merge_avg_time = mean(merge_times) if merge_times else None
+        fold_avg_time = mean(fold_times) if fold_times else None
+
+        self.console.print(f"\n[bold]Scores:[/bold]")
+        self.console.print(f"Original plan: {best_score:.2f}")
+        self.console.print(f"Merged plan: {merged_plan_score:.2f}")
+
+        # Compare scores and decide which plan to use
+        if merged_plan_score >= best_score * 0.75:
+            self.console.print(
+                f"\n[green]Using merged plan with score: {merged_plan_score:.2f}[/green]"
+            )
+            if merge_avg_time and fold_avg_time:
+                merged_plan["merge_time"] = merge_avg_time
+                merged_plan["fold_time"] = fold_avg_time
+            return merged_plan
+        else:
+            self.console.print(
+                f"\n[yellow]Merged plan quality too low. Using original plan with score: {best_score:.2f}[/yellow]"
+            )
+            return best_plan
 
     def _evaluate_single_plan(
         self,
         plan: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
-    ) -> Tuple[Dict[str, Any], float]:
-        output = self._run_operation(plan, input_data)
+        return_instance: bool = False,
+    ) -> Union[
+        Tuple[Dict[str, Any], float, List[Dict[str, Any]]],
+        Tuple[Dict[str, Any], float, List[Dict[str, Any]], BaseOperation],
+    ]:
+        output = self._run_operation(plan, input_data, return_instance)
+        if return_instance:
+            output, operation_instance = output
         validation_result = self._validate_reduce_output(
-            plan, input_data, output, validator_prompt, num_samples=5
+            plan, input_data, output, validator_prompt
         )
 
         # Calculate a score based on validation results
@@ -495,4 +548,61 @@ class ReduceOptimizer:
         )
         score = valid_count / len(validation_result["validation_results"])
 
-        return plan, score
+        if return_instance:
+            return plan, score, output, operation_instance
+        else:
+            return plan, score, output
+
+    def _synthesize_merge_prompt(
+        self, plan: Dict[str, Any], sample_outputs: List[Dict[str, Any]]
+    ) -> str:
+        system_prompt = "You are an AI assistant tasked with creating a merge prompt for reduce operations in data processing pipelines. The pipeline has a reduce operation, and incrementally folds inputs into a single output. We want to optimize the pipeline for speed by running multiple folds on different inputs in parallel, and then merging the fold outputs into a single output."
+
+        output_schema = plan["output"]["schema"]
+        random_output = random.choice(sample_outputs)
+        random_output = {
+            k: random_output[k] for k in output_schema if k in random_output
+        }
+
+        prompt = f"""
+        Reduce Operation Prompt (runs on the first batch of inputs):
+        {plan["prompt"]}
+        
+        Fold Prompt (runs on the second and subsequent batches of inputs):
+        {plan["fold_prompt"]}
+        
+        Sample output of the fold operation (an input to the merge operation):
+        {json.dumps(random_output, indent=2)}
+
+        Create a merge prompt for the reduce operation to combine 2+ folded outputs. The merge prompt should:
+        1. Give context on the task & fold operations, describing that the prompt will be used to combine multiple outputs from the fold operation (as if the original prompt was run on all inputs at once)
+        2. Describe how to combine multiple folded outputs into a single output
+        3. Minimally deviate from the reduce and fold prompts
+
+        The merge prompt should be a Jinja2 template with the following variables available:
+        - {{ outputs }}: A list of reduced outputs to be merged (each following the output schema). You can access the first output with {{ outputs[0] }} and the second with {{ outputs[1] }}
+
+        Output Schema:
+        {json.dumps(output_schema, indent=2)}
+
+        Provide the merge prompt as a string.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "merge_prompt": {
+                    "type": "string",
+                }
+            },
+            "required": ["merge_prompt"],
+        }
+
+        response = self.llm_client.generate(
+            [{"role": "user", "content": prompt}],
+            system_prompt,
+            parameters,
+        )
+        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)[
+            "merge_prompt"
+        ]

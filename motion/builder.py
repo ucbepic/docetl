@@ -4,6 +4,7 @@ import copy
 import yaml
 from typing import Dict, List, Any, Optional, Tuple, Union
 from motion.operations import get_operation
+from motion.operations.base import BaseOperation
 from motion.optimizers.map_optimizer import MapOptimizer
 from motion.optimizers.reduce_optimizer import ReduceOptimizer
 from motion.optimizers.resolve_optimizer import ResolveOptimizer
@@ -524,15 +525,21 @@ class Optimizer:
         return result
 
     def _run_operation(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        return_instance: bool = False,
+    ) -> Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation]]:
         operation_class = get_operation(op_config["type"])
         operation_instance = operation_class(
             op_config, self.config["default_model"], self.max_threads, self.console
         )
         output_data, cost = operation_instance.execute(input_data)
         self.operations_cost += cost
-        return output_data
+        if return_instance:
+            return output_data, operation_instance
+        else:
+            return output_data
 
     def _save_optimized_config(self):
         # Create a copy of the optimized config to modify

@@ -15,7 +15,7 @@ operations:
         src: str
     output:
       schema:
-        context_summary: str
+        summary: str
     prompt: |
       Analyze the following doctor-patient transcripts where the medication "{{ reduce_key }}" is mentioned:
 
@@ -26,7 +26,7 @@ operations:
       ---
       {% endfor %}
 
-      Based on these doctor-patient transcripts, provide a summary of the contexts in which patients take the medication "{{ reduce_key }}". Include the following information:
+      Based on these doctor-patient transcripts, provide a summary of the settings in which patients take the medication "{{ reduce_key }}". Include the following information:
 
       1. A brief summary of why a patient takes this medication.
       2. Any side effects experienced or mentioned.

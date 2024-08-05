@@ -20,12 +20,13 @@ TODO:
 - [x] Optimize resolvers (add blocking rules)
 - [ ] Optimize reduce
   - [x] Implement fold pattern
-  - [ ] Optimize folds
+  - [x] Optimize folds
     - [x] Stratified sample the reduce operations based on the groupby results
     - [x] Synthesize multiple fold prompts
   - [x] Implement merge pattern
   - [ ] Optimize merges
-    - [ ] Synthesize merge prompts
+    - [x] Synthesize merge prompts
+    - [x] Derive num_parallel_folds in the reduce op itself (saving the runtimes of folds and merges)
     - [ ] Try various batch sizes
 - [ ] Optimize equijoins
 - [ ] Auto-generate resolver

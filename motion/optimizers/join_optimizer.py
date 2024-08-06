@@ -19,7 +19,7 @@ class JoinOptimizer:
         console: Console,
         llm_client: Any,
         max_threads: int,
-        target_recall: float = 0.95,
+        target_recall: float = 0.9,
         sample_size: int = 300,
         sampling_weight: float = 5,
         agent_max_retries: int = 5,

@@ -18,7 +18,7 @@ TODO:
   - [x] Call llm agent multiple times on different random inputs & average results
   - [ ] Decompose map to be a chain or parallel map
 - [x] Optimize resolvers (add blocking rules)
-- [ ] Optimize reduce
+- [x] Optimize reduce
   - [x] Implement fold pattern
   - [x] Optimize folds
     - [x] Stratified sample the reduce operations based on the groupby results
@@ -29,12 +29,14 @@ TODO:
     - [x] Derive num_parallel_folds in the reduce op itself (saving the runtimes of folds and merges)
     - [ ] Try various batch sizes
 - [x] Optimize equijoins
-- [ ] Support multiple step workflows in the optimizer
-  - [ ] Incorporate selectivity estimates in the multi-step optimization
-- [ ] Auto-generate resolver
+- [ ] Support multiple operator workflows in the optimizer
+  - [ ] Calculate explosion factor
+  - [ ] Incorporate selectivity estimates in the multi-operator optimization
+- [ ] Write gleaning optimization step
 - [ ] Write documentation on how all the operators work
 - [ ] Change validation to be pairwise comparisons
-- [ ] Write gleaning operations
+- [ ] Auto-generate resolver
+- [ ] Filter optimizer (as an extension of map)
 - [ ] Support model pools
 - [ ] Operator reordering
 - [ ] Support passing expectations

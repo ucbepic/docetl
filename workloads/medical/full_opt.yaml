@@ -10,9 +10,9 @@ operations:
     type: explode
   resolve_medications:
     blocking_keys:
-      - medication
-    blocking_threshold: 0.3232
-    comparison_prompt: "Compare the following two medication entries:
+    - medication
+    blocking_threshold: 0.6465
+    comparison_prompt: 'Compare the following two medication entries:
 
       Entry 1: {{ input1.medication }}
 
@@ -21,12 +21,12 @@ operations:
 
       Are these medications likely to be the same or closely related?
 
-      "
+      '
     embedding_model: text-embedding-3-small
     output:
       schema:
         medication: str
-    resolution_prompt: "Given the following matched medication entries:
+    resolution_prompt: 'Given the following matched medication entries:
 
       {% for entry in matched_entries %}
 
@@ -39,10 +39,10 @@ operations:
       name should be a standardized, widely recognized medication name that best represents
       all matched entries.
 
-      "
+      '
     type: resolve
   split_extract_medications:
-    chunk_size: 888
+    chunk_size: 862
     peripheral_chunks:
       previous:
         tail:
@@ -54,8 +54,7 @@ operations:
     output:
       schema:
         medication: list[str]
-    prompt:
-      "Analyze the following chunk from the transcript of a conversation between
+    prompt: 'Analyze the following chunk of a transcript of a conversation between
       a doctor and a patient:
 
 
@@ -65,7 +64,7 @@ operations:
       Extract and list all medications mentioned in the chunk.
 
       If no medications are mentioned, return an empty list. Only process the main
-      chunk."
+      chunk.'
     type: map
   subreduce_extract_medications:
     input:
@@ -76,30 +75,21 @@ operations:
       schema:
         medication: list[str]
     pass_through: true
-    prompt:
-      "Given the following outputs from processing chunks of a transcript, combine
-      them to extract and list all medications mentioned. If no medications are mentioned,
-      return an empty list.
-
-
-      Outputs:
-
-      {{ values }}
-
-
-      Extracted medications:"
+    prompt: "Combine the following medication lists extracted from chunks of a transcript\
+      \ into a single comprehensive list:\n\n{{ values }}\n\nEnsure there are no duplicates.\n\
+      \nOutput schema:\n{\n  \"medication\": \"list[str]\"\n}"
     reduce_key: document_id
     type: reduce
 pipeline:
   output:
-    path: /tmp/extracted_medical_info.json
+    path: extracted_medical_info.json
     type: file
   steps:
-    - input: transcripts
-      name: medical_info_extraction
-      operations:
-        - split_extract_medications
-        - submap_extract_medications
-        - subreduce_extract_medications
-        - explode_medications
-        - resolve_medications
+  - input: transcripts
+    name: medical_info_extraction
+    operations:
+    - split_extract_medications
+    - submap_extract_medications
+    - subreduce_extract_medications
+    - explode_medications
+    - resolve_medications

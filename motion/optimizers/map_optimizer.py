@@ -1,11 +1,14 @@
 import json
-from typing import Any, Dict, List, Callable
+from typing import Any, Dict, List, Callable, Tuple, Union
 from motion.optimizers.utils import LLMClient, extract_jinja_variables
 import random
 from motion.operations import get_operation
 from rich.console import Console
 import jinja2
 import copy
+from rich.table import Table
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 
 class MapOptimizer:
@@ -16,12 +19,208 @@ class MapOptimizer:
         llm_client: LLMClient,
         max_threads: int,
         run_operation: Callable,
+        timeout: int = 60,
     ):
         self.config = config
         self.console = console
         self.llm_client = llm_client
         self._run_operation = run_operation
         self.max_threads = max_threads
+        self.timeout = timeout
+
+    def optimize(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        # Execute the original operation on the sample data
+        output_data = self._run_operation(op_config, input_data)
+
+        # Generate custom validator prompt
+        validator_prompt = self._generate_validator_prompt(
+            op_config, input_data, output_data
+        )
+
+        # Step 2: Use the validator prompt to assess the operation's performance
+        assessment = self._assess_operation(
+            op_config, input_data, output_data, validator_prompt
+        )
+
+        # Print out the assessment
+        self.console.print(
+            f"[bold]Assessment for whether we should improve operation {op_config['name']}:[/bold]"
+        )
+        self.console.print(json.dumps(assessment, indent=2))
+        self.console.print("\n")  # Add a newline for better readability
+
+        # Check if improvement is needed based on the assessment
+        if assessment.get("needs_improvement", True) == False:
+            self.console.print(
+                f"[green]No improvement needed for operation {op_config['name']}[/green]"
+            )
+            return [op_config], output_data
+
+        # Generate improved prompt plan
+        improved_prompt_plan = self._get_improved_prompt(
+            op_config, assessment, input_data
+        )
+
+        # Generate chunk size plans
+        chunk_size_plans = self._generate_chunk_size_plans(op_config, input_data)
+
+        # Evaluate both plans
+        plans_to_evaluate = {
+            "improved_prompt_plan": improved_prompt_plan,
+            **chunk_size_plans,
+        }
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = {
+                executor.submit(
+                    self._evaluate_plan,
+                    plan_name,
+                    op_config,
+                    plan,
+                    copy.deepcopy(input_data),
+                    validator_prompt,
+                    num_evaluations=min(5, len(input_data)),
+                ): plan_name
+                for plan_name, plan in plans_to_evaluate.items()
+            }
+            results = {}
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="Evaluating plans",
+            ):
+                plan_name = futures[future]
+                score, output = future.result(timeout=self.timeout)
+                results[plan_name] = (score, output)
+
+        # Create a table of scores sorted in descending order
+        scores = sorted(
+            [(score, plan) for plan, (score, _) in results.items()], reverse=True
+        )
+
+        self.console.print(
+            f"\n[bold]Score Distribution for {op_config['name']} ({op_config['type']}, {len(scores)} plans):[/bold]"
+        )
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Plan", style="dim", width=30)
+        table.add_column("Score", justify="right")
+        for score, plan in scores:
+            table.add_row(plan, f"{score:.2f}")
+
+        self.console.print(table)
+        self.console.print("\n")
+
+        # Choose the best plan
+        best_plan_name = max(results, key=lambda x: results[x][0])
+        _, best_output = results[best_plan_name]
+        self.console.print(
+            f"[green]Choosing {best_plan_name} for operation {op_config['name']}[/green]"
+        )
+        return plans_to_evaluate[best_plan_name], best_output
+
+    def _evaluate_plan(
+        self,
+        plan_name: str,
+        op_config: Dict[str, Any],
+        plan: Union[Dict[str, Any], List[Dict[str, Any]]],
+        input_data: List[Dict[str, Any]],
+        validator_prompt: str,
+        num_evaluations: int,
+    ) -> Tuple[float, List[Dict[str, Any]]]:
+        if isinstance(plan, dict):
+            plan = [plan]
+
+        output_data = input_data
+        for op in plan:
+            output_data = self._run_operation(op, output_data)
+
+        scores = []
+
+        for _ in range(num_evaluations):
+            # Evaluate the quality of the output using the custom validator prompt
+            quality = self._assess_output_quality(
+                op_config, input_data, output_data, validator_prompt
+            )
+            score_map = {
+                "Satisfactory": 4,
+                "Mostly Satisfactory": 3,
+                "Partially Satisfactory": 2,
+                "Unsatisfactory": 1,
+            }
+            scores.append(score_map.get(quality["quality_category"], 0))
+
+        average_score = sum(scores) / num_evaluations
+        # Print the quality assessment for the last evaluation
+        # self.console.print(f"[bold]Quality assessment for plan {plan_name}:[/bold]")
+        # self.console.print(f"\tCategory: {quality['quality_category']}")
+        # self.console.print(f"\tReason: {quality['reason']}")
+        # self.console.print(f"\tAverage Score: {average_score:.2f}")
+        # self.console.print("\n")  # Add a newline for better readability
+
+        return average_score, output_data
+
+    def _assess_output_quality(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        output_data: List[Dict[str, Any]],
+        validator_prompt: str,
+    ) -> str:
+        system_prompt = "You are an AI assistant tasked with evaluating the quality of data processing outputs."
+        output_schema_keys = op_config["output"]["schema"].keys()
+        random_idx = random.randint(0, len(input_data) - 1)
+        document_id = input_data[random_idx]["document_id"]
+        input_elem = input_data[random_idx]
+        output_elem = [
+            item for item in output_data if item["document_id"] == document_id
+        ][0]
+        output_elem = {key: output_elem[key] for key in output_schema_keys}
+
+        prompt = f"""
+        {validator_prompt}
+
+        Input and Output Data Sample:
+        {json.dumps({"input": input_elem, "output": output_elem}, indent=2)}
+
+        Based on the validator prompt and the input-output data samples, assess the quality of the output.
+        Categorize the quality into one of these four categories:
+        1. "Unsatisfactory": The output failed to meet the validator prompt requirements.
+        2. "Partially Satisfactory": The output met some of the validator prompt requirements but not all.
+        3. "Mostly Satisfactory": The output mostly met the validator prompt requirements but has some room for improvement.
+        3. "Satisfactory": The output fully met the validator prompt requirements.
+
+        Provide your response in the following format:
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "quality_category": {
+                    "type": "string",
+                    "enum": [
+                        "Unsatisfactory",
+                        "Partially Satisfactory",
+                        "Satisfactory",
+                    ],
+                },
+                "reason": {"type": "string"},
+            },
+            "required": ["quality_category", "reason"],
+        }
+
+        response = self.llm_client.generate(
+            [
+                {"role": "user", "content": prompt},
+            ],
+            system_prompt,
+            parameters,
+        )
+        result = json.loads(
+            response.choices[0].message.tool_calls[0].function.arguments
+        )
+
+        return result
 
     def _generate_validator_prompt(
         self,

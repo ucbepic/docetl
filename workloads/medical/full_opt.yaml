@@ -1,0 +1,105 @@
+datasets:
+  transcripts:
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/raw_with_id.json
+    type: file
+default_model: gpt-4o-mini
+operations:
+  explode_medications:
+    explode_key: medication
+    name: explode_medications
+    type: explode
+  resolve_medications:
+    blocking_keys:
+      - medication
+    blocking_threshold: 0.3232
+    comparison_prompt: "Compare the following two medication entries:
+
+      Entry 1: {{ input1.medication }}
+
+      Entry 2: {{ input2.medication }}
+
+
+      Are these medications likely to be the same or closely related?
+
+      "
+    embedding_model: text-embedding-3-small
+    output:
+      schema:
+        medication: str
+    resolution_prompt: "Given the following matched medication entries:
+
+      {% for entry in matched_entries %}
+
+      Entry {{ loop.index }}: {{ entry.medication }}
+
+      {% endfor %}
+
+
+      Determine the best resolved medication name for this group of entries. The resolved
+      name should be a standardized, widely recognized medication name that best represents
+      all matched entries.
+
+      "
+    type: resolve
+  split_extract_medications:
+    chunk_size: 888
+    peripheral_chunks:
+      previous:
+        tail:
+          count: 1
+    split_key: src
+    type: split
+  submap_extract_medications:
+    model: gpt-4o-mini
+    output:
+      schema:
+        medication: list[str]
+    prompt:
+      "Analyze the following chunk from the transcript of a conversation between
+      a doctor and a patient:
+
+
+      {{ input.chunk_content }}
+
+
+      Extract and list all medications mentioned in the chunk.
+
+      If no medications are mentioned, return an empty list. Only process the main
+      chunk."
+    type: map
+  subreduce_extract_medications:
+    input:
+      schema:
+        medication: list[str]
+    model: gpt-4o-mini
+    output:
+      schema:
+        medication: list[str]
+    pass_through: true
+    prompt:
+      "Given the following outputs from processing chunks of a transcript, combine
+      them to extract and list all medications mentioned. If no medications are mentioned,
+      return an empty list.
+
+
+      Outputs:
+
+      {{ values }}
+
+
+      Extracted medications:"
+    reduce_key: document_id
+    type: reduce
+pipeline:
+  output:
+    path: /tmp/extracted_medical_info.json
+    type: file
+  steps:
+    - input: transcripts
+      name: medical_info_extraction
+      operations:
+        - split_extract_medications
+        - submap_extract_medications
+        - subreduce_extract_medications
+        - explode_medications
+        - resolve_medications

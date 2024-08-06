@@ -58,6 +58,14 @@ class LLMClient:
         return response
 
 
+SAMPLE_SIZE_MAP = {
+    "reduce": 40,
+    "map": 10,
+    "resolve": 100,
+    "equijoin": 100,
+}
+
+
 class Optimizer:
     def __init__(
         self,
@@ -68,18 +76,14 @@ class Optimizer:
     ):
         self.yaml_file_path = yaml_file
         self.config = load_config(yaml_file)
-        self.sample_size = {
-            "reduce": 40,
-            "map": 10,
-            "resolve": 100,
-            "equijoin": 100,
-        }
         self.console = Console()
         self.optimized_config = self.config.copy()
         self.llm_client = LLMClient(model)
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.operations_cost = 0
         self.timeout = timeout
+        self.sample_sizes = defaultdict(dict)
+        self.datasets = {}
 
         self.print_optimizer_config()
 
@@ -87,19 +91,73 @@ class Optimizer:
         self.console.print("[bold cyan]Optimizer Configuration:[/bold cyan]")
         self.console.print("─" * 40)
         self.console.print(f"[yellow]YAML File:[/yellow] {self.yaml_file_path}")
-        self.console.print(f"[yellow]Sample Size:[/yellow] {self.sample_size}")
+        self.console.print(f"[yellow]Sample Size:[/yellow] {SAMPLE_SIZE_MAP}")
         self.console.print(f"[yellow]Max Threads:[/yellow] {self.max_threads}")
         self.console.print(f"[yellow]Model:[/yellow] {self.llm_client.model}")
         self.console.print(f"[yellow]Timeout:[/yellow] {self.timeout} seconds")
         self.console.print("─" * 40)
 
+    def analyze_pipeline(self):
+        steps = self.config["pipeline"]["steps"]
+        dependencies = defaultdict(list)
+
+        # Analyze dependencies
+        for i, step in enumerate(steps):
+            for j in range(i + 1, len(steps)):
+                if steps[j].get("input") == step.get("name"):
+                    dependencies[i].append(j)
+
+        # Determine sample sizes for each operation in each step
+        for i in range(len(steps) - 1, -1, -1):
+            step = steps[i]
+            step_name = step.get("name")
+            downstream_samples = max(
+                [max(self.sample_sizes[j].values(), default=0) for j in dependencies[i]]
+                + [0]
+            )
+
+            for operation in step["operations"]:
+                if isinstance(operation, dict):
+                    operation_name = list(operation.keys())[0]
+                    operation_config = self.config["operations"][operation_name]
+                else:
+                    operation_name = operation
+                    operation_config = self.config["operations"][operation_name]
+
+                op_type = operation_config.get("type")
+                self.sample_sizes[step_name][operation_name] = max(
+                    SAMPLE_SIZE_MAP.get(op_type, float("inf")), downstream_samples
+                )
+
+        self.print_sample_sizes()
+
+    def print_sample_sizes(self):
+        self.console.print("[bold cyan]Sample Sizes:[/bold cyan]")
+        self.console.print("─" * 40)
+        for step_name, operations in self.sample_sizes.items():
+            self.console.print(f"[yellow]Step:[/yellow] {step_name}")
+            for operation_name, sample_size in operations.items():
+                self.console.print(f"  [green]{operation_name}:[/green] {sample_size}")
+            self.console.print("─" * 40)
+
     def optimize(self):
+        self.analyze_pipeline()
+
         optimized_steps = []
         optimized_operations = {}
         for step in self.config["pipeline"]["steps"]:
-            optimized_step, optimized_operations = self._optimize_step(step)
+            step_name = step.get("name")
+            if not step_name:
+                raise ValueError(
+                    f"Step does not have a name. Each step must have a unique name."
+                )
+
+            optimized_step, step_operations, input_data = self._optimize_step(step)
             optimized_steps.append(optimized_step)
-            optimized_operations.update(optimized_operations)
+            optimized_operations.update(step_operations)
+
+            # Save the result to datasets using the step name
+            self.datasets[step_name] = copy.deepcopy(input_data)
 
         self.optimized_config["operations"] = optimized_operations
         self.optimized_config["pipeline"]["steps"] = optimized_steps
@@ -117,7 +175,7 @@ class Optimizer:
 
     def _optimize_step(
         self, step: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
         optimized_operations = {}
         input_data = None
 
@@ -132,15 +190,22 @@ class Optimizer:
             op_object = self.config["operations"][operation_name].copy()
             op_object.update(operation_config)
             op_object["name"] = operation_name
-
-            if input_data is None:
-                input_data = self._get_sample_data(step.get("input"), op_object)
+            sample_size = self.sample_sizes[step.get("name")][operation_name]
 
             # For equijoin operations, load both left and right datasets
             if op_object.get("type") == "equijoin":
-                left_data = self._get_sample_data(op_object.get("left"), op_object)
-                right_data = self._get_sample_data(op_object.get("right"), op_object)
+                left_data = self._get_sample_data(
+                    op_object.get("left"), op_object, sample_size
+                )
+                right_data = self._get_sample_data(
+                    op_object.get("right"), op_object, sample_size
+                )
                 input_data = {"left": left_data, "right": right_data}
+            else:
+                if input_data is None:
+                    input_data = self._get_sample_data(
+                        step.get("input"), op_object, sample_size
+                    )
 
             if (
                 op_object.get("optimize", True) == False
@@ -217,30 +282,41 @@ class Optimizer:
 
         optimized_step = step.copy()
         optimized_step["operations"] = list(optimized_operations.keys())
-        return optimized_step, optimized_operations
+        return optimized_step, optimized_operations, input_data
 
     def _get_sample_data(
-        self, dataset_name: str, op_config: Dict[str, Any]
+        self, dataset_name: str, op_config: Optional[Dict[str, Any]], sample_size: int
     ) -> List[Dict[str, Any]]:
         if dataset_name is None:
             return []
 
-        dataset = self.config["datasets"][dataset_name]
-        if dataset["type"] == "file":
-            with open(dataset["path"], "r") as f:
-                data = json.load(f)
+        if dataset_name in self.datasets:
+            data = self.datasets[dataset_name]
+        else:
+            dataset = self.config["datasets"].get(dataset_name)
+            if dataset is None:
+                raise ValueError(
+                    f"Dataset '{dataset_name}' not found in config or previous steps."
+                )
+            if dataset["type"] == "file":
+                with open(dataset["path"], "r") as f:
+                    data = json.load(f)
+            else:
+                raise ValueError(f"Unsupported dataset type: {dataset['type']}")
+
+        if op_config:
+            if sample_size == float("inf"):
+                return data
 
             if op_config.get("type") == "reduce":
-                return self._get_reduce_sample(data, op_config.get("reduce_key"))
-            else:
-                return random.sample(
-                    data, min(self.sample_size[op_config.get("type")], len(data))
+                return self._get_reduce_sample(
+                    data, op_config.get("reduce_key"), sample_size
                 )
-        else:
-            raise ValueError(f"Unsupported dataset type: {dataset['type']}")
+
+        return random.sample(data, min(sample_size, len(data)))
 
     def _get_reduce_sample(
-        self, data: List[Dict[str, Any]], reduce_key: str
+        self, data: List[Dict[str, Any]], reduce_key: str, sample_size: int
     ) -> List[Dict[str, Any]]:
         # Group data by reduce key
         grouped_data = defaultdict(list)
@@ -264,14 +340,14 @@ class Optimizer:
         for _, items in top_5_groups:
             # Calculate the proportion of items to sample from this group
             group_proportion = len(items) / total_count
-            group_sample_size = int(self.sample_size["reduce"] * group_proportion)
+            group_sample_size = int(sample_size * group_proportion)
 
             # Sample from the group
             group_sample = random.sample(items, min(group_sample_size, len(items)))
             sample.extend(group_sample)
 
         # If we haven't reached the desired sample size, add more items randomly
-        if len(sample) < self.sample_size["reduce"]:
+        if len(sample) < sample_size:
             remaining_items = [
                 item
                 for _, items in top_5_groups
@@ -279,7 +355,22 @@ class Optimizer:
                 if item not in sample
             ]
             additional_sample = random.sample(
-                remaining_items, self.sample_size["reduce"] - len(sample)
+                remaining_items,
+                min(sample_size - len(sample), len(remaining_items)),
+            )
+            sample.extend(additional_sample)
+
+        # Add items randomly from non-top groups to meet the sample size
+        if len(sample) < sample_size:
+            remaining_items = [
+                item
+                for _, items in grouped_data.items()
+                for item in items
+                if item not in sample
+            ]
+            additional_sample = random.sample(
+                remaining_items,
+                min(sample_size - len(sample), len(remaining_items)),
             )
             sample.extend(additional_sample)
 
@@ -609,5 +700,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/equijoin.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/full.yaml", model="gpt-4o")
     optimizer.optimize()

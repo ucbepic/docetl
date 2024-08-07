@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from jinja2 import Template
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, parse_llm_response, call_llm_with_gleaning
-from motion.operations.utils import validate_output, rich_as_completed
+from motion.operations.utils import validate_output, rich_as_completed, RichLoopBar
 from litellm import completion_cost
 from rich.console import Console
 
@@ -188,14 +188,13 @@ class ParallelMapOperation(BaseOperation):
             ]
 
             # Process results in order
-            for i, future in enumerate(
-                rich_as_completed(
-                    all_futures,
-                    total=len(all_futures),
-                    desc="Processing parallel map items",
-                    console=self.console,
-                )
-            ):
+            pbar = RichLoopBar(
+                range(len(all_futures)),
+                desc="Processing parallel map items",
+                console=self.console,
+            )
+            for i in pbar:
+                future = all_futures[i]
                 output, cost = future.result()
                 total_cost += cost
 
@@ -215,5 +214,7 @@ class ParallelMapOperation(BaseOperation):
                 if prompt_index == len(self.config["prompts"]) - 1:
                     if not validate_output(self.config, item_result, self.console):
                         results.pop()  # Remove the invalid result
+
+                pbar.update(i)
 
         return results, total_cost

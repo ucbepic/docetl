@@ -16,7 +16,7 @@ TODO:
   - [x] Generate multiple plans and evaluate them instead of generating one plan
   - [x] Don't use an LLM to determine the right chunk size; try searching many chunk sizes
   - [x] Call llm agent multiple times on different random inputs & average results
-  - [ ] Decompose map to be a chain or parallel map
+  - [x] Decompose map to be a chain or parallel map
   - [ ] Debug finnicky combine prompts
 - [x] Optimize resolvers (add blocking rules)
 - [x] Optimize reduce
@@ -36,6 +36,8 @@ TODO:
 - [x] Write gleaning optimization step
   - [ ] Incorporate gleaning in reduce
 - [ ] Write documentation on how all the operators work
+- [ ] Run tests in CI
+- [ ] Write tests for optimizers
 - [ ] Auto-generate resolver
 - [ ] Filter optimizer (as an extension of map)
 - [ ] Change validation to be pairwise comparisons
@@ -45,4 +47,3 @@ TODO:
 - [ ] Write intermediates to disk
 - [ ] Support order by
 - [ ] Track traces
-      l

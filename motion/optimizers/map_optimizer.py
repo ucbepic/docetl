@@ -310,7 +310,7 @@ class MapOptimizer:
                 "num_rounds": gleaning_round,
                 "validation_prompt": validation_prompt,
             }
-            plans[f"gleaning_{gleaning_round}"] = [op_config_copy]
+            plans[f"gleaning_{gleaning_round}_rounds"] = [op_config_copy]
         return plans
 
     def _generate_parallel_plans(

@@ -38,8 +38,9 @@ def call_llm(
 
     parameters = {"type": "object", "properties": props}
     parameters["required"] = list(props.keys())
+    parameters["additionalProperties"] = False
 
-    system_prompt = f"You are a helpful assistant to intelligently process data, writing outputs to a database. This is a {op_type} operation."
+    system_prompt = f"You are a helpful assistant to intelligently process data. This is a {op_type} operation."
 
     response = completion(
         model=model,
@@ -53,23 +54,30 @@ def call_llm(
                 "content": prompt,
             },
         ],
+        # response_format={
+        #     "type": "json_schema",
+        #     "json_schema": {
+        #         "name": "output",
+        #         "strict": True,
+        #         "schema": parameters,
+        #     },
+        # },
         tools=[
             {
                 "type": "function",
                 "function": {
                     "name": "write_output",
                     "description": "Write output to a database",
+                    "strict": True,
                     "parameters": parameters,
+                    "additionalProperties": False,
                 },
             }
         ],
-        # parallel_tool_calls=False,
-        num_retries=2,
+        parallel_tool_calls=False,
+        # num_retries=1,
         tool_choice={"type": "function", "function": {"name": "write_output"}},
     )
-    # if op_type == "merge":
-    #     print(prompt)
-    #     print(response)
 
     return response
 
@@ -82,6 +90,9 @@ def parse_llm_response(response: Any) -> List[Dict[str, Any]]:
         if tool_call.function.name == "write_output":
             tools.append(json.loads(tool_call.function.arguments))
     return tools
+
+    # message = response.choices[0].message
+    # return [json.loads(message.content)]
 
 
 def validate_output(operation: Dict, output: Dict, console: Console) -> bool:

@@ -495,11 +495,12 @@ class JoinOptimizer:
                             "description": "One-line Python statement acting as a blocking rule",
                         }
                     },
+                    "required": ["blocking_rule"],
                 },
             )
 
             # Extract the blocking rule from the LLM response
-            blocking_rule = response.choices[0].message.tool_calls[0].function.arguments
+            blocking_rule = response.choices[0].message.content
             blocking_rule = json.loads(blocking_rule).get("blocking_rule")
 
             if blocking_rule:
@@ -656,10 +657,11 @@ class JoinOptimizer:
                             "description": "One-line Python statement acting as a blocking rule",
                         }
                     },
+                    "required": ["blocking_rule"],
                 },
             )
 
-            blocking_rule = response.choices[0].message.tool_calls[0].function.arguments
+            blocking_rule = response.choices[0].message.content
             blocking_rule = json.loads(blocking_rule).get("blocking_rule")
 
             if blocking_rule:

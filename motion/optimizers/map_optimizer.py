@@ -216,9 +216,7 @@ class MapOptimizer:
             system_prompt,
             parameters,
         )
-        result = json.loads(
-            response.choices[0].message.tool_calls[0].function.arguments
-        )
+        result = json.loads(response.choices[0].message.content)
 
         return result
 
@@ -261,9 +259,7 @@ class MapOptimizer:
             system_prompt,
             parameters,
         )
-        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)[
-            "validator_prompt"
-        ]
+        return json.loads(response.choices[0].message.content)["validator_prompt"]
 
     def _assess_operation(
         self,
@@ -306,7 +302,7 @@ class MapOptimizer:
             system_prompt,
             parameters,
         )
-        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)
+        return json.loads(response.choices[0].message.content)
 
     def _get_improved_prompt(
         self,
@@ -350,9 +346,7 @@ class MapOptimizer:
             system_prompt,
             parameters,
         )
-        result = json.loads(
-            response.choices[0].message.tool_calls[0].function.arguments
-        )
+        result = json.loads(response.choices[0].message.content)
 
         improved_op_config = op_config.copy()
         improved_op_config["prompt"] = result["new_prompt"]
@@ -531,9 +525,7 @@ class MapOptimizer:
             system_prompt,
             parameters,
         )
-        result = json.loads(
-            response.choices[0].message.tool_calls[0].function.arguments
-        )
+        result = json.loads(response.choices[0].message.content)
 
         # Strip out "input." from split_key if it exists
         result["split_key"] = result["split_key"].replace("input.", "")
@@ -643,7 +635,7 @@ class MapOptimizer:
             system_prompt,
             parameters,
         )
-        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)
+        return json.loads(response.choices[0].message.content)
 
     def _get_metadata_config(
         self,
@@ -719,9 +711,7 @@ class MapOptimizer:
                     system_prompt,
                     parameters,
                 )
-                result = json.loads(
-                    response.choices[0].message.tool_calls[0].function.arguments
-                )
+                result = json.loads(response.choices[0].message.content)
                 chat_history += [
                     {"role": "assistant", "content": result},
                 ]
@@ -836,9 +826,7 @@ class MapOptimizer:
             system_prompt,
             parameters,
         )
-        result = json.loads(
-            response.choices[0].message.tool_calls[0].function.arguments
-        )
+        result = json.loads(response.choices[0].message.content)
 
         return result["edited_subprompt"]
 
@@ -972,7 +960,7 @@ class MapOptimizer:
             system_prompt,
             parameters,
         )
-        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)
+        return json.loads(response.choices[0].message.content)
 
     def _get_combine_prompt(
         self,

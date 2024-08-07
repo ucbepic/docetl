@@ -66,6 +66,9 @@ class EquijoinOperation(BaseOperation):
                 for condition in blocking_conditions
             )
 
+        if len(left_data) == 0 or len(right_data) == 0:
+            return [], 0
+
         # Initial blocking
         blocked_pairs = []
         for left_item in left_data:

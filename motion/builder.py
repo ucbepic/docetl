@@ -13,7 +13,6 @@ from rich.console import Console
 from rich.table import Table
 import random
 import json
-from litellm import completion, completion_cost
 import os
 import jinja2
 from jinja2 import Environment, meta

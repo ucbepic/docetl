@@ -131,9 +131,7 @@ class ReduceOptimizer:
             system_prompt,
             parameters,
         )
-        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)[
-            "validator_prompt"
-        ]
+        return json.loads(response.choices[0].message.content)["validator_prompt"]
 
     def _validate_reduce_output(
         self,
@@ -215,9 +213,7 @@ class ReduceOptimizer:
             for future in as_completed(futures):
                 response = future.result()
                 validation_results.append(
-                    json.loads(
-                        response.choices[0].message.tool_calls[0].function.arguments
-                    )
+                    json.loads(response.choices[0].message.content)
                 )
 
         # Determine if optimization is needed based on validation results
@@ -426,9 +422,7 @@ class ReduceOptimizer:
                 system_prompt,
                 parameters,
             )
-            return json.loads(
-                response.choices[0].message.tool_calls[0].function.arguments
-            )["fold_prompt"]
+            return json.loads(response.choices[0].message.content)["fold_prompt"]
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             fold_prompts = list(
@@ -603,6 +597,4 @@ class ReduceOptimizer:
             system_prompt,
             parameters,
         )
-        return json.loads(response.choices[0].message.tool_calls[0].function.arguments)[
-            "merge_prompt"
-        ]
+        return json.loads(response.choices[0].message.content)["merge_prompt"]

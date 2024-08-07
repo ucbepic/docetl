@@ -11,7 +11,7 @@ operations:
   resolve_medications:
     blocking_keys:
     - medication
-    blocking_threshold: 0.6465
+    blocking_threshold: 0.5758
     comparison_prompt: 'Compare the following two medication entries:
 
       Entry 1: {{ input1.medication }}
@@ -42,11 +42,7 @@ operations:
       '
     type: resolve
   split_extract_medications:
-    chunk_size: 862
-    peripheral_chunks:
-      previous:
-        tail:
-          count: 1
+    chunk_size: 799
     split_key: src
     type: split
   submap_extract_medications:
@@ -54,14 +50,12 @@ operations:
     output:
       schema:
         medication: list[str]
-    prompt: 'Analyze the following chunk of a transcript of a conversation between
-      a doctor and a patient:
+    prompt: 'Extract and list all medications mentioned in the following transcript
+      chunk:
 
 
       {{ input.chunk_content }}
 
-
-      Extract and list all medications mentioned in the chunk.
 
       If no medications are mentioned, return an empty list. Only process the main
       chunk.'
@@ -75,8 +69,8 @@ operations:
       schema:
         medication: list[str]
     pass_through: true
-    prompt: "Combine the following medication lists extracted from chunks of a transcript\
-      \ into a single comprehensive list:\n\n{{ values }}\n\nEnsure there are no duplicates.\n\
+    prompt: "Combine the following results from transcript chunks to extract and list\
+      \ all medications:\n\n{{ values }}\n\nProvide the combined list of medications.\n\
       \nOutput schema:\n{\n  \"medication\": \"list[str]\"\n}"
     reduce_key: document_id
     type: reduce

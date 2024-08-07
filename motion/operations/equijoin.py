@@ -125,7 +125,7 @@ class EquijoinOperation(BaseOperation):
         total_possible_comparisons = len(left_data) * len(right_data)
         comparisons_made = len(blocked_pairs)
         comparisons_saved = total_possible_comparisons - comparisons_made
-        self.console.print(
+        self.console.log(
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
@@ -189,6 +189,6 @@ class EquijoinOperation(BaseOperation):
             if len(left_data) * len(right_data) > 0
             else 0
         )
-        self.console.print(f"Equijoin selectivity: {join_selectivity:.4f}")
+        self.console.log(f"Equijoin selectivity: {join_selectivity:.4f}")
 
         return results, total_cost

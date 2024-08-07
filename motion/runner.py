@@ -38,7 +38,7 @@ class DSLRunner:
                     f"Syntax check failed for operation '{operation}': {str(e)}"
                 )
 
-        self.console.print("[green]Syntax check passed for all operations.[/green]")
+        self.console.log("[green]Syntax check passed for all operations.[/green]")
 
     def run(self) -> float:
         self.load_datasets()
@@ -103,11 +103,9 @@ class DSLRunner:
             op_task = progress.add_task(
                 f"Running operation [cyan]{operation_name}[/cyan]...", total=1
             )
-            self.console.print(f"[bold]Running Operation:[/bold]")
-            self.console.print(f"  Type: [cyan]{op_object['type']}[/cyan]")
-            self.console.print(
-                f"  Name: [cyan]{op_object.get('name', 'Unnamed')}[/cyan]"
-            )
+            self.console.log(f"[bold]Running Operation:[/bold]")
+            self.console.log(f"  Type: [cyan]{op_object['type']}[/cyan]")
+            self.console.log(f"  Name: [cyan]{op_object.get('name', 'Unnamed')}[/cyan]")
 
             operation_class = get_operation(op_object["type"])
             operation_instance = operation_class(

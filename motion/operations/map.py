@@ -77,7 +77,7 @@ class MapOperation(BaseOperation):
         schema = self.config["output"]["schema"]
         for key in schema:
             if key not in output:
-                self.console.print(f"[red]Error: Missing key '{key}' in output[/red]")
+                self.console.log(f"[red]Error: Missing key '{key}' in output[/red]")
                 return False
         return True
 

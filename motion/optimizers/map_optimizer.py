@@ -51,15 +51,15 @@ class MapOptimizer:
         )
 
         # Print out the assessment
-        self.console.print(
+        self.console.log(
             f"[bold]Assessment for whether we should improve operation {op_config['name']}:[/bold]"
         )
-        self.console.print(json.dumps(assessment, indent=2))
-        self.console.print("\n")  # Add a newline for better readability
+        self.console.log(json.dumps(assessment, indent=2))
+        self.console.log("\n")  # Add a newline for better readability
 
         # Check if improvement is needed based on the assessment
         if assessment.get("needs_improvement", True) == False:
-            self.console.print(
+            self.console.log(
                 f"[green]No improvement needed for operation {op_config['name']}[/green]"
             )
             return [op_config], output_data
@@ -97,20 +97,18 @@ class MapOptimizer:
                     score, output = future.result(timeout=self.timeout)
                     results[plan_name] = (score, output)
                 except concurrent.futures.TimeoutError:
-                    self.console.print(
+                    self.console.log(
                         f"[yellow]Plan {plan_name} timed out and will be skipped.[/yellow]"
                     )
                 except Exception as e:
-                    self.console.print(
-                        f"[red]Error in plan {plan_name}: {str(e)}[/red]"
-                    )
+                    self.console.log(f"[red]Error in plan {plan_name}: {str(e)}[/red]")
 
         # Create a table of scores sorted in descending order
         scores = sorted(
             [(score, plan) for plan, (score, _) in results.items()], reverse=True
         )
 
-        self.console.print(
+        self.console.log(
             f"\n[bold]Score Distribution for {op_config['name']} ({op_config['type']}, {len(scores)} plans):[/bold]"
         )
         table = Table(show_header=True, header_style="bold magenta")
@@ -119,13 +117,13 @@ class MapOptimizer:
         for score, plan in scores:
             table.add_row(plan, f"{score:.2f}")
 
-        self.console.print(table)
-        self.console.print("\n")
+        self.console.log(table)
+        self.console.log("\n")
 
         # Choose the best plan
         best_plan_name = max(results, key=lambda x: results[x][0])
         _, best_output = results[best_plan_name]
-        self.console.print(
+        self.console.log(
             f"[green]Choosing {best_plan_name} for operation {op_config['name']}[/green]"
         )
         return plans_to_evaluate[best_plan_name], best_output
@@ -163,11 +161,11 @@ class MapOptimizer:
 
         average_score = sum(scores) / num_evaluations
         # Print the quality assessment for the last evaluation
-        # self.console.print(f"[bold]Quality assessment for plan {plan_name}:[/bold]")
-        # self.console.print(f"\tCategory: {quality['quality_category']}")
-        # self.console.print(f"\tReason: {quality['reason']}")
-        # self.console.print(f"\tAverage Score: {average_score:.2f}")
-        # self.console.print("\n")  # Add a newline for better readability
+        # self.console.log(f"[bold]Quality assessment for plan {plan_name}:[/bold]")
+        # self.console.log(f"\tCategory: {quality['quality_category']}")
+        # self.console.log(f"\tReason: {quality['reason']}")
+        # self.console.log(f"\tAverage Score: {average_score:.2f}")
+        # self.console.log("\n")  # Add a newline for better readability
 
         return average_score, output_data
 
@@ -370,8 +368,8 @@ class MapOptimizer:
 
         chunk_sizes = self._generate_chunk_sizes(split_result["split_key"], input_data)
 
-        self.console.print("[bold]Chunk Sizes to Evaluate:[/bold]")
-        self.console.print(f"{chunk_sizes}")
+        self.console.log("[bold]Chunk Sizes to Evaluate:[/bold]")
+        self.console.log(f"{chunk_sizes}")
 
         avg_doc_size = sum(
             len(doc[split_result["split_key"]].split()) for doc in input_data
@@ -389,7 +387,7 @@ class MapOptimizer:
                 )
                 return metadata_info
             except Exception as e:
-                self.console.print(
+                self.console.log(
                     f"[yellow]Error determining metadata needs: {e}. Retrying...[/yellow]"
                 )
                 try:
@@ -407,13 +405,13 @@ class MapOptimizer:
 
         metadata_info = determine_metadata_with_retry()
         # Print the metadata info
-        self.console.print("[bold]Metadata Information:[/bold]")
-        self.console.print(f"Needs metadata: {metadata_info['needs_metadata']}")
+        self.console.log("[bold]Metadata Information:[/bold]")
+        self.console.log(f"Needs metadata: {metadata_info['needs_metadata']}")
         if metadata_info["needs_metadata"]:
-            self.console.print(
+            self.console.log(
                 f"Metadata prompt and output schema: {metadata_info.get('metadata_prompt', 'N/A')}; {metadata_info.get('output_schema', 'N/A')}"
             )
-            self.console.print(f"Reason: {metadata_info.get('reason', 'N/A')}")
+            self.console.log(f"Reason: {metadata_info.get('reason', 'N/A')}")
 
         # Create base operations
         # TODO: try with and without metadata
@@ -454,8 +452,8 @@ class MapOptimizer:
         combine_prompt = self._get_combine_prompt(op_config, sample_output)
 
         # Print the combine prompt
-        self.console.print("[bold]Combine Prompt:[/bold]")
-        self.console.print(combine_prompt)
+        self.console.log("[bold]Combine Prompt:[/bold]")
+        self.console.log(combine_prompt)
 
         # Create the reduce operation
         reduce_op = self._create_reduce_operation(op_config, combine_prompt)
@@ -547,10 +545,10 @@ class MapOptimizer:
                 f"{{{{ {variable} }}}}", f"{{{{ {inp_split_key} }}}}"
             )
 
-        self.console.print(
+        self.console.log(
             f"[yellow]Breaking down operation {op_config['name']}[/yellow]"
         )
-        self.console.print(f"[cyan]Subprompt:[/cyan] {result['subprompt']}")
+        self.console.log(f"[cyan]Subprompt:[/cyan] {result['subprompt']}")
         return result
 
     def _determine_metadata_needs(
@@ -758,7 +756,7 @@ class MapOptimizer:
                 return result
 
             # Print the error message to the console
-            self.console.print(f"[bold red]Error:[/bold red] {error_message}")
+            self.console.log(f"[bold red]Error:[/bold red] {error_message}")
 
             chat_history.append(
                 {

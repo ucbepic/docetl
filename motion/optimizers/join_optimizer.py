@@ -38,7 +38,7 @@ class JoinOptimizer:
         self, input_data: List[Dict[str, Any]]
     ) -> Tuple[Dict[str, Any], float]:
         embeddings, blocking_keys, embedding_cost = self._compute_embeddings(input_data)
-        self.console.print(
+        self.console.log(
             f"[bold]Cost of creating embeddings on the sample: ${embedding_cost:.4f}[/bold]"
         )
 
@@ -67,24 +67,22 @@ class JoinOptimizer:
                 comparison_results,
             )
             if not false_negatives and rule_selectivity <= ci_upper:
-                self.console.print(
+                self.console.log(
                     "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within bounds.[/green]"
                 )
             else:
                 if false_negatives:
-                    self.console.print(
+                    self.console.log(
                         f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample.[/red]"
                     )
                     for i, j in false_negatives[:5]:  # Show up to 5 examples
-                        self.console.print(
+                        self.console.log(
                             f"  Filtered pair: {{ {blocking_keys[0]}: {input_data[i][blocking_keys[0]]} }} and {{ {blocking_keys[0]}: {input_data[j][blocking_keys[0]]} }}"
                         )
                     if len(false_negatives) > 5:
-                        self.console.print(
-                            f"  ... and {len(false_negatives) - 5} more."
-                        )
+                        self.console.log(f"  ... and {len(false_negatives) - 5} more.")
                 if rule_selectivity > ci_upper:
-                    self.console.print(
+                    self.console.log(
                         f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the upper bound of the CI ({ci_upper:.4f}).[/red]"
                     )
                 blocking_rules = (
@@ -106,7 +104,7 @@ class JoinOptimizer:
         right_embeddings, _, right_embedding_cost = self._compute_embeddings(
             right_data, [right_key]
         )
-        self.console.print(
+        self.console.log(
             f"[bold]Cost of creating embeddings on the sample: ${left_embedding_cost + right_embedding_cost:.4f}[/bold]"
         )
 
@@ -140,24 +138,22 @@ class JoinOptimizer:
                 ci_upper,
             )
             if not false_negatives and rule_selectivity <= ci_upper:
-                self.console.print(
+                self.console.log(
                     "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within bounds.[/green]"
                 )
             else:
                 if false_negatives:
-                    self.console.print(
+                    self.console.log(
                         f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample.[/red]"
                     )
                     for i, j in false_negatives[:5]:  # Show up to 5 examples
-                        self.console.print(
+                        self.console.log(
                             f"  Filtered pair: {{ {left_key}: {left_data[i][left_key]} }} and {{ {right_key}: {right_data[j][right_key]} }}"
                         )
                     if len(false_negatives) > 5:
-                        self.console.print(
-                            f"  ... and {len(false_negatives) - 5} more."
-                        )
+                        self.console.log(f"  ... and {len(false_negatives) - 5} more.")
                 if rule_selectivity > ci_upper:
-                    self.console.print(
+                    self.console.log(
                         f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the upper bound of the CI ({ci_upper:.4f}).[/red]"
                     )
                 blocking_rules = (
@@ -181,7 +177,7 @@ class JoinOptimizer:
                 prompt_template = self.op_config.get("comparison_prompt", "")
                 keys = list(set(re.findall(r"input[12]\.(\w+)", prompt_template)))
             if not keys:
-                self.console.print(
+                self.console.log(
                     "[yellow]Warning: No blocking keys found. Using all keys for blocking.[/yellow]"
                 )
                 keys = list(input_data[0].keys())
@@ -224,7 +220,7 @@ class JoinOptimizer:
         # Create a dictionary to store true labels
         true_labels = {(i, j): is_match for i, j, is_match in comparison_results}
 
-        self.console.print("\n[bold]Embedding Cosine Similarity Distribution:[/bold]")
+        self.console.log("\n[bold]Embedding Cosine Similarity Distribution:[/bold]")
         for i, count in enumerate(normalized_hist):
             bar = "█" * count
             label = f"{bin_edges[i]:.2f}-{bin_edges[i+1]:.2f}"
@@ -250,11 +246,11 @@ class JoinOptimizer:
                 true_match_percent = 0
                 not_match_percent = 0
 
-            self.console.print(
+            self.console.log(
                 f"{label}: {bar} "
                 f"(Labeled: {labeled_count}/{hist[i]}, [green]{true_match_percent:.1f}% match[/green], [red]{not_match_percent:.1f}% not match[/red])"
             )
-        self.console.print("\n")
+        self.console.log("\n")
 
     def _sample_pairs(
         self, similarities: List[Tuple[int, int, float]]
@@ -319,7 +315,7 @@ class JoinOptimizer:
                 comparisons.append((i, j, is_match))
                 total_cost += cost
 
-        self.console.print(
+        self.console.log(
             f"[bold]Cost of pairwise comparisons on the sample: ${total_cost:.4f}[/bold]"
         )
         return comparisons, total_cost
@@ -349,7 +345,7 @@ class JoinOptimizer:
                 comparisons.append((i, j, is_match))
                 total_cost += cost
 
-        self.console.print(
+        self.console.log(
             f"[bold]Cost of pairwise comparisons on the sample: ${total_cost:.4f}[/bold]"
         )
         return comparisons, total_cost
@@ -408,22 +404,22 @@ class JoinOptimizer:
         ci_lower = max(0, estimated_selectivity - 1.96 * se_estimated)
         ci_upper = min(1, estimated_selectivity + 1.96 * se_estimated)
 
-        self.console.print(
+        self.console.log(
             f"[bold cyan]┌─ Estimated Self-Join Selectivity ─────────────────────────┐[/bold cyan]"
         )
-        self.console.print(
+        self.console.log(
             f"[bold cyan]│[/bold cyan] [yellow]Target Recall:[/yellow] {self.target_recall:.0%}"
         )
-        self.console.print(
+        self.console.log(
             f"[bold cyan]│[/bold cyan] [yellow]Estimate:[/yellow] {estimated_selectivity:.4f}"
         )
-        self.console.print(
+        self.console.log(
             f"[bold cyan]│[/bold cyan] [yellow]95% Confidence Interval:[/yellow] [{ci_lower:.4f} - {ci_upper:.4f}]"
         )
-        self.console.print(
+        self.console.log(
             f"[bold cyan]└───────────────────────────────────────────────────────────┘[/bold cyan]"
         )
-        self.console.print(
+        self.console.log(
             f"[bold]Chosen similarity threshold for blocking: {optimal_threshold:.4f}[/bold]"
         )
 
@@ -504,15 +500,15 @@ class JoinOptimizer:
             blocking_rule = json.loads(blocking_rule).get("blocking_rule")
 
             if blocking_rule:
-                self.console.print("")  # Print a newline
+                self.console.log("")  # Print a newline
 
                 if blocking_rule.strip() == "True":
-                    self.console.print(
+                    self.console.log(
                         "[yellow]No suitable blocking rule could be found. Proceeding without a blocking rule.[/yellow]"
                     )
                     return []
 
-                self.console.print(
+                self.console.log(
                     f"[bold]Generated blocking rule (Attempt {attempt + 1}):[/bold] {blocking_rule}"
                 )
 
@@ -522,7 +518,7 @@ class JoinOptimizer:
                 )
 
                 if not filtered_pairs:
-                    self.console.print(
+                    self.console.log(
                         "[green]Blocking rule looks good! No known matches were filtered out.[/green]"
                     )
                     return [blocking_rule]
@@ -539,10 +535,10 @@ class JoinOptimizer:
                     messages.append({"role": "assistant", "content": blocking_rule})
                     messages.append({"role": "user", "content": feedback})
             else:
-                self.console.print("[yellow]No blocking rule generated.[/yellow]")
+                self.console.log("[yellow]No blocking rule generated.[/yellow]")
                 return []
 
-        self.console.print(
+        self.console.log(
             f"[yellow]Failed to generate a suitable blocking rule after {self.agent_max_retries} attempts. Proceeding without a blocking rule.[/yellow]"
         )
         return []
@@ -558,7 +554,7 @@ class JoinOptimizer:
             try:
                 return eval(blocking_rule, {"input1": item1, "input2": item2})
             except Exception as e:
-                self.console.print(f"[red]Error applying blocking rule: {e}[/red]")
+                self.console.log(f"[red]Error applying blocking rule: {e}[/red]")
                 return True  # If there's an error, we default to comparing the pair
 
         filtered_pairs = []
@@ -576,15 +572,15 @@ class JoinOptimizer:
                     filtered_pairs.append((i, j))
 
         if filtered_pairs:
-            self.console.print(
+            self.console.log(
                 f"[yellow italic]LLM Correction: The blocking rule incorrectly filtered out {len(filtered_pairs)} known positive matches.[/yellow italic]"
             )
             for i, j in filtered_pairs[:5]:  # Show up to 5 examples
-                self.console.print(
+                self.console.log(
                     f"  Incorrectly filtered pair 1: {json.dumps({key: input_data[i][key] for key in blocking_keys})}  and pair 2: {json.dumps({key: input_data[j][key] for key in blocking_keys})}"
                 )
             if len(filtered_pairs) > 5:
-                self.console.print(
+                self.console.log(
                     f"  ... and {len(filtered_pairs) - 5} more incorrect pairs."
                 )
 
@@ -665,15 +661,15 @@ class JoinOptimizer:
             blocking_rule = json.loads(blocking_rule).get("blocking_rule")
 
             if blocking_rule:
-                self.console.print("")
+                self.console.log("")
 
                 if blocking_rule.strip() == "True":
-                    self.console.print(
+                    self.console.log(
                         "[yellow]No suitable blocking rule could be found. Proceeding without a blocking rule.[/yellow]"
                     )
                     return []
 
-                self.console.print(
+                self.console.log(
                     f"[bold]Generated blocking rule (Attempt {attempt + 1}):[/bold] {blocking_rule}"
                 )
 
@@ -688,7 +684,7 @@ class JoinOptimizer:
                 )
 
                 if not filtered_pairs:
-                    self.console.print(
+                    self.console.log(
                         "[green]Blocking rule looks good! No known matches were filtered out.[/green]"
                     )
                     return [blocking_rule]
@@ -708,10 +704,10 @@ class JoinOptimizer:
                     messages.append({"role": "assistant", "content": blocking_rule})
                     messages.append({"role": "user", "content": feedback})
             else:
-                self.console.print("[yellow]No blocking rule generated.[/yellow]")
+                self.console.log("[yellow]No blocking rule generated.[/yellow]")
                 return []
 
-        self.console.print(
+        self.console.log(
             f"[yellow]Failed to generate a suitable blocking rule after {self.agent_max_retries} attempts. Proceeding without a blocking rule.[/yellow]"
         )
         return []
@@ -729,7 +725,7 @@ class JoinOptimizer:
             try:
                 return eval(blocking_rule, {"left": left, "right": right})
             except Exception as e:
-                self.console.print(f"[red]Error applying blocking rule: {e}[/red]")
+                self.console.log(f"[red]Error applying blocking rule: {e}[/red]")
                 return True  # If there's an error, we default to comparing the pair
 
         filtered_pairs = []
@@ -743,15 +739,15 @@ class JoinOptimizer:
                     filtered_pairs.append((i, j))
 
         if filtered_pairs:
-            self.console.print(
+            self.console.log(
                 f"[yellow italic]LLM Correction: The blocking rule incorrectly filtered out {len(filtered_pairs)} known positive matches.[/yellow italic]"
             )
             for i, j in filtered_pairs[:5]:  # Show up to 5 examples
-                self.console.print(
+                self.console.log(
                     f"  Incorrectly filtered pair - Left: {json.dumps({left_key: left_data[i][left_key]})}  Right: {json.dumps({right_key: right_data[j][right_key]})}"
                 )
             if len(filtered_pairs) > 5:
-                self.console.print(
+                self.console.log(
                     f"  ... and {len(filtered_pairs) - 5} more incorrect pairs."
                 )
 
@@ -771,7 +767,7 @@ class JoinOptimizer:
             try:
                 return eval(blocking_rule, {"left": left, "right": right})
             except Exception as e:
-                self.console.print(f"[red]Error applying blocking rule: {e}[/red]")
+                self.console.log(f"[red]Error applying blocking rule: {e}[/red]")
                 return True  # If there's an error, we default to comparing the pair
 
         false_negatives = []
@@ -818,7 +814,7 @@ class JoinOptimizer:
             try:
                 return eval(blocking_rule, {"input1": item1, "input2": item2})
             except Exception as e:
-                self.console.print(f"[red]Error applying blocking rule: {e}[/red]")
+                self.console.log(f"[red]Error applying blocking rule: {e}[/red]")
                 return True  # If there's an error, we default to comparing the pair
 
         false_negatives = []

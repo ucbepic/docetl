@@ -259,13 +259,13 @@ class ReduceOperation(BaseOperation):
                         calculate_num_parallel_folds()
                     )
                     if not used_default_times:
-                        self.console.print(
+                        self.console.log(
                             f"Recalculated num_parallel_folds from {num_parallel_folds} to {new_num_parallel_folds}"
                         )
                         num_parallel_folds = new_num_parallel_folds
 
         # Final merging if needed
-        self.console.print(f"Finished folding! Merging {len(fold_results)} items.")
+        self.console.log(f"Finished folding! Merging {len(fold_results)} items.")
         while len(fold_results) > 1:
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 merge_futures = []

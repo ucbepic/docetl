@@ -207,7 +207,7 @@ class ResolveOperation(BaseOperation):
         total_possible_comparisons = len(input_data) * (len(input_data) - 1) // 2
         comparisons_made = len(filtered_pairs)
         comparisons_saved = total_possible_comparisons - comparisons_made
-        self.console.print(
+        self.console.log(
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
@@ -216,11 +216,12 @@ class ResolveOperation(BaseOperation):
         batch_size = self.config.get("compare_batch_size", 100)
         pair_costs = 0
 
-        for i in RichLoopBar(
+        pbar = RichLoopBar(
             range(0, len(filtered_pairs), batch_size),
             desc=f"Processing batches of {batch_size} LLM comparisons",
             console=self.console,
-        ):
+        )
+        for i in pbar:
             batch = filtered_pairs[i : i + batch_size]
 
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
@@ -241,6 +242,8 @@ class ResolveOperation(BaseOperation):
                     pair_costs += cost
                     if is_match:
                         merge_clusters(pair[0], pair[1])
+
+                    pbar.update(i)
 
         total_cost += pair_costs
 
@@ -313,6 +316,6 @@ class ResolveOperation(BaseOperation):
         true_match_selectivity = (
             true_match_count / total_pairs if total_pairs > 0 else 0
         )
-        self.console.print(f"Self-join selectivity: {true_match_selectivity:.4f}")
+        self.console.log(f"Self-join selectivity: {true_match_selectivity:.4f}")
 
         return results, total_cost

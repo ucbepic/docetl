@@ -53,14 +53,14 @@ class Optimizer:
         self.print_optimizer_config()
 
     def print_optimizer_config(self):
-        self.console.print("[bold cyan]Optimizer Configuration:[/bold cyan]")
-        self.console.print("─" * 40)
-        self.console.print(f"[yellow]YAML File:[/yellow] {self.yaml_file_path}")
-        self.console.print(f"[yellow]Sample Size:[/yellow] {SAMPLE_SIZE_MAP}")
-        self.console.print(f"[yellow]Max Threads:[/yellow] {self.max_threads}")
-        self.console.print(f"[yellow]Model:[/yellow] {self.llm_client.model}")
-        self.console.print(f"[yellow]Timeout:[/yellow] {self.timeout} seconds")
-        self.console.print("─" * 40)
+        self.console.log("[bold cyan]Optimizer Configuration:[/bold cyan]")
+        self.console.log("─" * 40)
+        self.console.log(f"[yellow]YAML File:[/yellow] {self.yaml_file_path}")
+        self.console.log(f"[yellow]Sample Size:[/yellow] {SAMPLE_SIZE_MAP}")
+        self.console.log(f"[yellow]Max Threads:[/yellow] {self.max_threads}")
+        self.console.log(f"[yellow]Model:[/yellow] {self.llm_client.model}")
+        self.console.log(f"[yellow]Timeout:[/yellow] {self.timeout} seconds")
+        self.console.log("─" * 40)
 
     def compute_sample_size(
         self,
@@ -113,13 +113,13 @@ class Optimizer:
         self.optimized_config["pipeline"]["steps"] = optimized_steps
         self._save_optimized_config()
 
-        self.console.print(
+        self.console.log(
             f"[bold]Total agent cost: ${self.llm_client.total_cost:.2f}[/bold]"
         )
-        self.console.print(
+        self.console.log(
             f"[bold]Total operations cost: ${self.operations_cost:.2f}[/bold]"
         )
-        self.console.print(
+        self.console.log(
             f"[bold]Total cost: ${self.llm_client.total_cost + self.operations_cost:.2f}[/bold]"
         )
 
@@ -167,11 +167,6 @@ class Optimizer:
             sample_size = self.compute_sample_size(
                 step.get("name"), step.get("operations"), op_object
             )
-            self.console.print(f"[yellow]Operation name: {operation_name}[/yellow]")
-            self.console.print(
-                f"[yellow]Input sample size needed: {sample_size}[/yellow]"
-            )
-
             input_data = self._run_partial_step(
                 step, optimized_operation_names, sample_size, optimized_operations
             )
@@ -194,18 +189,18 @@ class Optimizer:
                     f"[bold blue]Optimizing operation: {operation_name} (Type: {op_object['type']})[/bold blue]"
                 ):
                     # Print the number of elements in input_data
-                    self.console.print(f"[yellow]Optimizing Operation:[/yellow]")
-                    self.console.print(f"[yellow]  Type: {op_object['type']}[/yellow]")
-                    self.console.print(f"[yellow]  Name: {operation_name}[/yellow]")
+                    self.console.log(f"[yellow]Optimizing Operation:[/yellow]")
+                    self.console.log(f"[yellow]  Type: {op_object['type']}[/yellow]")
+                    self.console.log(f"[yellow]  Name: {operation_name}[/yellow]")
                     if op_object.get("type") == "equijoin":
-                        self.console.print(
+                        self.console.log(
                             f"[yellow]  Sample size (left): {len(input_data['left'])}[/yellow]"
                         )
-                        self.console.print(
+                        self.console.log(
                             f"[yellow]  Sample size (right): {len(input_data['right'])}[/yellow]"
                         )
                     else:
-                        self.console.print(
+                        self.console.log(
                             f"[yellow]  Sample size: {len(input_data)}[/yellow]"
                         )
 
@@ -344,13 +339,13 @@ class Optimizer:
         sorted_sizes = sorted(size_counts.items())
 
         # Print the histogram
-        self.console.print("\n[bold]Histogram of Group Sizes:[/bold]")
+        self.console.log("\n[bold]Histogram of Group Sizes:[/bold]")
         max_bar_width, max_count = 2, max(size_counts.values())
         for size, count in sorted_sizes[:5]:
             normalized_count = int(count / max_count * max_bar_width)
             bar = "█" * normalized_count
-            self.console.print(f"{size:3d}: {bar} ({count})")
-        self.console.print("\n")
+            self.console.log(f"{size:3d}: {bar} ({count})")
+        self.console.log("\n")
 
         return sample
 
@@ -466,11 +461,11 @@ class Optimizer:
         with open(optimized_filename, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False)
 
-        self.console.print(
+        self.console.log(
             f"[green italic]Optimized config saved to {optimized_filename}[/green italic]"
         )
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/full.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/resolve.yaml", model="gpt-4o")
     optimizer.optimize()

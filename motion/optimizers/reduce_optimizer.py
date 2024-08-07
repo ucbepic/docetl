@@ -46,9 +46,9 @@ class ReduceOptimizer:
         )
 
         # Print the validation results
-        self.console.print("[bold]Validation Results:[/bold]")
+        self.console.log("[bold]Validation Results:[/bold]")
         if validation_results["needs_improvement"]:
-            self.console.print(
+            self.console.log(
                 "\n".join(
                     [
                         f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
@@ -68,7 +68,7 @@ class ReduceOptimizer:
 
             return best_plan, optimized_output
         else:
-            self.console.print("No improvements identified.")
+            self.console.log("No improvements identified.")
             return op_config, original_output
 
     def _generate_validator_prompt(
@@ -249,7 +249,7 @@ class ReduceOptimizer:
         )
 
         # Print the compression ratio
-        self.console.print(
+        self.console.log(
             f"[bold]Estimated Compression Ratio:[/bold] {compression_ratio:.2f}"
         )
 
@@ -437,9 +437,9 @@ class ReduceOptimizer:
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
     ) -> Dict[str, Any]:
-        self.console.print("\n[bold]Evaluating Reduce Plans:[/bold]")
+        self.console.log("\n[bold]Evaluating Reduce Plans:[/bold]")
         for i, plan in enumerate(plans):
-            self.console.print(f"Plan {i+1} (batch size: {plan['fold_batch_size']})")
+            self.console.log(f"Plan {i+1} (batch size: {plan['fold_batch_size']})")
 
         plan_scores = []
         plan_outputs = {}
@@ -461,14 +461,14 @@ class ReduceOptimizer:
             plan_scores, key=lambda x: (x[1], x[0]["fold_batch_size"]), reverse=True
         )
 
-        self.console.print("\n[bold]Reduce Plan Scores:[/bold]")
+        self.console.log("\n[bold]Reduce Plan Scores:[/bold]")
         for i, (plan, score) in enumerate(sorted_plans):
-            self.console.print(
+            self.console.log(
                 f"Plan {i+1} (batch size: {plan['fold_batch_size']}): {score:.2f}"
             )
 
         best_plan, best_score = sorted_plans[0]
-        self.console.print(
+        self.console.log(
             f"\n[green]Selected best plan with score: {best_score:.2f} and batch size: {best_plan['fold_batch_size']}[/green]"
         )
 
@@ -481,8 +481,8 @@ class ReduceOptimizer:
                 merged_plan, plan_outputs[id(best_plan)]
             )
             # Print the synthesized merge prompt
-            self.console.print("\n[bold]Synthesized Merge Prompt:[/bold]")
-            self.console.print(merged_plan["merge_prompt"])
+            self.console.log("\n[bold]Synthesized Merge Prompt:[/bold]")
+            self.console.log(merged_plan["merge_prompt"])
 
         # Set merge_batch_size to 2 and num_parallel_folds to 5
         merged_plan["merge_batch_size"] = 2
@@ -498,13 +498,13 @@ class ReduceOptimizer:
         merge_avg_time = mean(merge_times) if merge_times else None
         fold_avg_time = mean(fold_times) if fold_times else None
 
-        self.console.print(f"\n[bold]Scores:[/bold]")
-        self.console.print(f"Original plan: {best_score:.2f}")
-        self.console.print(f"Merged plan: {merged_plan_score:.2f}")
+        self.console.log(f"\n[bold]Scores:[/bold]")
+        self.console.log(f"Original plan: {best_score:.2f}")
+        self.console.log(f"Merged plan: {merged_plan_score:.2f}")
 
         # Compare scores and decide which plan to use
         if merged_plan_score >= best_score * 0.75:
-            self.console.print(
+            self.console.log(
                 f"\n[green]Using merged plan with score: {merged_plan_score:.2f}[/green]"
             )
             if merge_avg_time and fold_avg_time:
@@ -512,7 +512,7 @@ class ReduceOptimizer:
                 merged_plan["fold_time"] = fold_avg_time
             return merged_plan
         else:
-            self.console.print(
+            self.console.log(
                 f"\n[yellow]Merged plan quality too low. Using original plan with score: {best_score:.2f}[/yellow]"
             )
             return best_plan

@@ -157,8 +157,8 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
         return True
     for validation in operation["validate"]:
         if not eval(validation, {"output": output}):
-            console.print(f"[bold red]Validation failed:[/bold red] {validation}")
-            console.print(f"[yellow]Output:[/yellow] {output}")
+            console.log(f"[bold red]Validation failed:[/bold red] {validation}")
+            console.log(f"[yellow]Output:[/yellow] {output}")
             return False
     return True
 

@@ -16,7 +16,6 @@ def build(
     max_threads: Optional[int] = typer.Option(
         None, help="Maximum number of threads to use for parallel operations"
     ),
-    sample_size: int = typer.Option(20, help="Sample size for optimization"),
     model: str = typer.Option("gpt-4o", help="Model to use for optimization"),
     timeout: int = typer.Option(
         60, help="Timeout for optimization operations in seconds"
@@ -29,7 +28,6 @@ def build(
         optimizer = Optimizer(
             str(yaml_file),
             max_threads=max_threads,
-            sample_size=sample_size,
             model=model,
             timeout=timeout,
         )

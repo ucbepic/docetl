@@ -1,5 +1,6 @@
 import hashlib
 import json
+import time
 from typing import Any, Dict, List, Callable, Tuple, Union
 import uuid
 from motion.optimizers.utils import (
@@ -34,16 +35,30 @@ class MapOptimizer:
         self.max_threads = max_threads
         self.timeout = timeout
 
+    def _select_evaluation_samples(
+        self, input_data: List[Dict[str, Any]], num_samples: int
+    ) -> List[Dict[str, Any]]:
+        if len(input_data) <= num_samples:
+            return input_data
+        return random.sample(input_data, num_samples)
+
     def optimize(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         # Execute the original operation on the sample data
+        no_change_start = time.time()
         output_data = self._run_operation(op_config, input_data)
+        no_change_runtime = time.time() - no_change_start
 
         # Generate custom validator prompt
         validator_prompt = self._generate_validator_prompt(
             op_config, input_data, output_data
         )
+
+        # Log the validator prompt
+        self.console.log("[bold]Validator Prompt:[/bold]")
+        self.console.log(validator_prompt)
+        self.console.log("\n")  # Add a newline for better readability
 
         # Step 2: Use the validator prompt to assess the operation's performance
         assessment = self._assess_operation(
@@ -72,11 +87,23 @@ class MapOptimizer:
         # Generate chunk size plans
         chunk_size_plans = self._generate_chunk_size_plans(op_config, input_data)
 
+        # Generate gleaning plans
+        gleaning_plans = self._generate_gleaning_plans(op_config, validator_prompt)
+
         # Evaluate both plans
         plans_to_evaluate = {
-            "improved_prompt_plan": improved_prompt_plan,
+            "improved_instructions": improved_prompt_plan,
+            "no_change": [op_config],
             **chunk_size_plans,
+            **gleaning_plans,
         }
+
+        # Select consistent evaluation samples
+        num_evaluations = min(5, len(input_data))
+        evaluation_samples = self._select_evaluation_samples(
+            input_data, num_evaluations
+        )
+
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = {
                 executor.submit(
@@ -84,9 +111,8 @@ class MapOptimizer:
                     plan_name,
                     op_config,
                     plan,
-                    copy.deepcopy(input_data),
+                    copy.deepcopy(evaluation_samples),
                     validator_prompt,
-                    num_evaluations=min(5, len(input_data)),
                 ): plan_name
                 for plan_name, plan in plans_to_evaluate.items()
             }
@@ -94,8 +120,8 @@ class MapOptimizer:
             for future in as_completed(futures):
                 plan_name = futures[future]
                 try:
-                    score, output = future.result(timeout=self.timeout)
-                    results[plan_name] = (score, output)
+                    score, runtime, output = future.result(timeout=self.timeout)
+                    results[plan_name] = (score, runtime, output)
                 except concurrent.futures.TimeoutError:
                     self.console.log(
                         f"[yellow]Plan {plan_name} timed out and will be skipped.[/yellow]"
@@ -103,29 +129,39 @@ class MapOptimizer:
                 except Exception as e:
                     self.console.log(f"[red]Error in plan {plan_name}: {str(e)}[/red]")
 
+        # Add no change plan
+        results["no_change"] = (
+            results["no_change"][0],
+            no_change_runtime,
+            results["no_change"][2],
+        )
+
         # Create a table of scores sorted in descending order
         scores = sorted(
-            [(score, plan) for plan, (score, _) in results.items()], reverse=True
+            [(score, runtime, plan) for plan, (score, runtime, _) in results.items()],
+            reverse=True,
         )
 
         self.console.log(
-            f"\n[bold]Score Distribution for {op_config['name']} ({op_config['type']}, {len(scores)} plans):[/bold]"
+            f"\n[bold]Score Distribution for {op_config['name']} ({op_config['type']}, {len(scores)} plans, {num_evaluations} samples):[/bold]"
         )
         table = Table(show_header=True, header_style="bold magenta")
         table.add_column("Plan", style="dim", width=30)
         table.add_column("Score", justify="right")
-        for score, plan in scores:
-            table.add_row(plan, f"{score:.2f}")
+        table.add_column("Runtime", justify="right")
+        for score, runtime, plan in scores:
+            table.add_row(plan, f"{score:.2f}", f"{runtime:.2f}s")
 
         self.console.log(table)
         self.console.log("\n")
 
         # Choose the best plan
-        best_plan_name = max(results, key=lambda x: results[x][0])
-        _, best_output = results[best_plan_name]
+        best_plan_name = max(results, key=lambda x: (results[x][0], -results[x][1]))
+        _, _, best_output = results[best_plan_name]
         self.console.log(
-            f"[green]Choosing {best_plan_name} for operation {op_config['name']}[/green]"
+            f"[green]Choosing {best_plan_name} for operation {op_config['name']} (Score: {results[best_plan_name][0]:.2f}, Runtime: {results[best_plan_name][1]:.2f}s)[/green]"
         )
+
         return plans_to_evaluate[best_plan_name], best_output
 
     def _evaluate_plan(
@@ -135,21 +171,22 @@ class MapOptimizer:
         plan: Union[Dict[str, Any], List[Dict[str, Any]]],
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
-        num_evaluations: int,
-    ) -> Tuple[float, List[Dict[str, Any]]]:
+    ) -> Tuple[float, float, List[Dict[str, Any]]]:
         if isinstance(plan, dict):
             plan = [plan]
 
         output_data = input_data
+        start_time = time.time()
         for op in plan:
             output_data = self._run_operation(op, output_data)
+        runtime = time.time() - start_time
 
         scores = []
 
-        for _ in range(num_evaluations):
+        for idx in range(len(input_data)):
             # Evaluate the quality of the output using the custom validator prompt
             quality = self._assess_output_quality(
-                op_config, input_data, output_data, validator_prompt
+                op_config, input_data, output_data, idx, validator_prompt
             )
             score_map = {
                 "Satisfactory": 4,
@@ -159,7 +196,7 @@ class MapOptimizer:
             }
             scores.append(score_map.get(quality["quality_category"], 0))
 
-        average_score = sum(scores) / num_evaluations
+        average_score = sum(scores) / len(scores)
         # Print the quality assessment for the last evaluation
         # self.console.log(f"[bold]Quality assessment for plan {plan_name}:[/bold]")
         # self.console.log(f"\tCategory: {quality['quality_category']}")
@@ -167,20 +204,20 @@ class MapOptimizer:
         # self.console.log(f"\tAverage Score: {average_score:.2f}")
         # self.console.log("\n")  # Add a newline for better readability
 
-        return average_score, output_data
+        return average_score, runtime, output_data
 
     def _assess_output_quality(
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         output_data: List[Dict[str, Any]],
+        element_idx: int,
         validator_prompt: str,
     ) -> str:
         system_prompt = "You are an AI assistant tasked with evaluating the quality of data processing outputs."
         output_schema_keys = op_config["output"]["schema"].keys()
-        random_idx = random.randint(0, len(input_data) - 1)
-        document_id = input_data[random_idx]["document_id"]
-        input_elem = input_data[random_idx]
+        document_id = input_data[element_idx]["document_id"]
+        input_elem = input_data[element_idx]
         output_elem = [
             item for item in output_data if item["document_id"] == document_id
         ][0]
@@ -194,10 +231,10 @@ class MapOptimizer:
 
         Based on the validator prompt and the input-output data samples, assess the quality of the output.
         Categorize the quality into one of these four categories:
-        1. "Unsatisfactory": The output failed to meet the validator prompt requirements.
+        1. "Unsatisfactory": The output failed to meet any of the validator prompt requirements.
         2. "Partially Satisfactory": The output met some of the validator prompt requirements but not all.
-        3. "Mostly Satisfactory": The output mostly met the validator prompt requirements but has some room for improvement.
-        3. "Satisfactory": The output fully met the validator prompt requirements.
+        3. "Mostly Satisfactory": The output met most of the validator prompt requirements but has some room for improvement.
+        4. "Satisfactory": The output fully met the validator prompt requirements.
 
         Provide your response in the following format:
         """
@@ -210,6 +247,7 @@ class MapOptimizer:
                     "enum": [
                         "Unsatisfactory",
                         "Partially Satisfactory",
+                        "Mostly Satisfactory",
                         "Satisfactory",
                     ],
                 },
@@ -361,6 +399,23 @@ class MapOptimizer:
         improved_op_config["prompt"] = result["new_prompt"]
         return [improved_op_config]
 
+    def _generate_gleaning_plans(
+        self,
+        op_config: Dict[str, Any],
+        validation_prompt: str,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        # Generate an op with gleaning num_rounds and validation_prompt
+        plans = {}
+        gleaning_rounds = [1]
+        for gleaning_round in gleaning_rounds:
+            op_config_copy = copy.deepcopy(op_config)
+            op_config_copy["gleaning"] = {
+                "num_rounds": gleaning_round,
+                "validation_prompt": validation_prompt,
+            }
+            plans[f"gleaning_{gleaning_round}"] = [op_config_copy]
+        return plans
+
     def _generate_chunk_size_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Dict[str, List[Dict[str, Any]]]:
@@ -405,7 +460,6 @@ class MapOptimizer:
 
         metadata_info = determine_metadata_with_retry()
         # Print the metadata info
-        self.console.log("[bold]Metadata Information:[/bold]")
         self.console.log(f"Needs metadata: {metadata_info['needs_metadata']}")
         if metadata_info["needs_metadata"]:
             self.console.log(
@@ -479,7 +533,15 @@ class MapOptimizer:
                 )
 
                 plan.extend([split_op, map_op, reduce_op])
-                plan_name = f"chunk_size_{chunk_size}_peripheral_{hashlib.sha256(str(peripheral_config).encode()).hexdigest()[:8]}"
+                plan_name = f"chunk_size_{chunk_size}_peripheral_"
+                if peripheral_config:
+                    for direction in ["previous", "next"]:
+                        if direction in peripheral_config:
+                            for part, details in peripheral_config[direction].items():
+                                plan_name += f"{direction}_{part}_{details['count']}_"
+                else:
+                    plan_name += "none"
+                plan_name = plan_name.rstrip("_")
                 plans[plan_name] = plan
 
         return plans
@@ -999,7 +1061,7 @@ class MapOptimizer:
         - The only variable you are allowed to use is the values variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(op_config['output']['schema'].keys())}
         - Avoid using filters or complex logic, even though Jinja technically supports it
         - The prompt template must be a valid Jinja2 template
-        - You must use the values variable somehow
+        - You must use the {{ values }} variable somehow (you can access specific schema keys if you'ld like)
 
         Provide your prompt template as a single string.
         """

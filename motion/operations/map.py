@@ -2,7 +2,7 @@ from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from jinja2 import Template
 from motion.operations.base import BaseOperation
-from motion.operations.utils import call_llm, parse_llm_response
+from motion.operations.utils import call_llm, parse_llm_response, call_llm_with_gleaning
 from motion.operations.utils import validate_output, rich_as_completed
 from litellm import completion_cost
 from rich.console import Console
@@ -36,23 +36,37 @@ class MapOperation(BaseOperation):
         if "model" in self.config and not isinstance(self.config["model"], str):
             raise TypeError("'model' in configuration must be a string")
 
+        self.gleaning_check()
+
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
-            response = call_llm(
-                self.config.get("model", self.default_model),
-                "map",
-                prompt,
-                self.config["output"]["schema"],
-            )
-            item_cost = completion_cost(response)
+            item_cost = 0
+            if "gleaning" in self.config:
+                response, item_cost = call_llm_with_gleaning(
+                    self.config.get("model", self.default_model),
+                    "map",
+                    prompt,
+                    self.config["output"]["schema"],
+                    self.config["gleaning"]["validation_prompt"],
+                    self.config["gleaning"]["num_rounds"],
+                )
+            else:
+                response = call_llm(
+                    self.config.get("model", self.default_model),
+                    "map",
+                    prompt,
+                    self.config["output"]["schema"],
+                )
+            item_cost += completion_cost(response)
             output = parse_llm_response(response)[0]
             for key, value in item.items():
                 if key not in self.config["output"]["schema"]:
                     output[key] = value
             if validate_output(self.config, output, self.console):
                 return output, item_cost
+
             return None, item_cost
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:

@@ -187,7 +187,7 @@ class ReduceOptimizer:
                 Output Data Sample:
                 {json.dumps(sample_output, indent=2)}
 
-                Based on the validator prompt and the input/output samples, assess the quality of the reduce operation output.
+                Based on the validator prompt and the input/output samples, assess the quality (e.g., correctness, completeness) of the reduce operation output.
                 Provide your assessment in the following format:
                 """
 

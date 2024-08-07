@@ -1,6 +1,6 @@
 import json
 from typing import Dict, List, Any, Optional, Tuple, Iterable, Union
-from litellm import completion, embedding
+from litellm import completion, embedding, completion_cost
 import litellm
 from dotenv import load_dotenv
 from rich.console import Console
@@ -9,6 +9,7 @@ import functools
 from rich.progress import Progress, TaskID
 from concurrent.futures import as_completed
 from tqdm import tqdm
+from jinja2 import Template
 
 load_dotenv()
 # litellm.set_verbose = True
@@ -137,6 +138,95 @@ def call_llm_with_cache(
     )
 
     return response
+
+
+def call_llm_with_gleaning(
+    model: str,
+    op_type: str,
+    prompt: str,
+    output_schema: Dict[str, str],
+    validator_prompt_template: str,
+    num_gleaning_rounds: int,
+) -> Tuple[str, float]:
+    """
+    Calls LLM with gleaning process, including validation and improvement rounds.
+    """
+    props = {key: convert_val(value) for key, value in output_schema.items()}
+
+    parameters = {"type": "object", "properties": props}
+    parameters["required"] = list(props.keys())
+    parameters["additionalProperties"] = False
+
+    # Initial LLM call
+    response = call_llm(model, op_type, prompt, output_schema)
+
+    cost = 0.0
+
+    # Parse the response
+    parsed_response = parse_llm_response(response)
+    output = parsed_response[0]
+
+    messages = [
+        {
+            "role": "system",
+            "content": f"You are a helpful assistant to intelligently process data. This is a {op_type} operation.",
+        },
+        {"role": "user", "content": prompt},
+        {"role": "assistant", "content": json.dumps(output)},
+    ]
+
+    for _ in range(num_gleaning_rounds):
+        cost += completion_cost(response)
+
+        # Prepare validator prompt
+        validator_template = Template(validator_prompt_template)
+        validator_prompt = validator_template.render(output=output)
+
+        # Call LLM for validation
+        validator_response = completion(
+            model=model,
+            messages=messages + [{"role": "user", "content": validator_prompt}],
+        )
+        cost += completion_cost(validator_response)
+
+        # Prompt for improvement
+        improvement_prompt = f"""Based on the validation feedback:
+
+```
+{validator_response.choices[0].message.content}
+```
+
+Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""
+        messages.append({"role": "user", "content": improvement_prompt})
+
+        # Call LLM for improvement
+        response = completion(
+            model=model,
+            messages=messages,
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "write_output",
+                        "description": "Write processing output to a database",
+                        "strict": True,
+                        "parameters": parameters,
+                        "additionalProperties": False,
+                    },
+                }
+            ],
+            tool_choice={"type": "function", "function": {"name": "write_output"}},
+        )
+
+        # Update messages with the new response
+        messages.append(
+            {
+                "role": "assistant",
+                "content": json.dumps(parse_llm_response(response)[0]),
+            }
+        )
+
+    return response, cost
 
 
 def parse_llm_response(response: Any) -> List[Dict[str, Any]]:

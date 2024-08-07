@@ -6,7 +6,7 @@ from jinja2 import Template
 from itertools import groupby
 from operator import itemgetter
 from motion.operations.base import BaseOperation
-from motion.operations.utils import call_llm, parse_llm_response
+from motion.operations.utils import call_llm, call_llm_with_gleaning, parse_llm_response
 from motion.operations.utils import validate_output, rich_as_completed
 from litellm import completion_cost
 import jinja2
@@ -121,6 +121,8 @@ class ReduceOperation(BaseOperation):
             if key in self.config:
                 if not isinstance(self.config[key], int) or self.config[key] <= 0:
                     raise ValueError(f"'{key}' must be a positive integer")
+
+        self.gleaning_check()
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         reduce_key = self.config["reduce_key"]
@@ -382,15 +384,30 @@ class ReduceOperation(BaseOperation):
     ) -> Tuple[Optional[Dict], float]:
         prompt_template = Template(self.config["prompt"])
         prompt = prompt_template.render(reduce_key=key, values=group_list)
-        response = call_llm(
-            self.config.get("model", self.default_model),
-            "reduce",
-            prompt,
-            self.config["output"]["schema"],
-        )
+        item_cost = 0
+
+        if "gleaning" in self.config:
+            response, gleaning_cost = call_llm_with_gleaning(
+                self.config.get("model", self.default_model),
+                "reduce",
+                prompt,
+                self.config["output"]["schema"],
+                self.config["gleaning"]["validation_prompt"],
+                self.config["gleaning"]["num_rounds"],
+            )
+            item_cost += gleaning_cost
+        else:
+            response = call_llm(
+                self.config.get("model", self.default_model),
+                "reduce",
+                prompt,
+                self.config["output"]["schema"],
+            )
+
+        item_cost += completion_cost(response)
+
         output = parse_llm_response(response)[0]
         output[self.config["reduce_key"]] = key
-        item_cost = completion_cost(response)
 
         if validate_output(self.config, output, self.console):
             return output, item_cost

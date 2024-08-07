@@ -33,14 +33,16 @@ TODO:
 - [x] Support multiple operator workflows in the optimizer
   - [x] Calculate explosion factor
   - [x] Incorporate selectivity estimates in the multi-operator optimization
-- [ ] Write gleaning optimization step
+- [x] Write gleaning optimization step
+  - [ ] Incorporate gleaning in reduce
 - [ ] Write documentation on how all the operators work
-- [ ] Change validation to be pairwise comparisons
 - [ ] Auto-generate resolver
 - [ ] Filter optimizer (as an extension of map)
+- [ ] Change validation to be pairwise comparisons
 - [ ] Support model pools
 - [ ] Operator reordering
 - [ ] Support passing expectations
 - [ ] Write intermediates to disk
 - [ ] Support order by
 - [ ] Track traces
+      l

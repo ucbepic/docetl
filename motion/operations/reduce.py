@@ -1,3 +1,11 @@
+"""
+Implements a reduce operation on input data using language models.
+
+Extends BaseOperation to reduce grouped data using batch, incremental, and parallel strategies.
+
+Manages performance metrics and dynamically adjusts processing (i.e., number of parallel folds) based on these metrics.
+"""
+
 import math
 import time
 from typing import Dict, List, Any, Tuple, Optional
@@ -15,7 +23,21 @@ from collections import deque
 
 
 class ReduceOperation(BaseOperation):
+    """
+    A class that implements a reduce operation on input data using language models.
+
+    This class extends BaseOperation to provide functionality for reducing grouped data
+    using various strategies including batch reduce, incremental reduce, and parallel fold and merge.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initialize the ReduceOperation.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
         super().__init__(*args, **kwargs)
         self.min_samples = 5
         self.max_samples = 1000
@@ -24,6 +46,29 @@ class ReduceOperation(BaseOperation):
         self.lock = Lock()
 
     def syntax_check(self) -> None:
+        """
+        Perform comprehensive syntax checks on the configuration of the ReduceOperation.
+
+        This method validates the presence and correctness of all required configuration keys, Jinja2 templates, and ensures the correct
+        structure and types of the entire configuration.
+
+        The method performs the following checks:
+        1. Verifies the presence of all required keys in the configuration.
+        2. Validates the structure and content of the 'output' configuration, including its 'schema'.
+        3. Checks if the main 'prompt' is a valid Jinja2 template and contains the required 'values' variable.
+        4. If 'merge_prompt' is specified, ensures that 'fold_prompt' is also present.
+        5. If 'fold_prompt' is present, verifies the existence of 'fold_batch_size'.
+        6. Validates the 'fold_prompt' as a Jinja2 template with required variables 'values' and 'output'.
+        7. If present, checks 'merge_prompt' as a valid Jinja2 template with required 'outputs' variable.
+        8. Verifies types of various configuration values (e.g., 'fold_batch_size' as int).
+        9. Checks for the presence and validity of optional configurations like 'model'.
+
+        Raises:
+            ValueError: If any required configuration is missing, if templates are invalid or missing required
+                        variables, or if any other configuration aspect is incorrect or inconsistent.
+            TypeError: If any configuration value has an incorrect type, such as 'schema' not being a dict
+                       or 'fold_batch_size' not being an integer.
+        """
         required_keys = ["reduce_key", "prompt", "output"]
         for key in required_keys:
             if key not in self.config:
@@ -125,6 +170,18 @@ class ReduceOperation(BaseOperation):
         self.gleaning_check()
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+        """
+        Execute the reduce operation on the provided input data.
+
+        This method sorts and groups the input data by the reduce key, then processes each group
+        using either parallel fold and merge, incremental reduce, or batch reduce strategies.
+
+        Args:
+            input_data (List[Dict]): The input data to process.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
+        """
         reduce_key = self.config["reduce_key"]
         input_schema = self.config.get("input", {}).get("schema", {})
 
@@ -186,6 +243,25 @@ class ReduceOperation(BaseOperation):
     def _parallel_fold_and_merge(
         self, key: Any, group_list: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
+        """
+        Perform parallel folding and merging on a group of items.
+
+        This method implements a sophisticated strategy that combines parallel folding of input items
+        and merging of intermediate results to efficiently process large groups. It works as follows:
+        1. The input group is divided into smaller batches.
+        2. Multiple folding operations are performed in parallel on these batches.
+        3. The results of these parallel folds are then merged in a hierarchical manner.
+        4. This process continues iteratively, reducing the number of intermediate results in each round.
+        5. The method dynamically adjusts the number of parallel folds based on performance metrics (i.e., fold and merge times).
+
+        Args:
+            key (Any): The reduce key for the group.
+            group_list (List[Dict]): The list of items in the group to be processed.
+
+        Returns:
+            Tuple[Optional[Dict], float]: A tuple containing the final merged result (or None if processing failed)
+            and the total cost of the operation.
+        """
         fold_batch_size = self.config["fold_batch_size"]
         merge_batch_size = self.config["merge_batch_size"]
         total_cost = 0
@@ -291,6 +367,19 @@ class ReduceOperation(BaseOperation):
     def _incremental_reduce(
         self, key: Any, group_list: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
+        """
+        Perform an incremental reduce operation on a group of items.
+
+        This method processes the group in batches, incrementally folding the results.
+
+        Args:
+            key (Any): The reduce key for the group.
+            group_list (List[Dict]): The list of items in the group to be processed.
+
+        Returns:
+            Tuple[Optional[Dict], float]: A tuple containing the final reduced result (or None if processing failed)
+            and the total cost of the operation.
+        """
         fold_batch_size = self.config["fold_batch_size"]
         total_cost = 0
         current_output = None
@@ -311,6 +400,20 @@ class ReduceOperation(BaseOperation):
     def _increment_fold(
         self, key: Any, batch: List[Dict], current_output: Optional[Dict]
     ) -> Tuple[Optional[Dict], float]:
+        """
+        Perform an incremental fold operation on a batch of items.
+
+        This method folds a batch of items into the current output using the fold prompt.
+
+        Args:
+            key (Any): The reduce key for the group.
+            batch (List[Dict]): The batch of items to be folded.
+            current_output (Optional[Dict]): The current accumulated output, if any.
+
+        Returns:
+            Tuple[Optional[Dict], float]: A tuple containing the folded output (or None if processing failed)
+            and the cost of the fold operation.
+        """
         if current_output is None:
             return self._batch_reduce(key, batch)
 
@@ -336,6 +439,19 @@ class ReduceOperation(BaseOperation):
     def _merge_results(
         self, key: Any, outputs: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
+        """
+        Merge multiple outputs into a single result.
+
+        This method merges a list of outputs using the merge prompt.
+
+        Args:
+            key (Any): The reduce key for the group.
+            outputs (List[Dict]): The list of outputs to be merged.
+
+        Returns:
+            Tuple[Optional[Dict], float]: A tuple containing the merged output (or None if processing failed)
+            and the cost of the merge operation.
+        """
         start_time = time.time()
         merge_prompt_template = Template(self.config["merge_prompt"])
         merge_prompt = merge_prompt_template.render(outputs=outputs, reduce_key=key)
@@ -356,6 +472,13 @@ class ReduceOperation(BaseOperation):
         return None, merge_cost
 
     def get_fold_time(self) -> Tuple[float, bool]:
+        """
+        Get the average fold time or a default value.
+
+        Returns:
+            Tuple[float, bool]: A tuple containing the average fold time (or default) and a boolean
+            indicating whether the default value was used.
+        """
         if "fold_time" in self.config:
             return self.config["fold_time"], False
         with self.lock:
@@ -364,6 +487,13 @@ class ReduceOperation(BaseOperation):
         return 1.0, True  # Default to 1 second if no data is available
 
     def get_merge_time(self) -> Tuple[float, bool]:
+        """
+        Get the average merge time or a default value.
+
+        Returns:
+            Tuple[float, bool]: A tuple containing the average merge time (or default) and a boolean
+            indicating whether the default value was used.
+        """
         if "merge_time" in self.config:
             return self.config["merge_time"], False
         with self.lock:
@@ -372,16 +502,41 @@ class ReduceOperation(BaseOperation):
         return 1.0, True  # Default to 1 second if no data is available
 
     def _update_fold_time(self, time: float) -> None:
+        """
+        Update the fold time statistics.
+
+        Args:
+            time (float): The time taken for a fold operation.
+        """
         with self.lock:
             self.fold_times.append(time)
 
     def _update_merge_time(self, time: float) -> None:
+        """
+        Update the merge time statistics.
+
+        Args:
+            time (float): The time taken for a merge operation.
+        """
         with self.lock:
             self.merge_times.append(time)
 
     def _batch_reduce(
         self, key: Any, group_list: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
+        """
+        Perform a batch reduce operation on a group of items.
+
+        This method reduces a group of items into a single output using the reduce prompt.
+
+        Args:
+            key (Any): The reduce key for the group.
+            group_list (List[Dict]): The list of items to be reduced.
+
+        Returns:
+            Tuple[Optional[Dict], float]: A tuple containing the reduced output (or None if processing failed)
+            and the cost of the reduce operation.
+        """
         prompt_template = Template(self.config["prompt"])
         prompt = prompt_template.render(reduce_key=key, values=group_list)
         item_cost = 0

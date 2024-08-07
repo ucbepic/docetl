@@ -1,3 +1,5 @@
+"""The `FilterOperation` class is a subclass of `BaseOperation` that implements a filtering operation on input data using a language model."""
+
 from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from jinja2 import Template
@@ -10,6 +12,19 @@ from rich.console import Console
 
 class FilterOperation(BaseOperation):
     def syntax_check(self) -> None:
+        """
+        Checks the configuration of the FilterOperation for required keys and valid structure.
+
+        Raises:
+            ValueError: If required keys are missing or if the output schema structure is invalid.
+            TypeError: If the schema in the output configuration is not a dictionary or if the schema value is not of type bool.
+
+        This method checks for the following:
+        - Presence of required keys: 'prompt' and 'output'
+        - Presence of 'schema' in the 'output' configuration
+        - The 'schema' is a non-empty dictionary with exactly one key-value pair
+        - The value in the schema is of type bool
+        """
         required_keys = ["prompt", "output"]
         for key in required_keys:
             if key not in self.config:
@@ -39,6 +54,46 @@ class FilterOperation(BaseOperation):
             )
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+        """
+        Executes the filter operation on the input data.
+
+        Args:
+            input_data (List[Dict]): A list of dictionaries to process.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the filtered list of dictionaries
+            and the total cost of the operation.
+
+        This method performs the following steps:
+        1. Processes each input item using an LLM model
+        2. Validates the output
+        3. Filters the results based on the specified filter key
+        4. Calculates the total cost of the operation
+
+        The method uses multi-threading to process items in parallel, improving performance
+        for large datasets.
+
+        Usage:
+        ```python
+        from motion.operations import FilterOperation
+
+        config = {
+            "prompt": "Determine if the following item is important: {{input}}",
+            "output": {
+                "schema": {"is_important": "bool"}
+            },
+            "model": "gpt-3.5-turbo"
+        }
+        filter_op = FilterOperation(config)
+        input_data = [
+            {"id": 1, "text": "Critical update"},
+            {"id": 2, "text": "Regular maintenance"}
+        ]
+        results, cost = filter_op.execute(input_data)
+        print(f"Filtered results: {results}")
+        print(f"Total cost: {cost}")
+        ```
+        """
         filter_key = next(iter(self.config["output"]["schema"].keys()))
 
         def _process_filter_item(item: Dict) -> Tuple[Optional[Dict], float]:

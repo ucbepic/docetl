@@ -1,3 +1,7 @@
+"""
+The `ResolveOperation` class is a subclass of `BaseOperation` that performs a resolution operation on a dataset. It uses a combination of blocking techniques and LLM-based comparisons to efficiently identify and resolve duplicate or related entries within the dataset.
+"""
+
 from typing import Dict, List, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from jinja2 import Template
@@ -14,6 +18,18 @@ import jinja2
 def compare_pair(
     comparison_prompt: str, model: str, item1: Dict, item2: Dict
 ) -> Tuple[bool, float]:
+    """
+    Compares two items using an LLM model to determine if they match.
+
+    Args:
+        comparison_prompt (str): The prompt template for comparison.
+        model (str): The LLM model to use for comparison.
+        item1 (Dict): The first item to compare.
+        item2 (Dict): The second item to compare.
+
+    Returns:
+        Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
+    """
     prompt_template = Template(comparison_prompt)
     prompt = prompt_template.render(input1=item1, input2=item2)
     response = call_llm(
@@ -28,6 +44,24 @@ def compare_pair(
 
 class ResolveOperation(BaseOperation):
     def syntax_check(self) -> None:
+        """
+        Checks the configuration of the ResolveOperation for required keys and valid structure.
+
+        This method performs the following checks:
+        1. Verifies the presence of required keys: 'comparison_prompt' and 'output'.
+        2. Ensures 'output' contains a 'schema' key.
+        3. Validates that 'schema' in 'output' is a non-empty dictionary.
+        4. Checks if 'comparison_prompt' is a valid Jinja2 template with 'input1' and 'input2' variables.
+        5. If 'resolution_prompt' is present, verifies it as a valid Jinja2 template with 'matched_entries' variable.
+        6. Optionally checks if 'model' is a string (if present).
+        7. Optionally checks 'blocking_keys' (if present, further checks are performed).
+
+        Raises:
+            ValueError: If required keys are missing, if templates are invalid or missing required variables,
+                        or if any other configuration aspect is incorrect or inconsistent.
+            TypeError: If the types of configuration values are incorrect, such as 'schema' not being a dict
+                       or 'model' not being a string.
+        """
         required_keys = ["comparison_prompt", "output"]
         for key in required_keys:
             if key not in self.config:
@@ -109,6 +143,24 @@ class ResolveOperation(BaseOperation):
                 )
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+        """
+        Executes the resolve operation on the provided dataset.
+
+        Args:
+            input_data (List[Dict]): The dataset to resolve.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the resolved results and the total cost of the operation.
+
+        This method performs the following steps:
+        1. Initial blocking based on specified conditions and/or embedding similarity
+        2. Pairwise comparison of potentially matching entries using LLM
+        3. Clustering of matched entries
+        4. Resolution of each cluster into a single entry (if applicable)
+        5. Result aggregation and validation
+
+        The method also calculates and logs statistics such as comparisons saved by blocking and self-join selectivity.
+        """
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])

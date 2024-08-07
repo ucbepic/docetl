@@ -1,3 +1,7 @@
+"""
+The `EquijoinOperation` class is a subclass of `BaseOperation` that performs an equijoin operation on two datasets. It uses a combination of blocking techniques and LLM-based comparisons to efficiently join the datasets.
+"""
+
 from typing import Dict, List, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from jinja2 import Template
@@ -13,6 +17,19 @@ from sklearn.metrics.pairwise import cosine_similarity
 def compare_pair(
     comparison_prompt: str, model: str, item1: Dict, item2: Dict
 ) -> Tuple[bool, float]:
+    """
+    Compares two items using an LLM model to determine if they match.
+
+    Args:
+        comparison_prompt (str): The prompt template for comparison.
+        model (str): The LLM model to use for comparison.
+        item1 (Dict): The first item to compare.
+        item2 (Dict): The second item to compare.
+
+    Returns:
+        Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
+    """
+
     prompt_template = Template(comparison_prompt)
     prompt = prompt_template.render(left=item1, right=item2)
     response = call_llm(
@@ -27,6 +44,16 @@ def compare_pair(
 
 class EquijoinOperation(BaseOperation):
     def syntax_check(self) -> None:
+        """
+        Checks the configuration of the EquijoinOperation for required keys and valid structure.
+
+        Raises:
+            ValueError: If required keys are missing or if the join_key structure is invalid.
+            Specifically:
+            - Raises if 'join_key' or 'comparison_prompt' are missing from the config.
+            - Raises if 'left' or 'right' are missing from the 'join_key' structure.
+            - Raises if 'name' is missing from either the left or right join key.
+        """
         required_keys = ["join_key", "comparison_prompt"]
         for key in required_keys:
             if key not in self.config:
@@ -51,6 +78,46 @@ class EquijoinOperation(BaseOperation):
     def execute(
         self, left_data: List[Dict], right_data: List[Dict]
     ) -> Tuple[List[Dict], float]:
+        """
+        Executes the equijoin operation on the provided datasets.
+
+        Args:
+            left_data (List[Dict]): The left dataset to join.
+            right_data (List[Dict]): The right dataset to join.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the joined results and the total cost of the operation.
+
+        Usage:
+        ```python
+        from motion.operations import EquijoinOperation
+
+        config = {
+            "join_key": {
+                "left": {"name": "id", "limit": 1},
+                "right": {"name": "user_id", "limit": 1}
+            },
+            "comparison_prompt": "Compare {{left}} and {{right}} and determine if they match.",
+            "blocking_threshold": 0.8,
+            "blocking_conditions": ["left['id'] == right['user_id']"]
+        }
+        equijoin_op = EquijoinOperation(config)
+        left_data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+        right_data = [{"user_id": 1, "age": 30}, {"user_id": 2, "age": 25}]
+        results, cost = equijoin_op.execute(left_data, right_data)
+        print(f"Joined results: {results}")
+        print(f"Total cost: {cost}")
+        ```
+
+        This method performs the following steps:
+        1. Initial blocking based on specified conditions
+        2. Embedding-based blocking (if threshold is provided)
+        3. LLM-based comparison for blocked pairs
+        4. Result aggregation and validation
+
+        The method also calculates and logs statistics such as comparisons saved by blocking and join selectivity.
+        """
+
         left_key = self.config["join_key"]["left"]["name"]
         right_key = self.config["join_key"]["right"]["name"]
         left_limit = self.config["join_key"]["left"].get("limit", float("inf"))

@@ -1,3 +1,7 @@
+"""
+The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOperation` that perform mapping operations on input data. They use LLM-based processing to transform input items into output items based on specified prompts and schemas.
+"""
+
 from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from jinja2 import Template
@@ -10,6 +14,18 @@ from rich.console import Console
 
 class MapOperation(BaseOperation):
     def syntax_check(self) -> None:
+        """
+        Checks the configuration of the MapOperation for required keys and valid structure.
+
+        Raises:
+            ValueError: If required keys ('prompt' or 'output') are missing in the configuration.
+            ValueError: If 'schema' is missing in the 'output' configuration.
+            ValueError: If 'schema' in the 'output' configuration is empty.
+            ValueError: If the 'prompt' is not a valid Jinja2 template.
+            TypeError: If 'schema' in the 'output' configuration is not a dictionary.
+            TypeError: If 'model' is present in the configuration but is not a string.
+            ValueError: If any gleaning-related configuration is invalid (raised by self.gleaning_check()).
+        """
         required_keys = ["prompt", "output"]
         for key in required_keys:
             if key not in self.config:
@@ -39,6 +55,24 @@ class MapOperation(BaseOperation):
         self.gleaning_check()
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+        """
+        Executes the map operation on the provided input data.
+
+        Args:
+            input_data (List[Dict]): The input data to process.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
+
+        This method performs the following steps:
+        1. Processes each input item using the specified prompt and LLM model
+        2. Applies gleaning if configured
+        3. Validates the output
+        4. Aggregates results and calculates total cost
+
+        The method uses parallel processing to improve performance.
+        """
+
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
@@ -88,6 +122,15 @@ class MapOperation(BaseOperation):
         return results, total_cost
 
     def validate_output(self, output: Dict) -> bool:
+        """
+        Validates the output of a single map operation against the specified schema.
+
+        Args:
+            output (Dict): The output to validate.
+
+        Returns:
+            bool: True if the output is valid, False otherwise.
+        """
         schema = self.config["output"]["schema"]
         for key in schema:
             if key not in output:
@@ -98,6 +141,13 @@ class MapOperation(BaseOperation):
 
 class ParallelMapOperation(BaseOperation):
     def syntax_check(self) -> None:
+        """
+        Checks the configuration of the ParallelMapOperation for required keys and valid structure.
+
+        Raises:
+            ValueError: If required keys are missing or if the configuration structure is invalid.
+            TypeError: If the configuration values have incorrect types.
+        """
         if "prompts" not in self.config or not isinstance(self.config["prompts"], list):
             raise ValueError(
                 "ParallelMapOperation requires a 'prompts' list in the configuration"
@@ -160,6 +210,21 @@ class ParallelMapOperation(BaseOperation):
             )
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+        """
+        Executes the parallel map operation on the provided input data.
+
+        Args:
+            input_data (List[Dict]): The input data to process.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
+
+        This method performs the following steps:
+        1. Processes each input item using multiple prompts in parallel
+        2. Aggregates results from different prompts for each input item
+        3. Validates the combined output for each item
+        4. Calculates total cost of the operation
+        """
         results = []
         total_cost = 0
         output_schema = self.config["output"]["schema"]

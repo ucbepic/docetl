@@ -6,7 +6,46 @@ import math
 
 
 class SplitOperation(BaseOperation):
+    """
+    A class that implements a split operation on input data, dividing it into manageable chunks with context.
+
+    This class extends BaseOperation to:
+    1. Split input data into chunks of specified size based on the 'split_key' and 'chunk_size' configuration.
+    2. Add peripheral context to each chunk (previous and next chunks).
+    3. Optionally summarize or include full content of peripheral chunks. TODO.
+    4. Return results containing:
+       - chunk_content: A formatted string containing the main chunk and peripheral chunks.
+       - chunk_id: A unique identifier for each chunk.
+       - _chunk_intermediates: A dictionary containing detailed information about the main chunk and its peripheral chunks, including their content, positions, and any additional metadata used in the splitting process.
+
+    The peripheral configuration impacts chunk content by determining:
+    - Number of previous and next chunks to include (specified in 'peripheral_chunks' config).
+    - Whether to include full or summarized content for these chunks (specified by 'type' in each direction's config).
+    - How partial chunks at the start/end of the sequence are handled (specified in 'head' and 'tail' configs).
+
+    This allows for flexible context-aware splitting of large datasets, ensuring each chunk
+    has access to relevant surrounding information.
+    """
+
     def syntax_check(self) -> None:
+        """
+        Perform comprehensive syntax checks on the configuration of the SplitOperation.
+
+        This method validates the presence and correctness of all required configuration keys,
+        and ensures the correct structure and types of the entire configuration.
+
+        The method performs the following checks:
+        1. Verifies the presence of all required keys in the configuration.
+        2. Checks if 'split_key' is a string.
+        3. Validates that 'chunk_size' is a positive integer.
+        4. If present, checks the structure and content of the 'peripheral_chunks' configuration.
+        5. Verifies types of various configuration values (e.g., 'model' as string).
+        6. Checks for the presence and validity of optional configurations like 'main_chunk_start' and 'main_chunk_end'.
+
+        Raises:
+            ValueError: If any required configuration is missing or if any configuration aspect is incorrect or inconsistent.
+            TypeError: If any configuration value has an incorrect type.
+        """
         required_keys = ["split_key", "chunk_size"]
         for key in required_keys:
             if key not in self.config:
@@ -77,6 +116,22 @@ class SplitOperation(BaseOperation):
             raise TypeError("'main_chunk_end' must be a string")
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+        """
+        Execute the split operation on the provided input data.
+
+        This method splits the input data into chunks based on the specified split key and chunk size.
+        It also adds peripheral context to each chunk if specified in the configuration.
+
+        Args:
+            input_data (List[Dict]): The input data to process.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the processed results (split chunks with context)
+                                      and the total cost of the operation (always 0 for split operations).
+
+        Raises:
+            KeyError: If the split key is not found in an input item.
+        """
         split_key = self.config["split_key"]
         chunk_size = self.config["chunk_size"]
         peripheral_chunks = self.config.get("peripheral_chunks", {})
@@ -142,6 +197,20 @@ class SplitOperation(BaseOperation):
         return results, 0
 
     def process_peripheral_chunks(self, chunks, config, reverse=False):
+        """
+        Process peripheral chunks based on the provided configuration.
+
+        This method handles the processing of chunks before or after the main chunk,
+        applying the specified configuration for head, middle, and tail sections.
+
+        Args:
+            chunks (List[Dict]): The list of chunks to process.
+            config (Dict): The configuration for processing peripheral chunks.
+            reverse (bool, optional): Whether to process the chunks in reverse order. Defaults to False.
+
+        Returns:
+            List[Dict]: The processed peripheral chunks.
+        """
         if reverse:
             chunks = list(reversed(chunks))
 
@@ -204,12 +273,33 @@ class SplitOperation(BaseOperation):
         return list(reversed(processed_chunks)) if reverse else processed_chunks
 
     def process_chunk(self, chunk, chunk_type):
+        """
+        Process a single chunk based on the specified chunk type.
+
+        Args:
+            chunk (Dict): The chunk to process.
+            chunk_type (str): The type of processing to apply ('full' or 'summary').
+
+        Returns:
+            Dict: The processed chunk.
+        """
         if chunk_type == "full":
             return chunk
         else:  # chunk_type == "summary"
             return self.summarize_chunk(chunk)
 
     def process_partial_chunk(self, chunk, chunk_type, ratio):
+        """
+        Process a partial chunk based on the specified chunk type and ratio.
+
+        Args:
+            chunk (Dict): The chunk to process.
+            chunk_type (str): The type of processing to apply ('full' or 'summary').
+            ratio (float): The fraction of the chunk to process.
+
+        Returns:
+            Dict: The processed partial chunk.
+        """
         if chunk_type == "full":
             partial_content = chunk["chunk_content"][
                 : int(len(chunk["chunk_content"]) * ratio)
@@ -225,8 +315,19 @@ class SplitOperation(BaseOperation):
     def summarize_chunk(
         self, chunk: Dict[str, str], ratio: float = 1.0
     ) -> Dict[str, str]:
-        # This is a placeholder function. In a real implementation,
-        # you would want to implement an actual summarization algorithm here.
+        """
+        Summarize a chunk of text.
+
+        This is a placeholder function. In a real implementation,
+        you would want to implement an actual summarization algorithm here.
+
+        Args:
+            chunk (Dict[str, str]): The chunk to summarize.
+            ratio (float, optional): The fraction of the summary to return. Defaults to 1.0.
+
+        Returns:
+            Dict[str, str]: A dictionary containing the summarized chunk.
+        """
         summary = f"Prefix of {chunk['chunk_id']}: {chunk['chunk_content'][:50]}..."
         return {
             "chunk_id": chunk["chunk_id"],
@@ -243,6 +344,23 @@ class SplitOperation(BaseOperation):
         main_chunk_start,
         main_chunk_end,
     ):
+        """
+        Combine the main chunk with its peripheral chunks.
+
+        This method combines the main chunk with its previous and next chunks,
+        adding appropriate delimiters and context information.
+
+        Args:
+            previous_chunks (List[Dict]): The chunks before the main chunk.
+            main_chunk (Dict): The main chunk to be combined.
+            next_chunks (List[Dict]): The chunks after the main chunk.
+            encoder: The tokenizer encoder.
+            main_chunk_start (str): The delimiter to mark the start of the main chunk.
+            main_chunk_end (str): The delimiter to mark the end of the main chunk.
+
+        Returns:
+            str: The combined chunk content with context.
+        """
         combined_parts = []
 
         # Process previous chunks
@@ -293,6 +411,17 @@ class SplitOperation(BaseOperation):
     def _process_peripheral_chunks_for_combination(
         self, chunks, combined_parts, encoder
     ):
+        """
+        Process peripheral chunks for combination with the main chunk.
+
+        This method processes the peripheral chunks, adding them to the combined_parts list
+        and inserting information about skipped tokens between non-consecutive chunks.
+
+        Args:
+            chunks (List[Dict]): The peripheral chunks to process.
+            combined_parts (List[str]): The list to append processed chunk information to.
+            encoder: The tokenizer encoder.
+        """
         last_chunk_num = None
         for chunk in chunks:
             current_chunk_num = int(chunk["chunk_id"].split("_")[1])

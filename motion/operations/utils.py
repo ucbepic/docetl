@@ -18,8 +18,17 @@ from frozendict import frozendict
 
 
 def freezeargs(func):
-    """Convert a mutable dictionary into immutable.
-    Useful to be compatible with cache
+    """
+    Decorator to convert mutable dictionary arguments into immutable.
+
+    This decorator is useful for making functions compatible with caching mechanisms
+    that require immutable arguments.
+
+    Args:
+        func (callable): The function to be wrapped.
+
+    Returns:
+        callable: The wrapped function with immutable dictionary arguments.
     """
 
     @functools.wraps(func)
@@ -34,6 +43,21 @@ def freezeargs(func):
 
 
 def convert_val(value: Any) -> Dict[str, Any]:
+    """
+    Convert a string representation of a type to a dictionary representation.
+
+    This function takes a string value representing a data type and converts it
+    into a dictionary format suitable for JSON schema.
+
+    Args:
+        value (Any): A string representing a data type.
+
+    Returns:
+        Dict[str, Any]: A dictionary representing the type in JSON schema format.
+
+    Raises:
+        ValueError: If the input value is not a supported type or is improperly formatted.
+    """
     value = value.lower()
     if value in ["str", "text", "string", "varchar"]:
         return {"type": "string"}
@@ -55,7 +79,21 @@ def convert_val(value: Any) -> Dict[str, Any]:
 def cache_key(
     model: str, op_type: str, prompt: str, output_schema: Dict[str, str]
 ) -> str:
-    """Generate a unique cache key based on function arguments."""
+    """
+    Generate a unique cache key based on function arguments.
+
+    This function creates a hash-based key using the input parameters, which can
+    be used for caching purposes.
+
+    Args:
+        model (str): The model name.
+        op_type (str): The operation type.
+        prompt (str): The prompt text.
+        output_schema (Dict[str, str]): The output schema dictionary.
+
+    Returns:
+        str: A unique hash string representing the cache key.
+    """
     key_dict = {
         "model": model,
         "op_type": op_type,
@@ -71,7 +109,23 @@ def cache_key(
 def cached_call_llm(
     cache_key: str, model: str, op_type: str, prompt: str, output_schema: Dict[str, str]
 ) -> str:
-    """Cached version of call_llm function."""
+    """
+    Cached version of the call_llm function.
+
+    This function serves as a cached wrapper around call_llm_with_cache. It uses
+    the @freezeargs decorator to ensure immutable arguments and @functools.lru_cache
+    for caching results.
+
+    Args:
+        cache_key (str): A unique key for caching.
+        model (str): The model name.
+        op_type (str): The operation type.
+        prompt (str): The prompt text.
+        output_schema (Dict[str, str]): The output schema dictionary.
+
+    Returns:
+        str: The result from call_llm_with_cache.
+    """
     return call_llm_with_cache(model, op_type, prompt, output_schema)
 
 
@@ -81,7 +135,20 @@ def call_llm(
     prompt: str,
     output_schema: Dict[str, str],
 ) -> str:
-    """Wrapper function that uses caching for LLM calls."""
+    """
+    Wrapper function that uses caching for LLM calls.
+
+    This function generates a cache key and calls the cached version of call_llm.
+
+    Args:
+        model (str): The model name.
+        op_type (str): The operation type.
+        prompt (str): The prompt text.
+        output_schema (Dict[str, str]): The output schema dictionary.
+
+    Returns:
+        str: The result from the cached LLM call.
+    """
     key = cache_key(model, op_type, prompt, output_schema)
     return cached_call_llm(key, model, op_type, prompt, output_schema)
 
@@ -92,6 +159,21 @@ def call_llm_with_cache(
     prompt: str,
     output_schema: Dict[str, str],
 ) -> str:
+    """
+    Make an LLM call with caching.
+
+    This function prepares the necessary parameters and makes a call to the LLM
+    using the provided model, operation type, prompt, and output schema.
+
+    Args:
+        model (str): The model name.
+        op_type (str): The operation type.
+        prompt (str): The prompt text.
+        output_schema (Dict[str, str]): The output schema dictionary.
+
+    Returns:
+        str: The response from the LLM.
+    """
     props = {key: convert_val(value) for key, value in output_schema.items()}
 
     parameters = {"type": "object", "properties": props}
@@ -149,7 +231,21 @@ def call_llm_with_gleaning(
     num_gleaning_rounds: int,
 ) -> Tuple[str, float]:
     """
-    Calls LLM with gleaning process, including validation and improvement rounds.
+    Call LLM with a gleaning process, including validation and improvement rounds.
+
+    This function performs an initial LLM call, followed by multiple rounds of
+    validation and improvement based on the validator prompt template.
+
+    Args:
+        model (str): The model name.
+        op_type (str): The operation type.
+        prompt (str): The initial prompt text.
+        output_schema (Dict[str, str]): The output schema dictionary.
+        validator_prompt_template (str): Template for the validator prompt.
+        num_gleaning_rounds (int): Number of gleaning rounds to perform.
+
+    Returns:
+        Tuple[str, float]: A tuple containing the final LLM response and the total cost.
     """
     props = {key: convert_val(value) for key, value in output_schema.items()}
 
@@ -230,6 +326,18 @@ Please improve your previous response. Ensure that the output adheres to the req
 
 
 def parse_llm_response(response: Any) -> List[Dict[str, Any]]:
+    """
+    Parse the response from a language model.
+
+    This function extracts the tool calls from the LLM response and returns the arguments
+    of any 'write_output' function calls as a list of dictionaries.
+
+    Args:
+        response (Any): The response object from the language model.
+
+    Returns:
+        List[Dict[str, Any]]: A list of dictionaries containing the parsed output.
+    """
     # This is a simplified parser
     tool_calls = response.choices[0].message.tool_calls
     tools = []
@@ -243,6 +351,17 @@ def parse_llm_response(response: Any) -> List[Dict[str, Any]]:
 
 
 def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
+    """
+    Validate the output against the specified validation rules in the operation.
+
+    Args:
+        operation (Dict): The operation dictionary containing validation rules.
+        output (Dict): The output to be validated.
+        console (Console): The console object for logging.
+
+    Returns:
+        bool: True if all validations pass, False otherwise.
+    """
     if "validate" not in operation:
         return True
     for validation in operation["validate"]:
@@ -254,6 +373,20 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
 
 
 class RichLoopBar:
+    """
+    A progress bar class that integrates with Rich console.
+
+    This class provides a wrapper around tqdm to create progress bars that work
+    with Rich console output.
+
+    Args:
+        iterable (Optional[Union[Iterable, range]]): An iterable to track progress.
+        total (Optional[int]): The total number of iterations.
+        desc (Optional[str]): Description to be displayed alongside the progress bar.
+        leave (bool): Whether to leave the progress bar on screen after completion.
+        console: The Rich console object to use for output.
+    """
+
     def __init__(
         self,
         iterable: Optional[Union[Iterable, range]] = None,
@@ -272,6 +405,16 @@ class RichLoopBar:
         self.tqdm = None
 
     def _get_total(self, iterable, total):
+        """
+        Determine the total number of iterations for the progress bar.
+
+        Args:
+            iterable: The iterable to be processed.
+            total: The explicitly specified total, if any.
+
+        Returns:
+            int or None: The total number of iterations, or None if it can't be determined.
+        """
         if total is not None:
             return total
         if isinstance(iterable, range):
@@ -282,6 +425,12 @@ class RichLoopBar:
             return None
 
     def __iter__(self):
+        """
+        Create and return an iterator with a progress bar.
+
+        Returns:
+            Iterator: An iterator that yields items from the wrapped iterable.
+        """
         self.tqdm = tqdm(
             self.iterable,
             total=self.total,
@@ -292,6 +441,12 @@ class RichLoopBar:
             yield item
 
     def __enter__(self):
+        """
+        Enter the context manager, initializing the progress bar.
+
+        Returns:
+            RichLoopBar: The RichLoopBar instance.
+        """
         self.tqdm = tqdm(
             total=self.total,
             desc=self.description,
@@ -301,14 +456,46 @@ class RichLoopBar:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Exit the context manager, closing the progress bar.
+
+        Args:
+            exc_type: The type of the exception that caused the context to be exited.
+            exc_val: The instance of the exception that caused the context to be exited.
+            exc_tb: A traceback object encoding the stack trace.
+        """
         self.tqdm.close()
 
     def update(self, n=1):
+        """
+        Update the progress bar.
+
+        Args:
+            n (int): The number of iterations to increment the progress bar by.
+        """
         if self.tqdm:
             self.tqdm.update(n)
 
 
 def rich_as_completed(futures, total=None, desc=None, leave=True, console=None):
+    """
+    Yield completed futures with a Rich progress bar.
+
+    This function wraps concurrent.futures.as_completed with a Rich progress bar.
+
+    Args:
+        futures: An iterable of Future objects to monitor.
+        total (Optional[int]): The total number of futures.
+        desc (Optional[str]): Description for the progress bar.
+        leave (bool): Whether to leave the progress bar on screen after completion.
+        console: The Rich console object to use for output.
+
+    Yields:
+        Future: Completed future objects.
+
+    Raises:
+        ValueError: If no console object is provided.
+    """
     if console is None:
         raise ValueError("Console must be provided")
 

@@ -17,6 +17,7 @@ TODO:
   - [x] Don't use an LLM to determine the right chunk size; try searching many chunk sizes
   - [x] Call llm agent multiple times on different random inputs & average results
   - [ ] Decompose map to be a chain or parallel map
+  - [ ] Debug finnicky combine prompts
 - [x] Optimize resolvers (add blocking rules)
 - [x] Optimize reduce
   - [x] Implement fold pattern
@@ -29,9 +30,9 @@ TODO:
     - [x] Derive num_parallel_folds in the reduce op itself (saving the runtimes of folds and merges)
     - [ ] Try various batch sizes
 - [x] Optimize equijoins
-- [ ] Support multiple operator workflows in the optimizer
-  - [ ] Calculate explosion factor
-  - [ ] Incorporate selectivity estimates in the multi-operator optimization
+- [x] Support multiple operator workflows in the optimizer
+  - [x] Calculate explosion factor
+  - [x] Incorporate selectivity estimates in the multi-operator optimization
 - [ ] Write gleaning optimization step
 - [ ] Write documentation on how all the operators work
 - [ ] Change validation to be pairwise comparisons

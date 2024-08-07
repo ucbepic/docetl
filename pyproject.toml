@@ -17,6 +17,7 @@ litellm = "^1.42.1"
 tqdm = "^4.66.4"
 rich = "^13.7.1"
 tenacity = "^9.0.0"
+frozendict = "^2.4.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"

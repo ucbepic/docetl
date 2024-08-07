@@ -1,14 +1,20 @@
+import hashlib
 import json
 from typing import Any, Dict, List, Callable, Tuple, Union
-from motion.optimizers.utils import LLMClient, extract_jinja_variables
+import uuid
+from motion.optimizers.utils import (
+    LLMClient,
+    extract_jinja_variables,
+)
 import random
 from motion.operations import get_operation
+from motion.operations.utils import rich_as_completed
 from rich.console import Console
 import jinja2
 import copy
 from rich.table import Table
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
+import concurrent
 
 
 class MapOptimizer:
@@ -19,7 +25,7 @@ class MapOptimizer:
         llm_client: LLMClient,
         max_threads: int,
         run_operation: Callable,
-        timeout: int = 60,
+        timeout: int = 10,
     ):
         self.config = config
         self.console = console
@@ -85,14 +91,19 @@ class MapOptimizer:
                 for plan_name, plan in plans_to_evaluate.items()
             }
             results = {}
-            for future in tqdm(
-                as_completed(futures),
-                total=len(futures),
-                desc="Evaluating plans",
-            ):
+            for future in as_completed(futures):
                 plan_name = futures[future]
-                score, output = future.result(timeout=self.timeout)
-                results[plan_name] = (score, output)
+                try:
+                    score, output = future.result(timeout=self.timeout)
+                    results[plan_name] = (score, output)
+                except concurrent.futures.TimeoutError:
+                    self.console.print(
+                        f"[yellow]Plan {plan_name} timed out and will be skipped.[/yellow]"
+                    )
+                except Exception as e:
+                    self.console.print(
+                        f"[red]Error in plan {plan_name}: {str(e)}[/red]"
+                    )
 
         # Create a table of scores sorted in descending order
         scores = sorted(
@@ -470,9 +481,7 @@ class MapOptimizer:
                 )
 
                 plan.extend([split_op, map_op, reduce_op])
-                plan_name = (
-                    f"chunk_size_{chunk_size}_peripheral_{hash(str(peripheral_config))}"
-                )
+                plan_name = f"chunk_size_{chunk_size}_peripheral_{hashlib.sha256(str(peripheral_config).encode()).hexdigest()[:8]}"
                 plans[plan_name] = plan
 
         return plans
@@ -989,8 +998,10 @@ class MapOptimizer:
         Modify the original prompt to be a prompt that will combine these chunk results to accomplish the original task. 
 
         Guidelines for your prompt template:
-        - The only variable you are allowed to use is the `values` variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(op_config['output']['schema'].keys())}
+        - The only variable you are allowed to use is the values variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(op_config['output']['schema'].keys())}
         - Avoid using filters or complex logic, even though Jinja technically supports it
+        - The prompt template must be a valid Jinja2 template
+        - You must use the values variable somehow
 
         Provide your prompt template as a single string.
         """

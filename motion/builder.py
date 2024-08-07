@@ -17,7 +17,6 @@ import os
 import jinja2
 from jinja2 import Environment, meta
 import re
-from tqdm import tqdm
 from motion.optimizers.utils import extract_jinja_variables, LLMClient
 
 
@@ -26,7 +25,7 @@ SUPPORTED_OPS = ["map", "resolve", "reduce", "equijoin"]
 
 SAMPLE_SIZE_MAP = {
     "reduce": 40,
-    "map": 10,
+    "map": 5,
     "resolve": 100,
     "equijoin": 100,
 }
@@ -48,7 +47,7 @@ class Optimizer:
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.operations_cost = 0
         self.timeout = timeout
-        self.sample_sizes = defaultdict(dict)
+        self.selectivities = defaultdict(dict)
         self.datasets = {}
 
         self.print_optimizer_config()
@@ -63,52 +62,37 @@ class Optimizer:
         self.console.print(f"[yellow]Timeout:[/yellow] {self.timeout} seconds")
         self.console.print("─" * 40)
 
-    def analyze_pipeline(self):
-        steps = self.config["pipeline"]["steps"]
-        dependencies = defaultdict(list)
+    def compute_sample_size(
+        self,
+        step_name: str,
+        step_ops: List[str],
+        op_config: Dict[str, Any],
+    ) -> int:
+        # If there are no upstream operations, use the default sample_size
+        upstream_ops = []
+        for step_op in step_ops:
+            if step_op != op_config.get("name"):
+                upstream_ops.append(step_op)
+            else:
+                break
 
-        # Analyze dependencies
-        for i, step in enumerate(steps):
-            for j in range(i + 1, len(steps)):
-                if steps[j].get("input") == step.get("name"):
-                    dependencies[i].append(j)
+        if len(upstream_ops) == 0:
+            return SAMPLE_SIZE_MAP.get(op_config.get("type"), float("inf"))
 
-        # Determine sample sizes for each operation in each step
-        for i in range(len(steps) - 1, -1, -1):
-            step = steps[i]
-            step_name = step.get("name")
-            downstream_samples = max(
-                [max(self.sample_sizes[j].values(), default=0) for j in dependencies[i]]
-                + [0]
-            )
+        # Otherwise, compute the sample size based on the upstream operations
+        sample_size = SAMPLE_SIZE_MAP.get(op_config.get("type"), 1)
 
-            for operation in step["operations"]:
-                if isinstance(operation, dict):
-                    operation_name = list(operation.keys())[0]
-                    operation_config = self.config["operations"][operation_name]
-                else:
-                    operation_name = operation
-                    operation_config = self.config["operations"][operation_name]
-
-                op_type = operation_config.get("type")
-                self.sample_sizes[step_name][operation_name] = max(
-                    SAMPLE_SIZE_MAP.get(op_type, float("inf")), downstream_samples
+        for op in reversed(upstream_ops):
+            # Use the selectivity of the upstream operation to compute the sample size
+            if op not in self.selectivities[step_name]:
+                raise ValueError(
+                    f"Selectivity for operation {op} not found in selectivities. Other ops are {self.selectivities[step_name]}"
                 )
+            sample_size = sample_size / self.selectivities[step_name].get(op)
 
-        self.print_sample_sizes()
-
-    def print_sample_sizes(self):
-        self.console.print("[bold cyan]Sample Sizes:[/bold cyan]")
-        self.console.print("─" * 40)
-        for step_name, operations in self.sample_sizes.items():
-            self.console.print(f"[yellow]Step:[/yellow] {step_name}")
-            for operation_name, sample_size in operations.items():
-                self.console.print(f"  [green]{operation_name}:[/green] {sample_size}")
-            self.console.print("─" * 40)
+        return int(round(sample_size))
 
     def optimize(self):
-        self.analyze_pipeline()
-
         optimized_steps = []
         optimized_operations = {}
         for step in self.config["pipeline"]["steps"]:
@@ -139,11 +123,33 @@ class Optimizer:
             f"[bold]Total cost: ${self.llm_client.total_cost + self.operations_cost:.2f}[/bold]"
         )
 
+    def _run_partial_step(
+        self,
+        step: Dict[str, Any],
+        ops_to_run: List[str],
+        sample_size: int,
+        optimized_operations: Dict[str, Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        # Take the input data and run the operations in ops_to_run
+        # Return the output data
+        input_sample = self._get_sample_data(step.get("input"), None, sample_size)
+
+        if step.get("input") is None:
+            # this is an equijoin step, load left and right datasets
+            left_data = self._get_sample_data(step.get("left"), None, sample_size)
+            right_data = self._get_sample_data(step.get("right"), None, sample_size)
+            input_sample = {"left": left_data, "right": right_data}
+
+        for op in ops_to_run:
+            op_object = optimized_operations[op]
+            input_sample = self._run_operation(op_object, input_sample)
+        return input_sample
+
     def _optimize_step(
         self, step: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
         optimized_operations = {}
-        input_data = None
+        optimized_operation_names = []
 
         for operation in step["operations"]:
             if isinstance(operation, dict):
@@ -156,49 +162,32 @@ class Optimizer:
             op_object = self.config["operations"][operation_name].copy()
             op_object.update(operation_config)
             op_object["name"] = operation_name
-            sample_size = self.sample_sizes[step.get("name")][operation_name]
 
-            # For equijoin operations, load both left and right datasets
-            if op_object.get("type") == "equijoin":
-                left_data = self._get_sample_data(
-                    op_object.get("left"), op_object, sample_size
-                )
-                right_data = self._get_sample_data(
-                    op_object.get("right"), op_object, sample_size
-                )
-                input_data = {"left": left_data, "right": right_data}
-            else:
-                if input_data is None:
-                    input_data = self._get_sample_data(
-                        step.get("input"), op_object, sample_size
-                    )
+            # Run the pipeline
+            sample_size = self.compute_sample_size(
+                step.get("name"), step.get("operations"), op_object
+            )
+            self.console.print(f"[yellow]Operation name: {operation_name}[/yellow]")
+            self.console.print(
+                f"[yellow]Input sample size needed: {sample_size}[/yellow]"
+            )
+
+            input_data = self._run_partial_step(
+                step, optimized_operation_names, sample_size, optimized_operations
+            )
 
             if (
                 op_object.get("optimize", True) == False
                 or op_object.get("type") not in SUPPORTED_OPS
             ):
-                # If optimize is False or operation type is not supported, just run the operation without optimization
-                # Use rich console status to indicate running the operation
-                with self.console.status(
-                    f"[bold green]Running operation: {operation_name} (Type: {op_object['type']})[/bold green]"
-                ):
-                    # Print the number of elements in input_data
-                    self.console.print(f"[yellow]Running Operation:[/yellow]")
-                    self.console.print(f"[yellow]  Type: {op_object['type']}[/yellow]")
-                    self.console.print(f"[yellow]  Name: {operation_name}[/yellow]")
-                    if op_object.get("type") == "equijoin":
-                        self.console.print(
-                            f"[yellow]  Sample size (left): {len(input_data['left'])}[/yellow]"
-                        )
-                        self.console.print(
-                            f"[yellow]  Sample size (right): {len(input_data['right'])}[/yellow]"
-                        )
-                    else:
-                        self.console.print(
-                            f"[yellow]  Sample size: {len(input_data)}[/yellow]"
-                        )
-                    input_data = self._run_operation(op_object, input_data)
-                    optimized_operations[operation_name] = op_object
+                # If optimize is False or operation type is not supported, just use the operation without optimization
+                output_data = self._run_operation(op_object, input_data)
+                optimized_operations[operation_name] = op_object
+                optimized_operation_names.append(operation_name)
+
+                selectivity = len(output_data) / len(input_data)
+
+                self.selectivities[step.get("name")][operation_name] = selectivity
             else:
                 # Use rich console status to indicate optimization of the operation
                 with self.console.status(
@@ -222,19 +211,19 @@ class Optimizer:
 
                     # Run optimization
                     if op_object.get("type") == "map":
-                        optimized_ops, input_data = self._optimize_map(
+                        optimized_ops, output_data = self._optimize_map(
                             op_object, input_data
                         )
                     elif op_object.get("type") == "reduce":
-                        optimized_ops, input_data = self._optimize_reduce(
+                        optimized_ops, output_data = self._optimize_reduce(
                             op_object, input_data
                         )
                     elif op_object.get("type") == "resolve":
-                        optimized_ops, input_data = self._optimize_resolve(
+                        optimized_ops, output_data = self._optimize_resolve(
                             op_object, input_data
                         )
                     elif op_object.get("type") == "equijoin":
-                        optimized_ops, input_data = self._optimize_equijoin(
+                        optimized_ops, output_data = self._optimize_equijoin(
                             op_object, input_data["left"], input_data["right"]
                         )
                     else:
@@ -245,10 +234,17 @@ class Optimizer:
                     for op in optimized_ops:
                         op_name = op.pop("name")
                         optimized_operations[op_name] = op
+                        optimized_operation_names.append(op_name)
+
+                        old_input_data_size = len(input_data)
+                        input_data = self._run_operation(op, input_data)
+                        new_input_data_size = len(input_data)
+                        selectivity = new_input_data_size / old_input_data_size
+                        self.selectivities[step.get("name")][op_name] = selectivity
 
         optimized_step = step.copy()
-        optimized_step["operations"] = list(optimized_operations.keys())
-        return optimized_step, optimized_operations, input_data
+        optimized_step["operations"] = optimized_operation_names
+        return optimized_step, optimized_operations, output_data
 
     def _get_sample_data(
         self, dataset_name: str, op_config: Optional[Dict[str, Any]], sample_size: int
@@ -270,10 +266,10 @@ class Optimizer:
             else:
                 raise ValueError(f"Unsupported dataset type: {dataset['type']}")
 
-        if op_config:
-            if sample_size == float("inf"):
-                return data
+        if sample_size == float("inf"):
+            return data
 
+        if op_config:
             if op_config.get("type") == "reduce":
                 return self._get_reduce_sample(
                     data, op_config.get("reduce_key"), sample_size
@@ -444,20 +440,21 @@ class Optimizer:
         else:
             return output_data
 
+    # Recursively resolve all anchors and aliases
+    @staticmethod
+    def resolve_anchors(data):
+        if isinstance(data, dict):
+            return {k: Optimizer.resolve_anchors(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [Optimizer.resolve_anchors(item) for item in data]
+        else:
+            return data
+
     def _save_optimized_config(self):
         # Create a copy of the optimized config to modify
         config_to_save = self.optimized_config.copy()
 
-        # Recursively resolve all anchors and aliases
-        def resolve_anchors(data):
-            if isinstance(data, dict):
-                return {k: resolve_anchors(v) for k, v in data.items()}
-            elif isinstance(data, list):
-                return [resolve_anchors(item) for item in data]
-            else:
-                return data
-
-        resolved_config = resolve_anchors(config_to_save)
+        resolved_config = Optimizer.resolve_anchors(config_to_save)
 
         # Use safe_dump to avoid creating anchors and aliases
         # Get the base filename without extension

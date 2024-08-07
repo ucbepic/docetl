@@ -8,10 +8,26 @@ operations:
     explode_key: medication
     name: explode_medications
     type: explode
+  extract_medications:
+    output:
+      schema:
+        medication: list[str]
+    prompt: 'Analyze the following transcript of a conversation between a doctor and
+      a patient:
+
+
+      {{ input.src }}
+
+
+      Extract and list all medications and treatments mentioned in the transcript,
+      including non-prescription recommendations such as supplements. Each entry should
+      include the most complete available information, such as dosage, whenever specified.
+      If no medications or treatments are mentioned, return an empty list.'
+    type: map
   resolve_medications:
     blocking_keys:
     - medication
-    blocking_threshold: 0.5758
+    blocking_threshold: 0.5253
     comparison_prompt: 'Compare the following two medication entries:
 
       Entry 1: {{ input1.medication }}
@@ -41,39 +57,6 @@ operations:
 
       '
     type: resolve
-  split_extract_medications:
-    chunk_size: 799
-    split_key: src
-    type: split
-  submap_extract_medications:
-    model: gpt-4o-mini
-    output:
-      schema:
-        medication: list[str]
-    prompt: 'Extract and list all medications mentioned in the following transcript
-      chunk:
-
-
-      {{ input.chunk_content }}
-
-
-      If no medications are mentioned, return an empty list. Only process the main
-      chunk.'
-    type: map
-  subreduce_extract_medications:
-    input:
-      schema:
-        medication: list[str]
-    model: gpt-4o-mini
-    output:
-      schema:
-        medication: list[str]
-    pass_through: true
-    prompt: "Combine the following results from transcript chunks to extract and list\
-      \ all medications:\n\n{{ values }}\n\nProvide the combined list of medications.\n\
-      \nOutput schema:\n{\n  \"medication\": \"list[str]\"\n}"
-    reduce_key: document_id
-    type: reduce
 pipeline:
   output:
     path: extracted_medical_info.json
@@ -82,8 +65,6 @@ pipeline:
   - input: transcripts
     name: medical_info_extraction
     operations:
-    - split_extract_medications
-    - submap_extract_medications
-    - subreduce_extract_medications
+    - extract_medications
     - explode_medications
     - resolve_medications

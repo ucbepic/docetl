@@ -2,13 +2,12 @@ import math
 import time
 from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm.auto import tqdm
 from jinja2 import Template
 from itertools import groupby
 from operator import itemgetter
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, parse_llm_response
-from motion.operations.utils import validate_output
+from motion.operations.utils import validate_output, rich_as_completed
 from litellm import completion_cost
 import jinja2
 from threading import Lock
@@ -168,11 +167,12 @@ class ReduceOperation(BaseOperation):
             ]
             results = []
             total_cost = 0
-            for future in tqdm(
-                as_completed(futures),
+            for future in rich_as_completed(
+                futures,
                 total=len(futures),
                 desc="Processing reduce items",
                 leave=True,
+                console=self.console,
             ):
                 output, item_cost = future.result()
                 total_cost += item_cost

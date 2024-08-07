@@ -1,12 +1,11 @@
 from typing import Dict, List, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm.auto import tqdm
 from jinja2 import Template
 from collections import defaultdict
 import json
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, parse_llm_response, embedding
-from motion.operations.utils import validate_output
+from motion.operations.utils import validate_output, rich_as_completed, RichLoopBar
 from litellm import completion_cost
 from sklearn.metrics.pairwise import cosine_similarity
 import jinja2
@@ -217,9 +216,10 @@ class ResolveOperation(BaseOperation):
         batch_size = self.config.get("compare_batch_size", 100)
         pair_costs = 0
 
-        for i in tqdm(
+        for i in RichLoopBar(
             range(0, len(filtered_pairs), batch_size),
             desc=f"Processing batches of {batch_size} LLM comparisons",
+            console=self.console,
         ):
             batch = filtered_pairs[i : i + batch_size]
 
@@ -294,10 +294,11 @@ class ResolveOperation(BaseOperation):
             futures = [
                 executor.submit(process_cluster, cluster) for cluster in final_clusters
             ]
-            for future in tqdm(
-                as_completed(futures),
+            for future in rich_as_completed(
+                futures,
                 total=len(futures),
                 desc="Determining resolved key for each group of equivalent keys",
+                console=self.console,
             ):
                 cluster_results, cluster_cost = future.result()
                 results.extend(cluster_results)

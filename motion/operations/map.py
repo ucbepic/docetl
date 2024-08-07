@@ -1,10 +1,9 @@
 from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm.auto import tqdm
 from jinja2 import Template
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, parse_llm_response
-from motion.operations.utils import validate_output
+from motion.operations.utils import validate_output, rich_as_completed
 from litellm import completion_cost
 from rich.console import Console
 
@@ -60,11 +59,12 @@ class MapOperation(BaseOperation):
             futures = [executor.submit(_process_map_item, item) for item in input_data]
             results = []
             total_cost = 0
-            for future in tqdm(
-                as_completed(futures),
+            for future in rich_as_completed(
+                futures,
                 total=len(futures),
                 desc="Processing map items",
                 leave=True,
+                console=self.console,
             ):
                 result, item_cost = future.result()
                 if result is not None:
@@ -175,10 +175,11 @@ class ParallelMapOperation(BaseOperation):
 
             # Process results in order
             for i, future in enumerate(
-                tqdm(
+                rich_as_completed(
                     all_futures,
                     total=len(all_futures),
                     desc="Processing parallel map items",
+                    console=self.console,
                 )
             ):
                 output, cost = future.result()

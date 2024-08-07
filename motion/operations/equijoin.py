@@ -1,12 +1,11 @@
 from typing import Dict, List, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm.auto import tqdm
 from jinja2 import Template
 from collections import defaultdict
 import json
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, parse_llm_response, embedding
-from motion.operations.utils import validate_output
+from motion.operations.utils import validate_output, rich_as_completed
 from litellm import completion_cost
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -152,10 +151,11 @@ class EquijoinOperation(BaseOperation):
                 for left, right in blocked_pairs
             }
 
-            for future in tqdm(
-                as_completed(future_to_pair),
+            for future in rich_as_completed(
+                future_to_pair,
                 total=len(future_to_pair),
                 desc="Comparing pairs",
+                console=self.console,
             ):
                 pair = future_to_pair[future]
                 is_match, cost = future.result()

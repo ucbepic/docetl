@@ -303,8 +303,11 @@ Optional parameters:
 - `model`: The language model to use, falls back to `default_model` if not specified.
 - `input`: Specifies the schema or keys to subselect from each item or value to pass into the prompt. If omitted, all keys from the input items will be used.
 - `pass_through`: Boolean flag. If true, keys (not on input) from the first item in the group will be passed through to the output. Default is false.
+- `commutative`: Boolean flag. If true, the reduce operation is commutative, meaning the order of operations doesn't matter. This can enable further optimizations. Default is true.
 - `fold_prompt`: A prompt template for incremental folding. This enables processing of large groups in smaller batches. The template should access the current reduced values using `{{ output.field_name }}` and the new batch of values using `{{ values }}`.
 - `fold_batch_size`: The number of items to process in each fold operation when using incremental folding.
+- `merge_prompt`: A prompt template for merging the results of multiple fold operations. This is used when processing large groups in parallel. The template should access the list of intermediate results using `{{ outputs }}`.
+- `merge_batch_size`: The number of intermediate results to merge in each merge operation. The optimizers uses a default of 2 if it can find a good merge prompt.
 
 Example of a basic reduce operation:
 

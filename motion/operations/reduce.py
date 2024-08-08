@@ -7,9 +7,12 @@ Manages performance metrics and dynamically adjusts processing (i.e., number of 
 """
 
 import math
+import random
 import time
 from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import numpy as np
 from jinja2 import Template
 from itertools import groupby
 from operator import itemgetter
@@ -20,6 +23,9 @@ from litellm import completion_cost
 import jinja2
 from threading import Lock
 from collections import deque
+from litellm import embedding
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import KMeans
 
 
 class ReduceOperation(BaseOperation):
@@ -167,6 +173,53 @@ class ReduceOperation(BaseOperation):
                 if not isinstance(self.config[key], int) or self.config[key] <= 0:
                     raise ValueError(f"'{key}' must be a positive integer")
 
+        if "value_sampling" in self.config:
+            sampling = self.config["value_sampling"]
+            if not isinstance(sampling, dict):
+                raise TypeError("'value_sampling' must be a dictionary")
+
+            if "enabled" not in sampling:
+                raise ValueError(
+                    "'enabled' is required in 'value_sampling' configuration"
+                )
+            if not isinstance(sampling["enabled"], bool):
+                raise TypeError("'enabled' in 'value_sampling' must be a boolean")
+
+            if sampling["enabled"]:
+                if "sample_size" not in sampling:
+                    raise ValueError(
+                        "'sample_size' is required when value_sampling is enabled"
+                    )
+                if (
+                    not isinstance(sampling["sample_size"], int)
+                    or sampling["sample_size"] <= 0
+                ):
+                    raise ValueError("'sample_size' must be a positive integer")
+
+                if "method" not in sampling:
+                    raise ValueError(
+                        "'method' is required when value_sampling is enabled"
+                    )
+                if sampling["method"] not in [
+                    "random",
+                    "first_n",
+                    "cluster",
+                    "sem_sim",
+                ]:
+                    raise ValueError(
+                        "Invalid 'method'. Must be 'random', 'first_n', or 'embedding'"
+                    )
+
+                if sampling["method"] == "embedding":
+                    if "embedding_model" not in sampling:
+                        raise ValueError(
+                            "'embedding_model' is required when using embedding-based sampling"
+                        )
+                    if "embedding_keys" not in sampling:
+                        raise ValueError(
+                            "'embedding_keys' is required when using embedding-based sampling"
+                        )
+
         self.gleaning_check()
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
@@ -205,12 +258,42 @@ class ReduceOperation(BaseOperation):
                     for item in group_list
                 ]
 
+            total_cost = 0.0
+
+            # Apply value sampling if enabled
+            value_sampling = self.config.get("value_sampling", {})
+            if value_sampling.get("enabled", False):
+                sample_size = min(value_sampling["sample_size"], len(group_list))
+                method = value_sampling["method"]
+
+                if method == "random":
+                    group_sample = random.sample(group_list, sample_size)
+                    group_sample.sort(key=lambda x: group_list.index(x))
+                elif method == "first_n":
+                    group_sample = group_list[:sample_size]
+                elif method == "cluster":
+                    group_sample, embedding_cost = self._cluster_based_sampling(
+                        group_list, value_sampling, sample_size
+                    )
+                    group_sample.sort(key=lambda x: group_list.index(x))
+                    total_cost += embedding_cost
+                elif method == "sem_sim":
+                    group_sample, embedding_cost = self._semantic_similarity_sampling(
+                        key, group_list, value_sampling, sample_size
+                    )
+                    group_sample.sort(key=lambda x: group_list.index(x))
+                    total_cost += embedding_cost
+
+                group_list = group_sample
+
             if "merge_prompt" in self.config and self.config.get("commutative", True):
                 result, cost = self._parallel_fold_and_merge(key, group_list)
             elif "fold_prompt" in self.config:
                 result, cost = self._incremental_reduce(key, group_list)
             else:
                 result, cost = self._batch_reduce(key, group_list)
+
+            total_cost += cost
 
             # Apply pass-through at the group level
             if (
@@ -222,7 +305,7 @@ class ReduceOperation(BaseOperation):
                     if k not in self.config["output"]["schema"] and k not in result:
                         result[k] = v
 
-            return result, cost
+            return result, total_cost
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
@@ -244,6 +327,59 @@ class ReduceOperation(BaseOperation):
                     results.append(output)
 
         return results, total_cost
+
+    def _get_embeddings(
+        self, items: List[Dict], value_sampling: Dict
+    ) -> Tuple[List[List[float]], float]:
+        embedding_model = value_sampling["embedding_model"]
+        embedding_keys = value_sampling["embedding_keys"]
+
+        texts = [
+            " ".join(str(item[key]) for key in embedding_keys if key in item)
+            for item in items
+        ]
+        response = embedding(embedding_model, texts)
+        embeddings = [data["embedding"] for data in response["data"]]
+        cost = completion_cost(response)
+
+        return embeddings, cost
+
+    def _cluster_based_sampling(
+        self, group_list: List[Dict], value_sampling: Dict, sample_size: int
+    ) -> Tuple[List[Dict], float]:
+        embeddings, cost = self._get_embeddings(group_list, value_sampling)
+
+        kmeans = KMeans(n_clusters=sample_size, random_state=42)
+        cluster_labels = kmeans.fit_predict(embeddings)
+
+        sampled_items = []
+        for i in range(sample_size):
+            cluster_items = [
+                item for item, label in zip(group_list, cluster_labels) if label == i
+            ]
+            if cluster_items:
+                sampled_items.append(random.choice(cluster_items))
+
+        return sampled_items, cost
+
+    def _semantic_similarity_sampling(
+        self, key: Any, group_list: List[Dict], value_sampling: Dict, sample_size: int
+    ) -> Tuple[List[Dict], float]:
+        embedding_model = value_sampling["embedding_model"]
+        query_text_template = Template(value_sampling["query_text"])
+        query_text = query_text_template.render(reduce_key=key)
+
+        embeddings, cost = self._get_embeddings(group_list, value_sampling)
+
+        query_response = embedding(embedding_model, [query_text])
+        query_embedding = query_response["data"][0]["embedding"]
+        cost += completion_cost(query_response)
+
+        similarities = cosine_similarity([query_embedding], embeddings)[0]
+
+        top_k_indices = np.argsort(similarities)[-sample_size:]
+
+        return [group_list[i] for i in top_k_indices], cost
 
     def _parallel_fold_and_merge(
         self, key: Any, group_list: List[Dict]

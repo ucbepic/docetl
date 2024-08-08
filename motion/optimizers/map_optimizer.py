@@ -68,26 +68,30 @@ class MapOptimizer:
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Optimize the given operation configuration for the input data.
-
         This method analyzes the operation and input data, generates various
         optimization plans, evaluates them, and returns the best plan along
-        with its output. The types of optimization plans include:
+        with its output. A key part of this process is creating a custom
+        validator prompt for evaluation. The validator prompt is generated
+        based on the specific task, input data, and output data. It serves
+        as a critical tool for assessing the quality and correctness of
+        each optimization plan's output. This custom prompt ensures that
+        the evaluation is tailored to the unique requirements and nuances
+        of the given operation. The types of optimization plans include:
 
-        1. Improved Prompt Plan: Enhances the original prompt based on assessment
-           of the operation's performance, aiming to improve output quality.
+        1. Improved Prompt Plan: Enhances the original prompt based on evaluation, aiming to improve output quality.
 
-        2. Chunk Size Plans: Splits input data into chunks of different sizes,
+        2. Chunk Size Plan: Splits input data into chunks of different sizes,
            processes each chunk separately, and then combines the results. This
            can improve performance for large inputs.
 
         3. Gleaning Plans: Implements an iterative refinement process where the
            output is validated and improved over multiple rounds, enhancing accuracy.
 
-        4. Chain Decomposition Plans: Breaks down complex operations into a series
+        4. Chain Decomposition Plan: Breaks down complex operations into a series
            of simpler sub-operations, potentially improving overall performance
            and interpretability.
 
-        5. Parallel Map Plans: Decomposes the task into subtasks that can be
+        5. Parallel Map Plan: Decomposes the task into subtasks that can be
            executed in parallel, potentially speeding up processing for
            independent operations.
 

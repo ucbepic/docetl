@@ -342,14 +342,18 @@ class MapOptimizer:
             sample_output = self._run_operation(op, sample_output)
 
         # Generate the combine prompt using the sample output
-        combine_prompt = self._get_combine_prompt(op_config, sample_output)
+        combine_prompt, is_commutative = self._get_combine_prompt(
+            op_config, sample_output
+        )
 
         # Print the combine prompt
         self.console.log("[bold]Combine Prompt:[/bold]")
         self.console.log(combine_prompt)
 
         # Create the reduce operation
-        reduce_op = self._create_reduce_operation(op_config, combine_prompt)
+        reduce_op = self._create_reduce_operation(
+            op_config, combine_prompt, is_commutative
+        )
 
         # Create plans for each chunk size
         plans = {}
@@ -987,7 +991,7 @@ class MapOptimizer:
         self,
         op_config: Dict[str, Any],
         sample_output: List[Dict[str, Any]],
-    ) -> str:
+    ) -> Tuple[str, bool]:
         """
         Generate a combine prompt for merging chunk results in a map-reduce operation.
 
@@ -1004,9 +1008,11 @@ class MapOptimizer:
                 output from a single chunk.
 
         Returns:
-            str: A Jinja2 template string that serves as the combine prompt. This
-                prompt will be used to merge the results from individual chunks
-                to produce the final output of the map-reduce operation.
+            Tuple[str, bool]: A tuple containing:
+                - A Jinja2 template string that serves as the combine prompt.
+                  This prompt will be used to merge the results from individual
+                  chunks to produce the final output of the map-reduce operation.
+                - A boolean indicating whether the combine operation is commutative.
 
         The method performs the following steps:
         1. Extracts relevant information from the op_config, including the original
@@ -1014,10 +1020,11 @@ class MapOptimizer:
         2. Prepares sample inputs based on the sample_output and the output schema.
         3. Constructs a base prompt that includes the original prompt, output schema,
            and sample inputs.
-        4. Uses the LLM to generate a reduce prompt based on the base prompt and
+        4. Uses the LLM to generate a combine prompt based on the base prompt and
            specific guidelines.
         5. Validates the generated prompt to ensure it meets the required format
            and uses the correct variables.
+        6. Determines whether the combine operation is commutative.
 
         Note:
             The generated combine prompt is constrained to use only the 'values'
@@ -1066,7 +1073,62 @@ class MapOptimizer:
         result = self._generate_and_validate_prompt(
             base_prompt, system_prompt, parameters, op_config, is_metadata=False
         )
-        return result["combine_prompt"]
+        combine_prompt = result["combine_prompt"]
+
+        # Determine if the combine operation is commutative
+        system_prompt_commutative = (
+            "You are an AI assistant analyzing data processing tasks."
+        )
+        commutative_prompt = f"""
+        Given the original task prompt and the combine prompt, determine if the order of combining chunk results matters.
+
+        Original task prompt:
+        {op_config['prompt']}
+        
+        Output schema:
+        {json.dumps(op_config['output']['schema'], indent=2)}
+
+        Sample inputs from processing various chunks:
+        {sample_inputs}
+
+        Prompt to combine results of subtasks:
+        {combine_prompt}
+
+        Does the order of combining chunk results matter? Answer with 'yes' if order matters (non-commutative) or 'no' if order doesn't matter (commutative). 
+        Explain your reasoning briefly.
+
+        For example:
+        - Merging extracted key-value pairs from documents is commutative: combining {{"name": "John", "age": 30}} with {{"city": "New York", "job": "Engineer"}} yields the same result regardless of order
+        - Generating a timeline of events is non-commutative: the order of events matters for maintaining chronological accuracy.
+
+        Consider these examples when determining if the combining operation is commutative or not.
+        """
+
+        parameters_commutative = {
+            "type": "object",
+            "properties": {
+                "is_commutative": {"type": "string", "enum": ["yes", "no"]},
+                "explanation": {"type": "string"},
+            },
+            "required": ["is_commutative", "explanation"],
+        }
+
+        commutative_result = self._generate_and_validate_prompt(
+            commutative_prompt,
+            system_prompt_commutative,
+            parameters_commutative,
+            op_config,
+            is_metadata=False,
+        )
+
+        is_commutative = commutative_result["is_commutative"] == "no"
+        commutative_explanation = commutative_result["explanation"]
+
+        self.console.log(f"[bold]Commutativity Analysis:[/bold]")
+        self.console.log(f"Is commutative: {'Yes' if is_commutative else 'No'}")
+        self.console.log(f"Explanation: {commutative_explanation}")
+
+        return combine_prompt, is_commutative
 
     def _edit_subprompt_to_reflect_metadata(
         self,
@@ -1645,7 +1707,7 @@ class MapOptimizer:
         }
 
     def _create_reduce_operation(
-        self, op_config: Dict[str, Any], combine_prompt: str
+        self, op_config: Dict[str, Any], combine_prompt: str, is_commutative: bool
     ) -> Dict[str, Any]:
         name = f"subreduce_{op_config['name']}"
         return {
@@ -1661,6 +1723,7 @@ class MapOptimizer:
             ),
             "output": op_config["output"],
             "pass_through": True,
+            "commutative": is_commutative,
         }
 
     # Utility methods

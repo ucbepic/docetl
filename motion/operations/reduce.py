@@ -348,8 +348,8 @@ class ReduceOperation(BaseOperation):
                         num_parallel_folds = new_num_parallel_folds
 
         # Final merging if needed
-        self.console.log(f"Finished folding! Merging {len(fold_results)} items.")
         while len(fold_results) > 1:
+            self.console.log(f"Finished folding! Merging {len(fold_results)} items.")
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 merge_futures = []
                 for i in range(0, len(fold_results), merge_batch_size):

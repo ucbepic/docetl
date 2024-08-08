@@ -36,7 +36,7 @@ TODO:
 - [x] Write gleaning optimization step
   - [ ] Incorporate gleaning in reduce
 - [ ] Support a summary type reduce, where we sample k elements to put in the prompt do a batch reduce
-- [ ] Write a non-commutative reduce
+- [x] Write a non-commutative reduce
 - [ ] Write documentation on how all the operators work
 - [ ] Run tests in CI
 - [ ] Write tests for optimizers

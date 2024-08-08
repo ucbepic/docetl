@@ -5,9 +5,10 @@ datasets:
 default_model: gpt-4o-mini
 operations:
   summarize_medication_contexts:
-    fold_batch_size: 6
-    fold_prompt: 'Analyze the following doctor-patient transcripts where the medication
-      "{{ reduce_key }}" is mentioned:
+    commutative: true
+    fold_batch_size: 4
+    fold_prompt: 'Combine the existing summary with insights from the following doctor-patient
+      transcripts, where the medication "{{ reduce_key }}" is mentioned:
 
 
       {% for item in values %}
@@ -22,9 +23,8 @@ operations:
       {% endfor %}
 
 
-      Considering the current summary and the new transcripts, provide an updated
-      summary of the settings in which patients take the medication "{{ reduce_key
-      }}". Include the following information:
+      Update the summary by integrating these new transcripts. Continue to include
+      the following information for all relevant cases:
 
 
       1. A brief summary of why a patient takes this medication.
@@ -34,53 +34,14 @@ operations:
       3. Any interactions with other medications or treatments mentioned.
 
 
-      Current Summary:
-
-      "{{ output.summary }}"
+      Incorporate these new findings into the existing summary:
 
 
-      Updated Summary:'
+      {{ output.summary }}'
     input:
       schema:
         medication: str
         src: str
-    merge_batch_size: 2
-    merge_prompt: 'Combine the summaries provided below, which are generated from
-      analyzing doctor-patient transcripts where the medication "{{ reduce_key }}"
-      is mentioned. The summaries may originate from different batches of transcripts
-      that have been incrementally folded to maintain up-to-date information about
-      the use of the medication.
-
-
-      Your goal is to merge these summaries into a single, cohesive output as if the
-      original reduce prompt was run on all inputs at once. Ensure that the final
-      summary includes the most comprehensive and accurate information available.
-
-
-      {% for output in outputs %}
-
-      Summary from batch {{ loop.index }}:
-
-      {{ output.summary }}
-
-
-      ---
-
-      {% endfor %}
-
-
-      Based on these summaries, provide a final summary of the settings in which patients
-      take the medication "{{ reduce_key }}". Ensure you include the following information:
-
-
-      1. A brief summary of why a patient takes this medication.
-
-      2. Any side effects experienced or mentioned.
-
-      3. Any interactions with other medications or treatments mentioned.
-
-
-      Final Summary:'
     output:
       schema:
         summary: str

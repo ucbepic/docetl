@@ -87,8 +87,11 @@ class ReduceOptimizer:
         )
 
         # Step 2: validate the output
+        validator_inputs = self._create_validation_inputs(
+            input_data, op_config["reduce_key"]
+        )
         validation_results = self._validate_reduce_output(
-            op_config, input_data, original_output, validator_prompt
+            op_config, validator_inputs, original_output, validator_prompt
         )
 
         # Print the validation results
@@ -103,8 +106,13 @@ class ReduceOptimizer:
                 )
             )
 
+            # Step 2.5: Determine if the reduce operation is commutative
+            is_commutative = self._is_commutative(op_config, input_data)
+
             # Step 3: Create and evaluate multiple reduce plans
-            reduce_plans = self._create_reduce_plans(op_config, input_data)
+            reduce_plans = self._create_reduce_plans(
+                op_config, input_data, is_commutative
+            )
             best_plan = self._evaluate_reduce_plans(
                 reduce_plans, input_data, validator_prompt
             )
@@ -116,6 +124,75 @@ class ReduceOptimizer:
         else:
             self.console.log("No improvements identified.")
             return op_config, original_output
+
+    def _is_commutative(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> bool:
+        """
+        Determine if the reduce operation is commutative.
+
+        This method analyzes the reduce operation configuration and a sample of the input data
+        to determine if the operation is commutative (i.e., the order of combining elements
+        doesn't affect the final result).
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+
+        Returns:
+            bool: True if the operation is determined to be commutative, False otherwise.
+        """
+        system_prompt = (
+            "You are an AI assistant helping to optimize data processing pipelines."
+        )
+
+        # Sample a subset of input data for analysis
+        sample_size = min(5, len(input_data))
+        sample_input = random.sample(input_data, sample_size)
+
+        prompt = f"""
+        Analyze the following reduce operation and determine if it is commutative:
+
+        Reduce Operation Prompt:
+        {op_config['prompt']}
+
+        Sample Input Data:
+        {json.dumps(sample_input, indent=2)}
+
+        A reduce operation is commutative if the order of combining elements doesn't affect the final result.
+        For example, sum and product operations are commutative, while subtraction and division are not.
+
+        Based on the reduce operation prompt and the sample input data, determine if this operation is likely to be commutative.
+        Answer with 'yes' if order matters (non-commutative) or 'no' if order doesn't matter (commutative). 
+        Explain your reasoning briefly.
+
+        For example:
+        - Merging extracted key-value pairs from documents is commutative: combining {{"name": "John", "age": 30}} with {{"city": "New York", "job": "Engineer"}} yields the same result regardless of order
+        - Generating a timeline of events is non-commutative: the order of events matters for maintaining chronological accuracy.
+
+        Consider these examples when determining if the combining operation is commutative or not. You might also have to consider the specific data.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "is_commutative": {"type": "boolean"},
+                "explanation": {"type": "string"},
+            },
+            "required": ["is_commutative", "explanation"],
+        }
+
+        response = self.llm_client.generate(
+            [{"role": "user", "content": prompt}],
+            system_prompt,
+            parameters,
+        )
+        result = json.loads(response.choices[0].message.content)
+
+        self.console.log(
+            f"Result: {'Commutative' if result['is_commutative'] else 'Non-commutative'} - Commutativity analysis: {result['explanation']}"
+        )
+        return result["is_commutative"]
 
     def _generate_validator_prompt(
         self,
@@ -196,7 +273,7 @@ class ReduceOptimizer:
     def _validate_reduce_output(
         self,
         op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        validation_inputs: List[Dict[str, Any]],
         output_data: List[Dict[str, Any]],
         validator_prompt: str,
     ) -> Dict[str, Any]:
@@ -205,7 +282,6 @@ class ReduceOptimizer:
 
         This method assesses the quality of the reduce operation output by applying the validator prompt
         to multiple samples of the input and output data.
-        TODO: we need to get rid of randomness so it's easier to compare results across different plans.
 
         Args:
             op_config (Dict[str, Any]): Configuration for the reduce operation.
@@ -218,39 +294,25 @@ class ReduceOptimizer:
         """
         system_prompt = "You are an AI assistant tasked with validating the output of reduce operations in data processing pipelines."
 
-        # Count occurrences of each key in input_data
-        key_counts = {}
-        for item in input_data:
-            key = item[op_config["reduce_key"]]
-            key_counts[key] = key_counts.get(key, 0) + 1
-
         validation_results = []
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = []
-            for _ in range(self.num_samples_in_validation):
-
-                # Select a key weighted by its count
-                # TODO: get rid of randomness here
-                selected_key = random.choices(
-                    list(key_counts.keys()), weights=list(key_counts.values()), k=1
-                )[0]
-
-                # Find a sample input with the selected key
-                sample_input = next(
-                    item
-                    for item in input_data
-                    if item[op_config["reduce_key"]] == selected_key
-                )
-
-                # Find the corresponding output
+            for sample_input in validation_inputs:
+                reduce_key = op_config["reduce_key"]
                 sample_output = next(
                     (
-                        out
-                        for out in output_data
-                        if out[op_config["reduce_key"]] == selected_key
+                        item
+                        for item in output_data
+                        if item[reduce_key] == sample_input[reduce_key]
                     ),
                     None,
                 )
+
+                if sample_output is None:
+                    self.console.log(
+                        f"Warning: No output found for reduce key {sample_input[reduce_key]}"
+                    )
+                    continue
 
                 prompt = f"""
                 {validator_prompt}
@@ -304,8 +366,31 @@ class ReduceOptimizer:
             "validation_results": validation_results,
         }
 
+    def _create_validation_inputs(
+        self, input_data: List[Dict[str, Any]], reduce_key: str
+    ) -> List[Dict[str, Any]]:
+        # Group input data by reduce_key
+        grouped_data = {}
+        for item in input_data:
+            key = item[reduce_key]
+            if key not in grouped_data:
+                grouped_data[key] = []
+            grouped_data[key].append(item)
+
+        # Select a fixed set of samples
+        samples = []
+        for key, group in grouped_data.items():
+            if len(group) > 1:
+                sample_input = random.choice(group)
+                samples.append(sample_input)
+
+        return samples[: self.num_samples_in_validation]
+
     def _create_reduce_plans(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        is_commutative: bool,
     ) -> List[Dict[str, Any]]:
         """
         Create multiple reduce plans based on the input data and operation configuration.
@@ -319,6 +404,7 @@ class ReduceOptimizer:
         Args:
             op_config (Dict[str, Any]): Configuration for the reduce operation.
             input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            is_commutative (bool): Flag indicating whether the reduce operation is commutative.
 
         Returns:
             List[Dict[str, Any]]: A list of reduce plans, each with different batch sizes and fold prompts.
@@ -386,6 +472,7 @@ class ReduceOptimizer:
                 plan = op_config.copy()
                 plan["fold_prompt"] = fold_prompt
                 plan["fold_batch_size"] = batch_size
+                plan["commutative"] = is_commutative
                 plans.append(plan)
 
         return plans
@@ -609,10 +696,23 @@ class ReduceOptimizer:
         plan_scores = []
         plan_outputs = {}
 
+        # Create a fixed random sample for evaluation
+        sample_size = min(100, len(input_data))
+        evaluation_sample = random.sample(input_data, sample_size)
+
+        # Create a fixed set of validation samples
+        validation_inputs = self._create_validation_inputs(
+            evaluation_sample, plan["reduce_key"]
+        )
+
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
                 executor.submit(
-                    self._evaluate_single_plan, plan, input_data, validator_prompt
+                    self._evaluate_single_plan,
+                    plan,
+                    evaluation_sample,
+                    validator_prompt,
+                    validation_inputs,
                 )
                 for plan in plans
             ]
@@ -654,7 +754,11 @@ class ReduceOptimizer:
 
         # Evaluate the merged plan
         _, merged_plan_score, _, operation_instance = self._evaluate_single_plan(
-            merged_plan, input_data, validator_prompt, return_instance=True
+            merged_plan,
+            evaluation_sample,
+            validator_prompt,
+            validation_inputs,
+            return_instance=True,
         )
 
         # Get the merge and fold times from the operation instance
@@ -687,6 +791,7 @@ class ReduceOptimizer:
         plan: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
+        validation_inputs: List[Dict[str, Any]],
         return_instance: bool = False,
     ) -> Union[
         Tuple[Dict[str, Any], float, List[Dict[str, Any]]],
@@ -724,8 +829,9 @@ class ReduceOptimizer:
         output = self._run_operation(plan, input_data, return_instance)
         if return_instance:
             output, operation_instance = output
+
         validation_result = self._validate_reduce_output(
-            plan, input_data, output, validator_prompt
+            plan, validation_inputs, output, validator_prompt
         )
 
         # Calculate a score based on validation results

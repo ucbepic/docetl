@@ -5,7 +5,7 @@ datasets:
 default_model: gpt-4o-mini
 operations:
   split_extract_medical_info:
-    chunk_size: 681
+    chunk_size: 663
     peripheral_chunks:
       next:
         head:
@@ -22,14 +22,16 @@ operations:
         dosages: list[str]
         medications: list[str]
         symptoms: list[str]
-    prompt: "Extract and list all medications, dosages, and symptoms mentioned in\
-      \ the transcript chunk:\n\n{{ input.chunk_content }}\n\nIf a piece of information\
-      \ is not found, return an empty list for that category. Provide your response\
-      \ in the following JSON format:\n{\n  \"medications\": [\"medication1\", \"\
-      medication2\", ...],\n  \"dosages\": [\"dosage1\", \"dosage2\", ...],\n  \"\
-      symptoms\": [\"symptom1\", \"symptom2\", ...]\n} Only process the main chunk."
+    prompt: "Analyze the following segment of the transcript:\n\n{{ input.chunk_content\
+      \ }}\n\nExtract and list all medications, dosages, and symptoms mentioned in\
+      \ this segment.\nIf a piece of information is not found, return an empty list\
+      \ for that category.\n\nProvide your response in the following JSON format:\n\
+      {\n  \"medications\": [\"medication1\", \"medication2\", ...],\n  \"dosages\"\
+      : [\"dosage1\", \"dosage2\", ...],\n  \"symptoms\": [\"symptom1\", \"symptom2\"\
+      , ...]\n}\n Only process the main chunk."
     type: map
   subreduce_extract_medical_info:
+    commutative: true
     input:
       schema:
         dosages: list[str]
@@ -42,17 +44,12 @@ operations:
         medications: list[str]
         symptoms: list[str]
     pass_through: true
-    prompt: "Combine the following extracted data from multiple conversation chunks\
-      \ into a comprehensive list of mentioned details in the transcript.\n\n{% set\
-      \ medications = [] %}\n{% set dosages = [] %}\n{% set symptoms = [] %}\n\n{%\
-      \ for value in values %}\n  {% for med in value.medications %}\n    {% if med\
-      \ not in medications %}\n      {{ medications.append(med) }}\n    {% endif %}\n\
-      \  {% endfor %}\n  {% for dose in value.dosages %}\n    {% if dose not in dosages\
-      \ %}\n      {{ dosages.append(dose) }}\n    {% endif %}\n  {% endfor %}\n  {%\
-      \ for symptom in value.symptoms %}\n    {% if symptom not in symptoms %}\n \
-      \     {{ symptoms.append(symptom) }}\n    {% endif %}\n  {% endfor %}\n{% endfor\
-      \ %}\n\n{\n  \"medications\": {{ medications | sort }},\n  \"dosages\": {{ dosages\
-      \ | sort }},\n  \"symptoms\": {{ symptoms | sort }}\n}"
+    prompt: "Combine the information extracted from the chunks below to provide a\
+      \ comprehensive list of medications, dosages, and symptoms from the conversation\
+      \ transcript.\n\nEach chunk contains dictionaries with the keys 'medications',\
+      \ 'dosages', and 'symptoms'. Use this information to generate a single consolidated\
+      \ response.\n\nFinal Format:\n{\n  \"medications\": [...],\n  \"dosages\": [...],\n\
+      \  \"symptoms\": [...]\n}\n\nChunks to combine:\n{{ values }}"
     reduce_key: document_id
     type: reduce
 pipeline:

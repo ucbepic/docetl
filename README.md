@@ -308,6 +308,19 @@ Optional parameters:
 - `fold_batch_size`: The number of items to process in each fold operation when using incremental folding.
 - `merge_prompt`: A prompt template for merging the results of multiple fold operations. This is used when processing large groups in parallel. The template should access the list of intermediate results using `{{ outputs }}`.
 - `merge_batch_size`: The number of intermediate results to merge in each merge operation. The optimizers uses a default of 2 if it can find a good merge prompt.
+- `value_sampling`: A dictionary specifying the sampling strategy for large groups. This can significantly reduce processing time and costs for very large datasets. The dictionary should contain:
+  - `enabled`: Boolean flag to enable or disable value sampling.
+  - `method`: The sampling method to use. Options are:
+    - `"random"`: Randomly select a subset of values.
+    - `"first_n"`: Select the first N values.
+    - `"cluster"`: Use K-means clustering to select representative samples.
+    - `"sem_sim"`: Use semantic similarity to select the most relevant samples to some query text.
+  - `sample_size`: The number of samples to select.
+  - `embedding_model`: (Required for "cluster" and "sem_sim" methods) The embedding model to use for generating embeddings.
+  - `embedding_keys`: (Required for "cluster" and "sem_sim" methods) The keys from the input data to use for generating embeddings.
+  - `query_text`: (Required for "sem_sim" method) The query text to compare against when selecting samples. A jinja template with access to `reduce_key`.
+
+Example of a reduce operation with value sampling:
 
 Example of a basic reduce operation:
 

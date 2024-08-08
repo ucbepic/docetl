@@ -11,6 +11,22 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class ReduceOptimizer:
+    """
+    A class that optimizes reduce operations in data processing pipelines.
+
+    This optimizer analyzes the input and output of a reduce operation, creates and evaluates
+    multiple reduce plans, and selects the best plan for optimizing the operation's performance.
+
+    Attributes:
+        config (Dict[str, Any]): Configuration dictionary for the optimizer.
+        console (Console): Rich console object for pretty printing.
+        llm_client (LLMClient): Client for interacting with a language model.
+        _run_operation (Callable): Function to run an operation.
+        max_threads (int): Maximum number of threads to use for parallel processing.
+        num_fold_prompts (int): Number of fold prompts to generate.
+        num_samples_in_validation (int): Number of samples to use in validation.
+    """
+
     def __init__(
         self,
         config: Dict[str, Any],
@@ -21,6 +37,18 @@ class ReduceOptimizer:
         num_fold_prompts: int = 1,
         num_samples_in_validation: int = 10,
     ):
+        """
+        Initialize the ReduceOptimizer.
+
+        Args:
+            config (Dict[str, Any]): Configuration dictionary for the optimizer.
+            console (Console): Rich console object for pretty printing.
+            llm_client (LLMClient): Client for interacting with a language model.
+            max_threads (int): Maximum number of threads to use for parallel processing.
+            run_operation (Callable): Function to run an operation.
+            num_fold_prompts (int, optional): Number of fold prompts to generate. Defaults to 1.
+            num_samples_in_validation (int, optional): Number of samples to use in validation. Defaults to 10.
+        """
         self.config = config
         self.console = console
         self.llm_client = llm_client
@@ -32,6 +60,24 @@ class ReduceOptimizer:
     def optimize(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """
+        Optimize the reduce operation based on the given configuration and input data.
+
+        This method performs the following steps:
+        1. Run the original operation
+        2. Generate a validator prompt
+        3. Validate the output
+        4. If improvement is needed, create and evaluate multiple reduce plans
+        5. Run the best reduce plan
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+
+        Returns:
+            Tuple[Dict[str, Any], List[Dict[str, Any]]]: A tuple containing the optimized configuration
+            and the output of the optimized operation.
+        """
 
         original_output = self._run_operation(op_config, input_data)
 
@@ -77,6 +123,20 @@ class ReduceOptimizer:
         input_data: List[Dict[str, Any]],
         original_output: List[Dict[str, Any]],
     ) -> str:
+        """
+        Generate a custom validator prompt for assessing the quality of the reduce operation output.
+
+        This method creates a prompt that will be used to validate the output of the reduce operation.
+        It includes specific questions about the quality and completeness of the output.
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            original_output (List[Dict[str, Any]]): Original output of the reduce operation.
+
+        Returns:
+            str: A custom validator prompt as a string.
+        """
         system_prompt = "You are an AI assistant tasked with creating custom validation prompts for reduce operations in data processing pipelines."
 
         sample_input = random.choice(input_data)
@@ -140,6 +200,22 @@ class ReduceOptimizer:
         output_data: List[Dict[str, Any]],
         validator_prompt: str,
     ) -> Dict[str, Any]:
+        """
+        Validate the output of the reduce operation using the generated validator prompt.
+
+        This method assesses the quality of the reduce operation output by applying the validator prompt
+        to multiple samples of the input and output data.
+        TODO: we need to get rid of randomness so it's easier to compare results across different plans.
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            output_data (List[Dict[str, Any]]): Output data from the reduce operation.
+            validator_prompt (str): The validator prompt generated earlier.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing validation results and a flag indicating if improvement is needed.
+        """
         system_prompt = "You are an AI assistant tasked with validating the output of reduce operations in data processing pipelines."
 
         # Count occurrences of each key in input_data
@@ -154,6 +230,7 @@ class ReduceOptimizer:
             for _ in range(self.num_samples_in_validation):
 
                 # Select a key weighted by its count
+                # TODO: get rid of randomness here
                 selected_key = random.choices(
                     list(key_counts.keys()), weights=list(key_counts.values()), k=1
                 )[0]
@@ -230,6 +307,22 @@ class ReduceOptimizer:
     def _create_reduce_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
+        """
+        Create multiple reduce plans based on the input data and operation configuration.
+
+        This method generates various reduce plans by varying batch sizes and fold prompts.
+        It also calculates a compression ratio, which is the ratio of input data size to output data size.
+        The compression ratio weakly indicates how much the data is being condensed by the reduce operation.
+        A higher compression ratio suggests that larger batch sizes may be more efficient, as more data
+        can be processed in each reduce step.
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+
+        Returns:
+            List[Dict[str, Any]]: A list of reduce plans, each with different batch sizes and fold prompts.
+        """
         reduce_key = op_config["reduce_key"]
         key_counts = Counter(item[reduce_key] for item in input_data)
         values_per_key = list(key_counts.values())
@@ -303,6 +396,20 @@ class ReduceOptimizer:
         sample_input: List[Dict[str, Any]],
         sample_output: List[Dict[str, Any]],
     ) -> float:
+        """
+        Calculate the compression ratio of the reduce operation.
+
+        This method compares the size of the input data to the size of the output data
+        to determine how much the data is being compressed by the reduce operation.
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            sample_input (List[Dict[str, Any]]): Sample input data.
+            sample_output (List[Dict[str, Any]]): Sample output data.
+
+        Returns:
+            float: The calculated compression ratio.
+        """
         reduce_key = op_config["reduce_key"]
         input_schema = op_config.get("input", {}).get("schema", {})
         output_schema = op_config["output"]["schema"]
@@ -357,6 +464,35 @@ class ReduceOptimizer:
         sample_output: List[Dict[str, Any]],
         num_prompts: int = 2,
     ) -> List[str]:
+        """
+        Synthesize fold prompts for the reduce operation. We generate multiple
+        fold prompts in case one is bad.
+
+        A fold operation is a higher-order function that iterates through a data structure,
+        accumulating the results of applying a given combining operation to its elements.
+        In the context of reduce operations, folding allows processing of data in batches,
+        which can significantly improve performance for large datasets.
+
+        This method generates multiple fold prompts that can be used to optimize the reduce operation
+        by allowing it to run on batches of inputs. It uses the language model to create prompts
+        that are variations of the original reduce prompt, adapted for folding operations.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the reduce operation.
+            sample_input (List[Dict[str, Any]]): A sample of the input data.
+            sample_output (List[Dict[str, Any]]): A sample of the output data.
+            num_prompts (int, optional): The number of fold prompts to generate. Defaults to 2.
+
+        Returns:
+            List[str]: A list of synthesized fold prompts.
+
+        The method performs the following steps:
+        1. Sets up the system prompt and parameters for the language model.
+        2. Defines a function to get random examples from the sample data.
+        3. Creates a prompt template for generating fold prompts.
+        4. Uses multi-threading to generate multiple fold prompts in parallel.
+        5. Returns the list of generated fold prompts.
+        """
         system_prompt = "You are an AI assistant tasked with creating a fold prompt for reduce operations in data processing pipelines."
         original_prompt = op_config["prompt"]
 
@@ -437,6 +573,35 @@ class ReduceOptimizer:
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
     ) -> Dict[str, Any]:
+        """
+        Evaluate multiple reduce plans and select the best one.
+
+        This method takes a list of reduce plans, evaluates each one using the input data
+        and a validator prompt, and selects the best plan based on the evaluation scores.
+        It also attempts to create and evaluate a merged plan that enhances the runtime performance
+        of the best plan.
+
+        A merged plan is an optimization technique applied to the best-performing plan
+        that uses the fold operation. It allows the best plan to run even faster by
+        executing parallel folds and then merging the results of these individual folds
+        together. We default to a merge batch size of 2, but one can increase this.
+
+        Args:
+            plans (List[Dict[str, Any]]): A list of reduce plans to evaluate.
+            input_data (List[Dict[str, Any]]): The input data to use for evaluation.
+            validator_prompt (str): The prompt to use for validating the output of each plan.
+
+        Returns:
+            Dict[str, Any]: The best reduce plan, either the top-performing original plan
+                            or a merged plan if it performs well enough.
+
+        The method performs the following steps:
+        1. Evaluates each plan using multi-threading.
+        2. Sorts the plans based on their evaluation scores.
+        3. Selects the best plan and attempts to create a merged plan.
+        4. Evaluates the merged plan and compares it to the best original plan.
+        5. Returns either the merged plan or the best original plan based on their scores.
+        """
         self.console.log("\n[bold]Evaluating Reduce Plans:[/bold]")
         for i, plan in enumerate(plans):
             self.console.log(f"Plan {i+1} (batch size: {plan['fold_batch_size']})")
@@ -527,6 +692,35 @@ class ReduceOptimizer:
         Tuple[Dict[str, Any], float, List[Dict[str, Any]]],
         Tuple[Dict[str, Any], float, List[Dict[str, Any]], BaseOperation],
     ]:
+        """
+        Evaluate a single reduce plan using the provided input data and validator prompt.
+
+        This method runs the reduce operation with the given plan, validates the output,
+        and calculates a score based on the validation results. The scoring works as follows:
+        1. It counts the number of valid results from the validation.
+        2. The score is calculated as the ratio of valid results to the total number of validation results.
+        3. This produces a score between 0 and 1, where 1 indicates all results were valid, and 0 indicates none were valid.
+
+        TODO: We should come up with a better scoring method here, maybe pairwise comparisons.
+
+        Args:
+            plan (Dict[str, Any]): The reduce plan to evaluate.
+            input_data (List[Dict[str, Any]]): The input data to use for evaluation.
+            validator_prompt (str): The prompt to use for validating the output.
+            return_instance (bool, optional): Whether to return the operation instance. Defaults to False.
+
+        Returns:
+            Union[
+                Tuple[Dict[str, Any], float, List[Dict[str, Any]]],
+                Tuple[Dict[str, Any], float, List[Dict[str, Any]], BaseOperation],
+            ]: A tuple containing the plan, its score, the output data, and optionally the operation instance.
+
+        The method performs the following steps:
+        1. Runs the reduce operation with the given plan on the input data.
+        2. Validates the output using the validator prompt.
+        3. Calculates a score based on the validation results.
+        4. Returns the plan, score, output data, and optionally the operation instance.
+        """
         output = self._run_operation(plan, input_data, return_instance)
         if return_instance:
             output, operation_instance = output
@@ -550,6 +744,29 @@ class ReduceOptimizer:
     def _synthesize_merge_prompt(
         self, plan: Dict[str, Any], sample_outputs: List[Dict[str, Any]]
     ) -> str:
+        """
+        Synthesize a merge prompt for combining multiple folded outputs in a reduce operation.
+
+        This method generates a merge prompt that can be used to combine the results of multiple
+        parallel fold operations into a single output. It uses the language model to create a prompt
+        that is consistent with the original reduce and fold prompts while addressing the specific
+        requirements of merging multiple outputs.
+
+        Args:
+            plan (Dict[str, Any]): The reduce plan containing the original prompt and fold prompt.
+            sample_outputs (List[Dict[str, Any]]): Sample outputs from the fold operation to use as examples.
+
+        Returns:
+            str: The synthesized merge prompt as a string.
+
+        The method performs the following steps:
+        1. Sets up the system prompt for the language model.
+        2. Prepares a random sample output to use as an example.
+        3. Creates a detailed prompt for the language model, including the original reduce prompt,
+           fold prompt, sample output, and instructions for creating the merge prompt.
+        4. Uses the language model to generate the merge prompt.
+        5. Returns the generated merge prompt.
+        """
         system_prompt = "You are an AI assistant tasked with creating a merge prompt for reduce operations in data processing pipelines. The pipeline has a reduce operation, and incrementally folds inputs into a single output. We want to optimize the pipeline for speed by running multiple folds on different inputs in parallel, and then merging the fold outputs into a single output."
 
         output_schema = plan["output"]["schema"]

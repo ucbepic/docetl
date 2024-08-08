@@ -12,7 +12,29 @@ load_dotenv()
 
 
 class DSLRunner:
+    """
+    A runner class for executing Domain-Specific Language (DSL) configurations.
+
+    This class is responsible for loading, validating, and executing DSL configurations
+    defined in YAML files. It manages datasets, executes pipeline steps, and tracks
+    the cost of operations.
+
+    Attributes:
+        config (Dict): The loaded configuration from the YAML file.
+        default_model (str): The default language model to use for operations.
+        max_threads (int): Maximum number of threads for parallel processing.
+        console (Console): Rich console for output formatting.
+        datasets (Dict): Storage for loaded datasets.
+    """
+
     def __init__(self, yaml_file: str, max_threads: int = None):
+        """
+        Initialize the DSLRunner with a YAML configuration file.
+
+        Args:
+            yaml_file (str): Path to the YAML configuration file.
+            max_threads (int, optional): Maximum number of threads to use. Defaults to None.
+        """
         self.config = load_config(yaml_file)
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
@@ -21,6 +43,15 @@ class DSLRunner:
         self.syntax_check()
 
     def syntax_check(self):
+        """
+        Perform a syntax check on all operations defined in the configuration.
+
+        This method validates each operation by attempting to instantiate it.
+        If any operation fails to instantiate, a ValueError is raised.
+
+        Raises:
+            ValueError: If any operation fails the syntax check.
+        """
         for operation in self.config["operations"]:
             operation_config = self.config["operations"][operation]
             operation_type = operation_config["type"]
@@ -41,6 +72,15 @@ class DSLRunner:
         self.console.log("[green]Syntax check passed for all operations.[/green]")
 
     def run(self) -> float:
+        """
+        Execute the entire pipeline defined in the configuration.
+
+        This method loads datasets, executes each step in the pipeline, saves the output,
+        and returns the total cost of execution.
+
+        Returns:
+            float: The total cost of executing the pipeline.
+        """
         self.load_datasets()
         total_cost = 0
         with Progress(
@@ -69,6 +109,14 @@ class DSLRunner:
         return total_cost
 
     def load_datasets(self):
+        """
+        Load all datasets defined in the configuration.
+
+        This method reads datasets from files and stores them in the `datasets` attribute.
+
+        Raises:
+            ValueError: If an unsupported dataset type is encountered.
+        """
         for name, dataset_config in self.config["datasets"].items():
             if dataset_config["type"] == "file":
                 with open(dataset_config["path"], "r") as file:
@@ -77,6 +125,15 @@ class DSLRunner:
                 raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
 
     def save_output(self, data: List[Dict]):
+        """
+        Save the final output of the pipeline.
+
+        Args:
+            data (List[Dict]): The data to be saved.
+
+        Raises:
+            ValueError: If an unsupported output type is specified in the configuration.
+        """
         output_config = self.config["pipeline"]["output"]
         if output_config["type"] == "file":
             with open(output_config["path"], "w") as file:
@@ -87,6 +144,20 @@ class DSLRunner:
     def execute_step(
         self, step: Dict, input_data: Optional[List[Dict]], progress: Progress
     ) -> Tuple[List[Dict], float]:
+        """
+        Execute a single step in the pipeline.
+
+        This method runs all operations defined for a step, updating the progress
+        and calculating the cost.
+
+        Args:
+            step (Dict): The step configuration.
+            input_data (Optional[List[Dict]]): Input data for the step.
+            progress (Progress): Progress tracker for rich output.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the output data and the total cost of the step.
+        """
         total_cost = 0
         for operation in step["operations"]:
             if isinstance(operation, dict):

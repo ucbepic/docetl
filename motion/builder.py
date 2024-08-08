@@ -39,6 +39,39 @@ class Optimizer:
         model: str = "gpt-4o",
         timeout: int = 60,
     ):
+        """
+        Initialize the Optimizer class.
+
+        This method sets up the optimizer with the given configuration file and parameters.
+        It loads the configuration, initializes the console for output, sets up the LLM client,
+        and prepares various attributes for optimization.
+
+        Args:
+            yaml_file (str): Path to the YAML configuration file.
+            max_threads (Optional[int]): Maximum number of threads to use for parallel processing.
+                If None, it will be set to (number of CPUs * 4).
+            model (str): The name of the language model to use. Defaults to "gpt-4o".
+            timeout (int): Timeout in seconds for operations. Defaults to 60.
+
+        Attributes:
+            yaml_file_path (str): Stores the path to the YAML file.
+            config (Dict): Stores the loaded configuration from the YAML file.
+            console (Console): Rich console for formatted output.
+            optimized_config (Dict): A copy of the original config to be optimized.
+            llm_client (LLMClient): Client for interacting with the language model.
+            max_threads (int): Maximum number of threads for parallel processing.
+            operations_cost (float): Tracks the total cost of operations.
+            timeout (int): Timeout for operations in seconds.
+            selectivities (defaultdict): Stores selectivity information for operations.
+                Selectivity is the ratio of output size to input size for an operation.
+                It's used to estimate how much data will flow through the pipeline after
+                each operation, which helps in optimizing subsequent operations and
+                determining appropriate sample sizes. For example, a selectivity of 0.5
+                means an operation halves the size of its input data.
+            datasets (Dict): Stores loaded datasets.
+
+        The method also calls print_optimizer_config() to display the initial configuration.
+        """
         self.yaml_file_path = yaml_file
         self.config = load_config(yaml_file)
         self.console = Console()
@@ -53,6 +86,17 @@ class Optimizer:
         self.print_optimizer_config()
 
     def print_optimizer_config(self):
+        """
+        Print the current configuration of the optimizer.
+
+        This method uses the Rich console to display a formatted output of the optimizer's
+        configuration. It includes details such as the YAML file path, sample sizes for
+        different operation types, maximum number of threads, the language model being used,
+        and the timeout setting.
+
+        The output is color-coded and formatted for easy readability, with a header and
+        separator lines to clearly delineate the configuration information.
+        """
         self.console.log("[bold cyan]Optimizer Configuration:[/bold cyan]")
         self.console.log("─" * 40)
         self.console.log(f"[yellow]YAML File:[/yellow] {self.yaml_file_path}")
@@ -68,6 +112,44 @@ class Optimizer:
         step_ops: List[str],
         op_config: Dict[str, Any],
     ) -> int:
+        """
+        Compute the sample size necessary for optimizing given operation based on upstream operations.
+
+        This method calculates an appropriate sample size for an operation, taking into
+        account the selectivities of upstream operations in the same step. It uses a
+        predefined sample size map (SAMPLE_SIZE_MAP) as a starting point.
+
+        For example, if we have a 'map' operation with a default sample size of 10,
+        and one upstream operation with a selectivity of 0.5, the computed sample size for the upstream operation would be:
+        10 / 0.5 = 20
+
+        This ensures that after applying the selectivity of the upstream operation,
+        we still have a representative sample size for the current operation.
+
+        Args:
+            step_name (str): The name of the current step in the pipeline.
+            step_ops (List[str]): A list of all operations in the current step.
+            op_config (Dict[str, Any]): The configuration dictionary for the current operation.
+
+        Returns:
+            int: The computed sample size for the operation.
+
+        The method works as follows:
+        1. If there are no upstream operations, it returns the default sample size for the operation type.
+        2. Otherwise, it starts with the default sample size and adjusts it based on the selectivities
+           of upstream operations.
+        3. It iterates through upstream operations in reverse order, dividing the sample size by
+           each operation's selectivity.
+        4. The final result is rounded to the nearest integer.
+
+        Raises:
+            ValueError: If the selectivity for any upstream operation is not found.
+
+        Note:
+            - The method assumes that selectivities for all upstream operations have been
+              previously computed and stored in self.selectivities.
+            - The sample size is always at least 1, even after all adjustments.
+        """
         # If there are no upstream operations, use the default sample_size
         upstream_ops = []
         for step_op in step_ops:
@@ -93,6 +175,38 @@ class Optimizer:
         return int(round(sample_size))
 
     def optimize(self):
+        """
+        Optimize the entire pipeline defined in the configuration.
+
+        This method is the main entry point for the optimization process. It iterates through
+        each step in the pipeline, optimizing from upstream to downstream, and constructs an
+        optimized version of the configuration.
+
+        The optimization process includes:
+        1. Iterating through each step in the pipeline, from upstream to downstream.
+        2. Optimizing each step using the _optimize_step method.
+        3. Updating the optimized configuration with the new operations and steps.
+        4. Saving the optimized configuration to a file.
+        5. Logging the total costs (agent cost, operations cost, and total cost).
+
+        Returns:
+            None
+
+        Side effects:
+        - Modifies self.optimized_config with the optimized pipeline and operations.
+        - Updates self.datasets with the results of each step.
+        - Calls _save_optimized_config to save the optimized configuration to a file.
+        - Logs cost information to the console.
+
+        Raises:
+            ValueError: If a step in the pipeline does not have a name.
+
+        Note:
+        - This method assumes that all necessary data and configurations are already
+          loaded and initialized in the Optimizer instance.
+        - The optimization process is performed step by step, from upstream to downstream,
+          with each step potentially depending on the results of previous steps.
+        """
         optimized_steps = []
         optimized_operations = {}
         for step in self.config["pipeline"]["steps"]:
@@ -130,6 +244,34 @@ class Optimizer:
         sample_size: int,
         optimized_operations: Dict[str, Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
+        """
+        Execute a partial step of the pipeline on a sample of the input data.
+
+        This internal method runs a subset of operations for a given step on a sample
+        of the input data. It's used as part of the optimization process to evaluate
+        and optimize individual operations within a step.
+
+        Args:
+            step (Dict[str, Any]): The step configuration dictionary.
+            ops_to_run (List[str]): List of operation names to execute in this partial step.
+            sample_size (int): The number of items to include in the input sample.
+            optimized_operations (Dict[str, Dict[str, Any]]): Dictionary of optimized operations.
+
+        Returns:
+            List[Dict[str, Any]]: The output data after running the specified operations.
+
+        The method performs the following steps:
+        1. Retrieves a sample of the input data using _get_sample_data.
+        2. For equijoin operations, it loads both left and right datasets.
+        3. Iterates through the specified operations, running each on the input sample.
+        4. Returns the final output after all specified operations have been applied.
+
+        Note:
+        - The method handles both regular steps and equijoin steps differently.
+
+        Raises:
+            Any exceptions raised by _get_sample_data or _run_operation methods.
+        """
         # Take the input data and run the operations in ops_to_run
         # Return the output data
         input_sample = self._get_sample_data(step.get("input"), None, sample_size)
@@ -148,6 +290,46 @@ class Optimizer:
     def _optimize_step(
         self, step: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Optimize a single step in the pipeline.
+
+        This method takes a step configuration and optimizes each operation within it.
+        It handles different types of operations, including those that require optimization
+        and those that don't.
+
+        Args:
+            step (Dict[str, Any]): The configuration dictionary for the step to be optimized.
+
+        Returns:
+            Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
+                - The optimized step configuration.
+                - A list of optimized operations.
+                - The output data after running all operations in the step.
+
+        The method performs the following for each operation in the step:
+        1. Extracts the operation configuration.
+        2. Computes the appropriate sample size for the operation.
+        3. Runs the operation on a sample of the input data.
+        4. If the operation is optimizable and of a supported type, it calls the appropriate
+           optimization method (e.g., _optimize_map, _optimize_reduce).
+        5. If not optimizable or not supported, it runs the operation as-is.
+        6. Calculates and stores the selectivity of each operation.
+        7. Updates the list of optimized operations and their configurations.
+
+        The method uses rich console to provide status updates during the optimization process.
+
+        Note:
+        - This method is a key part of the overall optimization process, focusing on
+          individual steps in the pipeline.
+        - It relies on several helper methods like _run_partial_step, compute_sample_size,
+          and various _optimize_* methods for specific operation types.
+        - When optimizing an operation in the step, all previous operations are run on the
+          sample size needed for the current operation. This ensures that the input to the
+          operation being optimized is representative of what it would receive in the full pipeline.
+
+        Raises:
+            ValueError: If an unsupported operation type is encountered.
+        """
         optimized_operations = {}
         optimized_operation_names = []
 
@@ -244,6 +426,24 @@ class Optimizer:
     def _get_sample_data(
         self, dataset_name: str, op_config: Optional[Dict[str, Any]], sample_size: int
     ) -> List[Dict[str, Any]]:
+        """
+        Retrieve a sample of data from a specified dataset.
+
+        This method loads data from either a previously processed dataset or from a file,
+        and returns a sample of the data based on the given sample size and operation configuration.
+
+        Args:
+            dataset_name (str): The name of the dataset to sample from.
+            op_config (Optional[Dict[str, Any]]): The configuration of the operation to be performed.
+                                                  This is used to determine if special sampling is needed.
+            sample_size (int): The desired size of the sample. If set to float('inf'), all data is returned.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries representing the sampled data.
+
+        Raises:
+            ValueError: If the dataset is not found or if the dataset type is unsupported.
+        """
         if dataset_name is None:
             return []
 
@@ -275,6 +475,20 @@ class Optimizer:
     def _get_reduce_sample(
         self, data: List[Dict[str, Any]], reduce_key: str, sample_size: int
     ) -> List[Dict[str, Any]]:
+        """
+        Get a representative sample for a reduce operation.
+
+        This method creates a sample that preserves the distribution of groups in the data,
+        focusing on the top 5 largest groups. It also generates and prints a histogram of group sizes.
+
+        Args:
+            data (List[Dict[str, Any]]): The full dataset to sample from.
+            reduce_key (str): The key used for grouping in the reduce operation.
+            sample_size (int): The desired size of the sample.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries representing the sampled data.
+        """
         # Group data by reduce key
         grouped_data = defaultdict(list)
         for item in data:
@@ -352,6 +566,19 @@ class Optimizer:
     def _optimize_reduce(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Optimize a reduce operation.
+
+        This method creates a ReduceOptimizer instance and uses it to optimize the reduce operation.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the reduce operation.
+            input_data (List[Dict[str, Any]]): The input data for the reduce operation.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
+            configuration and the output data after applying the optimized operation.
+        """
         reduce_optimizer = ReduceOptimizer(
             self.config,
             self.console,
@@ -368,6 +595,21 @@ class Optimizer:
         left_data: List[Dict[str, Any]],
         right_data: List[Dict[str, Any]],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Optimize an equijoin operation.
+
+        This method creates a JoinOptimizer instance and uses it to optimize the equijoin operation.
+        It updates the operation cost and runs the optimized operation.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the equijoin operation.
+            left_data (List[Dict[str, Any]]): The left dataset for the join.
+            right_data (List[Dict[str, Any]]): The right dataset for the join.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
+            configuration and the output data after applying the optimized operation.
+        """
         join_optimizer = JoinOptimizer(
             self.config, op_config, self.console, self.llm_client, self.max_threads
         )
@@ -387,6 +629,19 @@ class Optimizer:
     def _optimize_map(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Optimize a map operation.
+
+        This method creates a MapOptimizer instance and uses it to optimize the map operation.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the map operation.
+            input_data (List[Dict[str, Any]]): The input data for the map operation.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
+            configuration and the output data after applying the optimized operation.
+        """
         map_optimizer = MapOptimizer(
             self.config,
             self.console,
@@ -400,6 +655,20 @@ class Optimizer:
     def _optimize_resolve(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Optimize a resolve operation.
+
+        This method creates a JoinOptimizer instance and uses it to optimize the resolve operation.
+        It updates the operation cost and runs the optimized operation.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the resolve operation.
+            input_data (List[Dict[str, Any]]): The input data for the resolve operation.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
+            configuration and the output data after applying the optimized operation.
+        """
         optimized_config, cost = JoinOptimizer(
             self.config, op_config, self.console, self.llm_client, self.max_threads
         ).optimize_resolve(input_data)
@@ -419,6 +688,22 @@ class Optimizer:
         input_data: List[Dict[str, Any]],
         return_instance: bool = False,
     ) -> Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation]]:
+        """
+        Run a single operation based on its configuration.
+
+        This method creates an instance of the appropriate operation class and executes it.
+        It also updates the total operation cost.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation to run.
+            input_data (List[Dict[str, Any]]): The input data for the operation.
+            return_instance (bool, optional): If True, return the operation instance along with the output data.
+
+        Returns:
+            Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation]]:
+            If return_instance is False, returns the output data.
+            If return_instance is True, returns a tuple of the output data and the operation instance.
+        """
         operation_class = get_operation(op_config["type"])
         operation_instance = operation_class(
             op_config, self.config["default_model"], self.max_threads, self.console
@@ -438,6 +723,17 @@ class Optimizer:
     # Recursively resolve all anchors and aliases
     @staticmethod
     def resolve_anchors(data):
+        """
+        Recursively resolve all anchors and aliases in a nested data structure.
+
+        This static method traverses through dictionaries and lists, resolving any YAML anchors and aliases.
+
+        Args:
+            data: The data structure to resolve. Can be a dictionary, list, or any other type.
+
+        Returns:
+            The resolved data structure with all anchors and aliases replaced by their actual values.
+        """
         if isinstance(data, dict):
             return {k: Optimizer.resolve_anchors(v) for k, v in data.items()}
         elif isinstance(data, list):
@@ -446,6 +742,12 @@ class Optimizer:
             return data
 
     def _save_optimized_config(self):
+        """
+        Save the optimized configuration to a YAML file.
+
+        This method creates a copy of the optimized configuration, resolves all anchors and aliases,
+        and saves it to a new YAML file. The new file name is based on the original file name with '_opt' appended.
+        """
         # Create a copy of the optimized config to modify
         config_to_save = self.optimized_config.copy()
 

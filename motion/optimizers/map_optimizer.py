@@ -18,6 +18,24 @@ import concurrent
 
 
 class MapOptimizer:
+    """
+    A class for optimizing map operations in data processing pipelines.
+
+    This optimizer analyzes the input operation configuration and data,
+    and generates optimized plans for executing the operation. It can
+    create plans for chunking, metadata extraction, gleaning, chain
+    decomposition, and parallel execution.
+
+    Attributes:
+        config (Dict[str, Any]): The configuration dictionary for the optimizer.
+        console (Console): A Rich console object for pretty printing.
+        llm_client (LLMClient): A client for interacting with a language model.
+        _run_operation (Callable): A function to execute operations.
+        max_threads (int): The maximum number of threads to use for parallel execution.
+        timeout (int): The timeout in seconds for operation execution.
+
+    """
+
     def __init__(
         self,
         config: Dict[str, Any],
@@ -27,6 +45,17 @@ class MapOptimizer:
         run_operation: Callable,
         timeout: int = 10,
     ):
+        """
+        Initialize the MapOptimizer.
+
+        Args:
+            config (Dict[str, Any]): The configuration dictionary for the optimizer.
+            console (Console): A Rich console object for pretty printing.
+            llm_client (LLMClient): A client for interacting with a language model.
+            max_threads (int): The maximum number of threads to use for parallel execution.
+            run_operation (Callable): A function to execute operations.
+            timeout (int, optional): The timeout in seconds for operation execution. Defaults to 10.
+        """
         self.config = config
         self.console = console
         self.llm_client = llm_client
@@ -37,6 +66,45 @@ class MapOptimizer:
     def optimize(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Optimize the given operation configuration for the input data.
+
+        This method analyzes the operation and input data, generates various
+        optimization plans, evaluates them, and returns the best plan along
+        with its output. The types of optimization plans include:
+
+        1. Improved Prompt Plan: Enhances the original prompt based on assessment
+           of the operation's performance, aiming to improve output quality.
+
+        2. Chunk Size Plans: Splits input data into chunks of different sizes,
+           processes each chunk separately, and then combines the results. This
+           can improve performance for large inputs.
+
+        3. Gleaning Plans: Implements an iterative refinement process where the
+           output is validated and improved over multiple rounds, enhancing accuracy.
+
+        4. Chain Decomposition Plans: Breaks down complex operations into a series
+           of simpler sub-operations, potentially improving overall performance
+           and interpretability.
+
+        5. Parallel Map Plans: Decomposes the task into subtasks that can be
+           executed in parallel, potentially speeding up processing for
+           independent operations.
+
+        The method generates these plans, evaluates their performance using
+        a custom validator, and selects the best performing plan based on
+        output quality and execution time.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation to optimize.
+            input_data (List[Dict[str, Any]]): The input data for the operation.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing
+            the best optimization plan and its output. The plan is a list of
+            operation configurations that achieve the best performance.
+
+        """
         # Execute the original operation on the sample data
         no_change_start = time.time()
         output_data = self._run_operation(op_config, input_data)
@@ -169,6 +237,23 @@ class MapOptimizer:
     def _generate_chunk_size_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Generate plans with different chunk sizes for the given operation.
+
+        This method analyzes the input data and operation configuration to create
+        multiple plans with varying chunk sizes. It also determines if metadata
+        extraction is necessary and includes it in the plans if needed.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation.
+            input_data (List[Dict[str, Any]]): The input data for the operation.
+
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: A dictionary of plans, where each key
+            is a plan name and each value is a list of operation configurations
+            that make up the plan.
+
+        """
         split_result = self._get_split_config(op_config, input_data)
 
         chunk_sizes = self._generate_chunk_sizes(split_result["split_key"], input_data)
@@ -301,6 +386,23 @@ class MapOptimizer:
         op_config: Dict[str, Any],
         validation_prompt: str,
     ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Generate plans that use gleaning for the given operation.
+
+        Gleaning involves iteratively refining the output of an operation
+        based on validation feedback. This method creates plans with different
+        numbers of gleaning rounds.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation.
+            validation_prompt (str): The prompt used for validating the operation's output.
+
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: A dictionary of gleaning plans, where each key
+            is a plan name and each value is a list containing a single operation configuration
+            with gleaning parameters.
+
+        """
         # Generate an op with gleaning num_rounds and validation_prompt
         plans = {}
         gleaning_rounds = [1]
@@ -316,6 +418,20 @@ class MapOptimizer:
     def _generate_parallel_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Generate plans that use parallel execution for the given operation.
+
+        This method analyzes the operation's output schema and attempts to decompose
+        the task into subtasks that can be executed in parallel. It then creates a
+        plan that includes these parallel subtasks.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation.
+            input_data (List[Dict[str, Any]]): The input data for the operation.
+
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: A dictionary containing a single key
+        """
         output_schema = op_config["output"]["schema"]
         if len(output_schema) <= 1:
             return (

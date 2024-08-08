@@ -7,7 +7,19 @@ from jinja2 import Environment, meta
 import re
 
 
-def extract_jinja_variables(template_string):
+def extract_jinja_variables(template_string: str) -> List[str]:
+    """
+    Extract variables from a Jinja2 template string.
+
+    This function uses both Jinja2's AST parsing and regex to find all variables
+    referenced in the given template string.
+
+    Args:
+        template_string (str): The Jinja2 template string to analyze.
+
+    Returns:
+        List[str]: A list of unique variable names found in the template.
+    """
     # Create a Jinja2 environment
     env = Environment()
 
@@ -31,13 +43,45 @@ SUPPORTED_OPS = ["map"]
 
 
 class LLMClient:
-    def __init__(self, model="gpt-4o"):
+    """
+    A client for interacting with LLMs, mainly used for the agent.
+
+    This class provides methods to generate responses using specified LLM models
+    and keeps track of the total cost of API calls.
+    """
+
+    def __init__(self, model: str = "gpt-4o"):
+        """
+        Initialize the LLMClient.
+
+        Args:
+            model (str, optional): The name of the LLM model to use. Defaults to "gpt-4o".
+        """
         if model == "gpt-4o":
             model = "gpt-4o-2024-08-06"
         self.model = model
         self.total_cost = 0
 
-    def generate(self, messages, system_prompt, parameters):
+    def generate(
+        self,
+        messages: List[Dict[str, str]],
+        system_prompt: str,
+        parameters: Dict[str, Any],
+    ) -> Any:
+        """
+        Generate a response using the LLM.
+
+        This method sends a request to the LLM with the given messages, system prompt,
+        and parameters, and returns the response.
+
+        Args:
+            messages (List[Dict[str, str]]): A list of message dictionaries to send to the LLM.
+            system_prompt (str): The system prompt to use for the generation.
+            parameters (Dict[str, Any]): Additional parameters for the LLM request.
+
+        Returns:
+            Any: The response from the LLM.
+        """
         parameters["additionalProperties"] = False
 
         response = completion(

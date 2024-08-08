@@ -23,6 +23,15 @@ def build(
 ):
     """
     Build and optimize the configuration specified in the YAML file.
+
+    Args:
+        yaml_file (Path): Path to the YAML file containing the pipeline configuration.
+        max_threads (Optional[int]): Maximum number of threads to use for parallel operations.
+        model (str): Model to use for optimization. Defaults to "gpt-4o".
+        timeout (int): Timeout for optimization operations in seconds. Defaults to 60.
+
+    Raises:
+        typer.Exit: If an error occurs during optimization.
     """
     try:
         optimizer = Optimizer(
@@ -49,6 +58,13 @@ def run(
 ):
     """
     Run the configuration specified in the YAML file.
+
+    Args:
+        yaml_file (Path): Path to the YAML file containing the pipeline configuration.
+        max_threads (Optional[int]): Maximum number of threads to use for parallel operations.
+
+    Raises:
+        typer.Exit: If an error occurs during execution.
     """
     try:
         runner = DSLRunner(str(yaml_file), max_threads=max_threads)

@@ -440,6 +440,9 @@ class MapOptimizer:
 
         system_prompt = "You are an AI assistant tasked with decomposing a complex data processing task into parallel subtasks."
 
+        variables_in_prompt = extract_jinja_variables(op_config["prompt"])
+        variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
+
         prompt = f"""
         Original task prompt:
         {op_config['prompt']}
@@ -448,7 +451,7 @@ class MapOptimizer:
         {json.dumps(output_schema, indent=2)}
 
         Input data sample:
-        {json.dumps(input_data[0] if input_data else {}, indent=2)}
+        {json.dumps({k: v for k, v in (input_data[0] if input_data else {}).items() if k in variables_in_prompt}, indent=2)}
 
         Decompose the original task into parallel subtasks, where each subtask produces one or more keys of the output schema.
         Assume that the subtasks can be executed independently. You cannot rely on the output of one subtask to complete another subtask. Make sure you include the same input variables as in the original task prompt. Each prompt should be a Jinja2 template.
@@ -531,9 +534,37 @@ class MapOptimizer:
     def _generate_chain_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Generate chain decomposition plans for the given operation.
+
+        This method analyzes the operation configuration and input data to create a
+        chain of subtasks that collectively accomplish the original task. It's particularly
+        useful for complex operations that can be broken down into simpler, sequential steps.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the original operation.
+            input_data (List[Dict[str, Any]]): A sample of the input data.
+
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: A dictionary containing the chain decomposition plan.
+            The key is 'chain_decomposition' and the value is a list of operation configurations
+            for each subtask in the chain.
+
+        Note:
+            - This method is most effective when the original task has multiple output keys
+              with dependencies between them.
+            - If the output schema has only one key, an empty dictionary is returned as
+              chain decomposition is not necessary.
+            - The method uses the LLM to generate the chain of subtasks, ensuring that
+              all output keys from the original task are covered.
+        """
+
         output_schema = op_config["output"]["schema"]
         if len(output_schema) <= 1:
             return {}  # No need for chain decomposition if there's only one output key
+
+        variables_in_prompt = extract_jinja_variables(op_config["prompt"])
+        variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
 
         system_prompt = "You are an AI assistant tasked with decomposing a complex data processing task into a chain of simpler tasks."
 
@@ -545,7 +576,7 @@ class MapOptimizer:
         {json.dumps(output_schema, indent=2)}
 
         Input data sample:
-        {json.dumps(input_data[0] if input_data else {}, indent=2)}
+        {json.dumps({k: v for k, v in input_data[0].items() if k in variables_in_prompt} if input_data else {}, indent=2)}
 
         Decompose the original task into a chain of subtasks, where each subtask produces one or more keys of the output schema.
         Analyze dependencies between output keys and arrange subtasks in a logical order. To access the output of a previous subtask, use the syntax {{ input.key }}. Each prompt should be a Jinja2 template.
@@ -667,6 +698,36 @@ class MapOptimizer:
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
     ) -> Tuple[float, float, List[Dict[str, Any]]]:
+        """
+        Evaluate a single optimization plan.
+
+        This method executes the given plan on the input data, measures its runtime,
+        and assesses the quality of the output using a custom validator prompt.
+
+        Args:
+            plan_name (str): The name of the plan being evaluated.
+            op_config (Dict[str, Any]): The original operation configuration.
+            plan (Union[Dict[str, Any], List[Dict[str, Any]]]): The plan to be evaluated,
+                which can be a single operation or a list of operations.
+            input_data (List[Dict[str, Any]]): The input data to run the plan on.
+            validator_prompt (str): The prompt used to assess the quality of the output.
+
+        Returns:
+            Tuple[float, float, List[Dict[str, Any]]]: A tuple containing:
+                - The average quality score of the plan's output (float)
+                - The runtime of the plan (float)
+                - The output data produced by the plan (List[Dict[str, Any]])
+
+        Note:
+            The quality score is calculated based on the assessment of each output
+            item using the validator prompt. The scoring is as follows:
+            - Satisfactory: 4 points
+            - Mostly Satisfactory: 3 points
+            - Partially Satisfactory: 2 points
+            - Unsatisfactory: 1 point
+            The final score is the average of all individual scores.
+        """
+
         if isinstance(plan, dict):
             plan = [plan]
 
@@ -746,6 +807,34 @@ class MapOptimizer:
         element_idx: int,
         validator_prompt: str,
     ) -> str:
+        """
+        Assess the quality of a single output element against its corresponding input.
+
+        This method evaluates the quality of a specific output element by comparing it
+        to its corresponding input element, using the provided validator prompt as a
+        guideline for assessment.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation being assessed.
+            input_data (List[Dict[str, Any]]): The list of input data elements.
+            output_data (List[Dict[str, Any]]): The list of output data elements.
+            element_idx (int): The index of the specific input/output pair to assess.
+            validator_prompt (str): The prompt used to guide the quality assessment.
+
+        Returns:
+            str: A JSON string containing the quality assessment, including a quality
+                 category and a reason for the assessment.
+
+        The quality assessment is categorized into four levels:
+        1. "Unsatisfactory": The output failed to meet any validator prompt requirements.
+        2. "Partially Satisfactory": The output met some, but not all, requirements.
+        3. "Mostly Satisfactory": The output met most requirements with room for improvement.
+        4. "Satisfactory": The output fully met all validator prompt requirements.
+
+        This method uses the LLM client to generate the quality assessment based on
+        the input-output pair and the validator prompt.
+        """
+
         system_prompt = "You are an AI assistant tasked with evaluating the quality of data processing outputs."
         output_schema_keys = op_config["output"]["schema"].keys()
         document_id = input_data[element_idx]["document_id"]
@@ -895,6 +984,46 @@ class MapOptimizer:
         op_config: Dict[str, Any],
         sample_output: List[Dict[str, Any]],
     ) -> str:
+        """
+        Generate a combine prompt for merging chunk results in a map-reduce operation.
+
+        This method creates a prompt that will be used to combine the results from
+        processing individual chunks of data in a map-reduce operation. The combine
+        prompt is designed to accomplish the original task by merging the outputs
+        from various chunks.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the original operation,
+                including the original prompt and output schema.
+            sample_output (List[Dict[str, Any]]): A list of sample outputs from
+                processing various chunks. Each item in the list represents the
+                output from a single chunk.
+
+        Returns:
+            str: A Jinja2 template string that serves as the combine prompt. This
+                prompt will be used to merge the results from individual chunks
+                to produce the final output of the map-reduce operation.
+
+        The method performs the following steps:
+        1. Extracts relevant information from the op_config, including the original
+           prompt and output schema.
+        2. Prepares sample inputs based on the sample_output and the output schema.
+        3. Constructs a base prompt that includes the original prompt, output schema,
+           and sample inputs.
+        4. Uses the LLM to generate a reduce prompt based on the base prompt and
+           specific guidelines.
+        5. Validates the generated prompt to ensure it meets the required format
+           and uses the correct variables.
+
+        Note:
+            The generated combine prompt is constrained to use only the 'values'
+            variable, which contains all chunk results. It must be a valid Jinja2
+            template and avoid using complex logic or filters.
+
+        Raises:
+            Any exceptions raised by the underlying _generate_and_validate_prompt
+            method, which may include validation errors or LLM-related issues.
+        """
         system_prompt = "You are an expert data processing assistant, decomposing a task into subtasks and joining the reults."
 
         # Prepare sample inputs for the combine prompt
@@ -991,9 +1120,45 @@ class MapOptimizer:
         op_config: Dict[str, Any],
         input_data_sample: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
+        """
+        Generate a configuration for splitting the input data and processing chunks.
+
+        This method analyzes the operation configuration and a sample of the input data
+        to determine an appropriate split key and subprompt for processing chunks of the
+        input data. It uses the LLM to generate a suitable configuration based on the
+        operation's requirements and the structure of the input data.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation.
+            input_data_sample (List[Dict[str, Any]]): A sample of the input data.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the split configuration, including:
+                - split_key (str): The key in the input data to be used for splitting.
+                - subprompt (str): A Jinja template prompt to be applied to each chunk.
+
+        Note:
+            - The split_key is determined based on the structure of the input data.
+            - The subprompt is designed to process individual chunks of the split data.
+            - The subprompt's output schema matches the original operation's output schema.
+            - In the subprompt, we've replace all variables of 'input.{split_key}' with 'input.chunk_content'.
+        """
+
         system_prompt = "You are an AI assistant tasked with configuring split operations for data processing."
 
         random_sample = random.choice(input_data_sample) if input_data_sample else {}
+
+        # Extract Jinja variables from the prompt
+        variables_in_prompt = extract_jinja_variables(op_config.get("prompt", ""))
+
+        # Remove 'input.' prefix from variable names
+        variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
+
+        # Subselect variables in random_sample based on Jinja variables in the prompt
+        random_sample = {
+            k: v for k, v in random_sample.items() if k in variables_in_prompt
+        }
+
         output_schema = op_config["output"]["schema"]
 
         prompt = f"""
@@ -1011,7 +1176,7 @@ class MapOptimizer:
 
         Important:
         - The subprompt should be a Jinja template.
-        - The only variable in the subprompt should be `input.chunk_content`.
+        - The subprompt should use the variable 'input.chunk_content' instead of 'input.{{ split_key }}'.
 
         Provide your response in the following format:
         - split_key: The key in the input data to be used for splitting
@@ -1080,6 +1245,32 @@ class MapOptimizer:
         split_key: str,
         input_data_sample: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
+        """
+        Determine if metadata is necessary for processing document chunks.
+
+        This method analyzes the given operation configuration, subprompt, chunk size,
+        split key, and a sample of input data to decide whether additional metadata
+        is required for accurate processing of document chunks.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the original operation.
+            subprompt (str): The prompt to be used for processing individual chunks.
+            chunk_size (int): The size of each chunk in words.
+            split_key (str): The key used to split the input data into chunks.
+            input_data_sample (List[Dict[str, Any]]): A sample of the input data.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing:
+                - 'needs_metadata' (bool): True if metadata is needed, False otherwise.
+                - 'reason' (str): An explanation for why metadata is or isn't needed.
+
+        The method considers several factors to make this determination:
+        1. The nature of the subtask as described in the subprompt.
+        2. The size and content of the chunks.
+        3. The structure and completeness of the input data.
+        4. The potential presence of crucial information in metadata (e.g., headers,
+           document structure) that might not be present in the chunks themselves.
+        """
         system_prompt = "You are an AI assistant tasked with determining if metadata is needed for document processing."
 
         random_sample = random.choice(input_data_sample)[split_key]
@@ -1305,6 +1496,21 @@ class MapOptimizer:
         Generate a list of peripheral chunk configurations, considering:
         * Adaptive scaling: this scales the config based on the ratio of document to chunk size
         * Extensive context: this adds a config for when the chunk size is small relative to the document size
+
+        This method works as follows:
+        1. It starts with an empty configuration (no peripheral context) as a baseline.
+        2. It calculates the maximum number of chunks based on the average document size and chunk size.
+        3. It defines base configurations with minimal context (1 previous chunk, 1 previous and 1 next chunk).
+        4. It applies adaptive scaling to these base configurations:
+           - It scales the number of chunks based on the ratio of document size to chunk size.
+           - The scaling uses a square root function to provide a balanced increase.
+           - It ensures the scaled count doesn't exceed the maximum number of chunks.
+        5. It adds an extensive context configuration when the chunk size is small relative to the document size:
+           - This provides more context (up to 5 previous chunks and 2 next chunks) for small chunk sizes.
+        6. Finally, it deduplicates the configurations to ensure uniqueness.
+
+        This approach allows for a range of configurations that adapt to different document and chunk sizes,
+        providing more context when necessary and less when the chunks are already large relative to the document.
         """
 
         configs = [{}]  # Always include no peripheral context as an option

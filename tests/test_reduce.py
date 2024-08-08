@@ -143,3 +143,51 @@ def test_reduce_operation_error_handling(reduce_config, default_model, max_threa
         match="'fold_prompt' is required when 'merge_prompt' is specified",
     ):
         ReduceOperation(invalid_config, default_model, max_threads)
+
+
+def test_reduce_operation_non_commutative(default_model, max_threads):
+    # Define a new non-commutative reduce config
+    non_commutative_config = {
+        "reduce_key": "sequence",
+        "commutative": False,
+        "prompt": "Combine the sentences in '{{ values }}'. Maintain order.",
+        "fold_prompt": "Combine sequences: Previous result '{{ output }}', New value '{{ values[0] }}'. Maintain order.",
+        "fold_batch_size": 1,
+        "output": {"schema": {"combined_result": "string"}},
+    }
+
+    # Sample data where order matters
+    sample_data = [
+        {"sequence": "story", "value": "Once upon a time"},
+        {"sequence": "story", "value": "there was a brave princess"},
+        {"sequence": "story", "value": "who rescued a dragon"},
+        {"sequence": "story", "value": "and lived happily ever after."},
+    ]
+
+    operation = ReduceOperation(non_commutative_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == 1, "Should have one result for the 'story' sequence"
+    assert cost > 0, "Cost should be greater than 0"
+
+    result = results[0]
+    assert "combined_result" in result, "Result should have a 'combined_result' key"
+
+    # Check if the order of processing is preserved in the combined result
+    combined_result = result["combined_result"].lower()
+    assert (
+        "once upon a time" in combined_result
+    ), "Should contain the beginning of the story"
+    assert (
+        "happily ever after" in combined_result
+    ), "Should contain the end of the story"
+    assert combined_result.index("once upon a time") < combined_result.index(
+        "happily ever after"
+    ), "Order in combined result should match input order"
+
+    # Additional checks for story coherence
+    assert "brave princess" in combined_result, "Should mention the brave princess"
+    assert "dragon" in combined_result, "Should mention the dragon"
+    assert combined_result.index("brave princess") < combined_result.index(
+        "dragon"
+    ), "Princess should be mentioned before the dragon in the story"

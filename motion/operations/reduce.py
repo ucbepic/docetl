@@ -185,11 +185,16 @@ class ReduceOperation(BaseOperation):
         reduce_key = self.config["reduce_key"]
         input_schema = self.config.get("input", {}).get("schema", {})
 
-        # Sort the input data by the reduce key
-        sorted_data = sorted(input_data, key=itemgetter(reduce_key))
+        # Group the input data by the reduce key while maintaining original order
+        grouped_data = {}
+        for item in input_data:
+            key = item[reduce_key]
+            if key not in grouped_data:
+                grouped_data[key] = []
+            grouped_data[key].append(item)
 
-        grouped_data = groupby(sorted_data, key=itemgetter(reduce_key))
-        grouped_data = [(key, list(group)) for key, group in grouped_data]
+        # Convert the grouped data to a list of tuples
+        grouped_data = list(grouped_data.items())
 
         def process_group(
             key: Any, group_list: List[Dict]
@@ -200,7 +205,7 @@ class ReduceOperation(BaseOperation):
                     for item in group_list
                 ]
 
-            if "merge_prompt" in self.config:
+            if "merge_prompt" in self.config and self.config.get("commutative", True):
                 result, cost = self._parallel_fold_and_merge(key, group_list)
             elif "fold_prompt" in self.config:
                 result, cost = self._incremental_reduce(key, group_list)
@@ -391,7 +396,7 @@ class ReduceOperation(BaseOperation):
             total_cost += fold_cost
 
             if folded_output is None:
-                return None, total_cost
+                continue
 
             current_output = folded_output
 

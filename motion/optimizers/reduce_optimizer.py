@@ -106,6 +106,15 @@ class ReduceOptimizer:
                 )
             )
 
+            # Determine and configure value sampling
+            value_sampling_config = self._determine_value_sampling(
+                op_config, input_data
+            )
+            if value_sampling_config["enabled"]:
+                op_config["value_sampling"] = value_sampling_config
+                self.console.log("[bold]Value Sampling Configuration:[/bold]")
+                self.console.log(json.dumps(value_sampling_config, indent=2))
+
             # Step 2.5: Determine if the reduce operation is commutative
             is_commutative = self._is_commutative(op_config, input_data)
 
@@ -124,6 +133,172 @@ class ReduceOptimizer:
         else:
             self.console.log("No improvements identified.")
             return op_config, original_output
+
+    def _determine_value_sampling(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Determine whether value sampling should be enabled and configure its parameters.
+        """
+        system_prompt = (
+            "You are an AI assistant helping to optimize data processing pipelines."
+        )
+
+        # Sample a subset of input data for analysis
+        sample_size = min(100, len(input_data))
+        sample_input = random.sample(input_data, sample_size)
+
+        prompt = f"""
+        Analyze the following reduce operation and determine if value sampling should be enabled:
+
+        Reduce Operation Prompt:
+        {op_config['prompt']}
+
+        Sample Input Data (first 2 items):
+        {json.dumps(sample_input[:2], indent=2)}
+
+        Value sampling is appropriate for reduce operations that don't need to look at all the values for each key to produce a good result, such as generic summarization tasks.
+
+        Based on the reduce operation prompt and the sample input data, determine if value sampling should be enabled.
+        Answer with 'yes' if value sampling should be enabled or 'no' if it should not be enabled. Explain your reasoning briefly.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "enable_sampling": {"type": "boolean"},
+                "explanation": {"type": "string"},
+            },
+            "required": ["enable_sampling", "explanation"],
+        }
+
+        response = self.llm_client.generate(
+            [{"role": "user", "content": prompt}],
+            system_prompt,
+            parameters,
+        )
+        result = json.loads(response.choices[0].message.content)
+
+        if not result["enable_sampling"]:
+            return {"enabled": False}
+
+        # Print the explanation for enabling value sampling
+        self.console.log(f"Value sampling enabled: {result['explanation']}")
+
+        # Determine sampling method
+        prompt = f"""
+        We are optimizing a reduce operation in a data processing pipeline. The reduce operation is defined by the following prompt:
+
+        Reduce Operation Prompt:
+        {op_config['prompt']}
+        
+        Sample Input Data (first 2 items):
+        {json.dumps(sample_input[:2], indent=2)}
+
+        We have determined that value sampling should be enabled for this reduce operation. Value sampling is a technique used to process only a subset of the input data for each reduce key, rather than processing all items. This can significantly reduce processing time and costs for very large datasets, especially when the reduce operation doesn't require looking at every single item to produce a good result (e.g., summarization tasks).
+
+        Now we need to choose the most appropriate sampling method. The available methods are:
+
+        1. "random": Randomly select a subset of values.
+        Example: In a customer review analysis task, randomly selecting a subset of reviews to summarize the overall sentiment.
+
+        2. "cluster": Use K-means clustering to select representative samples.
+        Example: In a document categorization task, clustering documents based on their content and selecting representative documents from each cluster to determine the overall categories.
+
+        3. "sem_sim": Use semantic similarity to select the most relevant samples to a query text.
+        Example: In a news article summarization task, selecting articles that are semantically similar to a query like "Major economic events of {{reduce_key}}" to produce a focused summary.
+
+        Based on the reduce operation prompt, the nature of the task, and the sample input data, which sampling method would be most appropriate?
+
+        Provide your answer as either "random", "cluster", or "sem_sim", and explain your reasoning in detail. Consider the following in your explanation:
+        - The nature of the reduce task (e.g., summarization, aggregation, analysis)
+        - The structure and content of the input data
+        - The potential benefits and drawbacks of each sampling method for this specific task
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string", "enum": ["random", "cluster", "sem_sim"]},
+                "explanation": {"type": "string"},
+            },
+            "required": ["method", "explanation"],
+        }
+
+        response = self.llm_client.generate(
+            [{"role": "user", "content": prompt}],
+            system_prompt,
+            parameters,
+        )
+        result = json.loads(response.choices[0].message.content)
+        method = result["method"]
+
+        value_sampling_config = {
+            "enabled": True,
+            "method": method,
+            "sample_size": 100,  # Default sample size
+            "embedding_model": "text-embedding-3-small",
+        }
+
+        if method in ["cluster", "sem_sim"]:
+            # Determine embedding keys
+            prompt = f"""
+            For the {method} sampling method, we need to determine which keys from the input data should be used for generating embeddings.
+
+            Sample Input Data:
+            {json.dumps(sample_input[0], indent=2)}
+
+            Based on the reduce operation prompt and the sample input data, which keys should be used for generating embeddings? Use keys that will create meaningful embeddings (i.e., not id-related keys).
+            Provide your answer as a list of key names.
+            """
+
+            parameters = {
+                "type": "object",
+                "properties": {
+                    "embedding_keys": {"type": "array", "items": {"type": "string"}},
+                    "explanation": {"type": "string"},
+                },
+                "required": ["embedding_keys", "explanation"],
+            }
+
+            response = self.llm_client.generate(
+                [{"role": "user", "content": prompt}],
+                system_prompt,
+                parameters,
+            )
+            result = json.loads(response.choices[0].message.content)
+            value_sampling_config["embedding_keys"] = result["embedding_keys"]
+
+        if method == "sem_sim":
+            # Determine query text
+            prompt = f"""
+            For the semantic similarity (sem_sim) sampling method, we need to determine the query text to compare against when selecting samples.
+
+            Reduce Operation Prompt:
+            {op_config['prompt']}
+
+            The query text should be a Jinja template with access to the `reduce_key` variable. 
+            Based on the reduce operation prompt, what would be an appropriate query text for selecting relevant samples?
+            """
+
+            parameters = {
+                "type": "object",
+                "properties": {
+                    "query_text": {"type": "string"},
+                    "explanation": {"type": "string"},
+                },
+                "required": ["query_text", "explanation"],
+            }
+
+            response = self.llm_client.generate(
+                [{"role": "user", "content": prompt}],
+                system_prompt,
+                parameters,
+            )
+            result = json.loads(response.choices[0].message.content)
+            value_sampling_config["query_text"] = result["query_text"]
+
+        return value_sampling_config
 
     def _is_commutative(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -190,7 +365,7 @@ class ReduceOptimizer:
         result = json.loads(response.choices[0].message.content)
 
         self.console.log(
-            f"Result: {'Commutative' if result['is_commutative'] else 'Non-commutative'} - Commutativity analysis: {result['explanation']}"
+            f"Reduce operation {'is commutative' if result['is_commutative'] else 'is not commutative'}. Analysis: {result['explanation']}"
         )
         return result["is_commutative"]
 
@@ -242,19 +417,19 @@ class ReduceOptimizer:
         Reduce Operation Prompt:
         {op_config["prompt"]}
 
-        Sample Input:
+        Sample Input (just one item):
         {json.dumps(sample_input, indent=2)}
 
         Sample Output:
         {json.dumps(sample_output, indent=2)}
 
-        Create a custom validator prompt that will assess how well the reduce operation performed its intended task. The prompt should ask specific questions about the quality and completeness of the output, such as:
-        1. Are all input values properly represented in the output?
-        2. Is the aggregation performed correctly according to the task requirements?
-        3. Is there any loss of important information during the reduction process?
-        4. Does the output maintain the required structure and data types?
+        Create a custom validator prompt that will assess how well the reduce operation performed its intended task. The prompt should ask specific questions about the quality of the output, such as:
+        1. Does the output accurately reflect the aggregation method specified in the task? For example, if summing numeric values, are the totals correct?
+        2. Are there any missing fields, unexpected null values, or data type mismatches in the output compared to the expected schema?
+        3. Does the output maintain the key information from the input while appropriately condensing or summarizing it? For instance, in a text summarization task, are the main points preserved?
+        4. How well does the output adhere to any specific formatting requirements mentioned in the original prompt, such as character limits for summaries or specific data types for aggregated values?
 
-        Provide your response as a single string containing the custom validator prompt.
+        Note that the output may reflect more than just the input provided, since we only provide a one-item sample input. Provide your response as a single string containing the custom validator prompt.
         """
 
         parameters = {
@@ -273,7 +448,7 @@ class ReduceOptimizer:
     def _validate_reduce_output(
         self,
         op_config: Dict[str, Any],
-        validation_inputs: List[Dict[str, Any]],
+        validation_inputs: Dict[Any, List[Dict[str, Any]]],
         output_data: List[Dict[str, Any]],
         validator_prompt: str,
     ) -> Dict[str, Any]:
@@ -285,7 +460,7 @@ class ReduceOptimizer:
 
         Args:
             op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            validation_inputs (Dict[Any, List[Dict[str, Any]]]): Validation inputs for the reduce operation.
             output_data (List[Dict[str, Any]]): Output data from the reduce operation.
             validator_prompt (str): The validator prompt generated earlier.
 
@@ -297,20 +472,19 @@ class ReduceOptimizer:
         validation_results = []
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = []
-            for sample_input in validation_inputs:
-                reduce_key = op_config["reduce_key"]
+            for reduce_key, inputs in validation_inputs.items():
                 sample_output = next(
                     (
                         item
                         for item in output_data
-                        if item[reduce_key] == sample_input[reduce_key]
+                        if item[op_config["reduce_key"]] == reduce_key
                     ),
                     None,
                 )
 
                 if sample_output is None:
                     self.console.log(
-                        f"Warning: No output found for reduce key {sample_input[reduce_key]}"
+                        f"Warning: No output found for reduce key {reduce_key}"
                     )
                     continue
 
@@ -320,8 +494,8 @@ class ReduceOptimizer:
                 Reduce Operation Task:
                 {op_config["prompt"]}
 
-                Input Data Sample:
-                {json.dumps(sample_input, indent=2)}
+                Input Data Samples:
+                {json.dumps(inputs, indent=2)}
 
                 Output Data Sample:
                 {json.dumps(sample_output, indent=2)}
@@ -349,11 +523,33 @@ class ReduceOptimizer:
                     )
                 )
 
-            for future in as_completed(futures):
+            for future, (reduce_key, inputs) in zip(futures, validation_inputs.items()):
                 response = future.result()
-                validation_results.append(
-                    json.loads(response.choices[0].message.content)
-                )
+
+                result = json.loads(response.choices[0].message.content)
+                # if not result["is_valid"] and (
+                #     result["issues"] or result["suggestions"]
+                # ):
+                #     sample_output = next(
+                #         (
+                #             item
+                #             for item in output_data
+                #             if item[op_config["reduce_key"]] == reduce_key
+                #         ),
+                #         None,
+                #     )
+                #     self.console.log("[bold red]Validation Issue Detected:[/bold red]")
+                #     self.console.log(f"Input: {json.dumps(inputs, indent=2)}")
+                #     self.console.log(f"Output: {json.dumps(sample_output, indent=2)}")
+                #     if result["issues"]:
+                #         self.console.log(f"Issues: {', '.join(result['issues'])}")
+                #     if result["suggestions"]:
+                #         self.console.log(
+                #             f"Suggestions: {', '.join(result['suggestions'])}"
+                #         )
+                #     self.console.log("---")
+
+                validation_results.append(result)
 
         # Determine if optimization is needed based on validation results
         invalid_count = sum(
@@ -368,7 +564,7 @@ class ReduceOptimizer:
 
     def _create_validation_inputs(
         self, input_data: List[Dict[str, Any]], reduce_key: str
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[Any, List[Dict[str, Any]]]:
         # Group input data by reduce_key
         grouped_data = {}
         for item in input_data:
@@ -377,14 +573,16 @@ class ReduceOptimizer:
                 grouped_data[key] = []
             grouped_data[key].append(item)
 
-        # Select a fixed set of samples
-        samples = []
-        for key, group in grouped_data.items():
-            if len(group) > 1:
-                sample_input = random.choice(group)
-                samples.append(sample_input)
+        # Select a fixed number of reduce keys
+        selected_keys = random.sample(
+            list(grouped_data.keys()),
+            min(self.num_samples_in_validation, len(grouped_data)),
+        )
 
-        return samples[: self.num_samples_in_validation]
+        # Create a new dict with only the selected keys
+        validation_inputs = {key: grouped_data[key] for key in selected_keys}
+
+        return validation_inputs
 
     def _create_reduce_plans(
         self,

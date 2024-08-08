@@ -6,38 +6,16 @@ default_model: gpt-4o-mini
 operations:
   summarize_medication_contexts:
     commutative: true
-    fold_batch_size: 4
-    fold_prompt: 'Combine the existing summary with insights from the following doctor-patient
-      transcripts, where the medication "{{ reduce_key }}" is mentioned:
-
-
-      {% for item in values %}
-
-      Transcript {{ loop.index }}:
-
-      {{ item.src }}
-
-
-      ---
-
-      {% endfor %}
-
-
-      Update the summary by integrating these new transcripts. Continue to include
-      the following information for all relevant cases:
-
-
-      1. A brief summary of why a patient takes this medication.
-
-      2. Any side effects experienced or mentioned.
-
-      3. Any interactions with other medications or treatments mentioned.
-
-
-      Incorporate these new findings into the existing summary:
-
-
-      {{ output.summary }}'
+    fold_batch_size: 5
+    fold_prompt: '{"fold_prompt":"Continue analyzing additional doctor-patient transcripts
+      where the medication \"{{ reduce_key }}\" is mentioned. Update the summary with
+      the new information:\n\nExisting Summary:\n{{ output.summary }}\n\nNew Transcripts
+      Analysis:\n\n{% for item in values %}\nTranscript {{ loop.index }}:\n{{ item.src
+      }}\n\n---\n{% endfor %}\n\nEnhance the summary by considering:\n1. Additional
+      reasons why a patient might take this medication.\n2. Any new side effects experienced
+      or mentioned.\n3. Further interactions with other medications or treatments
+      mentioned.\n\nUpdate the summary based on the new insights gathered from these
+      transcripts."}'
     input:
       schema:
         medication: str

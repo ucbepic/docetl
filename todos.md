@@ -35,9 +35,10 @@ TODO:
   - [x] Incorporate selectivity estimates in the multi-operator optimization
 - [x] Write gleaning optimization step
   - [ ] Incorporate gleaning in reduce
-- [ ] Support a summary type reduce, where we sample k elements to put in the prompt do a batch reduce
+- [x] Support a summary type reduce, where we sample k elements to put in the prompt do a batch reduce
 - [x] Write a non-commutative reduce
 - [ ] Write documentation on how all the operators work
+- [ ] Recursively optimize operations (e.g., reduces in maps)
 - [ ] Run tests in CI
 - [ ] Write tests for optimizers
 - [ ] Auto-generate resolver

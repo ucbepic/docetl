@@ -525,30 +525,7 @@ class ReduceOptimizer:
 
             for future, (reduce_key, inputs) in zip(futures, validation_inputs.items()):
                 response = future.result()
-
                 result = json.loads(response.choices[0].message.content)
-                # if not result["is_valid"] and (
-                #     result["issues"] or result["suggestions"]
-                # ):
-                #     sample_output = next(
-                #         (
-                #             item
-                #             for item in output_data
-                #             if item[op_config["reduce_key"]] == reduce_key
-                #         ),
-                #         None,
-                #     )
-                #     self.console.log("[bold red]Validation Issue Detected:[/bold red]")
-                #     self.console.log(f"Input: {json.dumps(inputs, indent=2)}")
-                #     self.console.log(f"Output: {json.dumps(sample_output, indent=2)}")
-                #     if result["issues"]:
-                #         self.console.log(f"Issues: {', '.join(result['issues'])}")
-                #     if result["suggestions"]:
-                #         self.console.log(
-                #             f"Suggestions: {', '.join(result['suggestions'])}"
-                #         )
-                #     self.console.log("---")
-
                 validation_results.append(result)
 
         # Determine if optimization is needed based on validation results

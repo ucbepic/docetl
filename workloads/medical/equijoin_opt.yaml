@@ -9,7 +9,7 @@ default_model: gpt-4o-mini
 name: medical_record_join
 operations:
   join_meds_transcripts:
-    blocking_threshold: 0.6566
+    blocking_threshold: 0.8586
     comparison_prompt: 'Compare the following medication names:
 
       {{ left.medicine }}

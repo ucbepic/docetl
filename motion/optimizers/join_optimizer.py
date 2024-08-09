@@ -9,6 +9,7 @@ from uuid import uuid4
 from rich.console import Console
 from motion.operations.resolve import compare_pair as compare_pair_resolve
 from motion.operations.equijoin import compare_pair as compare_pair_equijoin
+from scipy.optimize import brentq
 
 
 class JoinOptimizer:
@@ -51,7 +52,7 @@ class JoinOptimizer:
 
         self._print_similarity_histogram(similarities, comparison_results)
 
-        threshold, estimated_selectivity, ci_upper = self._find_optimal_threshold(
+        threshold, estimated_selectivity = self._find_optimal_threshold(
             comparison_results, similarities
         )
 
@@ -66,9 +67,9 @@ class JoinOptimizer:
                 blocking_keys,
                 comparison_results,
             )
-            if not false_negatives and rule_selectivity <= ci_upper:
+            if not false_negatives and rule_selectivity <= estimated_selectivity:
                 self.console.log(
-                    "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within bounds.[/green]"
+                    "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within estimated selectivity.[/green]"
                 )
             else:
                 if false_negatives:
@@ -81,9 +82,9 @@ class JoinOptimizer:
                         )
                     if len(false_negatives) > 5:
                         self.console.log(f"  ... and {len(false_negatives) - 5} more.")
-                if rule_selectivity > ci_upper:
+                if rule_selectivity > estimated_selectivity:
                     self.console.log(
-                        f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the upper bound of the CI ({ci_upper:.4f}).[/red]"
+                        f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the estimated selectivity ({estimated_selectivity:.4f}).[/red]"
                     )
                 blocking_rules = (
                     []
@@ -119,7 +120,7 @@ class JoinOptimizer:
 
         self._print_similarity_histogram(similarities, comparison_results)
 
-        threshold, estimated_selectivity, ci_upper = self._find_optimal_threshold(
+        threshold, estimated_selectivity = self._find_optimal_threshold(
             comparison_results, similarities
         )
 
@@ -135,9 +136,8 @@ class JoinOptimizer:
                 left_key,
                 right_key,
                 comparison_results,
-                ci_upper,
             )
-            if not false_negatives and rule_selectivity <= ci_upper:
+            if not false_negatives and rule_selectivity <= estimated_selectivity:
                 self.console.log(
                     "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within bounds.[/green]"
                 )
@@ -152,9 +152,9 @@ class JoinOptimizer:
                         )
                     if len(false_negatives) > 5:
                         self.console.log(f"  ... and {len(false_negatives) - 5} more.")
-                if rule_selectivity > ci_upper:
+                if rule_selectivity > estimated_selectivity:
                     self.console.log(
-                        f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the upper bound of the CI ({ci_upper:.4f}).[/red]"
+                        f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the estimated selectivity ({estimated_selectivity:.4f}).[/red]"
                     )
                 blocking_rules = (
                     []
@@ -390,19 +390,9 @@ class JoinOptimizer:
 
         # Estimate selectivity using importance sampling
         weights = 1 / (len(all_similarities) * sampling_probs)
-        estimated_selectivity = np.sum(weights * true_labels) / np.sum(weights)
-
-        # Calculate variance of the estimate
-        var_estimate = np.sum(
-            weights**2 * (true_labels - estimated_selectivity) ** 2
-        ) / (np.sum(weights) ** 2)
-
-        # Standard error
-        se_estimated = np.sqrt(var_estimate)
-
-        # Calculate 95% confidence interval
-        ci_lower = max(0, estimated_selectivity - 1.96 * se_estimated)
-        ci_upper = min(1, estimated_selectivity + 1.96 * se_estimated)
+        numerator = np.sum(weights * true_labels)
+        denominator = np.sum(weights)
+        selectivity_estimate = numerator / denominator
 
         self.console.log(
             f"[bold cyan]┌─ Estimated Self-Join Selectivity ─────────────────────────┐[/bold cyan]"
@@ -411,10 +401,7 @@ class JoinOptimizer:
             f"[bold cyan]│[/bold cyan] [yellow]Target Recall:[/yellow] {self.target_recall:.0%}"
         )
         self.console.log(
-            f"[bold cyan]│[/bold cyan] [yellow]Estimate:[/yellow] {estimated_selectivity:.4f}"
-        )
-        self.console.log(
-            f"[bold cyan]│[/bold cyan] [yellow]95% Confidence Interval:[/yellow] [{ci_lower:.4f} - {ci_upper:.4f}]"
+            f"[bold cyan]│[/bold cyan] [yellow]Estimate:[/yellow] {selectivity_estimate:.4f}"
         )
         self.console.log(
             f"[bold cyan]└───────────────────────────────────────────────────────────┘[/bold cyan]"
@@ -423,7 +410,7 @@ class JoinOptimizer:
             f"[bold]Chosen similarity threshold for blocking: {optimal_threshold:.4f}[/bold]"
         )
 
-        return round(optimal_threshold, 4), estimated_selectivity, ci_upper
+        return round(optimal_threshold, 4), selectivity_estimate
 
     def _generate_blocking_rules(
         self,
@@ -761,7 +748,6 @@ class JoinOptimizer:
         left_key: str,
         right_key: str,
         comparison_results: List[Tuple[int, int, bool]],
-        ci_upper: float,
     ) -> Tuple[List[Tuple[int, int]], float]:
         def apply_blocking_rule(left, right):
             try:

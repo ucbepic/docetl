@@ -37,11 +37,13 @@ TODO:
   - [ ] Incorporate gleaning in reduce
 - [x] Support a summary type reduce, where we sample k elements to put in the prompt do a batch reduce
 - [x] Write a non-commutative reduce
-- [ ] Write documentation on how all the operators work
+- [x] Write documentation on how all the operators work
+- [ ] Support summarizing peripheral chunks
+- [ ] Auto-generate resolver
+- [ ] Rewrite API for equijoin input data
 - [ ] Recursively optimize operations (e.g., reduces in maps)
 - [ ] Run tests in CI
 - [ ] Write tests for optimizers
-- [ ] Auto-generate resolver
 - [ ] Filter optimizer (as an extension of map)
 - [ ] Change validation to be pairwise comparisons
 - [ ] Support model pools

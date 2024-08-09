@@ -387,13 +387,15 @@ class ReduceOperation(BaseOperation):
         """
         Perform parallel folding and merging on a group of items.
 
-        This method implements a sophisticated strategy that combines parallel folding of input items
+        This method implements a strategy that combines parallel folding of input items
         and merging of intermediate results to efficiently process large groups. It works as follows:
-        1. The input group is divided into smaller batches.
-        2. Multiple folding operations are performed in parallel on these batches.
-        3. The results of these parallel folds are then merged in a hierarchical manner.
-        4. This process continues iteratively, reducing the number of intermediate results in each round.
-        5. The method dynamically adjusts the number of parallel folds based on performance metrics (i.e., fold and merge times).
+        1. The input group is initially divided into smaller batches for efficient processing.
+        2. The method performs an initial round of folding operations on these batches.
+        3. After the first round of folds, a few merges are performed to estimate the merge runtime.
+        4. Based on the estimated merge runtime and observed fold runtime, it calculates the optimal number of parallel folds. Subsequent rounds of folding are then performed concurrently, with the number of parallel folds determined by the runtime estimates.
+        5. The folding process repeats in rounds, progressively reducing the number of items to be processed.
+        6. Once all folding operations are complete, the method recursively performs final merges on the fold results to combine them into a final result.
+        7. Throughout this process, the method may adjust the number of parallel folds based on updated performance metrics (i.e., fold and merge runtimes) to maintain efficiency.
 
         Args:
             key (Any): The reduce key for the group.

@@ -150,6 +150,10 @@ class Optimizer:
               previously computed and stored in self.selectivities.
             - The sample size is always at least 1, even after all adjustments.
         """
+        # If an equijoin, load the default. Equijoins are always first
+        if op_config.get("type") == "equijoin":
+            return SAMPLE_SIZE_MAP.get(op_config.get("type"))
+
         # If there are no upstream operations, use the default sample_size
         upstream_ops = []
         for step_op in step_ops:
@@ -277,9 +281,14 @@ class Optimizer:
         input_sample = self._get_sample_data(step.get("input"), None, sample_size)
 
         if step.get("input") is None:
+            join_op_name = list(step.get("operations")[0].keys())[0]
             # this is an equijoin step, load left and right datasets
-            left_data = self._get_sample_data(step.get("left"), None, sample_size)
-            right_data = self._get_sample_data(step.get("right"), None, sample_size)
+            left_data = self._get_sample_data(
+                step.get("operations")[0][join_op_name].get("left"), None, sample_size
+            )
+            right_data = self._get_sample_data(
+                step.get("operations")[0][join_op_name].get("right"), None, sample_size
+            )
             input_sample = {"left": left_data, "right": right_data}
 
         for op in ops_to_run:
@@ -346,8 +355,10 @@ class Optimizer:
             op_object["name"] = operation_name
 
             # Run the pipeline
+            step_ops = step.get("operations")
+
             sample_size = self.compute_sample_size(
-                step.get("name"), step.get("operations"), op_object
+                step.get("name"), step_ops, op_object
             )
             input_data = self._run_partial_step(
                 step, optimized_operation_names, sample_size, optimized_operations
@@ -769,5 +780,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/reduce.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/equijoin.yaml", model="gpt-4o")
     optimizer.optimize()

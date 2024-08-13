@@ -52,3 +52,4 @@ TODO:
 - [ ] Write intermediates to disk
 - [ ] Support order by
 - [ ] Track traces
+- [ ] Reduce operations: eagerly process merges to prevent against stragglers/tail latencies in folds?

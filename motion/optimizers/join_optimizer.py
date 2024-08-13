@@ -380,7 +380,6 @@ class JoinOptimizer:
 
                 if analysis:
                     dedup = False
-                    # TODO: fix this
             else:
                 self.console.log(
                     "[yellow]No map prompt found in intermediates for analysis.[/yellow]"

@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import random
 import re
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 from litellm import embedding, completion_cost
 from uuid import uuid4
@@ -20,7 +20,7 @@ class JoinOptimizer:
         console: Console,
         llm_client: Any,
         max_threads: int,
-        target_recall: float = 0.9,
+        target_recall: float = 0.95,
         sample_size: int = 300,
         sampling_weight: float = 5,
         agent_max_retries: int = 5,
@@ -35,9 +35,391 @@ class JoinOptimizer:
         self.sampling_weight = sampling_weight
         self.agent_max_retries = agent_max_retries
 
+    def _analyze_map_prompt_categorization(self, map_prompt: str) -> bool:
+        """
+        Analyze the map prompt to determine if it's explicitly categorical.
+
+        Args:
+            map_prompt (str): The map prompt to analyze.
+
+        Returns:
+            bool: True if the prompt is explicitly categorical, False otherwise.
+        """
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an AI assistant tasked with analyzing prompts for data processing operations.",
+            },
+            {
+                "role": "user",
+                "content": f"""Analyze the following map operation prompt and determine if it is explicitly categorical, 
+                meaning it details a specific set of possible outputs:
+
+                {map_prompt}
+
+                Respond with 'Yes' if the prompt is explicitly categorical, detailing a finite set of possible outputs.
+                Respond with 'No' if the prompt allows for open-ended or non-categorical responses.
+                Provide a brief explanation for your decision.""",
+            },
+        ]
+
+        response = self.llm_client.generate(
+            messages,
+            "You are an expert in analyzing natural language prompts for data processing tasks.",
+            {
+                "type": "object",
+                "properties": {
+                    "is_categorical": {
+                        "type": "string",
+                        "enum": ["Yes", "No"],
+                        "description": "Whether the prompt is explicitly categorical",
+                    },
+                    "explanation": {
+                        "type": "string",
+                        "description": "Brief explanation for the decision",
+                    },
+                },
+                "required": ["is_categorical", "explanation"],
+            },
+        )
+
+        analysis = json.loads(response.choices[0].message.content)
+
+        self.console.log(f"[bold]Map Prompt Analysis:[/bold]")
+        self.console.log(f"Is Categorical: {analysis['is_categorical']}")
+        self.console.log(f"Explanation: {analysis['explanation']}")
+
+        return analysis["is_categorical"].lower() == "yes"
+
+    def _determine_duplicate_keys(
+        self,
+        input_data: List[Dict[str, Any]],
+        reduce_key: str,
+        map_prompt: Optional[str] = None,
+    ) -> bool:
+        # Prepare a sample of the input data for analysis
+        sample_size = min(10, len(input_data))
+        data_sample = random.sample(
+            [item[reduce_key] for item in input_data], sample_size
+        )
+
+        context_prefix = ""
+        if map_prompt:
+            context_prefix = f"For context, these values came out of a pipeline with the following prompt:\n\n{map_prompt}\n\n"
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"{context_prefix}I want to do a reduce operation on these values, and I need to determine if there are semantic duplicates in the data, where the strings are different but they technically belong in the same group. Note that exact string duplicates should not be considered here.\n\nHere's a sample of the data (showing the '{reduce_key}' field): {data_sample}\n\nBased on this {'context and ' if map_prompt else ''}sample, are there likely to be such semantic duplicates (not exact string matches) in the dataset? Respond with 'yes' only if you think there are semantic duplicates, or 'no' if you don't see evidence of semantic duplicates or if you only see exact string duplicates.",
+            },
+        ]
+        response = self.llm_client.generate(
+            messages,
+            "You are an expert data analyst. Analyze the given data sample and determine if there are likely to be semantic duplicate values that belong in the same group, even if the strings are different.",
+            {
+                "type": "object",
+                "properties": {
+                    "likely_duplicates": {
+                        "type": "string",
+                        "enum": ["Yes", "No"],
+                        "description": "Whether duplicates are likely to exist in the full dataset",
+                    },
+                    "explanation": {
+                        "type": "string",
+                        "description": "Brief explanation for the decision",
+                    },
+                },
+                "required": ["likely_duplicates", "explanation"],
+            },
+        )
+
+        analysis = json.loads(response.choices[0].message.content)
+
+        self.console.log(f"[bold]Duplicate Analysis for '{reduce_key}':[/bold]")
+        self.console.log(f"Likely Duplicates: {analysis['likely_duplicates']}")
+        self.console.log(f"Explanation: {analysis['explanation']}")
+
+        if analysis["likely_duplicates"].lower() == "yes":
+            self.console.log(
+                "[yellow]Duplicates are likely. Consider using a deduplication strategy in the resolution step.[/yellow]"
+            )
+            return True
+        return False
+
+    def _sample_random_pairs(
+        self, input_data: List[Dict[str, Any]], n: int
+    ) -> List[Tuple[int, int]]:
+        """Sample random pairs of indices, excluding exact matches."""
+        pairs = set()
+        max_attempts = n * 10  # Avoid infinite loop
+        attempts = 0
+
+        while len(pairs) < n and attempts < max_attempts:
+            i, j = random.sample(range(len(input_data)), 2)
+            if i != j and input_data[i] != input_data[j]:
+                pairs.add((min(i, j), max(i, j)))  # Ensure ordered pairs
+            attempts += 1
+
+        return list(pairs)
+
+    def _check_duplicates_with_llm(
+        self,
+        input_data: List[Dict[str, Any]],
+        pairs: List[Tuple[int, int]],
+        reduce_key: str,
+        map_prompt: Optional[str],
+    ) -> bool:
+        """Use LLM to check if any pairs are duplicates."""
+
+        content = "Analyze the following pairs of entries and determine if any of them are likely duplicates. Respond with 'Yes' if you find any likely duplicates, or 'No' if none of the pairs seem to be duplicates. Provide a brief explanation for your decision.\n\n"
+
+        if map_prompt:
+            content = (
+                f"For reference, here is the map prompt used earlier in the pipeline: {map_prompt}\n\n"
+                + content
+            )
+
+        for i, (idx1, idx2) in enumerate(pairs, 1):
+            content += f"Pair {i}:\n"
+            content += (
+                f"Entry 1: {json.dumps(input_data[idx1][reduce_key], indent=2)}\n"
+            )
+            content += (
+                f"Entry 2: {json.dumps(input_data[idx2][reduce_key], indent=2)}\n\n"
+            )
+
+        messages = [{"role": "user", "content": content}]
+
+        system_prompt = "You are an AI assistant tasked with identifying potential duplicate entries in a dataset."
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "duplicates_found": {"type": "string", "enum": ["Yes", "No"]},
+                "explanation": {"type": "string"},
+            },
+            "required": ["duplicates_found", "explanation"],
+        }
+
+        response = self.llm_client.generate(messages, system_prompt, response_schema)
+
+        # Print the duplicates_found and explanation
+        self.console.log(
+            f"[bold]Duplicates in keys found:[/bold] {response['duplicates_found']}\n"
+            f"[bold]Explanation:[/bold] {response['explanation']}"
+        )
+
+        return response["duplicates_found"].lower() == "yes"
+
+    def synthesize_compare_prompt(
+        self, map_prompt: Optional[str], reduce_key: str
+    ) -> str:
+
+        system_prompt = f"You are an AI assistant tasked with creating a comparison prompt for LLM-assisted entity resolution. Your task is to create a comparison prompt that will be used to compare two entities, referred to as input1 and input2, to see if input1.{reduce_key} and input2.{reduce_key} are likely the same entity."
+        if map_prompt:
+            system_prompt += f"\n\nFor context, here is the prompt used earlier in the pipeline to create the inputs to resolve: {map_prompt}"
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"""
+    Create a comparison prompt for entity resolution: The prompt should:
+    1. Be tailored to the specific domain and type of data being compared, based on the context provided.
+    2. Instruct to compare two entities, referred to as input1 and input2.
+    3. Specifically mention comparing input1.{reduce_key} and input2.{reduce_key}.
+    4. Include instructions to consider relevant attributes or characteristics for comparison.
+    5. Ask to respond with "True" if the entities are likely the same, or "False" if they are likely different.
+
+    Example structure:
+    ```
+    Compare the following two [entity type]:
+
+    [Entity 1]:
+    {{{{ input1.{reduce_key} }}}}
+
+    [Entity 2]:
+    {{{{ input2.{reduce_key} }}}}
+
+    Are these [entities] likely referring to the same [entity type]? Consider [list relevant attributes or characteristics to compare]. Respond with "True" if they are likely the same [entity type], or "False" if they are likely different [entity types].
+    ```
+
+    Please generate the comparison prompt:
+    """,
+            }
+        ]
+
+        response = self.llm_client.generate(
+            messages,
+            system_prompt,
+            {
+                "type": "object",
+                "properties": {
+                    "comparison_prompt": {
+                        "type": "string",
+                        "description": "Detailed comparison prompt for entity resolution",
+                    }
+                },
+                "required": ["comparison_prompt"],
+            },
+        )
+
+        comparison_prompt = json.loads(response.choices[0].message.content)[
+            "comparison_prompt"
+        ]
+
+        # Log the synthesized comparison prompt
+        self.console.log("[green]Synthesized comparison prompt:[/green]")
+        self.console.log(comparison_prompt)
+
+        if not comparison_prompt:
+            raise ValueError(
+                "Could not synthesize a comparison prompt. Please provide a comparison prompt in the config."
+            )
+
+        return comparison_prompt
+
+    def synthesize_resolution_prompt(
+        self, map_prompt: Optional[str], reduce_key: str, output_schema: Dict[str, str]
+    ) -> str:
+        system_prompt = f"""You are an AI assistant tasked with creating a resolution prompt for LLM-assisted entity resolution. 
+        Your task is to create a prompt that will be used to merge multiple duplicate keys into a single, consolidated key.
+        The key being resolved (known as the 'reduce_key') is '{reduce_key}'.
+        The duplicate keys will be provided in a list called 'matched_entries' in a Jinja2 template.
+        """
+
+        if map_prompt:
+            system_prompt += f"\n\nFor context, here is the prompt used earlier in the pipeline to create the inputs to resolve: {map_prompt}"
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"""
+    Create a resolution prompt for merging duplicate keys into a single key. The prompt should:
+    1. Be tailored to the specific domain and type of data being merged, based on the context provided.
+    2. Use a Jinja2 template to iterate over the duplicate keys (accessed as 'matched_entries', where each item is a dictionary with the reduce_key, which you can access as `entry.{reduce_key}`).
+    3. Instruct to create a single, consolidated key from the duplicate keys.
+    4. Include guidelines for resolving conflicts (e.g., choosing the most recent, most complete, or most reliable information).
+    5. Specify that the output of the resolution prompt should conform to the given output schema: {json.dumps(output_schema, indent=2)}
+
+    Example structure:
+    ```
+    Analyze the following duplicate entries:
+
+    {{% for key in matched_entries %}}
+    Entry {{{{ loop.index }}}}:
+    {{{{ key | tojson }}}}
+
+    {{% endfor %}}
+
+    Create a single, consolidated key that combines the information from all duplicate entries. 
+    When merging, follow these guidelines:
+    1. [Provide specific merging instructions relevant to the data type]
+    2. [Provide conflict resolution guidelines]
+    3. [Any other relevant instructions]
+
+    Ensure that the merged key conforms to the following schema:
+    {json.dumps(output_schema, indent=2)}
+
+    Return the consolidated key as a single [appropriate data type] value.
+    ```
+
+    Please generate the resolution prompt:
+    """,
+            }
+        ]
+
+        response = self.llm_client.generate(
+            messages,
+            system_prompt,
+            {
+                "type": "object",
+                "properties": {
+                    "resolution_prompt": {
+                        "type": "string",
+                        "description": "Detailed resolution prompt for merging duplicate keys",
+                    }
+                },
+                "required": ["resolution_prompt"],
+            },
+        )
+
+        resolution_prompt = json.loads(response.choices[0].message.content)[
+            "resolution_prompt"
+        ]
+
+        # Log the synthesized resolution prompt
+        self.console.log("[green]Synthesized resolution prompt:[/green]")
+        self.console.log(resolution_prompt)
+
+        if not resolution_prompt:
+            raise ValueError(
+                "Could not synthesize a resolution prompt. Please provide a resolution prompt in the config."
+            )
+
+        return resolution_prompt
+
     def optimize_resolve(
         self, input_data: List[Dict[str, Any]]
     ) -> Tuple[Dict[str, Any], float]:
+
+        # Check if the operation is marked as empty
+        if self.op_config.get("empty", False):
+            # Extract the map prompt from the intermediates
+            map_prompt = self.op_config["_intermediates"]["map_prompt"]
+            reduce_key = self.op_config["_intermediates"]["reduce_key"]
+
+            if reduce_key is None:
+                raise ValueError(
+                    "[yellow]Warning: No reduce key found in intermediates for synthesized resolve operation.[/yellow]"
+                )
+
+            dedup = True
+
+            if map_prompt:
+                # Analyze the map prompt
+                analysis = self._analyze_map_prompt_categorization(map_prompt)
+
+                if analysis:
+                    dedup = False
+                    # TODO: fix this
+            else:
+                self.console.log(
+                    "[yellow]No map prompt found in intermediates for analysis.[/yellow]"
+                )
+
+            if dedup is False:
+                dedup = self._determine_duplicate_keys(
+                    input_data, reduce_key, map_prompt
+                )
+
+            # Now do the last attempt of pairwise comparisons
+            if dedup is False:
+                # Sample up to 20 random pairs of keys for duplicate analysis
+                sampled_pairs = self._sample_random_pairs(input_data, 20)
+
+                # Use LLM to check for duplicates
+                duplicates_found = self._check_duplicates_with_llm(
+                    input_data, sampled_pairs, reduce_key, map_prompt
+                )
+
+                if duplicates_found:
+                    dedup = True
+
+            if dedup is False:
+                # If no deduplication is needed, return the same config with 0 cost
+                return self.op_config, 0.0
+
+            # Add the reduce key to the output schema in the config
+            self.op_config["output"] = {"schema": {reduce_key: "string"}}
+            self.op_config["comparison_prompt"] = self.synthesize_compare_prompt(
+                map_prompt, reduce_key
+            )
+            self.op_config["resolution_prompt"] = self.synthesize_resolution_prompt(
+                map_prompt, reduce_key, self.op_config["output"]["schema"]
+            )
+
+            # Pop off the empty flag
+            self.op_config.pop("empty")
+
         embeddings, blocking_keys, embedding_cost = self._compute_embeddings(input_data)
         self.console.log(
             f"[bold]Cost of creating embeddings on the sample: ${embedding_cost:.4f}[/bold]"

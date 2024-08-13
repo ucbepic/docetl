@@ -428,7 +428,7 @@ resolve_operation:
     Patient 2:
     {{ input2 | tojson }}
 
-    Are these records likely referring to the same patient? Consider name similarity, date of birth, and other identifying information. Respond with "yes" if they are likely the same patient, or "no" if they are likely different patients.
+    Are these records likely referring to the same patient? Consider name similarity, date of birth, and other identifying information. Respond with "True" if they are likely the same patient, or "False" if they are likely different patients.
   resolution_prompt: |
     Merge the following patient records into a single, consolidated record:
 
@@ -441,10 +441,9 @@ resolve_operation:
     Provide a single, merged patient record that combines all the information from the matched entries. Resolve any conflicts by choosing the most recent or most complete information.
   output:
     schema:
-      merged_record: str
+      record: str
   blocking_keys:
-    - name
-    - date_of_birth
+    - record
   blocking_threshold: 0.8
   embedding_model: text-embedding-ada-002
   resolution_model: gpt-4o-mini

@@ -1,0 +1,125 @@
+datasets:
+  transcripts:
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/raw_with_id.json
+    type: file
+default_model: gpt-4o-mini
+operations:
+  explode_medications:
+    explode_key: medication
+    name: explode_medications
+    type: explode
+  extract_medications:
+    name: extract_medications
+    optimize: false
+    output:
+      schema:
+        medication: list[str]
+    prompt: 'Analyze the following transcript of a conversation between a doctor and
+      a patient:
+
+
+      {{ input.src }}
+
+
+      Extract and list all medications mentioned in the transcript.
+
+      If no medications are mentioned, return an empty list.
+
+      '
+    type: map
+  summarize_medications:
+    name: summarize_medications
+    optimize: false
+    output:
+      schema:
+        symptoms_summary: str
+    prompt: 'Analyze the following transcripts related to the medication "{{ reduce_key
+      }}":
+
+
+      {% for item in values %}
+
+      Transcript {{ loop.index }}:
+
+      {{ item.src }}
+
+      {% endfor %}
+
+
+      Based on these transcripts, provide a summary of the symptoms that the medication
+      "{{ reduce_key }}" is typically used to treat or manage. If no specific symptoms
+      are mentioned, provide a general description of the medication''s common uses.
+
+      '
+    reduce_key: medication
+    type: reduce
+  synthesized_resolve_0:
+    _intermediates:
+      map_prompt: 'Analyze the following transcript of a conversation between a doctor
+        and a patient:
+
+
+        {{ input.src }}
+
+
+        Extract and list all medications mentioned in the transcript.
+
+        If no medications are mentioned, return an empty list.
+
+        '
+      reduce_key: medication
+    blocking_keys:
+    - medication
+    blocking_threshold: 0.8586
+    comparison_model: gpt-4o-mini
+    comparison_prompt: 'Compare the following two medication entries:
+
+
+      [Medication 1]:
+
+      {{ input1.medication }}
+
+
+      [Medication 2]:
+
+      {{ input2.medication }}
+
+
+      Are these medications likely referring to the same medication? Consider attributes
+      such as the active ingredient, dosage form, brand name versus generic name,
+      and any other descriptive details provided. Respond with "True" if they are
+      likely the same medication, or "False" if they are likely different medications.'
+    embedding_model: text-embedding-3-small
+    output:
+      schema:
+        medication: string
+    resolution_model: gpt-4o-mini
+    resolution_prompt: "Analyze the following duplicate medication entries that were\
+      \ extracted from a patient-doctor conversation:\n\n{% for entry in matched_entries\
+      \ %}\nEntry {{ loop.index }}:\n{{ entry.medication | tojson }}\n\n{% endfor\
+      \ %}\n\nCreate a single, consolidated \"medication\" key by combining the information\
+      \ from all the entries listed above. Ensure that the resulting key provides\
+      \ the most accurate and comprehensive representation possible. When merging,\
+      \ adhere to the following guidelines:\n1. **Completeness**: Prioritize entries\
+      \ that provide the most detailed information about the medication, including\
+      \ dosage, frequency, and form.\n2. **Recency**: In cases of conflict or differing\
+      \ details, favor information from the most recent entries, if such temporal\
+      \ metadata is available.\n3. **Reliability**: Weigh entries according to their\
+      \ context or source reliability, if context indicates differing levels of reliability\
+      \ (e.g., direct prescriptions vs. patient-provided information).\n\nEnsure that\
+      \ the merged medication key conforms to the following schema:\n{\n  \"medication\"\
+      : \"string\"\n}\n\nReturn the consolidated \"medication\" key as a single string\
+      \ value."
+    type: resolve
+pipeline:
+  output:
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/summarized_medical_info_synth.json
+    type: file
+  steps:
+  - input: transcripts
+    name: medical_info_extraction
+    operations:
+    - extract_medications
+    - explode_medications
+    - synthesized_resolve_0
+    - summarize_medications

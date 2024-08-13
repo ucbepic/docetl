@@ -38,8 +38,8 @@ TODO:
 - [x] Support a summary type reduce, where we sample k elements to put in the prompt do a batch reduce
 - [x] Write a non-commutative reduce
 - [x] Write documentation on how all the operators work
+- [x] Auto-generate resolver
 - [ ] Support summarizing peripheral chunks
-- [ ] Auto-generate resolver
 - [ ] Rewrite API for equijoin input data
 - [ ] Recursively optimize operations (e.g., reduces in maps)
 - [ ] Run tests in CI

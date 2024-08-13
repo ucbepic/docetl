@@ -82,8 +82,38 @@ class Optimizer:
         self.timeout = timeout
         self.selectivities = defaultdict(dict)
         self.datasets = {}
+        self.optimized_config_path = f"{yaml_file}_opt.yaml"
 
         self.print_optimizer_config()
+
+    def syntax_check(self):
+        """
+        Perform a syntax check on all operations defined in the configuration.
+
+        This method validates each operation by attempting to instantiate it.
+        If any operation fails to instantiate, a ValueError is raised.
+
+        Raises:
+            ValueError: If any operation fails the syntax check.
+        """
+        for operation in self.config["operations"]:
+            operation_config = self.config["operations"][operation]
+            operation_type = operation_config["type"]
+
+            try:
+                operation_class = get_operation(operation_type)
+                operation_class(
+                    operation_config,
+                    self.config.get("default_model", "gpt-4o-mini"),
+                    self.max_threads,
+                    self.console,
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"Syntax check failed for operation '{operation}': {str(e)}"
+                )
+
+        self.console.log("[green]Syntax check passed for all operations.[/green]")
 
     def print_optimizer_config(self):
         """
@@ -178,6 +208,80 @@ class Optimizer:
 
         return int(round(sample_size))
 
+    def _insert_empty_resolve_operations(self):
+        """
+        Determines whether to insert resolve operations in the pipeline.
+
+        This method iterates through each step in the pipeline and checks if there's a reduce
+        operation that follows a map operation with no resolver in between. If such a case is
+        found, it synthesizes an empty resolver operation and inserts it into the pipeline.
+
+        The method modifies the pipeline configuration in-place.
+
+        Returns:
+            None
+
+        Side effects:
+        - Modifies self.config["pipeline"]["steps"] by potentially inserting new resolve operations.
+        - Adds new resolve operations to self.config["operations"] if necessary.
+        """
+        for i, step in enumerate(self.config["pipeline"]["steps"]):
+            operations = step.get("operations", [])
+            has_map = False
+            has_reduce = False
+            has_resolve = False
+            map_op = None
+            reduce_op = None
+
+            for op in operations:
+                op_type = self.config["operations"][op].get("type")
+                if op_type == "map":
+                    has_map = True
+                    map_op = op
+                elif op_type == "reduce":
+                    has_reduce = True
+                    reduce_op = op
+                elif op_type == "resolve":
+                    has_resolve = True
+
+            if has_map and has_reduce and not has_resolve:
+                # Synthesize an empty resolver
+                self.console.log(
+                    f"[yellow]Synthesizing empty resolver operation:[/yellow]"
+                )
+                self.console.log(
+                    f"  • [cyan]Reduce operation:[/cyan] [bold]{reduce_op}[/bold]"
+                )
+                self.console.log(f"  • [cyan]Step:[/cyan] [bold]{step['name']}[/bold]")
+
+                new_resolve_op = f"synthesized_resolve_{i}"
+                self.config["operations"][new_resolve_op] = {
+                    "type": "resolve",
+                    "empty": True,
+                    "embedding_model": "text-embedding-3-small",
+                    "resolution_model": self.config.get("default_model", "gpt-4o-mini"),
+                    "comparison_model": self.config.get("default_model", "gpt-4o-mini"),
+                    "_intermediates": {
+                        "map_prompt": self.config["operations"][map_op].get("prompt"),
+                        "reduce_key": self.config["operations"][reduce_op].get(
+                            "reduce_key"
+                        ),
+                    },
+                }
+
+                # Insert the new resolve operation before the reduce operation
+                reduce_index = next(
+                    i
+                    for i, op in enumerate(operations)
+                    if self.config["operations"][op].get("type") == "reduce"
+                )
+                operations.insert(reduce_index, new_resolve_op)
+
+                has_resolve = True
+
+        # Update the pipeline configuration
+        self.config["pipeline"]["steps"] = self.config["pipeline"]["steps"]
+
     def optimize(self):
         """
         Optimize the entire pipeline defined in the configuration.
@@ -211,6 +315,9 @@ class Optimizer:
         - The optimization process is performed step by step, from upstream to downstream,
           with each step potentially depending on the results of previous steps.
         """
+        self.syntax_check()
+        self._insert_empty_resolve_operations()
+
         optimized_steps = []
         optimized_operations = {}
         for step in self.config["pipeline"]["steps"]:
@@ -683,6 +790,11 @@ class Optimizer:
         optimized_config, cost = JoinOptimizer(
             self.config, op_config, self.console, self.llm_client, self.max_threads
         ).optimize_resolve(input_data)
+
+        if optimized_config.get("empty", False) == True:
+            # Remove this operation from the pipeline and just return input data
+            return [], input_data
+
         self.operations_cost += cost
 
         # Update the operation config with the optimized values
@@ -764,21 +876,14 @@ class Optimizer:
 
         resolved_config = Optimizer.resolve_anchors(config_to_save)
 
-        # Use safe_dump to avoid creating anchors and aliases
-        # Get the base filename without extension
-        base_filename = os.path.splitext(self.yaml_file_path)[0]
-
-        # Append '_opt' to the base filename
-        optimized_filename = f"{base_filename}_opt.yaml"
-
-        with open(optimized_filename, "w") as f:
+        with open(self.optimized_config_path, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False)
 
         self.console.log(
-            f"[green italic]Optimized config saved to {optimized_filename}[/green italic]"
+            f"[green italic]Optimized config saved to {self.optimized_config_path}[/green italic]"
         )
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/equijoin.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/synth_resolve.yaml", model="gpt-4o")
     optimizer.optimize()

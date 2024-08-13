@@ -82,7 +82,8 @@ class Optimizer:
         self.timeout = timeout
         self.selectivities = defaultdict(dict)
         self.datasets = {}
-        self.optimized_config_path = f"{yaml_file}_opt.yaml"
+        base_name = yaml_file.rsplit(".", 1)[0]
+        self.optimized_config_path = f"{base_name}_opt.yaml"
 
         self.print_optimizer_config()
 

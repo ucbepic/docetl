@@ -258,6 +258,7 @@ def split_config():
                 "tail": {"type": "summary", "count": 2},
             },
         },
+        "summary_prompt": "Summarize the following chunk of content: {{ chunk_content }}\n If the chunk is too short, just repeat the content verbatim.",
     }
 
 
@@ -281,7 +282,7 @@ def test_split_operation(split_config, default_model, max_threads, split_sample_
 
     assert len(results) > len(split_sample_data)
     assert all("chunk_id" in result and "content" in result for result in results)
-    assert cost == 0  # Split operation doesn't use LLM
+    assert cost > 0  # For summmarizing, we use the summary_prompt
 
     # Check that chunks are created correctly
     assert len(results) == 12  # 8 chunks for first item, 4 for second
@@ -294,13 +295,13 @@ def test_split_operation(split_config, default_model, max_threads, split_sample_
     assert (
         len(middle_chunk["previous_chunks"]) == 3
     )  # 1 head + 1 middle summary + 1.5 tail
-    assert middle_chunk["previous_chunks"][0]["chunk_id"] == "chunk_0"
-    assert middle_chunk["previous_chunks"][2]["chunk_id"] == "chunk_2"
+    assert middle_chunk["previous_chunks"][0]["chunk_id"].startswith("chunk_0")
+    assert middle_chunk["previous_chunks"][2]["chunk_id"].startswith("chunk_2")
 
     # Check next chunks for the middle chunk of the first item
     assert "next_chunks" in middle_chunk
     assert len(middle_chunk["next_chunks"]) == 3  # 1 head + 2 tail summaries
-    assert middle_chunk["next_chunks"][0]["chunk_id"] == "chunk_4"
+    assert middle_chunk["next_chunks"][0]["chunk_id"].startswith("chunk_4")
 
     # Check the first chunk of the second item
     second_item_first_chunk = results[8]["_chunk_intermediates"]
@@ -347,7 +348,7 @@ def test_split_operation_with_partial_config(
     # Check that only head is included in previous chunks
     for result in results:
         chunk_id = result["chunk_id"]
-        if chunk_id == "chunk_0":
+        if chunk_id.startswith("chunk_0"):
             continue
         result = result["_chunk_intermediates"]
         if "previous_chunks" in result:

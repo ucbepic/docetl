@@ -238,6 +238,10 @@ Each section (`head`, `middle`, `tail`) can have the following properties:
 - `type`: Either "full" (include entire chunk) or "summary" (include a summary of the chunk). We default to "full" if the section is specified. If the section is not specified, we will not include any chunks/summaries from that section
 - `count`: The number of chunks to include (for `head` and `tail` only). Can be a fractional value.
 
+If you specify a `type` of "summary" for any section in `peripheral_chunks`, you must include a `summary_prompt` field in that section. This `summary_prompt` should be a Jinja2 template with a `{{ chunk_content }}` variable, which will be replaced with the chunk content when summarizing.
+
+Each chunk is summarized independently, and the resulting summaries are concatenated to provide peripheral context. You can optionally specify a `summary_model` for each section with a "summary" type. If not provided, the operation will use the `model` specified for the split operation or fall back to the `default_model`.
+
 Example:
 
 ```yaml
@@ -262,9 +266,9 @@ split_operation:
       head:
         type: full
         count: 1
-      tail:
-        type: summary
-        count: 2
+  summary_prompt: |
+    Summarize the following text:
+    {{ chunk_content }}
 ```
 
 In this example:
@@ -272,11 +276,10 @@ In this example:
 - The content is split into chunks of 50 tokens each.
 - For previous chunks:
   - The first 2 chunks are included in full.
-  - All middle chunks are summarized.
+  - Summarized representations of all the middle chunks are concatenated together and included.
   - The 1.5 chunks immediately before the current chunk are included in full.
 - For next chunks:
   - The first chunk after the current one is included in full.
-  - The last 2 chunks are summarized.
 
 Notes:
 

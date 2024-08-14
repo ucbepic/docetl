@@ -1,8 +1,13 @@
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Any, Tuple
+import uuid
+from motion.operations.utils import call_llm, parse_llm_response
 import tiktoken
 from motion.operations.base import BaseOperation
 from rich.console import Console
 import math
+from litellm import completion_cost
+from jinja2 import Template
 
 
 class SplitOperation(BaseOperation):
@@ -12,7 +17,7 @@ class SplitOperation(BaseOperation):
     This class extends BaseOperation to:
     1. Split input data into chunks of specified size based on the 'split_key' and 'chunk_size' configuration.
     2. Add peripheral context to each chunk (previous and next chunks).
-    3. Optionally summarize or include full content of peripheral chunks. TODO.
+    3. Optionally summarize or include full content of peripheral chunks.
     4. Return results containing:
        - chunk_content: A formatted string containing the main chunk and peripheral chunks.
        - chunk_id: A unique identifier for each chunk.
@@ -26,6 +31,9 @@ class SplitOperation(BaseOperation):
     This allows for flexible context-aware splitting of large datasets, ensuring each chunk
     has access to relevant surrounding information.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def syntax_check(self) -> None:
         """
@@ -41,6 +49,7 @@ class SplitOperation(BaseOperation):
         4. If present, checks the structure and content of the 'peripheral_chunks' configuration.
         5. Verifies types of various configuration values (e.g., 'model' as string).
         6. Checks for the presence and validity of optional configurations like 'main_chunk_start' and 'main_chunk_end'.
+        7. Validates the 'summary_prompt' if present.
 
         Raises:
             ValueError: If any required configuration is missing or if any configuration aspect is incorrect or inconsistent.
@@ -89,6 +98,13 @@ class SplitOperation(BaseOperation):
                                     f"'type' in {direction}.{section} must be 'full' or 'summary'"
                                 )
 
+                            # If it's a summary, make sure there's a summary prompt
+                            if section_config.get("type") == "summary":
+                                if "summary_prompt" not in self.config:
+                                    raise ValueError(
+                                        f"'summary_prompt' is required in the configuration when using summary type in {direction}.{section}"
+                                    )
+
                             if section != "middle":
                                 if (
                                     "count" not in section_config
@@ -115,6 +131,15 @@ class SplitOperation(BaseOperation):
         ):
             raise TypeError("'main_chunk_end' must be a string")
 
+        # Check for summary_prompt (optional)
+        if "summary_prompt" in self.config:
+            if not isinstance(self.config["summary_prompt"], str):
+                raise TypeError("'summary_prompt' must be a string")
+            try:
+                Template(self.config["summary_prompt"])
+            except Exception as e:
+                raise ValueError(f"Invalid Jinja2 template for 'summary_prompt': {e}")
+
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
         Execute the split operation on the provided input data.
@@ -127,7 +152,7 @@ class SplitOperation(BaseOperation):
 
         Returns:
             Tuple[List[Dict], float]: A tuple containing the processed results (split chunks with context)
-                                      and the total cost of the operation (always 0 for split operations).
+                                      and the total cost of the operation.
 
         Raises:
             KeyError: If the split key is not found in an input item.
@@ -138,12 +163,27 @@ class SplitOperation(BaseOperation):
         main_chunk_start = self.config.get("main_chunk_start", "<MAIN_CHUNK>")
         main_chunk_end = self.config.get("main_chunk_end", "</MAIN_CHUNK>")
         results = []
+        cost = 0.0
+        self._summarize_chunks = False
+        if "peripheral_chunks" in self.config:
+            for direction in ["previous", "next"]:
+                if direction in self.config["peripheral_chunks"]:
+                    for section in ["head", "middle", "tail"]:
+                        if (
+                            section in self.config["peripheral_chunks"][direction]
+                            and self.config["peripheral_chunks"][direction][
+                                section
+                            ].get("type", "full")
+                            == "summary"
+                        ):
+                            self._summarize_chunks = True
+                            break
 
         encoder = tiktoken.encoding_for_model(
             self.config.get("model", self.default_model)
         )
 
-        for item in input_data:
+        def process_item(item):
             if split_key not in item:
                 raise KeyError(f"Split key '{split_key}' not found in item")
 
@@ -155,46 +195,70 @@ class SplitOperation(BaseOperation):
             for i in range(0, len(tokens), chunk_size):
                 chunk_tokens = tokens[i : i + chunk_size]
                 chunk = encoder.decode(chunk_tokens)
-                chunk_id = f"chunk_{i//chunk_size}"
+                chunk_id = f"chunk_{i//chunk_size}_{str(uuid.uuid4())[:8]}"
                 chunks.append({"chunk_id": chunk_id, "chunk_content": chunk})
 
-            # Process chunks with peripheral context
-            for i, chunk in enumerate(chunks):
-                previous_chunks = self.process_peripheral_chunks(
-                    chunks[:i], peripheral_chunks.get("previous", {})
-                )
-                next_chunks = self.process_peripheral_chunks(
-                    chunks[i + 1 :], peripheral_chunks.get("next", {}), reverse=True
-                )
+            return item, chunks
 
-                # Create result with chunk intermediates
-                chunk_intermediates = {
-                    "chunk_content": chunk["chunk_content"],
-                    "previous_chunks": previous_chunks,
-                    "next_chunks": next_chunks,
-                    split_key: content,
+        def summarize_chunk(chunk):
+            summary, summary_cost = self.summarize_chunk(chunk)
+            return {**chunk, "summary": summary}, summary_cost
+
+        with ThreadPoolExecutor(self.max_threads) as executor:
+            # Process items in parallel
+            item_chunks = list(executor.map(process_item, input_data))
+
+            # Summarize chunks if needed
+            if self._summarize_chunks:
+                all_chunks = [chunk for _, chunks in item_chunks for chunk in chunks]
+                summarized_chunks = list(executor.map(summarize_chunk, all_chunks))
+                summarized_chunks_dict = {
+                    chunk["chunk_id"]: chunk for chunk, _ in summarized_chunks
                 }
+                cost += sum(summary_cost for _, summary_cost in summarized_chunks)
 
-                # Create result with only original item key-value pairs, chunk_id, and chunk
-                result = item.copy()
-                result.update(
-                    {
-                        "chunk_id": chunk["chunk_id"],
-                        "chunk_content": self.combine_chunks(
-                            previous_chunks,
-                            chunk,
-                            next_chunks,
-                            encoder,
-                            main_chunk_start,
-                            main_chunk_end,
-                        ),
-                        "_chunk_intermediates": chunk_intermediates,
+            # Process chunks with peripheral context
+            for item, chunks in item_chunks:
+                if self._summarize_chunks:
+                    chunks = [
+                        summarized_chunks_dict[chunk["chunk_id"]] for chunk in chunks
+                    ]
+
+                for i, chunk in enumerate(chunks):
+                    previous_chunks = self.process_peripheral_chunks(
+                        chunks[:i], peripheral_chunks.get("previous", {})
+                    )
+                    next_chunks = self.process_peripheral_chunks(
+                        chunks[i + 1 :], peripheral_chunks.get("next", {}), reverse=True
+                    )
+
+                    # Create result with chunk intermediates
+                    chunk_intermediates = {
+                        "chunk_content": chunk["chunk_content"],
+                        "previous_chunks": previous_chunks,
+                        "next_chunks": next_chunks,
+                        split_key: item[split_key],
                     }
-                )
 
-                results.append(result)
+                    # Create result with only original item key-value pairs, chunk_id, and chunk
+                    result = item.copy()
+                    result.update(
+                        {
+                            "chunk_id": chunk["chunk_id"],
+                            "chunk_content": self.combine_chunks(
+                                previous_chunks,
+                                chunk,
+                                next_chunks,
+                                main_chunk_start,
+                                main_chunk_end,
+                            ),
+                            "_chunk_intermediates": chunk_intermediates,
+                        }
+                    )
 
-        return results, 0
+                    results.append(result)
+
+        return results, cost
 
     def process_peripheral_chunks(self, chunks, config, reverse=False):
         """
@@ -223,11 +287,11 @@ class SplitOperation(BaseOperation):
         head_partial = min(head_config.get("count", 0) - head_count, 1)
         for i in range(head_count):
             processed_chunks.append(
-                self.process_chunk(chunks[i], head_config.get("type", "full"))
+                self.process_chunk(chunks[i], head_config.get("type", "full"), 1.0)
             )
         if head_partial > 0 and head_count < total_chunks:
             processed_chunks.append(
-                self.process_partial_chunk(
+                self.process_chunk(
                     chunks[head_count], head_config.get("type", "full"), head_partial
                 )
             )
@@ -242,7 +306,7 @@ class SplitOperation(BaseOperation):
         tail_chunks = []
         for i in range(tail_start, total_chunks):
             tail_chunks.append(
-                self.process_chunk(chunks[i], tail_config.get("type", "full"))
+                self.process_chunk(chunks[i], tail_config.get("type", "full"), 1.0)
             )
         if (
             tail_partial > 0
@@ -251,7 +315,7 @@ class SplitOperation(BaseOperation):
         ):
             tail_chunks.insert(
                 0,
-                self.process_partial_chunk(
+                self.process_chunk(
                     chunks[tail_start - 1],
                     tail_config.get("type", "full"),
                     tail_partial,
@@ -265,82 +329,67 @@ class SplitOperation(BaseOperation):
             middle_end = tail_start - (1 if tail_partial > 0 else 0)
             for i in range(middle_start, middle_end):
                 processed_chunks.append(
-                    self.process_chunk(chunks[i], middle_config.get("type", "summary"))
+                    self.process_chunk(
+                        chunks[i], middle_config.get("type", "summary"), 1.0
+                    )
                 )
 
         processed_chunks.extend(tail_chunks)
 
         return list(reversed(processed_chunks)) if reverse else processed_chunks
 
-    def process_chunk(self, chunk, chunk_type):
-        """
-        Process a single chunk based on the specified chunk type.
-
-        Args:
-            chunk (Dict): The chunk to process.
-            chunk_type (str): The type of processing to apply ('full' or 'summary').
-
-        Returns:
-            Dict: The processed chunk.
-        """
-        if chunk_type == "full":
-            return chunk
-        else:  # chunk_type == "summary"
-            return self.summarize_chunk(chunk)
-
-    def process_partial_chunk(self, chunk, chunk_type, ratio):
-        """
-        Process a partial chunk based on the specified chunk type and ratio.
-
-        Args:
-            chunk (Dict): The chunk to process.
-            chunk_type (str): The type of processing to apply ('full' or 'summary').
-            ratio (float): The fraction of the chunk to process.
-
-        Returns:
-            Dict: The processed partial chunk.
-        """
-        if chunk_type == "full":
-            partial_content = chunk["chunk_content"][
-                : int(len(chunk["chunk_content"]) * ratio)
-            ]
-            return {
-                "chunk_id": chunk["chunk_id"],
-                "chunk_content": partial_content,
-                "fraction": ratio,
-            }
-        else:  # chunk_type == "summary"
-            return self.summarize_chunk(chunk, ratio)
-
-    def summarize_chunk(
-        self, chunk: Dict[str, str], ratio: float = 1.0
+    def process_chunk(
+        self, chunk: Dict[str, str], type: str, ratio: float = 1.0
     ) -> Dict[str, str]:
         """
-        Summarize a chunk of text.
+        Process a chunk based on the specified type and ratio.
 
-        This is a placeholder function. In a real implementation,
-        you would want to implement an actual summarization algorithm here.
+        This method handles the processing of a chunk, either by summarizing it or
+        by returning a portion of its content based on the given ratio.
+
+        Args:
+            chunk (Dict[str, str]): The chunk to process.
+            type (str): The type of processing to apply ('summary' or 'full').
+            ratio (float): The ratio of content to return (0.0 to 1.0).
+
+        Returns:
+            Dict[str, str]: The processed chunk with either summarized or partial content.
+        """
+        if type == "summary":
+            summary = chunk["summary"]
+            return {**chunk, "summary": summary[: int(len(summary) * ratio)]}
+        else:  # 'full' type
+            content = chunk["chunk_content"]
+            return {**chunk, "chunk_content": content[: int(len(content) * ratio)]}
+
+    def summarize_chunk(self, chunk: Dict[str, str]) -> Tuple[str, float]:
+        """
+        Summarize a chunk of text. Using the summary_prompt from the configuration.
 
         Args:
             chunk (Dict[str, str]): The chunk to summarize.
-            ratio (float, optional): The fraction of the summary to return. Defaults to 1.0.
 
         Returns:
-            Dict[str, str]: A dictionary containing the summarized chunk.
+            Tuple[str, float]: The summarized chunk and the cost of the operation.
         """
-        summary = f"Prefix of {chunk['chunk_id']}: {chunk['chunk_content'][:50]}..."
-        return {
-            "chunk_id": chunk["chunk_id"],
-            "summary": summary[: int(len(summary) * ratio)],
-            "fraction": ratio,
-        }
+        template = Template(self.config["summary_prompt"])
+        summary_prompt = template.render(chunk_content=chunk["chunk_content"])
+
+        summary_response = call_llm(
+            self.config.get("summary_model", self.default_model),
+            "summary",
+            summary_prompt,
+            {"summary": "str"},
+        )
+        summary = parse_llm_response(summary_response)[0]
+
+        return summary["summary"], completion_cost(summary_response)
 
     def combine_chunks(
         self,
         previous_chunks,
         main_chunk,
         next_chunks,
-        encoder,
         main_chunk_start,
         main_chunk_end,
     ):
@@ -354,7 +403,6 @@ class SplitOperation(BaseOperation):
             previous_chunks (List[Dict]): The chunks before the main chunk.
             main_chunk (Dict): The main chunk to be combined.
             next_chunks (List[Dict]): The chunks after the main chunk.
-            encoder: The tokenizer encoder.
             main_chunk_start (str): The delimiter to mark the start of the main chunk.
             main_chunk_end (str): The delimiter to mark the end of the main chunk.
 
@@ -367,7 +415,7 @@ class SplitOperation(BaseOperation):
         if previous_chunks:
             combined_parts.append("--- Previous Context ---")
             self._process_peripheral_chunks_for_combination(
-                previous_chunks, combined_parts, encoder
+                previous_chunks, combined_parts
             )
             combined_parts.append("--- End Previous Context ---\n")
         else:
@@ -392,9 +440,7 @@ class SplitOperation(BaseOperation):
         # Process next chunks
         if next_chunks:
             combined_parts.append("\n--- Next Context ---")
-            self._process_peripheral_chunks_for_combination(
-                next_chunks, combined_parts, encoder
-            )
+            self._process_peripheral_chunks_for_combination(next_chunks, combined_parts)
             combined_parts.append("--- End Next Context ---")
         else:
             # Show skipped tokens even if there are no next chunks
@@ -408,9 +454,7 @@ class SplitOperation(BaseOperation):
 
         return "\n".join(combined_parts)
 
-    def _process_peripheral_chunks_for_combination(
-        self, chunks, combined_parts, encoder
-    ):
+    def _process_peripheral_chunks_for_combination(self, chunks, combined_parts):
         """
         Process peripheral chunks for combination with the main chunk.
 
@@ -420,7 +464,6 @@ class SplitOperation(BaseOperation):
         Args:
             chunks (List[Dict]): The peripheral chunks to process.
             combined_parts (List[str]): The list to append processed chunk information to.
-            encoder: The tokenizer encoder.
         """
         last_chunk_num = None
         for chunk in chunks:

@@ -4,62 +4,66 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  split_extract_medical_info:
-    chunk_size: 663
-    peripheral_chunks:
-      next:
-        head:
-          count: 1
-      previous:
-        tail:
-          count: 1
-    split_key: src
-    type: split
-  submap_extract_medical_info:
+  extract_medical_info_parallel_map:
     model: gpt-4o-mini
     output:
       schema:
         dosages: list[str]
         medications: list[str]
         symptoms: list[str]
-    prompt: "Analyze the following segment of the transcript:\n\n{{ input.chunk_content\
-      \ }}\n\nExtract and list all medications, dosages, and symptoms mentioned in\
-      \ this segment.\nIf a piece of information is not found, return an empty list\
-      \ for that category.\n\nProvide your response in the following JSON format:\n\
-      {\n  \"medications\": [\"medication1\", \"medication2\", ...],\n  \"dosages\"\
-      : [\"dosage1\", \"dosage2\", ...],\n  \"symptoms\": [\"symptom1\", \"symptom2\"\
-      , ...]\n}\n Only process the main chunk."
-    type: map
-  subreduce_extract_medical_info:
-    commutative: true
-    input:
-      schema:
-        dosages: list[str]
-        medications: list[str]
-        symptoms: list[str]
-    model: gpt-4o-mini
-    output:
-      schema:
-        dosages: list[str]
-        medications: list[str]
-        symptoms: list[str]
-    pass_through: true
-    prompt: "Combine the information extracted from the chunks below to provide a\
-      \ comprehensive list of medications, dosages, and symptoms from the conversation\
-      \ transcript.\n\nEach chunk contains dictionaries with the keys 'medications',\
-      \ 'dosages', and 'symptoms'. Use this information to generate a single consolidated\
-      \ response.\n\nFinal Format:\n{\n  \"medications\": [...],\n  \"dosages\": [...],\n\
-      \  \"symptoms\": [...]\n}\n\nChunks to combine:\n{{ values }}"
-    reduce_key: document_id
-    type: reduce
+    prompts:
+      - name: Extract Medications
+        output_keys:
+          - medications
+        prompt:
+          "Analyze the following transcript of a conversation between a doctor
+          and a patient:
+
+
+          {{ input.src }}
+
+
+          Extract and list all medications mentioned in the transcript. If no medications
+          are found, return an empty list.
+
+          "
+      - name: Extract Dosages
+        output_keys:
+          - dosages
+        prompt:
+          "Analyze the following transcript of a conversation between a doctor
+          and a patient:
+
+
+          {{ input.src }}
+
+
+          Extract and list all dosages mentioned in the transcript. If no dosages are
+          found, return an empty list.
+
+          "
+      - name: Extract Symptoms
+        output_keys:
+          - symptoms
+        prompt:
+          "Analyze the following transcript of a conversation between a doctor
+          and a patient:
+
+
+          {{ input.src }}
+
+
+          Extract and list all symptoms mentioned in the transcript. If no symptoms
+          are found, return an empty list.
+
+          "
+    type: parallel_map
 pipeline:
   output:
     path: extracted_medical_info.json
     type: file
   steps:
-  - input: transcripts
-    name: medical_info_extraction
-    operations:
-    - split_extract_medical_info
-    - submap_extract_medical_info
-    - subreduce_extract_medical_info
+    - input: transcripts
+      name: medical_info_extraction
+      operations:
+        - extract_medical_info_parallel_map

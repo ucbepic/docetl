@@ -886,5 +886,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/synth_resolve.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/map.yaml", model="gpt-4o")
     optimizer.optimize()

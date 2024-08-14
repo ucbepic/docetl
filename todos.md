@@ -39,15 +39,15 @@ TODO:
 - [x] Write a non-commutative reduce
 - [x] Write documentation on how all the operators work
 - [x] Auto-generate resolver
-- [ ] Support summarizing peripheral chunks
+- [x] Support summarizing peripheral chunks
 - [ ] Rewrite API for equijoin input data
+- [ ] Change validation to be pairwise comparisons (for map, at least)
 - [ ] Operator reordering
 - [ ] Write documentation on the pipeline optimization strategies
 - [ ] Recursively optimize operations (e.g., reduces in maps)
 - [ ] Run tests in CI
 - [ ] Write tests for optimizers
 - [ ] Filter optimizer (as an extension of map)
-- [ ] Change validation to be pairwise comparisons
 - [ ] Support model pools
 - [ ] Support passing expectations
 - [ ] Write intermediates to disk

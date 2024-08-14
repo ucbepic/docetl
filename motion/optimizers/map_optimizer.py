@@ -218,9 +218,9 @@ class MapOptimizer:
             f"\n[bold]Score Distribution for {op_config['name']} ({op_config['type']}, {len(scores)} plans, {num_evaluations} samples):[/bold]"
         )
         table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Plan", style="dim", width=30)
-        table.add_column("Score", justify="right")
-        table.add_column("Runtime", justify="right")
+        table.add_column("Plan", style="dim")
+        table.add_column("Score", justify="right", width=10)
+        table.add_column("Runtime", justify="right", width=10)
         for score, runtime, plan in scores:
             table.add_row(plan, f"{score:.2f}", f"{runtime:.2f}s")
 
@@ -323,6 +323,36 @@ class MapOptimizer:
         peripheral_configs = self._generate_peripheral_configs(
             max_chunk_size, avg_doc_size
         )
+
+        min_chunk_size = min(chunk_sizes)
+
+        # Get 2 consecutive chunks of size min_chunk_size / 2.5 words
+        chunk_word_size = int(min_chunk_size / 2.5)
+        sample_chunks = []
+
+        # Sample the largest element of split_result["split_key"] from input_data
+        largest_input = max(input_data, key=lambda x: len(x[split_result["split_key"]]))
+        sample_chunks = [
+            largest_input[split_result["split_key"]][i : i + chunk_word_size]
+            for i in range(
+                0, len(largest_input[split_result["split_key"]]), chunk_word_size
+            )
+        ]
+
+        if not sample_chunks or len(sample_chunks) < 2:
+            raise ValueError("Not enough words in input data to generate sample chunks")
+
+        # Generate the info extraction prompt
+        info_extraction_prompt = self.generate_info_extraction_prompt(
+            split_result["subprompt"], sample_chunks[0], sample_chunks[1]
+        )
+
+        # Print the info extraction prompt
+        self.console.log(
+            "[bold]Info Extraction Prompt (Used to Summarize Peripheral Chunks):[/bold]"
+        )
+        self.console.log(info_extraction_prompt)
+
         sample_output = copy.deepcopy(input_data)
         max_plan = copy.deepcopy(base_operations)
 
@@ -331,6 +361,8 @@ class MapOptimizer:
             {"chunk_size": max_chunk_size},
             peripheral_configs[-1],
             split_result["split_key"],
+            info_extraction_prompt,
+            "gpt-4o-mini",
         )
         map_op = self._create_map_operation(
             op_config, split_result["subprompt"] + " Only process the main chunk."
@@ -357,10 +389,12 @@ class MapOptimizer:
 
         # Create plans for each chunk size
         plans = {}
+
         for chunk_size in chunk_sizes:
             peripheral_configs = self._generate_peripheral_configs(
                 chunk_size, avg_doc_size
             )
+
             for peripheral_config in peripheral_configs:
                 plan = copy.deepcopy(base_operations)
 
@@ -369,6 +403,8 @@ class MapOptimizer:
                     {"chunk_size": chunk_size},
                     peripheral_config,
                     split_result["split_key"],
+                    info_extraction_prompt,
+                    "gpt-4o-mini",
                 )
                 map_op = self._create_map_operation(
                     op_config,
@@ -381,13 +417,69 @@ class MapOptimizer:
                     for direction in ["previous", "next"]:
                         if direction in peripheral_config:
                             for part, details in peripheral_config[direction].items():
-                                plan_name += f"{direction}_{part}_{details['count']}_"
+                                plan_name += f"{direction}_{part}_{details.get('count', '')}_{details.get('type', 'full')}_"
                 else:
                     plan_name += "none"
                 plan_name = plan_name.rstrip("_")
                 plans[plan_name] = plan
 
         return plans
+
+    # Generate info extraction prompt for chunk context
+    def generate_info_extraction_prompt(
+        self, subprompt: str, sample_chunk_1: str, sample_chunk_2: str
+    ) -> str:
+        """
+        Generate an information extraction prompt based on a given subprompt and sample chunk.
+
+        This method creates a prompt that can be used to extract key information from chunks of text.
+        The extracted information will serve as context when applying the subprompt to subsequent chunks.
+
+        Args:
+            subprompt (str): The original subprompt used for processing chunks.
+            sample_chunk_1 (str): A sample chunk of text to base the extraction prompt on.
+            sample_chunk_2 (str): A sample chunk of text to base the extraction prompt on.
+
+        Returns:
+            str: A prompt string designed to extract relevant information from text chunks.
+        """
+        system_prompt = (
+            "You are an AI assistant helping to process a super long document."
+        )
+
+        user_prompt = f"""Given the following subprompt and two consecutive sample chunks, create an info_extraction_prompt that will extract key information from each chunk. This extracted information will be used as context when applying the subprompt to subsequent chunks.
+
+        Subprompt:
+        {subprompt}
+
+        Sample Chunk 1:
+        {sample_chunk_1}
+
+        Sample Chunk 2:
+        {sample_chunk_2}
+        
+        For example, the information extracted from sample chunk 1 will be used as context in the subprompt, along with sample chunk 2's text, when processing sample chunk 2.
+
+        The info_extraction_prompt should:
+        1. Identify and extract the most relevant information from the chunk that might be useful for running the subprompt on subsequent chunks.
+        2. Be concise and focused on key details that provide context.
+        3. Be a Jinja2 template, using the variable {{ chunk_content }} to represent the chunk content to extract information from.
+
+        Provide your info_extraction_prompt as a string.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {"info_extraction_prompt": {"type": "string"}},
+            "required": ["info_extraction_prompt"],
+        }
+
+        response = self.llm_client.generate(
+            [{"role": "user", "content": user_prompt}], system_prompt, parameters
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        return result["info_extraction_prompt"]
 
     def _generate_gleaning_plans(
         self,
@@ -1270,6 +1362,12 @@ class MapOptimizer:
         # Strip out "input." from split_key if it exists
         result["split_key"] = result["split_key"].replace("input.", "")
 
+        # Validate that the split_key exists in the input data sample
+        if result["split_key"] not in input_data_sample[0]:
+            raise ValueError(
+                f"Split key '{result['split_key']}' not found in the input data sample."
+            )
+
         variables_in_subprompt = extract_jinja_variables(result["subprompt"])
         # Replace variables in subprompt with f"input.chunk_{split_key}"
         for variable in variables_in_subprompt:
@@ -1573,7 +1671,9 @@ class MapOptimizer:
            - It ensures the scaled count doesn't exceed the maximum number of chunks.
         5. It adds an extensive context configuration when the chunk size is small relative to the document size:
            - This provides more context (up to 5 previous chunks and 2 next chunks) for small chunk sizes.
-        6. Finally, it deduplicates the configurations to ensure uniqueness.
+        6. It adds configurations with summary for small-ish chunk sizes:
+           - When the chunk size is less than 1/5 of the average document size, it creates summary configurations.
+        7. Finally, it deduplicates the configurations to ensure uniqueness.
 
         This approach allows for a range of configurations that adapt to different document and chunk sizes,
         providing more context when necessary and less when the chunks are already large relative to the document.
@@ -1613,6 +1713,19 @@ class MapOptimizer:
                 "next": {"head": {"count": min(2, max_chunks)}},
             }
             final_configs.append(extensive_config)
+
+        # Add configurations with summary for small-ish chunk sizes
+        if chunk_size < avg_doc_size / 5:
+            summary_configs = []
+            for config in final_configs:
+                summary_config = copy.deepcopy(config)
+                if "previous" not in summary_config:
+                    summary_config["previous"] = {
+                        "tail": {"count": 1, "type": "summary"}
+                    }
+                summary_config["previous"]["middle"] = {"type": "summary"}
+                summary_configs.append(summary_config)
+            final_configs.extend(summary_configs)
 
         # Deduplicate configs
         unique_configs = []
@@ -1667,6 +1780,8 @@ class MapOptimizer:
         chunk_info: Dict[str, Any],
         context_info: Dict[str, Any],
         split_key: str,
+        summary_prompt: str,
+        summary_model: str,
     ) -> Dict[str, Any]:
         chunk_size = int(chunk_info["chunk_size"] * 1.5)
         name = f"split_{op_config['name']}"
@@ -1676,6 +1791,8 @@ class MapOptimizer:
             "split_key": split_key,
             "chunk_size": chunk_size,
             "peripheral_chunks": {},
+            "summary_prompt": summary_prompt,
+            "summary_model": summary_model,
         }
 
         if "previous" in context_info:

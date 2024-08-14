@@ -41,6 +41,7 @@ TODO:
 - [x] Auto-generate resolver
 - [x] Support summarizing peripheral chunks
 - [x] Change validation to be pairwise comparisons (for map, at least) (Aug 14 & 15)
+  - [ ] Only compare the plans that are highest scoring
 - [ ] Operator reordering (Aug 16 & 17)
 - [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 19 & 20)
 - [ ] Support retries in the optimizers

@@ -40,7 +40,7 @@ TODO:
 - [x] Write documentation on how all the operators work
 - [x] Auto-generate resolver
 - [x] Support summarizing peripheral chunks
-- [ ] Change validation to be pairwise comparisons (for map, at least) (Aug 14 & 15)
+- [x] Change validation to be pairwise comparisons (for map, at least) (Aug 14 & 15)
 - [ ] Operator reordering (Aug 16 & 17)
 - [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 19 & 20)
 - [ ] Support retries in the optimizers

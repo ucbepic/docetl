@@ -12,7 +12,7 @@ def extract_jinja_variables(template_string: str) -> List[str]:
     Extract variables from a Jinja2 template string.
 
     This function uses both Jinja2's AST parsing and regex to find all variables
-    referenced in the given template string.
+    referenced in the given template string, including nested variables.
 
     Args:
         template_string (str): The Jinja2 template string to analyze.
@@ -30,8 +30,8 @@ def extract_jinja_variables(template_string: str) -> List[str]:
     variables = meta.find_undeclared_variables(ast)
 
     # Use regex to find any additional variables that might be missed
-    # This regex looks for {{ variable }} patterns
-    regex_variables = set(re.findall(r"{{\s*(\w+)\s*}}", template_string))
+    # This regex looks for {{ variable }} patterns, including nested ones
+    regex_variables = set(re.findall(r"{{\s*([\w.]+)\s*}}", template_string))
 
     # Combine both sets of variables
     all_variables = variables.union(regex_variables)

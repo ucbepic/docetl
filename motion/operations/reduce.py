@@ -250,13 +250,15 @@ class ReduceOperation(BaseOperation):
         grouped_data = list(grouped_data.items())
 
         def process_group(
-            key: Any, group_list: List[Dict]
+            key: Any, group_elems: List[Dict]
         ) -> Tuple[Optional[Dict], float]:
             if input_schema:
                 group_list = [
                     {k: item[k] for k in input_schema.keys() if k in item}
-                    for item in group_list
+                    for item in group_elems
                 ]
+            else:
+                group_list = group_elems
 
             total_cost = 0.0
 
@@ -299,9 +301,9 @@ class ReduceOperation(BaseOperation):
             if (
                 result is not None
                 and self.config.get("pass_through", False)
-                and group_list
+                and group_elems
             ):
-                for k, v in group_list[0].items():
+                for k, v in group_elems[0].items():
                     if k not in self.config["output"]["schema"] and k not in result:
                         result[k] = v
 

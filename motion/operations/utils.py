@@ -1,4 +1,5 @@
 import json
+import threading
 from typing import Dict, List, Any, Optional, Tuple, Iterable, Union
 from litellm import completion, embedding, completion_cost
 import litellm
@@ -139,6 +140,7 @@ def call_llm(
     Wrapper function that uses caching for LLM calls.
 
     This function generates a cache key and calls the cached version of call_llm.
+    It retries the call if it times out after 60 seconds.
 
     Args:
         model (str): The model name.
@@ -148,9 +150,45 @@ def call_llm(
 
     Returns:
         str: The result from the cached LLM call.
+
+    Raises:
+        TimeoutError: If the call times out after retrying.
     """
     key = cache_key(model, op_type, prompt, output_schema)
-    return cached_call_llm(key, model, op_type, prompt, output_schema)
+
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            return timeout(60)(cached_call_llm)(
+                key, model, op_type, prompt, output_schema
+            )
+        except TimeoutError:
+            if attempt == max_retries - 1:
+                raise TimeoutError("LLM call timed out after multiple retries")
+
+
+def timeout(seconds):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            result = [TimeoutError("Function call timed out")]
+
+            def target():
+                try:
+                    result[0] = func(*args, **kwargs)
+                except Exception as e:
+                    result[0] = e
+
+            thread = threading.Thread(target=target)
+            thread.start()
+            thread.join(seconds)
+            if isinstance(result[0], Exception):
+                raise result[0]
+            return result[0]
+
+        return wrapper
+
+    return decorator
 
 
 def call_llm_with_cache(
@@ -215,7 +253,7 @@ def call_llm_with_cache(
             }
         ],
         # parallel_tool_calls=False,
-        num_retries=1,
+        # num_retries=1,
         tool_choice={"type": "function", "function": {"name": "write_output"}},
     )
 

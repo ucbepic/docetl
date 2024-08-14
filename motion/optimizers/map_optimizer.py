@@ -1,7 +1,7 @@
 import hashlib
 import json
 import time
-from typing import Any, Dict, List, Callable, Tuple, Union
+from typing import Any, Dict, List, Callable, Optional, Tuple, Union
 import uuid
 from motion.optimizers.utils import (
     LLMClient,
@@ -62,6 +62,7 @@ class MapOptimizer:
         self._run_operation = run_operation
         self.max_threads = max_threads
         self.timeout = timeout
+        self._num_plans_to_evaluate_in_parallel = 5
 
     def optimize(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -109,6 +110,11 @@ class MapOptimizer:
             operation configurations that achieve the best performance.
 
         """
+        input_data = copy.deepcopy(input_data)
+        # Add id to each input_data
+        for i in range(len(input_data)):
+            input_data[i]["_map_opt_id"] = str(uuid.uuid4())
+
         # Execute the original operation on the sample data
         no_change_start = time.time()
         output_data = self._run_operation(op_config, input_data)
@@ -176,30 +182,41 @@ class MapOptimizer:
             input_data, num_evaluations
         )
 
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = {
-                executor.submit(
-                    self._evaluate_plan,
-                    plan_name,
-                    op_config,
-                    plan,
-                    copy.deepcopy(evaluation_samples),
-                    validator_prompt,
-                ): plan_name
-                for plan_name, plan in plans_to_evaluate.items()
-            }
-            results = {}
-            for future in as_completed(futures):
-                plan_name = futures[future]
-                try:
-                    score, runtime, output = future.result(timeout=self.timeout)
-                    results[plan_name] = (score, runtime, output)
-                except concurrent.futures.TimeoutError:
-                    self.console.log(
-                        f"[yellow]Plan {plan_name} timed out and will be skipped.[/yellow]"
-                    )
-                except Exception as e:
-                    self.console.log(f"[red]Error in plan {plan_name}: {str(e)}[/red]")
+        results = {}
+        plans_list = list(plans_to_evaluate.items())
+        for i in range(0, len(plans_list), self._num_plans_to_evaluate_in_parallel):
+            batch = plans_list[i : i + self._num_plans_to_evaluate_in_parallel]
+            with ThreadPoolExecutor(
+                max_workers=self._num_plans_to_evaluate_in_parallel
+            ) as executor:
+                futures = {
+                    executor.submit(
+                        self._evaluate_plan,
+                        plan_name,
+                        op_config,
+                        plan,
+                        copy.deepcopy(evaluation_samples),
+                        validator_prompt,
+                    ): plan_name
+                    for plan_name, plan in batch
+                }
+                for future in as_completed(futures):
+                    plan_name = futures[future]
+                    try:
+                        score, runtime, output = future.result(timeout=self.timeout)
+                        results[plan_name] = (score, runtime, output)
+                    except concurrent.futures.TimeoutError:
+                        self.console.log(
+                            f"[yellow]Plan {plan_name} timed out and will be skipped.[/yellow]"
+                        )
+                    except Exception as e:
+                        # TODO: raise this error if the error is related to a Jinja error
+                        self.console.log(
+                            f"[red]Error in plan {plan_name}: {str(e)}[/red]"
+                        )
+                        import traceback
+
+                        print(traceback.format_exc())
 
         # Add no change plan
         results["no_change"] = (
@@ -215,20 +232,42 @@ class MapOptimizer:
         )
 
         self.console.log(
-            f"\n[bold]Score Distribution for {op_config['name']} ({op_config['type']}, {len(scores)} plans, {num_evaluations} samples):[/bold]"
+            f"\n[bold]Plan Evaluation Results for {op_config['name']} ({op_config['type']}, {len(scores)} plans, {num_evaluations} samples):[/bold]"
         )
         table = Table(show_header=True, header_style="bold magenta")
         table.add_column("Plan", style="dim")
         table.add_column("Score", justify="right", width=10)
         table.add_column("Runtime", justify="right", width=10)
+        table.add_column("Pairwise Wins", justify="right", width=10)
+
+        # Filter plans with average scores >= 2.5
+        filtered_results = {k: v for k, v in results.items() if v[0] >= 2.5}
+
+        # Perform pairwise comparisons on filtered plans
+        if len(filtered_results) > 1:
+            pairwise_rankings = self._pairwise_compare_plans(
+                filtered_results, validator_prompt, op_config, evaluation_samples
+            )
+            best_plan_name = max(pairwise_rankings, key=pairwise_rankings.get)
+        else:
+            pairwise_rankings = {k: 0 for k in results.keys()}
+            best_plan_name = (
+                next(iter(filtered_results))
+                if filtered_results
+                else max(results, key=lambda x: results[x][0])
+            )
+
         for score, runtime, plan in scores:
-            table.add_row(plan, f"{score:.2f}", f"{runtime:.2f}s")
+            table.add_row(
+                plan,
+                f"{score:.2f}",
+                f"{runtime:.2f}s",
+                f"{pairwise_rankings.get(plan, 0)}",
+            )
 
         self.console.log(table)
         self.console.log("\n")
 
-        # Choose the best plan
-        best_plan_name = max(results, key=lambda x: (results[x][0], -results[x][1]))
         _, _, best_output = results[best_plan_name]
         self.console.log(
             f"[green]Choosing {best_plan_name} for operation {op_config['name']} (Score: {results[best_plan_name][0]:.2f}, Runtime: {results[best_plan_name][1]:.2f}s)[/green]"
@@ -790,6 +829,156 @@ class MapOptimizer:
 
     # Evaluation and assessment methods
 
+    def _pairwise_compare_plans(
+        self,
+        filtered_results: Dict[str, Tuple[float, float, List[Dict[str, Any]]]],
+        validator_prompt: str,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+    ) -> Dict[str, int]:
+        plan_names = list(filtered_results.keys())
+        rankings = {plan: 0 for plan in plan_names}
+        overall_prompt = op_config["prompt"]
+
+        with ThreadPoolExecutor(
+            max_workers=self._num_plans_to_evaluate_in_parallel
+        ) as executor:
+            futures = {}
+            for i in range(len(plan_names)):
+                for j in range(i + 1, len(plan_names)):
+                    plan1, plan2 = plan_names[i], plan_names[j]
+                    future = executor.submit(
+                        self._compare_two_plans,
+                        overall_prompt,
+                        plan1,
+                        filtered_results[plan1][2],
+                        plan2,
+                        filtered_results[plan2][2],
+                        validator_prompt,
+                        op_config,
+                        input_data,
+                    )
+                    futures[(plan1, plan2)] = future
+
+            for (plan1, plan2), future in futures.items():
+                try:
+                    comparison_result = future.result()
+                    if comparison_result == plan1:
+                        rankings[plan1] += 1
+                    elif comparison_result == plan2:
+                        rankings[plan2] += 1
+                    # If comparison_result is None, it's a tie, so we don't update rankings
+                except Exception as e:
+                    self.console.log(
+                        f"[red]Error comparing {plan1} and {plan2}: {str(e)}[/red]"
+                    )
+
+        return rankings
+
+    def _compare_two_plans(
+        self,
+        overall_prompt: str,
+        plan1_name: str,
+        plan1_output: List[Dict[str, Any]],
+        plan2_name: str,
+        plan2_output: List[Dict[str, Any]],
+        validator_prompt: str,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+    ) -> Optional[str]:
+        system_prompt = "You are an AI assistant tasked with comparing the outputs of two ways to complete a task."
+
+        comparisons = []
+        for i in range(min(len(plan1_output), len(plan2_output), len(input_data))):
+            # Extract variables from the overall prompt template using extract_jinja_variables
+            variables_in_prompt = extract_jinja_variables(overall_prompt)
+            variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
+
+            # Filter input_data to only include relevant variables
+            filtered_input = {
+                k: v for k, v in input_data[i].items() if k in variables_in_prompt
+            }
+
+            output_vars = op_config.get("output", {}).get("schema", {}).keys()
+
+            filtered_plan1_output = {
+                k: v for k, v in plan1_output[i].items() if k in output_vars
+            }
+            filtered_plan2_output = {
+                k: v for k, v in plan2_output[i].items() if k in output_vars
+            }
+
+            prompt = f"""
+            Overall Task Prompt:
+            {overall_prompt}
+
+            Validator Prompt:
+            {validator_prompt}
+
+            Input:
+            {json.dumps(filtered_input, indent=2)}
+
+            Compare the outputs of two plans for this input:
+
+            Plan 1 output:
+            {json.dumps(filtered_plan1_output, indent=2)}
+
+            Plan 2 output:
+            {json.dumps(filtered_plan2_output, indent=2)}
+
+            Based on the overall task prompt, validator prompt, input, and these outputs, which plan performed better for this specific input?
+            If one plan is clearly superior, return either "plan_1" or "plan_2". If they are roughly equivalent, return "tie".
+
+            Provide your response in the following format:
+            """
+
+            parameters = {
+                "type": "object",
+                "properties": {
+                    "better_plan": {
+                        "type": "string",
+                        "enum": ["plan_1", "plan_2", "tie"],
+                    },
+                    "reason": {"type": "string"},
+                },
+                "required": ["better_plan", "reason"],
+            }
+
+            response = self.llm_client.generate(
+                [{"role": "user", "content": prompt}],
+                system_prompt,
+                parameters,
+            )
+            result = json.loads(response.choices[0].message.content)
+            comparisons.append(result)
+
+        # Aggregate results
+        plan1_wins = sum(1 for comp in comparisons if comp["better_plan"] == "plan_1")
+        plan2_wins = sum(1 for comp in comparisons if comp["better_plan"] == "plan_2")
+        ties = sum(1 for comp in comparisons if comp["better_plan"] == "tie")
+
+        comparison_details = "\n".join(
+            [
+                f"Input {i+1}: \"{comp['better_plan']}\" because {comp['reason']}"
+                for i, comp in enumerate(comparisons)
+            ]
+        )
+
+        self.console.log(
+            f"[bold magenta]Pairwise Comparison: {plan1_name} vs {plan2_name}[/bold magenta]\n"
+            f"[cyan]{plan1_name} wins: {plan1_wins}[/cyan]\n"
+            f"[green]{plan2_name} wins: {plan2_wins}[/green]\n"
+            f"[yellow]Ties: {ties}[/yellow]\n\n"
+            f"Comparison Details:\n{comparison_details}"
+        )
+
+        if plan1_wins > plan2_wins:
+            return plan1_name
+        elif plan2_wins > plan1_wins:
+            return plan2_name
+        else:
+            return None  # Tie
+
     def _evaluate_plan(
         self,
         plan_name: str,
@@ -837,6 +1026,16 @@ class MapOptimizer:
             output_data = self._run_operation(op, output_data)
         runtime = time.time() - start_time
 
+        # Reorder output_data to match input_data
+        output_data = [
+            next(
+                output
+                for output in output_data
+                if output["_map_opt_id"] == inp["_map_opt_id"]
+            )
+            for inp in input_data
+        ]
+
         scores = []
 
         for idx in range(len(input_data)):
@@ -864,14 +1063,13 @@ class MapOptimizer:
         validator_prompt: str,
     ) -> Dict[str, Any]:
         system_prompt = "You are an AI assistant tasked with assessing the performance of data processing operations. Use the provided validator prompt to evaluate the operation's output."
-
         prompt = f"""
         {validator_prompt}
 
         Operation Name: {op_config['name']}
         Operation Type: {op_config['type']}
         Input Data (sample): {json.dumps(input_data[:2] if input_data else {}, indent=2)}
-        Output Data (sample): {json.dumps(output_data[:2] if output_data else {}, indent=2)}
+        Output Data (sample): {json.dumps([output for output in output_data[:2] if output['_map_opt_id'] in [input['_map_opt_id'] for input in input_data[:2]]] if output_data else {}, indent=2)}
         Current Prompt: {op_config.get('prompt', 'N/A')}
 
         Based on this information and the validator prompt, assess the operation's performance. Provide your assessment in the following format:
@@ -1850,7 +2048,9 @@ class MapOptimizer:
     ) -> List[Dict[str, Any]]:
         if len(input_data) <= num_samples:
             return input_data
-        return random.sample(input_data, num_samples)
+        sample = random.sample(input_data, num_samples)
+
+        return sample
 
     def _generate_and_validate_prompt(
         self,

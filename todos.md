@@ -43,7 +43,7 @@ TODO:
 - [ ] Change validation to be pairwise comparisons (for map, at least) (Aug 14 & 15)
 - [ ] Operator reordering (Aug 16 & 17)
 - [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 19 & 20)
-- [ ] Write documentation on the pipeline optimization strategies (Aug 21)
+- [ ] Support retries in the optimizers
 - [ ] Run tests in CI
 - [ ] Write tests for optimizers
 - [ ] Filter optimizer (as an extension of map)

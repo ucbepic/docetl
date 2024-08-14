@@ -40,11 +40,11 @@ TODO:
 - [x] Write documentation on how all the operators work
 - [x] Auto-generate resolver
 - [x] Support summarizing peripheral chunks
-- [ ] Rewrite API for equijoin input data
-- [ ] Change validation to be pairwise comparisons (for map, at least)
-- [ ] Operator reordering
-- [ ] Write documentation on the pipeline optimization strategies
-- [ ] Recursively optimize operations (e.g., reduces in maps)
+- [ ] Rewrite API for equijoin input data (Aug 13 & 14)
+- [ ] Change validation to be pairwise comparisons (for map, at least) (Aug 15 & 16)
+- [ ] Operator reordering (Aug 16 & 17)
+- [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 19 & 20)
+- [ ] Write documentation on the pipeline optimization strategies (Aug 21)
 - [ ] Run tests in CI
 - [ ] Write tests for optimizers
 - [ ] Filter optimizer (as an extension of map)

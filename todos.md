@@ -42,6 +42,7 @@ TODO:
 - [x] Support summarizing peripheral chunks
 - [x] Change validation to be pairwise comparisons (for map, at least) (Aug 14 & 15)
   - [ ] Only compare the plans that are highest scoring
+- [ ] Schemas should be openapi compatible
 - [ ] Operator reordering (Aug 16 & 17)
 - [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 19 & 20)
 - [ ] Support retries in the optimizers
@@ -55,3 +56,9 @@ TODO:
 - [ ] Track traces
 - [ ] Reduce operations: eagerly process merges to prevent against stragglers/tail latencies in folds?
 - [ ] Rewrite API for equijoin input data
+
+Things to think about
+
+- Filter chunks before applying the map prompt
+- Reduce can either require an LLM call or just be a concatenation of the inputs to the potential LLM call
+- If the user specifies a map call in 2 different ways, they should get the same result. E.g., say they want to get a list of all the symptoms referenced in the medical transcript and what caused the symptoms. The output schema can either be a text blob or it can be structured, like symptoms: list[{symptom name, cause}]

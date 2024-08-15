@@ -59,7 +59,7 @@ def convert_val(value: Any) -> Dict[str, Any]:
     Raises:
         ValueError: If the input value is not a supported type or is improperly formatted.
     """
-    value = value.lower()
+    value = value.strip().lower()
     if value in ["str", "text", "string", "varchar"]:
         return {"type": "string"}
     elif value in ["int", "integer"]:
@@ -73,6 +73,13 @@ def convert_val(value: Any) -> Dict[str, Any]:
         return {"type": "array", "items": convert_val(inner_type)}
     elif value == "list":
         raise ValueError("List type must specify its elements, e.g., 'list[str]'")
+    elif value.startswith("{") and value.endswith("}"):
+        # Handle dictionary type
+        properties = {}
+        for item in value[1:-1].split(","):
+            key, val = item.strip().split(":")
+            properties[key.strip()] = convert_val(val.strip())
+        return {"type": "object", "properties": properties}
     else:
         raise ValueError(f"Unsupported value type: {value}")
 

@@ -16,7 +16,9 @@ Motion is a powerful tool for creating and executing data processing pipelines u
    - [Split](#split)
    - [Reduce](#reduce)
    - [Resolve](#resolve)
-5. [Schema Pass-through](#schema-pass-through)
+5. [Schemas](#schemas)
+   - [Schema Definition](#schema-definition)
+   - [Schema Pass-through](#schema-pass-through)
 6. [Validation Rules](#validation-rules)
 7. [Example Pipeline](#example-pipeline)
 
@@ -453,7 +455,55 @@ resolve_operation:
   comparison_model: gpt-4o-mini
 ```
 
-## Schema Pass-through
+## Schemas
+
+### Schema Definition
+
+Schemas in Motion are defined using a simple key-value structure, where each key represents a field name and the value specifies the data type. The supported data types are:
+
+- `string` (or `str`, `text`, `varchar`): For text data
+- `integer` (or `int`): For whole numbers
+- `number` (or `float`, `decimal`): For decimal numbers
+- `boolean` (or `bool`): For true/false values
+- `list`: For arrays or sequences of items
+
+For more complex types like lists of dictionaries, you can use a compact notation:
+
+- `list[{key1: type1, key2: type2, ...}]`: A list of dictionaries with specified key-value pairs
+
+Here's an example of a schema definition that includes various types:
+
+```yaml
+schema:
+  name: string
+  age: integer
+  height: number
+  is_student: boolean
+  hobbies: list[string]
+  address: "{street: string, city: string, zip_code: string}"
+  grades: "list[{subject: string, score: number}]"
+```
+
+This schema definition includes:
+
+- Simple types: string (name), integer (age), number (height), and boolean (is_student)
+- A list type for hobbies
+- A nested dictionary structure for address, containing street, city, and zip_code
+- A complex list type for grades, containing dictionaries with subject and score
+
+When defining schemas, you can use these types to accurately represent your data structure. This helps ensure data consistency and enables proper validation throughout the pipeline.
+
+It's worth noting that the schema definition is flexible and can accommodate various levels of complexity. For instance:
+
+1. Nested structures: As shown in the 'address' field, you can define nested dictionaries to represent complex data types.
+
+2. Arrays of objects: The 'grades' field demonstrates how to define a list of dictionaries, which is useful for representing collections of structured data.
+
+3. Lists must have a subtype specified, e.g. `list[string]` or `list[{subject: string, score: number}]`.
+
+4. When using a dictionary type, you need to use quotes around the type definition---otherwise yaml cannot parse it.
+
+### Schema Pass-through
 
 It's important to note that all schema items pass through the pipeline. The `output` schema in each operation is ONLY for what is extracted from the LLM. All other fields from the input data are automatically passed through to the next step in the pipeline.
 

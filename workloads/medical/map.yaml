@@ -10,9 +10,7 @@ operations:
     type: map
     output:
       schema:
-        medications: list[str]
-        dosages: list[str]
-        symptoms: list[str]
+        medications: "list[{medication: str, dosage: str, symptom: str}]"
     prompt: |
       Analyze the following transcript of a conversation between a doctor and a patient:
 
@@ -21,12 +19,6 @@ operations:
       Extract and list all medications, dosages, and symptoms mentioned in the transcript.
       If a piece of information is not found, return an empty list for that category.
 
-      Provide your response in the following JSON format:
-      {
-        "medications": ["medication1", "medication2", ...],
-        "dosages": ["dosage1", "dosage2", ...],
-        "symptoms": ["symptom1", "symptom2", ...]
-      }
     # gleaning:
     #   num_rounds: 1
     #   validation_prompt: |

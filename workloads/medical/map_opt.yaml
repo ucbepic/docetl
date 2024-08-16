@@ -7,42 +7,35 @@ operations:
   extract_medical_info:
     gleaning:
       num_rounds: 1
-      validation_prompt: 'Please evaluate the quality and completeness of the output
-        for the extract_medical_info operation based on the following criteria:
+      validation_prompt: '1. Does the output accurately capture all medications, dosages,
+        and symptoms mentioned in the provided transcript?
 
+        2. Are there any relevant instances of medications, dosages, or symptoms in
+        the transcript that were not included in the output?
 
-        1. Accuracy: Are all medications and their dosages mentioned in the transcript
-        correctly extracted and listed in the output? Verify if any medications or
-        dosages are missing or mistakenly included.
+        3. Is the information in the output presented in a consistent and correct
+        format as specified in the task description?
 
-        2. Completeness: Are all symptoms mentioned by the patient during the conversation
-        accurately captured in the output? Check if any symptoms are omitted.
+        4. Are there any discrepancies or inaccuracies in the extracted information
+        compared to the transcript?
 
-        3. Format Consistency: Does the output adhere to the specified JSON format,
-        including correctly structured lists for medications, dosages, and symptoms?
-
-        4. Clarity and Specificity: Is the extracted information clearly and specifically
-        represented without any ambiguity or generalization?
-
-        5. Error Analysis: Identify any discrepancies, such as incorrect information
-        or inconsistencies in the extracted data, and suggest ways to improve accuracy
-        if applicable.
-
-
-        Provide a summary of your evaluation, highlighting areas of excellence and
-        opportunities for improvement.'
+        5. Could the quality of the output be enhanced by a more thorough analysis
+        of the input text?'
     output:
       schema:
-        dosages: list[str]
-        medications: list[str]
-        symptoms: list[str]
-    prompt: "Analyze the following transcript of a conversation between a doctor and\
-      \ a patient:\n\n{{ input.src }}\n\nExtract and list all medications, dosages,\
-      \ and symptoms mentioned in the transcript.\nIf a piece of information is not\
-      \ found, return an empty list for that category.\n\nProvide your response in\
-      \ the following JSON format:\n{\n  \"medications\": [\"medication1\", \"medication2\"\
-      , ...],\n  \"dosages\": [\"dosage1\", \"dosage2\", ...],\n  \"symptoms\": [\"\
-      symptom1\", \"symptom2\", ...]\n}\n"
+        medications: 'list[{medication: str, dosage: str, symptom: str}]'
+    prompt: 'Analyze the following transcript of a conversation between a doctor and
+      a patient:
+
+
+      {{ input.src }}
+
+
+      Extract and list all medications, dosages, and symptoms mentioned in the transcript.
+
+      If a piece of information is not found, return an empty list for that category.
+
+      '
     type: map
 pipeline:
   output:

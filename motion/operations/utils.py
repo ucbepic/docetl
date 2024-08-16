@@ -79,7 +79,12 @@ def convert_val(value: Any) -> Dict[str, Any]:
         for item in value[1:-1].split(","):
             key, val = item.strip().split(":")
             properties[key.strip()] = convert_val(val.strip())
-        return {"type": "object", "properties": properties}
+        return {
+            "type": "object",
+            "properties": properties,
+            "additionalProperties": False,
+            "required": list(properties.keys()),
+        }
     else:
         raise ValueError(f"Unsupported value type: {value}")
 

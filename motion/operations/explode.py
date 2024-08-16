@@ -1,3 +1,4 @@
+import copy
 from typing import Dict, List, Any, Tuple
 from motion.operations.base import BaseOperation
 from rich.console import Console
@@ -94,8 +95,20 @@ class ExplodeOperation(BaseOperation):
                 raise TypeError(f"Value of explode key '{explode_key}' is not iterable")
 
             for value in item[explode_key]:
-                new_item = item.copy()
+                new_item = copy.deepcopy(item)
                 new_item[explode_key] = value
                 results.append(new_item)
+
+            if not item[explode_key]:
+                new_item = copy.deepcopy(item)
+                new_item[explode_key] = None
+                results.append(new_item)
+
+        # Assert that all keys are the same before and after the operation
+        if results:
+            original_keys = set(input_data[0].keys())
+            assert (
+                set(results[0].keys()) == original_keys
+            ), "Keys changed during explode operation"
 
         return results, 0

@@ -377,18 +377,22 @@ class MapOptimizer:
             max_chunk_size, avg_doc_size
         )
 
-        min_chunk_size = min(chunk_sizes)
+        avg_chunk_size = sum(chunk_sizes) // len(chunk_sizes)
 
         # Get 2 consecutive chunks of size min_chunk_size / 2.5 words
-        chunk_word_size = int(min_chunk_size / 2.5)
+        chunk_word_size = int(avg_chunk_size / 2.5)
         sample_chunks = []
 
         # Sample the largest element of split_result["split_key"] from input_data
-        largest_input = max(input_data, key=lambda x: len(x[split_result["split_key"]]))
+        largest_input = max(
+            input_data, key=lambda x: len(x[split_result["split_key"]].split())
+        )
         sample_chunks = [
-            largest_input[split_result["split_key"]][i : i + chunk_word_size]
+            largest_input[split_result["split_key"]].split()[i : i + chunk_word_size]
             for i in range(
-                0, len(largest_input[split_result["split_key"]]), chunk_word_size
+                0,
+                len(largest_input[split_result["split_key"]].split()),
+                chunk_word_size,
             )
         ]
 
@@ -421,7 +425,8 @@ class MapOptimizer:
             op_config, split_result["subprompt"] + " Only process the main chunk."
         )
 
-        max_plan.extend([split_op, map_op])
+        explode_ops = self._create_explode_operations(op_config)
+        max_plan.extend([split_op, map_op] + explode_ops)
 
         for op in max_plan:
             sample_output = self._run_operation(op, sample_output)
@@ -463,8 +468,9 @@ class MapOptimizer:
                     op_config,
                     split_result["subprompt"] + " Only process the main chunk.",
                 )
+                explode_ops = self._create_explode_operations(op_config)
 
-                plan.extend([split_op, map_op, reduce_op])
+                plan.extend([split_op, map_op] + explode_ops + [reduce_op])
                 plan_name = f"chunk_size_{chunk_size}_peripheral_"
                 if peripheral_config:
                     for direction in ["previous", "next"]:
@@ -500,7 +506,7 @@ class MapOptimizer:
             "You are an AI assistant helping to process a super long document."
         )
 
-        user_prompt = f"""Given the following subprompt and two consecutive sample chunks, create an info_extraction_prompt that will extract key information from each chunk. This extracted information will be used as context when applying the subprompt to subsequent chunks.
+        user_prompt = f"""Given the following subprompt and two consecutive sample chunks, create an info_extraction_prompt that will summarize each chunk and extract key information from it. This extracted information will be used as context when applying the subprompt to subsequent chunks.
 
         Subprompt:
         {subprompt}
@@ -511,7 +517,7 @@ class MapOptimizer:
         Sample Chunk 2:
         {sample_chunk_2}
         
-        For example, the information extracted from sample chunk 1 will be used as context in the subprompt, along with sample chunk 2's text, when processing sample chunk 2.
+        For example, the summary and information extracted from sample chunk 1 will be used as context in the subprompt, along with sample chunk 2's text, when processing sample chunk 2.
 
         The info_extraction_prompt should:
         1. Identify and extract the most relevant information from the chunk that might be useful for running the subprompt on subsequent chunks.
@@ -2034,6 +2040,29 @@ class MapOptimizer:
             ),
             "output": op_config["output"],
         }
+
+    def _create_explode_operations(
+        self, op_config: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        # Check if the output schema has a list type key and create an explode operation for it
+        output_list_keys = [
+            key
+            for key, value in op_config.get("output", {}).get("schema", {}).items()
+            if isinstance(value, str) and value.startswith("list[")
+        ]
+
+        # Create an explode operation for each list type key
+        explode_ops = []
+        for explode_key in output_list_keys:
+            explode_ops.append(
+                {
+                    "type": "explode",
+                    "name": f"explode_{explode_key}_{op_config['name']}",
+                    "explode_key": explode_key,
+                }
+            )
+
+        return explode_ops
 
     def _create_reduce_operation(
         self, op_config: Dict[str, Any], combine_prompt: str, is_commutative: bool

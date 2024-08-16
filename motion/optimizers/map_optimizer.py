@@ -240,8 +240,22 @@ class MapOptimizer:
         table.add_column("Runtime", justify="right", width=10)
         table.add_column("Pairwise Wins", justify="right", width=10)
 
-        # Filter plans with average scores >= 2.5
-        filtered_results = {k: v for k, v in results.items() if v[0] >= 2.5}
+        # Sort results by score in descending order
+        sorted_results = sorted(results.items(), key=lambda x: x[1][0], reverse=True)
+
+        # Take the top 6 plans
+        top_plans = sorted_results[:6]
+
+        # Include any additional plans that are tied with the last plan
+        tail_score = top_plans[-1][1][0] if len(top_plans) == 6 else float("-inf")
+        filtered_results = dict(
+            top_plans
+            + [
+                item
+                for item in sorted_results[len(top_plans) :]
+                if item[1][0] == tail_score
+            ]
+        )
 
         # Perform pairwise comparisons on filtered plans
         if len(filtered_results) > 1:

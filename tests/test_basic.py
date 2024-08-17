@@ -467,6 +467,17 @@ def reduce_sample_data():
     ]
 
 
+@pytest.fixture
+def reduce_sample_data_with_list_key():
+    return [
+        {"group": "A", "value": 10, "category": "X"},
+        {"group": "B", "value": 20, "category": "Y"},
+        {"group": "A", "value": 15, "category": "X"},
+        {"group": "C", "value": 30, "category": "Z"},
+        {"group": "B", "value": 25, "category": "Y"},
+    ]
+
+
 def test_reduce_operation(
     reduce_config, default_model, max_threads, reduce_sample_data
 ):
@@ -476,6 +487,25 @@ def test_reduce_operation(
     assert len(results) == 3  # 3 unique groups
     assert all(
         "group" in result and "total" in result and "avg" in result
+        for result in results
+    )
+    assert cost > 0
+
+
+def test_reduce_operation_with_list_key(
+    reduce_config, default_model, max_threads, reduce_sample_data_with_list_key
+):
+    reduce_config["reduce_key"] = ["group", "category"]
+
+    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    results, cost = operation.execute(reduce_sample_data_with_list_key)
+
+    assert len(results) == 3  # 3 unique groups
+    assert all(
+        "group" in result
+        and "category" in result
+        and "total" in result
+        and "avg" in result
         for result in results
     )
     assert cost > 0

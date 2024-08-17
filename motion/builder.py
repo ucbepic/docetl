@@ -1,5 +1,4 @@
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import copy
 import yaml
 from typing import Dict, List, Any, Optional, Tuple, Union
@@ -10,14 +9,12 @@ from motion.optimizers.reduce_optimizer import ReduceOptimizer
 from motion.optimizers.join_optimizer import JoinOptimizer
 from motion.utils import load_config
 from rich.console import Console
-from rich.table import Table
 import random
 import json
 import os
 import jinja2
-from jinja2 import Environment, meta
 import re
-from motion.optimizers.utils import extract_jinja_variables, LLMClient
+from motion.optimizers.utils import LLMClient
 
 
 SUPPORTED_OPS = ["map", "resolve", "reduce", "equijoin"]
@@ -878,6 +875,9 @@ class Optimizer:
 
         with open(self.optimized_config_path, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False)
+            self.console.log(
+                f"[bold green]💾 Optimized config saved to {self.optimized_config_path}[/bold green]"
+            )
 
         self.console.log(
             f"[green italic]Optimized config saved to {self.optimized_config_path}[/green italic]"
@@ -885,5 +885,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/map.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/reduce.yaml", model="gpt-4o")
     optimizer.optimize()

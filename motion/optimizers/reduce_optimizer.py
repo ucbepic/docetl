@@ -115,7 +115,6 @@ class ReduceOptimizer:
             decomposition_result = self._evaluate_decomposition(op_config, input_data)
 
             if decomposition_result["should_decompose"]:
-                self.console.log("[bold]Decomposing the reduce operation[/bold]")
                 return self._optimize_decomposed_reduce(
                     decomposition_result, op_config, input_data
                 )
@@ -203,7 +202,12 @@ class ReduceOptimizer:
 
         first_reduce_config = op_config.copy()
         first_reduce_config["prompt"] = first_reduce_prompt
-        first_reduce_config["reduce_key"] = sub_group_key
+        if isinstance(op_config["reduce_key"], list):
+            first_reduce_config["reduce_key"] = [sub_group_key] + op_config[
+                "reduce_key"
+            ]
+        else:
+            first_reduce_config["reduce_key"] = [sub_group_key, op_config["reduce_key"]]
         first_reduce_config["pass_through"] = True
 
         first_optimized_configs, first_outputs = self.optimize(
@@ -233,8 +237,8 @@ class ReduceOptimizer:
         """
         Evaluate whether decomposing the reduce operation would be beneficial.
 
-        This method queries the LLM to determine if the reduce operation should be decomposed
-        into multiple steps based on the input data structure and the reduce prompt.
+        This method first determines if decomposition would be helpful, and if so,
+        it then determines the sub-group key and prompts for the decomposed operations.
 
         Args:
             op_config (Dict[str, Any]): Configuration for the reduce operation.
@@ -242,6 +246,48 @@ class ReduceOptimizer:
 
         Returns:
             Dict[str, Any]: A dictionary containing the decomposition decision and details.
+        """
+        should_decompose = self._should_decompose(op_config, input_data)
+
+        # Log the decomposition decision
+        if should_decompose["should_decompose"]:
+            self.console.log(
+                f"[bold green]Decomposition recommended:[/bold green] {should_decompose['explanation']}"
+            )
+        else:
+            self.console.log(
+                f"[bold yellow]Decomposition not recommended:[/bold yellow] {should_decompose['explanation']}"
+            )
+
+        # Return early if decomposition is not recommended
+        if not should_decompose["should_decompose"]:
+            return should_decompose
+
+        decomposition_details = self._get_decomposition_details(op_config, input_data)
+        result = {**should_decompose, **decomposition_details}
+        if decomposition_details["sub_group_key"] in op_config["reduce_key"]:
+            result["should_decompose"] = False
+            result[
+                "explanation"
+            ] += " However, the suggested sub-group key is already part of the current reduce key(s), so decomposition is not recommended."
+            result["sub_group_key"] = ""
+
+        return result
+
+    def _should_decompose(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Determine if decomposing the reduce operation would be beneficial.
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the decomposition decision and explanation.
         """
         system_prompt = (
             "You are an AI assistant tasked with optimizing data processing pipelines."
@@ -254,9 +300,10 @@ class ReduceOptimizer:
         # Get all keys from the input data
         all_keys = set().union(*(item.keys() for item in sample_input))
         reduce_key = op_config["reduce_key"]
-        other_keys = [key for key in all_keys if key != reduce_key]
+        reduce_keys = [reduce_key] if isinstance(reduce_key, str) else reduce_key
+        other_keys = [key for key in all_keys if key not in reduce_keys]
 
-        # See if there's an input schema and constraint the sample_input to that schema
+        # See if there's an input schema and constrain the sample_input to that schema
         input_schema = op_config.get("input", {}).get("schema", {})
         if input_schema:
             sample_input = [
@@ -269,32 +316,27 @@ class ReduceOptimizer:
             for key in other_keys
         }
 
-        prompt = f"""Analyze the following reduce operation and determine if it should be decomposed into multiple steps:
+        prompt = f"""Analyze the following reduce operation and determine if it should be decomposed into two reduce operations chained together:
 
         Reduce Operation Prompt:
         ```
         {op_config['prompt']}
         ```
 
-        Reduce Key: {reduce_key}
-        Other Keys: {', '.join(other_keys)}
+        Current Reduce Key(s): {reduce_keys}
+        Other Available Keys: {', '.join(other_keys)}
 
         Sample values for other keys:
         {json.dumps(sample_values, indent=2)}
 
-        Based on this information, determine if it would be beneficial to decompose this reduce operation into multiple steps. Consider the following:
+        Based on this information, determine if it would be beneficial to decompose this reduce operation into a sub-reduce operation followed by a final reduce operation. Consider the following:
 
-        1. Is there a natural hierarchy in the data (e.g., country -> state -> city), and a key at a finer level of granularity than the reduce key?
-        2. Is the reduce key some form of id, and there are many different types of inputs for that id?
-        3. Does the prompt implicitly ask for sub-grouping (e.g., "summarize policies by state, then by country")?
+        1. Is there a natural hierarchy in the data (e.g., country -> state -> city) among the other available keys, with a key at a finer level of granularity than the current reduce key(s)?
+        2. Are the current reduce key(s) some form of ID, and are there many different types of inputs for that ID among the other available keys?
+        3. Does the prompt implicitly ask for sub-grouping based on the other available keys (e.g., "summarize policies by state, then by country")?
         4. Would splitting the operation improve accuracy (i.e., make sure information isn't lost when reducing)?
-
-        If decomposition is recommended, suggest a two-step reduce process:
-        1. A sub-group key to use for the first reduce operation
-        2. A prompt for the first reduce operation
-        3. A prompt for the second (final) reduce operation
-        
-        For the reduce operation prompts, you should only minimally modify the original prompt. The prompts should be Jinja templates, and the only variables they can access are the `reduce_key` and `values` variables.
+        5. Are all the keys of the potential hierarchy provided in the other available keys? If not, we should not decompose.
+        6. Importantly, do not suggest decomposition using any key that is already part of the current reduce key(s). We are looking for a new key from the other available keys to use for sub-grouping.
 
         Provide your analysis in the following format:
         """
@@ -304,9 +346,6 @@ class ReduceOptimizer:
             "properties": {
                 "should_decompose": {"type": "boolean"},
                 "explanation": {"type": "string"},
-                "sub_group_key": {"type": "string"},
-                "first_reduce_prompt": {"type": "string"},
-                "second_reduce_prompt": {"type": "string"},
             },
             "required": ["should_decompose", "explanation"],
         }
@@ -316,9 +355,77 @@ class ReduceOptimizer:
             system_prompt,
             parameters,
         )
-        result = json.loads(response.choices[0].message.content)
+        return json.loads(response.choices[0].message.content)
 
-        return result
+    def _get_decomposition_details(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Determine the sub-group key and prompts for decomposed reduce operations.
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the sub-group key and prompts for decomposed operations.
+        """
+        system_prompt = (
+            "You are an AI assistant tasked with optimizing data processing pipelines."
+        )
+
+        # Sample a subset of input data for analysis
+        sample_size = min(10, len(input_data))
+        sample_input = random.sample(input_data, sample_size)
+
+        # Get all keys from the input data
+        all_keys = set().union(*(item.keys() for item in sample_input))
+        reduce_key = op_config["reduce_key"]
+        reduce_keys = [reduce_key] if isinstance(reduce_key, str) else reduce_key
+        other_keys = [key for key in all_keys if key not in reduce_keys]
+
+        prompt = f"""Given that we've decided to decompose the following reduce operation, suggest a two-step reduce process:
+
+        Reduce Operation Prompt:
+        ```
+        {op_config['prompt']}
+        ```
+
+        Reduce Key(s): {reduce_key}
+        Other Keys: {', '.join(other_keys)}
+
+        Provide the following:
+        1. A sub-group key to use for the first reduce operation
+        2. A prompt for the first reduce operation
+        3. A prompt for the second (final) reduce operation
+        
+        For the reduce operation prompts, you should only minimally modify the original prompt. The prompts should be Jinja templates, and the only variables they can access are the `reduce_key` and `values` variables.
+
+        Provide your suggestions in the following format:
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "sub_group_key": {"type": "string"},
+                "first_reduce_prompt": {"type": "string"},
+                "second_reduce_prompt": {"type": "string"},
+            },
+            "required": [
+                "sub_group_key",
+                "first_reduce_prompt",
+                "second_reduce_prompt",
+            ],
+        }
+
+        response = self.llm_client.generate(
+            [{"role": "user", "content": prompt}],
+            system_prompt,
+            parameters,
+        )
+        return json.loads(response.choices[0].message.content)
 
     def _determine_value_sampling(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -584,13 +691,36 @@ class ReduceOptimizer:
 
         reduce_key = op_config.get("reduce_key")
         if reduce_key and original_output:
-            key = next(
-                (item[reduce_key] for item in original_output if reduce_key in item),
-                None,
-            )
-            sample_output = next(
-                (item for item in original_output if item.get(reduce_key) == key), {}
-            )
+            if isinstance(reduce_key, list):
+                key = next(
+                    (
+                        tuple(item[k] for k in reduce_key)
+                        for item in original_output
+                        if all(k in item for k in reduce_key)
+                    ),
+                    tuple(None for _ in reduce_key),
+                )
+                sample_output = next(
+                    (
+                        item
+                        for item in original_output
+                        if all(item.get(k) == v for k, v in zip(reduce_key, key))
+                    ),
+                    {},
+                )
+            else:
+                key = next(
+                    (
+                        item[reduce_key]
+                        for item in original_output
+                        if reduce_key in item
+                    ),
+                    None,
+                )
+                sample_output = next(
+                    (item for item in original_output if item.get(reduce_key) == key),
+                    {},
+                )
         else:
             sample_output = original_output[0] if original_output else {}
 
@@ -659,14 +789,27 @@ class ReduceOptimizer:
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = []
             for reduce_key, inputs in validation_inputs.items():
-                sample_output = next(
-                    (
-                        item
-                        for item in output_data
-                        if item[op_config["reduce_key"]] == reduce_key
-                    ),
-                    None,
-                )
+                if isinstance(op_config["reduce_key"], list):
+                    sample_output = next(
+                        (
+                            item
+                            for item in output_data
+                            if all(
+                                item[key] == reduce_key[i]
+                                for i, key in enumerate(op_config["reduce_key"])
+                            )
+                        ),
+                        None,
+                    )
+                else:
+                    sample_output = next(
+                        (
+                            item
+                            for item in output_data
+                            if item[op_config["reduce_key"]] == reduce_key
+                        ),
+                        None,
+                    )
 
                 if sample_output is None:
                     self.console.log(
@@ -726,12 +869,15 @@ class ReduceOptimizer:
         }
 
     def _create_validation_inputs(
-        self, input_data: List[Dict[str, Any]], reduce_key: str
+        self, input_data: List[Dict[str, Any]], reduce_key: Union[str, List[str]]
     ) -> Dict[Any, List[Dict[str, Any]]]:
         # Group input data by reduce_key
         grouped_data = {}
         for item in input_data:
-            key = item[reduce_key]
+            if isinstance(reduce_key, list):
+                key = tuple(item[k] for k in reduce_key)
+            else:
+                key = item[reduce_key]
             if key not in grouped_data:
                 grouped_data[key] = []
             grouped_data[key].append(item)
@@ -771,7 +917,12 @@ class ReduceOptimizer:
             List[Dict[str, Any]]: A list of reduce plans, each with different batch sizes and fold prompts.
         """
         reduce_key = op_config["reduce_key"]
-        key_counts = Counter(item[reduce_key] for item in input_data)
+        if isinstance(reduce_key, list):
+            key_counts = Counter(
+                tuple(item[k] for k in reduce_key) for item in input_data
+            )
+        else:
+            key_counts = Counter(item[reduce_key] for item in input_data)
         values_per_key = list(key_counts.values())
 
         avg_values = mean(values_per_key)
@@ -863,9 +1014,30 @@ class ReduceOptimizer:
         output_schema = op_config["output"]["schema"]
 
         compression_ratios = {}
-        for key in set(item[reduce_key] for item in sample_input):
-            key_input = [item for item in sample_input if item[reduce_key] == key]
-            key_output = [item for item in sample_output if item[reduce_key] == key]
+
+        # Handle both single key and list of keys
+        if isinstance(reduce_key, list):
+            distinct_keys = set(
+                tuple(item[k] for k in reduce_key) for item in sample_input
+            )
+        else:
+            distinct_keys = set(item[reduce_key] for item in sample_input)
+
+        for key in distinct_keys:
+            if isinstance(reduce_key, list):
+                key_input = [
+                    item
+                    for item in sample_input
+                    if tuple(item[k] for k in reduce_key) == key
+                ]
+                key_output = [
+                    item
+                    for item in sample_output
+                    if tuple(item[k] for k in reduce_key) == key
+                ]
+            else:
+                key_input = [item for item in sample_input if item[reduce_key] == key]
+                key_output = [item for item in sample_output if item[reduce_key] == key]
 
             if input_schema:
                 key_input_chars = sum(
@@ -888,15 +1060,25 @@ class ReduceOptimizer:
             return 1
 
         # Calculate importance weights based on the number of items for each key
-        total_items = sum(
-            len([item for item in sample_input if item[reduce_key] == key])
-            for key in compression_ratios
-        )
-        importance_weights = {
-            key: len([item for item in sample_input if item[reduce_key] == key])
-            / total_items
-            for key in compression_ratios
-        }
+        total_items = len(sample_input)
+        if isinstance(reduce_key, list):
+            importance_weights = {
+                key: len(
+                    [
+                        item
+                        for item in sample_input
+                        if tuple(item[k] for k in reduce_key) == key
+                    ]
+                )
+                / total_items
+                for key in compression_ratios
+            }
+        else:
+            importance_weights = {
+                key: len([item for item in sample_input if item[reduce_key] == key])
+                / total_items
+                for key in compression_ratios
+            }
 
         # Calculate weighted average of compression ratios
         weighted_sum = sum(
@@ -949,19 +1131,45 @@ class ReduceOptimizer:
         reduce_key = op_config["reduce_key"]
 
         def get_random_examples():
-            random_key = random.choice(
-                [item[reduce_key] for item in sample_input if reduce_key in item]
-            )
-            input_example = random.choice(
-                [item for item in sample_input if item[reduce_key] == random_key]
-            )
+            if isinstance(reduce_key, list):
+                random_key = tuple(
+                    random.choice(
+                        [
+                            tuple(item[k] for k in reduce_key if k in item)
+                            for item in sample_input
+                            if all(k in item for k in reduce_key)
+                        ]
+                    )
+                )
+                input_example = random.choice(
+                    [
+                        item
+                        for item in sample_input
+                        if all(item.get(k) == v for k, v in zip(reduce_key, random_key))
+                    ]
+                )
+                output_example = random.choice(
+                    [
+                        item
+                        for item in sample_output
+                        if all(item.get(k) == v for k, v in zip(reduce_key, random_key))
+                    ]
+                )
+            else:
+                random_key = random.choice(
+                    [item[reduce_key] for item in sample_input if reduce_key in item]
+                )
+                input_example = random.choice(
+                    [item for item in sample_input if item[reduce_key] == random_key]
+                )
+                output_example = random.choice(
+                    [item for item in sample_output if item[reduce_key] == random_key]
+                )
+
             if input_schema:
                 input_example = {
                     k: input_example[k] for k in input_schema if k in input_example
                 }
-            output_example = random.choice(
-                [item for item in sample_output if item[reduce_key] == random_key]
-            )
             output_example = {
                 k: output_example[k] for k in output_schema if k in output_example
             }

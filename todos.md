@@ -43,6 +43,7 @@ TODO:
 - [x] Change validation to be pairwise comparisons (for map, at least) (Aug 14 & 15)
   - [x] Only compare the plans that are highest scoring
 - [x] Support unnesting
+- [x] Reduce operator: support reduce keys as list
 - [ ] Support concatenating reduce instead of only LLM reduce
 - [ ] In map optimizer: combine/reduce should be either concatenate or LLM reduce, have the agent decide
 - [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 16 & 17 & 18)

@@ -363,7 +363,7 @@ The Reduce operation aggregates data based on a key. It supports both batch redu
 Required parameters:
 
 - `type`: Must be set to `"reduce"`.
-- `reduce_key`: The key to use for grouping data.
+- `reduce_key`: The key to use for grouping data. This can be a single key (string) or a list of keys.
 - `prompt`: The prompt template to use for the reduction operation. This template can access the grouped values using `{{ values }}` (a list of dictionary objects or records) and the reduce key using `{{ reduce_key }}`.
 - `output`: Schema definition for the output from the LLM.
 

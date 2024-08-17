@@ -6,26 +6,84 @@ default_model: gpt-4o-mini
 operations:
   summarize_medication_contexts:
     commutative: true
-    fold_batch_size: 5
-    fold_prompt:
-      '{"fold_prompt":"Continue analyzing additional doctor-patient transcripts
-      where the medication \"{{ reduce_key }}\" is mentioned. Update the summary with
-      the new information:\n\nExisting Summary:\n{{ output.summary }}\n\nNew Transcripts
-      Analysis:\n\n{% for item in values %}\nTranscript {{ loop.index }}:\n{{ item.src
-      }}\n\n---\n{% endfor %}\n\nEnhance the summary by considering:\n1. Additional
-      reasons why a patient might take this medication.\n2. Any new side effects experienced
-      or mentioned.\n3. Further interactions with other medications or treatments
-      mentioned.\n\nUpdate the summary based on the new insights gathered from these
-      transcripts."}'
+    fold_batch_size: 7
+    fold_prompt: 'Combine the following new doctor-patient transcripts with the current
+      summary of the settings in which patients take the medication "{{ reduce_key
+      }}".
+
+
+      Current Summary:
+
+      - Reasons for taking the medication: {{ output.summary }}
+
+
+      New Transcripts:
+
+      {% for item in values %}
+
+      Transcript {{ loop.index }}:
+
+      {{ item.src }}
+
+
+      ---
+
+      {% endfor %}
+
+
+      Based on the combined doctor-patient transcripts, update the summary to include
+      any new information about:
+
+
+      1. Why patients take the medication "{{ reduce_key }}" beyond the current summary.
+
+      2. Any new or additional side effects experienced or mentioned in the new transcripts.
+
+      3. Any new interactions with other medications or treatments found in the new
+      transcripts.
+
+
+      Ensure the updated summary is concise and incorporates both previous and new
+      information.'
     input:
       schema:
         medication: str
         src: str
+    merge_batch_size: 2
+    merge_prompt: 'Merge the following summaries from analyzing doctor-patient transcripts
+      that mention the medication "{{ reduce_key }}". Each summary represents insights
+      gathered from a subset of the transcripts. Your task is to create a unified
+      summary that encompasses the critical points from all provided summaries as
+      if they were analyzed together.
+
+
+      Summaries to Merge:
+
+      {% for output in outputs %}- {{ output.summary }}
+
+      {% endfor %}
+
+
+      Construct a comprehensive summary that includes:
+
+
+      1. All reasons patients take the medication "{{ reduce_key }}", combining and
+      reconciling any differences or overlaps in the justifications provided.
+
+      2. A consolidated list of side effects experienced or mentioned, ensuring all
+      unique instances are captured without repetition.
+
+      3. A complete list of interactions with other medications or treatments, identifying
+      any recurring or unique interactions stated across the summaries.
+
+
+      Ensure the final summary is clear, concise, and accurately reflects the gathered
+      data from all the summaries provided, maintaining consistency with the details
+      of the reduce operation.'
     output:
       schema:
         summary: str
-    prompt:
-      'Analyze the following doctor-patient transcripts where the medication
+    prompt: 'Analyze the following doctor-patient transcripts where the medication
       "{{ reduce_key }}" is mentioned:
 
 
@@ -53,14 +111,20 @@ operations:
       3. Any interactions with other medications or treatments mentioned.
 
       '
-    reduce_key: medication
+    reduce_key:
+    - medication
     type: reduce
+    value_sampling:
+      embedding_model: text-embedding-3-small
+      enabled: true
+      method: random
+      sample_size: 100
 pipeline:
   output:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/medication_context_summaries.json
     type: file
   steps:
-    - input: deduped_meds
-      name: medication_context_summarization
-      operations:
-        - summarize_medication_contexts
+  - input: deduped_meds
+    name: medication_context_summarization
+    operations:
+    - summarize_medication_contexts

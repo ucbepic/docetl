@@ -9,7 +9,7 @@ Manages performance metrics and dynamically adjusts processing (i.e., number of 
 import math
 import random
 import time
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Any, Tuple, Optional, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
@@ -50,6 +50,11 @@ class ReduceOperation(BaseOperation):
         self.fold_times = deque(maxlen=self.max_samples)
         self.merge_times = deque(maxlen=self.max_samples)
         self.lock = Lock()
+        self.config["reduce_key"] = (
+            [self.config["reduce_key"]]
+            if isinstance(self.config["reduce_key"], str)
+            else self.config["reduce_key"]
+        )
 
     def syntax_check(self) -> None:
         """
@@ -154,9 +159,12 @@ class ReduceOperation(BaseOperation):
         if "model" in self.config and not isinstance(self.config["model"], str):
             raise TypeError("'model' in configuration must be a string")
 
-        # Check if reduce_key is a string
-        if not isinstance(self.config["reduce_key"], str):
-            raise TypeError("'reduce_key' must be a string")
+        # Check if reduce_key is a string or a list of strings
+        if not isinstance(self.config["reduce_key"], (str, list)):
+            raise TypeError("'reduce_key' must be a string or a list of strings")
+        if isinstance(self.config["reduce_key"], list):
+            if not all(isinstance(key, str) for key in self.config["reduce_key"]):
+                raise TypeError("All elements in 'reduce_key' list must be strings")
 
         # Check if input schema is provided and valid (optional)
         if "input" in self.config:
@@ -226,7 +234,7 @@ class ReduceOperation(BaseOperation):
         """
         Execute the reduce operation on the provided input data.
 
-        This method sorts and groups the input data by the reduce key, then processes each group
+        This method sorts and groups the input data by the reduce key(s), then processes each group
         using either parallel fold and merge, incremental reduce, or batch reduce strategies.
 
         Args:
@@ -235,13 +243,18 @@ class ReduceOperation(BaseOperation):
         Returns:
             Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
         """
-        reduce_key = self.config["reduce_key"]
+        reduce_keys = self.config["reduce_key"]
+        if isinstance(reduce_keys, str):
+            reduce_keys = [reduce_keys]
         input_schema = self.config.get("input", {}).get("schema", {})
 
-        # Group the input data by the reduce key while maintaining original order
+        # Group the input data by the reduce key(s) while maintaining original order
+        def get_group_key(item):
+            return tuple(item[key] for key in reduce_keys)
+
         grouped_data = {}
         for item in input_data:
-            key = item[reduce_key]
+            key = get_group_key(item)
             if key not in grouped_data:
                 grouped_data[key] = []
             grouped_data[key].append(item)
@@ -250,7 +263,7 @@ class ReduceOperation(BaseOperation):
         grouped_data = list(grouped_data.items())
 
         def process_group(
-            key: Any, group_elems: List[Dict]
+            key: Tuple, group_elems: List[Dict]
         ) -> Tuple[Optional[Dict], float]:
             if input_schema:
                 group_list = [
@@ -365,11 +378,13 @@ class ReduceOperation(BaseOperation):
         return sampled_items, cost
 
     def _semantic_similarity_sampling(
-        self, key: Any, group_list: List[Dict], value_sampling: Dict, sample_size: int
+        self, key: Tuple, group_list: List[Dict], value_sampling: Dict, sample_size: int
     ) -> Tuple[List[Dict], float]:
         embedding_model = value_sampling["embedding_model"]
         query_text_template = Template(value_sampling["query_text"])
-        query_text = query_text_template.render(reduce_key=key)
+        query_text = query_text_template.render(
+            reduce_key=dict(zip(self.config["reduce_key"], key))
+        )
 
         embeddings, cost = self._get_embeddings(group_list, value_sampling)
 
@@ -384,7 +399,7 @@ class ReduceOperation(BaseOperation):
         return [group_list[i] for i in top_k_indices], cost
 
     def _parallel_fold_and_merge(
-        self, key: Any, group_list: List[Dict]
+        self, key: Tuple, group_list: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
         """
         Perform parallel folding and merging on a group of items.
@@ -400,7 +415,7 @@ class ReduceOperation(BaseOperation):
         7. Throughout this process, the method may adjust the number of parallel folds based on updated performance metrics (i.e., fold and merge runtimes) to maintain efficiency.
 
         Args:
-            key (Any): The reduce key for the group.
+            key (Tuple): The reduce key tuple for the group.
             group_list (List[Dict]): The list of items in the group to be processed.
 
         Returns:
@@ -510,7 +525,7 @@ class ReduceOperation(BaseOperation):
         return (fold_results[0], total_cost) if fold_results else (None, total_cost)
 
     def _incremental_reduce(
-        self, key: Any, group_list: List[Dict]
+        self, key: Tuple, group_list: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
         """
         Perform an incremental reduce operation on a group of items.
@@ -518,7 +533,7 @@ class ReduceOperation(BaseOperation):
         This method processes the group in batches, incrementally folding the results.
 
         Args:
-            key (Any): The reduce key for the group.
+            key (Tuple): The reduce key tuple for the group.
             group_list (List[Dict]): The list of items in the group to be processed.
 
         Returns:
@@ -543,7 +558,7 @@ class ReduceOperation(BaseOperation):
         return current_output, total_cost
 
     def _increment_fold(
-        self, key: Any, batch: List[Dict], current_output: Optional[Dict]
+        self, key: Tuple, batch: List[Dict], current_output: Optional[Dict]
     ) -> Tuple[Optional[Dict], float]:
         """
         Perform an incremental fold operation on a batch of items.
@@ -551,7 +566,7 @@ class ReduceOperation(BaseOperation):
         This method folds a batch of items into the current output using the fold prompt.
 
         Args:
-            key (Any): The reduce key for the group.
+            key (Tuple): The reduce key tuple for the group.
             batch (List[Dict]): The batch of items to be folded.
             current_output (Optional[Dict]): The current accumulated output, if any.
 
@@ -564,7 +579,11 @@ class ReduceOperation(BaseOperation):
 
         start_time = time.time()
         fold_prompt_template = Template(self.config["fold_prompt"])
-        fold_prompt = fold_prompt_template.render(values=batch, output=current_output)
+        fold_prompt = fold_prompt_template.render(
+            values=batch,
+            output=current_output,
+            reduce_key=dict(zip(self.config["reduce_key"], key)),
+        )
         response = call_llm(
             self.config.get("model", self.default_model),
             "reduce",
@@ -572,7 +591,7 @@ class ReduceOperation(BaseOperation):
             self.config["output"]["schema"],
         )
         folded_output = parse_llm_response(response)[0]
-        folded_output[self.config["reduce_key"]] = key
+        folded_output.update(dict(zip(self.config["reduce_key"], key)))
         fold_cost = completion_cost(response)
         end_time = time.time()
         self._update_fold_time(end_time - start_time)
@@ -582,7 +601,7 @@ class ReduceOperation(BaseOperation):
         return None, fold_cost
 
     def _merge_results(
-        self, key: Any, outputs: List[Dict]
+        self, key: Tuple, outputs: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
         """
         Merge multiple outputs into a single result.
@@ -590,7 +609,7 @@ class ReduceOperation(BaseOperation):
         This method merges a list of outputs using the merge prompt.
 
         Args:
-            key (Any): The reduce key for the group.
+            key (Tuple): The reduce key tuple for the group.
             outputs (List[Dict]): The list of outputs to be merged.
 
         Returns:
@@ -599,7 +618,9 @@ class ReduceOperation(BaseOperation):
         """
         start_time = time.time()
         merge_prompt_template = Template(self.config["merge_prompt"])
-        merge_prompt = merge_prompt_template.render(outputs=outputs, reduce_key=key)
+        merge_prompt = merge_prompt_template.render(
+            outputs=outputs, reduce_key=dict(zip(self.config["reduce_key"], key))
+        )
         response = call_llm(
             self.config.get("model", self.default_model),
             "merge",
@@ -607,7 +628,7 @@ class ReduceOperation(BaseOperation):
             self.config["output"]["schema"],
         )
         merged_output = parse_llm_response(response)[0]
-        merged_output[self.config["reduce_key"]] = key
+        merged_output.update(dict(zip(self.config["reduce_key"], key)))
         merge_cost = completion_cost(response)
         end_time = time.time()
         self._update_merge_time(end_time - start_time)
@@ -667,7 +688,7 @@ class ReduceOperation(BaseOperation):
             self.merge_times.append(time)
 
     def _batch_reduce(
-        self, key: Any, group_list: List[Dict]
+        self, key: Tuple, group_list: List[Dict]
     ) -> Tuple[Optional[Dict], float]:
         """
         Perform a batch reduce operation on a group of items.
@@ -675,7 +696,7 @@ class ReduceOperation(BaseOperation):
         This method reduces a group of items into a single output using the reduce prompt.
 
         Args:
-            key (Any): The reduce key for the group.
+            key (Tuple): The reduce key tuple for the group.
             group_list (List[Dict]): The list of items to be reduced.
 
         Returns:
@@ -683,7 +704,9 @@ class ReduceOperation(BaseOperation):
             and the cost of the reduce operation.
         """
         prompt_template = Template(self.config["prompt"])
-        prompt = prompt_template.render(reduce_key=key, values=group_list)
+        prompt = prompt_template.render(
+            reduce_key=dict(zip(self.config["reduce_key"], key)), values=group_list
+        )
         item_cost = 0
 
         if "gleaning" in self.config:
@@ -707,7 +730,7 @@ class ReduceOperation(BaseOperation):
         item_cost += completion_cost(response)
 
         output = parse_llm_response(response)[0]
-        output[self.config["reduce_key"]] = key
+        output.update(dict(zip(self.config["reduce_key"], key)))
 
         if validate_output(self.config, output, self.console):
             return output, item_cost

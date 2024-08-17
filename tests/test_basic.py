@@ -1,7 +1,7 @@
 import pytest
 from motion.operations.map import MapOperation, ParallelMapOperation
 from motion.operations.filter import FilterOperation
-from motion.operations.explode import ExplodeOperation
+from motion.operations.unnest import UnnestOperation
 from motion.operations.equijoin import EquijoinOperation
 from motion.operations.split import SplitOperation
 from motion.operations.reduce import ReduceOperation
@@ -158,14 +158,14 @@ def test_filter_operation_empty_input(filter_config, default_model, max_threads)
     assert cost == 0
 
 
-# Explode Operation Tests
+# Unnest Operation Tests
 @pytest.fixture
-def explode_config():
-    return {"type": "explode", "explode_key": "tag"}
+def unnest_config():
+    return {"type": "unnest", "unnest_key": "tag", "keep_empty": True}
 
 
 @pytest.fixture
-def explode_sample_data():
+def unnest_sample_data():
     return [
         {"id": 1, "tag": ["python", "testing", "pytest"]},
         {"id": 2, "tag": ["java", "spring"]},
@@ -173,19 +173,69 @@ def explode_sample_data():
     ]
 
 
-def test_explode_operation(
-    explode_config, default_model, max_threads, explode_sample_data
+@pytest.fixture
+def dict_unnest_config():
+    return {
+        "type": "unnest",
+        "unnest_key": "details",
+        "expand_fields": ["age", "city", "occupation"],
+    }
+
+
+@pytest.fixture
+def dict_unnest_sample_data():
+    return [
+        {"id": 1, "details": {"age": 30, "city": "New York", "occupation": "Engineer"}},
+        {
+            "id": 2,
+            "details": {"age": 25, "city": "San Francisco", "occupation": "Designer"},
+        },
+    ]
+
+
+def test_dict_unnest_operation(
+    dict_unnest_config, default_model, max_threads, dict_unnest_sample_data
 ):
-    operation = ExplodeOperation(explode_config, default_model, max_threads)
-    results, cost = operation.execute(explode_sample_data)
+    operation = UnnestOperation(dict_unnest_config, default_model, max_threads)
+    results, cost = operation.execute(dict_unnest_sample_data)
 
-    assert len(results) == 5  # 3 + 2 + 0
+    assert len(results) == 2  # due to keep_empty=False
+    assert all("age" in result for result in results)
+    assert all("city" in result for result in results)
+    assert all("details" in result for result in results)
+    assert all("occupation" in result for result in results)
+    assert results[0]["age"] == 30
+    assert results[0]["city"] == "New York"
+    assert results[0]["occupation"] == "Engineer"
+    assert results[1]["age"] == 25
+    assert results[1]["city"] == "San Francisco"
+    assert results[1]["occupation"] == "Designer"
+    assert cost == 0  # Unnest operation doesn't use LLM
+
+
+def test_dict_unnest_operation_empty_input(
+    dict_unnest_config, default_model, max_threads
+):
+    operation = UnnestOperation(dict_unnest_config, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+def test_unnest_operation(
+    unnest_config, default_model, max_threads, unnest_sample_data
+):
+    operation = UnnestOperation(unnest_config, default_model, max_threads)
+    results, cost = operation.execute(unnest_sample_data)
+
+    assert len(results) == 6  # 3 + 2 + 1
     assert all("tag" in result for result in results)
-    assert cost == 0  # Explode operation doesn't use LLM
+    assert cost == 0  # Unnest operation doesn't use LLM
 
 
-def test_explode_operation_empty_input(explode_config, default_model, max_threads):
-    operation = ExplodeOperation(explode_config, default_model, max_threads)
+def test_unnest_operation_empty_input(unnest_config, default_model, max_threads):
+    operation = UnnestOperation(unnest_config, default_model, max_threads)
     results, cost = operation.execute([])
 
     assert len(results) == 0

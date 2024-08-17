@@ -11,7 +11,7 @@ Motion is a powerful tool for creating and executing data processing pipelines u
    - [Map](#map)
    - [Parallel Map](#parallel-map)
    - [Filter](#filter)
-   - [Explode](#explode)
+   - [Unnest](#unnest)
    - [Equijoin](#equijoin)
    - [Split](#split)
    - [Reduce](#reduce)
@@ -139,21 +139,85 @@ filter_operation:
   model: gpt-4o-mini
 ```
 
-### Explode
+### Unnest
 
-The Explode operation expands an array field in the input data into multiple items.
+The Unnest operation expands an array field in the input data into multiple items.
 
 Required parameters:
 
-- `type`: Must be set to `"explode"`.
-- `explode_key`: The key of the array field to explode.
+- `type`: Must be set to `"unnest"`.
+- `unnest_key`: The key of the array field to unnest.
 
-Example:
+Optional parameters:
+
+- `keep_empty`: Boolean flag. If true, empty arrays being exploded will be kept in the output (with value None). Default is false.
+- `expand_fields`: A list of fields to expand from the nested dictionary into the parent dictionary, if unnesting a dictionary.
+
+Example of a list unnest:
 
 ```yaml
-explode_operation:
-  type: explode
-  explode_key: tags
+unnest_operation:
+  type: unnest
+  unnest_key: people
+```
+
+If the input data is a list of strings, the unnest operation will expand each string into its own item in the output list. For example, if the input data is:
+
+```yaml
+input_data:
+  people:
+    - "Alice"
+    - "Bob"
+```
+
+The output will be:
+
+```yaml
+output_data:
+  - people:
+      - "Alice"
+  - people:
+      - "Bob"
+```
+
+Example of a dictionary unnest:
+
+```yaml
+unnest_operation:
+  type: unnest
+  unnest_key: people
+  expand_fields:
+    - name
+    - age
+```
+
+The above example will unnest the `people` field, expanding the `name` and `age` fields from the nested dictionary into the parent dictionary. For example, if the input data is:
+
+```yaml
+input_data:
+  people:
+    - person:
+        name: Alice
+        age: 30
+    - person:
+        name: Bob
+        age: 25
+```
+
+The output will be:
+
+```yaml
+output_data:
+  - name: Alice
+    age: 30
+    person:
+      name: Alice
+      age: 30
+  - name: Bob
+    age: 25
+    person:
+      name: Bob
+      age: 25
 ```
 
 ### Equijoin

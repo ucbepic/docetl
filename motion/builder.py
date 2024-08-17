@@ -705,8 +705,7 @@ class Optimizer:
             self.max_threads,
             self._run_operation,
         )
-        optimized_op, input_data = reduce_optimizer.optimize(op_config, input_data)
-        return [optimized_op], input_data
+        return reduce_optimizer.optimize(op_config, input_data)
 
     def _optimize_equijoin(
         self,

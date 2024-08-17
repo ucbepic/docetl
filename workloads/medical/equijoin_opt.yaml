@@ -3,14 +3,14 @@ datasets:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/meds.json
     type: file
   transcripts:
-    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/exploded_and_deduped_meds.json
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/unnestd_and_deduped_meds.json
     type: file
 default_model: gpt-4o-mini
 name: medical_record_join
 operations:
   join_meds_transcripts:
     blocking_threshold: 0.8586
-    comparison_prompt: 'Compare the following medication names:
+    comparison_prompt: "Compare the following medication names:
 
       {{ left.medicine }}
 
@@ -28,7 +28,7 @@ operations:
 
       Respond with true if you believe these entries match, or false if they do not.
 
-      '
+      "
     embedding_model: text-embedding-3-small
     join_key:
       left:
@@ -43,6 +43,6 @@ pipeline:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/joined_meds_transcripts.json
     type: file
   steps:
-  - name: join_meds_transcripts
-    operations:
-    - join_meds_transcripts
+    - name: join_meds_transcripts
+      operations:
+        - join_meds_transcripts

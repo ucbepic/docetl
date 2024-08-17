@@ -4,17 +4,18 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  explode_medications:
-    explode_key: medication
-    name: explode_medications
-    type: explode
+  unnest_medications:
+    unnest_key: medication
+    name: unnest_medications
+    type: unnest
   extract_medications:
     name: extract_medications
     optimize: false
     output:
       schema:
         medication: list[str]
-    prompt: 'Analyze the following transcript of a conversation between a doctor and
+    prompt:
+      "Analyze the following transcript of a conversation between a doctor and
       a patient:
 
 
@@ -25,7 +26,7 @@ operations:
 
       If no medications are mentioned, return an empty list.
 
-      '
+      "
     type: map
   summarize_medications:
     name: summarize_medications
@@ -33,7 +34,8 @@ operations:
     output:
       schema:
         symptoms_summary: str
-    prompt: 'Analyze the following transcripts related to the medication "{{ reduce_key
+    prompt:
+      'Analyze the following transcripts related to the medication "{{ reduce_key
       }}":
 
 
@@ -55,7 +57,8 @@ operations:
     type: reduce
   synthesized_resolve_0:
     _intermediates:
-      map_prompt: 'Analyze the following transcript of a conversation between a doctor
+      map_prompt:
+        "Analyze the following transcript of a conversation between a doctor
         and a patient:
 
 
@@ -66,10 +69,10 @@ operations:
 
         If no medications are mentioned, return an empty list.
 
-        '
+        "
       reduce_key: medication
     blocking_keys:
-    - medication
+      - medication
     blocking_threshold: 0.8586
     comparison_model: gpt-4o-mini
     comparison_prompt: 'Compare the following two medication entries:
@@ -94,7 +97,8 @@ operations:
       schema:
         medication: string
     resolution_model: gpt-4o-mini
-    resolution_prompt: "Analyze the following duplicate medication entries that were\
+    resolution_prompt:
+      "Analyze the following duplicate medication entries that were\
       \ extracted from a patient-doctor conversation:\n\n{% for entry in matched_entries\
       \ %}\nEntry {{ loop.index }}:\n{{ entry.medication | tojson }}\n\n{% endfor\
       \ %}\n\nCreate a single, consolidated \"medication\" key by combining the information\
@@ -116,10 +120,10 @@ pipeline:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/summarized_medical_info_synth.json
     type: file
   steps:
-  - input: transcripts
-    name: medical_info_extraction
-    operations:
-    - extract_medications
-    - explode_medications
-    - synthesized_resolve_0
-    - summarize_medications
+    - input: transcripts
+      name: medical_info_extraction
+      operations:
+        - extract_medications
+        - unnest_medications
+        - synthesized_resolve_0
+        - summarize_medications

@@ -1,7 +1,7 @@
 datasets:
   deduped_meds:
     type: file
-    path: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/exploded_and_deduped_meds.json"
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/unnestd_and_deduped_meds.json"
 
 default_model: gpt-4o-mini
 

@@ -42,10 +42,14 @@ TODO:
 - [x] Support summarizing peripheral chunks
 - [x] Change validation to be pairwise comparisons (for map, at least) (Aug 14 & 15)
   - [x] Only compare the plans that are highest scoring
-- [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 16 & 17)
-  - [x] In map optimizer: if the submap output is a list, then we should add an explode optimization
-  - [ ] In reduce optimizer: query agent if we should drill-down / do a subreduce
+- [ ] Support unnesting
+- [ ] Support concatenating reduce instead of only LLM reduce
+- [ ] In map optimizer: combine/reduce should be either concatenate or LLM reduce, have the agent decide
+- [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 16 & 17 & 18)
+  - [x] In map optimizer: if the submap output is a list, then we should add an unnest optimization
+  - [x] In reduce optimizer: query agent if we should drill-down / do a subreduce
   - [ ] In reduce optimizer: if agent suggests drill-down, see if we need to add a map to create the subreduce keys, or the subreduce key already exists
+  - [ ] In reduce optimizer: synthesize resolver if need be, and make the reduce key a list of the keys
   - [ ] Write a recursive optimization algorithm. possibly select all plans at the end, rather than selecting the best plan at each operator
 - [ ] Operator reordering (Aug 19 & 20)
 - [ ] Support retries in the optimizers

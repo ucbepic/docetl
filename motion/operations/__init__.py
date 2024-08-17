@@ -1,6 +1,6 @@
 from motion.operations.map import MapOperation, ParallelMapOperation
 from motion.operations.filter import FilterOperation
-from motion.operations.explode import ExplodeOperation
+from motion.operations.unnest import UnnestOperation
 from motion.operations.equijoin import EquijoinOperation
 from motion.operations.split import SplitOperation
 from motion.operations.reduce import ReduceOperation
@@ -12,7 +12,7 @@ def get_operation(operation_type: str):
         "map": MapOperation,
         "parallel_map": ParallelMapOperation,
         "filter": FilterOperation,
-        "explode": ExplodeOperation,
+        "unnest": UnnestOperation,
         "equijoin": EquijoinOperation,
         "split": SplitOperation,
         "reduce": ReduceOperation,

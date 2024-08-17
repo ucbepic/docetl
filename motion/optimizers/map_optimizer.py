@@ -425,8 +425,8 @@ class MapOptimizer:
             op_config, split_result["subprompt"] + " Only process the main chunk."
         )
 
-        explode_ops = self._create_explode_operations(op_config)
-        max_plan.extend([split_op, map_op] + explode_ops)
+        unnest_ops = self._create_unnest_operations(op_config)
+        max_plan.extend([split_op, map_op] + unnest_ops)
 
         for op in max_plan:
             sample_output = self._run_operation(op, sample_output)
@@ -468,9 +468,9 @@ class MapOptimizer:
                     op_config,
                     split_result["subprompt"] + " Only process the main chunk.",
                 )
-                explode_ops = self._create_explode_operations(op_config)
+                unnest_ops = self._create_unnest_operations(op_config)
 
-                plan.extend([split_op, map_op] + explode_ops + [reduce_op])
+                plan.extend([split_op, map_op] + unnest_ops + [reduce_op])
                 plan_name = f"chunk_size_{chunk_size}_peripheral_"
                 if peripheral_config:
                     for direction in ["previous", "next"]:
@@ -2041,28 +2041,29 @@ class MapOptimizer:
             "output": op_config["output"],
         }
 
-    def _create_explode_operations(
+    def _create_unnest_operations(
         self, op_config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        # Check if the output schema has a list type key and create an explode operation for it
+        # Check if the output schema has a list type key and create an unnest operation for it
         output_list_keys = [
             key
             for key, value in op_config.get("output", {}).get("schema", {}).items()
             if isinstance(value, str) and value.startswith("list[")
         ]
 
-        # Create an explode operation for each list type key
-        explode_ops = []
-        for explode_key in output_list_keys:
-            explode_ops.append(
+        # Create an unnest operation for each list type key
+        unnest_ops = []
+        for unnest_key in output_list_keys:
+            unnest_ops.append(
                 {
-                    "type": "explode",
-                    "name": f"explode_{explode_key}_{op_config['name']}",
-                    "explode_key": explode_key,
+                    "type": "unnest",
+                    "name": f"unnest_{unnest_key}_{op_config['name']}",
+                    "unnest_key": unnest_key,
+                    "keep_empty": True,
                 }
             )
 
-        return explode_ops
+        return unnest_ops
 
     def _create_reduce_operation(
         self, op_config: Dict[str, Any], combine_prompt: str, is_commutative: bool

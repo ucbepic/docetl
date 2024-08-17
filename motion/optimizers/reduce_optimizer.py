@@ -58,8 +58,10 @@ class ReduceOptimizer:
         self.num_samples_in_validation = num_samples_in_validation
 
     def optimize(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Optimize the reduce operation based on the given configuration and input data.
 
@@ -67,16 +69,19 @@ class ReduceOptimizer:
         1. Run the original operation
         2. Generate a validator prompt
         3. Validate the output
-        4. If improvement is needed, create and evaluate multiple reduce plans
-        5. Run the best reduce plan
+        4. If improvement is needed:
+           a. Evaluate if decomposition is beneficial
+           b. If decomposition is beneficial, recursively optimize each sub-operation
+           c. If not, proceed with single operation optimization
+        5. Run the optimized operation(s)
 
         Args:
             op_config (Dict[str, Any]): Configuration for the reduce operation.
             input_data (List[Dict[str, Any]]): Input data for the reduce operation.
 
         Returns:
-            Tuple[Dict[str, Any], List[Dict[str, Any]]]: A tuple containing the optimized configuration
-            and the output of the optimized operation.
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the list of optimized configurations
+            and the list of outputs from the optimized operation(s).
         """
 
         original_output = self._run_operation(op_config, input_data)
@@ -106,33 +111,214 @@ class ReduceOptimizer:
                 )
             )
 
-            # Determine and configure value sampling
-            value_sampling_config = self._determine_value_sampling(
-                op_config, input_data
-            )
-            if value_sampling_config["enabled"]:
-                op_config["value_sampling"] = value_sampling_config
-                self.console.log("[bold]Value Sampling Configuration:[/bold]")
-                self.console.log(json.dumps(value_sampling_config, indent=2))
+            # Step 3: Evaluate if decomposition is beneficial
+            decomposition_result = self._evaluate_decomposition(op_config, input_data)
 
-            # Step 2.5: Determine if the reduce operation is commutative
-            is_commutative = self._is_commutative(op_config, input_data)
+            if decomposition_result["should_decompose"]:
+                self.console.log("[bold]Decomposing the reduce operation[/bold]")
+                return self._optimize_decomposed_reduce(
+                    decomposition_result, op_config, input_data
+                )
 
-            # Step 3: Create and evaluate multiple reduce plans
-            reduce_plans = self._create_reduce_plans(
-                op_config, input_data, is_commutative
-            )
-            best_plan = self._evaluate_reduce_plans(
-                reduce_plans, input_data, validator_prompt
-            )
-
-            # Step 4: Run the best reduce plan
-            optimized_output = self._run_operation(best_plan, input_data)
-
-            return best_plan, optimized_output
+            return self._optimize_single_reduce(op_config, input_data, validator_prompt)
         else:
             self.console.log("No improvements identified.")
-            return op_config, original_output
+            return [op_config], original_output
+
+    def _optimize_single_reduce(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        validator_prompt: str,
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Optimize a single reduce operation.
+
+        This method performs the following steps:
+        1. Determine and configure value sampling
+        2. Determine if the reduce operation is commutative
+        3. Create and evaluate multiple reduce plans
+        4. Run the best reduce plan
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            validator_prompt (str): The validator prompt for evaluating reduce plans.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing a single-item list with the optimized configuration
+            and a single-item list with the output from the optimized operation.
+        """
+        # Step 1: Determine and configure value sampling
+        value_sampling_config = self._determine_value_sampling(op_config, input_data)
+        if value_sampling_config["enabled"]:
+            op_config["value_sampling"] = value_sampling_config
+            self.console.log("[bold]Value Sampling Configuration:[/bold]")
+            self.console.log(json.dumps(value_sampling_config, indent=2))
+
+        # Step 2: Determine if the reduce operation is commutative
+        is_commutative = self._is_commutative(op_config, input_data)
+
+        # Step 3: Create and evaluate multiple reduce plans
+        reduce_plans = self._create_reduce_plans(op_config, input_data, is_commutative)
+        best_plan = self._evaluate_reduce_plans(
+            reduce_plans, input_data, validator_prompt
+        )
+
+        # Step 4: Run the best reduce plan
+        optimized_output = self._run_operation(best_plan, input_data)
+
+        return [best_plan], optimized_output
+
+    def _optimize_decomposed_reduce(
+        self,
+        decomposition_result: Dict[str, Any],
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Optimize a decomposed reduce operation.
+
+        This method performs the following steps:
+        1. Group the input data by the sub-group key.
+        2. Optimize the first reduce operation.
+        3. Run the optimized first reduce operation on all groups.
+        4. Optimize the second reduce operation using the results of the first.
+        5. Run the optimized second reduce operation.
+
+        Args:
+            decomposition_result (Dict[str, Any]): The result of the decomposition evaluation.
+            op_config (Dict[str, Any]): The original reduce operation configuration.
+            input_data (List[Dict[str, Any]]): The input data for the reduce operation.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the list of optimized configurations
+            for both reduce operations and the final output of the second reduce operation.
+        """
+        sub_group_key = decomposition_result["sub_group_key"]
+        first_reduce_prompt = decomposition_result["first_reduce_prompt"]
+        second_reduce_prompt = decomposition_result["second_reduce_prompt"]
+
+        # TODO: figure out whether we need to insert a resolver here or not
+
+        first_reduce_config = op_config.copy()
+        first_reduce_config["prompt"] = first_reduce_prompt
+        first_reduce_config["reduce_key"] = sub_group_key
+        first_reduce_config["pass_through"] = True
+
+        first_optimized_configs, first_outputs = self.optimize(
+            first_reduce_config,
+            input_data,
+        )
+
+        # Optimize second reduce operation
+        second_reduce_config = op_config.copy()
+        second_reduce_config["prompt"] = second_reduce_prompt
+        second_reduce_config["pass_through"] = True
+
+        second_optimized_configs, second_outputs = self.optimize(
+            second_reduce_config, first_outputs
+        )
+
+        # Combine optimized configs and return with final output
+        all_optimized_configs = first_optimized_configs + second_optimized_configs
+
+        return all_optimized_configs, second_outputs
+
+    def _evaluate_decomposition(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Evaluate whether decomposing the reduce operation would be beneficial.
+
+        This method queries the LLM to determine if the reduce operation should be decomposed
+        into multiple steps based on the input data structure and the reduce prompt.
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the decomposition decision and details.
+        """
+        system_prompt = (
+            "You are an AI assistant tasked with optimizing data processing pipelines."
+        )
+
+        # Sample a subset of input data for analysis
+        sample_size = min(10, len(input_data))
+        sample_input = random.sample(input_data, sample_size)
+
+        # Get all keys from the input data
+        all_keys = set().union(*(item.keys() for item in sample_input))
+        reduce_key = op_config["reduce_key"]
+        other_keys = [key for key in all_keys if key != reduce_key]
+
+        # See if there's an input schema and constraint the sample_input to that schema
+        input_schema = op_config.get("input", {}).get("schema", {})
+        if input_schema:
+            sample_input = [
+                {key: item[key] for key in input_schema} for item in sample_input
+            ]
+
+        # Create a sample of values for other keys
+        sample_values = {
+            key: list(set(str(item.get(key))[:50] for item in sample_input))[:5]
+            for key in other_keys
+        }
+
+        prompt = f"""Analyze the following reduce operation and determine if it should be decomposed into multiple steps:
+
+        Reduce Operation Prompt:
+        ```
+        {op_config['prompt']}
+        ```
+
+        Reduce Key: {reduce_key}
+        Other Keys: {', '.join(other_keys)}
+
+        Sample values for other keys:
+        {json.dumps(sample_values, indent=2)}
+
+        Based on this information, determine if it would be beneficial to decompose this reduce operation into multiple steps. Consider the following:
+
+        1. Is there a natural hierarchy in the data (e.g., country -> state -> city), and a key at a finer level of granularity than the reduce key?
+        2. Is the reduce key some form of id, and there are many different types of inputs for that id?
+        3. Does the prompt implicitly ask for sub-grouping (e.g., "summarize policies by state, then by country")?
+        4. Would splitting the operation improve accuracy (i.e., make sure information isn't lost when reducing)?
+
+        If decomposition is recommended, suggest a two-step reduce process:
+        1. A sub-group key to use for the first reduce operation
+        2. A prompt for the first reduce operation
+        3. A prompt for the second (final) reduce operation
+        
+        For the reduce operation prompts, you should only minimally modify the original prompt. The prompts should be Jinja templates, and the only variables they can access are the `reduce_key` and `values` variables.
+
+        Provide your analysis in the following format:
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "should_decompose": {"type": "boolean"},
+                "explanation": {"type": "string"},
+                "sub_group_key": {"type": "string"},
+                "first_reduce_prompt": {"type": "string"},
+                "second_reduce_prompt": {"type": "string"},
+            },
+            "required": ["should_decompose", "explanation"],
+        }
+
+        response = self.llm_client.generate(
+            [{"role": "user", "content": prompt}],
+            system_prompt,
+            parameters,
+        )
+        result = json.loads(response.choices[0].message.content)
+
+        return result
 
     def _determine_value_sampling(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]

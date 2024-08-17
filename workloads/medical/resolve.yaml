@@ -20,9 +20,9 @@ operations:
       Extract and list all medications mentioned in the transcript.
       If no medications are mentioned, return an empty list.
 
-  explode_medications:
-    type: explode
-    explode_key: medication
+  unnest_medications:
+    type: unnest
+    unnest_key: medication
 
   resolve_medications:
     type: resolve
@@ -50,7 +50,7 @@ pipeline:
       input: transcripts
       operations:
         - extract_medications
-        - explode_medications
+        - unnest_medications
         - resolve_medications
 
   output:

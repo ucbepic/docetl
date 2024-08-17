@@ -146,9 +146,9 @@ operations:
           - title: "To Kill a Mockingbird"
             summary: "Set in the 1930s Alabama, the novel follows Scout Finch as she learns about injustice when her father defends a black man falsely accused of a crime. It explores themes of racial inequality, moral growth, and the loss of innocence."
 
-  explode_summaries:
-    type: explode
-    explode_key: summaries
+  unnest_summaries:
+    type: unnest
+    unnest_key: summaries
 
   genre_summary:
     type: reduce
@@ -268,7 +268,7 @@ pipeline:
         - resolve_genres
         - is_fiction
         - generate_summaries
-        - explode_summaries
+        - unnest_summaries
         - genre_summary
 
     - name: author_analysis

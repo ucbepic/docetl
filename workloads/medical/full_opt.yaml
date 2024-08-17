@@ -4,15 +4,16 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  explode_medications:
-    explode_key: medication
-    name: explode_medications
-    type: explode
+  unnest_medications:
+    unnest_key: medication
+    name: unnest_medications
+    type: unnest
   extract_medications:
     output:
       schema:
         medication: list[str]
-    prompt: 'Analyze the following transcript of a conversation between a doctor and
+    prompt:
+      "Analyze the following transcript of a conversation between a doctor and
       a patient:
 
 
@@ -22,13 +23,13 @@ operations:
       Extract and list all medications and treatments mentioned in the transcript,
       including non-prescription recommendations such as supplements. Each entry should
       include the most complete available information, such as dosage, whenever specified.
-      If no medications or treatments are mentioned, return an empty list.'
+      If no medications or treatments are mentioned, return an empty list."
     type: map
   resolve_medications:
     blocking_keys:
-    - medication
+      - medication
     blocking_threshold: 0.5253
-    comparison_prompt: 'Compare the following two medication entries:
+    comparison_prompt: "Compare the following two medication entries:
 
       Entry 1: {{ input1.medication }}
 
@@ -37,12 +38,12 @@ operations:
 
       Are these medications likely to be the same or closely related?
 
-      '
+      "
     embedding_model: text-embedding-3-small
     output:
       schema:
         medication: str
-    resolution_prompt: 'Given the following matched medication entries:
+    resolution_prompt: "Given the following matched medication entries:
 
       {% for entry in matched_entries %}
 
@@ -55,16 +56,16 @@ operations:
       name should be a standardized, widely recognized medication name that best represents
       all matched entries.
 
-      '
+      "
     type: resolve
 pipeline:
   output:
     path: extracted_medical_info.json
     type: file
   steps:
-  - input: transcripts
-    name: medical_info_extraction
-    operations:
-    - extract_medications
-    - explode_medications
-    - resolve_medications
+    - input: transcripts
+      name: medical_info_extraction
+      operations:
+        - extract_medications
+        - unnest_medications
+        - resolve_medications

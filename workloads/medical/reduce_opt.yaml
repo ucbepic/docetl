@@ -1,13 +1,14 @@
 datasets:
   deduped_meds:
-    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/exploded_and_deduped_meds.json
+    path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/unnestd_and_deduped_meds.json
     type: file
 default_model: gpt-4o-mini
 operations:
   summarize_medication_contexts:
     commutative: true
     fold_batch_size: 5
-    fold_prompt: '{"fold_prompt":"Continue analyzing additional doctor-patient transcripts
+    fold_prompt:
+      '{"fold_prompt":"Continue analyzing additional doctor-patient transcripts
       where the medication \"{{ reduce_key }}\" is mentioned. Update the summary with
       the new information:\n\nExisting Summary:\n{{ output.summary }}\n\nNew Transcripts
       Analysis:\n\n{% for item in values %}\nTranscript {{ loop.index }}:\n{{ item.src
@@ -23,7 +24,8 @@ operations:
     output:
       schema:
         summary: str
-    prompt: 'Analyze the following doctor-patient transcripts where the medication
+    prompt:
+      'Analyze the following doctor-patient transcripts where the medication
       "{{ reduce_key }}" is mentioned:
 
 
@@ -58,7 +60,7 @@ pipeline:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/medication_context_summaries.json
     type: file
   steps:
-  - input: deduped_meds
-    name: medication_context_summarization
-    operations:
-    - summarize_medication_contexts
+    - input: deduped_meds
+      name: medication_context_summarization
+      operations:
+        - summarize_medication_contexts

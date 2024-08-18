@@ -44,7 +44,7 @@ TODO:
   - [x] Only compare the plans that are highest scoring
 - [x] Support unnesting
 - [x] Reduce operator: support reduce keys as list
-- [ ] Refactor map optimizer
+- [x] Refactor map optimizer
 - [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 16 & 17 & 18)
   - [x] In map optimizer: if the submap output is a list, then we should add an unnest operation
   - [x] In reduce optimizer: query agent if we should drill-down / do a subreduce

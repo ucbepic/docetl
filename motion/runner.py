@@ -139,7 +139,7 @@ class DSLRunner:
             with open(output_config["path"], "w") as file:
                 json.dump(data, file, indent=2)
             self.console.log(
-                f"[bold green]💾 Output saved to {output_config['path']}[/bold green]"
+                f"[green italic]💾 Output saved to {output_config['path']}[/green italic]"
             )
         else:
             raise ValueError(f"Unsupported output type: {output_config['type']}")

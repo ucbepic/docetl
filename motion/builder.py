@@ -876,14 +876,10 @@ class Optimizer:
         with open(self.optimized_config_path, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False)
             self.console.log(
-                f"[bold green]💾 Optimized config saved to {self.optimized_config_path}[/bold green]"
+                f"[green italic]💾 Optimized config saved to {self.optimized_config_path}[/green italic]"
             )
-
-        self.console.log(
-            f"[green italic]Optimized config saved to {self.optimized_config_path}[/green italic]"
-        )
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/reduce.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/map.yaml", model="gpt-4o")
     optimizer.optimize()

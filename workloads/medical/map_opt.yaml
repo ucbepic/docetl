@@ -4,39 +4,68 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  extract_medical_info:
-    gleaning:
-      num_rounds: 1
-      validation_prompt: '1. Does the output accurately capture all medications, dosages,
-        and symptoms mentioned in the provided transcript?
+  split_extract_medical_info:
+    chunk_size: 1002
+    peripheral_chunks:
+      previous:
+        tail:
+          count: 1
+    split_key: src
+    summary_model: gpt-4o-mini
+    summary_prompt: 'Extract key information and summarize the following chunk to
+      aid in contextual understanding:
 
-        2. Are there any relevant instances of medications, dosages, or symptoms in
-        the transcript that were not included in the output?
 
-        3. Is the information in the output presented in a consistent and correct
-        format as specified in the task description?
+      {{ chunk_content }}
 
-        4. Are there any discrepancies or inaccuracies in the extracted information
-        compared to the transcript?
 
-        5. Could the quality of the output be enhanced by a more thorough analysis
-        of the input text?'
+      Identify and list:
+
+      1. Any medications mentioned, along with dosages if available.
+
+      2. Symptoms described by the patient.
+
+      3. Relevant medical history or context that might assist in understanding the
+      ongoing conversation. Focus on details that will aid in applying the subprompt
+      to subsequent chunks.'
+    type: split
+  submap_extract_medical_info:
+    model: gpt-4o-mini
     output:
       schema:
         medications: 'list[{medication: str, dosage: str, symptom: str}]'
-    prompt: 'Analyze the following transcript of a conversation between a doctor and
-      a patient:
+    prompt: 'Analyze the following conversation snippet:
 
 
-      {{ input.src }}
+      {{ input.chunk_content }}
 
 
-      Extract and list all medications, dosages, and symptoms mentioned in the transcript.
-
-      If a piece of information is not found, return an empty list for that category.
-
-      '
+      List all medications, dosages, and symptoms mentioned. Only process the main
+      chunk.'
     type: map
+  subreduce_extract_medical_info:
+    commutative: true
+    input:
+      schema:
+        medications: 'list[{medication: str, dosage: str, symptom: str}]'
+    model: gpt-4o-mini
+    output:
+      schema:
+        medications: 'list[{medication: str, dosage: str, symptom: str}]'
+    pass_through: true
+    prompt: 'Combine the following extracted data from various chunks to form a complete
+      list of all medications, their dosages, and associated symptoms mentioned in
+      the conversation:
+
+
+      {{ values }}'
+    reduce_key:
+    - document_id
+    type: reduce
+  unnest_medications_extract_medical_info:
+    keep_empty: true
+    type: unnest
+    unnest_key: medications
 pipeline:
   output:
     path: extracted_medical_info.json
@@ -45,4 +74,7 @@ pipeline:
   - input: transcripts
     name: medical_info_extraction
     operations:
-    - extract_medical_info
+    - split_extract_medical_info
+    - submap_extract_medical_info
+    - unnest_medications_extract_medical_info
+    - subreduce_extract_medical_info

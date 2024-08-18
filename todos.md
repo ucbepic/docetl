@@ -45,12 +45,16 @@ TODO:
 - [x] Support unnesting
 - [x] Reduce operator: support reduce keys as list
 - [x] Refactor map optimizer
+- [x] In map optimizer, when creating a split, add a uuid to each record being split (instead of relying on some doc id)
 - [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 16 & 17 & 18)
   - [x] In map optimizer: if the submap output is a list, then we should add an unnest operation
   - [x] In reduce optimizer: query agent if we should drill-down / do a subreduce
+  - [x] In map optimizer: prune the chunk size plans that don't give individually good results for the chunks
+  - [ ] In map optimizer: optimize the reduce operator for each chunk size plan
+  - [ ] In reduce optimizer: synthesize resolver if need be
   - [ ] In reduce optimizer: if agent suggests drill-down, see if we need to add a map to create the subreduce keys, or the subreduce key already exists
-  - [ ] In reduce optimizer: synthesize resolver if need be, and make the reduce key a list of the keys
 - [ ] Operator reordering (Aug 19 & 20)
+  - [ ] support equivalence: map -> unnest -> reduce might be same as split -> gather -> map -> unnest -> reduce (no need to have a reduce right after map)
 - [ ] Support retries in the optimizers
 - [ ] Run tests in CI
 - [ ] Write tests for optimizers

@@ -331,25 +331,32 @@ class Evaluator:
 
         system_prompt = "You are an AI assistant tasked with evaluating the quality of data processing outputs."
         output_schema_keys = op_config["output"]["schema"].keys()
-        document_id = input_data[element_idx]["document_id"]
+        document_id = input_data[element_idx]["_map_opt_id"]
         input_elem = input_data[element_idx]
         output_elem = [
-            item for item in output_data if item["document_id"] == document_id
+            item for item in output_data if item["_map_opt_id"] == document_id
         ][0]
         output_elem = {key: output_elem[key] for key in output_schema_keys}
 
+        variables_in_prompt = extract_jinja_variables(op_config["prompt"])
+        variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
+
+        # Filter input_data to only include relevant variables
+        input_elem = {key: input_elem[key] for key in variables_in_prompt}
+
         prompt = f"""
+        Validation Prompt:
         {validator_prompt}
 
         Input and Output Data Sample:
         {json.dumps({"input": input_elem, "output": output_elem}, indent=2)}
 
-        Based on the validator prompt and the input-output data samples, assess the quality of the output.
+        Based on the validation prompt and the input-output data sample, assess the quality of the output.
         Categorize the quality into one of these four categories:
-        1. "Unsatisfactory": The output failed to meet any of the validator prompt requirements.
-        2. "Partially Satisfactory": The output met some of the validator prompt requirements but not all.
-        3. "Mostly Satisfactory": The output met most of the validator prompt requirements but has some room for improvement.
-        4. "Satisfactory": The output fully met the validator prompt requirements.
+        1. "Unsatisfactory": The output failed to meet any of the validation prompt requirements.
+        2. "Partially Satisfactory": The output met some of the validation prompt requirements but not all.
+        3. "Mostly Satisfactory": The output met most of the validation prompt requirements but has some room for improvement.
+        4. "Satisfactory": The output fully met the validation prompt requirements.
 
         Provide your response in the following format:
         """

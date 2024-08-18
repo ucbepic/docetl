@@ -287,6 +287,7 @@ Required parameters:
 
 Optional parameters:
 
+- `chunk_group_id_field`: The name of a new field where a randomly generated unique ID for each split record will be stored. All chunks from the same original record will share this generated ID.
 - `main_chunk_start`: A string to prefix the main chunk content (default: "<MAIN_CHUNK>"). Only used when there are peripheral chunks.
 - `main_chunk_end`: A string to suffix the main chunk content (default: "</MAIN_CHUNK>"). Only used when there are peripheral chunks.
 - `peripheral_chunks`: A dictionary specifying how to handle chunks before and after the current chunk.

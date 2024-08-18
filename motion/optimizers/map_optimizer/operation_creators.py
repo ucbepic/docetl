@@ -56,6 +56,7 @@ class OperationCreator:
             "type": "split",
             "name": name,
             "split_key": split_key,
+            "chunk_group_id_field": f"{op_config['name']}_chunk_group_id",
             "chunk_size": chunk_size,
             "peripheral_chunks": {},
             "summary_prompt": summary_prompt,
@@ -121,7 +122,7 @@ class OperationCreator:
         return {
             "type": "reduce",
             "name": name,
-            "reduce_key": "document_id",
+            "reduce_key": f"{op_config['name']}_chunk_group_id",
             "input": op_config["output"],  # subselect keys
             "prompt": combine_prompt,
             "model": (

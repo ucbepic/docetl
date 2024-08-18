@@ -171,7 +171,7 @@ class MapOptimizer:
 
         # Generate chunk size plans
         chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
-            op_config, input_data
+            op_config, input_data, validator_prompt
         )
 
         # Generate gleaning plans

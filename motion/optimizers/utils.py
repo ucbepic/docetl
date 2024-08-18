@@ -36,10 +36,10 @@ def extract_jinja_variables(template_string: str) -> List[str]:
     # Combine both sets of variables
     all_variables = variables.union(regex_variables)
 
+    # Special-case: remove "input"
+    all_variables.discard("input")
+
     return list(all_variables)
-
-
-SUPPORTED_OPS = ["map"]
 
 
 class LLMClient:

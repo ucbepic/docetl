@@ -1,6 +1,8 @@
 import copy
 import json
+import random
 from typing import Callable, Dict, Any, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from rich.console import Console
 
@@ -25,14 +27,20 @@ class PlanGenerator:
         self.llm_client = llm_client
         self.console = console
         self.operation_creator = OperationCreator(config)
-        self.config_generator = ConfigGenerator(llm_client, console)
+        self.config_generator = ConfigGenerator(
+            llm_client, console, config, max_threads
+        )
         self._run_operation = run_operation
         self.prompt_generator = PromptGenerator(
             llm_client, console, config, max_threads
         )
+        self.max_threads = max_threads
 
     def _generate_chunk_size_plans(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        validator_prompt: str,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Generate plans with different chunk sizes for the given operation.
@@ -44,6 +52,7 @@ class PlanGenerator:
         Args:
             op_config (Dict[str, Any]): The configuration of the operation.
             input_data (List[Dict[str, Any]]): The input data for the operation.
+            validator_prompt (str): The prompt used for validating the operation's output.
 
         Returns:
             Dict[str, List[Dict[str, Any]]]: A dictionary of plans, where each key
@@ -152,6 +161,8 @@ class PlanGenerator:
         )
         self.console.log(info_extraction_prompt)
 
+        # Synthesize the reduce operation
+
         sample_output = copy.deepcopy(input_data)
         max_plan = copy.deepcopy(base_operations)
 
@@ -196,7 +207,16 @@ class PlanGenerator:
             )
 
             for peripheral_config in peripheral_configs:
-                plan = copy.deepcopy(base_operations)
+                # Create plan name
+                plan_name = f"chunk_size_{chunk_size}_peripheral_"
+                if peripheral_config:
+                    for direction in ["previous", "next"]:
+                        if direction in peripheral_config:
+                            for part, details in peripheral_config[direction].items():
+                                plan_name += f"{direction}_{part}_{details.get('count', '')}_{details.get('type', 'full')}_"
+                else:
+                    plan_name += "none"
+                plan_name = plan_name.rstrip("_")
 
                 split_op = self.operation_creator.create_split_operation(
                     op_config,
@@ -210,18 +230,48 @@ class PlanGenerator:
                     op_config,
                     split_result["subprompt"] + " Only process the main chunk.",
                 )
+
+                # See if we should prune away this plan because it doesn't pass validation
+                # Run the plan on a sample of 2 docs in the input data
+                sample_size = min(2, len(input_data))
+                sample_input = copy.deepcopy(random.sample(input_data, sample_size))
+
+                for op in base_operations:
+                    sample_input = self._run_operation(op, sample_input)
+
+                split_output = self._run_operation(split_op, sample_input)
+                map_output = self._run_operation(map_op, split_output)
+
+                # Evaluate the output using the validator prompt
+                plan_evaluation_score = self._evaluate_partial_plan_output(
+                    plan_name,
+                    op_config,
+                    split_output,
+                    map_output,
+                    split_result["subprompt"] + " Only process the main chunk.",
+                    validator_prompt,
+                )
+
+                # Log the evaluation score for this plan
+                self.console.log(
+                    f"[bold]Evaluation score for {plan_name}:[/bold] {plan_evaluation_score}"
+                )
+
+                if plan_evaluation_score >= 0.7:  # TODO: make this a parameter
+                    self.console.log(
+                        f"Keeping configuration: chunk_size={chunk_size}, peripheral={peripheral_config}"
+                    )
+                else:
+                    self.console.log(
+                        f"Pruning configuration: chunk_size={chunk_size}, peripheral={peripheral_config}"
+                    )
+                    continue
+
                 unnest_ops = self.operation_creator.create_unnest_operations(op_config)
 
+                plan = copy.deepcopy(base_operations)
                 plan.extend([split_op, map_op] + unnest_ops + [reduce_op])
-                plan_name = f"chunk_size_{chunk_size}_peripheral_"
-                if peripheral_config:
-                    for direction in ["previous", "next"]:
-                        if direction in peripheral_config:
-                            for part, details in peripheral_config[direction].items():
-                                plan_name += f"{direction}_{part}_{details.get('count', '')}_{details.get('type', 'full')}_"
-                else:
-                    plan_name += "none"
-                plan_name = plan_name.rstrip("_")
+
                 plans[plan_name] = plan
 
         return plans
@@ -248,9 +298,9 @@ class PlanGenerator:
             "You are an AI assistant helping to process a super long document."
         )
 
-        user_prompt = f"""Given the following subprompt and two consecutive sample chunks, create an info_extraction_prompt that will summarize each chunk and extract key information from it. This extracted information will be used as context when applying the subprompt to subsequent chunks.
+        user_prompt = f"""Given the following task prompt and two example consecutive chunks for context, create a sentence that will guide the summarization of each chunk to be more relevant to the task. The chunks will then be summarized and appended to the task prompt when performing the task, to maintain as much context as possible.
 
-        Subprompt:
+        Task prompt:
         {subprompt}
 
         Sample Chunk 1:
@@ -258,21 +308,22 @@ class PlanGenerator:
 
         Sample Chunk 2:
         {sample_chunk_2}
-        
-        For example, the summary and information extracted from sample chunk 1 will be used as context in the subprompt, along with sample chunk 2's text, when processing sample chunk 2.
 
-        The info_extraction_prompt should:
-        1. Identify and extract the most relevant information from the chunk that might be useful for running the subprompt on subsequent chunks.
-        2. Be concise and focused on key details that provide context.
-        3. Be a Jinja2 template, using the variable {{ chunk_content }} to represent the chunk content to extract information from.
+        Your task is to create a single sentence that will be appended to the following base prompt:
+        "Summarize the following chunk: {{{{ chunk_content }}}}\n\n"
 
-        Provide your info_extraction_prompt as a string.
+        This sentence should:
+        1. Guide the summarization to focus on information relevant to the task prompt.
+        2. Be concise and specific to the task at hand.
+        3. Ensure the summary will be useful for providing context when processing subsequent chunks.
+
+        Provide your guiding sentence as a string.
         """
 
         parameters = {
             "type": "object",
-            "properties": {"info_extraction_prompt": {"type": "string"}},
-            "required": ["info_extraction_prompt"],
+            "properties": {"guiding_sentence": {"type": "string"}},
+            "required": ["guiding_sentence"],
         }
 
         response = self.llm_client.generate(
@@ -280,7 +331,116 @@ class PlanGenerator:
         )
 
         result = json.loads(response.choices[0].message.content)
-        return result["info_extraction_prompt"]
+        info_extraction_prompt = f"Summarize the following chunk: {{{{ chunk_content }}}}\n\n{result['guiding_sentence']}"
+
+        return info_extraction_prompt
+
+    def _evaluate_partial_plan_output(
+        self,
+        plan_name: str,
+        op_config: Dict[str, Any],
+        split_op_output: List[Dict[str, Any]],
+        map_op_output: List[Dict[str, Any]],
+        task_prompt: str,
+        validator_prompt: str,
+    ) -> float:
+        total_score = 0
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = []
+            for i in range(len(split_op_output)):
+                future = executor.submit(
+                    self._assess_output_quality,
+                    plan_name,
+                    op_config,
+                    split_op_output,
+                    map_op_output,
+                    i,
+                    task_prompt,
+                    validator_prompt,
+                )
+                futures.append(future)
+
+            score_map = {
+                "Satisfactory": 1.0,
+                "Mostly Satisfactory": 0.7,
+                "Partially Satisfactory": 0.4,
+                "Unsatisfactory": 0.0,
+            }
+
+            total_score = sum(
+                score_map.get(future.result()["quality_category"], 0)
+                for future in as_completed(futures)
+            )
+
+        return total_score / len(split_op_output)
+
+    def _assess_output_quality(
+        self,
+        plan_name: str,
+        op_config: Dict[str, Any],
+        split_op_output: List[Dict[str, Any]],
+        map_op_output: List[Dict[str, Any]],
+        element_idx: int,
+        task_prompt: str,
+        validator_prompt: str,
+    ) -> Dict[str, Any]:
+        system_prompt = "You are an AI assistant tasked with evaluating the quality of data processing outputs."
+        output_schema_keys = op_config["output"]["schema"].keys()
+        input_elem = split_op_output[element_idx]
+        output_elem = map_op_output[element_idx]
+        output_elem = {key: output_elem[key] for key in output_schema_keys}
+
+        variables_in_prompt = extract_jinja_variables(task_prompt)
+        variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
+        input_elem = {key: input_elem[key] for key in variables_in_prompt}
+
+        prompt = f"""Task Prompt:
+        {task_prompt}
+
+        Validation Prompt:
+        {validator_prompt}
+
+        Input and Output Data Sample:
+        {json.dumps({"input": input_elem, "output": output_elem}, indent=2)}
+
+        Important Note:
+        The input provided is a chunk of the entire input document, and the task prompt was applied specifically to this chunk. The input may contain some contextual information around the chunk. Your task is to evaluate whether the output meets all the validation requirements pertaining to the context provided in this chunk, not the contextual information or the full document.
+
+        Based on the validation prompt and the input-output data sample, assess the quality of the output for this specific chunk.
+        Categorize the quality into one of these four categories:
+        1. "Unsatisfactory": The output failed to meet any of the validation prompt requirements for the given chunk.
+        2. "Partially Satisfactory": The output met some of the validation prompt requirements but not all for the given chunk.
+        3. "Mostly Satisfactory": The output met most of the validation prompt requirements but has some room for improvement for the given chunk.
+        4. "Satisfactory": The output fully met the validation prompt requirements for the given chunk.
+        
+        Remember, only consider the main chunk content when evaluating the output, not any information surrounding the chunk.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "quality_category": {
+                    "type": "string",
+                    "enum": [
+                        "Unsatisfactory",
+                        "Partially Satisfactory",
+                        "Mostly Satisfactory",
+                        "Satisfactory",
+                    ],
+                },
+                "reason": {"type": "string"},
+            },
+            "required": ["quality_category", "reason"],
+        }
+
+        response = self.llm_client.generate(
+            [
+                {"role": "user", "content": prompt},
+            ],
+            system_prompt,
+            parameters,
+        )
+        return json.loads(response.choices[0].message.content)
 
     def _generate_gleaning_plans(
         self,

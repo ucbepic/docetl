@@ -3,13 +3,22 @@ import random
 import json
 from typing import Dict, Any, List
 from motion.optimizers.utils import extract_jinja_variables, LLMClient
+from motion.optimizers.map_optimizer.utils import generate_and_validate_prompt
 from rich.console import Console
 
 
 class ConfigGenerator:
-    def __init__(self, llm_client: LLMClient, console: Console):
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        console: Console,
+        config: Dict[str, Any],
+        max_threads: int,
+    ):
         self.llm_client = llm_client
         self.console = console
+        self.config = config
+        self.max_threads = max_threads
 
     # Configuration and analysis methods
 
@@ -288,8 +297,16 @@ class ConfigGenerator:
             "required": ["metadata_prompt", "output_schema"],
         }
 
-        result = self._generate_and_validate_prompt(
-            base_prompt, system_prompt, parameters, op_config, is_metadata=True
+        result = generate_and_validate_prompt(
+            self.llm_client,
+            base_prompt,
+            system_prompt,
+            parameters,
+            op_config,
+            is_metadata=True,
+            config=self.config,
+            max_threads=self.max_threads,
+            console=self.console,
         )
         result["needs_metadata"] = True
         return result

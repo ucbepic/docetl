@@ -140,6 +140,10 @@ class SplitOperation(BaseOperation):
             except Exception as e:
                 raise ValueError(f"Invalid Jinja2 template for 'summary_prompt': {e}")
 
+        if "chunk_group_id_field" in self.config:
+            if not isinstance(self.config["chunk_group_id_field"], str):
+                raise TypeError("'chunk_group_id_field' must be a string")
+
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
         Execute the split operation on the provided input data.
@@ -192,11 +196,22 @@ class SplitOperation(BaseOperation):
             chunks = []
 
             # Split tokens into chunks
+            doc_id = str(uuid.uuid4())
             for i in range(0, len(tokens), chunk_size):
                 chunk_tokens = tokens[i : i + chunk_size]
                 chunk = encoder.decode(chunk_tokens)
-                chunk_id = f"chunk_{i//chunk_size}_{str(uuid.uuid4())[:8]}"
-                chunks.append({"chunk_id": chunk_id, "chunk_content": chunk})
+
+                chunk_id = f"chunk_{i//chunk_size}_{doc_id}"
+                if "chunk_group_id_field" in self.config:
+                    chunks.append(
+                        {
+                            "chunk_id": chunk_id,
+                            "chunk_content": chunk,
+                            self.config["chunk_group_id_field"]: doc_id,
+                        }
+                    )
+                else:
+                    chunks.append({"chunk_id": chunk_id, "chunk_content": chunk})
 
             return item, chunks
 
@@ -251,16 +266,23 @@ class SplitOperation(BaseOperation):
                                 next_chunks,
                                 main_chunk_start,
                                 main_chunk_end,
+                                len(chunks),
                             ),
                             "_chunk_intermediates": chunk_intermediates,
                         }
                     )
+                    if "chunk_group_id_field" in self.config:
+                        result[self.config["chunk_group_id_field"]] = chunk[
+                            self.config["chunk_group_id_field"]
+                        ]
 
                     results.append(result)
 
         return results, cost
 
-    def process_peripheral_chunks(self, chunks, config, reverse=False):
+    def process_peripheral_chunks(
+        self, chunks: List[Dict], config: Dict, reverse=False
+    ):
         """
         Process peripheral chunks based on the provided configuration.
 
@@ -304,6 +326,7 @@ class SplitOperation(BaseOperation):
         tail_partial = min(tail_config.get("count", 0) - tail_count, 1)
         tail_start = max(head_count, total_chunks - tail_count)
         tail_chunks = []
+
         for i in range(tail_start, total_chunks):
             tail_chunks.append(
                 self.process_chunk(chunks[i], tail_config.get("type", "full"), 1.0)
@@ -360,7 +383,12 @@ class SplitOperation(BaseOperation):
             return {**chunk, "summary": summary[: int(len(summary) * ratio)]}
         else:  # 'full' type
             content = chunk["chunk_content"]
-            return {**chunk, "chunk_content": content[: int(len(content) * ratio)]}
+            truncated_content = content[: int(len(content) * ratio)]
+            return {
+                key: (truncated_content if key == "chunk_content" else value)
+                for key, value in chunk.items()
+                if key != "summary"
+            }
 
     def summarize_chunk(self, chunk: Dict[str, str]) -> Tuple[str, float]:
         """
@@ -392,6 +420,7 @@ class SplitOperation(BaseOperation):
         next_chunks,
         main_chunk_start,
         main_chunk_end,
+        total_chunks,
     ):
         """
         Combine the main chunk with its peripheral chunks.
@@ -444,7 +473,6 @@ class SplitOperation(BaseOperation):
             combined_parts.append("--- End Next Context ---")
         else:
             # Show skipped tokens even if there are no next chunks
-            total_chunks = int(main_chunk["chunk_id"].split("_")[1])
             skipped_tokens = (
                 total_chunks - int(main_chunk["chunk_id"].split("_")[1])
             ) * self.config["chunk_size"]

@@ -4,68 +4,18 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  split_extract_medical_info:
-    chunk_size: 1002
-    peripheral_chunks:
-      previous:
-        tail:
-          count: 1
-    split_key: src
-    summary_model: gpt-4o-mini
-    summary_prompt: 'Extract key information and summarize the following chunk to
-      aid in contextual understanding:
-
-
-      {{ chunk_content }}
-
-
-      Identify and list:
-
-      1. Any medications mentioned, along with dosages if available.
-
-      2. Symptoms described by the patient.
-
-      3. Relevant medical history or context that might assist in understanding the
-      ongoing conversation. Focus on details that will aid in applying the subprompt
-      to subsequent chunks.'
-    type: split
-  submap_extract_medical_info:
-    model: gpt-4o-mini
+  extract_medical_info:
     output:
       schema:
         medications: 'list[{medication: str, dosage: str, symptom: str}]'
-    prompt: 'Analyze the following conversation snippet:
-
-
-      {{ input.chunk_content }}
-
-
-      List all medications, dosages, and symptoms mentioned. Only process the main
-      chunk.'
+    prompt: "Analyze the following transcript of a conversation between a doctor and\
+      \ a patient:\n\n{{ input.src }}\n\nExtract and list all the medications mentioned\
+      \ along with their dosages if provided. Also list any symptoms mentioned in\
+      \ the conversation, associating these with specific medications if applicable.\
+      \ For example, link medications like 'Epipen' with symptoms such as 'anaphylaxis.'\
+      \ Ensure that each category\u2014medications, dosages, and symptoms\u2014is\
+      \ included in the output as a list, even if some remain empty."
     type: map
-  subreduce_extract_medical_info:
-    commutative: true
-    input:
-      schema:
-        medications: 'list[{medication: str, dosage: str, symptom: str}]'
-    model: gpt-4o-mini
-    output:
-      schema:
-        medications: 'list[{medication: str, dosage: str, symptom: str}]'
-    pass_through: true
-    prompt: 'Combine the following extracted data from various chunks to form a complete
-      list of all medications, their dosages, and associated symptoms mentioned in
-      the conversation:
-
-
-      {{ values }}'
-    reduce_key:
-    - document_id
-    type: reduce
-  unnest_medications_extract_medical_info:
-    keep_empty: true
-    type: unnest
-    unnest_key: medications
 pipeline:
   output:
     path: extracted_medical_info.json
@@ -74,7 +24,4 @@ pipeline:
   - input: transcripts
     name: medical_info_extraction
     operations:
-    - split_extract_medical_info
-    - submap_extract_medical_info
-    - unnest_medications_extract_medical_info
-    - subreduce_extract_medical_info
+    - extract_medical_info

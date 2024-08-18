@@ -3,13 +3,12 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 """
 
 from typing import Dict, List, Any, Tuple, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from jinja2 import Template
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, parse_llm_response, call_llm_with_gleaning
-from motion.operations.utils import validate_output, rich_as_completed, RichLoopBar
+from motion.operations.utils import validate_output, RichLoopBar
 from litellm import completion_cost
-from rich.console import Console
 
 
 class MapOperation(BaseOperation):
@@ -107,17 +106,17 @@ class MapOperation(BaseOperation):
             futures = [executor.submit(_process_map_item, item) for item in input_data]
             results = []
             total_cost = 0
-            for future in rich_as_completed(
-                futures,
-                total=len(futures),
+            pbar = RichLoopBar(
+                range(len(futures)),
                 desc="Processing map items",
-                leave=True,
                 console=self.console,
-            ):
-                result, item_cost = future.result()
+            )
+            for i in pbar:
+                result, item_cost = futures[i].result()
                 if result is not None:
                     results.append(result)
                 total_cost += item_cost
+                pbar.update(i)
 
         return results, total_cost
 

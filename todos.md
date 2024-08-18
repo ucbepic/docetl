@@ -44,10 +44,8 @@ TODO:
   - [x] Only compare the plans that are highest scoring
 - [x] Support unnesting
 - [x] Reduce operator: support reduce keys as list
-- [ ] Support concatenating reduce instead of only LLM reduce
-- [ ] In map optimizer: combine/reduce should be either concatenate or LLM reduce, have the agent decide
 - [ ] Recursively optimize operations (e.g., reduces in maps) (Aug 16 & 17 & 18)
-  - [x] In map optimizer: if the submap output is a list, then we should add an unnest optimization
+  - [x] In map optimizer: if the submap output is a list, then we should add an unnest operation
   - [x] In reduce optimizer: query agent if we should drill-down / do a subreduce
   - [ ] In reduce optimizer: if agent suggests drill-down, see if we need to add a map to create the subreduce keys, or the subreduce key already exists
   - [ ] In reduce optimizer: synthesize resolver if need be, and make the reduce key a list of the keys

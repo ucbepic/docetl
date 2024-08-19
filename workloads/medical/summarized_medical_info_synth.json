@@ -1,482 +1,450 @@
 [
   {
-    "symptoms_summary": "Prilosec, a proton pump inhibitor, is commonly used to treat symptoms related to gastroesophageal reflux disease (GERD), such as heartburn and acid reflux. In this transcript, the patient mentions experiencing heartburn and indicates that it improved while taking Prilosec, although she subsequently stopped using it after a couple of weeks.",
-    "medication": "prilosec"
-  },
-  {
-    "symptoms_summary": "Cialis is a medication commonly used to treat erectile dysfunction and symptoms of benign prostatic hyperplasia (BPH). In the transcript, the patient is taking Cialis daily and mentions using it in conjunction with exercise, indicating its role in improving sexual performance and addressing issues related to hypogonadism, which can include erectile difficulties.",
-    "medication": "cialis"
-  },
-  {
-    "symptoms_summary": "Toprol (metoprolol) 50 milligrams daily is typically used to manage symptoms related to congestive heart failure, including fatigue, dizziness, and fluid retention. It can help regulate blood pressure and reduce heart strain, as seen in patients with low heart function and heart murmurs. The medication is also commonly prescribed for hypertension, angina, and to improve survival after a heart attack.",
-    "medication": "toprol 50 milligrams daily"
-  },
-  {
-    "symptoms_summary": "Synthroid, which contains levothyroxine, is primarily used to treat hypothyroidism. Common symptoms it helps manage include fatigue, weight gain, sensitivity to cold, constipation, dry skin, and hair loss. Synthroid works by replacing or supplementing the thyroid hormone in the body, which is essential for maintaining metabolism and energy levels.",
-    "medication": "synthroid"
-  },
-  {
-    "symptoms_summary": "Fluocinonide is typically used to treat symptoms associated with atopic eczema, particularly itching. In the transcript, the patient mentions using fluocinonide when her eczema gets really itchy, indicating that it helps manage the discomfort associated with this condition.",
+    "symptoms_summary": "Fluocinonide is typically used to manage symptoms of atopic eczema, which include intense itching and inflammation of the skin. The patient mentioned using fluocinonide when the eczema becomes very itchy, indicating its effectiveness in alleviating such symptoms.",
     "medication": "fluocinonide"
   },
   {
-    "symptoms_summary": "Olmesartan is primarily used to treat high blood pressure (hypertension). By relaxing blood vessels, it helps lower blood pressure and is typically prescribed to reduce the risk of cardiovascular complications associated with hypertension. In the provided transcript, the patient mentions taking olmesartan along with other medications due to his elevated blood pressure.",
-    "medication": "olmesartan"
-  },
-  {
-    "symptoms_summary": "Fish oil is commonly used to manage high cholesterol levels and support cardiovascular health. It is rich in omega-3 fatty acids, which are known to help reduce inflammation and support overall heart health. It may also aid in the management of joint pain and promote general wellness due to its anti-inflammatory properties.",
+    "symptoms_summary": "Fish oil is commonly used to support heart health, manage high cholesterol levels, and reduce inflammation. It is often taken for its omega-3 fatty acids, which can help lower triglyceride levels and may also assist in managing rheumatoid arthritis and other inflammatory conditions. Additionally, fish oil is believed to have potential benefits for brain health and mood regulation.",
     "medication": "fish oil"
   },
   {
-    "symptoms_summary": "Omeprazole is typically used to treat symptoms related to gastroesophageal reflux disease (GERD) and other conditions caused by excess stomach acid. In the transcripts, the patient reported ongoing issues with reflux, including vomiting in the mornings and abdominal pain, which suggests that omeprazole was prescribed to manage these symptoms. The patient also mentioned bloating and nausea, further indicating the medication's role in addressing digestive issues associated with acid reflux.",
-    "medication": "omeprazole"
-  },
-  {
-    "symptoms_summary": "Symbicort is typically used to treat asthma and chronic obstructive pulmonary disease (COPD). It helps manage symptoms such as wheezing, shortness of breath, and breathing difficulty, especially during periods of exacerbation such as pollen season or warm weather. In the transcripts, the patient mentions experiencing shortness of breath and wheezing due to asthma as symptoms being addressed with Symbicort.",
-    "medication": "Symbicort"
-  },
-  {
-    "symptoms_summary": "Crestor (rosuvastatin) is a statin medication commonly used to treat high cholesterol levels and reduce the risk of cardiovascular disease. Specific symptoms associated with its use are not directly mentioned in the provided transcript. However, it is generally prescribed to manage conditions related to elevated LDL (bad cholesterol) and triglycerides, which can lead to heart-related issues.",
-    "medication": "crestor"
-  },
-  {
-    "symptoms_summary": "The medication 'epipen' is commonly used to treat or manage symptoms associated with anaphylaxis, a severe allergic reaction that can include symptoms such as difficulty breathing, swelling of the throat, and a rapid or weak pulse. In the transcript, the patient mentions having a history of anaphylaxis and using an epipen as needed, indicating its role in emergency situations to counteract life-threatening allergic reactions.",
-    "medication": "epipen"
-  },
-  {
-    "symptoms_summary": "Buspar, also known as buspirone, is primarily used to manage anxiety symptoms. In the transcript, the patient reported that her anxiety was significantly improved after starting Buspar, especially after experiencing brutal anxiety episodes in previous months. The patient mentioned that anxiety would spike randomly and was linked to hormonal changes around her menstrual cycle, indicating that Buspar may help in stabilizing such anxiety symptoms. Overall, Buspar is commonly prescribed for generalized anxiety disorder (GAD) and is known to help reduce the physical and psychological symptoms associated with anxiety.",
-    "medication": "buspar"
-  },
-  {
-    "symptoms_summary": "Insulin is typically used to treat or manage symptoms related to diabetes, particularly to control high blood glucose levels. In the context of the transcript, the patient, who is diabetic and has been experiencing higher than normal blood sugar levels, highlights the importance of insulin in managing their condition. Insulin helps in regulating blood sugar levels, which is critical for preventing complications associated with diabetes, such as non-healing ulcers, neuropathy, and other long-term complications such as cardiovascular issues.",
-    "medication": "insulin"
-  },
-  {
-    "symptoms_summary": "Phexxi is a vaginal gel commonly used to prevent pregnancy. It functions as a spermicide, which means it is applied prior to intercourse to help block sperm from fertilizing an egg. The medication does not address any specific health symptoms but is utilized primarily as a contraceptive option for women.",
-    "medication": "Phexxi"
-  },
-  {
-    "symptoms_summary": "Cardura is typically used to treat and manage high blood pressure (hypertension) and symptoms associated with benign prostatic hyperplasia (BPH) in men. In the provided transcript, the patient exhibits symptoms of uncontrolled hypertension, including elevated blood pressure readings (as high as 170/90) and mild headaches primarily occurring when blood pressure is elevated. The patient's medical history indicates a struggle to control blood pressure despite treatment with other medications. Cardura may be prescribed to help lower blood pressure and improve overall cardiovascular health.",
-    "medication": "cardura"
-  },
-  {
-    "symptoms_summary": "Clopidogrel is an antiplatelet medication commonly used to reduce the risk of heart attack and stroke in patients with cardiovascular diseases. It helps prevent blood clots by inhibiting platelet aggregation, which is crucial for patients with conditions such as chronic heart failure, coronary artery disease, or who have had previous cardiovascular events. In the provided transcript, the patient is advised to stop taking clopidogrel before a scheduled knee surgery to reduce the risk of bleeding complications during and after the procedure.",
-    "medication": "clopidogrel"
-  },
-  {
-    "symptoms_summary": "Unithroid is typically used to treat hypothyroidism, a condition characterized by low thyroid hormone levels. Common symptoms associated with hypothyroidism include weight gain, fatigue, sensitivity to cold, constipation, dry skin, hair loss, muscle weakness, and depression. In the transcript, the patient mentions weight gain and thyroid issues, indicating that Unithroid is being considered for managing her thyroid condition.",
-    "medication": "Unithroid"
-  },
-  {
-    "symptoms_summary": "Robitussin is typically used to treat symptoms related to cough and respiratory infections. In the discussed transcript, the patient mentioned experiencing a lot of coughing, mucus production, shortness of breath, and a low-grade fever, which aligns with common indications for using Robitussin. The medication helps alleviate cough and expel mucus, making it suitable for managing the symptoms of lower respiratory tract infections.",
-    "medication": "robitussin"
-  },
-  {
-    "symptoms_summary": "Baby aspirin is commonly used to prevent cardiovascular diseases, particularly in individuals with a history of heart attacks, strokes, or those at high risk for developing these conditions. In the provided transcript, the patient, who has a history of heart disease and a prior heart attack, is advised to continue taking baby aspirin. It helps in reducing the risk of thrombus formation (blood clots) that can lead to serious complications such as heart attack or stroke.",
-    "medication": "baby aspirin"
-  },
-  {
-    "symptoms_summary": "The magnesium supplement is typically used to manage symptoms related to chronic heart conditions, particularly congestive heart failure (CHF) and diastolic dysfunction. Its use is aimed at stabilizing heart muscle function, especially when blood magnesium levels are found to be suboptimal. In this context, low magnesium levels can lead to exacerbated heart issues. Moreover, magnesium supplements may help in alleviating muscle cramps, which the patient experienced. Overall, magnesium is important in maintaining cardiac health and preventing complications associated with low magnesium levels.",
-    "medication": "magnesium supplement"
-  },
-  {
-    "symptoms_summary": "Betamethasone is typically used to treat inflammation and pain associated with conditions such as tendinitis, tenosynovitis, and other inflammatory joint diseases. In the context of the provided transcripts, it is specifically mentioned for managing post-traumatic inflammation, pain, and stiffness in a patient's finger with a partial tendon tear. It is a steroid that helps reduce swelling and inflammation, promoting better movement and recovery in affected areas.",
-    "medication": "betamethasone"
-  },
-  {
-    "symptoms_summary": "Aldactone, also known as spironolactone, is typically used to manage symptoms associated with heart failure, hypertension, and conditions related to fluid retention. In the context of this transcript, the patient has been diagnosed with newly reduced ejection fraction (35%) and moderate mitral regurgitation, indicating left ventricular dysfunction. Aldactone can help improve the heart's pumping function, reduce fluid retention, and lower blood pressure, thereby alleviating symptoms of heart failure and hypertension.",
-    "medication": "aldactone"
-  },
-  {
-    "symptoms_summary": "Taxol, also known as Paclitaxel, is commonly used in the treatment of various cancers, particularly ovarian cancer. It is often administered as part of combination chemotherapy following surgery to manage symptoms associated with cancer, such as tumor growth, localized pain, and involvement of lymph nodes. In the provided transcripts, specific symptoms related to the patient's ovarian cancer include severe pain, bleeding, constipation, and weight loss, which are managed through chemotherapy regimens including Taxol.",
-    "medication": "taxol"
-  },
-  {
-    "symptoms_summary": "The medication 'azo' is typically used to relieve symptoms associated with urinary tract infections (UTIs) and kidney stones, particularly pain, burning, and urgency during urination. In the transcripts, the patient does not specifically mention using 'azo', but they do describe experiencing back pain, blood in the urine, and some nausea, which are common symptoms that could warrant the use of AZO for symptomatic relief.",
-    "medication": "azo"
-  },
-  {
-    "symptoms_summary": "Eliquis (apixaban) is an anticoagulant medication commonly used to treat or prevent blood clots associated with conditions such as atrial fibrillation, deep vein thrombosis (DVT), and pulmonary embolism (PE). Although specific symptoms related to Eliquis are not discussed in the provided transcript, the medication is typically prescribed to reduce the risk of stroke and blood clots in patients with certain heart conditions.",
-    "medication": "eliquis"
-  },
-  {
-    "symptoms_summary": "Vitamin D3, or cholecalciferol, is commonly used to manage or prevent symptoms related to vitamin D deficiency, which can include fatigue, bone pain, muscle weakness, and risk of osteoporosis. In patients with elevated alkaline phosphatase levels, it may be used to support bone health. In the transcripts, while fatigue is mentioned, it is not specifically attributed to vitamin D3 deficiency. However, maintaining optimal vitamin D levels is generally associated with overall well-being and energy levels, as well as supporting immune function and cardiovascular health.",
-    "medication": "vitamin d3"
-  },
-  {
-    "symptoms_summary": "The iron supplement is commonly used to treat or manage symptoms related to iron deficiency anemia, which can include fatigue, weakness, pale skin, shortness of breath, dizziness, and cold hands and feet. In the context of this transcript, the patient had previous anemia but reported her hemoglobin level was doing well, indicating that the iron supplement may be effectively managing her symptoms related to this condition.",
-    "medication": "iron supplement"
-  },
-  {
-    "symptoms_summary": "Protonix (pantoprazole) 40 milligrams is typically used to treat conditions associated with excessive stomach acid, such as gastroesophageal reflux disease (GERD), erosive esophagitis caused by acid reflux, and Zollinger-Ellison syndrome. In the transcript, it is mentioned that the patient has a history of acid reflux, which is being managed with protonix. The patient's symptoms related to acid reflux were mentioned as being 'pretty good' except for dietary changes due to pain.",
-    "medication": "protonix 40 milligrams"
-  },
-  {
-    "symptoms_summary": "Dexamethasone is a corticosteroid commonly used to manage inflammation and suppress the immune response. In the provided transcript, the patient exhibits symptoms associated with a partial tear of the flexor tendon in the right index finger, including pain, swelling, inability to make a fist, and debilitating discomfort when driving. The doctor recommends avoiding dexamethasone due to the patient's past reaction (heart racing) and instead considers a different corticosteroid, betamethasone, for its efficacy in reducing pain and inflammation while encouraging movement of the affected finger.",
-    "medication": "dexamethasone"
-  },
-  {
-    "symptoms_summary": "The medication 'oral steroid' is typically used to treat or manage symptoms associated with respiratory conditions, particularly inflammation in the lungs. In the provided transcript, it is indicated that the patient has experienced recurrent lower respiratory infections, significant coughing, mucus production, shortness of breath, and the doctor's assessment points towards hypersensitivity pneumonitis (farmer's lung) due to exposure to hay. The oral steroid is prescribed to decrease the inflammation occurring in the patient's lungs and to help address these respiratory symptoms.",
-    "medication": "oral steroid"
-  },
-  {
-    "symptoms_summary": "CoQ10, or coenzyme Q10, is commonly used as a dietary supplement to support cardiovascular health, improve energy levels, and provide antioxidant benefits. It may help in managing conditions related to heart disease, high blood pressure, and mitochondrial disorders. Additionally, it is thought to assist with muscle pain and fatigue associated with certain medications, such as statins. However, specific symptoms related to CoQ10 use were not mentioned in the transcripts.",
-    "medication": "coq10"
-  },
-  {
-    "symptoms_summary": "Methylprednisolone is commonly used to treat inflammatory conditions and manage pain. In the context of the transcripts, it is utilized for treating pain associated with post-traumatic inflammation and tenosynovitis in the index finger following an injury. The patient experienced severe symptoms including swelling, inability to make a fist, and significant pain, leading to the discussion of steroid injections to reduce inflammation and improve mobility in the affected finger. The medication may also address itching, a side effect mentioned by the patient when using methylprednisolone previously.",
-    "medication": "methylprednisolone"
-  },
-  {
-    "symptoms_summary": "The medication 'Camila' is a form of birth control (progestin-only) commonly used to prevent pregnancy. In the provided transcript, the patient reported experiencing increased hunger and weight gain while taking Camila, which she noted improved after stopping the medication. Additionally, the patient's anxiety was discussed, with a linkage to hormonal changes influenced by the medication, but no specific symptoms linked to Camila itself were detailed beyond its contraceptive use.",
-    "medication": "camila"
-  },
-  {
-    "symptoms_summary": "Statins are commonly used to manage symptoms related to cardiovascular diseases, particularly by lowering cholesterol levels in the blood. They are used to reduce the risk of heart attacks and strokes by managing dyslipidemia (high cholesterol levels). Additionally, statins are indicated for patients with a history of heart diseases, such as coronary artery disease, to prevent further cardiovascular complications.",
+    "symptoms_summary": "Statins are typically used to manage high cholesterol and reduce the risk of cardiovascular disease. In the context of this transcript, the patient has a history of heart disease, including a heart attack and has been prescribed statins as part of their ongoing treatment plan to prevent further cardiac events and manage their coronary artery disease.",
     "medication": "statin"
   },
   {
-    "symptoms_summary": "Lortab 500, which contains hydrocodone and acetaminophen, is typically used to manage moderate to severe pain. In the provided transcript, it is prescribed to a patient experiencing severe right upper arm pain due to a proximal humerus fracture. The patient rates their pain as a nine out of ten, indicating significant discomfort. Lortab 500 is commonly utilized in situations like this to relieve pain following injuries or medical conditions that cause considerable pain.",
-    "medication": "Lortab 500"
-  },
-  {
-    "symptoms_summary": "Imitrex (sumatriptan) is typically used to treat and manage migraine headaches. The drug acts as a selective serotonin receptor agonist, helping to alleviate the symptoms associated with migraines, such as severe headache, light sensitivity, and nausea. In the transcripts, the patient reports being diligent with taking Imitrex for migraines and mentions having no issues related to migraine symptoms, indicating the medication's effectiveness in managing his migraine condition.",
-    "medication": "imitrex"
-  },
-  {
-    "symptoms_summary": "Carvedilol 25 milligrams is primarily used to manage symptoms related to heart failure, including shortness of breath, high blood pressure, and fluid retention. It helps improve heart function and regulate blood pressure, reducing the risk of complications associated with congestive heart failure.",
-    "medication": "carvedilol 25 milligrams"
-  },
-  {
-    "symptoms_summary": "The transcript does not explicitly mention the specific symptoms that elderberry fruit is used to treat or manage. However, elderberry fruit is commonly used as a dietary supplement for its potential benefits in boosting immune function, alleviating cold and flu symptoms, and providing antioxidants. It is often taken to help reduce the duration and severity of viral infections.",
-    "medication": "elderberry fruit"
-  },
-  {
-    "symptoms_summary": "Torsemide is commonly used to treat symptoms associated with chronic congestive heart failure, particularly in managing fluid retention (edema) and symptoms related to this condition. In the case of the patient, torsemide is utilized to address increased dyspnea (difficulty breathing) and to aid in weight loss due to fluid management. It is also used in conjunction with other medications to optimize cardiovascular health before surgical procedures.",
-    "medication": "torsemide"
-  },
-  {
-    "symptoms_summary": "Combivent is typically used to manage symptoms of chronic obstructive pulmonary disease (COPD), specifically aiding in issues related to breathing difficulties such as shortness of breath and wheezing. The patient in the transcript was diagnosed with COPD after experiencing increased shortness of breath during mild activities and a history of smoking. Combivent is an inhaler that helps open up the lungs, indicating its role in alleviating respiratory symptoms associated with COPD.",
-    "medication": "combivent"
-  },
-  {
-    "symptoms_summary": "Tramadol is typically used to treat moderate pain, as illustrated in the scenario with a patient suffering from a distal phalanx fracture of the middle finger following a vehicle accident. The medication can help manage pain associated with injuries such as fractures.",
-    "medication": "tramadol"
-  },
-  {
-    "symptoms_summary": "The nicotine patch is commonly used to help manage nicotine dependence and facilitate smoking cessation. It is designed to deliver a steady dose of nicotine through the skin to reduce withdrawal symptoms and cravings when individuals are attempting to quit smoking. In the transcripts, the patient's heavy smoking history, stress as a trigger for smoking, and past attempts to quit smoking (including cold turkey) highlight the need for support in overcoming these challenges. The doctor recommends using the nicotine patch starting from the patient's chosen quit date to aid in stopping smoking, improve long-term health outcomes, and address the patient's motivation to quit due to upcoming fatherhood.",
+    "symptoms_summary": "The nicotine patch is typically used to aid in smoking cessation by managing nicotine dependence. It helps alleviate withdrawal symptoms associated with quitting smoking, such as cravings, irritability, anxiety, and stress, which are often triggered during the quitting process. The patch delivers a controlled dose of nicotine, reducing the urge to smoke and helping individuals transition away from smoking.",
     "medication": "nicotine patch"
   },
   {
-    "symptoms_summary": "Benzoyl peroxide is commonly used to treat acne vulgaris, which is characterized by the presence of pimples, blackheads, and whiteheads on the skin. The specific context of the transcript indicates it is being prescribed in conjunction with clindamycin for a patient experiencing acne.",
-    "medication": "benzoyl peroxide"
+    "symptoms_summary": "Imitrex, known generically as sumatriptan, is primarily used to treat acute migraine attacks. In the transcript, the patient reported that they have been diligent about taking Imitrex to manage their migraines and mentioned having \"no issues with the migraine,\" indicating that Imitrex is effectively addressing their migraine symptoms.",
+    "medication": "Imitrex"
   },
   {
-    "symptoms_summary": "T-gel shampoo is typically used to treat and manage symptoms associated with scalp conditions such as psoriasis, seborrheic dermatitis, and dandruff. It helps alleviate itchy and scaly patches on the scalp, reducing embarrassment from visible dandruff on clothing. The transcripts indicated a case of scalp psoriasis characterized by persistent itching, scaly erythematous plaques, and excessive dandruff, which T-gel shampoo is effective in controlling.",
-    "medication": "T-gel shampoo"
+    "symptoms_summary": "Torsemide is a diuretic medication commonly used to manage symptoms associated with heart failure, specifically chronic congestive heart failure (CHF) and diastolic dysfunction. In the provided transcript, its administration is linked to improving symptoms such as dyspnea (difficulty breathing) and edema (swelling) due to fluid retention. Torsemide is typically used to reduce fluid overload, decrease hypertension, and improve overall cardiovascular function in patients with these conditions.",
+    "medication": "torsemide"
   },
   {
-    "symptoms_summary": "Clindamycin gel is typically used to treat acne vulgaris and may be prescribed to manage skin infections. In the transcript, the patient, Christine Hernandez, has expressed concerns about acne and has never tried treatment for it before. The doctor suggests using clindamycin topical as an antibiotic for acne management. The transcript also indicates the patient's overall skin sensitivity, which may contribute to her acne concerns.",
-    "medication": "clindamycin gel"
+    "symptoms_summary": "The medication Symbicort is typically used to manage asthma symptoms, including shortness of breath and wheezing, particularly during periods of exacerbation such as during high pollen seasons. In this case, the patient experiences shortness of breath during physical activities and has reported bilaterally faint expiratory wheezing upon examination. Symbicort is added to the patient's regimen to help prevent asthma exacerbations, especially during the summer months.",
+    "medication": "Symbicort"
   },
   {
-    "symptoms_summary": "Testosterone is typically used to treat and manage symptoms associated with hypogonadism, which include low energy levels, decreased muscle mass, and sexual dysfunction. In the transcript, the patient reports feeling more vigorous, sleeping well, and experiencing positive effects on his overall health since starting testosterone therapy. Additionally, there were discussions about improvements in cholesterol levels and triglycerides, indicating that testosterone may have cardioprotective effects. While specific side effects like gynecomastia were mentioned, the overall context highlights testosterone's role in improving well-being, energy, and cardiovascular health.",
-    "medication": "testosterone"
-  },
-  {
-    "symptoms_summary": "Keppra is typically used to treat epilepsy, specifically to help manage seizures. In this transcript, the patient, who has a history of epilepsy, reports not having experienced any seizures for several months, indicating effective management of their condition with Keppra. Overall, Keppra is prescribed for patients with various types of seizures, including partial, myoclonic, and generalized tonic-clonic seizures, and is often part of a broader treatment plan for epilepsy.",
-    "medication": "keppra"
-  },
-  {
-    "symptoms_summary": "Clobetasol is typically used to treat scalp psoriasis, which is characterized by itchy and scaly patches on the scalp. In the provided transcript, the patient described persistent scalp itching, embarrassment due to visible dandruff, and scaly erythematous plaques. Clobetasol is used to manage inflammation and itching associated with psoriasis flare-ups. It is applied topically in a concentrated solution and is often used in conjunction with medicated shampoos like T-gel to help control symptoms.",
-    "medication": "clobetasol"
-  },
-  {
-    "symptoms_summary": "Vitamin C is commonly used to support immune function, help reduce the duration and severity of infections, and as an antioxidant to protect against cellular damage. It may also aid in collagen production for skin health and contribute to overall vitality. In this transcript, specific symptoms were not directly discussed in relation to vitamin C, but its general uses align with promoting health and recovery.",
-    "medication": "vitamin c"
-  },
-  {
-    "symptoms_summary": "Lisinopril is an antihypertensive medication commonly used to treat high blood pressure (hypertension) and to manage heart failure. It helps to improve heart function, reduce fluid retention, and lower the risk of complications such as heart attack and stroke. In the provided transcript, lisinopril is prescribed to help manage the patient's congestive heart failure, indicated by symptoms such as fatigue and mild edema in the legs.",
-    "medication": "lisinopril 10 milligrams a day"
-  },
-  {
-    "symptoms_summary": "Metoprolol is commonly used to treat and manage symptoms related to cardiovascular conditions, specifically high blood pressure (hypertension) and coronary artery disease (CAD). It is a beta-blocker that helps to reduce heart rate, lower blood pressure, and decrease the heart's workload. In the transcript, the patient mentions being on metoprolol, which suggests he has a history of heart issues, as he was treated for coronary artery disease with a stent placement in the right coronary artery.",
-    "medication": "metoprolol"
-  },
-  {
-    "symptoms_summary": "Furosemide is a diuretic medication commonly used to treat or manage symptoms of fluid retention (edema) associated with congestive heart failure, liver disease, and kidney disorders. In the context of heart failure, it helps alleviate symptoms such as dyspnea (shortness of breath) and reduces fluid overload, which can lead to weight gain and swelling. The transcript specifically indicates that the patient (Nicole Miller) was experiencing chronic congestive heart failure with diastolic dysfunction and was increasingly dyspneic before the adjustment of her medication regimen. Furosemide's effects also include managing electrolyte levels, particularly potassium, which is crucial for patients on diuretics.",
-    "medication": "furosemide"
-  },
-  {
-    "symptoms_summary": "Lipitor is a medication primarily used to treat high cholesterol levels, specifically to lower low-density lipoprotein (LDL) cholesterol and triglycerides in the blood. It is also utilized to reduce the risk of heart disease, heart attacks, and strokes. In the transcript, Lipitor is mentioned as part of the patient's management for coronary artery disease.",
-    "medication": "lipitor"
-  },
-  {
-    "symptoms_summary": "Neurontin, also known as gabapentin, is commonly used to manage chronic back pain. In the provided transcript, the patient reports that Neurontin is helping to control her chronic back pain, although it does not completely eliminate it, as she experiences flares of pain. Additionally, while the primary focus is on pain management, Neurontin is also utilized for conditions such as neuropathic pain and seizures.",
-    "medication": "neurontin"
-  },
-  {
-    "symptoms_summary": "Clindamycin is an antibiotic that is commonly used to treat various bacterial infections. It is particularly effective against infections of the skin, respiratory tract, and certain types of dental infections. The medication can also help manage infections caused by anaerobic bacteria. In this transcript, clindamycin is mentioned as being taken prior to dental procedures, which aligns with its use in preventing infections during and after dental work.",
-    "medication": "clindamycin"
-  },
-  {
-    "symptoms_summary": "Toprol, also known as metoprolol, is typically used to manage conditions related to hypertension (high blood pressure), coronary artery disease (CAD), and heart failure. In the context of the transcript, it helps in managing symptoms related to heart function, such as reducing the workload on the heart and improving symptoms related to left ventricular dysfunction. It is also indicated for prevention of angina (chest pain) and to help control heart rate in patients with arrhythmias. The patient, Russell, was prescribed Toprol following an anterior STEMI (ST-elevation myocardial infarction) to improve cardiac function and support his recovery.",
-    "medication": "toprol"
-  },
-  {
-    "symptoms_summary": "The medication 'scar gel', particularly Mederma, is typically used to manage and improve the appearance of scars following surgeries, injuries, or other skin trauma. In the context of the transcripts, it was mentioned by the patient that the scars from her bilateral reduction mammoplasty were bothering her, indicating that scar gel is utilized to lighten the color of the scars and address discomfort associated with their appearance. It is recommended to be applied twice a day, and the patient was advised that continued use, along with massage, may help improve the texture and overall appearance of the scars.",
-    "medication": "scar gel"
-  },
-  {
-    "symptoms_summary": "Mederma scar gel is typically used to treat and manage symptoms related to scars, including discoloration and raised scar tissue. In the provided transcript, the patient mentions that the scars from her bilateral reduction mammoplasty were bothering her, and she was using the gel daily with the goal of lightening the color of the scars. The doctor suggests that continued use of the gel, along with massage, can help improve the appearance of the scars. Overall, the medication is commonly indicated for improving the texture and color of various types of scars.",
-    "medication": "mederma scar gel"
-  },
-  {
-    "symptoms_summary": "Carafate is used to treat or manage symptoms related to esophagitis, specifically acute esophagitis, which is characterized by difficulty swallowing, pain when swallowing (especially larger pieces of food), and possible epigastric pain. The medication works by coating the lining of the esophagus and stomach to help reduce exposure to stomach acid and facilitate healing.",
-    "medication": "carafate"
-  },
-  {
-    "symptoms_summary": "Zoloft, which is the brand name for sertraline, is commonly prescribed to manage symptoms associated with depression, including persistent feelings of sadness, anxiety, and mood fluctuations. In the provided transcript, the patient mentions battling with depression, suggesting that Zoloft is being introduced as a treatment option to help alleviate these symptoms. Additionally, Zoloft is often used to manage conditions such as obsessive-compulsive disorder (OCD), panic disorder, post-traumatic stress disorder (PTSD), social anxiety disorder, and premenstrual dysphoric disorder (PMDD), but these specific uses were not detailed in the transcript.",
+    "symptoms_summary": "Zoloft (sertraline) is typically used to treat conditions such as depression, anxiety disorders, obsessive-compulsive disorder (OCD), panic disorder, and post-traumatic stress disorder (PTSD). In this transcript, the patient is managing depression, indicating that Zoloft is being prescribed to help manage depressive symptoms.",
     "medication": "Zoloft"
   },
   {
-    "symptoms_summary": "Atrovent, a medication commonly used to treat respiratory conditions, is indicated for managing symptoms such as shortness of breath, wheezing, and difficulty breathing. In the context of the transcripts, it was prescribed to Gloria to help alleviate her shortness of breath associated with chronic obstructive pulmonary disease (COPD) and congestive heart failure (CHF). These conditions often lead to symptoms that are responsive to bronchodilators like Atrovent, which assist in opening the airways and improving airflow.",
-    "medication": "atrovent"
+    "symptoms_summary": "Insulin is primarily used to manage diabetes, specifically to control blood glucose levels. In the context of this transcript, the patient mentioned having diabetes and having insulin treatment. The symptoms related to diabetes management include higher than normal blood sugar levels, which can lead to complications such as nonhealing ulcers, neuropathy (numbing and tingling in the feet), and increased risk of infections, particularly in wounds. Insulin helps in regulating blood sugar, which is crucial for healing and overall metabolic health.",
+    "medication": "insulin"
   },
   {
-    "symptoms_summary": "Ferrous sulfate is typically used to treat iron deficiency anemia, which can manifest symptoms such as fatigue, weakness, shortness of breath, headaches, cold intolerance, and other related feelings of malaise. In the context of the transcript, the patient reported fatigue, feeling feverish and chilled, difficulty catching breath, wheezing, and worsening anxiety and depression, which may be associated with their long-standing anemia. The medication aids in increasing iron levels in the body, helping to alleviate these symptoms.",
-    "medication": "ferrous sulfate"
+    "symptoms_summary": "The medication Mederma Scar Gel is typically used to treat or manage scars, particularly those resulting from surgeries such as bilateral reduction mammoplasty. In the provided transcript, the patient discusses using the gel for scar management after her surgery. The doctor mentions that the gel can help lighten the color of scars and is recommended for regular application to help improve the appearance of scarring.",
+    "medication": "mederma scar gel"
   },
   {
-    "symptoms_summary": "Thyroid medicine, such as Unithroid, is typically used to treat and manage symptoms associated with hypothyroidism, which may include fatigue, weight gain, and hormonal imbalances. In the transcript, discussions of thyroid medicine arose in the context of the patient's concerns about weight gain and hormonal issues, indicating its role in regulating metabolism and hormone levels. Additionally, the medication may be associated with managing vitamin D deficiency, which is commonly observed alongside thyroid issues.",
-    "medication": "thyroid medicine"
+    "symptoms_summary": "Tramadol is typically used to manage pain. In the context of the transcript, the patient was experiencing pain at the end of their right middle finger due to a distal phalanx fracture sustained from a motor vehicle accident. The doctor prescribed tramadol to help alleviate this pain.",
+    "medication": "tramadol"
   },
   {
-    "symptoms_summary": "Vitamin B12 is typically used to treat or manage symptoms associated with vitamin B12 deficiency, which may include fatigue, weakness, anemia, neurological issues (such as tingling and numbness), and cognitive changes. In the transcript, the patient mentions feeling fatigued and dealing with iron deficiency anemia, which may suggest a connection to B12 supplementation. The patient's overall condition reflects long-standing anemia, and while specific symptoms related to B12 deficiency are not detailed, vitamin B12 is generally known to aid in the production of red blood cells and to support energy levels.",
-    "medication": "vitamin B12"
+    "symptoms_summary": "Amlodipine is a medication commonly used to treat high blood pressure (hypertension) and certain types of angina (chest pain). It is a calcium channel blocker that works by relaxing the blood vessels, which helps to lower blood pressure and improve blood flow. In the discussed transcript, the patient mentioned taking amlodipine along with other medications for managing blood pressure and reported their blood pressure readings as within a normal range.",
+    "medication": "Amlodipine"
   },
   {
-    "symptoms_summary": "Flomax, also known as tamsulosin, is commonly used to treat symptoms associated with benign prostatic hyperplasia (BPH), which include difficulty urinating, weak urine stream, feeling of incomplete bladder emptying, and frequent urination, particularly at night. The patient in the transcript experienced a weak urinary stream, a sense of incomplete bladder emptying, and nocturia (getting up three to four times at night to urinate), which are all indicative of BPH symptoms. Flomax works by relaxing the muscles in the prostate and bladder neck, making it easier to urinate.",
-    "medication": "flomax"
+    "symptoms_summary": "Pepcid, which contains the active ingredient famotidine, is commonly used to treat conditions related to excess stomach acid. It is typically prescribed for symptoms associated with gastroesophageal reflux disease (GERD), such as heartburn, acid indigestion, and stomach ulcers. In this transcript, the patient mentions taking Pepcid for gallstones and does not express any specific symptoms related to its use.",
+    "medication": "Pepcid"
   },
   {
-    "symptoms_summary": "Amlodipine is a medication primarily used to treat high blood pressure (hypertension) and angina (chest pain). It helps to relax and widen blood vessels, improving blood flow and lowering blood pressure. In the case presented, the patient is taking amlodipine as part of their hypertension management, as indicated by discussions about their blood pressure readings and their routine with the medication. There are no specific symptoms outlined in the transcript directly linked to amlodipine, but it is generally prescribed for conditions related to cardiovascular health and management of blood pressure.",
-    "medication": "amlodipine"
+    "symptoms_summary": "The medication Azo (Phenazopyridine) is typically used to manage symptoms associated with urinary tract infections (UTIs), including pain, burning sensation during urination, and urinary urgency. However, in the transcripts, the patient did not report significant pain during urination, which suggests that Azo may not have been necessary for the patient's current symptoms related to kidney stones. The patient only mentions taking ibuprofen for pain relief.",
+    "medication": "azo"
   },
   {
-    "symptoms_summary": "NSAIDs (Non-Steroidal Anti-Inflammatory Drugs) are typically used to treat or manage symptoms of pain and discomfort associated with conditions such as osteoarthritis or degenerative joint diseases. In the provided transcript, the patient experiences pain in the right hip, particularly in the groin area, which is exacerbated by movement such as pivoting. NSAIDs are suggested to help alleviate this pain and discomfort, indicating their role in managing musculoskeletal pain and inflammation.",
-    "medication": "nsaids"
+    "symptoms_summary": "Clobetasol is typically used to treat scalp psoriasis, which is characterized by symptoms such as an itchy scalp, scaly erythematous plaques, and dandruff. The patient in the transcript reports a longstanding issue of scalp itching, embarrassment due to dandruff, and has noticed worsening symptoms over the past six months. Clobetasol is a topical steroid applied twice daily to manage the symptoms of psoriasis and may help reduce inflammation and alleviate itching.",
+    "medication": "clobetasol"
   },
   {
-    "symptoms_summary": "Antibiotics are commonly used to treat infections caused by bacteria, as indicated in the transcript where the patient is being treated for a nonhealing diabetic foot ulcer infected with bacteria. The symptoms mentioned include: 1. Foul smell from the wound, indicating infection. 2. Yellow drainage from the ulcer. 3. Fever (temperature around 99.7\u00b0F). 4. Chills and cramping in the calf muscle. 5. Pain described as throbbing and similar to a fire poker in the bottom of the foot. 6. Red streaks indicating possible cellulitis and spreading infection. 7. Difficulty breathing and coughing, which may suggest a systemic infection or complication. The use of antibiotics is to manage these symptoms and underlying bacterial infection.",
-    "medication": "antibiotics"
+    "symptoms_summary": "Lipitor, generically known as atorvastatin, is commonly used to manage high cholesterol levels and reduce the risk of cardiovascular diseases such as heart attacks and strokes. It works by inhibiting an enzyme involved in the production of cholesterol in the liver, thereby lowering LDL (bad) cholesterol and triglycerides while increasing HDL (good) cholesterol. In the provided transcript, Lipitor is continued for managing the patient's coronary artery disease, which implies its role in addressing underlying cardiovascular issues associated with high cholesterol and promoting heart health.",
+    "medication": "lipitor"
   },
   {
-    "symptoms_summary": "The medication \"extra strength tylenol\" is typically used to treat or manage mild to moderate pain, as indicated in the transcript where the patient reports experiencing left shoulder pain due to rotator cuff tendinopathy. The patient mentions that they have been taking two extra strength tylenol every six to eight hours to help with their shoulder pain, noting that it takes the edge off but does not completely alleviate their discomfort. This suggests that extra strength tylenol is commonly used for pain relief from conditions such as muscle and joint pain, as well as general aches and pains.",
-    "medication": "extra strength tylenol"
+    "symptoms_summary": "Lortab is typically used to manage severe pain, as demonstrated in the case of a patient experiencing severe right upper arm pain following a fall that resulted in a proximal humerus fracture. The patient reported a pain level of nine out of ten, indicating very severe discomfort. Lortab is a pain relief medication that combines an opioid (hydrocodone) with acetaminophen and is commonly prescribed for situations where non-opioid analgesics, such as ibuprofen, are insufficient for pain management.",
+    "medication": "lortab"
   },
   {
-    "symptoms_summary": "THC gummies are typically used to manage pain, reduce inflammation, and alleviate symptoms of anxiety or stress. In the context provided, the patient is using them to help cope with knee pain following an injury and reports finding them helpful for their discomfort. They mentioned experiencing swelling, stiffness, and pain, particularly in the context of physical activity.",
-    "medication": "thc gummies"
-  },
-  {
-    "symptoms_summary": "Augmentin, which contains amoxicillin and clavulanate potassium, is commonly used to treat various bacterial infections. It is effective against a range of conditions such as sinusitis, pneumonia, ear infections, bronchitis, urinary tract infections, and skin infections. The combination of amoxicillin (an antibiotic) and clavulanate (a beta-lactamase inhibitor) helps to overcome bacterial resistance, making it suitable for treating infections that may be resistant to other antibiotics. It does not treat viral infections or non-bacterial conditions.",
-    "medication": "augmentin"
-  },
-  {
-    "symptoms_summary": "The medication 'icy heat' is typically used to manage symptoms related to muscle pain and soreness, particularly in cases of strains or injuries. In this transcript, it was specifically mentioned by a patient who used it for lower back pain following a lifting incident. Although the patient reported that 'icy heat' did not seem to provide relief, it is generally indicated for alleviating discomfort from muscle strains, soreness, and inflammation.",
-    "medication": "icy heat"
-  },
-  {
-    "symptoms_summary": "Lisinopril 20 mg daily is used to manage hypertension (high blood pressure) and to treat heart failure. It is an ACE (Angiotensin-Converting Enzyme) inhibitor that helps relax blood vessels, allowing blood to flow more easily and reducing blood pressure. Additionally, it may be used to protect the kidneys in people with diabetes, as seen in the case of the patient who has type 2 diabetes and hypertension.",
-    "medication": "lisinopril 20 mg daily"
-  },
-  {
-    "symptoms_summary": "Doxycycline is commonly used to treat or manage symptoms related to infections caused by bacteria, including Lyme disease, which is evidenced by the presence of a tick bite and associated symptoms such as a rash (specifically a bull's-eye rash), fever, headaches, and general malaise. In the discussed scenario, the patient presented with a tick bite, warmth around the affected area, and symptoms suggestive of Lyme disease, such as a general feeling of unwellness and a headache. Doxycycline is often administered to address these early symptoms of Lyme disease and to prevent further complications.",
-    "medication": "doxycycline"
-  },
-  {
-    "symptoms_summary": "Farxiga, also known as dapagliflozin, is commonly used to treat symptoms associated with type 2 diabetes mellitus, specifically to lower blood sugar levels. It works by increasing the amount of glucose excreted in the urine and improving insulin sensitivity. In the transcripts provided, Farxiga is mentioned in the context of managing the patient's blood sugar levels, which were noted to be running higher than desired. It is typically part of a broader diabetes management plan that may include lifestyle changes and other medications.",
-    "medication": "farxiga"
-  },
-  {
-    "symptoms_summary": "The medication 'progesterone' is typically used to treat symptoms related to hormonal imbalances, such as irregular menstrual periods and symptoms of premenstrual syndrome (PMS). In the conversation, the patient mentions irritability and heightened anxiety levels prior to her period, which suggests that progesterone may have been utilized to help regulate her menstrual cycle and potentially mitigate these symptoms. Additionally, progesterone may have implications for breast health, as the discussion included concerns about breast lumps and monitoring, indicating its relevance in managing hormonal influences on breast tissue.",
-    "medication": "progesterone"
-  },
-  {
-    "symptoms_summary": "Finasteride is typically used to treat conditions such as benign prostatic hyperplasia (BPH), male pattern baldness, and hormonal imbalances. In the transcript, it is mentioned that the patient, Paul, is currently taking finasteride, and his doctor discusses its relevance in relation to his hormonal levels and health status. Although specific symptoms treated by finasteride are not directly cited in the conversation, it can be inferred that it may assist in managing prostate health and hormonal conditions such as gynecomastia, which the patient expresses concern about.",
-    "medication": "finasteride"
-  },
-  {
-    "symptoms_summary": "Aspirin is commonly used to manage cardiovascular conditions, such as coronary artery disease (CAD) and to prevent further heart attacks or strokes. In the provided transcripts, patients with histories of CAD and heart attack are prescribed aspirin as part of their treatment regimen. It serves to reduce the risk of blood clots, thereby improving heart health and reducing the likelihood of severe cardiovascular events.",
-    "medication": "aspirin"
-  },
-  {
-    "symptoms_summary": "Metformin 1000 mg twice a day is typically used to manage symptoms related to diabetes type 2, including elevated blood sugar levels and associated complications. In this transcript, the patient has a history of diabetes and presents with a hemoglobin A1C level of 8, indicating poor diabetes control. Metformin helps improve insulin sensitivity, lower blood glucose levels, and reduce the risk of diabetes-related complications.",
-    "medication": "metformin 1000 mg twice a day"
-  },
-  {
-    "symptoms_summary": "Etoposide is a chemotherapeutic agent commonly used in the treatment of various types of cancer, particularly in cases of testicular cancer and small cell lung cancer. It is known to be effective in inducing cell cycle arrest and promoting apoptosis in cancer cells. In the context of the provided transcript, the medication is being used as part of a chemotherapy regimen for a patient with stage three non-small cell lung cancer. It is typically administered alongside other chemotherapy agents to manage symptoms related to cancer and its treatment, including reducing tumor size, managing fatigue, nausea, and potentially alleviating symptoms related to lung inflammation following radiation therapy.",
-    "medication": "etoposide"
-  },
-  {
-    "symptoms_summary": "Vitamin D is typically used to treat or manage symptoms related to vitamin D deficiency, which may include bone pain, muscle weakness, and fatigue. In the context of the transcripts, one patient mentioned needing to take vitamin D due to a identified deficiency, while the other discussed the supplementation as part of their health plan. Vitamin D also plays a role in maintaining healthy bones and immune function, and it may be important for overall health, particularly for individuals with conditions such as thyroid issues or those undergoing treatment post-cancer.",
-    "medication": "Vitamin D"
-  },
-  {
-    "symptoms_summary": "Flexeril (cyclobenzaprine) is a muscle relaxant commonly used to treat symptoms associated with musculoskeletal conditions, particularly muscle spasms and pain. In the transcripts, it is prescribed for: 1. Back pain (e.g., due to muscular sprain from lifting or gardening activities). 2. Tension-type headaches related to neck and shoulder muscle tightness. Its use is indicated for easing discomfort caused by muscle tightness and pain, helping improve mobility and function in affected areas.",
-    "medication": "flexeril"
-  },
-  {
-    "symptoms_summary": "Advil, which contains ibuprofen, is commonly used to treat or manage symptoms such as headaches, mild to moderate pain (e.g., from muscle aches, arthritis, back pain, toothaches, and menstrual cramps), and to reduce fever. In the transcripts, one patient mentions using Advil for headaches that present as a dull pain with associated symptoms of flushing in the ears and dizziness, while another patient takes it occasionally for knee and back pain. It is indicated that Advil is used for pain relief but may not always be effective, as one patient states that the headaches return after taking it.",
-    "medication": "advil"
-  },
-  {
-    "symptoms_summary": "Prednisone is typically used to treat or manage a variety of symptoms including inflammation, allergic reactions, and autoimmune conditions. In the analyzed transcripts, prednisone was prescribed for: 1) Radiation pneumonitis, which involves inflammation of the lungs and associated symptoms like cough and shortness of breath in a patient undergoing chemotherapy for lung cancer. 2) Chronic obstructive pulmonary disease (COPD) which involves respiratory issues, such as shortness of breath and wheezing, likely due to underlying smoking and resultant lung damage. Overall, prednisone is commonly used to manage inflammation, reduce symptoms of respiratory distress, and mitigate the effects of ongoing inflammatory processes in different medical conditions.",
-    "medication": "prednisone"
-  },
-  {
-    "symptoms_summary": "Miralax is typically used to treat or manage constipation. In the transcripts, both patients mentioned suffering from constipation, indicating that Miralax was recommended by their doctors as a treatment option for this condition.",
-    "medication": "Miralax"
-  },
-  {
-    "symptoms_summary": "Effexor (venlafaxine) is typically used to treat symptoms of depression, including feelings of low mood, lack of energy, and emotional instability. Commonly reported symptoms that effexor helps manage include periods of extreme low mood, feelings of hopelessness, and anxiety associated with depression.",
-    "medication": "effexor"
-  },
-  {
-    "symptoms_summary": "Amoxicillin is commonly prescribed for treating bacterial infections, particularly in scenarios such as sore throat caused by strep throat and upper respiratory infections. In the transcripts, amoxicillin was indicated for a patient with a sore throat, swollen tonsils, fever, and signs consistent with a strep throat infection. Additionally, it was mentioned that elevated blood sugar might be linked to an underlying infection, implying amoxicillin's role in managing infections that may contribute to hyperglycemia.",
-    "medication": "amoxicillin"
-  },
-  {
-    "symptoms_summary": "Ultram, also known as tramadol, is typically used to manage moderate to moderately severe pain. In the provided transcripts, it is prescribed for a patient suffering from back pain due to a lumbar strain and another patient with a Colles' fracture in the wrist. The medication is indicated as an analgesic to relieve pain in both scenarios, highlighting its use in managing acute pain resulting from injuries.",
-    "medication": "ultram"
-  },
-  {
-    "symptoms_summary": "Oxycodone is typically used to manage pain associated with kidney stones. In the provided transcripts, patients describe symptoms such as sharp, constant, or severe pain in the back, abdomen, and groin areas due to kidney stones. They experience additional symptoms like nausea, burning sensation when urinating, and sometimes chills, blood in urine, or a feeling of pressure. Oxycodone is prescribed to help relieve this intense pain, allowing patients to manage their discomfort while dealing with the passage of kidney stones.",
-    "medication": "oxycodone"
-  },
-  {
-    "symptoms_summary": "Carvedilol is a medication commonly used to treat high blood pressure (hypertension) and heart failure. It helps to manage symptoms related to these conditions, such as chest pain, shortness of breath, and fatigue associated with heart dysfunction. In the provided transcripts, patients discussed experiencing high blood pressure, chest pain, and episodes of shortness of breath, which are conditions that carvedilol is indicated for. Additionally, carvedilol is noted for its benefits in patients with coronary artery disease and for improving the pumping function of the heart.",
-    "medication": "carvedilol"
-  },
-  {
-    "symptoms_summary": "The medication \"Ultram 50 mg\" is typically used to manage pain, particularly acute pain associated with conditions like arthritis and possibly kidney stones. In Transcript 1, the patient, Andrew, is prescribed Ultram for joint pain resulting from an acute exacerbation of arthritis due to physical activity. In Transcript 2, the patient, John, is prescribed Ultram for back pain related to a possible recurrence of kidney stones. Therefore, Ultram is commonly used for mild to moderate pain relief.",
-    "medication": "Ultram 50 mg"
-  },
-  {
-    "symptoms_summary": "Digoxin is commonly used to treat and manage symptoms related to heart conditions, particularly atrial fibrillation (AFib) and heart failure. It helps in controlling heart rate, improving heart function, and reducing symptoms associated with these conditions such as palpitations, irregular heartbeats, and heart-related fatigue.",
-    "medication": "digoxin"
-  },
-  {
-    "symptoms_summary": "Oxyglutinine is typically used to manage symptoms related to urgency in urination, as indicated by the patient report of improved urinary urgency. While not explicitly mentioned in the transcripts, such symptoms generally suggest its use in overactive bladder conditions. It may also be associated with managing fluid retention and symptoms linked to heart failure, as it was discussed in the context of the patient's overall management of chronic congestive heart failure.",
-    "medication": "oxyglutinine"
-  },
-  {
-    "symptoms_summary": "Allopurinol is commonly used to manage and treat gout, a type of arthritis characterized by sudden and severe pain, redness, and swelling in the joints due to elevated uric acid levels. In the transcripts, the patients mention their experience with gout flare-ups, specifically in the big toe, and confirm that the medication has helped control their symptoms and prevent further episodes. Allopurinol helps to lower uric acid levels in the blood, thereby reducing the risk of gout attacks.",
-    "medication": "allopurinol"
-  },
-  {
-    "symptoms_summary": "The medication 'meloxicam 15 mg once a day' is typically used to treat or manage symptoms related to pain and inflammation, particularly in conditions such as osteoarthritis and musculoskeletal pain. In this transcript, it was prescribed to the patient for managing lumbar strain and back pain resulting from lifting heavy objects. Meloxicam is a nonsteroidal anti-inflammatory drug (NSAID) that is commonly used to alleviate discomfort associated with various forms of arthritis, including osteoarthritis, as well as for acute pain relief.",
-    "medication": "meloxicam 15 mg once a day"
-  },
-  {
-    "symptoms_summary": "Protonix is typically used to treat symptoms related to acid-related disorders. In the analyzed transcripts, the patients presented with symptoms such as lightheadedness, nausea, difficulty swallowing, chest pain during swallowing, and abdominal pain. The medication is prescribed to manage conditions like gastritis (inflammation of the stomach lining) and esophagitis (inflammation of the esophagus). Protonix is a proton pump inhibitor that helps decrease the amount of acid secreted in the stomach, aiming to alleviate discomfort and promote healing in the gastrointestinal tract.",
-    "medication": "protonix"
-  },
-  {
-    "symptoms_summary": "Atorvastatin, commonly known by its brand name Lipitor, is typically used to manage and treat conditions related to high cholesterol levels, specifically in patients with coronary artery disease (CAD). In the context of the transcript, atorvastatin is part of a treatment regimen for a patient with a history of CAD, heart attacks, and reduced ejection fraction. This medication helps lower levels of LDL cholesterol, thus potentially preventing further cardiovascular events and assisting in overall heart health.",
-    "medication": "atorvastatin"
-  },
-  {
-    "symptoms_summary": "Motrin, a brand name for ibuprofen, is commonly used to treat various types of pain and inflammation. In the provided transcripts, it is specifically used to manage symptoms related to: \n1. **Knee pain** - A patient with right knee pain due to a fall was prescribed Motrin to help alleviate the discomfort caused by an acute medial meniscus strain. \n2. **Elbow pain** - Motrin was recommended for a patient experiencing right elbow pain and swelling associated with lateral epicondylitis after lifting a heavy box. \n3. **Finger pain** - Another patient with pain in the tip of their index finger, resulting from a skiing incident, was advised to take Motrin to manage the contusion pain. \n4. **Other pain/discomfort** - A patient with hypertension mentioned taking Motrin occasionally for knee or back pain, indicating its use for general pain relief. \nOverall, Motrin is commonly used for managing pain, inflammation, and discomfort associated with musculoskeletal injuries and conditions.",
-    "medication": "motrin"
-  },
-  {
-    "symptoms_summary": "Bumex, also known as bumetanide, is a diuretic commonly used to manage symptoms associated with congestive heart failure (CHF), including edema (swelling), shortness of breath, and high blood pressure. In the transcripts, patients reported symptoms such as swelling in the ankles, difficulty breathing, and the need for elevated positions during sleep due to breathing issues. These symptoms are indicative of fluid retention and heart failure, which bumex helps to alleviate by promoting the excretion of fluid and reducing blood pressure.",
-    "medication": "bumex"
-  },
-  {
-    "symptoms_summary": "Cisplatin is commonly used in chemotherapy regimens for various types of cancer, including ovarian and lung cancer. It is typically administered to manage symptoms associated with cancer such as tumor growth, pain, and associated symptoms like coughing or shortness of breath. In the provided transcripts, the patients mentioned symptoms like severe pain, weight loss, a persistent cough, and fatigue. Cisplatin helps in treating these symptoms by targeting and reducing tumors, although it may also cause side effects such as nausea, vomiting, and fatigue.",
-    "medication": "cisplatin"
-  },
-  {
-    "symptoms_summary": "Singulair, also known by its generic name montelukast, is typically used to manage asthma symptoms such as difficulty breathing, wheezing, and coughing, especially related to exercise or exposure to allergens. It can also be used to relieve symptoms associated with seasonal allergies and to prevent asthma attacks. In the first transcript, the patient mentions having difficulty catching their breath during sports and experiencing tightness in the chest, which are indicative of asthma symptoms. Additionally, Singulair can help with mood-related issues that may arise from stress or anxiety, though it was noted in the second transcript that it might contribute to anxiety symptoms as well.",
-    "medication": "singulair"
-  },
-  {
-    "symptoms_summary": "Cozaar (Losartan) is primarily used to manage high blood pressure (hypertension) and to protect the kidneys in patients with diabetes. In the transcripts, patients report symptoms related to hypertension such as high blood pressure (e.g., 200/90), swelling in the ankles, shortness of breath, and dietary indiscretion leading to heart failure and congestive heart failure (CHF). Therefore, its typical uses include controlling blood pressure, alleviating symptoms of heart failure, and potentially reducing kidney complications.",
-    "medication": "cozaar"
-  },
-  {
-    "symptoms_summary": "Mobic (meloxicam) is typically used to treat symptoms of pain and inflammation associated with injuries such as knee and leg pain. In the transcripts analyzed, symptoms reported include: swelling of the knee after an injury, pain during weightbearing and movement, tenderness upon palpation, and limited range of motion. In the second transcript, symptoms included soreness and tenderness after sustaining a contusion, with an emphasis on pain management. Overall, Mobic is commonly prescribed for pain relief and to reduce inflammation in conditions such as arthritis, injuries, and muscle pain.",
-    "medication": "mobic"
-  },
-  {
-    "symptoms_summary": "Norvasc (amlodipine) is primarily used to treat hypertension (high blood pressure) and to manage angina (chest pain due to reduced blood flow to the heart). In the analyzed transcripts, common symptoms and conditions associated with norvasc include: high blood pressure readings (e.g., one hundred fifty to one hundred seventy over ninety), swelling in the ankles (edema), and notes on the patients' dietary habits potentially affecting their hypertension (e.g., high salt intake, junk food consumption). Overall, norvasc helps in controlling blood pressure and preventing complications from hypertension.",
-    "medication": "norvasc"
-  },
-  {
-    "symptoms_summary": "Hydrochlorothiazide is a medication commonly used to treat high blood pressure and edema (swelling). In the first transcript, the patient was experiencing swelling in the ankles, which the doctor suggested could be related to the current blood pressure medication (Norvasc) the patient was on. Due to this, the doctor planned to switch the patient to hydrochlorothiazide to help reduce the edema. In the second transcript, the patient was taking hydrochlorothiazide along with other medications for blood pressure management, indicating its role in managing hypertension. While specific symptoms such as water retention or high blood pressure were indirectly mentioned, hydrochlorothiazide is primarily known for treating these conditions.",
-    "medication": "hydrochlorothiazide"
-  },
-  {
-    "symptoms_summary": "The medication 'Prozac' (fluoxetine) is primarily used to treat symptoms associated with depression, such as persistent feelings of sadness, loss of interest or pleasure in activities, and emotional instability. In the transcripts, it is noted that patients experience struggles with depression, including feelings of being overwhelmed and needing adjustments to their medication regimen for better management. 'Prozac' is effective in alleviating these depressive symptoms, supporting emotional well-being, and helping individuals cope with daily stressors. It may also be considered in conjunction with physical symptoms or other health issues, but its main use is for mood and emotional regulation.",
-    "medication": "Prozac"
-  },
-  {
-    "symptoms_summary": "Albuterol is typically used to treat or manage symptoms related to airway obstruction or bronchospasm. This includes shortness of breath, wheezing, and a tightness in the chest, especially during physical activities or in the presence of allergens (like smoke or pollen). Patients experiencing these symptoms may use albuterol as a rescue inhaler to relieve acute asthma attacks and improve airflow in conditions like asthma and chronic obstructive pulmonary disease (COPD). Albuterol may also cause side effects such as shakiness, typically due to its bronchodilator effects.",
-    "medication": "albuterol"
-  },
-  {
-    "symptoms_summary": "Lasix, also known as furosemide, is commonly used to treat symptoms associated with congestive heart failure (CHF), including shortness of breath, fluid retention, and swelling in the legs (edema). In the transcripts, patients commonly report experiencing shortness of breath, particularly when lying down, and swelling in their ankles. Lasix helps reduce fluid overload in the body, thereby alleviating these symptoms. Additionally, it is used to manage complications related to fluid retention, which can manifest as weight gain and bloating.",
-    "medication": "lasix"
-  },
-  {
-    "symptoms_summary": "Lasix, or furosemide, is a diuretic medication commonly used to manage symptoms associated with congestive heart failure, specifically fluid retention (edema) and elevated blood pressure. In the provided transcripts, symptoms indicating the use of Lasix include shortness of breath, dizziness, and edema in the lower extremities, specifically noted as trace to one plus pitting edema. The medication helps to reduce excess fluid retention, thereby alleviating symptoms related to heart failure such as swelling and shortness of breath.",
-    "medication": "lasix 40 milligrams once a day"
-  },
-  {
-    "symptoms_summary": "The medication \"aleve\" is typically used to treat or manage symptoms related to pain and inflammation. In the transcripts, patients mention using aleve for knee pain, which includes symptoms such as deep achy pain behind the kneecaps, pain exacerbated by activities like sitting and standing, and discomfort connected to physical activity like running. This indicates its usage in managing pain associated with conditions such as patellofemoral pain syndrome. Additionally, aleve may be used occasionally for other types of pain, such as back pain, as noted by the second patient. Overall, it is a nonsteroidal anti-inflammatory drug (NSAID) commonly used for various types of mild to moderate pain relief.",
-    "medication": "aleve"
-  },
-  {
-    "symptoms_summary": "Meloxicam is commonly used to treat pain and inflammation associated with various conditions, such as arthritis, acute injuries, and strains. In the analyzed transcripts, it was prescribed for back pain (Transcript 1, Transcript 3), knee pain resulting from injuries (Transcript 2, Transcript 4), and symptoms related to arthritis in the toe (Transcript 6). Specific symptoms associated with its use include soreness, swelling, stiffness, and decreased range of motion due to injuries or degenerative conditions. The medication is typically administered at a dosage of 15 milligrams once a day.",
-    "medication": "meloxicam"
-  },
-  {
-    "symptoms_summary": "Naprosyn, which is a nonsteroidal anti-inflammatory drug (NSAID), is typically used to treat or manage various symptoms associated with pain and inflammation. In the analyzed transcripts, patients were prescribed Naprosyn for back pain management, particularly in cases where the pain is musculoskeletal in nature, such as strains or sprains. It is commonly indicated for alleviating symptoms such as pain and inflammation associated with conditions like arthritis, muscle pain, menstrual cramps, and other forms of chronic pain.",
-    "medication": "naprosyn"
-  },
-  {
-    "symptoms_summary": "Brilinta (ticagrelor) is commonly used to manage and prevent symptoms associated with coronary artery disease (CAD), particularly following events like heart attacks or unsuccessful heart interventions. In the provided transcript, it is specifically used for a patient recovering from an anterior STEMI (ST-Elevation Myocardial Infarction) and for preventing the closing of coronary stents. It helps reduce the risk of cardiovascular events by inhibiting platelet aggregation, thus preventing further complications such as additional heart attacks or strokes.",
+    "symptoms_summary": "Brilinta, also known as ticagrelor, is a medication typically used to prevent blood clots in patients with a history of cardiovascular events, such as coronary artery disease (CAD) or after a heart attack. In the provided transcript, it is indicated for the management of the patient's condition following an anterior ST-Elevation Myocardial Infarction (STEMI) and to ensure the patency of the drug-eluting stent placed during the procedure. It helps reduce the risk of further cardiac events by preventing the aggregation of platelets.",
     "medication": "brilinta"
   },
   {
-    "symptoms_summary": "Lidocaine is commonly used to treat or manage symptoms associated with pain, particularly in the throat and esophagus. In the provided transcripts, it was prescribed for patients experiencing a sore throat, difficulty swallowing, and inflammation likely related to upper respiratory infections or cancer treatments. Lidocaine serves as a local anesthetic, providing relief by numbing the affected areas, which helps patients eat and drink without discomfort.",
-    "medication": "lidocaine"
+    "symptoms_summary": "Keppra (levetiracetam) is commonly used to treat epilepsy, particularly partial-onset seizures, myoclonic seizures, and generalized tonic-clonic seizures. In the provided transcript, the patient, John, has a history of epilepsy and notes that he has not experienced any seizures recently, indicating that his condition may be well-managed with the medication.",
+    "medication": "keppra"
   },
   {
-    "symptoms_summary": "Gabapentin is commonly used to treat neuropathic pain, seizures, and conditions related to nerve function. In the analyzed transcripts, patients report using gabapentin primarily for managing left arm pain associated with neuropathy and cervical radiculopathy, as well as for chronic back pain. The first patient experiences left arm pain and weakness in the hand, while the second patient mentions improvement in chronic back pain symptoms attributed to gabapentin usage.",
+    "symptoms_summary": "In the provided transcript, the medication 'antibiotics' is being used to treat a nonhealing foot ulcer, which has characteristics of infection. The patient describes several symptoms that suggest an infection, including: a foul smell, thick soft mushy skin with yellow drainage, redness, a blackened wound edge, cramping in the calf muscle, a red streak along the ankle, heat around the wound, and possible fever with chills. The patient is also experiencing throbbing pain and shortness of breath. The doctor expresses concern over cellulitis and monitors for signs of infection in the wound.",
+    "medication": "antibiotics"
+  },
+  {
+    "symptoms_summary": "Epiduo is typically used to treat acne. It combines two active ingredients: benzoyl peroxide and clindamycin, which work together to reduce acne-causing bacteria, unclog pores, and decrease inflammation. In the transcript, the patient discusses issues related to acne vulgaris, indicating that this medication is commonly prescribed for managing acne symptoms.",
+    "medication": "epiduo"
+  },
+  {
+    "symptoms_summary": "Dexamethasone is a corticosteroid commonly used to reduce inflammation and suppress the immune response. It is often prescribed for conditions such as severe allergies, asthma, skin conditions, and certain types of arthritis. In the context of this transcript, the patient experiences pain and swelling in the right index finger due to a hyperextension injury, which led to a partial tear of the flexor tendon and tenosynovitis. The physician discusses avoiding dexamethasone specifically due to the patient's adverse reaction (heart racing) and instead recommends betamethasone for its lower toxicity and high benefit in relieving pain and inflammation.",
+    "medication": "dexamethasone"
+  },
+  {
+    "symptoms_summary": "The iron supplement is typically used to treat or manage symptoms of iron deficiency anemia, which may include fatigue, weakness, paleness, and shortness of breath. In the context of the transcripts, while specific symptoms associated with the use of the iron supplement are not detailed, it is implied that the patient has a history of anemia that is being monitored, indicating the supplement's role in overall health management.",
+    "medication": "iron supplement"
+  },
+  {
+    "symptoms_summary": "Atrovent (ipratropium bromide) is commonly used to treat symptoms of chronic obstructive pulmonary disease (COPD) and asthma. It helps manage symptoms such as shortness of breath, wheezing, and difficulty breathing. In the context of the transcript, the patient Gloria experiences shortness of breath and choking sensations, particularly when lying down, which suggests the use of Atrovent for alleviating respiratory issues associated with her COPD.",
+    "medication": "Atrovent"
+  },
+  {
+    "symptoms_summary": "The medication Carafate (sucralfate) is typically used to treat or manage symptoms related to esophagitis, which includes difficulty swallowing (dysphagia), pain when swallowing (odynophagia), and acid-related issues in the esophagus. In the context provided, the patient experiences pain with swallowing, particularly with larger pieces of food, and has been diagnosed with acute esophagitis. Carafate works by coating the lining of the esophagus and stomach, providing protection against stomach acid and helping to facilitate healing.",
+    "medication": "carafate"
+  },
+  {
+    "symptoms_summary": "Protonix (pantoprazole) is typically used to treat conditions related to excessive stomach acid. Common uses include managing symptoms of gastroesophageal reflux disease (GERD), esophagitis caused by acid reflux, and Zollinger-Ellison syndrome. In the transcript, the patient mentions having reflux symptoms, indicating that Protonix is used to manage his acid reflux.",
+    "medication": "Protonix 40 milligrams"
+  },
+  {
+    "symptoms_summary": "Buspar, also known as buspirone, is commonly used to treat symptoms of anxiety. In the provided transcript, the patient reports experiencing anxiety that was particularly brutal during the months of November and December, but mentions that her anxiety is now under control after starting buspar. The conversation highlights that her anxiety would spike at random times, often linked to hormonal changes or stressors in her life, including work-related pressures and her menstrual cycle. Though not explicitly stated, buspar is generally used to alleviate symptoms such as excessive worry, restlessness, and tension.",
+    "medication": "buspar"
+  },
+  {
+    "symptoms_summary": "Furosemide is typically used to treat conditions related to fluid retention, particularly in patients with chronic congestive heart failure (CHF). In the provided transcript, it is noted that the patient is experiencing dyspnea (shortness of breath) related to her heart failure, which is a common symptom for which furosemide is prescribed. Furosemide is a diuretic that helps to reduce excess fluid in the body, thereby alleviating symptoms such as swelling, weight gain due to fluid retention, and breathlessness.",
+    "medication": "furosemide"
+  },
+  {
+    "symptoms_summary": "Oxyglutinine is typically used to treat conditions such as bladder dysfunction, including urinary urgency, particularly in patients with chronic conditions that may lead to increased urgency or incontinence. In the context of the provided transcript, the patient mentioned that oxyglutinine has helped with her urgency to use the bathroom, indicating its role in managing urinary symptoms.",
+    "medication": "oxyglutinine"
+  },
+  {
+    "symptoms_summary": "Benzoyl peroxide is typically used to treat acne vulgaris. In the transcript, the patient expressed concern about acne and mentioned having never tried any treatments for it before, indicating that benzoyl peroxide was prescribed as a topical treatment alongside clindamycin to help manage acne symptoms.",
+    "medication": "benzoyl peroxide"
+  },
+  {
+    "symptoms_summary": "Augmentin is commonly used to treat a variety of bacterial infections. It is a combination antibiotic that contains amoxicillin and clavulanate potassium. It is typically prescribed for respiratory tract infections, urinary tract infections, skin infections, and infections of the ear, nose, and throat. Symptoms associated with these conditions may include fever, cough, abdominal pain, ear pain, and skin rashes. While not directly mentioned in the transcript, it is important to note that this patient is allergic to Augmentin.",
+    "medication": "augmentin"
+  },
+  {
+    "symptoms_summary": "Eliquis (apixaban) is an anticoagulant medication commonly used to reduce the risk of stroke and blood clots in patients with atrial fibrillation, treat deep vein thrombosis (DVT), and pulmonary embolism (PE), or to prevent DVT and PE after surgery. In the provided transcripts, the patient mentions taking Eliquis but does not specify any symptoms or conditions directly associated with its use. Therefore, its common applications include the management and prevention of thromboembolic conditions.",
+    "medication": "Eliquis"
+  },
+  {
+    "symptoms_summary": "The scar gel is typically used to treat or manage scars resulting from surgical procedures, such as bilateral reduction mammoplasty. In the provided transcript, the patient mentions using scar gel to address bother from scar appearance and texture, particularly noting the concern about a scar that seemed to widen. The medication is suggested for use to help lighten the color of scars and improve their overall appearance, especially in high tension areas.",
+    "medication": "scar gel"
+  },
+  {
+    "symptoms_summary": "Doxycycline is commonly used to treat Lyme disease, which can occur after a tick bite. In the transcript, the patient presents with a tick bite that has been causing localized burning and warmth around the knee, along with the development of a \"bull's-eye\" rash. The doctor expresses concern about the possibility of Lyme disease, which can present with symptoms such as flu-like symptoms (fever, chills, body aches) and rash. While the patient reports no significant symptoms other than a headache and discomfort related to the tick bite, doxycycline is indicated for the prevention and treatment of Lyme disease to avoid complications involving other organs.",
+    "medication": "doxycycline"
+  },
+  {
+    "symptoms_summary": "The oral steroid is typically used to treat symptoms related to inflammation in the lungs, particularly in cases of hypersensitivity pneumonitis, as seen in the provided transcript. The patient experiences recurring respiratory infections, cough, mucus production, shortness of breath, and low-grade fever. The prescribed oral steroid helps to decrease lung inflammation, thereby addressing these respiratory symptoms and potentially preventing further episodes of illness.",
+    "medication": "oral steroid"
+  },
+  {
+    "symptoms_summary": "Phexxi is used as a contraceptive method, specifically functioning as a spermicide. It is applied before intercourse to prevent pregnancy. In the context of the transcript, it is mentioned as a possible option for a patient following the discontinuation of birth control.",
+    "medication": "phexxi"
+  },
+  {
+    "symptoms_summary": "Methylprednisolone is typically used to treat inflammation, pain, and conditions such as tenosynovitis. In the context of the transcripts, it is indicated for managing post-traumatic inflammation of the finger, pain from tendon injuries, and severe stiffness from scar tissue. The medication helps decrease pain, allowing for improved mobility and function in the affected area. It is given as a corticosteroid injection to reduce inflammation and facilitate the rehabilitation of injuries such as partial tendon tears.",
+    "medication": "methylprednisolone"
+  },
+  {
+    "symptoms_summary": "Metoprolol is a beta-blocker primarily used to manage hypertension (high blood pressure), control heart rate, and treat angina (chest pain). It is also commonly prescribed for patients with coronary artery disease and to improve survival after a heart attack. In the reviewed transcript, the patient has coronary artery disease and the physician continues their prescription of metoprolol alongside other medications, indicating a management approach to the patient's heart health.",
+    "medication": "metoprolol"
+  },
+  {
+    "symptoms_summary": "Prilosec, also known as omeprazole, is commonly used to treat conditions related to excess stomach acid. In the provided transcript, the patient reports experiencing heartburn, which can be a symptom of gastroesophageal reflux disease (GERD) or other acid-related disorders. The patient indicated that they had trouble with heartburn that got bad for a while, prompting them to take Prilosec for two weeks in January to manage it, after which they have not had any further problems.",
+    "medication": "prilosec"
+  },
+  {
+    "symptoms_summary": "Cardura is typically used to treat uncontrolled hypertension. In the provided transcript, the patient experiences high blood pressure, with readings such as 170/90. The discussion reveals that the patient's symptoms include mild headaches associated with high blood pressure, occasional knee and back pain for which nonsteroidal anti-inflammatory drugs were used, and a history of edema when on their feet for a long time. Cardura may help manage these symptoms by lowering blood pressure.",
+    "medication": "cardura"
+  },
+  {
+    "symptoms_summary": "Testosterone is typically used to treat conditions associated with low testosterone levels, such as hypogonadism. In the transcript, the patient expresses that testosterone therapy has helped him feel more vigorous, improved sleep, and shown positive effects in bloodwork, including cholesterol levels. Common uses of testosterone therapy include boosting energy levels, improving mood, enhancing sexual function, and potentially benefitting metabolic parameters like cholesterol and blood sugar management.",
+    "medication": "testosterone"
+  },
+  {
+    "symptoms_summary": "Synthroid, a synthetic form of thyroxine (T4), is typically used to treat hypothyroidism, a condition where the thyroid gland does not produce sufficient thyroid hormones. The medication helps manage symptoms related to low thyroid hormone levels, which may include fatigue, weight gain, and cold intolerance. In the provided transcript, the patient indicated they are taking Synthroid regularly and reported no significant symptoms, such as fatigue or weight changes, suggesting effective management of his hypothyroidism.",
+    "medication": "synthroid"
+  },
+  {
+    "symptoms_summary": "Effexor (venlafaxine) is commonly used to treat major depressive disorder, anxiety disorders, and panic disorder. In the transcript, the patient, Rachel, has a history of depression and mentions experiencing extreme lows at times. The medication is intended to help manage her depressive symptoms, stabilizing her mood, and addressing feelings of sadness or hopelessness. Rachel confirms she is still taking Effexor, indicating its role in her ongoing management of depression.",
+    "medication": "effexor"
+  },
+  {
+    "symptoms_summary": "Celestone, which contains betamethasone, is typically used to manage inflammation and pain associated with conditions such as tenosynovitis and tendon injuries. In this case, it was proposed to treat Mr. Gutierrez's post-traumatic stenosing tenosynovitis of the right index finger, which involved symptoms such as severe pain, swelling, and difficulty moving the finger due to inflammation and scar tissue affecting tendon function. Generally, Celestone helps reduce swelling and inflammation, thereby alleviating pain and improving the range of motion in affected areas.",
+    "medication": "celestone"
+  },
+  {
+    "symptoms_summary": "Crestor (rosuvastatin) is a medication commonly used to treat high cholesterol levels, specifically by lowering low-density lipoprotein (LDL) cholesterol, and reducing the risk of cardiovascular diseases. In the context of the transcripts, the patient takes Crestor possibly for the management of elevated cholesterol, though there are concerns regarding its potential impact on liver function.",
+    "medication": "crestor"
+  },
+  {
+    "symptoms_summary": "Olmesartan is commonly used to treat high blood pressure (hypertension). It is an angiotensin II receptor antagonist that helps to relax blood vessels so that blood can flow more easily. In this transcript, the patient mentions taking olmesartan as part of their medication regimen but does not specify any direct symptoms or conditions related to its use other than being on it for blood pressure management.",
+    "medication": "olmesartan"
+  },
+  {
+    "symptoms_summary": "The medication Combivent is typically used to treat or manage symptoms of chronic obstructive pulmonary disease (COPD), which include shortness of breath and wheezing. It is designed to help open up the airways in the lungs, improving breathing for patients experiencing respiratory issues, particularly related to conditions like asthma or COPD.",
+    "medication": "combivent"
+  },
+  {
+    "symptoms_summary": "Cialis is typically used to treat erectile dysfunction and manage symptoms associated with benign prostatic hyperplasia (BPH). In the transcript, the patient mentions using Cialis daily, particularly taking a higher dose on workout days. While the transcript does not explicitly outline the symptoms for which the patient uses Cialis, its common use is to improve erectile function and sexual performance in men.",
+    "medication": "cialis"
+  },
+  {
+    "symptoms_summary": "The THC cream is typically used to manage localized pain and inflammation, as evidenced by the patient's use of it for knee pain following an injury. The patient reports subjective improvement in pain when applying the THC cream on their knee, indicating its use for symptomatic relief from pain, stiffness, and potential swelling associated with musculoskeletal injuries. THC cream is often sought for its analgesic and anti-inflammatory properties in similar contexts.",
+    "medication": "thc cream"
+  },
+  {
+    "symptoms_summary": "Vitamin C, also known as ascorbic acid, is commonly used to support the immune system, promote skin health, and aid in the absorption of iron from plant-based foods. It may be taken to help prevent and treat scurvy, a disease caused by vitamin C deficiency, and is also considered beneficial for antioxidant protection, reducing the risk of chronic diseases, and supporting overall health. Vitamin C is often recommended for general health maintenance rather than specific symptoms.",
+    "medication": "vitamin c"
+  },
+  {
+    "symptoms_summary": "Farxiga (dapagliflozin) is a medication primarily used to manage symptoms of type 2 diabetes mellitus by lowering blood sugar levels. It helps improve glycemic control in adults with type 2 diabetes and may also have implications for heart failure and chronic kidney disease. In the provided transcript, the patient is taking Farxiga for blood sugar management, experiencing fluctuations in blood sugar levels, with a report of morning fasting blood sugars running a little higher than usual.",
+    "medication": "Farxiga"
+  },
+  {
+    "symptoms_summary": "Vitamin B12 is typically used to treat or manage symptoms related to its deficiency, such as fatigue, weakness, anemia (specifically megaloblastic anemia), neuropathy (tingling or numbness in the hands and feet), and cognitive disturbances. In the context of the transcripts, the patient, Ms. Cooper, has experienced fatigue, headaches, chills, feelings of being cold easily, and worsening anxiety and depression, which might be tied to her anemia and possible vitamin B12 deficiency.",
+    "medication": "vitamin b12"
+  },
+  {
+    "symptoms_summary": "Camila is a birth control medication that contains a combination of hormones (estrogen and progestin) used for preventing pregnancy. Some side effects reported by patients taking hormonal contraceptives like Camila include changes in weight, changes in appetite, and potential mood swings or anxiety. In Transcript 1, the patient, after stopping the use of Camila, reported an increase in hunger levels and feeling better afterward, which suggests Camila might have contributed to changes in her appetite.",
+    "medication": "camila"
+  },
+  {
+    "symptoms_summary": "T-gel shampoo is typically used to treat scalp conditions characterized by itching, flaking, and the presence of dandruff. In the transcripts, the patient describes an itchy scalp, embarrassment due to visible dandruff, and the presence of scaly erythematous plaques on the scalp, which suggest conditions like scalp psoriasis. The medication is recommended to help control these symptoms and manage flare-ups.",
+    "medication": "t-gel shampoo"
+  },
+  {
+    "symptoms_summary": "Icy Hot is often used to provide temporary relief from muscle and joint pain, typically associated with conditions like arthritis, back pain, and strains. In the transcripts, the patient mentioned using Icy Hot on their lower back pain due to a recent strain from heavy lifting, indicating its use for soreness and stiffness.",
+    "medication": "icy heat"
+  },
+  {
+    "symptoms_summary": "Ferrous sulfate is typically used to treat or manage iron deficiency anemia, which can lead to symptoms such as fatigue, weakness, shortness of breath, wheezing, chills, headaches, and cold intolerance. In this transcript, the patient, Christina Cooper, reports feeling fatigued, experiencing chills, wheezing when active, having headaches, and previously being told she is anemic.",
+    "medication": "ferrous sulfate"
+  },
+  {
+    "symptoms_summary": "Finasteride is commonly used to treat symptoms associated with benign prostatic hyperplasia (BPH) and male pattern baldness (androgenetic alopecia). In the context of the provided transcript, it is part of the patient's treatment plan, although specific symptoms related to finasteride use are not explicitly discussed. The patient's health concerns include hypogonadism and gynecomastia, which may not be directly treated by finasteride but are part of his overall health management.",
+    "medication": "finasteride"
+  },
+  {
+    "symptoms_summary": "Vitamin D3 is commonly used to manage or treat symptoms related to vitamin D deficiency, which may include fatigue, weakness, and bone health issues. In the context of the patient in the transcript, while fatigue was a symptom mentioned by the patient, vitamin D3 is typically recommended to support overall health, aid in calcium absorption, and improve bone density, among other uses.",
+    "medication": "vitamin d3"
+  },
+  {
+    "symptoms_summary": "Unithroid is typically used to treat hypothyroidism, a condition where the thyroid gland does not produce enough thyroid hormones. It helps manage symptoms associated with this condition, which can include fatigue, weight gain, sensitivity to cold, dry skin, hair loss, and constipation. Additionally, the conversation hinted at the patient's need for thyroid medication due to previous health issues, affirming Unithroid's role in managing such thyroid-related concerns.",
+    "medication": "unithroid"
+  },
+  {
+    "symptoms_summary": "Robitussin is commonly used to treat coughs and manage symptoms associated with respiratory infections. In the provided transcripts, it was taken to help alleviate symptoms such as coughing, mucus production, and potentially shortness of breath, as experienced by the patient. Robitussin helps to suppress coughs and loosen mucus, making it easier to expel, which is beneficial during respiratory illnesses.",
+    "medication": "robitussin"
+  },
+  {
+    "symptoms_summary": "The magnesium supplement is recommended to help stabilize the heart muscle, particularly in patients with chronic heart failure and potentially low magnesium levels. In the case of the patient, symptoms like leg cramps were mentioned, which may relate to electrolyte balance, including magnesium levels. Generally, magnesium supplements are used to manage or prevent symptoms associated with magnesium deficiency, including muscle cramps, cardiac issues, and support overall cardiovascular health.",
+    "medication": "magnesium supplement"
+  },
+  {
+    "symptoms_summary": "Progesterone is commonly used to regulate menstrual cycles and manage symptoms associated with hormonal imbalances. In the transcript, it is mentioned that the patient was on progesterone for regulating periods and possibly for managing irritability and anxiety linked to hormonal changes, particularly in the days leading up to her menstrual cycle. The patient experienced increased anxiety prior to her menstrual period, which she noted has improved since starting the medication. Additionally, progesterone can be used to address issues such as breast lumps and related concerns, though the efficacy regarding the lumps in this case was uncertain.",
+    "medication": "progesterone"
+  },
+  {
+    "symptoms_summary": "Taxol, commonly used in the treatment of ovarian cancer, is administered as part of chemotherapy regimens. It is often used to manage symptoms related to advanced cancer stages, such as severe pain and potential complications from tumors, as well as associated symptoms like weight loss and constipation. Taxol is indicated to treat malignant conditions and is typically prescribed after surgical intervention to help eliminate remaining cancer cells.",
+    "medication": "taxol"
+  },
+  {
+    "symptoms_summary": "Aldactone, also known as spironolactone, is typically used to treat conditions related to fluid retention (edema), hypertension (high blood pressure), and to improve symptoms associated with heart failure and reduced ejection fraction. In the context of the transcript, it is prescribed to manage the patient's newly reduced left ventricular function and moderate mitral regurgitation. The medication helps to reduce fluid overload, which can occur when the heart's pumping function is compromised.",
+    "medication": "aldactone"
+  },
+  {
+    "symptoms_summary": "Neurontin (gabapentin) is commonly used to manage symptoms related to chronic pain, as mentioned in the transcript. The patient in the conversation with the doctor describes chronic back pain for which they are taking Neurontin, indicating that it helps control their pain, although they still experience it occasionally. Additionally, Neurontin may also be prescribed for neuropathic pain and to help with anxiety symptoms, although these particular uses were not explicitly mentioned in the transcript.",
+    "medication": "neurontin"
+  },
+  {
+    "symptoms_summary": "Naprosyn is typically used to treat symptoms related to pain and inflammation. In the provided transcript, it is specifically prescribed for the patient's back pain, which suggests it is used to manage muscular pain. Additionally, Naprosyn is commonly used for conditions such as arthritis, menstrual cramps, tendinitis, and other musculoskeletal disorders due to its anti-inflammatory properties.",
+    "medication": "Naprosyn"
+  },
+  {
+    "symptoms_summary": "Digoxin is commonly used to treat atrial fibrillation (afib), a condition characterized by an irregular and often rapid heart rate. The medication helps to control heart rate and improve the strength of heart contractions.",
+    "medication": "digoxin"
+  },
+  {
+    "symptoms_summary": "Atorvastatin, commonly known as Lipitor, is primarily used to lower cholesterol levels in patients at risk of cardiovascular diseases. In the context of the transcript, it is used to manage coronary artery disease and reduce the risk of heart attacks and strokes. The patient has a history of coronary artery disease and recent heart attack, and atorvastatin is part of their treatment regimen to help improve heart health and prevent further complications.",
+    "medication": "atorvastatin"
+  },
+  {
+    "symptoms_summary": "Miralax is commonly used to treat or manage constipation. In the transcripts, patients mentioned experiencing constipation, which was addressed by the doctors recommending Miralax to alleviate the symptom.",
+    "medication": "miralax"
+  },
+  {
+    "symptoms_summary": "Clopidogrel is an antiplatelet medication commonly used to prevent blood clots in patients with cardiovascular conditions. It is typically indicated for managing symptoms related to conditions such as chronic congestive heart failure, coronary artery disease, and to prevent heart attacks or strokes. In this context, it is noted that the patient was advised to stop taking clopidogrel a week prior to knee surgery, indicating its use in facilitating safe surgical procedures by minimizing the risk of excessive bleeding.",
+    "medication": "clopidogrel"
+  },
+  {
+    "symptoms_summary": "CoQ10, or coenzyme Q10, is commonly used to help manage symptoms related to heart health, such as high cholesterol and hypertension, as well as to support overall energy levels and mitigate the side effects of certain medications, particularly statins. It is often associated with helping to improve mitochondrial function and providing antioxidant protection, which may benefit individuals with cardiovascular conditions or those seeking to enhance their exercise performance and recovery.",
+    "medication": "coq10"
+  },
+  {
+    "symptoms_summary": "In the context of the provided transcript, betamethasone is indicated for treating post-traumatic severe stenosing tenosynovitis, particularly in the right index finger of a patient who has experienced significant pain and dysfunction following a hyperextension injury. The patient reported symptoms including swelling, inability to make a fist, unbearable pain during activities like driving, and the feeling of tearing in the finger. Betamethasone is commonly used to alleviate inflammation and pain associated with joint and tendon issues, providing symptom relief that can encourage movement and rehabilitation.",
+    "medication": "betamethasone"
+  },
+  {
+    "symptoms_summary": "Elderberry fruit is commonly used for its immune-boosting properties, particularly in the treatment and prevention of colds and flu-like symptoms. It is known for its antioxidant properties and can help alleviate symptoms related to respiratory infections, such as congestion and inflammation. Additionally, elderberry is sometimes used to address seasonal allergies and may support overall cardiovascular health.",
+    "medication": "elderberry fruit"
+  },
+  {
+    "symptoms_summary": "Thc gummies are typically used to manage symptoms associated with pain, inflammation, and discomfort. In the transcript, the patient addresses knee pain, particularly describing swelling, stiffness, and sharp pain, which are symptoms possibly alleviated by THC-infused products like gummies. Additionally, THC is known for its potential to help with anxiety and muscle spasms, but in this context, it seems primarily used for pain relief in the patient\u2019s knee after an injury.",
+    "medication": "thc gummies"
+  },
+  {
+    "symptoms_summary": "The medication 'Ultram 50 milligrams' is typically used to treat or manage moderate to severe pain. In the provided transcript, the patient, who is experiencing back pain that is likely related to a recurrence of kidney stones, is prescribed Ultram to help alleviate this discomfort. Additionally, Ultram can be useful in managing pain associated with conditions such as post-surgical pain, injury, or chronic pain disorders.",
+    "medication": "Ultram 50 milligrams"
+  },
+  {
+    "symptoms_summary": "Amoxicillin 500 mg three times a day for 10 days is typically used to treat bacterial infections, specifically upper respiratory infections. In the transcripts, symptoms associated with the use of amoxicillin include sore throat, fever, difficulty swallowing, swollen tonsils, and signs of strep throat infection. Amoxicillin is effective against bacterial causes of these symptoms.",
+    "medication": "amoxicillin 500 mg three times a day for 10 days"
+  },
+  {
+    "symptoms_summary": "The medication NSAIDs (Non-Steroidal Anti-Inflammatory Drugs) is commonly used to manage pain and inflammation, particularly associated with conditions like arthritis, musculoskeletal pain, and degenerative joint diseases. In the provided transcript, the patient experiences pain primarily in the right hip and groin area, which is aggravated by movement, especially when pivoting or walking. The doctor recommends NSAIDs to help alleviate this pain, indicating its common use for managing discomfort related to joint issues.",
+    "medication": "nsaids"
+  },
+  {
+    "symptoms_summary": "Allopurinol 100 mg, once daily, is commonly used to treat and manage symptoms associated with gout, particularly to reduce uric acid levels and prevent acute gout attacks. In the transcripts, patients reported experiencing gout attacks, joint pain, and the positive effects of allopurinol in controlling these symptoms. Additionally, allopurinol may be used in patients with a history of elevated uric acid to prevent complications related to gout.",
+    "medication": "allopurinol 100 mg, once daily"
+  },
+  {
+    "symptoms_summary": "Vitamin D is primarily used to manage and treat vitamin D deficiency, which can lead to symptoms such as bone pain, muscle weakness, increased risk of fractures, and osteoporosis. It plays a critical role in calcium absorption and maintaining bone health. Additionally, vitamin D supplementation is often recommended for general health support, immune system function, and improving overall well-being.",
+    "medication": "vitamin d"
+  },
+  {
+    "symptoms_summary": "Carvedilol 25 milligrams twice a day is commonly used to manage symptoms related to hypertension (high blood pressure) and heart failure. In the transcripts, patients reported episodes of chest pain, shortness of breath, and episodes of dizziness, likely exacerbated by episodes of high blood pressure and fluid retention. Specifically, carvedilol helps by improving the pumping function of the heart and addressing coronary artery disease, making it effective for patients dealing with cardiovascular issues.",
+    "medication": "carvedilol 25 milligrams twice a day"
+  },
+  {
+    "symptoms_summary": "Albuterol is commonly used to treat or manage symptoms associated with asthma, chronic obstructive pulmonary disease (COPD), and other respiratory conditions. Typical symptoms that albuterol addresses include shortness of breath, wheezing, chest tightness, and difficulty breathing, particularly during physical activity or exposure to allergens. It can provide quick relief from acute asthma attacks and exacerbations of respiratory issues.",
+    "medication": "albuterol"
+  },
+  {
+    "symptoms_summary": "Omeprazole is commonly used to treat symptoms associated with gastroesophageal reflux disease (GERD), specifically reducing gastric acidity and alleviating symptoms such as heartburn, acid regurgitation, and stomach discomfort. In the presented transcript, the patient experienced nausea, vomiting, and abdominal pain, which are consistent with reflux symptoms. Omeprazole was prescribed to help manage these issues.",
+    "medication": "omeprazole"
+  },
+  {
+    "symptoms_summary": "Ultram (tramadol) is typically used to manage moderate to moderately severe pain. In the transcripts analyzed, it was prescribed for conditions including lumbar strain (Transcript 1), knee pain associated with arthritis (Transcript 2), and wrist pain due to a Colles' fracture (Transcript 3). Common symptoms that Ultram helps to alleviate include acute and chronic pain, discomfort associated with joint issues, and pain from injuries. It is often recommended as a pain relief strategy in situations where traditional over-the-counter pain medications (like ibuprofen or Tylenol) are insufficient.",
+    "medication": "ultram, 50 mg every 4-6 hours as needed"
+  },
+  {
+    "symptoms_summary": "Cozaar (losartan) 100 mg daily is typically used to manage hypertension (high blood pressure) and may also be prescribed to treat heart failure and protect the kidneys in patients with diabetes. In the transcripts, common symptoms related to hypertension and heart failure mentioned include swelling in the ankles, shortness of breath, and elevated blood pressure readings (e.g., 200/90). Both patients discuss issues with maintaining their medication regimen and describe dietary indiscretions leading to increased blood pressure and related symptoms. Cozaar helps to lower blood pressure, which, in turn, can alleviate symptoms of heart failure by reducing the workload on the heart and improving overall cardiovascular health.",
+    "medication": "cozaar 100 mg daily"
+  },
+  {
+    "symptoms_summary": "Aleve, a nonsteroidal anti-inflammatory drug (NSAID), is commonly used to treat pain associated with conditions such as knee pain, back pain, and headaches. In the first transcript, the patient mentioned using Aleve occasionally for knee and back pain, indicating its effectiveness for episodic discomfort. In the second transcript, the patient described experiencing deep achy pain in both knees due to patellofemoral pain syndrome, noting that Aleve helps take the edge off the pain. Overall, Aleve is typically used for managing mild to moderate pain, inflammation, and reducing fever.",
+    "medication": "aleve"
+  },
+  {
+    "symptoms_summary": "Toprol (metoprolol) at 50 milligrams daily is commonly used to treat and manage several cardiovascular conditions. In the analyzed transcripts, it is indicated for managing symptoms related to congestive heart failure, where patients may experience fatigue, dizziness, and potential retention of fluid. It is also utilized in cases of coronary artery disease and hypertension, helping to monitor and reduce blood pressure and support heart function. Toprol functions as a beta-blocker, which can alleviate symptoms such as shortness of breath and chest discomfort, although specific symptoms were not detailed in the transcripts.",
+    "medication": "toprol 50 milligrams daily"
+  },
+  {
+    "symptoms_summary": "Cisplatin is typically used to treat various types of cancer, including lung cancer and ovarian cancer, as indicated in the provided transcripts. In Transcript 1, the patient, Beverly, is managing symptoms related to her stage three non-small cell lung cancer during chemotherapy, which include a minimal cough, sore throat, slight fatigue, and a dry cough possibly related to radiation treatment. Cisplatin, combined with etoposide, is part of her chemotherapy regimen to address the cancer. In Transcript 2, cisplatin is recommended as part of the treatment plan for the newly diagnosed ovarian cancer, addressing symptoms that could include pain, bleeding, and weight loss. Overall, cisplatin is known to be effective in managing symptoms and treating cancers by targeting and reducing tumor growth.",
+    "medication": "cisplatin"
+  },
+  {
+    "symptoms_summary": "Bumex (bumetanide) 2 mg once daily is a diuretic commonly used to treat symptoms associated with heart failure, such as fluid retention (edema) and swelling, particularly in the ankles. It helps reduce shortness of breath caused by fluid accumulation in the lungs, as noted by patients experiencing these symptoms. Additionally, bumex assists in managing high blood pressure as part of a broader treatment plan for hypertension. In the transcripts, both patients reported issues with ankle swelling and shortness of breath, which are indicative of congestive heart failure and fluid overload.",
+    "medication": "bumex 2 mg once daily"
+  },
+  {
+    "symptoms_summary": "Meloxicam 15 mg, once daily, is commonly used to treat pain and inflammation associated with conditions such as contusions, knee injuries, and ligament strains. In the transcripts analyzed, it was prescribed for patients experiencing knee pain due to injuries, including swelling and limited range of motion following trauma, as well as for a patient with a right leg contusion resulting from a bowling incident. The medication is an anti-inflammatory and analgesic, helping to alleviate pain associated with injuries and conditions like medial collateral ligament strains and knee effusion.",
+    "medication": "meloxicam 15 mg, once daily"
+  },
+  {
+    "symptoms_summary": "Prednisone is a corticosteroid commonly used to treat inflammation and immune response issues. In the analyzed transcripts, it was indicated for managing symptoms related to radiation pneumonitis, including a persistent dry cough and shortness of breath. Additionally, it is used in the management of chronic obstructive pulmonary disease (COPD), as it helps reduce inflammation in the airways and improves breathing in patients exhibiting wheezing and shortness of breath. Prednisone is also utilized to help alleviate severe inflammation in various conditions.",
+    "medication": "prednisone, 40 mg daily for 5 days"
+  },
+  {
+    "symptoms_summary": "Lidocaine swish and swallow is commonly used to manage symptoms related to throat pain and discomfort associated with various conditions such as upper respiratory infections, strep throat, and inflammation of the esophagus. In the provided transcripts, the medication was prescribed for a patient experiencing sore throat, difficulty swallowing, swollen tonsils, and pain during swallowing. It is typically used to numb the throat area, providing relief from pain while swallowing and making it easier to consume fluids and food.",
+    "medication": "lidocaine swish and swallow"
+  },
+  {
+    "symptoms_summary": "Naprosyn, also known as naproxen, is typically used to treat symptoms related to inflammation and pain. In the provided transcript, it is specifically recommended for managing back pain, which Gabriel experienced as sharp pain in the lower back radiating down to the left leg. The doctor suggested using Naprosyn as part of a treatment plan for what was likely a muscular sprain. Additionally, Naprosyn is commonly employed for conditions like arthritis, menstrual pain, and other acute or chronic pain situations due to its anti-inflammatory properties.",
+    "medication": "naprosyn"
+  },
+  {
+    "symptoms_summary": "Clindamycin gel is commonly used to treat acne vulgaris, which is characterized by the presence of pimples, blackheads, and cysts on the skin. It is a topical antibiotic that helps reduce inflammation and the bacteria associated with acne, promoting clearer skin. In the transcripts, clindamycin was specifically mentioned in connection with treating the patient's acne.",
+    "medication": "clindamycin gel"
+  },
+  {
+    "symptoms_summary": "Flomax, commonly known as tamsulosin, is typically used to treat symptoms of benign prostatic hyperplasia (BPH), which include difficulties in urination such as weak urinary stream, incomplete bladder emptying, and nocturia (waking up at night to urinate). The patient in the transcript describes experiencing a weak urinary stream, needing to get up three to four times at night to urinate, and having some difficulty fully emptying the bladder, all of which indicate potential prostate-related urinary issues that Flomax is designed to alleviate.",
+    "medication": "flomax"
+  },
+  {
+    "symptoms_summary": "Advil, a nonsteroidal anti-inflammatory drug (NSAID), is commonly used to treat symptoms such as headache, mild to moderate pain, and inflammation. In the transcripts, it was mentioned that patients took Advil for headaches and muscle pain, indicating its use for alleviating discomfort associated with these symptoms. It also showcases its effectiveness in providing temporary relief for pain caused by tension headaches and knee or back pain.",
+    "medication": "Advil"
+  },
+  {
+    "symptoms_summary": "Lasix, or furosemide, is typically used to treat or manage symptoms associated with congestive heart failure (CHF), such as shortness of breath, fluid retention (edema), and swelling in the legs or abdomen. In the transcripts, patients reported symptoms including shortness of breath, weight gain or swelling in their legs, and feelings of bloating. Additionally, Lasix is used for managing hypertension and preventing fluid overload in patients with heart conditions.",
+    "medication": "lasix 80 milligrams once a day"
+  },
+  {
+    "symptoms_summary": "Flexeril (cyclobenzaprine) is a muscle relaxant commonly used to treat symptoms associated with muscle spasm and discomfort. In the provided transcripts, it was prescribed to patients experiencing muscle tension, pain, and associated discomfort in the back and neck regions, often related to stress or physical activity. Specifically, it was used for: 1. Tension-type headaches with associated tightness in neck and shoulder muscles (Transcript 1). 2. Lower back pain, potentially due to muscular sprain or strain (Transcript 2). 3. Muscular pain related to shortness of breath exacerbated by underlying conditions (Transcript 3). Flexeril is typically used to relieve muscle spasms and pain, allowing for improved mobility and comfort.",
+    "medication": "Flexeril, 10 mg, muscle relaxant"
+  },
+  {
+    "symptoms_summary": "The medication 'oxycodone 5 mg' is typically used to treat or manage moderate to severe pain, particularly in cases such as kidney stones. In the analyzed transcripts, patients reported symptoms including constant and severe pain in the back and abdomen, pain radiating to the groin, nausea, burning sensation during urination, and dark-colored urine. Oxycodone is commonly prescribed for acute pain management, especially when other pain relief measures such as Tylenol or ibuprofen are insufficient.",
+    "medication": "oxycodone 5 mg"
+  },
+  {
+    "symptoms_summary": "Hydrochlorothiazide, 10 mg is typically used to manage hypertension (high blood pressure) and edema (fluid retention) associated with various conditions. From the provided transcripts, it appears that one patient was prescribed hydrochlorothiazide to address swelling in the legs (edema), which was attributed to prior blood pressure medication (Norvasc). Additionally, the other transcript discusses the management of hypertension and diabetes, indicating that hydrochlorothiazide may also play a role in managing these conditions overall.",
+    "medication": "Hydrochlorothiazide, 10 mg"
+  },
+  {
+    "symptoms_summary": "Aspirin 81 mg daily, commonly known as baby aspirin, is typically used to treat or manage various cardiovascular conditions. It is often prescribed to patients with a history of coronary artery disease (CAD) to prevent future heart attacks and strokes. In the transcripts analyzed, patients with CAD, hypertension, diabetes, and a history of stent placement express that they are taking aspirin regularly to maintain cardiovascular health and reduce the risk of clot formation. The medication helps in reducing inflammation and preventing blood clots, thereby promoting better blood flow and overall heart health.",
+    "medication": "aspirin 81 mg daily; baby aspirin 81 mg daily"
+  },
+  {
+    "symptoms_summary": "Protonix (40 milligrams, once a day) is typically used to manage symptoms related to excessive stomach acid. In the transcripts, the medication is prescribed for conditions like gastritis and esophagitis, which can involve symptoms such as abdominal pain, difficulty swallowing, nausea, and lightheadedness due to anemia linked to digestive issues. Protonix functions as a proton pump inhibitor, reducing the amount of acid produced in the stomach, thereby alleviating irritation and inflammation of the esophagus and stomach lining.",
+    "medication": "protonix, 40 milligrams, once a day"
+  },
+  {
+    "symptoms_summary": "Meloxicam 15 mg is commonly used to treat symptoms related to inflammatory conditions such as arthritis and pain management. In the transcripts, patients presented various symptoms that included knee pain due to arthritis, knee injuries resulting in strain or instability, back pain from lifting or injuries, and pain associated with conditions such as hallux rigidus (arthritis in the big toe). Symptoms indicated for meloxicam use include joint pain, swelling, stiffness, and general discomfort in both lower extremities and back, impacting daily activities and mobility.",
+    "medication": "meloxicam 15 mg"
+  },
+  {
+    "symptoms_summary": "Motrin (ibuprofen) 600-800 mg is typically used to manage various types of pain, as evidenced in the transcripts. Common symptoms treated include: 1. Finger Pain - As seen in Transcript 2, a patient reported pain in the right finger due to a skiing injury. 2. Knee Pain - In Transcript 3, a patient experienced right knee pain after a fall. 3. Elbow Pain - Transcript 4 described a patient with right elbow pain due to lifting boxes. In all cases, Motrin was prescribed to alleviate pain associated with strains, contusions, or inflammation.",
+    "medication": "motrin 600-800 mg for pain as needed"
+  },
+  {
+    "symptoms_summary": "Etoposide is a chemotherapy medication commonly used to treat various types of cancer, including lung cancer. It works by inhibiting DNA synthesis, which is particularly effective against rapidly dividing cancer cells. In the context of the provided transcript, etoposide is part of a treatment regimen for a patient with stage three non-small cell lung cancer. Common symptoms managed with etoposide and its associated treatment include cough, fatigue, and radiation pneumonitis, which leads to inflammation in the lungs, contributing to cough and potential shortness of breath. Additionally, patients may experience sore throat and painful swallowing due to inflammation in the esophagus. Overall, etoposide is utilized to manage the progression of cancer and alleviate associated symptoms.",
+    "medication": "etoposide"
+  },
+  {
+    "symptoms_summary": "Prozac, also known as fluoxetine, is commonly used to treat major depressive disorder, which is indicated by symptoms such as persistent sadness, fatigue, changes in sleep patterns, and difficulty in concentration. In the provided transcripts, patients report struggles with depression, often characterized by feelings of being trapped, stress from life events, and chronic management of depressive symptoms. Specific patient reports include managing fluctuating depressive episodes, particularly exacerbated by significant life changes such as moving children to college or dealing with pollen allergies. The medication is known to assist in stabilizing mood and may require dosage adjustments based on patient-reported symptoms and lifestyle stresses. It can help provide relief from the emotional and psychological burdens associated with depression.",
+    "medication": "Prozac, 20 milligrams daily and increased to 40 milligrams daily for depression management."
+  },
+  {
+    "symptoms_summary": "Singulair (montelukast) is commonly used to treat and manage symptoms associated with asthma and allergic rhinitis. In Transcript 1, the patient describes experiencing asthma symptoms such as difficulty breathing, wheezing, coughing, and tightness in the chest, particularly during sports activities and exposure to smoke. The patient expresses a need for additional management options beyond an albuterol inhaler. In Transcript 2, the patient mentions that Singulair was prescribed and the potential for it to impact anxiety levels, indicating concerns about the medication's side effects. Therefore, Singulair is typically used to alleviate asthma symptoms and may also address allergy-related issues.",
+    "medication": "singulair"
+  },
+  {
+    "symptoms_summary": "Metformin 1000 mg is typically used to manage type 2 diabetes mellitus. Commonly, patients using this medication report issues related to high blood sugar levels, such as fatigue, increased thirst, frequent urination, and difficulty in maintaining a healthy diet. Metformin helps lower blood sugar levels by improving insulin sensitivity and decreasing glucose production in the liver. Patients may also experience symptoms related to their diabetes management, such as the need to monitor their blood sugar levels regularly, and the potential for developing complications associated with diabetes.",
+    "medication": "Metformin 1000 mg"
+  },
+  {
+    "symptoms_summary": "Gabapentin is commonly used to treat neuropathic pain, which encompasses various conditions related to nerve damage. In the provided transcripts, patients mentioned symptoms such as shortness of breath, chronic back pain, left arm pain radiating down to the hand, weakness in the hand, and potential cervical radicular pain linked to nerve compression. Gabapentin is indicated for managing nerve pain associated with conditions like neuropathy, often resulting from herniated disks or degenerative disc disease. It also helps alleviate symptoms resulting from conditions like fibromyalgia and restless leg syndrome.",
     "medication": "gabapentin"
   },
   {
-    "symptoms_summary": "Metformin is commonly used to manage diabetes mellitus type 2. It helps to control blood sugar levels by improving insulin sensitivity and reducing glucose production in the liver. Patients typically report symptoms related to high blood sugar, such as fatigue, increased thirst, excessive urination, and difficulty concentrating. Metformin is often prescribed alongside dietary changes and exercise to maintain blood glucose within target ranges and prevent complications related to diabetes.",
-    "medication": "metformin"
+    "symptoms_summary": "Lisinopril 20 mg is commonly used to manage hypertension (high blood pressure) and to treat heart failure. Patients typically present symptoms such as elevated blood pressure readings, which can range from mildly elevated to significantly high (e.g., readings reported as high as 180/95). Patients may also experience associated symptoms of dizziness, fatigue, lightheadedness, and swelling in the legs (edema) due to fluid retention related to heart failure. In cases of congestive heart failure, it helps reduce fluid retention, manage symptoms of shortness of breath, and improve heart function by reducing the workload on the heart.",
+    "medication": "lisinopril 20 mg"
   },
   {
-    "symptoms_summary": "Tylenol, also known as acetaminophen, is commonly used to treat symptoms such as pain and fever. In the analyzed transcripts, patients are using Tylenol for various types of pain, including back pain, shoulder pain, knee pain, joint pain, and pain associated with kidney stones. Specific instances include: persistent and acute pain from kidney stones, sharp abdominal pain, shoulder pain from overuse, as well as generalized body aches. Additionally, some patients reported that Tylenol provided limited relief, suggesting its role as a mild analgesic for managing discomfort.",
+    "symptoms_summary": "The medication Norvasc (amlodipine) is commonly prescribed for the management of hypertension (high blood pressure). In the analyzed transcripts, patients discussed issues related to high blood pressure management, including elevated readings (e.g., 170/90 and 200/90), difficulty in maintaining control despite medication adherence, and dietary habits affecting blood pressure levels. Symptoms related to hypertension, such as headaches when blood pressure is high, swelling (edema) in the ankles, and episodes of shortness of breath (in one case, potentially due to heart conditions linked to hypertension), were also noted. General uses of Norvasc include lowering high blood pressure, which is crucial in preventing cardiovascular diseases, heart attacks, and strokes.",
+    "medication": "norvasc 2.5 mg to 10 mg daily for hypertension"
+  },
+  {
+    "symptoms_summary": "Tylenol (acetaminophen) is commonly used to treat or manage various symptoms including: \n1. **Pain Relief**: Patients often take Tylenol for joint pain, back pain, knee pain, muscle pain, and headaches. It is frequently mentioned for conditions related to overuse, injury, and chronic pain. \n2. **Fever Reduction**: Although not explicitly stated in the transcripts, Tylenol is also known for its effectiveness in lowering fever. \n3. **Mild to Moderate Pain**: It is used for symptoms associated with injuries, such as sprains or strains, where pain levels can be acute and need management. \n4. **Acute Conditions**: Tylenol is referenced in the context of acute pain episodes due to injuries or conditions like kidney stones, where patients seek symptomatic relief. \n5. **Chronic Conditions**: Patients with chronic conditions like arthritis or migraines also report using Tylenol as part of their pain management regimen. \n6. **General Use**: It is often taken as a first-line analgesic due to its accessibility and efficacy in reducing mild to moderate pain.",
     "medication": "Tylenol"
   },
   {
-    "symptoms_summary": "Ibuprofen is commonly used to treat or manage a variety of symptoms and conditions including: \n1. Pain relief for injuries (e.g., wrist pain from falling, knee pain from overuse, back pain from lifting) \n2. Inflammation reduction associated with conditions like tendinitis and bursitis \n3. Pain from conditions such as kidney stones, including associated flank pain and other discomforts \n4. Pain due to strains and sprains, such as ankle sprains or muscle strains \n5. Symptoms of arthritis or similar inflammatory conditions \n6. General pain relief after surgeries or injury (e.g., post-fracture or post-operative pain) \n7. Relief of menstrual cramps or other similar pain \n\nOverall, ibuprofen is an NSAID (non-steroidal anti-inflammatory drug) commonly used for its analgesic (pain relief) and antipyretic (fever-reducing) properties.",
+    "symptoms_summary": "Ibuprofen is commonly used to treat a variety of symptoms related to pain and inflammation. Based on the analyzed transcripts, it is indicated for managing: \n1. **Knee Pain** - Reported in patients with conditions like patellofemoral pain syndrome or following injuries causing strains and sprains. \n2. **Elbow Pain** - Examined in cases of medial or lateral epicondylitis (commonly known as 'golfer's elbow' or 'tennis elbow'). \n3. **Ankle Sprains** - Patients injured their ankles through falls, leading to pain and swelling, for which ibuprofen helps reduce discomfort. \n4. **Back Pain** - Used in cases of muscular strain or injury from lifting heavy objects. \n5. **Foot Pain** - Assists in managing pain resulting from injuries such as lisfranc fractures or contusions. \n6. **Post-Injury/Operation Pain** - It is also prescribed for pain relief following trauma or surgical procedures. \nGenerally, ibuprofen is an NSAID (non-steroidal anti-inflammatory drug) widely utilized to alleviate mild to moderate pain and reduce inflammation associated with various conditions.",
     "medication": "ibuprofen"
-  },
-  {
-    "symptoms_summary": "Lisinopril is an antihypertensive medication primarily used to treat high blood pressure (hypertension). In the reviewed transcripts, several patients discussed their hypertension management while taking lisinopril, highlighting symptoms associated with high blood pressure such as fatigue, dizziness, and occasional headaches. Additionally, it is often mentioned in the context of managing heart conditions, including heart failure and related symptoms such as shortness of breath and fluid retention. Furthermore, lisinopril is sometimes part of the treatment regimen for patients with underlying diabetes, focusing on maintaining optimal blood pressure levels to prevent complications.",
-    "medication": "lisinopril"
-  },
-  {
-    "symptoms_summary": "THC cream is used to manage pain and discomfort associated with injuries or conditions affecting the joints and muscles. In the provided transcript, the patient is using THC cream to alleviate pain and swelling in the knee due to a skiing injury. Symptoms that the THC cream is intended to help with include bilateral knee pain, swelling, stiffness, and tenderness, especially after activity or in the morning. Patients often report finding relief from such symptoms with the application of THC cream.",
-    "medication": "thc cream"
   }
 ]

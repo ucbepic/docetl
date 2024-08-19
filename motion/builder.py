@@ -253,6 +253,9 @@ class Optimizer:
                 self.console.log(f"  • [cyan]Step:[/cyan] [bold]{step['name']}[/bold]")
 
                 new_resolve_op = f"synthesized_resolve_{i}"
+                reduce_key = self.config["operations"][reduce_op].get("reduce_key")
+                if isinstance(reduce_key, str):
+                    reduce_key = [reduce_key]
                 self.config["operations"][new_resolve_op] = {
                     "type": "resolve",
                     "empty": True,
@@ -261,9 +264,7 @@ class Optimizer:
                     "comparison_model": self.config.get("default_model", "gpt-4o-mini"),
                     "_intermediates": {
                         "map_prompt": self.config["operations"][map_op].get("prompt"),
-                        "reduce_key": self.config["operations"][reduce_op].get(
-                            "reduce_key"
-                        ),
+                        "reduce_key": reduce_key,
                     },
                 }
 
@@ -881,5 +882,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/map.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/synth_resolve.yaml", model="gpt-4o")
     optimizer.optimize()

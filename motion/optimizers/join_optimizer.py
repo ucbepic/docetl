@@ -94,13 +94,13 @@ class JoinOptimizer:
     def _determine_duplicate_keys(
         self,
         input_data: List[Dict[str, Any]],
-        reduce_key: str,
+        reduce_key: List[str],
         map_prompt: Optional[str] = None,
     ) -> bool:
         # Prepare a sample of the input data for analysis
         sample_size = min(10, len(input_data))
         data_sample = random.sample(
-            [item[reduce_key] for item in input_data], sample_size
+            [{rk: item[rk] for rk in reduce_key} for item in input_data], sample_size
         )
 
         context_prefix = ""
@@ -110,7 +110,7 @@ class JoinOptimizer:
         messages = [
             {
                 "role": "user",
-                "content": f"{context_prefix}I want to do a reduce operation on these values, and I need to determine if there are semantic duplicates in the data, where the strings are different but they technically belong in the same group. Note that exact string duplicates should not be considered here.\n\nHere's a sample of the data (showing the '{reduce_key}' field): {data_sample}\n\nBased on this {'context and ' if map_prompt else ''}sample, are there likely to be such semantic duplicates (not exact string matches) in the dataset? Respond with 'yes' only if you think there are semantic duplicates, or 'no' if you don't see evidence of semantic duplicates or if you only see exact string duplicates.",
+                "content": f"{context_prefix}I want to do a reduce operation on these values, and I need to determine if there are semantic duplicates in the data, where the strings are different but they technically belong in the same group. Note that exact string duplicates should not be considered here.\n\nHere's a sample of the data (showing the '{reduce_key}' field(s)): {data_sample}\n\nBased on this {'context and ' if map_prompt else ''}sample, are there likely to be such semantic duplicates (not exact string matches) in the dataset? Respond with 'yes' only if you think there are semantic duplicates, or 'no' if you don't see evidence of semantic duplicates or if you only see exact string duplicates.",
             },
         ]
         response = self.llm_client.generate(
@@ -166,7 +166,7 @@ class JoinOptimizer:
         self,
         input_data: List[Dict[str, Any]],
         pairs: List[Tuple[int, int]],
-        reduce_key: str,
+        reduce_key: List[str],
         map_prompt: Optional[str],
     ) -> bool:
         """Use LLM to check if any pairs are duplicates."""
@@ -181,12 +181,13 @@ class JoinOptimizer:
 
         for i, (idx1, idx2) in enumerate(pairs, 1):
             content += f"Pair {i}:\n"
-            content += (
-                f"Entry 1: {json.dumps(input_data[idx1][reduce_key], indent=2)}\n"
-            )
-            content += (
-                f"Entry 2: {json.dumps(input_data[idx2][reduce_key], indent=2)}\n\n"
-            )
+            content += "Entry 1:\n"
+            for key in reduce_key:
+                content += f"{key}: {json.dumps(input_data[idx1][key], indent=2)}\n"
+            content += "\nEntry 2:\n"
+            for key in reduce_key:
+                content += f"{key}: {json.dumps(input_data[idx2][key], indent=2)}\n"
+            content += "\n"
 
         messages = [{"role": "user", "content": content}]
 
@@ -211,10 +212,10 @@ class JoinOptimizer:
         return response["duplicates_found"].lower() == "yes"
 
     def synthesize_compare_prompt(
-        self, map_prompt: Optional[str], reduce_key: str
+        self, map_prompt: Optional[str], reduce_key: List[str]
     ) -> str:
 
-        system_prompt = f"You are an AI assistant tasked with creating a comparison prompt for LLM-assisted entity resolution. Your task is to create a comparison prompt that will be used to compare two entities, referred to as input1 and input2, to see if input1.{reduce_key} and input2.{reduce_key} are likely the same entity."
+        system_prompt = f"You are an AI assistant tasked with creating a comparison prompt for LLM-assisted entity resolution. Your task is to create a comparison prompt that will be used to compare two entities, referred to as input1 and input2, to see if they are likely the same entity based on the following reduce key(s): {', '.join(reduce_key)}."
         if map_prompt:
             system_prompt += f"\n\nFor context, here is the prompt used earlier in the pipeline to create the inputs to resolve: {map_prompt}"
 
@@ -225,7 +226,7 @@ class JoinOptimizer:
     Create a comparison prompt for entity resolution: The prompt should:
     1. Be tailored to the specific domain and type of data being compared, based on the context provided.
     2. Instruct to compare two entities, referred to as input1 and input2.
-    3. Specifically mention comparing input1.{reduce_key} and input2.{reduce_key}.
+    3. Specifically mention comparing each reduce key in input1 and input2 (e.g., input1.{{key}} and input2.{{key}} for each key in {reduce_key}).
     4. Include instructions to consider relevant attributes or characteristics for comparison.
     5. Ask to respond with "True" if the entities are likely the same, or "False" if they are likely different.
 
@@ -234,10 +235,10 @@ class JoinOptimizer:
     Compare the following two [entity type]:
 
     [Entity 1]:
-    {{{{ input1.{reduce_key} }}}}
+    {{{{ input1.key1 }}}}
 
     [Entity 2]:
-    {{{{ input2.{reduce_key} }}}}
+    {{{{ input2.key1 }}}}
 
     Are these [entities] likely referring to the same [entity type]? Consider [list relevant attributes or characteristics to compare]. Respond with "True" if they are likely the same [entity type], or "False" if they are likely different [entity types].
     ```
@@ -278,11 +279,14 @@ class JoinOptimizer:
         return comparison_prompt
 
     def synthesize_resolution_prompt(
-        self, map_prompt: Optional[str], reduce_key: str, output_schema: Dict[str, str]
+        self,
+        map_prompt: Optional[str],
+        reduce_key: List[str],
+        output_schema: Dict[str, str],
     ) -> str:
         system_prompt = f"""You are an AI assistant tasked with creating a resolution prompt for LLM-assisted entity resolution. 
         Your task is to create a prompt that will be used to merge multiple duplicate keys into a single, consolidated key.
-        The key being resolved (known as the 'reduce_key') is '{reduce_key}'.
+        The key(s) being resolved (known as the reduce_key) are {', '.join(reduce_key)}.
         The duplicate keys will be provided in a list called 'matched_entries' in a Jinja2 template.
         """
 
@@ -295,7 +299,7 @@ class JoinOptimizer:
                 "content": f"""
     Create a resolution prompt for merging duplicate keys into a single key. The prompt should:
     1. Be tailored to the specific domain and type of data being merged, based on the context provided.
-    2. Use a Jinja2 template to iterate over the duplicate keys (accessed as 'matched_entries', where each item is a dictionary with the reduce_key, which you can access as `entry.{reduce_key}`).
+    2. Use a Jinja2 template to iterate over the duplicate keys (accessed as 'matched_entries', where each item is a dictionary containing the reduce_key fields, which you can access as entry.reduce_key for each reduce_key in {reduce_key}).
     3. Instruct to create a single, consolidated key from the duplicate keys.
     4. Include guidelines for resolving conflicts (e.g., choosing the most recent, most complete, or most reliable information).
     5. Specify that the output of the resolution prompt should conform to the given output schema: {json.dumps(output_schema, indent=2)}
@@ -408,7 +412,7 @@ class JoinOptimizer:
                 return self.op_config, 0.0
 
             # Add the reduce key to the output schema in the config
-            self.op_config["output"] = {"schema": {reduce_key: "string"}}
+            self.op_config["output"] = {"schema": {rk: "string" for rk in reduce_key}}
             self.op_config["comparison_prompt"] = self.synthesize_compare_prompt(
                 map_prompt, reduce_key
             )

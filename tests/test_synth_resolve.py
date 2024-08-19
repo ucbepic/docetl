@@ -5,7 +5,7 @@ import os
 from motion.builder import Optimizer
 
 
-@pytest.fixture
+# @pytest.fixture
 def sample_data():
     return [
         {"id": 1, "text": "Patient reports taking aspirin daily."},
@@ -26,7 +26,7 @@ def sample_data():
     ]
 
 
-@pytest.fixture
+# @pytest.fixture
 def config_yaml(sample_data):
     with tempfile.NamedTemporaryFile(
         mode="w+", suffix=".yaml", delete=False
@@ -114,4 +114,6 @@ def test_synth_resolve(config_yaml):
 
 # Run the test
 if __name__ == "__main__":
-    pytest.main([__file__])
+    sd = sample_data()
+    config = config_yaml(sd)
+    test_synth_resolve(config)

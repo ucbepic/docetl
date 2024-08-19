@@ -4,18 +4,13 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  unnest_medications:
-    unnest_key: medication
-    name: unnest_medications
-    type: unnest
   extract_medications:
     name: extract_medications
     optimize: false
     output:
       schema:
         medication: list[str]
-    prompt:
-      "Analyze the following transcript of a conversation between a doctor and
+    prompt: 'Analyze the following transcript of a conversation between a doctor and
       a patient:
 
 
@@ -26,7 +21,7 @@ operations:
 
       If no medications are mentioned, return an empty list.
 
-      "
+      '
     type: map
   summarize_medications:
     name: summarize_medications
@@ -34,8 +29,7 @@ operations:
     output:
       schema:
         symptoms_summary: str
-    prompt:
-      'Analyze the following transcripts related to the medication "{{ reduce_key
+    prompt: 'Analyze the following transcripts related to the medication "{{ reduce_key
       }}":
 
 
@@ -53,12 +47,12 @@ operations:
       are mentioned, provide a general description of the medication''s common uses.
 
       '
-    reduce_key: medication
+    reduce_key:
+    - medication
     type: reduce
   synthesized_resolve_0:
     _intermediates:
-      map_prompt:
-        "Analyze the following transcript of a conversation between a doctor
+      map_prompt: 'Analyze the following transcript of a conversation between a doctor
         and a patient:
 
 
@@ -69,13 +63,15 @@ operations:
 
         If no medications are mentioned, return an empty list.
 
-        "
-      reduce_key: medication
-    blocking_keys:
+        '
+      reduce_key:
       - medication
-    blocking_threshold: 0.8586
+    blocking_keys:
+    - medication
+    blocking_threshold: 0.7778
     comparison_model: gpt-4o-mini
-    comparison_prompt: 'Compare the following two medication entries:
+    comparison_prompt: 'Compare the following two medications extracted from the conversation
+      between a doctor and a patient:
 
 
       [Medication 1]:
@@ -88,42 +84,42 @@ operations:
       {{ input2.medication }}
 
 
-      Are these medications likely referring to the same medication? Consider attributes
-      such as the active ingredient, dosage form, brand name versus generic name,
-      and any other descriptive details provided. Respond with "True" if they are
-      likely the same medication, or "False" if they are likely different medications.'
+      Are these medications likely referring to the same medication? Consider relevant
+      attributes such as medication name, dosage form, strength, and any other contextual
+      information that may indicate similarity. Respond with "True" if they are likely
+      the same medication, or "False" if they are likely different medications.'
     embedding_model: text-embedding-3-small
     output:
       schema:
         medication: string
     resolution_model: gpt-4o-mini
-    resolution_prompt:
-      "Analyze the following duplicate medication entries that were\
-      \ extracted from a patient-doctor conversation:\n\n{% for entry in matched_entries\
-      \ %}\nEntry {{ loop.index }}:\n{{ entry.medication | tojson }}\n\n{% endfor\
-      \ %}\n\nCreate a single, consolidated \"medication\" key by combining the information\
-      \ from all the entries listed above. Ensure that the resulting key provides\
-      \ the most accurate and comprehensive representation possible. When merging,\
-      \ adhere to the following guidelines:\n1. **Completeness**: Prioritize entries\
-      \ that provide the most detailed information about the medication, including\
-      \ dosage, frequency, and form.\n2. **Recency**: In cases of conflict or differing\
-      \ details, favor information from the most recent entries, if such temporal\
-      \ metadata is available.\n3. **Reliability**: Weigh entries according to their\
-      \ context or source reliability, if context indicates differing levels of reliability\
-      \ (e.g., direct prescriptions vs. patient-provided information).\n\nEnsure that\
-      \ the merged medication key conforms to the following schema:\n{\n  \"medication\"\
-      : \"string\"\n}\n\nReturn the consolidated \"medication\" key as a single string\
-      \ value."
+    resolution_prompt: "Analyze the following duplicate medication entries:\n\n{%\
+      \ for entry in matched_entries %}\nEntry {{ loop.index }}:\n{{ entry | tojson\
+      \ }}\n\n{% endfor %}\n\nCreate a single, consolidated medication key that combines\
+      \ the information from all duplicate entries. When merging, follow these guidelines:\n\
+      1. If medication names appear in different formats or abbreviations, standardize\
+      \ to the most widely accepted form. For example, convert trade names to generic\
+      \ names where applicable.\n2. In cases of conflicting entries, prefer the most\
+      \ complete medication name, including dosage and form if mentioned.\n3. Check\
+      \ for consistency in spelling and correct any typographical errors detected\
+      \ across entries.\n4. If the same medication has multiple mentions with varying\
+      \ details, consolidate to the most detailed description available.\n\nEnsure\
+      \ that the resultant merged key conforms to the following schema:\n{\n  \"medication\"\
+      : \"string\"\n}\n\nReturn the consolidated key as a single string value."
     type: resolve
+  unnest_medications:
+    name: unnest_medications
+    type: unnest
+    unnest_key: medication
 pipeline:
   output:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/summarized_medical_info_synth.json
     type: file
   steps:
-    - input: transcripts
-      name: medical_info_extraction
-      operations:
-        - extract_medications
-        - unnest_medications
-        - synthesized_resolve_0
-        - summarize_medications
+  - input: transcripts
+    name: medical_info_extraction
+    operations:
+    - extract_medications
+    - unnest_medications
+    - synthesized_resolve_0
+    - summarize_medications

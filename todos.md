@@ -52,8 +52,9 @@ TODO:
   - [x] In map optimizer: prune the chunk size plans that don't give individually good results for the chunks
   - [ ] In map optimizer: optimize the reduce operator for each chunk size plan
   - [ ] In reduce optimizer: synthesize resolver if need be
+  - [x] In resolve optimizer, support list-type reduce keys
   - [ ] In reduce optimizer: if agent suggests drill-down, see if we need to add a map to create the subreduce keys, or the subreduce key already exists
-- [ ] Operator reordering (Aug 19 & 20)
+- [ ] Operator reordering (Aug 20 & 21)
   - [ ] support equivalence: map -> unnest -> reduce might be same as split -> gather -> map -> unnest -> reduce (no need to have a reduce right after map)
 - [ ] Support retries in the optimizers
 - [ ] Run tests in CI

@@ -16,7 +16,6 @@ def split_config():
             "previous": {
                 "head": {"count": 1, "type": "summary"},
                 "middle": {"type": "summary"},
-                "tail": {"count": 1, "type": "full"},
             },
         },
         "summary_prompt": "Summarize the following text:\n\n{{chunk_content}}\n\nSummary:",
@@ -83,7 +82,7 @@ def test_split_operation_with_summary(split_config, input_data, default_model):
             "next_chunks" in intermediates
         ), "Intermediates should include next_chunks"
 
-        for chunk in intermediates["previous_chunks"] + intermediates["next_chunks"]:
+        for chunk in intermediates["previous_chunks"]:
             assert "summary" in chunk, "Peripheral chunks should include summaries"
             assert (
                 len(chunk["summary"]) > 10

@@ -51,7 +51,7 @@ TODO:
   - [x] In reduce optimizer: query agent if we should drill-down / do a subreduce
   - [x] In map optimizer: prune the chunk size plans that don't give individually good results for the chunks
   - [ ] In map optimizer: optimize the reduce operator for each chunk size plan
-  - [ ] In reduce optimizer: synthesize resolver if need be
+  - [x] In reduce optimizer: synthesize resolver if need be
   - [x] In resolve optimizer, support list-type reduce keys
   - [ ] In reduce optimizer: if agent suggests drill-down, see if we need to add a map to create the subreduce keys, or the subreduce key already exists
 - [ ] Operator reordering (Aug 20 & 21)
@@ -72,4 +72,5 @@ Things to think about
 
 - Filter chunks before applying the map prompt
 - Reduce can either require an LLM call or just be a concatenation of the inputs to the potential LLM call
-- If the user specifies a map call in 2 different ways, they should get the same result. E.g., say they want to get a list of all the symptoms referenced in the medical transcript and what caused the symptoms. The output schema can either be a text blob or it can be structured, like symptoms: list[{symptom name, cause}]
+- If the user specifies a map call in 2 different ways, they should get the same result. E.g., say they want to get a list of all the symptoms referenced in the medical transcript and what caused the symptoms.
+- Resolves should support resolves within groups, not necessarily a global resolve

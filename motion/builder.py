@@ -281,6 +281,44 @@ class Optimizer:
         # Update the pipeline configuration
         self.config["pipeline"]["steps"] = self.config["pipeline"]["steps"]
 
+    def _add_map_prompts_to_reduce_operations(self):
+        """
+        Add relevant map prompts to reduce operations based on their reduce keys.
+
+        This method iterates through all map operations to create a dictionary mapping
+        output schema keys to map prompts. It then loops through reduce operations,
+        adding the relevant map prompts based on the reduce keys and output schema.
+
+        Side effects:
+        - Modifies reduce operations in self.config["operations"] by adding map prompts.
+        """
+        # Create a dictionary mapping output schema keys to map prompts
+        output_key_to_prompt = {}
+        for _, op_config in self.config["operations"].items():
+            if op_config.get("type") == "map":
+                output_schema = op_config.get("output", {}).get("schema", {})
+                prompt = op_config.get("prompt", "")
+                for key in output_schema.keys():
+                    output_key_to_prompt[key] = prompt
+
+        # Add relevant map prompts to reduce operations
+        for _, op_config in self.config["operations"].items():
+            if op_config.get("type") == "reduce":
+                reduce_keys = op_config.get("reduce_key", [])
+                if isinstance(reduce_keys, str):
+                    reduce_keys = [reduce_keys]
+
+                relevant_prompts = []
+                for key in reduce_keys:
+                    if key in output_key_to_prompt:
+                        relevant_prompts.append(output_key_to_prompt[key])
+
+                if relevant_prompts:
+                    op_config["_intermediates"] = op_config.get("_intermediates", {})
+                    op_config["_intermediates"]["last_map_prompt"] = relevant_prompts[
+                        -1
+                    ]
+
     def optimize(self):
         """
         Optimize the entire pipeline defined in the configuration.
@@ -703,7 +741,11 @@ class Optimizer:
             self.max_threads,
             self._run_operation,
         )
-        return reduce_optimizer.optimize(op_config, input_data)
+        optimized_ops, output_data, cost = reduce_optimizer.optimize(
+            op_config, input_data
+        )
+        self.operations_cost += cost
+        return optimized_ops, output_data
 
     def _optimize_equijoin(
         self,
@@ -874,6 +916,12 @@ class Optimizer:
 
         resolved_config = Optimizer.resolve_anchors(config_to_save)
 
+        # Remove _intermediates from each operation in resolved_config
+        if "operations" in resolved_config:
+            for _, op_config in resolved_config["operations"].items():
+                if "_intermediates" in op_config:
+                    del op_config["_intermediates"]
+
         with open(self.optimized_config_path, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False)
             self.console.log(
@@ -882,5 +930,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/synth_resolve.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/reduce.yaml", model="gpt-4o")
     optimizer.optimize()

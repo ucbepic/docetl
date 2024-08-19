@@ -389,6 +389,10 @@ class JoinOptimizer:
                     "[yellow]No map prompt found in intermediates for analysis.[/yellow]"
                 )
 
+            # TODO: figure out why this would ever be the case
+            if not map_prompt:
+                map_prompt = "N/A"
+
             if dedup is False:
                 dedup = self._determine_duplicate_keys(
                     input_data, reduce_key, map_prompt

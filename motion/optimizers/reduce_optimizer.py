@@ -2,6 +2,7 @@ import json
 import random
 from typing import Any, Dict, List, Callable, Tuple, Union
 from motion.operations.base import BaseOperation
+from motion.optimizers.join_optimizer import JoinOptimizer
 from rich.console import Console
 from motion.optimizers.utils import LLMClient, extract_jinja_variables
 from motion.operations import get_operation
@@ -61,7 +62,7 @@ class ReduceOptimizer:
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize the reduce operation based on the given configuration and input data.
 
@@ -80,8 +81,8 @@ class ReduceOptimizer:
             input_data (List[Dict[str, Any]]): Input data for the reduce operation.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the list of optimized configurations
-            and the list of outputs from the optimized operation(s).
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
+            and the list of outputs from the optimized operation(s), and the cost of the operation due to synthesizing any resolve operations.
         """
 
         original_output = self._run_operation(op_config, input_data)
@@ -122,14 +123,14 @@ class ReduceOptimizer:
             return self._optimize_single_reduce(op_config, input_data, validator_prompt)
         else:
             self.console.log("No improvements identified.")
-            return [op_config], original_output
+            return [op_config], original_output, 0.0
 
     def _optimize_single_reduce(
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize a single reduce operation.
 
@@ -145,8 +146,8 @@ class ReduceOptimizer:
             validator_prompt (str): The validator prompt for evaluating reduce plans.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing a single-item list with the optimized configuration
-            and a single-item list with the output from the optimized operation.
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing a single-item list with the optimized configuration
+            and a single-item list with the output from the optimized operation, and the cost of the operation due to synthesizing any resolve operations.
         """
         # Step 1: Determine and configure value sampling
         value_sampling_config = self._determine_value_sampling(op_config, input_data)
@@ -167,14 +168,14 @@ class ReduceOptimizer:
         # Step 4: Run the best reduce plan
         optimized_output = self._run_operation(best_plan, input_data)
 
-        return [best_plan], optimized_output
+        return [best_plan], optimized_output, 0.0
 
     def _optimize_decomposed_reduce(
         self,
         decomposition_result: Dict[str, Any],
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize a decomposed reduce operation.
 
@@ -191,14 +192,14 @@ class ReduceOptimizer:
             input_data (List[Dict[str, Any]]): The input data for the reduce operation.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the list of optimized configurations
-            for both reduce operations and the final output of the second reduce operation.
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
+            for both reduce operations and the final output of the second reduce operation, and the cost of the operation due to synthesizing any resolve operations.
         """
         sub_group_key = decomposition_result["sub_group_key"]
         first_reduce_prompt = decomposition_result["first_reduce_prompt"]
         second_reduce_prompt = decomposition_result["second_reduce_prompt"]
-
-        # TODO: figure out whether we need to insert a resolver here or not
+        pipeline = []
+        all_cost = 0.0
 
         first_reduce_config = op_config.copy()
         first_reduce_config["prompt"] = first_reduce_prompt
@@ -210,24 +211,51 @@ class ReduceOptimizer:
             first_reduce_config["reduce_key"] = [sub_group_key, op_config["reduce_key"]]
         first_reduce_config["pass_through"] = True
 
-        first_optimized_configs, first_outputs = self.optimize(
+        resolve_config = {
+            "type": "resolve",
+            "empty": True,
+            "embedding_model": "text-embedding-3-small",
+            "resolution_model": self.config.get("default_model", "gpt-4o-mini"),
+            "comparison_model": self.config.get("default_model", "gpt-4o-mini"),
+            "_intermediates": {
+                "map_prompt": op_config["_intermediates"].get("last_map_prompt"),
+                "reduce_key": first_reduce_config["reduce_key"],
+            },
+        }
+        optimized_resolve_config, resolve_cost = JoinOptimizer(
+            self.config, resolve_config, self.console, self.llm_client, self.max_threads
+        ).optimize_resolve(input_data)
+        all_cost += resolve_cost
+
+        if optimized_resolve_config.get("empty", False) == False:
+            # Add this to the pipeline
+            pipeline += [optimized_resolve_config]
+
+            # Run the resolver
+            optimized_output = self._run_operation(optimized_resolve_config, input_data)
+            input_data = optimized_output
+
+        first_optimized_configs, first_outputs, first_cost = self.optimize(
             first_reduce_config,
             input_data,
         )
+        pipeline += first_optimized_configs
+        all_cost += first_cost
 
         # Optimize second reduce operation
         second_reduce_config = op_config.copy()
         second_reduce_config["prompt"] = second_reduce_prompt
         second_reduce_config["pass_through"] = True
 
-        second_optimized_configs, second_outputs = self.optimize(
+        second_optimized_configs, second_outputs, second_cost = self.optimize(
             second_reduce_config, first_outputs
         )
 
         # Combine optimized configs and return with final output
-        all_optimized_configs = first_optimized_configs + second_optimized_configs
+        pipeline += second_optimized_configs
+        all_cost += second_cost
 
-        return all_optimized_configs, second_outputs
+        return pipeline, second_outputs, all_cost
 
     def _evaluate_decomposition(
         self,
@@ -1450,8 +1478,7 @@ class ReduceOptimizer:
             k: random_output[k] for k in output_schema if k in random_output
         }
 
-        prompt = f"""
-        Reduce Operation Prompt (runs on the first batch of inputs):
+        prompt = f"""Reduce Operation Prompt (runs on the first batch of inputs):
         {plan["prompt"]}
         
         Fold Prompt (runs on the second and subsequent batches of inputs):

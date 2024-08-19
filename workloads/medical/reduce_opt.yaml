@@ -7,17 +7,10 @@ operations:
   summarize_medication_contexts:
     commutative: true
     fold_batch_size: 7
-    fold_prompt: 'Combine the following new doctor-patient transcripts with the current
-      summary of the settings in which patients take the medication "{{ reduce_key
-      }}".
+    fold_prompt: 'Combine the following additional doctor-patient transcripts where
+      the medication "{{ reduce_key }}" is mentioned to enhance the summary of patient
+      settings and experiences:
 
-
-      Current Summary:
-
-      - Reasons for taking the medication: {{ output.summary }}
-
-
-      New Transcripts:
 
       {% for item in values %}
 
@@ -31,55 +24,61 @@ operations:
       {% endfor %}
 
 
-      Based on the combined doctor-patient transcripts, update the summary to include
-      any new information about:
+      Update the current summary with these new transcripts. Include any new information
+      about:
 
 
-      1. Why patients take the medication "{{ reduce_key }}" beyond the current summary.
+      1. A brief summary of why a patient takes this medication.
 
-      2. Any new or additional side effects experienced or mentioned in the new transcripts.
+      2. Any side effects experienced or mentioned.
 
-      3. Any new interactions with other medications or treatments found in the new
-      transcripts.
+      3. Any interactions with other medications or treatments mentioned.
 
 
-      Ensure the updated summary is concise and incorporates both previous and new
-      information.'
+      Start with the existing summary:
+
+
+      {{ output[''summary''] }}'
     input:
       schema:
         medication: str
         src: str
     merge_batch_size: 2
-    merge_prompt: 'Merge the following summaries from analyzing doctor-patient transcripts
-      that mention the medication "{{ reduce_key }}". Each summary represents insights
-      gathered from a subset of the transcripts. Your task is to create a unified
-      summary that encompasses the critical points from all provided summaries as
-      if they were analyzed together.
+    merge_prompt: 'Merge the summaries of multiple folded outputs to create a cohesive
+      overview of the settings in which the medication "{{ reduce_key }}" is used.
+      This task aims to simulate a comprehensive analysis as if the original reduce
+      prompt had processed all transcripts collectively from the start.
 
 
-      Summaries to Merge:
+      You have the following summaries:
 
-      {% for output in outputs %}- {{ output.summary }}
+
+      {% for output in outputs %}
+
+      Summary {{ loop.index }}:
+
+      {{ output[''summary''] }}
+
+
+      ---
 
       {% endfor %}
 
 
-      Construct a comprehensive summary that includes:
+      Combine the information from these summaries. Ensure the consolidated summary
+      captures:
 
 
-      1. All reasons patients take the medication "{{ reduce_key }}", combining and
-      reconciling any differences or overlaps in the justifications provided.
+      1. A cohesive summary of why patients take this medication.
 
-      2. A consolidated list of side effects experienced or mentioned, ensuring all
-      unique instances are captured without repetition.
+      2. Comprehensive details on any side effects experienced or mentioned.
 
-      3. A complete list of interactions with other medications or treatments, identifying
-      any recurring or unique interactions stated across the summaries.
+      3. A clear description of any interactions with other medications or treatments
+      mentioned.
 
 
-      Ensure the final summary is clear, concise, and accurately reflects the gathered
-      data from all the summaries provided, maintaining consistency with the details
-      of the reduce operation.'
+      Produce a unified final summary that integrates findings from all summaries
+      provided, maintaining consistency and clarity of information.'
     output:
       schema:
         summary: str
@@ -114,11 +113,6 @@ operations:
     reduce_key:
     - medication
     type: reduce
-    value_sampling:
-      embedding_model: text-embedding-3-small
-      enabled: true
-      method: random
-      sample_size: 100
 pipeline:
   output:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/medication_context_summaries.json

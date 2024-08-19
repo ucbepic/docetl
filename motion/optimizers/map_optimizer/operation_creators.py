@@ -133,4 +133,5 @@ class OperationCreator:
             "output": op_config["output"],
             "pass_through": True,
             "commutative": is_commutative,
+            "_intermediates": {"last_map_prompt": op_config["prompt"]},
         }

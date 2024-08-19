@@ -81,7 +81,7 @@ class MapOptimizer:
 
     def optimize(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize the given operation configuration for the input data.
         This method analyzes the operation and input data, generates various
@@ -120,9 +120,10 @@ class MapOptimizer:
             input_data (List[Dict[str, Any]]): The input data for the operation.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing
             the best optimization plan and its output. The plan is a list of
             operation configurations that achieve the best performance.
+            The cost is the cost of the optimizer (from possibly synthesizing resolves).
 
         """
         input_data = copy.deepcopy(input_data)
@@ -162,7 +163,7 @@ class MapOptimizer:
             self.console.log(
                 f"[green]No improvement needed for operation {op_config['name']}[/green]"
             )
-            return [op_config], output_data
+            return [op_config], output_data, self.plan_generator.reduce_optimizer_cost
 
         # Generate improved prompt plan
         improved_prompt_plan = self.prompt_generator._get_improved_prompt(
@@ -306,4 +307,8 @@ class MapOptimizer:
             f"[green]Choosing {best_plan_name} for operation {op_config['name']} (Score: {results[best_plan_name][0]:.2f}, Runtime: {results[best_plan_name][1]:.2f}s)[/green]"
         )
 
-        return plans_to_evaluate[best_plan_name], best_output
+        return (
+            plans_to_evaluate[best_plan_name],
+            best_output,
+            self.plan_generator.reduce_optimizer_cost,
+        )

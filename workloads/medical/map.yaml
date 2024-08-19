@@ -10,14 +10,14 @@ operations:
     type: map
     output:
       schema:
-        medications: "list[{medication: str, dosage: str, symptom: str}]"
+        medication_info: "str"
     prompt: |
       Analyze the following transcript of a conversation between a doctor and a patient:
 
       {{ input.src }}
 
       Extract and list all medications, dosages, and symptoms mentioned in the transcript.
-      If a piece of information is not found, return an empty list for that category.
+      If a piece of information is not found, return an empty string.
 
     # gleaning:
     #   num_rounds: 1

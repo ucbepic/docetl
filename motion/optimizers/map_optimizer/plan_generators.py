@@ -3,6 +3,7 @@ import json
 import random
 from typing import Callable, Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from motion.optimizers.reduce_optimizer import ReduceOptimizer
 
 from rich.console import Console
 
@@ -35,6 +36,8 @@ class PlanGenerator:
             llm_client, console, config, max_threads
         )
         self.max_threads = max_threads
+        self.config = config
+        self.reduce_optimizer_cost = 0.0
 
     def _generate_chunk_size_plans(
         self,
@@ -206,6 +209,88 @@ class PlanGenerator:
                 chunk_size, avg_doc_size
             )
 
+            # Define the _create_plan_task method outside of this loop
+            def _create_plan_task(
+                op_config,
+                chunk_size,
+                peripheral_config,
+                split_result,
+                info_extraction_prompt,
+                validator_prompt,
+                base_operations,
+                input_data,
+                plan_name,
+                reduce_op,
+            ):
+                def task():
+                    split_op = self.operation_creator.create_split_operation(
+                        op_config,
+                        {"chunk_size": chunk_size},
+                        peripheral_config,
+                        split_result["split_key"],
+                        info_extraction_prompt,
+                        "gpt-4o-mini",
+                    )
+                    map_op = self.operation_creator.create_map_operation(
+                        op_config,
+                        split_result["subprompt"] + " Only process the main chunk.",
+                    )
+
+                    # Run the plan on a sample of 2 docs in the input data
+                    sample_size = min(2, len(input_data))
+                    sample_input = copy.deepcopy(random.sample(input_data, sample_size))
+
+                    for op in base_operations:
+                        sample_input = self._run_operation(op, sample_input)
+
+                    split_output = self._run_operation(split_op, sample_input)
+                    map_output = self._run_operation(map_op, split_output)
+
+                    # Evaluate the output using the validator prompt
+                    plan_evaluation_score = self._evaluate_partial_plan_output(
+                        plan_name,
+                        op_config,
+                        split_output,
+                        map_output,
+                        split_result["subprompt"] + " Only process the main chunk.",
+                        validator_prompt,
+                    )
+
+                    self.console.log(
+                        f"[bold]Evaluation score for {plan_name}:[/bold] {plan_evaluation_score}"
+                    )
+
+                    if plan_evaluation_score >= 0.7:  # TODO: make this a parameter
+                        self.console.log(f"Keeping configuration: {plan_name}")
+                    else:
+                        self.console.log(f"Pruning configuration: {plan_name}")
+                        return plan_name, []
+
+                    unnest_ops = self.operation_creator.create_unnest_operations(
+                        op_config
+                    )
+                    for uo in unnest_ops:
+                        map_output = self._run_operation(uo, map_output)
+
+                    # Optimize the reduce op for this current plan
+                    optimized_reduce_ops, _, cost = ReduceOptimizer(
+                        self.config,
+                        self.console,
+                        self.llm_client,
+                        self.max_threads,
+                        self._run_operation,
+                    ).optimize(reduce_op, map_output)
+                    self.reduce_optimizer_cost += cost
+
+                    plan = copy.deepcopy(base_operations)
+                    plan.extend([split_op, map_op] + unnest_ops + optimized_reduce_ops)
+
+                    return plan_name, plan
+
+                return task
+
+            # Create all peripheral_config plans concurrently
+            plan_tasks = []
             for peripheral_config in peripheral_configs:
                 # Create plan name
                 plan_name = f"chunk_size_{chunk_size}_peripheral_"
@@ -218,61 +303,29 @@ class PlanGenerator:
                     plan_name += "none"
                 plan_name = plan_name.rstrip("_")
 
-                split_op = self.operation_creator.create_split_operation(
-                    op_config,
-                    {"chunk_size": chunk_size},
-                    peripheral_config,
-                    split_result["split_key"],
-                    info_extraction_prompt,
-                    "gpt-4o-mini",
-                )
-                map_op = self.operation_creator.create_map_operation(
-                    op_config,
-                    split_result["subprompt"] + " Only process the main chunk.",
-                )
-
-                # See if we should prune away this plan because it doesn't pass validation
-                # Run the plan on a sample of 2 docs in the input data
-                sample_size = min(2, len(input_data))
-                sample_input = copy.deepcopy(random.sample(input_data, sample_size))
-
-                for op in base_operations:
-                    sample_input = self._run_operation(op, sample_input)
-
-                split_output = self._run_operation(split_op, sample_input)
-                map_output = self._run_operation(map_op, split_output)
-
-                # Evaluate the output using the validator prompt
-                plan_evaluation_score = self._evaluate_partial_plan_output(
-                    plan_name,
-                    op_config,
-                    split_output,
-                    map_output,
-                    split_result["subprompt"] + " Only process the main chunk.",
-                    validator_prompt,
-                )
-
-                # Log the evaluation score for this plan
-                self.console.log(
-                    f"[bold]Evaluation score for {plan_name}:[/bold] {plan_evaluation_score}"
-                )
-
-                if plan_evaluation_score >= 0.7:  # TODO: make this a parameter
-                    self.console.log(
-                        f"Keeping configuration: chunk_size={chunk_size}, peripheral={peripheral_config}"
+                plan_tasks.append(
+                    _create_plan_task(
+                        op_config,
+                        chunk_size,
+                        peripheral_config,
+                        split_result,
+                        info_extraction_prompt,
+                        validator_prompt,
+                        base_operations,
+                        input_data,
+                        plan_name,
+                        reduce_op,
                     )
-                else:
-                    self.console.log(
-                        f"Pruning configuration: chunk_size={chunk_size}, peripheral={peripheral_config}"
-                    )
-                    continue
+                )
 
-                unnest_ops = self.operation_creator.create_unnest_operations(op_config)
+            # Execute all plan tasks concurrently
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                plan_results = list(executor.map(lambda f: f(), plan_tasks))
 
-                plan = copy.deepcopy(base_operations)
-                plan.extend([split_op, map_op] + unnest_ops + [reduce_op])
-
-                plans[plan_name] = plan
+            # Process results and add valid plans
+            for plan_name, plan in plan_results:
+                if plan:
+                    plans[plan_name] = plan
 
         return plans
 

@@ -808,7 +808,9 @@ class Optimizer:
             self._run_operation,
             timeout=self.timeout,
         )
-        return map_optimizer.optimize(op_config, input_data)
+        optimized_ops, output_data, cost = map_optimizer.optimize(op_config, input_data)
+        self.operations_cost += cost
+        return optimized_ops, output_data
 
     def _optimize_resolve(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -930,5 +932,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/reduce.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/map.yaml", model="gpt-4o")
     optimizer.optimize()

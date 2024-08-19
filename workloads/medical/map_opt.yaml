@@ -4,18 +4,59 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  extract_medical_info:
+  split_extract_medical_info:
+    chunk_group_id_field: extract_medical_info_chunk_group_id
+    chunk_size: 1086
+    peripheral_chunks:
+      previous:
+        tail:
+          count: 1
+    split_key: src
+    summary_model: gpt-4o-mini
+    summary_prompt: 'Summarize the following chunk: {{ chunk_content }}
+
+
+      Focus on identifying any mentioned medications, their dosages, and symptoms
+      experienced or monitored.'
+    type: split
+  submap_extract_medical_info:
+    model: gpt-4o-mini
     output:
       schema:
-        medications: 'list[{medication: str, dosage: str, symptom: str}]'
-    prompt: "Analyze the following transcript of a conversation between a doctor and\
-      \ a patient:\n\n{{ input.src }}\n\nExtract and list all the medications mentioned\
-      \ along with their dosages if provided. Also list any symptoms mentioned in\
-      \ the conversation, associating these with specific medications if applicable.\
-      \ For example, link medications like 'Epipen' with symptoms such as 'anaphylaxis.'\
-      \ Ensure that each category\u2014medications, dosages, and symptoms\u2014is\
-      \ included in the output as a list, even if some remain empty."
+        medication_info: str
+    prompt: 'Extract and list all medications, dosages, and symptoms mentioned in
+      the following text:
+
+
+      {{ input.chunk_content }}
+
+
+      If a piece of information is not found, return an empty string. Only process
+      the main chunk.'
     type: map
+  subreduce_extract_medical_info:
+    commutative: true
+    input:
+      schema:
+        medication_info: str
+    model: gpt-4o-mini
+    output:
+      schema:
+        medication_info: str
+    pass_through: true
+    prompt: 'Combine the following extracted information from different chunks to
+      provide a comprehensive list of all medications, dosages, and symptoms mentioned
+      in the conversation transcript:
+
+
+      {% for value in values %}
+
+      {{ value.medication_info }}
+
+      {% endfor %}'
+    reduce_key:
+    - extract_medical_info_chunk_group_id
+    type: reduce
 pipeline:
   output:
     path: extracted_medical_info.json
@@ -24,4 +65,6 @@ pipeline:
   - input: transcripts
     name: medical_info_extraction
     operations:
-    - extract_medical_info
+    - split_extract_medical_info
+    - submap_extract_medical_info
+    - subreduce_extract_medical_info

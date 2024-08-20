@@ -18,12 +18,14 @@ class Evaluator:
         ],
         timeout: int = 60,
         num_plans_to_evaluate_in_parallel: int = 10,
+        is_filter: bool = False,
     ):
         self.llm_client = llm_client
         self.console = console
         self._run_operation = run_operation
         self.timeout = timeout
         self.num_plans_to_evaluate_in_parallel = num_plans_to_evaluate_in_parallel
+        self.is_filter = is_filter
 
     def _pairwise_compare_plans(
         self,
@@ -219,7 +221,7 @@ class Evaluator:
         output_data = input_data
         start_time = time.time()
         for op in plan:
-            output_data = self._run_operation(op, output_data)
+            output_data = self._run_operation(op, output_data, is_build=True)
         runtime = time.time() - start_time
 
         # Reorder output_data to match input_data

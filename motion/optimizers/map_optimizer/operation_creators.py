@@ -78,9 +78,13 @@ class OperationCreator:
     def create_map_operation(
         self, op_config: Dict[str, Any], subprompt: str
     ) -> Dict[str, Any]:
-        name = f"submap_{op_config['name']}"
+        name = f"sub{op_config['type']}_{op_config['name']}"
+        output = op_config["output"]
+        if op_config["type"] == "filter":
+            output["schema"]["_short_explanation"] = "string"
+
         return {
-            "type": "map",
+            "type": op_config["type"],
             "name": name,
             "prompt": subprompt,
             "model": (
@@ -88,7 +92,7 @@ class OperationCreator:
                 if "model" in op_config
                 else self.config["default_model"]
             ),
-            "output": op_config["output"],
+            "output": output,
         }
 
     def create_unnest_operations(

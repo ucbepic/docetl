@@ -53,12 +53,15 @@ TODO:
   - [x] In map optimizer: optimize the reduce operator for each chunk size plan
   - [x] In reduce optimizer: synthesize resolver if need be
   - [x] In resolve optimizer, support list-type reduce keys
-- [ ] Operator reordering (Aug 20 & 21)
+- [ ] Operator reordering (Aug 21 & 22)
   - [ ] support equivalence: map -> unnest -> reduce might be same as split -> gather -> map -> unnest -> reduce (no need to have a reduce right after map)
-- [ ] Support retries in the optimizers
 - [ ] Run tests in CI
+- [ ] Support retry on validation failure
+- [ ] Support retries in the optimizers
 - [ ] Write tests for optimizers
-- [ ] Filter optimizer (as an extension of map)
+- [ ] Filter optimizer
+  - [x] Extend map optimizer to support filter
+  - [ ] Train an embedding classifier for filter
 - [ ] Support model pools
 - [ ] Support passing expectations
 - [ ] Write intermediates to disk
@@ -70,10 +73,13 @@ TODO:
 Things to think about
 
 - Filter chunks before applying the map prompt
-- Reduce can either require an LLM call or just be a concatenation of the inputs to the potential LLM call
+- Reduce does not need to be an LLM call:
+  - it can just be a concatenation of the inputs to the potential LLM call
+  - it could also be some normal aggregation (e.g., summing up the counts of symptoms, doing a conjunction or disjunction of intermediate outputs for a filter operation)
 - If the user specifies a map call in 2 different ways, they should get the same result. E.g., say they want to get a list of all the symptoms referenced in the medical transcript and what caused the symptoms.
 - Resolves should support resolves within groups, not necessarily a global resolve
 - Synthesize empty resolve in either builder or reduce optimizer, not both
 - Figure out how to run validators when data is too large to fit in the prompt (need to randomly sample part of the document)
 - In reduce optimizer: if agent suggests drill-down, see if we need to add a map to create the subreduce keys, or the subreduce key already exists
 - Try various combine prompts in the reduce optimizer
+- Filter optimizer: we should recursively optimize reduces if the reduce isn't good on its own

@@ -39,4 +39,4 @@ pipeline:
 
   output:
     type: file
-    path: "extracted_medical_info.json"
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/extracted_medical_info.json"

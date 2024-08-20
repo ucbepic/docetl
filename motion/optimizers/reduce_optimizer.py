@@ -845,14 +845,18 @@ class ReduceOptimizer:
                     )
                     continue
 
-                prompt = f"""
-                {validator_prompt}
+                input_str = json.dumps(inputs, indent=2)
+                # truncate input_str to 40,000 words
+                input_str = input_str.split()[:40000]
+                input_str = " ".join(input_str) + "..."
+
+                prompt = f"""{validator_prompt}
 
                 Reduce Operation Task:
                 {op_config["prompt"]}
 
                 Input Data Samples:
-                {json.dumps(inputs, indent=2)}
+                {input_str}
 
                 Output Data Sample:
                 {json.dumps(sample_output, indent=2)}

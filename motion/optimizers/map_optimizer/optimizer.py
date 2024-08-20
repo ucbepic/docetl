@@ -45,6 +45,7 @@ class MapOptimizer:
         max_threads: int,
         run_operation: Callable,
         timeout: int = 10,
+        is_filter: bool = False,
     ):
         """
         Initialize the MapOptimizer.
@@ -56,6 +57,7 @@ class MapOptimizer:
             max_threads (int): The maximum number of threads to use for parallel execution.
             run_operation (Callable): A function to execute operations.
             timeout (int, optional): The timeout in seconds for operation execution. Defaults to 10.
+            is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
         """
         self.config = config
         self.console = console
@@ -64,9 +66,10 @@ class MapOptimizer:
         self.max_threads = max_threads
         self.timeout = timeout
         self._num_plans_to_evaluate_in_parallel = 5
+        self.is_filter = is_filter
 
         self.plan_generator = PlanGenerator(
-            llm_client, console, config, run_operation, max_threads
+            llm_client, console, config, run_operation, max_threads, is_filter
         )
         self.evaluator = Evaluator(
             llm_client,
@@ -74,9 +77,10 @@ class MapOptimizer:
             run_operation,
             timeout,
             self._num_plans_to_evaluate_in_parallel,
+            is_filter,
         )
         self.prompt_generator = PromptGenerator(
-            llm_client, console, config, max_threads
+            llm_client, console, config, max_threads, is_filter
         )
 
     def optimize(
@@ -181,12 +185,20 @@ class MapOptimizer:
         )
 
         # Generate chain decomposition plans
-        chain_plans = self.plan_generator._generate_chain_plans(op_config, input_data)
+        if not self.is_filter:
+            chain_plans = self.plan_generator._generate_chain_plans(
+                op_config, input_data
+            )
+        else:
+            chain_plans = {}
 
         # Generate parallel map plans
-        parallel_plans = self.plan_generator._generate_parallel_plans(
-            op_config, input_data
-        )
+        if not self.is_filter:
+            parallel_plans = self.plan_generator._generate_parallel_plans(
+                op_config, input_data
+            )
+        else:
+            parallel_plans = {}
 
         # Evaluate all plans
         plans_to_evaluate = {

@@ -24,6 +24,7 @@ class PlanGenerator:
             [Dict[str, Any], List[Dict[str, Any]]], List[Dict[str, Any]]
         ],
         max_threads: int,
+        is_filter: bool = False,
     ):
         self.llm_client = llm_client
         self.console = console
@@ -33,11 +34,12 @@ class PlanGenerator:
         )
         self._run_operation = run_operation
         self.prompt_generator = PromptGenerator(
-            llm_client, console, config, max_threads
+            llm_client, console, config, max_threads, is_filter
         )
         self.max_threads = max_threads
         self.config = config
         self.reduce_optimizer_cost = 0.0
+        self.is_filter = is_filter
 
     def _generate_chunk_size_plans(
         self,
@@ -185,7 +187,7 @@ class PlanGenerator:
         max_plan.extend([split_op, map_op] + unnest_ops)
 
         for op in max_plan:
-            sample_output = self._run_operation(op, sample_output)
+            sample_output = self._run_operation(op, sample_output, is_build=True)
 
         # Generate the combine prompt using the sample output
         combine_prompt, is_commutative = self.prompt_generator._get_combine_prompt(
@@ -244,7 +246,9 @@ class PlanGenerator:
                         sample_input = self._run_operation(op, sample_input)
 
                     split_output = self._run_operation(split_op, sample_input)
-                    map_output = self._run_operation(map_op, split_output)
+                    map_output = self._run_operation(
+                        map_op, split_output, is_build=True
+                    )
 
                     # Evaluate the output using the validator prompt
                     plan_evaluation_score = self._evaluate_partial_plan_output(
@@ -272,18 +276,30 @@ class PlanGenerator:
                     for uo in unnest_ops:
                         map_output = self._run_operation(uo, map_output)
 
-                    # Optimize the reduce op for this current plan
-                    optimized_reduce_ops, _, cost = ReduceOptimizer(
-                        self.config,
-                        self.console,
-                        self.llm_client,
-                        self.max_threads,
-                        self._run_operation,
-                    ).optimize(reduce_op, map_output)
-                    self.reduce_optimizer_cost += cost
+                    if self.is_filter:
+                        plan.extend([split_op, map_op] + unnest_ops + [reduce_op])
+                        return plan_name, plan
 
-                    plan = copy.deepcopy(base_operations)
-                    plan.extend([split_op, map_op] + unnest_ops + optimized_reduce_ops)
+                    # Optimize the reduce op for this current plan
+                    try:
+                        optimized_reduce_ops, _, cost = ReduceOptimizer(
+                            self.config,
+                            self.console,
+                            self.llm_client,
+                            self.max_threads,
+                            self._run_operation,
+                        ).optimize(reduce_op, map_output)
+                        self.reduce_optimizer_cost += cost
+
+                        plan = copy.deepcopy(base_operations)
+                        plan.extend(
+                            [split_op, map_op] + unnest_ops + optimized_reduce_ops
+                        )
+                    except Exception as e:
+                        self.console.log(
+                            f"[yellow]Error optimizing reduce operation: {e}. Skipping...[/yellow]"
+                        )
+                        return plan_name, []
 
                     return plan_name, plan
 

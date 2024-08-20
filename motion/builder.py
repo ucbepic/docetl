@@ -17,7 +17,7 @@ import re
 from motion.optimizers.utils import LLMClient
 
 
-SUPPORTED_OPS = ["map", "resolve", "reduce", "equijoin"]
+SUPPORTED_OPS = ["map", "resolve", "reduce", "equijoin", "filter"]
 
 
 SAMPLE_SIZE_MAP = {
@@ -25,6 +25,7 @@ SAMPLE_SIZE_MAP = {
     "map": 5,
     "resolve": 100,
     "equijoin": 100,
+    "filter": 5,
 }
 
 
@@ -546,6 +547,10 @@ class Optimizer:
                         optimized_ops, output_data = self._optimize_map(
                             op_object, input_data
                         )
+                    elif op_object.get("type") == "filter":
+                        optimized_ops, output_data = self._optimize_map(
+                            op_object, input_data, is_filter=True
+                        )
                     elif op_object.get("type") == "reduce":
                         optimized_ops, output_data = self._optimize_reduce(
                             op_object, input_data
@@ -785,7 +790,10 @@ class Optimizer:
         return [op_config], output_data
 
     def _optimize_map(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        is_filter: bool = False,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Optimize a map operation.
@@ -795,6 +803,7 @@ class Optimizer:
         Args:
             op_config (Dict[str, Any]): The configuration of the map operation.
             input_data (List[Dict[str, Any]]): The input data for the map operation.
+            is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
 
         Returns:
             Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
@@ -807,6 +816,7 @@ class Optimizer:
             self.max_threads,
             self._run_operation,
             timeout=self.timeout,
+            is_filter=is_filter,
         )
         optimized_ops, output_data, cost = map_optimizer.optimize(op_config, input_data)
         self.operations_cost += cost
@@ -852,6 +862,7 @@ class Optimizer:
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         return_instance: bool = False,
+        is_build: bool = False,
     ) -> Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation]]:
         """
         Run a single operation based on its configuration.
@@ -877,6 +888,8 @@ class Optimizer:
             left_data = input_data["left"]
             right_data = input_data["right"]
             output_data, cost = operation_instance.execute(left_data, right_data)
+        elif op_config["type"] == "filter":
+            output_data, cost = operation_instance.execute(input_data, is_build)
         else:
             output_data, cost = operation_instance.execute(input_data)
         self.operations_cost += cost
@@ -932,5 +945,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/map.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/filter.yaml", model="gpt-4o")
     optimizer.optimize()

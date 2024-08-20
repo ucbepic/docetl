@@ -15,11 +15,13 @@ class PromptGenerator:
         console: Console,
         config: Dict[str, Any],
         max_threads: int,
+        is_filter: bool = False,
     ):
         self.llm_client = llm_client
         self.console = console
         self.config = config
         self.max_threads = max_threads
+        self.is_filter = is_filter
 
     def _generate_validator_prompt(
         self,
@@ -34,9 +36,8 @@ class PromptGenerator:
 
         Operation Name: {op_config['name']}
         Operation Type: {op_config['type']}
-        Sample Input: {json.dumps(input_data[0] if input_data else {}, indent=2)}
-        Sample Output: {json.dumps(output_data[0] if output_data else {}, indent=2)}
-        Current Prompt: {op_config.get('prompt', 'N/A')}
+        Sample Input & Output: {json.dumps(output_data[0] if output_data else {}, indent=2)}
+        Task Prompt: {op_config.get('prompt', 'N/A')}
 
         Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask specific questions about the quality and completeness of the output, such as:
         1. Are there any instances of the target information missed?
@@ -162,7 +163,10 @@ class PromptGenerator:
 
         # Prepare sample inputs for the combine prompt
         schema = op_config["output"]["schema"]
-        schema_keys = schema.keys()
+        schema_keys = list(schema.keys())
+        if self.is_filter:
+            schema_keys.append("_short_explanation")
+
         sample_inputs = json.dumps(
             [{sk: item[sk] for sk in schema_keys} for item in sample_output[:3]],
             indent=2,
@@ -180,7 +184,7 @@ class PromptGenerator:
         Modify the original prompt to be a prompt that will combine these chunk results to accomplish the original task. 
 
         Guidelines for your prompt template:
-        - The only variable you are allowed to use is the values variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(op_config['output']['schema'].keys())}
+        - The only variable you are allowed to use is the values variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(schema_keys)}
         - Avoid using filters or complex logic, even though Jinja technically supports it
         - The prompt template must be a valid Jinja2 template
         - You must use the {{ values }} variable somehow (you can access specific schema keys if you'ld like)

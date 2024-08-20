@@ -1,11 +1,11 @@
 """The `FilterOperation` class is a subclass of `BaseOperation` that implements a filtering operation on input data using a language model."""
 
 from typing import Dict, List, Any, Tuple, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from jinja2 import Template
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, parse_llm_response
-from motion.operations.utils import validate_output, rich_as_completed
+from motion.operations.utils import validate_output, RichLoopBar
 from litellm import completion_cost
 from rich.console import Console
 
@@ -42,6 +42,8 @@ class FilterOperation(BaseOperation):
             raise ValueError("'schema' in 'output' configuration cannot be empty")
 
         schema = self.config["output"]["schema"]
+        if "_short_explanation" in schema:
+            schema = {k: v for k, v in schema.items() if k != "_short_explanation"}
         if len(schema) != 1:
             raise ValueError(
                 "The 'schema' in 'output' configuration must have exactly one key-value pair that maps to a boolean value"
@@ -53,12 +55,15 @@ class FilterOperation(BaseOperation):
                 f"The value in the 'schema' must be of type bool, got {value}"
             )
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(
+        self, input_data: List[Dict], is_build: bool = False
+    ) -> Tuple[List[Dict], float]:
         """
         Executes the filter operation on the input data.
 
         Args:
             input_data (List[Dict]): A list of dictionaries to process.
+            is_build (bool): Whether the operation is being executed in the build phase. Defaults to False.
 
         Returns:
             Tuple[List[Dict], float]: A tuple containing the filtered list of dictionaries
@@ -94,7 +99,15 @@ class FilterOperation(BaseOperation):
         print(f"Total cost: {cost}")
         ```
         """
-        filter_key = next(iter(self.config["output"]["schema"].keys()))
+        filter_key = next(
+            iter(
+                [
+                    k
+                    for k in self.config["output"]["schema"].keys()
+                    if k != "_short_explanation"
+                ]
+            )
+        )
 
         def _process_filter_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
@@ -120,16 +133,21 @@ class FilterOperation(BaseOperation):
             ]
             results = []
             total_cost = 0
-            for future in rich_as_completed(
-                futures,
-                total=len(futures),
+            pbar = RichLoopBar(
+                range(len(futures)),
                 desc="Processing filter items",
-                leave=True,
                 console=self.console,
-            ):
+            )
+            for i in pbar:
+                future = futures[i]
                 result, item_cost = future.result()
                 total_cost += item_cost
-                if result is not None and result.get(filter_key, False):
-                    results.append(result)
+                if result is not None:
+                    if is_build:
+                        results.append(result)
+                    else:
+                        if result.get(filter_key, False):
+                            results.append(result)
+                pbar.update(1)
 
         return results, total_cost

@@ -4,59 +4,56 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  split_extract_medical_info:
-    chunk_group_id_field: extract_medical_info_chunk_group_id
-    chunk_size: 1086
-    peripheral_chunks:
-      previous:
-        tail:
-          count: 1
-    split_key: src
-    summary_model: gpt-4o-mini
-    summary_prompt: 'Summarize the following chunk: {{ chunk_content }}
+  extract_medical_info:
+    gleaning:
+      num_rounds: 1
+      validation_prompt: 'Please evaluate the output of the ''extract_medical_info''
+        operation for the given transcript by answering the following questions:
 
 
-      Focus on identifying any mentioned medications, their dosages, and symptoms
-      experienced or monitored.'
-    type: split
-  submap_extract_medical_info:
-    model: gpt-4o-mini
+        1. Completeness: Are there any medications, dosages, or symptoms mentioned
+        in the transcript that were not included in the output? If so, please specify
+        which pieces of information were missed.
+
+
+        2. Accuracy: Is each extracted medication, dosage, and symptom accurately
+        represented in the output? Note any discrepancies between the transcript and
+        the extracted information.
+
+
+        3. Precision: Would the output benefit from a more detailed analysis of the
+        transcript? For example, are there nuances in symptom descriptions or medication
+        instructions that are oversimplified or misunderstood in the extraction?
+
+
+        4. Format Consistency: Is the output format consistent with the expected structure,
+        with clear separation and labeling of medications, dosages, and symptoms?
+        Identify any formatting issues or inconsistencies.
+
+
+        5. Information Errors: Are there any errors or contradictions in the extracted
+        data, such as incorrect dosages or symptom descriptions? Please highlight
+        any such issues.
+
+
+        Provide a summary of your assessment indicating overall performance and any
+        recommended improvements.'
     output:
       schema:
         medication_info: str
-    prompt: 'Extract and list all medications, dosages, and symptoms mentioned in
-      the following text:
+    prompt: 'Analyze the following transcript of a conversation between a doctor and
+      a patient:
 
 
-      {{ input.chunk_content }}
+      {{ input.src }}
 
 
-      If a piece of information is not found, return an empty string. Only process
-      the main chunk.'
+      Extract and list all medications, dosages, and symptoms mentioned in the transcript.
+
+      If a piece of information is not found, return an empty string.
+
+      '
     type: map
-  subreduce_extract_medical_info:
-    commutative: true
-    input:
-      schema:
-        medication_info: str
-    model: gpt-4o-mini
-    output:
-      schema:
-        medication_info: str
-    pass_through: true
-    prompt: 'Combine the following extracted information from different chunks to
-      provide a comprehensive list of all medications, dosages, and symptoms mentioned
-      in the conversation transcript:
-
-
-      {% for value in values %}
-
-      {{ value.medication_info }}
-
-      {% endfor %}'
-    reduce_key:
-    - extract_medical_info_chunk_group_id
-    type: reduce
 pipeline:
   output:
     path: extracted_medical_info.json
@@ -65,6 +62,4 @@ pipeline:
   - input: transcripts
     name: medical_info_extraction
     operations:
-    - split_extract_medical_info
-    - submap_extract_medical_info
-    - subreduce_extract_medical_info
+    - extract_medical_info

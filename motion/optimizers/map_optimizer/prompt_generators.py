@@ -263,7 +263,7 @@ class PromptGenerator:
         is_commutative = commutative_result["is_commutative"] == "no"
         commutative_explanation = commutative_result["explanation"]
 
-        self.console.log(f"[bold]Commutativity Analysis:[/bold]")
+        self.console.log("[bold]Commutativity Analysis:[/bold]")
         self.console.log(f"Is commutative: {'Yes' if is_commutative else 'No'}")
         self.console.log(f"Explanation: {commutative_explanation}")
 

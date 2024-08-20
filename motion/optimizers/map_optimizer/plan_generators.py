@@ -276,6 +276,7 @@ class PlanGenerator:
                     for uo in unnest_ops:
                         map_output = self._run_operation(uo, map_output)
 
+                    plan = copy.deepcopy(base_operations)
                     if self.is_filter:
                         plan.extend([split_op, map_op] + unnest_ops + [reduce_op])
                         return plan_name, plan
@@ -291,7 +292,6 @@ class PlanGenerator:
                         ).optimize(reduce_op, map_output)
                         self.reduce_optimizer_cost += cost
 
-                        plan = copy.deepcopy(base_operations)
                         plan.extend(
                             [split_op, map_op] + unnest_ops + optimized_reduce_ops
                         )

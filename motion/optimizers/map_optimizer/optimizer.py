@@ -1,12 +1,9 @@
-import hashlib
 import json
 import time
-from typing import Any, Dict, List, Callable, Optional, Tuple, Union
+from typing import Any, Dict, List, Callable, Tuple
 import uuid
 from motion.optimizers.utils import LLMClient
-import random
 from rich.console import Console
-import jinja2
 import copy
 from rich.table import Table
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -15,7 +12,7 @@ import concurrent
 from motion.optimizers.map_optimizer.plan_generators import PlanGenerator
 from motion.optimizers.map_optimizer.evaluator import Evaluator
 from motion.optimizers.map_optimizer.prompt_generators import PromptGenerator
-from motion.optimizers.map_optimizer.utils import *
+from motion.optimizers.map_optimizer.utils import select_evaluation_samples
 
 
 class MapOptimizer:
@@ -163,7 +160,7 @@ class MapOptimizer:
         self.console.log("\n")  # Add a newline for better readability
 
         # Check if improvement is needed based on the assessment
-        if assessment.get("needs_improvement", True) == False:
+        if not assessment.get("needs_improvement", True):
             self.console.log(
                 f"[green]No improvement needed for operation {op_config['name']}[/green]"
             )

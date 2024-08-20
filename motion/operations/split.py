@@ -1,10 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Tuple
 import uuid
 from motion.operations.utils import call_llm, parse_llm_response
 import tiktoken
 from motion.operations.base import BaseOperation
-from rich.console import Console
 import math
 from litellm import completion_cost
 from jinja2 import Template
@@ -406,7 +405,7 @@ class SplitOperation(BaseOperation):
         summary_response = call_llm(
             self.config.get("summary_model", self.default_model),
             "summary",
-            summary_prompt,
+            [{"role": "user", "content": summary_prompt}],
             {"summary": "str"},
         )
         summary = parse_llm_response(summary_response)[0]

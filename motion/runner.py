@@ -177,7 +177,7 @@ class DSLRunner:
             op_task = progress.add_task(
                 f"Running operation [cyan]{operation_name}[/cyan]...", total=1
             )
-            self.console.log(f"[bold]Running Operation:[/bold]")
+            self.console.log("[bold]Running Operation:[/bold]")
             self.console.log(f"  Type: [cyan]{op_object['type']}[/cyan]")
             self.console.log(f"  Name: [cyan]{op_object.get('name', 'Unnamed')}[/cyan]")
 
@@ -202,5 +202,5 @@ class DSLRunner:
 
 
 if __name__ == "__main__":
-    runner = DSLRunner("workloads/medical/equijoin.yaml")
+    runner = DSLRunner("workloads/medical/map.yaml")
     runner.run()

@@ -73,7 +73,7 @@ def generate_and_validate_prompt(
 
         except jinja2.exceptions.TemplateError as e:
             error_message = f"Invalid Jinja2 template: {str(e)}"
-        except Exception as e:
+        except Exception:
             # We only care about jinja errors
             return result
 

@@ -3,7 +3,7 @@ The BaseOperation class is an abstract base class for all operations in the Moti
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 from rich.console import Console
 
 
@@ -28,6 +28,9 @@ class BaseOperation(ABC):
         self.default_model = default_model
         self.max_threads = max_threads
         self.console = console or Console()
+        self.num_retries_on_validation_failure = self.config.get(
+            "num_retries_on_validation_failure", 0
+        )
         self.syntax_check()
 
     @abstractmethod

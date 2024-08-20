@@ -5,8 +5,6 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 from typing import Dict, List, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from jinja2 import Template
-from collections import defaultdict
-import json
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, parse_llm_response, embedding
 from motion.operations.utils import validate_output, rich_as_completed, RichLoopBar
@@ -35,7 +33,7 @@ def compare_pair(
     response = call_llm(
         model,
         "compare",
-        prompt,
+        [{"role": "user", "content": prompt}],
         {"is_match": "bool"},
     )
     output = parse_llm_response(response)[0]
@@ -321,7 +319,7 @@ class ResolveOperation(BaseOperation):
                 reduction_response = call_llm(
                     self.config.get("resolution_model", self.default_model),
                     "reduce",
-                    resolution_prompt,
+                    [{"role": "user", "content": resolution_prompt}],
                     self.config["output"]["schema"],
                 )
                 reduction_output = parse_llm_response(reduction_response)[0]

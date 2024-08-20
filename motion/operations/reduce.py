@@ -9,13 +9,11 @@ Manages performance metrics and dynamically adjusts processing (i.e., number of 
 import math
 import random
 import time
-from typing import Dict, List, Any, Tuple, Optional, Union
+from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 from jinja2 import Template
-from itertools import groupby
-from operator import itemgetter
 from motion.operations.base import BaseOperation
 from motion.operations.utils import call_llm, call_llm_with_gleaning, parse_llm_response
 from motion.operations.utils import validate_output, rich_as_completed
@@ -587,7 +585,7 @@ class ReduceOperation(BaseOperation):
         response = call_llm(
             self.config.get("model", self.default_model),
             "reduce",
-            fold_prompt,
+            [{"role": "user", "content": fold_prompt}],
             self.config["output"]["schema"],
         )
         folded_output = parse_llm_response(response)[0]
@@ -624,7 +622,7 @@ class ReduceOperation(BaseOperation):
         response = call_llm(
             self.config.get("model", self.default_model),
             "merge",
-            merge_prompt,
+            [{"role": "user", "content": merge_prompt}],
             self.config["output"]["schema"],
         )
         merged_output = parse_llm_response(response)[0]
@@ -723,7 +721,7 @@ class ReduceOperation(BaseOperation):
             response = call_llm(
                 self.config.get("model", self.default_model),
                 "reduce",
-                prompt,
+                [{"role": "user", "content": prompt}],
                 self.config["output"]["schema"],
             )
 

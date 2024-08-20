@@ -262,7 +262,7 @@ class ConfigGenerator:
 
         random_sample = random.choice(input_data_sample)[split_key]
 
-        metadata_var = "input." + split_key
+        metadata_var = "input." + split_key  # noqa: F841
 
         base_prompt = f"""
         Given the following subtask prompt:

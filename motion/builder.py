@@ -12,8 +12,6 @@ from rich.console import Console
 import random
 import json
 import os
-import jinja2
-import re
 from motion.optimizers.utils import LLMClient
 
 
@@ -246,7 +244,7 @@ class Optimizer:
             if has_map and has_reduce and not has_resolve:
                 # Synthesize an empty resolver
                 self.console.log(
-                    f"[yellow]Synthesizing empty resolver operation:[/yellow]"
+                    "[yellow]Synthesizing empty resolver operation:[/yellow]"
                 )
                 self.console.log(
                     f"  • [cyan]Reduce operation:[/cyan] [bold]{reduce_op}[/bold]"
@@ -362,7 +360,7 @@ class Optimizer:
             step_name = step.get("name")
             if not step_name:
                 raise ValueError(
-                    f"Step does not have a name. Each step must have a unique name."
+                    "Step does not have a name. Each step must have a unique name."
                 )
 
             optimized_step, step_operations, input_data = self._optimize_step(step)
@@ -510,7 +508,7 @@ class Optimizer:
             )
 
             if (
-                op_object.get("optimize", True) == False
+                not op_object.get("optimize", True)
                 or op_object.get("type") not in SUPPORTED_OPS
             ):
                 # If optimize is False or operation type is not supported, just use the operation without optimization
@@ -527,7 +525,7 @@ class Optimizer:
                     f"[bold blue]Optimizing operation: {operation_name} (Type: {op_object['type']})[/bold blue]"
                 ):
                     # Print the number of elements in input_data
-                    self.console.log(f"[yellow]Optimizing Operation:[/yellow]")
+                    self.console.log("[yellow]Optimizing Operation:[/yellow]")
                     self.console.log(f"[yellow]  Type: {op_object['type']}[/yellow]")
                     self.console.log(f"[yellow]  Name: {operation_name}[/yellow]")
                     if op_object.get("type") == "equijoin":
@@ -843,7 +841,7 @@ class Optimizer:
             self.config, op_config, self.console, self.llm_client, self.max_threads
         ).optimize_resolve(input_data)
 
-        if optimized_config.get("empty", False) == True:
+        if optimized_config.get("empty", False):
             # Remove this operation from the pipeline and just return input data
             return [], input_data
 

@@ -4,10 +4,12 @@ from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor
 from jinja2 import Template
 from motion.operations.base import BaseOperation
-from motion.operations.utils import call_llm, parse_llm_response
+from motion.operations.utils import (
+    call_llm,
+    parse_llm_response,
+    call_llm_with_validation,
+)
 from motion.operations.utils import validate_output, RichLoopBar
-from litellm import completion_cost
-from rich.console import Console
 
 
 class FilterOperation(BaseOperation):
@@ -112,20 +114,38 @@ class FilterOperation(BaseOperation):
         def _process_filter_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
-            response = call_llm(
-                self.config.get("model", self.default_model),
-                "filter",
-                prompt,
-                self.config["output"]["schema"],
+
+            def validation_fn(response: Dict[str, Any]):
+                output = parse_llm_response(response)[0]
+                for key, value in item.items():
+                    if key not in self.config["output"]["schema"]:
+                        output[key] = value
+                if validate_output(self.config, output, self.console):
+                    return True
+                return False
+
+            response, cost, is_valid = call_llm_with_validation(
+                [{"role": "user", "content": prompt}],
+                llm_call_fn=lambda messages: call_llm(
+                    self.config.get("model", self.default_model),
+                    "filter",
+                    messages,
+                    self.config["output"]["schema"],
+                ),
+                validation_fn=validation_fn,
+                val_rule=self.config.get("validate", []),
+                num_retries=self.num_retries_on_validation_failure,
+                console=self.console,
             )
-            item_cost = completion_cost(response)
-            output = parse_llm_response(response)[0]
-            for key, value in item.items():
-                if key not in self.config["output"]["schema"]:
-                    output[key] = value
-            if validate_output(self.config, output, self.console):
-                return output, item_cost
-            return None, item_cost
+
+            if is_valid:
+                output = parse_llm_response(response)[0]
+                for key, value in item.items():
+                    if key not in self.config["output"]["schema"]:
+                        output[key] = value
+                return output, cost
+
+            return None, cost
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [

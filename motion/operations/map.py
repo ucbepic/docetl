@@ -6,9 +6,13 @@ from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor
 from jinja2 import Template
 from motion.operations.base import BaseOperation
-from motion.operations.utils import call_llm, parse_llm_response, call_llm_with_gleaning
+from motion.operations.utils import (
+    call_llm,
+    parse_llm_response,
+    call_llm_with_gleaning,
+    call_llm_with_validation,
+)
 from motion.operations.utils import validate_output, RichLoopBar
-from litellm import completion_cost
 
 
 class MapOperation(BaseOperation):
@@ -75,32 +79,55 @@ class MapOperation(BaseOperation):
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
-            item_cost = 0
+
+            def validation_fn(response: Dict[str, Any]):
+                output = parse_llm_response(response)[0]
+                for key, value in item.items():
+                    if key not in self.config["output"]["schema"]:
+                        output[key] = value
+                if validate_output(self.config, output, self.console):
+                    return True
+                return False
+
             if "gleaning" in self.config:
-                response, item_cost = call_llm_with_gleaning(
-                    self.config.get("model", self.default_model),
-                    "map",
-                    prompt,
-                    self.config["output"]["schema"],
-                    self.config["gleaning"]["validation_prompt"],
-                    self.config["gleaning"]["num_rounds"],
+                response, cost, success = call_llm_with_validation(
+                    [{"role": "user", "content": prompt}],
+                    llm_call_fn=lambda messages: call_llm_with_gleaning(
+                        self.config.get("model", self.default_model),
+                        "map",
+                        messages,
+                        self.config["output"]["schema"],
+                        self.config["gleaning"]["validation_prompt"],
+                        self.config["gleaning"]["num_rounds"],
+                    ),
+                    validation_fn=validation_fn,
+                    val_rule=self.config.get("validate", []),
+                    num_retries=self.num_retries_on_validation_failure,
+                    console=self.console,
                 )
             else:
-                response = call_llm(
-                    self.config.get("model", self.default_model),
-                    "map",
-                    prompt,
-                    self.config["output"]["schema"],
+                response, cost, success = call_llm_with_validation(
+                    [{"role": "user", "content": prompt}],
+                    llm_call_fn=lambda messages: call_llm(
+                        self.config.get("model", self.default_model),
+                        "map",
+                        messages,
+                        self.config["output"]["schema"],
+                    ),
+                    validation_fn=validation_fn,
+                    val_rule=self.config.get("validate", []),
+                    num_retries=self.num_retries_on_validation_failure,
+                    console=self.console,
                 )
-            item_cost += completion_cost(response)
-            output = parse_llm_response(response)[0]
-            for key, value in item.items():
-                if key not in self.config["output"]["schema"]:
-                    output[key] = value
-            if validate_output(self.config, output, self.console):
-                return output, item_cost
 
-            return None, item_cost
+            if success:
+                output = parse_llm_response(response)[0]
+                for key, value in item.items():
+                    if key not in self.config["output"]["schema"]:
+                        output[key] = value
+                return output, cost
+
+            return None, cost
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [executor.submit(_process_map_item, item) for item in input_data]
@@ -224,7 +251,7 @@ class ParallelMapOperation(BaseOperation):
         3. Validates the combined output for each item
         4. Calculates total cost of the operation
         """
-        results = []
+        results = {}
         total_cost = 0
         output_schema = self.config["output"]["schema"]
 
@@ -234,14 +261,38 @@ class ParallelMapOperation(BaseOperation):
             local_output_schema = {
                 key: output_schema[key] for key in prompt_config["output_keys"]
             }
-            response = call_llm(
-                prompt_config.get("model", self.default_model),
-                "parallel_map",
-                prompt,
-                local_output_schema,
+
+            def llm_call_fn(messages):
+                return call_llm(
+                    prompt_config.get("model", self.default_model),
+                    "parallel_map",
+                    messages,
+                    local_output_schema,
+                )
+
+            def validation_fn(response: Dict[str, Any]):
+                output = parse_llm_response(response)[0]
+                for key, value in item.items():
+                    if key not in self.config["output"]["schema"]:
+                        output[key] = value
+                if validate_output(self.config, output, self.console):
+                    return True
+                return False
+
+            response, cost, is_valid = call_llm_with_validation(
+                [{"role": "user", "content": prompt}],
+                llm_call_fn,
+                validation_fn,
+                prompt_config.get("validate", []),
+                self.num_retries_on_validation_failure,
+                self.console,
             )
+
+            if not is_valid:
+                return None, cost
+
             output = parse_llm_response(response)[0]
-            return output, completion_cost(response)
+            return output, cost
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             # Create all futures at once
@@ -269,16 +320,15 @@ class ParallelMapOperation(BaseOperation):
                 # Initialize or update the item_result
                 if prompt_index == 0:
                     item_result = input_data[item_index].copy()
-                    results.append(item_result)
+                    results[item_index] = item_result
+
+                # Fetch the item_result
+                item_result = results[item_index]
 
                 # Update the item_result with the output
                 item_result.update(output)
 
-                # Validate the item_result if this is the last prompt for this item
-                if prompt_index == len(self.config["prompts"]) - 1:
-                    if not validate_output(self.config, item_result, self.console):
-                        results.pop()  # Remove the invalid result
-
                 pbar.update(i)
 
-        return results, total_cost
+        # Return the results in order
+        return [results[i] for i in range(len(input_data)) if i in results], total_cost

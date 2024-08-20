@@ -1,15 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import json
 import random
 import re
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 from litellm import embedding, completion_cost
-from uuid import uuid4
 from rich.console import Console
 from motion.operations.resolve import compare_pair as compare_pair_resolve
 from motion.operations.equijoin import compare_pair as compare_pair_equijoin
-from scipy.optimize import brentq
 
 
 class JoinOptimizer:
@@ -85,7 +83,7 @@ class JoinOptimizer:
 
         analysis = json.loads(response.choices[0].message.content)
 
-        self.console.log(f"[bold]Map Prompt Analysis:[/bold]")
+        self.console.log("[bold]Map Prompt Analysis:[/bold]")
         self.console.log(f"Is Categorical: {analysis['is_categorical']}")
         self.console.log(f"Explanation: {analysis['explanation']}")
 
@@ -784,7 +782,7 @@ class JoinOptimizer:
         selectivity_estimate = numerator / denominator
 
         self.console.log(
-            f"[bold cyan]┌─ Estimated Self-Join Selectivity ─────────────────────────┐[/bold cyan]"
+            "[bold cyan]┌─ Estimated Self-Join Selectivity ─────────────────────────┐[/bold cyan]"
         )
         self.console.log(
             f"[bold cyan]│[/bold cyan] [yellow]Target Recall:[/yellow] {self.target_recall:.0%}"
@@ -793,7 +791,7 @@ class JoinOptimizer:
             f"[bold cyan]│[/bold cyan] [yellow]Estimate:[/yellow] {selectivity_estimate:.4f}"
         )
         self.console.log(
-            f"[bold cyan]└───────────────────────────────────────────────────────────┘[/bold cyan]"
+            "[bold cyan]└───────────────────────────────────────────────────────────┘[/bold cyan]"
         )
         self.console.log(
             f"[bold]Chosen similarity threshold for blocking: {optimal_threshold:.4f}[/bold]"

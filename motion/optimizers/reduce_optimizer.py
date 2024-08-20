@@ -4,8 +4,7 @@ from typing import Any, Dict, List, Callable, Tuple, Union
 from motion.operations.base import BaseOperation
 from motion.optimizers.join_optimizer import JoinOptimizer
 from rich.console import Console
-from motion.optimizers.utils import LLMClient, extract_jinja_variables
-from motion.operations import get_operation
+from motion.optimizers.utils import LLMClient
 from collections import Counter
 from statistics import mean, median
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -227,7 +226,7 @@ class ReduceOptimizer:
         ).optimize_resolve(input_data)
         all_cost += resolve_cost
 
-        if optimized_resolve_config.get("empty", False) == False:
+        if not optimized_resolve_config.get("empty", False):
             # Add this to the pipeline
             pipeline += [optimized_resolve_config]
 
@@ -1368,7 +1367,7 @@ class ReduceOptimizer:
         merge_avg_time = mean(merge_times) if merge_times else None
         fold_avg_time = mean(fold_times) if fold_times else None
 
-        self.console.log(f"\n[bold]Scores:[/bold]")
+        self.console.log("\n[bold]Scores:[/bold]")
         self.console.log(f"Original plan: {best_score:.2f}")
         self.console.log(f"Merged plan: {merged_plan_score:.2f}")
 

@@ -3,12 +3,16 @@ The `EquijoinOperation` class is a subclass of `BaseOperation` that performs an 
 """
 
 from typing import Dict, List, Any, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from jinja2 import Template
 from collections import defaultdict
 import json
 from motion.operations.base import BaseOperation
-from motion.operations.utils import call_llm, parse_llm_response, embedding
+from motion.operations.utils import (
+    call_llm,
+    parse_llm_response,
+    embedding,
+)
 from motion.operations.utils import validate_output, rich_as_completed
 from litellm import completion_cost
 from sklearn.metrics.pairwise import cosine_similarity
@@ -35,7 +39,7 @@ def compare_pair(
     response = call_llm(
         model,
         "compare",
-        prompt,
+        [{"role": "user", "content": prompt}],
         {"is_match": "bool"},
     )
     output = parse_llm_response(response)[0]
@@ -247,6 +251,8 @@ class EquijoinOperation(BaseOperation):
                         results.append(joined_item)
                         left_match_counts[left_key_hash] += 1
                         right_match_counts[right_key_hash] += 1
+
+                    # TODO: support retry in validation failure
 
         total_cost += comparison_costs
 

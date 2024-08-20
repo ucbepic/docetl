@@ -1,21 +1,18 @@
 import json
 import threading
-from typing import Dict, List, Any, Optional, Tuple, Iterable, Union
-from litellm import completion, embedding, completion_cost
-import litellm
+from typing import Callable, Dict, List, Any, Optional, Tuple, Iterable, Union
+from litellm import completion, completion_cost
 from dotenv import load_dotenv
 from rich.console import Console
 import hashlib
 import functools
-from rich.progress import Progress, TaskID
 from concurrent.futures import as_completed
 from tqdm import tqdm
 from jinja2 import Template
+from frozendict import frozendict
 
 load_dotenv()
 # litellm.set_verbose = True
-
-from frozendict import frozendict
 
 
 def freezeargs(func):
@@ -34,9 +31,21 @@ def freezeargs(func):
 
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
-        args = (frozendict(arg) if isinstance(arg, dict) else arg for arg in args)
+        args = tuple(
+            (
+                frozendict(arg)
+                if isinstance(arg, dict)
+                else json.dumps(arg) if isinstance(arg, list) else arg
+            )
+            for arg in args
+        )
         kwargs = {
-            k: frozendict(v) if isinstance(v, dict) else v for k, v in kwargs.items()
+            k: (
+                frozendict(v)
+                if isinstance(v, dict)
+                else json.dumps(v) if isinstance(v, list) else v
+            )
+            for k, v in kwargs.items()
         }
         return func(*args, **kwargs)
 
@@ -90,7 +99,10 @@ def convert_val(value: Any) -> Dict[str, Any]:
 
 
 def cache_key(
-    model: str, op_type: str, prompt: str, output_schema: Dict[str, str]
+    model: str,
+    op_type: str,
+    messages: List[Dict[str, str]],
+    output_schema: Dict[str, str],
 ) -> str:
     """
     Generate a unique cache key based on function arguments.
@@ -101,7 +113,7 @@ def cache_key(
     Args:
         model (str): The model name.
         op_type (str): The operation type.
-        prompt (str): The prompt text.
+        messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
 
     Returns:
@@ -110,7 +122,7 @@ def cache_key(
     key_dict = {
         "model": model,
         "op_type": op_type,
-        "prompt": prompt,
+        "messages": json.dumps(messages, sort_keys=True),
         "output_schema": json.dumps(output_schema, sort_keys=True),
     }
     return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest()
@@ -120,7 +132,11 @@ def cache_key(
 @freezeargs
 @functools.lru_cache(maxsize=100000)
 def cached_call_llm(
-    cache_key: str, model: str, op_type: str, prompt: str, output_schema: Dict[str, str]
+    cache_key: str,
+    model: str,
+    op_type: str,
+    messages: List[Dict[str, str]],
+    output_schema: Dict[str, str],
 ) -> str:
     """
     Cached version of the call_llm function.
@@ -133,19 +149,57 @@ def cached_call_llm(
         cache_key (str): A unique key for caching.
         model (str): The model name.
         op_type (str): The operation type.
-        prompt (str): The prompt text.
+        messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
 
     Returns:
         str: The result from call_llm_with_cache.
     """
-    return call_llm_with_cache(model, op_type, prompt, output_schema)
+    return call_llm_with_cache(model, op_type, messages, output_schema)
+
+
+def call_llm_with_validation(
+    messages: List[str],
+    llm_call_fn: Callable,
+    validation_fn: Callable,
+    val_rule: str,
+    num_retries: int,
+    console: Console,
+) -> Tuple[Dict[str, Any], float, bool]:
+    num_tries = num_retries + 1
+    cost = 0.0
+    for i in range(num_tries):
+        response = llm_call_fn(messages)
+        cost += completion_cost(response)
+
+        if validation_fn(response):
+            return response, cost, True
+        # Append the validation result to messages
+        messages.append(
+            {
+                "role": "assistant",
+                "content": json.dumps(parse_llm_response(response)[0]),
+            }
+        )
+        messages.append(
+            {
+                "role": "user",
+                "content": f"Your output failed my validation rule: {str(val_rule)}\n\nPlease try again.",
+            }
+        )
+        console.log(
+            f"[bold red]Validation failed:[/bold red] {val_rule}\n"
+            f"\t[yellow]Output:[/yellow] {parse_llm_response(response)[0]}\n"
+            f"\tTrying again... ({i + 1}/{num_tries})"
+        )
+
+    return response, cost, False
 
 
 def call_llm(
     model: str,
     op_type: str,
-    prompt: str,
+    messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
 ) -> str:
     """
@@ -157,7 +211,7 @@ def call_llm(
     Args:
         model (str): The model name.
         op_type (str): The operation type.
-        prompt (str): The prompt text.
+        messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
 
     Returns:
@@ -166,13 +220,13 @@ def call_llm(
     Raises:
         TimeoutError: If the call times out after retrying.
     """
-    key = cache_key(model, op_type, prompt, output_schema)
+    key = cache_key(model, op_type, messages, output_schema)
 
     max_retries = 2
     for attempt in range(max_retries):
         try:
             return timeout(60)(cached_call_llm)(
-                key, model, op_type, prompt, output_schema
+                key, model, op_type, messages, output_schema
             )
         except TimeoutError:
             if attempt == max_retries - 1:
@@ -206,7 +260,7 @@ def timeout(seconds):
 def call_llm_with_cache(
     model: str,
     op_type: str,
-    prompt: str,
+    messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
 ) -> str:
     """
@@ -218,7 +272,7 @@ def call_llm_with_cache(
     Args:
         model (str): The model name.
         op_type (str): The operation type.
-        prompt (str): The prompt text.
+        messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
 
     Returns:
@@ -231,6 +285,7 @@ def call_llm_with_cache(
     parameters["additionalProperties"] = False
 
     system_prompt = f"You are a helpful assistant to intelligently process data. This is a {op_type} operation."
+    messages = json.loads(messages)
 
     response = completion(
         model=model,
@@ -239,11 +294,8 @@ def call_llm_with_cache(
                 "role": "system",
                 "content": system_prompt,
             },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
+        ]
+        + messages,
         # response_format={
         #     "type": "json_schema",
         #     "json_schema": {
@@ -275,7 +327,7 @@ def call_llm_with_cache(
 def call_llm_with_gleaning(
     model: str,
     op_type: str,
-    prompt: str,
+    messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
     validator_prompt_template: str,
     num_gleaning_rounds: int,
@@ -289,7 +341,7 @@ def call_llm_with_gleaning(
     Args:
         model (str): The model name.
         op_type (str): The operation type.
-        prompt (str): The initial prompt text.
+        messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
         validator_prompt_template (str): Template for the validator prompt.
         num_gleaning_rounds (int): Number of gleaning rounds to perform.
@@ -304,7 +356,7 @@ def call_llm_with_gleaning(
     parameters["additionalProperties"] = False
 
     # Initial LLM call
-    response = call_llm(model, op_type, prompt, output_schema)
+    response = call_llm(model, op_type, messages, output_schema)
 
     cost = 0.0
 
@@ -312,14 +364,18 @@ def call_llm_with_gleaning(
     parsed_response = parse_llm_response(response)
     output = parsed_response[0]
 
-    messages = [
-        {
-            "role": "system",
-            "content": f"You are a helpful assistant to intelligently process data. This is a {op_type} operation.",
-        },
-        {"role": "user", "content": prompt},
-        {"role": "assistant", "content": json.dumps(output)},
-    ]
+    messages = (
+        [
+            {
+                "role": "system",
+                "content": f"You are a helpful assistant to intelligently process data. This is a {op_type} operation.",
+            }
+        ]
+        + messages
+        + [
+            {"role": "assistant", "content": json.dumps(output)},
+        ]
+    )
 
     for _ in range(num_gleaning_rounds):
         cost += completion_cost(response)

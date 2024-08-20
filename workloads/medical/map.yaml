@@ -17,7 +17,11 @@ operations:
       {{ input.src }}
 
       Extract and list all medications, dosages, and symptoms mentioned in the transcript.
+      Begin your medication_info output with "Medication Info: "
       If a piece of information is not found, return an empty string.
+    validate:
+      - "output['medication_info'].startswith('Medication Info: ')"
+    num_retries_on_validation_failure: 1
 
     # gleaning:
     #   num_rounds: 1

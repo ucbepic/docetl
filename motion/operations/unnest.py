@@ -1,7 +1,6 @@
 import copy
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Tuple
 from motion.operations.base import BaseOperation
-from rich.console import Console
 
 
 class UnnestOperation(BaseOperation):
@@ -141,7 +140,7 @@ class UnnestOperation(BaseOperation):
                 raise TypeError(f"Value of unnest key '{unnest_key}' is not iterable")
             if isinstance(item[unnest_key], dict) and expand_fields is None:
                 raise ValueError(
-                    f"Expand fields is required when unnesting a dictionary"
+                    "Expand fields is required when unnesting a dictionary"
                 )
 
             if isinstance(item[unnest_key], dict):

@@ -22,6 +22,7 @@ frozendict = "^2.4.4"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"
 python-dotenv = "^1.0.1"
+ruff = "^0.6.1"
 
 [build-system]
 requires = ["poetry-core"]

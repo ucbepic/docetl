@@ -1,11 +1,11 @@
-import random
 import json
-from typing import Dict, Any, List, Tuple
+import random
+from typing import Any, Dict, List, Tuple
 
 from rich.console import Console
 
-from motion.optimizers.utils import LLMClient
 from motion.optimizers.map_optimizer.utils import generate_and_validate_prompt
+from motion.optimizers.utils import LLMClient
 
 
 class PromptGenerator:
@@ -84,7 +84,7 @@ class PromptGenerator:
         Use the following feedback to improve the current prompt:
         {json.dumps(assessment['improvements'], indent=2)}
 
-        Improve the current prompt to better handle the input data and produce more accurate results.     
+        Improve the current prompt to better handle the input data and produce more accurate results.
         Note: The new prompt should only include the variables present in the current prompt verbatim. Do not introduce any new variables.
 
         Provide your response in the following format:
@@ -174,14 +174,14 @@ class PromptGenerator:
 
         base_prompt = f"""Original prompt (that operates on the full input, not the individual chunks):
         {op_config['prompt']}
-        
+
         Output schema:
         {json.dumps(op_config['output']['schema'], indent=2)}
 
         Sample inputs from processing various chunks:
         {sample_inputs}
 
-        Modify the original prompt to be a prompt that will combine these chunk results to accomplish the original task. 
+        Modify the original prompt to be a prompt that will combine these chunk results to accomplish the original task.
 
         Guidelines for your prompt template:
         - The only variable you are allowed to use is the values variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(schema_keys)}
@@ -219,7 +219,7 @@ class PromptGenerator:
 
         Original task prompt:
         {op_config['prompt']}
-        
+
         Output schema:
         {json.dumps(op_config['output']['schema'], indent=2)}
 
@@ -229,7 +229,7 @@ class PromptGenerator:
         Prompt to combine results of subtasks:
         {combine_prompt}
 
-        Does the order of combining chunk results matter? Answer with 'yes' if order matters (non-commutative) or 'no' if order doesn't matter (commutative). 
+        Does the order of combining chunk results matter? Answer with 'yes' if order matters (non-commutative) or 'no' if order doesn't matter (commutative).
         Explain your reasoning briefly.
 
         For example:

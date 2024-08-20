@@ -1,18 +1,19 @@
+import concurrent
+import copy
 import json
 import time
-from typing import Any, Dict, List, Callable, Tuple
 import uuid
-from motion.optimizers.utils import LLMClient
-from rich.console import Console
-import copy
-from rich.table import Table
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import concurrent
+from typing import Any, Callable, Dict, List, Tuple
 
-from motion.optimizers.map_optimizer.plan_generators import PlanGenerator
+from rich.console import Console
+from rich.table import Table
+
 from motion.optimizers.map_optimizer.evaluator import Evaluator
+from motion.optimizers.map_optimizer.plan_generators import PlanGenerator
 from motion.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from motion.optimizers.map_optimizer.utils import select_evaluation_samples
+from motion.optimizers.utils import LLMClient
 
 
 class MapOptimizer:

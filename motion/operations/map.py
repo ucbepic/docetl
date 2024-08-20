@@ -2,17 +2,20 @@
 The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOperation` that perform mapping operations on input data. They use LLM-based processing to transform input items into output items based on specified prompts and schemas.
 """
 
-from typing import Dict, List, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional, Tuple
+
 from jinja2 import Template
+
 from motion.operations.base import BaseOperation
 from motion.operations.utils import (
+    RichLoopBar,
     call_llm,
-    parse_llm_response,
     call_llm_with_gleaning,
     call_llm_with_validation,
+    parse_llm_response,
+    validate_output,
 )
-from motion.operations.utils import validate_output, RichLoopBar
 
 
 class MapOperation(BaseOperation):

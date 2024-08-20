@@ -1,17 +1,16 @@
 import copy
 import json
 import random
-from typing import Callable, Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from motion.optimizers.reduce_optimizer import ReduceOptimizer
+from typing import Any, Callable, Dict, List
 
 from rich.console import Console
 
-from motion.optimizers.utils import LLMClient
-from motion.optimizers.map_optimizer.operation_creators import OperationCreator
-from motion.optimizers.utils import extract_jinja_variables
 from motion.optimizers.map_optimizer.config_generators import ConfigGenerator
+from motion.optimizers.map_optimizer.operation_creators import OperationCreator
 from motion.optimizers.map_optimizer.prompt_generators import PromptGenerator
+from motion.optimizers.reduce_optimizer import ReduceOptimizer
+from motion.optimizers.utils import LLMClient, extract_jinja_variables
 
 
 class PlanGenerator:
@@ -481,7 +480,7 @@ class PlanGenerator:
         2. "Partially Satisfactory": The output met some of the validation prompt requirements but not all for the given chunk.
         3. "Mostly Satisfactory": The output met most of the validation prompt requirements but has some room for improvement for the given chunk.
         4. "Satisfactory": The output fully met the validation prompt requirements for the given chunk.
-        
+
         Remember, only consider the main chunk content when evaluating the output, not any information surrounding the chunk.
         """
 

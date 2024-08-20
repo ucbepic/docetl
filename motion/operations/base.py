@@ -3,7 +3,8 @@ The BaseOperation class is an abstract base class for all operations in the Moti
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
+
 from rich.console import Console
 
 

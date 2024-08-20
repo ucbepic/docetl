@@ -1,12 +1,14 @@
-from typing import Dict, List, Optional, Tuple
-from dotenv import load_dotenv
+import json
 import os
+from typing import Dict, List, Optional, Tuple
+
+from dotenv import load_dotenv
+from rich import print as rprint
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich import print as rprint
+
 from motion.operations import get_operation
 from motion.utils import load_config
-import json
 
 load_dotenv()
 

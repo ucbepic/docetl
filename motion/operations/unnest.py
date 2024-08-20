@@ -1,5 +1,6 @@
 import copy
 from typing import Dict, List, Tuple
+
 from motion.operations.base import BaseOperation
 
 

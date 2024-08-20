@@ -9,21 +9,26 @@ Manages performance metrics and dynamically adjusts processing (i.e., number of 
 import math
 import random
 import time
-from typing import Dict, List, Tuple, Optional
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
+from typing import Dict, List, Optional, Tuple
 
+import jinja2
 import numpy as np
 from jinja2 import Template
-from motion.operations.base import BaseOperation
-from motion.operations.utils import call_llm, call_llm_with_gleaning, parse_llm_response
-from motion.operations.utils import validate_output, rich_as_completed
-from litellm import completion_cost
-import jinja2
-from threading import Lock
-from collections import deque
-from litellm import embedding
-from sklearn.metrics.pairwise import cosine_similarity
+from litellm import completion_cost, embedding
 from sklearn.cluster import KMeans
+from sklearn.metrics.pairwise import cosine_similarity
+
+from motion.operations.base import BaseOperation
+from motion.operations.utils import (
+    call_llm,
+    call_llm_with_gleaning,
+    parse_llm_response,
+    rich_as_completed,
+    validate_output,
+)
 
 
 class ReduceOperation(BaseOperation):

@@ -1,7 +1,7 @@
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any, List, Tuple, Optional, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from rich.console import Console
 

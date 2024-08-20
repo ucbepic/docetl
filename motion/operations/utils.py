@@ -1,15 +1,16 @@
+import functools
+import hashlib
 import json
 import threading
-from typing import Callable, Dict, List, Any, Optional, Tuple, Iterable, Union
-from litellm import completion, completion_cost
-from dotenv import load_dotenv
-from rich.console import Console
-import hashlib
-import functools
 from concurrent.futures import as_completed
-from tqdm import tqdm
-from jinja2 import Template
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+
+from dotenv import load_dotenv
 from frozendict import frozendict
+from jinja2 import Template
+from litellm import completion, completion_cost
+from rich.console import Console
+from tqdm import tqdm
 
 load_dotenv()
 # litellm.set_verbose = True

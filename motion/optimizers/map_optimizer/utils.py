@@ -1,11 +1,12 @@
-import random
 import json
-from typing import List, Dict, Any
+import random
+from typing import Any, Dict, List
+
+import jinja2
+from rich.console import Console
 
 from motion.operations import get_operation
 from motion.optimizers.utils import LLMClient
-from rich.console import Console
-import jinja2
 
 
 def select_evaluation_samples(

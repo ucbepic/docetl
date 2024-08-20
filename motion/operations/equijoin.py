@@ -2,20 +2,23 @@
 The `EquijoinOperation` class is a subclass of `BaseOperation` that performs an equijoin operation on two datasets. It uses a combination of blocking techniques and LLM-based comparisons to efficiently join the datasets.
 """
 
-from typing import Dict, List, Any, Tuple
-from concurrent.futures import ThreadPoolExecutor
-from jinja2 import Template
-from collections import defaultdict
 import json
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Tuple
+
+from jinja2 import Template
+from litellm import completion_cost
+from sklearn.metrics.pairwise import cosine_similarity
+
 from motion.operations.base import BaseOperation
 from motion.operations.utils import (
     call_llm,
-    parse_llm_response,
     embedding,
+    parse_llm_response,
+    rich_as_completed,
+    validate_output,
 )
-from motion.operations.utils import validate_output, rich_as_completed
-from litellm import completion_cost
-from sklearn.metrics.pairwise import cosine_similarity
 
 
 def compare_pair(

@@ -1,19 +1,20 @@
-from collections import Counter, defaultdict
 import copy
-import yaml
-from typing import Dict, List, Any, Optional, Tuple, Union
-from motion.operations import get_operation
-from motion.operations.base import BaseOperation
-from motion.optimizers.map_optimizer import MapOptimizer
-from motion.optimizers.reduce_optimizer import ReduceOptimizer
-from motion.optimizers.join_optimizer import JoinOptimizer
-from motion.utils import load_config
-from rich.console import Console
-import random
 import json
 import os
-from motion.optimizers.utils import LLMClient
+import random
+from collections import Counter, defaultdict
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import yaml
+from rich.console import Console
+
+from motion.operations import get_operation
+from motion.operations.base import BaseOperation
+from motion.optimizers.join_optimizer import JoinOptimizer
+from motion.optimizers.map_optimizer import MapOptimizer
+from motion.optimizers.reduce_optimizer import ReduceOptimizer
+from motion.optimizers.utils import LLMClient
+from motion.utils import load_config
 
 SUPPORTED_OPS = ["map", "resolve", "reduce", "equijoin", "filter"]
 

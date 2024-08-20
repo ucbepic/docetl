@@ -1,5 +1,6 @@
+from typing import Any, Dict
+
 import yaml
-from typing import Dict, Any
 
 
 def load_config(config_path: str) -> Dict[str, Any]:

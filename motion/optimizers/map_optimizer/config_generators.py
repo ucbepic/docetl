@@ -1,10 +1,12 @@
 import copy
-import random
 import json
-from typing import Dict, Any, List
-from motion.optimizers.utils import extract_jinja_variables, LLMClient
-from motion.optimizers.map_optimizer.utils import generate_and_validate_prompt
+import random
+from typing import Any, Dict, List
+
 from rich.console import Console
+
+from motion.optimizers.map_optimizer.utils import generate_and_validate_prompt
+from motion.optimizers.utils import LLMClient, extract_jinja_variables
 
 
 class ConfigGenerator:
@@ -78,7 +80,7 @@ class ConfigGenerator:
 
         Determine the split key and subprompt for processing chunks of the input data.
         The split key should be a key in the input data that contains a string to be split.
-        The subprompt should be designed to process individual chunks of the split data. 
+        The subprompt should be designed to process individual chunks of the split data.
         Note that the subprompt's output schema will be: {json.dumps(output_schema, indent=2)}.
 
         Important:

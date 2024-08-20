@@ -1,13 +1,15 @@
 import json
 import random
-from typing import Any, Dict, List, Callable, Tuple, Union
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from statistics import mean, median
+from typing import Any, Callable, Dict, List, Tuple, Union
+
+from rich.console import Console
+
 from motion.operations.base import BaseOperation
 from motion.optimizers.join_optimizer import JoinOptimizer
-from rich.console import Console
 from motion.optimizers.utils import LLMClient
-from collections import Counter
-from statistics import mean, median
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class ReduceOptimizer:
@@ -427,7 +429,7 @@ class ReduceOptimizer:
         1. A sub-group key to use for the first reduce operation
         2. A prompt for the first reduce operation
         3. A prompt for the second (final) reduce operation
-        
+
         For the reduce operation prompts, you should only minimally modify the original prompt. The prompts should be Jinja templates, and the only variables they can access are the `reduce_key` and `values` variables.
 
         Provide your suggestions in the following format:
@@ -511,7 +513,7 @@ class ReduceOptimizer:
 
         Reduce Operation Prompt:
         {op_config['prompt']}
-        
+
         Sample Input Data (first 2 items):
         {json.dumps(sample_input[:2], indent=2)}
 
@@ -597,7 +599,7 @@ class ReduceOptimizer:
             Reduce Operation Prompt:
             {op_config['prompt']}
 
-            The query text should be a Jinja template with access to the `reduce_key` variable. 
+            The query text should be a Jinja template with access to the `reduce_key` variable.
             Based on the reduce operation prompt, what would be an appropriate query text for selecting relevant samples?
             """
 
@@ -658,7 +660,7 @@ class ReduceOptimizer:
         For example, sum and product operations are commutative, while subtraction and division are not.
 
         Based on the reduce operation prompt and the sample input data, determine if this operation is likely to be commutative.
-        Answer with 'yes' if order matters (non-commutative) or 'no' if order doesn't matter (commutative). 
+        Answer with 'yes' if order matters (non-commutative) or 'no' if order doesn't matter (commutative).
         Explain your reasoning briefly.
 
         For example:
@@ -1221,7 +1223,7 @@ class ReduceOptimizer:
             prompt = f"""
             Original Reduce Operation Prompt:
             {original_prompt}
-            
+
             Sample Input:
             {json.dumps(input_example, indent=2)}
 
@@ -1483,10 +1485,10 @@ class ReduceOptimizer:
 
         prompt = f"""Reduce Operation Prompt (runs on the first batch of inputs):
         {plan["prompt"]}
-        
+
         Fold Prompt (runs on the second and subsequent batches of inputs):
         {plan["fold_prompt"]}
-        
+
         Sample output of the fold operation (an input to the merge operation):
         {json.dumps(random_output, indent=2)}
 

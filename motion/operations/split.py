@@ -1,12 +1,14 @@
+import math
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Tuple
-import uuid
-from motion.operations.utils import call_llm, parse_llm_response
+
 import tiktoken
-from motion.operations.base import BaseOperation
-import math
-from litellm import completion_cost
 from jinja2 import Template
+from litellm import completion_cost
+
+from motion.operations.base import BaseOperation
+from motion.operations.utils import call_llm, parse_llm_response
 
 
 class SplitOperation(BaseOperation):

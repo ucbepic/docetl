@@ -1,13 +1,15 @@
-from concurrent.futures import ThreadPoolExecutor
 import json
 import random
 import re
-from typing import List, Dict, Any, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
-from litellm import embedding, completion_cost
+from litellm import completion_cost, embedding
 from rich.console import Console
-from motion.operations.resolve import compare_pair as compare_pair_resolve
+
 from motion.operations.equijoin import compare_pair as compare_pair_equijoin
+from motion.operations.resolve import compare_pair as compare_pair_resolve
 
 
 class JoinOptimizer:
@@ -50,7 +52,7 @@ class JoinOptimizer:
             },
             {
                 "role": "user",
-                "content": f"""Analyze the following map operation prompt and determine if it is explicitly categorical, 
+                "content": f"""Analyze the following map operation prompt and determine if it is explicitly categorical,
                 meaning it details a specific set of possible outputs:
 
                 {map_prompt}
@@ -282,7 +284,7 @@ class JoinOptimizer:
         reduce_key: List[str],
         output_schema: Dict[str, str],
     ) -> str:
-        system_prompt = f"""You are an AI assistant tasked with creating a resolution prompt for LLM-assisted entity resolution. 
+        system_prompt = f"""You are an AI assistant tasked with creating a resolution prompt for LLM-assisted entity resolution.
         Your task is to create a prompt that will be used to merge multiple duplicate keys into a single, consolidated key.
         The key(s) being resolved (known as the reduce_key) are {', '.join(reduce_key)}.
         The duplicate keys will be provided in a list called 'matched_entries' in a Jinja2 template.
@@ -312,7 +314,7 @@ class JoinOptimizer:
 
     {{% endfor %}}
 
-    Create a single, consolidated key that combines the information from all duplicate entries. 
+    Create a single, consolidated key that combines the information from all duplicate entries.
     When merging, follow these guidelines:
     1. [Provide specific merging instructions relevant to the data type]
     2. [Provide conflict resolution guidelines]

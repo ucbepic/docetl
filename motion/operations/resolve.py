@@ -2,15 +2,23 @@
 The `ResolveOperation` class is a subclass of `BaseOperation` that performs a resolution operation on a dataset. It uses a combination of blocking techniques and LLM-based comparisons to efficiently identify and resolve duplicate or related entries within the dataset.
 """
 
-from typing import Dict, List, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Tuple
+
+import jinja2
 from jinja2 import Template
-from motion.operations.base import BaseOperation
-from motion.operations.utils import call_llm, parse_llm_response, embedding
-from motion.operations.utils import validate_output, rich_as_completed, RichLoopBar
 from litellm import completion_cost
 from sklearn.metrics.pairwise import cosine_similarity
-import jinja2
+
+from motion.operations.base import BaseOperation
+from motion.operations.utils import (
+    RichLoopBar,
+    call_llm,
+    embedding,
+    parse_llm_response,
+    rich_as_completed,
+    validate_output,
+)
 
 
 def compare_pair(
@@ -288,9 +296,9 @@ class ResolveOperation(BaseOperation):
 
                 for future in as_completed(future_to_pair):
                     pair = future_to_pair[future]
-                    is_match, cost = future.result()
+                    is_match_result, cost = future.result()
                     pair_costs += cost
-                    if is_match:
+                    if is_match_result:
                         merge_clusters(pair[0], pair[1])
 
                     pbar.update(i)

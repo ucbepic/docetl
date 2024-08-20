@@ -1,9 +1,10 @@
-import typer
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 
-from motion.runner import DSLRunner
+import typer
+
 from motion.builder import Optimizer
+from motion.runner import DSLRunner
 
 app = typer.Typer()
 

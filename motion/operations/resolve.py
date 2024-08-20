@@ -14,11 +14,11 @@ from motion.operations.base import BaseOperation
 from motion.operations.utils import (
     RichLoopBar,
     call_llm,
-    embedding,
     parse_llm_response,
     rich_as_completed,
     validate_output,
 )
+from litellm import embedding
 
 
 def compare_pair(

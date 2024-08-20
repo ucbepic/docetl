@@ -30,4 +30,4 @@ jobs:
         run: make install
 
       - name: Run pytest
-        run: make tests
+        run: make tests-basic

@@ -37,7 +37,7 @@ pip install -r requirements.txt
 To run a pipeline defined in a YAML file, use the `motion` command:
 
 ```bash
-motion pipeline.yaml
+motion run pipeline.yaml
 ```
 
 This command will execute the pipeline defined in `pipeline.yaml`.

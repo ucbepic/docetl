@@ -1,6 +1,6 @@
 # Motion
 
-Motion is a powerful tool for creating and executing data processing pipelines using a custom Domain Specific Language (DSL). It allows you to define complex data operations in a YAML configuration file and execute them efficiently.
+Motion is a powerful tool for creating and executing data processing pipelines using LLMs. It allows you to define complex data operations in a YAML configuration file and execute them efficiently.
 
 ## Table of Contents
 

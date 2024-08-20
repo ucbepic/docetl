@@ -55,8 +55,8 @@ TODO:
   - [x] In resolve optimizer, support list-type reduce keys
 - [ ] Operator reordering (Aug 21 & 22)
   - [ ] support equivalence: map -> unnest -> reduce might be same as split -> gather -> map -> unnest -> reduce (no need to have a reduce right after map)
-- [ ] Run tests in CI
-- [ ] Support retry on validation failure
+- [x] Run tests in CI
+- [x] Support retry on validation failure
 - [ ] Support retries in the optimizers
 - [ ] Write tests for optimizers
 - [ ] Filter optimizer
@@ -83,3 +83,4 @@ Things to think about
 - In reduce optimizer: if agent suggests drill-down, see if we need to add a map to create the subreduce keys, or the subreduce key already exists
 - Try various combine prompts in the reduce optimizer
 - Filter optimizer: we should recursively optimize reduces if the reduce isn't good on its own
+- Support retry on val failure for operations beyond map/filter

@@ -29,8 +29,8 @@ class BaseOperation(ABC):
         self.default_model = default_model
         self.max_threads = max_threads
         self.console = console or Console()
-        self.num_retries_on_validation_failure = self.config.get(
-            "num_retries_on_validation_failure", 0
+        self.num_retries_on_validate_failure = self.config.get(
+            "num_retries_on_validate_failure", 0
         )
         self.syntax_check()
 

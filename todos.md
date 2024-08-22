@@ -53,10 +53,12 @@ TODO:
   - [x] In map optimizer: optimize the reduce operator for each chunk size plan
   - [x] In reduce optimizer: synthesize resolver if need be
   - [x] In resolve optimizer, support list-type reduce keys
-- [ ] Operator reordering (Aug 21 & 22)
+- [ ] Operator reordering (Aug 23)
   - [ ] support equivalence: map -> unnest -> reduce might be same as split -> gather -> map -> unnest -> reduce (no need to have a reduce right after map)
 - [x] Run tests in CI
 - [x] Support retry on validation failure
+- [ ] Break down split into split + gather (Aug 21 & 22)
+- [ ] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
 - [ ] Support retries in the optimizers
 - [ ] Write tests for optimizers
 - [ ] Filter optimizer
@@ -84,3 +86,4 @@ Things to think about
 - Try various combine prompts in the reduce optimizer
 - Filter optimizer: we should recursively optimize reduces if the reduce isn't good on its own
 - Support retry on val failure for operations beyond map/filter
+- If reduce input is too big to fit in the prompt, prompt for a map operation

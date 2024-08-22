@@ -116,6 +116,29 @@ parallel_map_operation:
       word_count: integer
 ```
 
+```yaml
+extract_info:
+  type: map
+  model: gpt-4o-mini
+  output:
+    schema:
+      officer_name: string
+      suspect_name: string
+  prompts:
+    - name: officer
+      prompt: |
+      Infer the officer's name from this police interrogation transcript:
+        { { input.transcript } }
+      output_keys:
+        - officer_name
+    - name: suspect
+      prompt: |
+      Infer the suspect's name from this police interrogation transcript:
+        { { input.transcript } }
+      output_keys:
+        - suspect_name
+```
+
 ### Filter
 
 The Filter operation selects items from the input data based on a condition.

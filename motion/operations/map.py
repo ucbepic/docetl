@@ -105,7 +105,7 @@ class MapOperation(BaseOperation):
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
-                    num_retries=self.num_retries_on_validation_failure,
+                    num_retries=self.num_retries_on_validate_failure,
                     console=self.console,
                 )
             else:
@@ -119,7 +119,7 @@ class MapOperation(BaseOperation):
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
-                    num_retries=self.num_retries_on_validation_failure,
+                    num_retries=self.num_retries_on_validate_failure,
                     console=self.console,
                 )
 
@@ -287,7 +287,7 @@ class ParallelMapOperation(BaseOperation):
                 llm_call_fn,
                 validation_fn,
                 prompt_config.get("validate", []),
-                self.num_retries_on_validation_failure,
+                self.num_retries_on_validate_failure,
                 self.console,
             )
 

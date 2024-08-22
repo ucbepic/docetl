@@ -21,7 +21,7 @@ operations:
       If a piece of information is not found, return an empty string.
     validate:
       - "output['medication_info'].startswith('Medication Info: ')"
-    num_retries_on_validation_failure: 1
+    num_retries_on_validate_failure: 1
 
     # gleaning:
     #   num_rounds: 1

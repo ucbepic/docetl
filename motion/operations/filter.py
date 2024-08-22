@@ -137,7 +137,7 @@ class FilterOperation(BaseOperation):
                 ),
                 validation_fn=validation_fn,
                 val_rule=self.config.get("validate", []),
-                num_retries=self.num_retries_on_validation_failure,
+                num_retries=self.num_retries_on_validate_failure,
                 console=self.console,
             )
 

@@ -14,6 +14,7 @@ Motion is a powerful tool for creating and executing data processing pipelines u
    - [Unnest](#unnest)
    - [Equijoin](#equijoin)
    - [Split](#split)
+   - [Gather](#gather)
    - [Reduce](#reduce)
    - [Resolve](#resolve)
 5. [Schemas](#schemas)
@@ -299,38 +300,17 @@ Note that the comparison prompt should be designed to elicit a clear yes or no a
 
 ### Split
 
-The Split operation divides long text content into smaller chunks and optionally includes contextual information from surrounding chunks.
+The Split operation divides long text content into smaller chunks.
 
 Required parameters:
 
-- `type`: Must be set to `"split"`.
-- `split_key`: The key of the field containing the text to split.
-- `chunk_size`: The maximum size of each chunk in tokens.
-- `model` (optional): The language model's tokenizer to use; falls back to `default_model` if not specified. Note that we don't actually run a language model here.
+- type: Must be set to "split".
+- split_key: The key of the field containing the text to split.
+- chunk_size: The maximum size of each chunk in tokens.
 
 Optional parameters:
 
-- `chunk_group_id_field`: The name of a new field where a randomly generated unique ID for each split record will be stored. All chunks from the same original record will share this generated ID.
-- `main_chunk_start`: A string to prefix the main chunk content (default: "<MAIN_CHUNK>"). Only used when there are peripheral chunks.
-- `main_chunk_end`: A string to suffix the main chunk content (default: "</MAIN_CHUNK>"). Only used when there are peripheral chunks.
-- `peripheral_chunks`: A dictionary specifying how to handle chunks before and after the current chunk.
-  - `previous`: Configuration for chunks before the current chunk.
-  - `next`: Configuration for chunks after the current chunk.
-
-Both `previous` and `next` can contain the following optional sections:
-
-- `head`: Chunks at the beginning of the document.
-- `middle`: Chunks between the head and tail.
-- `tail`: Chunks closest to the current chunk.
-
-Each section (`head`, `middle`, `tail`) can have the following properties:
-
-- `type`: Either "full" (include entire chunk) or "summary" (include a summary of the chunk). We default to "full" if the section is specified. If the section is not specified, we will not include any chunks/summaries from that section
-- `count`: The number of chunks to include (for `head` and `tail` only). Can be a fractional value.
-
-If you specify a `type` of "summary" for any section in `peripheral_chunks`, you must include a `summary_prompt` field in that section. This `summary_prompt` should be a Jinja2 template with a `{{ chunk_content }}` variable, which will be replaced with the chunk content when summarizing.
-
-Each chunk is summarized independently, and the resulting summaries are concatenated to provide peripheral context. You can optionally specify a `summary_model` for each section with a "summary" type. If not provided, the operation will use the `model` specified for the split operation or fall back to the `default_model`.
+- model: The language model's tokenizer to use; falls back to default_model if not specified. Note that we don't actually run a language model here.
 
 Example:
 
@@ -338,47 +318,69 @@ Example:
 split_operation:
   type: split
   split_key: content
+  chunk_size: 150
   model: gpt-4o-mini
-  chunk_size: 50
-  main_chunk_start: "<MAIN_CHUNK>"
-  main_chunk_end: "</MAIN_CHUNK>"
-  peripheral_chunks:
-    previous:
-      head:
-        type: full
-        count: 2
-      middle:
-        type: summary
-      tail:
-        type: full
-        count: 1.5
-    next:
-      head:
-        type: full
-        count: 1
-  summary_prompt: |
-    Summarize the following text:
-    {{ chunk_content }}
 ```
-
-In this example:
-
-- The content is split into chunks of 50 tokens each.
-- For previous chunks:
-  - The first 2 chunks are included in full.
-  - Summarized representations of all the middle chunks are concatenated together and included.
-  - The 1.5 chunks immediately before the current chunk are included in full.
-- For next chunks:
-  - The first chunk after the current one is included in full.
 
 Notes:
 
-- All sections in `peripheral_chunks` are optional. If omitted, no context will be included for that section.
-- If `count` is omitted for `head` or `tail`, it defaults to 0 (effectively omitting that section).
-- The `middle` section doesn't use a `count` parameter as it covers all chunks between `head` and `tail`.
-- Fractional values for `count` will include a partial chunk. For example, `1.5` includes the first chunk and half of the next chunk.
-- The split key will get replaced with the chunk content, and the operation acts like a flatmap. In other words, for each input item, it will produce multiple output items, one for each chunk. Each output item will contain all the original key-value pairs from the input item, plus the chunk_id and the chunked content replacing the original content of the split key.
-- The operation also adds a `_chunk_intermediates` key to each output item, containing the full chunk content, previous chunks, and next chunks. This can be used for debugging or further processing.
+- The split operation acts like a flatmap. For each input item, it produces multiple output items, one for each chunk.
+- Each output item contains all the original key-value pairs from the input item, plus:
+  - {split_key}\_chunk: The content of the split chunk.
+  - {name}\_id: A unique identifier for each original document.
+  - {name}\_chunk_num: The sequential number of the chunk within its original document.
+
+### Gather
+
+The Gather operation adds contextual information from surrounding chunks to each chunk.
+
+Required parameters:
+
+- type: Must be set to "gather".
+- content_key: The key containing the chunk content.
+- doc_id_key: The key containing the document ID.
+- order_key: The key containing the chunk order number.
+
+Optional parameters:
+
+- peripheral_chunks: A dictionary specifying how to handle chunks before and after the current chunk.
+  - previous: Configuration for chunks before the current chunk.
+  - next: Configuration for chunks after the current chunk.
+- main_chunk_start: A string to prefix the main chunk content (default: "--- Begin Main Chunk ---").
+- main_chunk_end: A string to suffix the main chunk content (default: "--- End Main Chunk ---").
+
+Both previous and next can contain the following optional sections:
+
+- head: Chunks at the beginning of the document.
+- middle: Chunks between the head and tail.
+- tail: Chunks closest to the current chunk.
+
+Each section (head, middle, tail) can have a count property specifying the number of chunks to include.
+
+Example:
+
+```yaml
+gather_operation:
+  type: gather
+  content_key: content_chunk
+  doc_id_key: split_id
+  order_key: split_chunk_num
+  peripheral_chunks:
+    previous:
+      tail:
+        count: 3
+    next:
+      head:
+        count: 3
+  main_chunk_start: "--- Begin Main Chunk ---"
+  main_chunk_end: "--- End Main Chunk ---"
+```
+
+Notes:
+
+- The gather operation adds a new field to each item: {content_key}\_formatted, which contains the formatted chunk with added context.
+- The formatted content includes labels for previous context, main chunk, and next context.
+- Skipped chunks are indicated with a "[... X characters skipped ...]" message.
 
 ### Reduce
 
@@ -414,6 +416,36 @@ Optional parameters:
   - `query_text`: (Required for "sem_sim" method) The query text to compare against when selecting samples. A jinja template with access to `reduce_key`.
 
 Example of a reduce operation with value sampling:
+
+```yaml
+reduce_operation:
+  type: reduce
+  reduce_key: category
+  prompt: |
+    Analyze the following items in the category '{{ reduce_key.category }}':
+    {% for item in values %}
+    - {{ item.name }}: ${{ item.price }}
+    {% endfor %}
+
+    Provide a summary with:
+    1. The total number of items
+    2. The total value of all items
+    3. The average price of items
+  output:
+    schema:
+      item_count: integer
+      total_value: number
+      average_price: number
+  model: gpt-3.5-turbo
+  value_sampling:
+    enabled: true
+    method: cluster
+    sample_size: 50
+    embedding_model: text-embedding-ada-002
+    embedding_keys:
+      - name
+      - price
+```
 
 Example of a basic reduce operation:
 

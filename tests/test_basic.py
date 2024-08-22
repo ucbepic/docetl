@@ -4,6 +4,7 @@ from motion.operations.filter import FilterOperation
 from motion.operations.unnest import UnnestOperation
 from motion.operations.equijoin import EquijoinOperation
 from motion.operations.split import SplitOperation
+from motion.operations.gather import GatherOperation
 from motion.operations.reduce import ReduceOperation
 from motion.operations.resolve import ResolveOperation
 from dotenv import load_dotenv
@@ -297,23 +298,33 @@ def split_config():
         "type": "split",
         "split_key": "content",
         "chunk_size": 4,
-        "peripheral_chunks": {
-            "previous": {
-                "head": {"type": "full", "count": 1},
-                "middle": {"type": "summary"},
-                "tail": {"type": "full", "count": 1.5},
-            },
-            "next": {
-                "head": {"type": "full", "count": 1},
-                "tail": {"type": "summary", "count": 2},
-            },
-        },
-        "summary_prompt": "Summarize the following chunk of content: {{ chunk_content }}\n If the chunk is too short, just repeat the content verbatim.",
+        "name": "split_doc",
     }
 
 
 @pytest.fixture
-def split_sample_data():
+def gather_config():
+    return {
+        "type": "gather",
+        "content_key": "content_chunk",
+        "doc_id_key": "split_doc_id",
+        "order_key": "split_doc_chunk_num",
+        "peripheral_chunks": {
+            "previous": {
+                "head": {"content_key": "content_chunk", "count": 1},
+                "middle": {"content_key": "content_chunk"},
+                "tail": {"content_key": "content_chunk", "count": 1},
+            },
+            "next": {
+                "head": {"content_key": "content_chunk", "count": 1},
+                "tail": {"content_key": "content_chunk", "count": 1},
+            },
+        },
+    }
+
+
+@pytest.fixture
+def sample_data():
     return [
         {
             "id": 1,
@@ -326,122 +337,95 @@ def split_sample_data():
     ]
 
 
-def test_split_operation(split_config, default_model, max_threads, split_sample_data):
+def test_split_operation(split_config, default_model, max_threads, sample_data):
     operation = SplitOperation(split_config, default_model, max_threads)
-    results, cost = operation.execute(split_sample_data)
+    results, cost = operation.execute(sample_data)
 
-    assert len(results) > len(split_sample_data)
-    assert all("chunk_id" in result and "content" in result for result in results)
-    assert cost > 0  # For summmarizing, we use the summary_prompt
+    assert len(results) > len(sample_data)
+    assert all(
+        "split_doc_chunk_num" in result and "content_chunk" in result
+        for result in results
+    )
+    assert all("split_doc_id" in result for result in results)
+    assert cost == 0  # No LLM calls in split operation
 
     # Check that chunks are created correctly
-    assert len(results) == 12  # 8 chunks for first item, 4 for second
+    assert len(results) == 12
 
-    # Check previous chunks for the middle chunk of the first item
-    middle_chunk = results[3][
-        "_chunk_intermediates"
-    ]  # 4th chunk (index 3) should be the middle chunk
-    assert "previous_chunks" in middle_chunk
-    assert (
-        len(middle_chunk["previous_chunks"]) == 3
-    )  # 1 head + 1 middle summary + 1.5 tail
-    assert middle_chunk["previous_chunks"][0]["chunk_id"].startswith("chunk_0")
-    assert middle_chunk["previous_chunks"][2]["chunk_id"].startswith("chunk_2")
+    # Check the structure of the first chunk
+    first_chunk = results[0]
+    assert first_chunk["split_doc_chunk_num"] == 1
+    assert first_chunk["content_chunk"].startswith("This is a long")
+    assert "split_doc_id" in first_chunk
 
-    # Check next chunks for the middle chunk of the first item
-    assert "next_chunks" in middle_chunk
-    assert len(middle_chunk["next_chunks"]) == 3  # 1 head + 2 tail summaries
-    assert middle_chunk["next_chunks"][0]["chunk_id"].startswith("chunk_4")
+    # Check the structure of the last chunk of the first document
+    last_chunk_first_doc = results[4]
+    assert last_chunk_first_doc["split_doc_chunk_num"] == 5
+    assert last_chunk_first_doc["split_doc_id"] == results[0]["split_doc_id"]
 
-    # Check the first chunk of the second item
-    second_item_first_chunk = results[8]["_chunk_intermediates"]
-    assert len(second_item_first_chunk["previous_chunks"]) == 0, "No previous chunks"
-    assert len(second_item_first_chunk["next_chunks"]) >= 1, "Some next chunks"
+    # Check the first chunk of the second document
+    first_chunk_second_doc = results[8]
+    assert first_chunk_second_doc["split_doc_chunk_num"] == 1
+    assert first_chunk_second_doc["split_doc_id"] != results[0]["split_doc_id"]
 
 
-def test_split_operation_without_peripheral_chunks(
-    split_config, default_model, max_threads, split_sample_data
+def test_gather_operation(
+    split_config, gather_config, default_model, max_threads, sample_data
 ):
-    # Remove peripheral_chunks from config
-    split_config.pop("peripheral_chunks")
-    operation = SplitOperation(split_config, default_model, max_threads)
-    results, cost = operation.execute(split_sample_data)
+    # First, split the data
+    split_op = SplitOperation(split_config, default_model, max_threads)
+    split_results, _ = split_op.execute(sample_data)
 
-    assert len(results) > len(split_sample_data)
-    assert all("chunk_id" in result and "content" in result for result in results)
-    assert all(
-        result["_chunk_intermediates"]["previous_chunks"] == []
-        and result["_chunk_intermediates"]["next_chunks"] == []
-        for result in results
-    )
-    assert cost == 0
+    # Now, gather the split results
+    gather_op = GatherOperation(gather_config, default_model, max_threads)
+    results, cost = gather_op.execute(split_results)
+
+    assert len(results) == len(split_results)
+    assert all("content_chunk_formatted" in result for result in results)
+    assert cost == 0  # No LLM calls in gather operation
+
+    # Check the structure of a gathered chunk
+    middle_chunk = results[2]  # Third chunk of the first document
+    formatted_content = middle_chunk["content_chunk_formatted"]
+
+    assert "--- Previous Context ---" in formatted_content
+    assert "--- Next Context ---" in formatted_content
+    assert "--- Begin Main Chunk ---" in formatted_content
+    assert "--- End Main Chunk ---" in formatted_content
+    assert "characters skipped" in formatted_content
 
 
-def test_split_operation_with_partial_config(
-    split_config, default_model, max_threads, split_sample_data
+def test_split_gather_combined(
+    split_config, gather_config, default_model, max_threads, sample_data
 ):
-    # Modify config to only include previous chunks
-    split_config["peripheral_chunks"] = {
-        "previous": {"head": {"type": "full", "count": 1}}
-    }
-    operation = SplitOperation(split_config, default_model, max_threads)
-    results, cost = operation.execute(split_sample_data)
-
-    assert len(results) > len(split_sample_data)
-    assert all(
-        "next_chunks" in result["_chunk_intermediates"]
-        and result["_chunk_intermediates"]["next_chunks"] == []
-        for result in results
+    split_op = SplitOperation(
+        split_config, default_model, max_threads, name="split_doc"
     )
-    assert cost == 0
+    gather_op = GatherOperation(gather_config, default_model, max_threads)
 
-    # Check that only head is included in previous chunks
-    for result in results:
-        chunk_id = result["chunk_id"]
-        if chunk_id.startswith("chunk_0"):
-            continue
-        result = result["_chunk_intermediates"]
-        if "previous_chunks" in result:
-            assert len(result["previous_chunks"]) == 1
-            assert "chunk_id" in result["previous_chunks"][0]
-            assert "summary" not in result["previous_chunks"][0]
+    split_results, split_cost = split_op.execute(sample_data)
+    gather_results, gather_cost = gather_op.execute(split_results)
 
+    assert len(gather_results) == len(split_results)
+    assert all("content_chunk_formatted" in result for result in gather_results)
+    assert split_cost == 0 and gather_cost == 0  # No LLM calls in either operation
 
-@pytest.mark.parametrize(
-    "invalid_config",
-    [
-        {"type": "split", "split_key": "content"},  # Missing chunk_size
-        {"type": "split", "chunk_size": 10},  # Missing split_key
-        {
-            "type": "split",
-            "split_key": "content",
-            "chunk_size": "10",
-        },  # Invalid chunk_size type
-        {
-            "type": "split",
-            "split_key": "content",
-            "chunk_size": 10,
-            "peripheral_chunks": {"previous": {"head": {"type": "invalid"}}},
-        },  # Invalid type in peripheral_chunks
-        {
-            "type": "split",
-            "split_key": "content",
-            "chunk_size": 10,
-            "peripheral_chunks": {"previous": {"head": {"count": "1"}}},
-        },  # Invalid count type in peripheral_chunks
-    ],
-)
-def test_split_operation_invalid_config(invalid_config, default_model, max_threads):
-    with pytest.raises((ValueError, TypeError)):
-        SplitOperation(invalid_config, default_model, max_threads)
+    # Check that the gather operation preserved all split operation fields
+    for split_result, gather_result in zip(split_results, gather_results):
+        for key in split_result:
+            assert key in gather_result
+            if key != "content_chunk_formatted":
+                assert gather_result[key] == split_result[key]
 
 
-def test_split_operation_empty_input(split_config, default_model, max_threads):
-    operation = SplitOperation(split_config, default_model, max_threads)
-    results, cost = operation.execute([])
+def test_split_gather_empty_input(
+    split_config, gather_config, default_model, max_threads
+):
+    split_op = SplitOperation(split_config, default_model, max_threads)
+    gather_op = GatherOperation(gather_config, default_model, max_threads)
 
-    assert len(results) == 0
-    assert cost == 0
+    split_results, split_cost = split_op.execute([])
+    assert len(split_results) == 0
 
 
 # Reduce Operation Tests

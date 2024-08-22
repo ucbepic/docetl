@@ -57,6 +57,7 @@ class DSLRunner:
         for operation in self.config["operations"]:
             operation_config = self.config["operations"][operation]
             operation_type = operation_config["type"]
+            operation_config["name"] = operation
 
             try:
                 operation_class = get_operation(operation_type)
@@ -204,5 +205,5 @@ class DSLRunner:
 
 
 if __name__ == "__main__":
-    runner = DSLRunner("workloads/medical/map.yaml")
+    runner = DSLRunner("workloads/medical/map_opt.yaml")
     runner.run()

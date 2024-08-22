@@ -58,6 +58,7 @@ TODO:
 - [x] Run tests in CI
 - [x] Support retry on validation failure
 - [ ] Break down split into split + gather (Aug 21 & 22)
+  - [ ] Support this in runner too
 - [ ] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
 - [ ] Support retries in the optimizers
 - [ ] Write tests for optimizers

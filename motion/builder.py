@@ -97,6 +97,7 @@ class Optimizer:
         for operation in self.config["operations"]:
             operation_config = self.config["operations"][operation]
             operation_type = operation_config["type"]
+            operation_config["name"] = operation
 
             try:
                 operation_class = get_operation(operation_type)
@@ -573,7 +574,9 @@ class Optimizer:
                         optimized_operation_names.append(op_name)
 
                         old_input_data_size = len(input_data)
-                        input_data = self._run_operation(op, input_data)
+                        input_data = self._run_operation(
+                            {**op, "name": op_name}, input_data
+                        )
                         new_input_data_size = len(input_data)
                         selectivity = new_input_data_size / old_input_data_size
                         self.selectivities[step.get("name")][op_name] = selectivity
@@ -880,9 +883,13 @@ class Optimizer:
             If return_instance is True, returns a tuple of the output data and the operation instance.
         """
         operation_class = get_operation(op_config["type"])
-        operation_instance = operation_class(
-            op_config, self.config["default_model"], self.max_threads, self.console
-        )
+        oc_kwargs = {
+            "config": op_config,
+            "default_model": self.config["default_model"],
+            "max_threads": self.max_threads,
+            "console": self.console,
+        }
+        operation_instance = operation_class(**oc_kwargs)
         if op_config["type"] == "equijoin":
             left_data = input_data["left"]
             right_data = input_data["right"]
@@ -944,5 +951,5 @@ class Optimizer:
 
 
 if __name__ == "__main__":
-    optimizer = Optimizer("workloads/medical/filter.yaml", model="gpt-4o")
+    optimizer = Optimizer("workloads/medical/map.yaml", model="gpt-4o")
     optimizer.optimize()

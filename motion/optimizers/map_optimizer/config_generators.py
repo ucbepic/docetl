@@ -1,7 +1,7 @@
 import copy
 import json
 import random
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from rich.console import Console
 
@@ -50,7 +50,7 @@ class ConfigGenerator:
             - The split_key is determined based on the structure of the input data.
             - The subprompt is designed to process individual chunks of the split data.
             - The subprompt's output schema matches the original operation's output schema.
-            - In the subprompt, we've replace all variables of 'input.{split_key}' with 'input.chunk_content'.
+            - In the subprompt, we've replace all variables of 'input.{split_key}' with 'input.{split_key}_chunk'.
         """
 
         system_prompt = "You are an AI assistant tasked with configuring split operations for data processing."
@@ -85,7 +85,7 @@ class ConfigGenerator:
 
         Important:
         - The subprompt should be a Jinja template.
-        - The subprompt should use the variable 'input.chunk_content' instead of 'input.{{ split_key }}'.
+        - The subprompt should use the variable 'input.{{ split_key }}_chunk' instead of 'input.{{ split_key }}'.
 
         Provide your response in the following format:
         - split_key: The key in the input data to be used for splitting
@@ -120,9 +120,9 @@ class ConfigGenerator:
             )
 
         variables_in_subprompt = extract_jinja_variables(result["subprompt"])
-        # Replace variables in subprompt with f"input.chunk_{split_key}"
+        # Replace variables in subprompt with f"input.{split_key}_chunk"
         for variable in variables_in_subprompt:
-            inp_split_key = "input.chunk_content"
+            inp_split_key = f"input.{result['split_key']}_chunk"
             result["subprompt"] = result["subprompt"].replace(
                 f"{{{{ {variable} }}}}", f"{{{{ {inp_split_key} }}}}"
             )
@@ -411,8 +411,8 @@ class ConfigGenerator:
         ]
 
     def _generate_peripheral_configs(
-        self, chunk_size: int, avg_doc_size: int
-    ) -> List[Dict[str, Any]]:
+        self, summary_key: str, chunk_size: int, avg_doc_size: int
+    ) -> List[Tuple[Dict[str, Any], bool]]:
         """
         Generate a list of peripheral chunk configurations, considering:
         * Adaptive scaling: this scales the config based on the ratio of document to chunk size
@@ -471,17 +471,20 @@ class ConfigGenerator:
             }
             final_configs.append(extensive_config)
 
+        # Add false to each config because there's no summarization needed
+        final_configs = [(config, False) for config in final_configs]
+
         # Add configurations with summary for small-ish chunk sizes
         if chunk_size < avg_doc_size / 5:
             summary_configs = []
             for config in final_configs:
-                summary_config = copy.deepcopy(config)
+                summary_config = copy.deepcopy(config)[0]
                 if "previous" not in summary_config:
                     summary_config["previous"] = {
-                        "tail": {"count": 1, "type": "summary"}
+                        "tail": {"count": 1, "content_key": summary_key}
                     }
-                summary_config["previous"]["middle"] = {"type": "summary"}
-                summary_configs.append(summary_config)
+                summary_config["previous"]["middle"] = {"content_key": summary_key}
+                summary_configs.append((summary_config, True))
             final_configs.extend(summary_configs)
 
         # Deduplicate configs

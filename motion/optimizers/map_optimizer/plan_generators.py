@@ -65,17 +65,20 @@ class PlanGenerator:
 
         """
         split_result = self.config_generator._get_split_config(op_config, input_data)
+        # Generate split keys
+        split_key = split_result["split_key"]
+        content_key = f"{split_key}_chunk"
+        summary_key = f"{split_key}_summary"
+        doc_id_key = f"split_{op_config['name']}_id"
 
-        chunk_sizes = self.config_generator._generate_chunk_sizes(
-            split_result["split_key"], input_data
-        )
+        chunk_sizes = self.config_generator._generate_chunk_sizes(split_key, input_data)
 
         self.console.log("[bold]Chunk Sizes to Evaluate:[/bold]")
         self.console.log(f"{chunk_sizes}")
 
-        avg_doc_size = sum(
-            len(doc[split_result["split_key"]].split()) for doc in input_data
-        ) // len(input_data)
+        avg_doc_size = sum(len(doc[split_key].split()) for doc in input_data) // len(
+            input_data
+        )
         avg_chunk_size = sum(chunk_sizes) // len(chunk_sizes)
 
         def determine_metadata_with_retry():
@@ -84,7 +87,7 @@ class PlanGenerator:
                     op_config,
                     split_result["subprompt"],
                     avg_chunk_size,
-                    split_result["split_key"],
+                    split_key,
                     input_data,
                 )
                 return metadata_info
@@ -98,7 +101,7 @@ class PlanGenerator:
                         op_config,
                         split_result["subprompt"],
                         avg_chunk_size,
-                        split_result["split_key"],
+                        split_key,
                         input_data,
                     )
                 except Exception:
@@ -129,7 +132,7 @@ class PlanGenerator:
         # Generate sample output for the max chunk size to create the combine prompt
         max_chunk_size = max(chunk_sizes)
         peripheral_configs = self.config_generator._generate_peripheral_configs(
-            max_chunk_size, avg_doc_size
+            summary_key, max_chunk_size, avg_doc_size
         )
 
         avg_chunk_size = sum(chunk_sizes) // len(chunk_sizes)
@@ -170,12 +173,13 @@ class PlanGenerator:
         sample_output = copy.deepcopy(input_data)
         max_plan = copy.deepcopy(base_operations)
 
-        split_op = self.operation_creator.create_split_operation(
+        smg_ops = self.operation_creator.create_split_map_gather_operations(
             op_config,
             {"chunk_size": max_chunk_size},
-            peripheral_configs[-1],
-            split_result["split_key"],
-            info_extraction_prompt,
+            peripheral_configs[-1][0],
+            split_key,
+            content_key,
+            info_extraction_prompt if peripheral_configs[-1][1] else None,
             "gpt-4o-mini",
         )
         map_op = self.operation_creator.create_map_operation(
@@ -183,7 +187,7 @@ class PlanGenerator:
         )
 
         unnest_ops = self.operation_creator.create_unnest_operations(op_config)
-        max_plan.extend([split_op, map_op] + unnest_ops)
+        max_plan.extend(smg_ops + [map_op] + unnest_ops)
 
         for op in max_plan:
             sample_output = self._run_operation(op, sample_output, is_build=True)
@@ -199,7 +203,7 @@ class PlanGenerator:
 
         # Create the reduce operation
         reduce_op = self.operation_creator.create_reduce_operation(
-            op_config, combine_prompt, is_commutative
+            op_config, combine_prompt, is_commutative, doc_id_key
         )
 
         # Create plans for each chunk size
@@ -207,7 +211,7 @@ class PlanGenerator:
 
         for chunk_size in chunk_sizes:
             peripheral_configs = self.config_generator._generate_peripheral_configs(
-                chunk_size, avg_doc_size
+                summary_key, chunk_size, avg_doc_size
             )
 
             # Define the _create_plan_task method outside of this loop
@@ -224,12 +228,13 @@ class PlanGenerator:
                 reduce_op,
             ):
                 def task():
-                    split_op = self.operation_creator.create_split_operation(
+                    smg_ops = self.operation_creator.create_split_map_gather_operations(
                         op_config,
                         {"chunk_size": chunk_size},
-                        peripheral_config,
-                        split_result["split_key"],
-                        info_extraction_prompt,
+                        peripheral_config[0],
+                        split_key,
+                        content_key,
+                        info_extraction_prompt if peripheral_config[1] else None,
                         "gpt-4o-mini",
                     )
                     map_op = self.operation_creator.create_map_operation(
@@ -244,16 +249,18 @@ class PlanGenerator:
                     for op in base_operations:
                         sample_input = self._run_operation(op, sample_input)
 
-                    split_output = self._run_operation(split_op, sample_input)
+                    for op in smg_ops:
+                        sample_input = self._run_operation(op, sample_input)
+
                     map_output = self._run_operation(
-                        map_op, split_output, is_build=True
+                        map_op, sample_input, is_build=True
                     )
 
                     # Evaluate the output using the validator prompt
                     plan_evaluation_score = self._evaluate_partial_plan_output(
                         plan_name,
                         op_config,
-                        split_output,
+                        sample_input,
                         map_output,
                         split_result["subprompt"] + " Only process the main chunk.",
                         validator_prompt,
@@ -276,8 +283,10 @@ class PlanGenerator:
                         map_output = self._run_operation(uo, map_output)
 
                     plan = copy.deepcopy(base_operations)
-                    if self.is_filter:
-                        plan.extend([split_op, map_op] + unnest_ops + [reduce_op])
+                    if self.is_filter or not op_config.get(
+                        "recursively_optimize", True
+                    ):
+                        plan.extend(smg_ops + [map_op] + unnest_ops + [reduce_op])
                         return plan_name, plan
 
                     # Optimize the reduce op for this current plan
@@ -292,7 +301,7 @@ class PlanGenerator:
                         self.reduce_optimizer_cost += cost
 
                         plan.extend(
-                            [split_op, map_op] + unnest_ops + optimized_reduce_ops
+                            smg_ops + [map_op] + unnest_ops + optimized_reduce_ops
                         )
                     except Exception as e:
                         self.console.log(
@@ -306,8 +315,9 @@ class PlanGenerator:
 
             # Create all peripheral_config plans concurrently
             plan_tasks = []
-            for peripheral_config in peripheral_configs:
+            for peripheral_config_tuple in peripheral_configs:
                 # Create plan name
+                peripheral_config, _ = peripheral_config_tuple
                 plan_name = f"chunk_size_{chunk_size}_peripheral_"
                 if peripheral_config:
                     for direction in ["previous", "next"]:
@@ -322,7 +332,7 @@ class PlanGenerator:
                     _create_plan_task(
                         op_config,
                         chunk_size,
-                        peripheral_config,
+                        peripheral_config_tuple,
                         split_result,
                         info_extraction_prompt,
                         validator_prompt,

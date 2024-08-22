@@ -2,6 +2,7 @@ import uuid
 from typing import Dict, List, Tuple
 
 import tiktoken
+
 from motion.operations.base import BaseOperation
 
 

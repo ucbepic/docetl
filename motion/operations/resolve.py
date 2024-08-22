@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Tuple
 
 import jinja2
 from jinja2 import Template
-from litellm import completion_cost
+from litellm import completion_cost, embedding
 from sklearn.metrics.pairwise import cosine_similarity
 
 from motion.operations.base import BaseOperation
@@ -18,7 +18,6 @@ from motion.operations.utils import (
     rich_as_completed,
     validate_output,
 )
-from litellm import embedding
 
 
 def compare_pair(

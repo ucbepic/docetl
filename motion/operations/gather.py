@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 from motion.operations.base import BaseOperation
 
@@ -14,10 +14,24 @@ class GatherOperation(BaseOperation):
     4. Return results containing the formatted chunks with added context, including information about skipped characters.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Initialize the GatherOperation.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
         super().__init__(*args, **kwargs)
 
     def syntax_check(self) -> None:
+        """
+        Perform a syntax check on the operation configuration.
+
+        Raises:
+            ValueError: If required keys are missing or if there are configuration errors.
+            TypeError: If main_chunk_start or main_chunk_end are not strings.
+        """
         required_keys = ["content_key", "doc_id_key", "order_key"]
         for key in required_keys:
             if key not in self.config:
@@ -52,6 +66,15 @@ class GatherOperation(BaseOperation):
             raise TypeError("'main_chunk_end' must be a string")
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+        """
+        Execute the gather operation on the input data.
+
+        Args:
+            input_data (List[Dict]): The input data to process.
+
+        Returns:
+            Tuple[List[Dict], float]: A tuple containing the processed results and the cost of the operation.
+        """
         content_key = self.config["content_key"]
         doc_id_key = self.config["doc_id_key"]
         order_key = self.config["order_key"]
@@ -96,14 +119,29 @@ class GatherOperation(BaseOperation):
 
     def format_chunk_with_context(
         self,
-        chunks,
-        current_index,
-        peripheral_config,
-        content_key,
-        order_key,
-        main_chunk_start,
-        main_chunk_end,
-    ):
+        chunks: List[Dict],
+        current_index: int,
+        peripheral_config: Dict,
+        content_key: str,
+        order_key: str,
+        main_chunk_start: str,
+        main_chunk_end: str,
+    ) -> str:
+        """
+        Format a chunk with its peripheral context.
+
+        Args:
+            chunks (List[Dict]): List of all chunks in the document.
+            current_index (int): Index of the current chunk being processed.
+            peripheral_config (Dict): Configuration for peripheral chunks.
+            content_key (str): Key for the content in each chunk.
+            order_key (str): Key for the order of each chunk.
+            main_chunk_start (str): String to mark the start of the main chunk.
+            main_chunk_end (str): String to mark the end of the main chunk.
+
+        Returns:
+            str: Formatted chunk with context.
+        """
         combined_parts = []
 
         # Process previous chunks
@@ -140,8 +178,26 @@ class GatherOperation(BaseOperation):
         return "\n".join(combined_parts)
 
     def process_peripheral_chunks(
-        self, chunks, config, content_key, order_key, reverse=False
-    ):
+        self,
+        chunks: List[Dict],
+        config: Dict,
+        content_key: str,
+        order_key: str,
+        reverse: bool = False,
+    ) -> List[str]:
+        """
+        Process peripheral chunks according to the configuration.
+
+        Args:
+            chunks (List[Dict]): List of chunks to process.
+            config (Dict): Configuration for processing peripheral chunks.
+            content_key (str): Key for the content in each chunk.
+            order_key (str): Key for the order of each chunk.
+            reverse (bool, optional): Whether to process chunks in reverse order. Defaults to False.
+
+        Returns:
+            List[str]: List of processed chunk strings.
+        """
         if reverse:
             chunks = list(reversed(chunks))
 

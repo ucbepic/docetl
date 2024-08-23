@@ -53,12 +53,15 @@ TODO:
   - [x] In map optimizer: optimize the reduce operator for each chunk size plan
   - [x] In reduce optimizer: synthesize resolver if need be
   - [x] In resolve optimizer, support list-type reduce keys
-- [ ] Operator reordering (Aug 23)
+- [ ] Operator reordering
   - [ ] support equivalence: map -> unnest -> reduce might be same as split -> gather -> map -> unnest -> reduce (no need to have a reduce right after map)
 - [x] Run tests in CI
 - [x] Support retry on validation failure
-- [ ] Break down split into split + gather (Aug 21 & 22)
-  - [ ] Support this in runner too
+- [x] Break down split into split + gather (Aug 21 & 22)
+  - [x] Support this in runner too
+- [ ] Support more flexible chunking strategies
+  - [ ] Encode this in API somehow (recursive splitting on some delimiters or sequence of delimiters?)
+  - [ ] Support this kind of chunking in the optimizer
 - [ ] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
 - [ ] Support retries in the optimizers
 - [ ] Write tests for optimizers

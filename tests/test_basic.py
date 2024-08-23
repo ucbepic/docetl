@@ -398,9 +398,7 @@ def test_gather_operation(
 def test_split_gather_combined(
     split_config, gather_config, default_model, max_threads, sample_data
 ):
-    split_op = SplitOperation(
-        split_config, default_model, max_threads, name="split_doc"
-    )
+    split_op = SplitOperation(split_config, default_model, max_threads)
     gather_op = GatherOperation(gather_config, default_model, max_threads)
 
     split_results, split_cost = split_op.execute(sample_data)

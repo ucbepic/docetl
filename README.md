@@ -306,11 +306,15 @@ Required parameters:
 
 - type: Must be set to "split".
 - split_key: The key of the field containing the text to split.
-- chunk_size: The maximum size of each chunk in tokens.
+- method: The method to use for splitting. Options are "delimiter" and "token_count".
+- method_kwargs: A dictionary of keyword arguments to pass to the splitting method.
+  - delimiter: The delimiter to use for splitting. Only used if method is "delimiter".
+  - token_count: The maximum number of tokens to include in each chunk. Only used if method is "token_count".
 
 Optional parameters:
 
 - model: The language model's tokenizer to use; falls back to default_model if not specified. Note that we don't actually run a language model here.
+- num_splits_to_group: The number of splits to group together into one chunk. Only used if method is "delimiter".
 
 Example:
 
@@ -318,7 +322,9 @@ Example:
 split_operation:
   type: split
   split_key: content
-  chunk_size: 150
+  method: token_count
+  method_kwargs:
+    token_count: 150
   model: gpt-4o-mini
 ```
 

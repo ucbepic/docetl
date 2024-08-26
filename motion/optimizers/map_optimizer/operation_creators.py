@@ -58,7 +58,8 @@ class OperationCreator:
             "type": "split",
             "name": split_name,
             "split_key": split_key,
-            "chunk_size": chunk_size,
+            "method": "token_count",
+            "method_kwargs": {"token_count": chunk_size},
         }
         pipeline.append(split_config)
 

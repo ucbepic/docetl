@@ -297,7 +297,8 @@ def split_config():
     return {
         "type": "split",
         "split_key": "content",
-        "chunk_size": 4,
+        "method": "token_count",
+        "method_kwargs": {"token_count": 4},
         "name": "split_doc",
     }
 

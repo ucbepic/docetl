@@ -19,8 +19,20 @@ def split_config():
     return {
         "type": "split",
         "split_key": "content",
-        "chunk_size": 10,
+        "method": "token_count",
+        "method_kwargs": {"token_count": 10},
         "name": "split_doc",
+    }
+
+
+@pytest.fixture
+def split_config_delimiter():
+    return {
+        "type": "split",
+        "split_key": "content",
+        "method": "delimiter",
+        "method_kwargs": {"delimiter": "\n", "num_splits_to_group": 2},
+        "name": "split_doc_delimiter",
     }
 
 
@@ -184,3 +196,49 @@ def test_split_map_gather_empty_input(
     gather_results, gather_cost = gather_op.execute(map_results)
     assert len(gather_results) == 0
     assert gather_cost == 0
+
+
+def test_split_delimiter_no_summarization(
+    split_config_delimiter, default_model, max_threads
+):
+    input_data = [
+        {"id": "1", "content": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6"},
+        {"id": "2", "content": "Paragraph 1\n\nParagraph 2\n\nParagraph 3"},
+    ]
+
+    split_op = SplitOperation(split_config_delimiter, default_model, max_threads)
+    results, cost = split_op.execute(input_data)
+
+    assert len(results) == 5  # 3 chunks for first item, 2 for second
+    assert cost == 0  # No LLM calls, so cost should be 0
+
+    # Check first item's chunks
+    assert results[0]["content_chunk"] == "Line 1\nLine 2"
+    assert results[1]["content_chunk"] == "Line 3\nLine 4"
+    assert results[2]["content_chunk"] == "Line 5\nLine 6"
+
+    # Check second item's chunks
+    assert results[3]["content_chunk"] == "Paragraph 1\nParagraph 2"
+    assert results[4]["content_chunk"] == "Paragraph 3"
+
+    # Check that all results have the necessary fields
+    for result in results:
+        assert "split_doc_delimiter_id" in result
+        assert "split_doc_delimiter_chunk_num" in result
+        assert "id" in result  # Original field should be preserved
+
+    # Check that chunk numbers are correct
+    assert results[0]["split_doc_delimiter_chunk_num"] == 1
+    assert results[1]["split_doc_delimiter_chunk_num"] == 2
+    assert results[2]["split_doc_delimiter_chunk_num"] == 3
+    assert results[3]["split_doc_delimiter_chunk_num"] == 1
+    assert results[4]["split_doc_delimiter_chunk_num"] == 2
+
+    # Check that document IDs are consistent within each original item
+    assert (
+        results[0]["split_doc_delimiter_id"]
+        == results[1]["split_doc_delimiter_id"]
+        == results[2]["split_doc_delimiter_id"]
+    )
+    assert results[3]["split_doc_delimiter_id"] == results[4]["split_doc_delimiter_id"]
+    assert results[0]["split_doc_delimiter_id"] != results[3]["split_doc_delimiter_id"]

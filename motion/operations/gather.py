@@ -84,7 +84,7 @@ class GatherOperation(BaseOperation):
             "main_chunk_start", "--- Begin Main Chunk ---"
         )
         main_chunk_end = self.config.get("main_chunk_end", "--- End Main Chunk ---")
-        doc_header_keys = self.config.get("doc_header_keys", [])
+        doc_header_key = self.config.get("doc_header_key", None)
         results = []
         cost = 0.0
 
@@ -111,7 +111,7 @@ class GatherOperation(BaseOperation):
                     order_key,
                     main_chunk_start,
                     main_chunk_end,
-                    doc_header_keys,
+                    doc_header_key,
                 )
 
                 result = chunk.copy()
@@ -129,7 +129,7 @@ class GatherOperation(BaseOperation):
         order_key: str,
         main_chunk_start: str,
         main_chunk_end: str,
-        doc_header_keys: List[Dict[str, Any]],
+        doc_header_key: str,
     ) -> str:
         """
         Render a chunk with its peripheral context and headers.
@@ -142,7 +142,7 @@ class GatherOperation(BaseOperation):
             order_key (str): Key for the order of each chunk.
             main_chunk_start (str): String to mark the start of the main chunk.
             main_chunk_end (str): String to mark the end of the main chunk.
-            doc_header_keys (List[Dict[str, Any]]): List of dicts containing 'header' and 'level' keys.
+            doc_header_key (str): The key for the headers in the current chunk.
 
         Returns:
             str: Renderted chunk with context and headers.
@@ -164,7 +164,7 @@ class GatherOperation(BaseOperation):
         # Process main chunk
         main_chunk = chunks[current_index]
         headers = self.render_hierarchy_headers(
-            main_chunk, chunks[: current_index + 1], doc_header_keys
+            main_chunk, chunks[: current_index + 1], doc_header_key
         )
         if headers:
             combined_parts.append(headers)
@@ -270,7 +270,7 @@ class GatherOperation(BaseOperation):
         self,
         current_chunk: Dict,
         chunks: List[Dict],
-        doc_header_keys: List[Dict[str, Any]],
+        doc_header_key: str,
     ) -> str:
         """
         Render headers for the current chunk's hierarchy.
@@ -278,16 +278,18 @@ class GatherOperation(BaseOperation):
         Args:
             current_chunk (Dict): The current chunk being processed.
             chunks (List[Dict]): List of chunks up to and including the current chunk.
-            doc_header_keys (List[Dict[str, Any]]): List of dicts containing 'header' and 'level' keys.
-
+            doc_header_key (str): The key for the headers in the current chunk.
         Returns:
             str: Renderted headers in the current chunk's hierarchy.
         """
         rendered_headers = []
         current_hierarchy = {}
 
+        if doc_header_key is None:
+            return ""
+
         # Find the largest/highest level in the current chunk
-        current_chunk_headers = current_chunk.get(doc_header_keys, [])
+        current_chunk_headers = current_chunk.get(doc_header_key, [])
         highest_level = float("inf")  # Initialize with positive infinity
         for header_info in current_chunk_headers:
             level = header_info.get("level")
@@ -299,7 +301,7 @@ class GatherOperation(BaseOperation):
             highest_level = None
 
         for chunk in chunks:
-            for header_info in chunk.get(doc_header_keys, []):
+            for header_info in chunk.get(doc_header_key, []):
                 header = header_info["header"]
                 level = header_info["level"]
                 if header and level:

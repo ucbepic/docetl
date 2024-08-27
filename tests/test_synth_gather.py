@@ -119,7 +119,7 @@ def test_synth_gather(config_yaml):
                 assert "doc_id_key" in synthesized_op
                 assert "order_key" in synthesized_op
                 assert "peripheral_chunks" in synthesized_op
-                assert "doc_header_keys" in synthesized_op
+                assert "doc_header_key" in synthesized_op
 
                 break
         if synthesized_gather_found:
@@ -204,7 +204,7 @@ def test_split_map_gather(sample_data):
             "previous": {"tail": {"count": 1}},
             "next": {"head": {"count": 1}},
         },
-        "doc_header_keys": "headers",
+        "doc_header_key": "headers",
     }
 
     # Initialize operations

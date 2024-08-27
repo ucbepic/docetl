@@ -64,7 +64,7 @@ TODO:
     - [x] Encode this in API somehow
     - [ ] Support this kind of chunking in the optimizer
   - [x] Extract headers & levels from documents, and add the level hierarchy to the chunk.
-- [ ] Support tool use in operations
+- [ ] Support tool use in map operators
 - [ ] Fix DSL to handle inputs like we've done in the Overleaf writeup
 - [ ] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
 - [ ] Support retries in the optimizers

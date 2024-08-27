@@ -138,6 +138,7 @@ def cached_call_llm(
     op_type: str,
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
+    tools: Optional[str] = None,
 ) -> str:
     """
     Cached version of the call_llm function.
@@ -152,11 +153,11 @@ def cached_call_llm(
         op_type (str): The operation type.
         messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
-
+        tools (Optional[str]): The tools to pass to the LLM.
     Returns:
         str: The result from call_llm_with_cache.
     """
-    return call_llm_with_cache(model, op_type, messages, output_schema)
+    return call_llm_with_cache(model, op_type, messages, output_schema, tools)
 
 
 def call_llm_with_validation(
@@ -166,35 +167,37 @@ def call_llm_with_validation(
     val_rule: str,
     num_retries: int,
     console: Console,
-) -> Tuple[Dict[str, Any], float, bool]:
+) -> Tuple[Any, float, bool]:
     num_tries = num_retries + 1
     cost = 0.0
     for i in range(num_tries):
         response = llm_call_fn(messages)
         cost += completion_cost(response)
 
-        if validation_fn(response):
-            return response, cost, True
+        parsed_output, result = validation_fn(response)
+
+        if result:
+            return parsed_output, cost, True
         # Append the validation result to messages
         messages.append(
             {
                 "role": "assistant",
-                "content": json.dumps(parse_llm_response(response)[0]),
+                "content": json.dumps(parsed_output),
             }
         )
         messages.append(
             {
                 "role": "user",
-                "content": f"Your output failed my validation rule: {str(val_rule)}\n\nPlease try again.",
+                "content": f"Your output {parsed_output} failed my validation rule: {str(val_rule)}\n\nPlease try again.",
             }
         )
         console.log(
             f"[bold red]Validation failed:[/bold red] {val_rule}\n"
-            f"\t[yellow]Output:[/yellow] {parse_llm_response(response)[0]}\n"
+            f"\t[yellow]Output:[/yellow] {parsed_output}\n"
             f"\tTrying again... ({i + 1}/{num_tries})"
         )
 
-    return response, cost, False
+    return parsed_output, cost, False
 
 
 def call_llm(
@@ -202,6 +205,7 @@ def call_llm(
     op_type: str,
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
+    tools: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     """
     Wrapper function that uses caching for LLM calls.
@@ -214,6 +218,7 @@ def call_llm(
         op_type (str): The operation type.
         messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
+        tools (Optional[List[Dict[str, str]]]): The tools to pass to the LLM.
 
     Returns:
         str: The result from the cached LLM call.
@@ -227,7 +232,12 @@ def call_llm(
     for attempt in range(max_retries):
         try:
             return timeout(60)(cached_call_llm)(
-                key, model, op_type, messages, output_schema
+                key,
+                model,
+                op_type,
+                messages,
+                output_schema,
+                json.dumps(tools) if tools else None,
             )
         except TimeoutError:
             if attempt == max_retries - 1:
@@ -263,6 +273,7 @@ def call_llm_with_cache(
     op_type: str,
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
+    tools: Optional[str] = None,
 ) -> str:
     """
     Make an LLM call with caching.
@@ -275,15 +286,37 @@ def call_llm_with_cache(
         op_type (str): The operation type.
         messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
-
+        tools (Optional[str]): The tools to pass to the LLM.
     Returns:
         str: The response from the LLM.
     """
-    props = {key: convert_val(value) for key, value in output_schema.items()}
+    if tools is None:
+        props = {key: convert_val(value) for key, value in output_schema.items()}
 
-    parameters = {"type": "object", "properties": props}
-    parameters["required"] = list(props.keys())
-    parameters["additionalProperties"] = False
+        parameters = {"type": "object", "properties": props}
+        parameters["required"] = list(props.keys())
+        parameters["additionalProperties"] = False
+
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "write_output",
+                    "description": "Write processing output to a database",
+                    "strict": True,
+                    "parameters": parameters,
+                    "additionalProperties": False,
+                },
+            }
+        ]
+        tool_choice = {"type": "function", "function": {"name": "write_output"}}
+
+    else:
+        tools = json.loads(tools)
+        tool_choice = (
+            "required" if any(tool.get("required", False) for tool in tools) else "auto"
+        )
+        tools = [{"type": "function", "function": tool["function"]} for tool in tools]
 
     system_prompt = f"You are a helpful assistant to intelligently process data. This is a {op_type} operation."
     messages = json.loads(messages)
@@ -305,21 +338,10 @@ def call_llm_with_cache(
         #         "schema": parameters,
         #     },
         # },
-        tools=[
-            {
-                "type": "function",
-                "function": {
-                    "name": "write_output",
-                    "description": "Write processing output to a database",
-                    "strict": True,
-                    "parameters": parameters,
-                    "additionalProperties": False,
-                },
-            }
-        ],
+        tools=tools,
         # parallel_tool_calls=False,
         # num_retries=1,
-        tool_choice={"type": "function", "function": {"name": "write_output"}},
+        tool_choice=tool_choice,
     )
 
     return response
@@ -432,7 +454,9 @@ Please improve your previous response. Ensure that the output adheres to the req
     return response, cost
 
 
-def parse_llm_response(response: Any) -> List[Dict[str, Any]]:
+def parse_llm_response(
+    response: Any, tools: Optional[List[Dict[str, str]]] = None
+) -> List[Dict[str, Any]]:
     """
     Parse the response from a language model.
 
@@ -441,17 +465,37 @@ def parse_llm_response(response: Any) -> List[Dict[str, Any]]:
 
     Args:
         response (Any): The response object from the language model.
+        tools (Optional[List[Dict[str, str]]]): The tools that were passed to the LLM.
 
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing the parsed output.
     """
-    # This is a simplified parser
-    tool_calls = response.choices[0].message.tool_calls
-    tools = []
-    for tool_call in tool_calls:
-        if tool_call.function.name == "write_output":
-            tools.append(json.loads(tool_call.function.arguments))
-    return tools
+    # Parse the response based on the provided tools
+    if tools:
+        # If custom tools are provided, parse accordingly
+        tool_calls = response.choices[0].message.tool_calls
+        results = []
+        for tool_call in tool_calls:
+            for tool in tools:
+                if tool_call.function.name == tool["function"]["name"]:
+                    function_args = json.loads(tool_call.function.arguments)
+                    # Execute the function defined in the tool's code
+                    local_scope = {}
+                    exec(tool["code"].strip(), globals(), local_scope)
+                    function_result = local_scope[tool["function"]["name"]](
+                        **function_args
+                    )
+                    function_args.update(function_result)
+                    results.append(function_args)
+        return results
+    else:
+        # Default behavior for write_output function
+        tool_calls = response.choices[0].message.tool_calls
+        outputs = []
+        for tool_call in tool_calls:
+            if tool_call.function.name == "write_output":
+                outputs.append(json.loads(tool_call.function.arguments))
+        return outputs
 
     # message = response.choices[0].message
     # return [json.loads(message.content)]

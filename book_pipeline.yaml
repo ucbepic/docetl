@@ -22,7 +22,23 @@ operations:
         prompt: |
           Count the number of words in the following book title:
           Title: {{ input.title }}
-          Provide only the word count as an integer.
+        tools:
+          - required: true
+            code: |
+              def count(iterable):
+                return {"word_count": len(iterable)}
+            function:
+              name: count
+              description: Count the number of items in an iterable. Must pass in a list.
+              parameters:
+                type: object
+                properties:
+                  iterable:
+                    type: array
+                    items:
+                      type: string
+              required:
+                - iterable
         output_keys:
           - word_count
       - name: theme_analysis
@@ -42,6 +58,7 @@ operations:
         output_keys:
           - genre
     validate:
+      - len(output["iterable"]) > 0
       - output["word_count"] > 0
       - len(output["theme"]) > 0
       - len(output["genre"]) > 0

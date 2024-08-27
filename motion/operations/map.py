@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 from jinja2 import Template
+from litellm import completion_cost
 
 from motion.operations.base import BaseOperation
 from motion.operations.utils import (
@@ -58,6 +59,31 @@ class MapOperation(BaseOperation):
         if "model" in self.config and not isinstance(self.config["model"], str):
             raise TypeError("'model' in configuration must be a string")
 
+        # Check if tools are specified and validate their structure
+        if "tools" in self.config:
+            if not isinstance(self.config["tools"], list):
+                raise TypeError("'tools' in configuration must be a list")
+
+            for i, tool in enumerate(self.config["tools"]):
+                if not isinstance(tool, dict):
+                    raise TypeError(f"Tool {i} in 'tools' must be a dictionary")
+
+                if "code" not in tool or "function" not in tool:
+                    raise ValueError(
+                        f"Tool {i} is missing required 'code' or 'function' key"
+                    )
+
+                function = tool.get("function", {})
+                if not isinstance(function, dict):
+                    raise TypeError(f"'function' in tool {i} must be a dictionary")
+
+                required_function_keys = ["name", "description", "parameters"]
+                for key in required_function_keys:
+                    if key not in function:
+                        raise ValueError(
+                            f"Tool {i} is missing required '{key}' in 'function'"
+                        )
+
         self.gleaning_check()
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
@@ -84,16 +110,18 @@ class MapOperation(BaseOperation):
             prompt = prompt_template.render(input=item)
 
             def validation_fn(response: Dict[str, Any]):
-                output = parse_llm_response(response)[0]
+                output = parse_llm_response(
+                    response, tools=self.config.get("tools", None)
+                )[0]
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value
                 if validate_output(self.config, output, self.console):
-                    return True
-                return False
+                    return output, True
+                return output, False
 
             if "gleaning" in self.config:
-                response, cost, success = call_llm_with_validation(
+                output, cost, success = call_llm_with_validation(
                     [{"role": "user", "content": prompt}],
                     llm_call_fn=lambda messages: call_llm_with_gleaning(
                         self.config.get("model", self.default_model),
@@ -109,13 +137,14 @@ class MapOperation(BaseOperation):
                     console=self.console,
                 )
             else:
-                response, cost, success = call_llm_with_validation(
+                output, cost, success = call_llm_with_validation(
                     [{"role": "user", "content": prompt}],
                     llm_call_fn=lambda messages: call_llm(
                         self.config.get("model", self.default_model),
                         "map",
                         messages,
                         self.config["output"]["schema"],
+                        tools=self.config.get("tools", None),
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
@@ -124,10 +153,6 @@ class MapOperation(BaseOperation):
                 )
 
             if success:
-                output = parse_llm_response(response)[0]
-                for key, value in item.items():
-                    if key not in self.config["output"]["schema"]:
-                        output[key] = value
                 return output, cost
 
             return None, cost
@@ -265,37 +290,18 @@ class ParallelMapOperation(BaseOperation):
                 key: output_schema[key] for key in prompt_config["output_keys"]
             }
 
-            def llm_call_fn(messages):
-                return call_llm(
-                    prompt_config.get("model", self.default_model),
-                    "parallel_map",
-                    messages,
-                    local_output_schema,
-                )
-
-            def validation_fn(response: Dict[str, Any]):
-                output = parse_llm_response(response)[0]
-                for key, value in item.items():
-                    if key not in self.config["output"]["schema"]:
-                        output[key] = value
-                if validate_output(self.config, output, self.console):
-                    return True
-                return False
-
-            response, cost, is_valid = call_llm_with_validation(
+            # If there are tools, we need to pass in the tools
+            response = call_llm(
+                prompt_config.get("model", self.default_model),
+                "parallel_map",
                 [{"role": "user", "content": prompt}],
-                llm_call_fn,
-                validation_fn,
-                prompt_config.get("validate", []),
-                self.num_retries_on_validate_failure,
-                self.console,
+                local_output_schema,
+                tools=prompt_config.get("tools", None),
             )
-
-            if not is_valid:
-                return None, cost
-
-            output = parse_llm_response(response)[0]
-            return output, cost
+            output = parse_llm_response(
+                response, tools=prompt_config.get("tools", None)
+            )[0]
+            return output, completion_cost(response)
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             # Create all futures at once

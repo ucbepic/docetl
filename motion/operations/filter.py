@@ -124,10 +124,10 @@ class FilterOperation(BaseOperation):
                     if key not in self.config["output"]["schema"]:
                         output[key] = value
                 if validate_output(self.config, output, self.console):
-                    return True
-                return False
+                    return output, True
+                return output, False
 
-            response, cost, is_valid = call_llm_with_validation(
+            output, cost, is_valid = call_llm_with_validation(
                 [{"role": "user", "content": prompt}],
                 llm_call_fn=lambda messages: call_llm(
                     self.config.get("model", self.default_model),
@@ -142,10 +142,6 @@ class FilterOperation(BaseOperation):
             )
 
             if is_valid:
-                output = parse_llm_response(response)[0]
-                for key, value in item.items():
-                    if key not in self.config["output"]["schema"]:
-                        output[key] = value
                 return output, cost
 
             return None, cost

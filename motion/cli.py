@@ -30,22 +30,15 @@ def build(
         max_threads (Optional[int]): Maximum number of threads to use for parallel operations.
         model (str): Model to use for optimization. Defaults to "gpt-4o".
         timeout (int): Timeout for optimization operations in seconds. Defaults to 60.
-
-    Raises:
-        typer.Exit: If an error occurs during optimization.
     """
-    try:
-        optimizer = Optimizer(
-            str(yaml_file),
-            max_threads=max_threads,
-            model=model,
-            timeout=timeout,
-        )
-        optimizer.optimize()
-        typer.echo("Optimization complete. Check the optimized configuration.")
-    except Exception as e:
-        typer.echo(f"An error occurred during optimization: {str(e)}", err=True)
-        raise typer.Exit(code=1)
+    optimizer = Optimizer(
+        str(yaml_file),
+        max_threads=max_threads,
+        model=model,
+        timeout=timeout,
+    )
+    optimizer.optimize()
+    typer.echo("Optimization complete. Check the optimized configuration.")
 
 
 @app.command()
@@ -63,16 +56,9 @@ def run(
     Args:
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
         max_threads (Optional[int]): Maximum number of threads to use for parallel operations.
-
-    Raises:
-        typer.Exit: If an error occurs during execution.
     """
-    try:
-        runner = DSLRunner(str(yaml_file), max_threads=max_threads)
-        runner.run()
-    except Exception as e:
-        typer.echo(f"An error occurred: {str(e)}", err=True)
-        raise typer.Exit(code=1)
+    runner = DSLRunner(str(yaml_file), max_threads=max_threads)
+    runner.run()
 
 
 if __name__ == "__main__":

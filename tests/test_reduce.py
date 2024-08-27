@@ -13,7 +13,7 @@ def default_model():
 
 @pytest.fixture
 def max_threads():
-    return 4
+    return 64
 
 
 @pytest.fixture

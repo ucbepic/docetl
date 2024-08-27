@@ -1,323 +1,287 @@
 [
   {
-    "book_count": 4,
+    "book_count": 6,
     "common_themes": [
-      "identity",
-      "empowerment",
-      "resilience of women",
-      "innocence of childhood",
-      "alienation"
+      "Wealth and the American Dream",
+      "Personal growth and empowerment",
+      "Innocence and childhood protection",
+      "Sisterhood and resilience",
+      "Moral decay and self-discovery"
     ],
-    "average_word_count": 4,
-    "summary": "The Literary Fiction genre, as represented by 'The Color Purple' and 'The Catcher in the Rye', explores profound themes of identity, empowerment, and the complexities of growing up. Both novels delve into the struggles of the protagonists with societal norms and personal challenges, capturing the essence of human experience through rich character development and emotional depth. The average title length indicates a focus on impactful yet succinct narratives.",
+    "average_word_count": 2.5,
+    "summary": "The literary fiction genre, as exemplified by books like 'The Great Gatsby', 'The Color Purple', and 'The Catcher in the Rye', delves deep into complex themes such as the disillusionment of the American Dream, personal empowerment amidst adversity, and the innocence of youth. These narratives emphasize character development and emotional depth, often reflecting societal issues through the experiences of their protagonists.",
     "genre": "Literary Fiction",
-    "writing_style": "Stream of consciousness, introspective, lyrical",
-    "primary_genre": "Modernist fiction",
-    "name": "Virginia Woolf",
-    "birth_year": 1882
+    "writing_style": "Magical realism, poetic, rich imagery, political themes, intricate narrative structure",
+    "primary_genre": "Literary fiction",
+    "name": "Gabriel Garc\u00eda M\u00e1rquez",
+    "birth_year": 1927
   },
   {
-    "book_count": 4,
+    "book_count": 2,
     "common_themes": [
-      "identity",
-      "empowerment",
-      "resilience of women",
-      "innocence of childhood",
-      "alienation"
+      "quest for identity",
+      "autonomy",
+      "moral integrity",
+      "struggles against social injustice",
+      "importance of self-respect"
     ],
-    "average_word_count": 4,
-    "summary": "The Literary Fiction genre, as represented by 'The Color Purple' and 'The Catcher in the Rye', explores profound themes of identity, empowerment, and the complexities of growing up. Both novels delve into the struggles of the protagonists with societal norms and personal challenges, capturing the essence of human experience through rich character development and emotional depth. The average title length indicates a focus on impactful yet succinct narratives.",
-    "genre": "Literary Fiction",
-    "writing_style": "Engaging, nuanced, and richly descriptive with a focus on character development and social issues.",
+    "average_word_count": 2,
+    "summary": "The genre of Classic Literature often delves into the complexities of human experience, focusing on themes such as personal identity, social structures, and moral challenges. Works like 'Jane Eyre' explore the journey of individuals, particularly women, in asserting their autonomy against societal norms, emphasizing the significance of self-discovery and resilience in the face of adversity.",
+    "genre": "Classic Literature",
+    "writing_style": "Conversational, vivid, and insightful with strong character development and social commentary",
     "primary_genre": "Literary Fiction",
     "name": "Chimamanda Ngozi Adichie",
     "birth_year": 1977
   },
   {
-    "book_count": 2,
-    "common_themes": [
-      "Cyclical nature of history",
-      "Inevitability of solitude and isolation",
-      "Impact of time on family and memory",
-      "Melancholy and existential reflection",
-      "Patterns of human behavior"
-    ],
-    "average_word_count": 5,
-    "summary": "The Magical Realism genre is characterized by the blending of magical elements with realistic settings and events. In 'One Hundred Years of Solitude', themes of solitude, cyclical history, and the impact of memory are explored through the lives of the Buend\u00eda family in the fictional town of Macondo. The genre often reflects deeper existential truths and portrays a rich tapestry of human experiences.",
-    "genre": "Magical Realism",
-    "writing_style": "Lyrical prose, Magical realism, Political allegory",
-    "primary_genre": "Literary fiction, Magical realism",
-    "name": "Salman Rushdie",
-    "birth_year": 1947
-  },
-  {
-    "book_count": 4,
-    "common_themes": [
-      "identity",
-      "empowerment",
-      "resilience of women",
-      "innocence of childhood",
-      "alienation"
-    ],
-    "average_word_count": 4,
-    "summary": "The Literary Fiction genre, as represented by 'The Color Purple' and 'The Catcher in the Rye', explores profound themes of identity, empowerment, and the complexities of growing up. Both novels delve into the struggles of the protagonists with societal norms and personal challenges, capturing the essence of human experience through rich character development and emotional depth. The average title length indicates a focus on impactful yet succinct narratives.",
-    "genre": "Literary Fiction",
-    "writing_style": "Lyrical prose, Magical realism, Political allegory",
-    "primary_genre": "Literary fiction, Magical realism",
-    "name": "Salman Rushdie",
-    "birth_year": 1947
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Ambition",
-      "American Dream",
-      "Social Status",
-      "Wealth",
-      "Moral Decay"
-    ],
-    "average_word_count": 3,
-    "summary": "The Fiction genre explores complex themes of ambition and the American Dream, particularly through the lens of social status and wealth. In 'The Great Gatsby', the narrative delves into the pursuit of acceptance in high society, revealing the emptiness and moral decay that can accompany such aspirations.",
-    "genre": "Fiction",
-    "writing_style": "Psychological realism, existentialism, philosophical depth",
-    "primary_genre": "Fiction, Philosophy",
-    "name": "Fyodor Dostoevsky",
-    "birth_year": 1821
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Ambition",
-      "American Dream",
-      "Social Status",
-      "Wealth",
-      "Moral Decay"
-    ],
-    "average_word_count": 3,
-    "summary": "The Fiction genre explores complex themes of ambition and the American Dream, particularly through the lens of social status and wealth. In 'The Great Gatsby', the narrative delves into the pursuit of acceptance in high society, revealing the emptiness and moral decay that can accompany such aspirations.",
-    "genre": "Fiction",
-    "writing_style": "lyrical, rich in symbolism and themes of identity, race, and history",
-    "primary_genre": "Literary Fiction",
-    "name": "Toni Morrison",
-    "birth_year": 1931
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Ambition",
-      "American Dream",
-      "Social Status",
-      "Wealth",
-      "Moral Decay"
-    ],
-    "average_word_count": 3,
-    "summary": "The Fiction genre explores complex themes of ambition and the American Dream, particularly through the lens of social status and wealth. In 'The Great Gatsby', the narrative delves into the pursuit of acceptance in high society, revealing the emptiness and moral decay that can accompany such aspirations.",
-    "genre": "Fiction",
-    "writing_style": "Stream of consciousness, introspective, lyrical",
-    "primary_genre": "Modernist fiction",
-    "name": "Virginia Woolf",
-    "birth_year": 1882
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Cyclical nature of history",
-      "Inevitability of solitude and isolation",
-      "Impact of time on family and memory",
-      "Melancholy and existential reflection",
-      "Patterns of human behavior"
-    ],
-    "average_word_count": 5,
-    "summary": "The Magical Realism genre is characterized by the blending of magical elements with realistic settings and events. In 'One Hundred Years of Solitude', themes of solitude, cyclical history, and the impact of memory are explored through the lives of the Buend\u00eda family in the fictional town of Macondo. The genre often reflects deeper existential truths and portrays a rich tapestry of human experiences.",
-    "genre": "Magical Realism",
-    "writing_style": "Surreal, introspective, lyrical",
-    "primary_genre": "Magical realism",
-    "name": "Haruki Murakami",
-    "birth_year": 1949
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Loss of innocence",
-      "Moral complexities of human nature",
-      "Racism",
-      "Empathy",
-      "Moral responsibility to protect the vulnerable"
-    ],
-    "average_word_count": 4,
-    "summary": "Classic Fiction often explores profound themes of human experience, including moral dilemmas, social justice, and personal growth. Books in this genre tend to challenge societal norms and provoke thought regarding ethics and compassion, as exemplified in the deeply thematic narrative of 'To Kill a Mockingbird'.",
-    "genre": "Classic Fiction",
-    "writing_style": "Symbolic, vivid imagery, lyrical prose",
-    "primary_genre": "Literary fiction",
-    "name": "Margaret Atwood",
-    "birth_year": 1939
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Cyclical nature of history",
-      "Inevitability of solitude and isolation",
-      "Impact of time on family and memory",
-      "Melancholy and existential reflection",
-      "Patterns of human behavior"
-    ],
-    "average_word_count": 5,
-    "summary": "The Magical Realism genre is characterized by the blending of magical elements with realistic settings and events. In 'One Hundred Years of Solitude', themes of solitude, cyclical history, and the impact of memory are explored through the lives of the Buend\u00eda family in the fictional town of Macondo. The genre often reflects deeper existential truths and portrays a rich tapestry of human experiences.",
-    "genre": "Magical Realism",
-    "writing_style": "Symbolic, vivid imagery, lyrical prose",
-    "primary_genre": "Literary fiction",
-    "name": "Margaret Atwood",
-    "birth_year": 1939
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Loss of innocence",
-      "Moral complexities of human nature",
-      "Racism",
-      "Empathy",
-      "Moral responsibility to protect the vulnerable"
-    ],
-    "average_word_count": 4,
-    "summary": "Classic Fiction often explores profound themes of human experience, including moral dilemmas, social justice, and personal growth. Books in this genre tend to challenge societal norms and provoke thought regarding ethics and compassion, as exemplified in the deeply thematic narrative of 'To Kill a Mockingbird'.",
-    "genre": "Classic Fiction",
-    "writing_style": "Psychological realism, existentialism, philosophical depth",
-    "primary_genre": "Fiction, Philosophy",
-    "name": "Fyodor Dostoevsky",
-    "birth_year": 1821
-  },
-  {
     "book_count": 6,
     "common_themes": [
-      "Totalitarianism",
-      "Censorship",
-      "Surveillance",
-      "Repression of Individuality",
-      "Conformity vs Individuality"
+      "Wealth and the American Dream",
+      "Personal growth and empowerment",
+      "Innocence and childhood protection",
+      "Sisterhood and resilience",
+      "Moral decay and self-discovery"
     ],
-    "average_word_count": 2.1666666666666665,
-    "summary": "Dystopian Fiction is a genre that delves into societies characterized by oppressive control, loss of individuality, and the suppression of intellectual freedom. From Orwell's representation of extreme government surveillance in '1984' to Bradbury's critiques of censorship in 'Fahrenheit 451', and Huxley's exploration of the consequences of a technologically advanced society in 'Brave New World', these works highlight the dire implications of authoritarianism and societal conformity. The narratives serve as powerful warnings about the potential future of humanity if such dangers are allowed to manifest.",
-    "genre": "Dystopian Fiction",
-    "writing_style": "Philosophical, poetic, and deeply probing with a focus on societal structures and human emotions.",
-    "primary_genre": "Science Fiction, Fantasy",
-    "name": "Ursula K. Le Guin",
-    "birth_year": 1929
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Fusion of technology and humanity",
-      "Implications of artificial intelligence",
-      "Cybernetics",
-      "Manipulation of consciousness",
-      "Ethical dilemmas in digital realms"
-    ],
-    "average_word_count": 1,
-    "summary": "The Cyberpunk genre is characterized by its exploration of the intersection between advanced technology and human experience, particularly focusing on artificial intelligence and cybernetics. Books like 'Neuromancer' delve into the complexities of consciousness manipulation, the moral challenges posed by digital realities, and the blurred lines between real and virtual worlds.",
-    "genre": "Cyberpunk",
-    "writing_style": "Philosophical, poetic, and deeply probing with a focus on societal structures and human emotions.",
-    "primary_genre": "Science Fiction, Fantasy",
-    "name": "Ursula K. Le Guin",
-    "birth_year": 1929
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "Complexities of human relationships",
-      "Pride and bias in social interaction",
-      "Misunderstandings and conflicts",
-      "Societal norms and class distinctions",
-      "Importance of self-awareness and growth"
-    ],
-    "average_word_count": 3,
-    "summary": "The Romance / Classic genre encapsulates intricate human emotions and societal structures, as exemplified in 'Pride and Prejudice.' It delves into the challenges posed by personal pride and societal prejudice, revealing how these factors adversely affect relationships. This genre advocates for deeper understanding, the breaking down of superficial judgments, and the pursuit of authentic connections.",
-    "genre": "Romance / Classic",
-    "writing_style": "Satirical, realistic, with keen social commentary and strong character development",
-    "primary_genre": "Literary fiction, Romance",
+    "average_word_count": 2.5,
+    "summary": "The literary fiction genre, as exemplified by books like 'The Great Gatsby', 'The Color Purple', and 'The Catcher in the Rye', delves deep into complex themes such as the disillusionment of the American Dream, personal empowerment amidst adversity, and the innocence of youth. These narratives emphasize character development and emotional depth, often reflecting societal issues through the experiences of their protagonists.",
+    "genre": "Literary Fiction",
+    "writing_style": "Witty, ironic, and keenly observant of social manners",
+    "primary_genre": "Literary fiction, romance",
     "name": "Jane Austen",
     "birth_year": 1775
   },
   {
     "book_count": 2,
     "common_themes": [
-      "identity",
-      "resilience",
-      "social criticism",
-      "self-discovery",
-      "independence"
+      "quest for identity",
+      "autonomy",
+      "moral integrity",
+      "struggles against social injustice",
+      "importance of self-respect"
     ],
     "average_word_count": 2,
-    "summary": "The Classic Literature genre is characterized by its exploration of profound human experiences and societal norms through detailed narratives. Themes such as identity, resilience, and social criticism are prevalent, with a focus on the individual's journey against cultural constraints. The genre often highlights struggles for self-discovery and love, particularly within historical contexts, as seen in 'Jane Eyre', which illustrates a strong protagonist navigating the complexities of her world.",
+    "summary": "The genre of Classic Literature often delves into the complexities of human experience, focusing on themes such as personal identity, social structures, and moral challenges. Works like 'Jane Eyre' explore the journey of individuals, particularly women, in asserting their autonomy against societal norms, emphasizing the significance of self-discovery and resilience in the face of adversity.",
     "genre": "Classic Literature",
-    "writing_style": "Realistic, Philosophical, Detailed Characterization",
+    "writing_style": "Magical realism, poetic, rich imagery, political themes, intricate narrative structure",
+    "primary_genre": "Literary fiction",
+    "name": "Gabriel Garc\u00eda M\u00e1rquez",
+    "birth_year": 1927
+  },
+  {
+    "book_count": 6,
+    "common_themes": [
+      "Wealth and the American Dream",
+      "Personal growth and empowerment",
+      "Innocence and childhood protection",
+      "Sisterhood and resilience",
+      "Moral decay and self-discovery"
+    ],
+    "average_word_count": 2.5,
+    "summary": "The literary fiction genre, as exemplified by books like 'The Great Gatsby', 'The Color Purple', and 'The Catcher in the Rye', delves deep into complex themes such as the disillusionment of the American Dream, personal empowerment amidst adversity, and the innocence of youth. These narratives emphasize character development and emotional depth, often reflecting societal issues through the experiences of their protagonists.",
+    "genre": "Literary Fiction",
+    "writing_style": "Informal, conversational, and rich in detail, often blending humor and poignant social commentary.",
     "primary_genre": "Literary Fiction",
+    "name": "Zadie Smith",
+    "birth_year": 1975
+  },
+  {
+    "book_count": 2,
+    "common_themes": [
+      "quest for identity",
+      "autonomy",
+      "moral integrity",
+      "struggles against social injustice",
+      "importance of self-respect"
+    ],
+    "average_word_count": 2,
+    "summary": "The genre of Classic Literature often delves into the complexities of human experience, focusing on themes such as personal identity, social structures, and moral challenges. Works like 'Jane Eyre' explore the journey of individuals, particularly women, in asserting their autonomy against societal norms, emphasizing the significance of self-discovery and resilience in the face of adversity.",
+    "genre": "Classic Literature",
+    "writing_style": "Psychological realism, existential themes, intense character exploration.",
+    "primary_genre": "Novel, Philosophy",
+    "name": "Fyodor Dostoevsky",
+    "birth_year": 1821
+  },
+  {
+    "book_count": 2,
+    "common_themes": [
+      "Social dynamics of love and marriage",
+      "Personal biases in relationships",
+      "Societal expectations affecting perception"
+    ],
+    "average_word_count": 3,
+    "summary": "The 'Classic Romance' genre typically delves into the intricate social dynamics surrounding love and marriage. It explores how personal biases, societal expectations, and preconceived notions can significantly influence individual relationships, suggesting that genuine connection often requires overcoming both personal flaws and societal constraints.",
+    "genre": "Classic Romance",
+    "writing_style": "Witty, ironic, and keenly observant of social manners",
+    "primary_genre": "Literary fiction, romance",
+    "name": "Jane Austen",
+    "birth_year": 1775
+  },
+  {
+    "book_count": 2,
+    "common_themes": [
+      "cyclical nature of time",
+      "inevitability of solitude",
+      "intertwining of personal and collective histories",
+      "shaping of identity",
+      "relationships"
+    ],
+    "average_word_count": 5,
+    "summary": "Magical Realism is a genre that blends the ordinary with the extraordinary, often highlighting the intersection of reality and magic. The themes reflected in 'One Hundred Years of Solitude' underscore the cyclical nature of time, the inevitability of solitude, and how personal and collective histories intertwine, shaping identity and relationships. This genre often evokes a sense of tragedy interwoven with a profound exploration of existential questions.",
+    "genre": "Magical Realism",
+    "writing_style": "philosophical, intricate, imaginative",
+    "primary_genre": "fantasy, short stories",
+    "name": "Jorge Luis Borges",
+    "birth_year": 1899
+  },
+  {
+    "book_count": 2,
+    "common_themes": [
+      "cyclical nature of time",
+      "inevitability of solitude",
+      "intertwining of personal and collective histories",
+      "shaping of identity",
+      "relationships"
+    ],
+    "average_word_count": 5,
+    "summary": "Magical Realism is a genre that blends the ordinary with the extraordinary, often highlighting the intersection of reality and magic. The themes reflected in 'One Hundred Years of Solitude' underscore the cyclical nature of time, the inevitability of solitude, and how personal and collective histories intertwine, shaping identity and relationships. This genre often evokes a sense of tragedy interwoven with a profound exploration of existential questions.",
+    "genre": "Magical Realism",
+    "writing_style": "Realistic, philosophical, detailed",
+    "primary_genre": "Fiction, Literature",
     "name": "Leo Tolstoy",
     "birth_year": 1828
   },
   {
     "book_count": 2,
     "common_themes": [
-      "identity",
-      "resilience",
-      "social criticism",
-      "self-discovery",
-      "independence"
+      "cyclical nature of time",
+      "inevitability of solitude",
+      "intertwining of personal and collective histories",
+      "shaping of identity",
+      "relationships"
     ],
-    "average_word_count": 2,
-    "summary": "The Classic Literature genre is characterized by its exploration of profound human experiences and societal norms through detailed narratives. Themes such as identity, resilience, and social criticism are prevalent, with a focus on the individual's journey against cultural constraints. The genre often highlights struggles for self-discovery and love, particularly within historical contexts, as seen in 'Jane Eyre', which illustrates a strong protagonist navigating the complexities of her world.",
-    "genre": "Classic Literature",
-    "writing_style": "Engaging, nuanced, and richly descriptive with a focus on character development and social issues.",
-    "primary_genre": "Literary Fiction",
-    "name": "Chimamanda Ngozi Adichie",
-    "birth_year": 1977
-  },
-  {
-    "book_count": 6,
-    "common_themes": [
-      "Totalitarianism",
-      "Censorship",
-      "Surveillance",
-      "Repression of Individuality",
-      "Conformity vs Individuality"
-    ],
-    "average_word_count": 2.1666666666666665,
-    "summary": "Dystopian Fiction is a genre that delves into societies characterized by oppressive control, loss of individuality, and the suppression of intellectual freedom. From Orwell's representation of extreme government surveillance in '1984' to Bradbury's critiques of censorship in 'Fahrenheit 451', and Huxley's exploration of the consequences of a technologically advanced society in 'Brave New World', these works highlight the dire implications of authoritarianism and societal conformity. The narratives serve as powerful warnings about the potential future of humanity if such dangers are allowed to manifest.",
-    "genre": "Dystopian Fiction",
-    "writing_style": "Clear, concise, and direct prose with social and political commentary",
-    "primary_genre": "Dystopian literature",
-    "name": "George Orwell",
-    "birth_year": 1903
-  },
-  {
-    "book_count": 2,
-    "common_themes": [
-      "identity",
-      "resilience",
-      "social criticism",
-      "self-discovery",
-      "independence"
-    ],
-    "average_word_count": 2,
-    "summary": "The Classic Literature genre is characterized by its exploration of profound human experiences and societal norms through detailed narratives. Themes such as identity, resilience, and social criticism are prevalent, with a focus on the individual's journey against cultural constraints. The genre often highlights struggles for self-discovery and love, particularly within historical contexts, as seen in 'Jane Eyre', which illustrates a strong protagonist navigating the complexities of her world.",
-    "genre": "Classic Literature",
-    "writing_style": "Psychological realism, existentialism, philosophical depth",
-    "primary_genre": "Fiction, Philosophy",
-    "name": "Fyodor Dostoevsky",
-    "birth_year": 1821
+    "average_word_count": 5,
+    "summary": "Magical Realism is a genre that blends the ordinary with the extraordinary, often highlighting the intersection of reality and magic. The themes reflected in 'One Hundred Years of Solitude' underscore the cyclical nature of time, the inevitability of solitude, and how personal and collective histories intertwine, shaping identity and relationships. This genre often evokes a sense of tragedy interwoven with a profound exploration of existential questions.",
+    "genre": "Magical Realism",
+    "writing_style": "Surreal, introspective, blending reality with fantasy, exploring themes of loneliness and existentialism",
+    "primary_genre": "Magical Realism",
+    "name": "Haruki Murakami",
+    "birth_year": 1949
   },
   {
     "book_count": 4,
     "common_themes": [
-      "Adventure",
-      "Self-discovery",
-      "Good vs Evil",
-      "Hope",
-      "Unity"
+      "Power and ambition",
+      "Moral implications of dominion",
+      "Adventure and personal growth",
+      "Transformation and self-discovery",
+      "Friendship and bravery"
     ],
-    "average_word_count": 3.5,
-    "summary": "The Fantasy genre, as illustrated by these works, showcases a blend of adventure, self-discovery, and moral struggles. The narratives often involve extraordinary journeys that challenge the characters' limits and explore themes of power, friendship, and the battle between good and evil.",
+    "average_word_count": 3.25,
+    "summary": "The Fantasy genre, as represented by the books 'The Lord of the Rings' and 'The Hobbit', delves into themes of power, ambition, and the moral complexities surrounding the pursuit of dominion. It emphasizes grand adventures, personal growth, and transformations of ordinary characters into heroes. The interplay of bravery, friendship, and the significance of home are also central to the narratives, showcasing the richness and depth of fantastical worlds.",
     "genre": "Fantasy",
-    "writing_style": "Philosophical, poetic, and deeply probing with a focus on societal structures and human emotions.",
+    "writing_style": "philosophical, intricate, imaginative",
+    "primary_genre": "fantasy, short stories",
+    "name": "Jorge Luis Borges",
+    "birth_year": 1899
+  },
+  {
+    "book_count": 4,
+    "common_themes": [
+      "Power and ambition",
+      "Moral implications of dominion",
+      "Adventure and personal growth",
+      "Transformation and self-discovery",
+      "Friendship and bravery"
+    ],
+    "average_word_count": 3.25,
+    "summary": "The Fantasy genre, as represented by the books 'The Lord of the Rings' and 'The Hobbit', delves into themes of power, ambition, and the moral complexities surrounding the pursuit of dominion. It emphasizes grand adventures, personal growth, and transformations of ordinary characters into heroes. The interplay of bravery, friendship, and the significance of home are also central to the narratives, showcasing the richness and depth of fantastical worlds.",
+    "genre": "Fantasy",
+    "writing_style": "Thought-provoking, lyrical, and character-driven with a focus on philosophical themes and social commentary.",
+    "primary_genre": "Science Fiction, Fantasy",
+    "name": "Ursula K. Le Guin",
+    "birth_year": 1929
+  },
+  {
+    "book_count": 2,
+    "common_themes": [
+      "Loss of innocence",
+      "Moral complexities",
+      "Racial injustice",
+      "Empathy",
+      "Moral growth"
+    ],
+    "average_word_count": 4,
+    "summary": "The Southern Gothic, Coming-of-Age Fiction genre is characterized by its exploration of dark themes in the context of the American South, often focusing on issues like racial injustice and moral dilemmas. Through narratives like 'To Kill a Mockingbird', it delves into the complexities of human behavior, emphasizing the loss of innocence and the journey towards understanding empathy and morality.",
+    "genre": "Southern Gothic, Coming-of-Age Fiction",
+    "writing_style": "Realistic, philosophical, detailed",
+    "primary_genre": "Fiction, Literature",
+    "name": "Leo Tolstoy",
+    "birth_year": 1828
+  },
+  {
+    "book_count": 5,
+    "common_themes": [
+      "Totalitarianism",
+      "Censorship",
+      "Loss of Individual Freedom",
+      "Technological Control",
+      "Consequences of Oppressive Governance"
+    ],
+    "average_word_count": 1.4,
+    "summary": "The Dystopian Fiction genre, as illustrated by these works, presents a grim portrayal of societies plagued by oppressive governance, extreme surveillance, and the suppression of individual freedoms. Common themes such as totalitarianism, censorship, and the loss of individuality emphasize the dire consequences of technological control and societal indifference. Books like '1984', 'Brave New World', and 'Fahrenheit 451' serve as cautionary tales, urging readers to reflect on the moral implications of sacrificing personal liberties for the sake of order, conformity, and entertainment.",
+    "genre": "Dystopian Fiction",
+    "writing_style": "Clear, concise, and impactful with a focus on social and political themes",
+    "primary_genre": "Dystopian fiction, essays",
+    "name": "George Orwell",
+    "birth_year": 1903
+  },
+  {
+    "book_count": 5,
+    "common_themes": [
+      "Totalitarianism",
+      "Censorship",
+      "Loss of Individual Freedom",
+      "Technological Control",
+      "Consequences of Oppressive Governance"
+    ],
+    "average_word_count": 1.4,
+    "summary": "The Dystopian Fiction genre, as illustrated by these works, presents a grim portrayal of societies plagued by oppressive governance, extreme surveillance, and the suppression of individual freedoms. Common themes such as totalitarianism, censorship, and the loss of individuality emphasize the dire consequences of technological control and societal indifference. Books like '1984', 'Brave New World', and 'Fahrenheit 451' serve as cautionary tales, urging readers to reflect on the moral implications of sacrificing personal liberties for the sake of order, conformity, and entertainment.",
+    "genre": "Dystopian Fiction",
+    "writing_style": "Realistic, philosophical, detailed",
+    "primary_genre": "Fiction, Literature",
+    "name": "Leo Tolstoy",
+    "birth_year": 1828
+  },
+  {
+    "book_count": 5,
+    "common_themes": [
+      "Totalitarianism",
+      "Censorship",
+      "Loss of Individual Freedom",
+      "Technological Control",
+      "Consequences of Oppressive Governance"
+    ],
+    "average_word_count": 1.4,
+    "summary": "The Dystopian Fiction genre, as illustrated by these works, presents a grim portrayal of societies plagued by oppressive governance, extreme surveillance, and the suppression of individual freedoms. Common themes such as totalitarianism, censorship, and the loss of individuality emphasize the dire consequences of technological control and societal indifference. Books like '1984', 'Brave New World', and 'Fahrenheit 451' serve as cautionary tales, urging readers to reflect on the moral implications of sacrificing personal liberties for the sake of order, conformity, and entertainment.",
+    "genre": "Dystopian Fiction",
+    "writing_style": "Lyricism, dark humor, keen social observation",
+    "primary_genre": "Dystopian fiction",
+    "name": "Margaret Atwood",
+    "birth_year": 1939
+  },
+  {
+    "book_count": 6,
+    "common_themes": [
+      "Environmentalism",
+      "Struggle for resources",
+      "Absurdity of existence",
+      "Technology and consciousness",
+      "Human-machine interaction"
+    ],
+    "average_word_count": 3.33,
+    "summary": "The Science Fiction genre is characterized by its exploration of complex themes such as environmentalism, technology, and the absurdity of existence. Books like 'Dune' present narratives that focus on the interplay of power dynamics and survival in harsh environments, while 'The Hitchhiker's Guide to the Galaxy' delves into humor and exploration in the vast universe. 'Neuromancer' further pushes the boundaries by examining the fusion of human consciousness and technology, highlighting the genre's capacity to question the nature of humanity and reality.",
+    "genre": "Science Fiction",
+    "writing_style": "Thought-provoking, lyrical, and character-driven with a focus on philosophical themes and social commentary.",
     "primary_genre": "Science Fiction, Fantasy",
     "name": "Ursula K. Le Guin",
     "birth_year": 1929

@@ -384,7 +384,7 @@ gather_operation:
 
 Notes:
 
-- The gather operation adds a new field to each item: {content_key}\_formatted, which contains the formatted chunk with added context.
+- The gather operation adds a new field to each item: {content_key}\_rendered, which contains the formatted chunk with added context.
 - The formatted content includes labels for previous context, main chunk, and next context.
 - Skipped chunks are indicated with a "[... X characters skipped ...]" message.
 

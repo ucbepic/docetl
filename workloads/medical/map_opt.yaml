@@ -4,66 +4,29 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  gather_src_extract_medical_info:
-    content_key: src_chunk
-    doc_id_key: split_extract_medical_info_id
-    order_key: split_extract_medical_info_chunk_num
-    peripheral_chunks:
-      next:
-        head:
-          count: 3
-      previous:
-        tail:
-          count: 3
-    type: gather
-  split_extract_medical_info:
-    chunk_size: 150
-    split_key: src
-    type: split
-  submap_extract_medical_info:
-    model: gpt-4o-mini
+  extract_medical_info:
+    num_retries_on_validate_failure: 1
     output:
       schema:
         medication_info: str
-    prompt: 'Analyze the following transcript chunk of a conversation between a doctor
-      and a patient:
+    prompt: 'Analyze the following transcript of a conversation between a doctor and
+      a patient:
 
 
-      {{ input.src_chunk }}
+      {{ input.src }}
 
 
       Extract and list all medications, dosages, and symptoms mentioned in the transcript.
 
-      Begin your medication_info output with "Medication Info: " If a piece of information
-      is not found, return an empty string. Only process the main chunk.'
+      Begin your medication_info output with "Medication Info: "
+
+      If a piece of information is not found, return an empty string.
+
+      '
+    recursively_optimize: false
     type: map
-  subreduce_extract_medical_info:
-    commutative: true
-    input:
-      schema:
-        medication_info: str
-    model: gpt-4o-mini
-    output:
-      schema:
-        medication_info: str
-    pass_through: true
-    prompt: 'Combine the extracted information from multiple chunks as follows:
-
-
-      {% for value in values %}
-
-      {{ value.medication_info }}
-
-      {% endfor %}
-
-
-      Ensure all medications, dosages, and symptoms are listed comprehensively. Omit
-      duplicate entries and present a consolidated summary starting with "Medication
-      Info:". If a specific category of information is missing in all chunks, leave
-      it out from the final summary but maintain the format integrity.'
-    reduce_key:
-    - split_extract_medical_info_id
-    type: reduce
+    validate:
+    - 'output[''medication_info''].startswith(''Medication Info: '')'
 pipeline:
   output:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/extracted_medical_info.json
@@ -72,7 +35,4 @@ pipeline:
   - input: transcripts
     name: medical_info_extraction
     operations:
-    - split_extract_medical_info
-    - gather_src_extract_medical_info
-    - submap_extract_medical_info
-    - subreduce_extract_medical_info
+    - extract_medical_info

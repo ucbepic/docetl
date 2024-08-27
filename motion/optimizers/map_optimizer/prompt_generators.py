@@ -63,6 +63,123 @@ class PromptGenerator:
         )
         return json.loads(response.choices[0].message.content)["validator_prompt"]
 
+    def _get_header_extraction_prompt(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        split_key: str,
+    ) -> Tuple[str, Dict[str, Any]]:
+        """
+        Generate a header extraction prompt for a split operation. This prompt will be used to extract the headers from the input data in each chunk.
+
+        Args:
+            op_config (Dict[str, Any]): The operation configuration.
+            input_data (List[Dict[str, Any]]): A list of input data samples.
+            split_key (str): The key used to split the data.
+
+        Returns:
+            str: The header extraction prompt.
+        """
+        system_prompt = (
+            "You are an AI assistant tasked with extracting metadata from documents."
+        )
+        document = random.choice(input_data)[split_key]
+        prompt = f"""Analyze the following document and extract examples of headers along with their levels. The document structure is as follows:
+
+        {document}
+
+        Your task:
+        1. Identify different header levels in the document.
+        2. Extract at least 1 example of headers for each level you identify.
+        3. Describe any patterns you notice in the header formatting (e.g., numbering, indentation, font size, etc.).
+
+        Provide your analysis in the following JSON format:
+
+        {{
+        \"header_levels\": [
+            {{
+            \"level\": 1,
+            \"examples\": [\"Example 1\", \"Example 2\", \"Example 3\"],
+            \"pattern\": \"Description of the pattern for level 1 headers\"
+            }},
+            {{
+            \"level\": 2,
+            \"examples\": [\"Example 1\", \"Example 2\", \"Example 3\"],
+            \"pattern\": \"Description of the pattern for level 2 headers\"
+            }},
+            // Add more levels as needed
+        ],
+        \"overall_structure\": \"Brief description of the overall header structure and any notable observations\"
+        }}
+
+        Ensure that your analysis captures the hierarchical structure of the headers (if any) and any consistent formatting patterns that can be used to identify headers in similar documents. If there are no headers, return an empty list of header levels.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {
+                "header_levels": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "level": {"type": "integer"},
+                            "examples": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "pattern": {"type": "string"},
+                        },
+                        "required": ["level", "examples", "pattern"],
+                        "additionalProperties": False,
+                    },
+                },
+                "overall_structure": {"type": "string"},
+            },
+            "required": ["header_levels", "overall_structure"],
+            "additionalProperties": False,
+        }
+
+        response = self.llm_client.generate(
+            [
+                {"role": "user", "content": prompt},
+            ],
+            system_prompt,
+            parameters,
+        )
+        result = json.loads(response.choices[0].message.content)
+
+        # Check if there are any header levels identified
+        if not result["header_levels"]:
+            return "", {}
+
+        header_examples = []
+        for level in result["header_levels"]:
+            for example in level["examples"]:
+                header_examples.append(f"- \"{example}\" (level {level['level']})")
+
+        header_extraction_prompt = f"""Analyze the following chunk of a document and extract any headers you see.
+
+        {{ input.{split_key} }}
+
+        Examples of headers and their levels based on the document structure:
+        {chr(10).join(header_examples)}
+
+        Overall structure: {result["overall_structure"]}
+
+        Provide your analysis as a list of dictionaries, where each dictionary contains a 'header' (string) and 'level' (integer). For example:
+
+        [
+            {{"header": "{result['header_levels'][0]['examples'][0]}", "level": {result['header_levels'][0]['level']}}},
+            {{"header": "{result['header_levels'][1]['examples'][0] if len(result['header_levels']) > 1 else ''}", "level": {result['header_levels'][1]['level'] if len(result['header_levels']) > 1 else 2}}}
+        ]
+
+        Only include headers you find in the text, do not add any that are not present. Use the patterns described for each level to identify headers:
+        {chr(10).join([f"Level {level['level']}: {level['pattern']}" for level in result['header_levels']])}
+        """
+        output_schema = {"headers": "list[{header: string, level: integer}]"}
+        return header_extraction_prompt, output_schema
+
     def _get_improved_prompt(
         self,
         op_config: Dict[str, Any],

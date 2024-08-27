@@ -143,9 +143,9 @@ def test_split_map_gather_operations(
 
     for idx, result in enumerate(gather_results):
         assert (
-            "content_chunk_formatted" in result
-        ), "Each result should have content_chunk_formatted"
-        formatted_content = result["content_chunk_formatted"]
+            "content_chunk_rendered" in result
+        ), "Each result should have content_chunk_rendered"
+        formatted_content = result["content_chunk_rendered"]
 
         assert (
             "--- Previous Context ---" in formatted_content

@@ -59,9 +59,11 @@ TODO:
 - [x] Support retry on validation failure
 - [x] Break down split into split + gather (Aug 21 & 22)
   - [x] Support this in runner too
-- [ ] Support more flexible chunking strategies
-  - [ ] Encode this in API somehow (recursive splitting on some delimiters or sequence of delimiters?)
-  - [ ] Support this kind of chunking in the optimizer
+- [x] Support more flexible chunking strategies
+  - [x] Delimiter based splitting
+    - [x] Encode this in API somehow
+    - [ ] Support this kind of chunking in the optimizer
+  - [x] Extract headers & levels from documents, and add the level hierarchy to the chunk.
 - [ ] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
 - [ ] Support retries in the optimizers
 - [ ] Write tests for optimizers

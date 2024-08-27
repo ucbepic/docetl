@@ -117,6 +117,21 @@ class PlanGenerator:
             )
             self.console.log(f"Reason: {metadata_info.get('reason', 'N/A')}")
 
+        # Create header extraction prompt
+        header_extraction_prompt, header_output_schema = (
+            self.prompt_generator._get_header_extraction_prompt(
+                op_config, input_data, split_key
+            )
+        )
+        if header_extraction_prompt:
+            self.console.log(
+                f"Inferring headers from the documents. Will apply this prompt to find headers in chunks: {header_extraction_prompt}"
+            )
+        else:
+            self.console.log(
+                "Not inferring headers from the documents. Will not apply any header extraction prompt."
+            )
+
         # Create base operations
         # TODO: try with and without metadata
         base_operations = []
@@ -181,6 +196,8 @@ class PlanGenerator:
             content_key,
             info_extraction_prompt if peripheral_configs[-1][1] else None,
             "gpt-4o-mini",
+            header_extraction_prompt,
+            header_output_schema,
         )
         map_op = self.operation_creator.create_map_operation(
             op_config, split_result["subprompt"] + " Only process the main chunk."
@@ -236,6 +253,8 @@ class PlanGenerator:
                         content_key,
                         info_extraction_prompt if peripheral_config[1] else None,
                         "gpt-4o-mini",
+                        header_extraction_prompt,
+                        header_output_schema,
                     )
                     map_op = self.operation_creator.create_map_operation(
                         op_config,

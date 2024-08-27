@@ -50,6 +50,8 @@ class OperationCreator:
         content_key: str,
         summary_prompt: Optional[str] = None,
         summary_model: Optional[str] = None,
+        header_extraction_prompt: Optional[str] = "",
+        header_output_schema: Optional[Dict[str, Any]] = {},
     ) -> List[Dict[str, Any]]:
         pipeline = []
         chunk_size = int(chunk_info["chunk_size"] * 1.5)
@@ -63,8 +65,45 @@ class OperationCreator:
         }
         pipeline.append(split_config)
 
-        # If there's a summary prompt, create a map config
-        if summary_prompt:
+        if header_extraction_prompt and summary_prompt:
+            # Create parallel map for summary and header extraction
+            pmap_output_schema = {
+                "schema": {
+                    f"{split_key}_summary": "string",
+                    **header_output_schema,
+                }
+            }
+            parallel_map_config = {
+                "type": "parallel_map",
+                "name": f"parallel_map_{split_key}_{op_config['name']}",
+                "prompts": [
+                    {
+                        "name": f"header_extraction_{split_key}_{op_config['name']}",
+                        "prompt": header_extraction_prompt,
+                        "model": self.config["default_model"],
+                        "output_keys": list(header_output_schema.keys()),
+                    },
+                    {
+                        "name": f"summary_{split_key}_{op_config['name']}",
+                        "prompt": summary_prompt,
+                        "model": summary_model,
+                        "output_keys": [f"{split_key}_summary"],
+                    },
+                ],
+                "output": pmap_output_schema,
+            }
+            pipeline.append(parallel_map_config)
+        elif header_extraction_prompt:
+            pipeline.append(
+                {
+                    "type": "map",
+                    "name": f"header_extraction_{split_key}_{op_config['name']}",
+                    "prompt": header_extraction_prompt,
+                    "model": self.config["default_model"],
+                    "output": {"schema": header_output_schema},
+                }
+            )
+        elif summary_prompt:
             pipeline.append(
                 {
                     "type": "map",
@@ -81,6 +120,7 @@ class OperationCreator:
             "content_key": content_key,
             "doc_id_key": f"{split_name}_id",
             "order_key": f"{split_name}_chunk_num",
+            "doc_header_keys": ("headers" if header_output_schema else []),
             "peripheral_chunks": {},
         }
 

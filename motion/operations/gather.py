@@ -11,7 +11,8 @@ class GatherOperation(BaseOperation):
     1. Group chunks by their document ID.
     2. Order chunks within each group.
     3. Add peripheral context to each chunk based on the configuration.
-    4. Return results containing the formatted chunks with added context, including information about skipped characters.
+    4. Include headers for each chunk and its upward hierarchy.
+    5. Return results containing the rendered chunks with added context, including information about skipped characters and headers.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -83,6 +84,7 @@ class GatherOperation(BaseOperation):
             "main_chunk_start", "--- Begin Main Chunk ---"
         )
         main_chunk_end = self.config.get("main_chunk_end", "--- End Main Chunk ---")
+        doc_header_keys = self.config.get("doc_header_keys", [])
         results = []
         cost = 0.0
 
@@ -99,9 +101,9 @@ class GatherOperation(BaseOperation):
             # Sort chunks by their order within the document
             chunks.sort(key=lambda x: x[order_key])
 
-            # Process each chunk with its peripheral context
+            # Process each chunk with its peripheral context and headers
             for i, chunk in enumerate(chunks):
-                formatted_chunk = self.format_chunk_with_context(
+                rendered_chunk = self.render_chunk_with_context(
                     chunks,
                     i,
                     peripheral_config,
@@ -109,15 +111,16 @@ class GatherOperation(BaseOperation):
                     order_key,
                     main_chunk_start,
                     main_chunk_end,
+                    doc_header_keys,
                 )
 
                 result = chunk.copy()
-                result[f"{content_key}_formatted"] = formatted_chunk
+                result[f"{content_key}_rendered"] = rendered_chunk
                 results.append(result)
 
         return results, cost
 
-    def format_chunk_with_context(
+    def render_chunk_with_context(
         self,
         chunks: List[Dict],
         current_index: int,
@@ -126,9 +129,10 @@ class GatherOperation(BaseOperation):
         order_key: str,
         main_chunk_start: str,
         main_chunk_end: str,
+        doc_header_keys: List[Dict[str, Any]],
     ) -> str:
         """
-        Format a chunk with its peripheral context.
+        Render a chunk with its peripheral context and headers.
 
         Args:
             chunks (List[Dict]): List of all chunks in the document.
@@ -138,9 +142,10 @@ class GatherOperation(BaseOperation):
             order_key (str): Key for the order of each chunk.
             main_chunk_start (str): String to mark the start of the main chunk.
             main_chunk_end (str): String to mark the end of the main chunk.
+            doc_header_keys (List[Dict[str, Any]]): List of dicts containing 'header' and 'level' keys.
 
         Returns:
-            str: Formatted chunk with context.
+            str: Renderted chunk with context and headers.
         """
         combined_parts = []
 
@@ -152,16 +157,20 @@ class GatherOperation(BaseOperation):
                 peripheral_config.get("previous", {}),
                 content_key,
                 order_key,
-                reverse=True,
             )
         )
         combined_parts.append("--- End Previous Context ---\n")
 
         # Process main chunk
         main_chunk = chunks[current_index]
-        combined_parts.append(
-            f"{main_chunk_start}\n{main_chunk[content_key]}\n{main_chunk_end}"
+        headers = self.render_hierarchy_headers(
+            main_chunk, chunks[: current_index + 1], doc_header_keys
         )
+        if headers:
+            combined_parts.append(headers)
+        combined_parts.append(f"{main_chunk_start}")
+        combined_parts.append(f"{main_chunk[content_key]}")
+        combined_parts.append(f"{main_chunk_end}")
 
         # Process next chunks
         combined_parts.append("\n--- Next Context ---")
@@ -222,9 +231,9 @@ class GatherOperation(BaseOperation):
                 section = "middle"
             else:
                 # Show number of characters skipped
-                skipped_chars = sum(len(c[content_key]) for c in chunks)
+                skipped_chars = len(chunk[content_key])
                 if not in_skip:
-                    skip_char_count += skipped_chars
+                    skip_char_count = skipped_chars
                     in_skip = True
                 else:
                     skip_char_count += skipped_chars
@@ -245,7 +254,8 @@ class GatherOperation(BaseOperation):
             summary_suffix = " (Summary)" if is_summary else ""
 
             chunk_prefix = f"[Chunk {chunk[order_key]}{summary_suffix}]"
-            processed_parts.append(f"{chunk_prefix} {chunk[section_content_key]}")
+            processed_parts.append(chunk_prefix)
+            processed_parts.append(f"{chunk[section_content_key]}")
             included_chunks.append(chunk)
 
         if in_skip:
@@ -255,3 +265,58 @@ class GatherOperation(BaseOperation):
             processed_parts = list(reversed(processed_parts))
 
         return processed_parts
+
+    def render_hierarchy_headers(
+        self,
+        current_chunk: Dict,
+        chunks: List[Dict],
+        doc_header_keys: List[Dict[str, Any]],
+    ) -> str:
+        """
+        Render headers for the current chunk's hierarchy.
+
+        Args:
+            current_chunk (Dict): The current chunk being processed.
+            chunks (List[Dict]): List of chunks up to and including the current chunk.
+            doc_header_keys (List[Dict[str, Any]]): List of dicts containing 'header' and 'level' keys.
+
+        Returns:
+            str: Renderted headers in the current chunk's hierarchy.
+        """
+        rendered_headers = []
+        current_hierarchy = {}
+
+        # Find the largest/highest level in the current chunk
+        current_chunk_headers = current_chunk.get(doc_header_keys, [])
+        highest_level = float("inf")  # Initialize with positive infinity
+        for header_info in current_chunk_headers:
+            level = header_info.get("level")
+            if level is not None and level < highest_level:
+                highest_level = level
+
+        # If no headers found in the current chunk, set highest_level to None
+        if highest_level == float("inf"):
+            highest_level = None
+
+        for chunk in chunks:
+            for header_info in chunk.get(doc_header_keys, []):
+                header = header_info["header"]
+                level = header_info["level"]
+                if header and level:
+                    current_hierarchy[level] = header
+                    # Clear lower levels when a higher level header is found
+                    for lower_level in range(level + 1, len(current_hierarchy) + 1):
+                        if lower_level in current_hierarchy:
+                            current_hierarchy[lower_level] = None
+
+        # Render the headers in the current hierarchy, everything above the highest level in the current chunk (if the highest level in the current chunk is None, render everything)
+        for level, header in sorted(current_hierarchy.items()):
+            if header is not None and (highest_level is None or level < highest_level):
+                rendered_headers.append(f"{'#' * level} {header}")
+
+        rendered_headers = " > ".join(rendered_headers)
+        return (
+            f"_Current Header Hierarchy:_ {rendered_headers}"
+            if rendered_headers
+            else ""
+        )

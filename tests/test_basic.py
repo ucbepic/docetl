@@ -382,12 +382,12 @@ def test_gather_operation(
     results, cost = gather_op.execute(split_results)
 
     assert len(results) == len(split_results)
-    assert all("content_chunk_formatted" in result for result in results)
+    assert all("content_chunk_rendered" in result for result in results)
     assert cost == 0  # No LLM calls in gather operation
 
     # Check the structure of a gathered chunk
     middle_chunk = results[2]  # Third chunk of the first document
-    formatted_content = middle_chunk["content_chunk_formatted"]
+    formatted_content = middle_chunk["content_chunk_rendered"]
 
     assert "--- Previous Context ---" in formatted_content
     assert "--- Next Context ---" in formatted_content
@@ -406,14 +406,14 @@ def test_split_gather_combined(
     gather_results, gather_cost = gather_op.execute(split_results)
 
     assert len(gather_results) == len(split_results)
-    assert all("content_chunk_formatted" in result for result in gather_results)
+    assert all("content_chunk_rendered" in result for result in gather_results)
     assert split_cost == 0 and gather_cost == 0  # No LLM calls in either operation
 
     # Check that the gather operation preserved all split operation fields
     for split_result, gather_result in zip(split_results, gather_results):
         for key in split_result:
             assert key in gather_result
-            if key != "content_chunk_formatted":
+            if key != "content_chunk_rendered":
                 assert gather_result[key] == split_result[key]
 
 

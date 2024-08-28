@@ -181,6 +181,10 @@ class DSLRunner:
             op_object.update(operation_config)
             op_object["name"] = operation_name
 
+            # If sample is set, sample the input data
+            if op_object.get("sample"):
+                input_data = input_data[: op_object["sample"]]
+
             op_task = progress.add_task(
                 f"Running operation [cyan]{operation_name}[/cyan]...", total=1
             )

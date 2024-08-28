@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
 from rich.console import Console
+from rich.status import Status
 
 
 class BaseOperation(ABC):
@@ -15,6 +16,7 @@ class BaseOperation(ABC):
         default_model: str,
         max_threads: int,
         console: Optional[Console] = None,
+        status: Optional[Status] = None,
     ):
         """
         Initialize the BaseOperation.
@@ -24,11 +26,13 @@ class BaseOperation(ABC):
             default_model (str): Default language model to use.
             max_threads (int): Maximum number of threads for parallel processing.
             console (Optional[Console]): Rich console for outputting logs. Defaults to None.
+            status (Optional[Status]): Rich status for displaying progress. Defaults to None.
         """
         self.config = config
         self.default_model = default_model
         self.max_threads = max_threads
         self.console = console or Console()
+        self.status = status
         self.num_retries_on_validate_failure = self.config.get(
             "num_retries_on_validate_failure", 0
         )

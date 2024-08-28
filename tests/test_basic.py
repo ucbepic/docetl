@@ -248,7 +248,7 @@ def test_unnest_operation_empty_input(unnest_config, default_model, max_threads)
 def equijoin_config():
     return {
         "type": "equijoin",
-        "join_key": {"left": {"name": "id"}, "right": {"name": "user_id"}},
+        "blocking_keys": {"left": ["id"], "right": ["user_id"]},
         "comparison_prompt": "Compare the following two entries and determine if they are the same id: Left: {{ left.id }} Right: {{ right.user_id }}",
         "embedding_model": "text-embedding-3-small",
         "comparison_model": "gpt-4o-mini",

@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import os
 import random
@@ -7,9 +8,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 from rich.console import Console
+from rich.status import Status
 
 from motion.operations import get_operation
 from motion.operations.base import BaseOperation
+from motion.operations.utils import flush_cache
 from motion.optimizers.join_optimizer import JoinOptimizer
 from motion.optimizers.map_optimizer import MapOptimizer
 from motion.optimizers.reduce_optimizer import ReduceOptimizer
@@ -26,6 +29,45 @@ SAMPLE_SIZE_MAP = {
     "equijoin": 100,
     "filter": 5,
 }
+
+
+class DatasetOnDisk(dict):
+    def __init__(self, dir: str, console: Console):
+        self.dir = dir
+        self.console = console
+
+    def __setitem__(self, key, value):
+        self._save_to_disk(key, value)
+
+    def __getitem__(self, key):
+        with open(f"{self.dir}/{key}", "r") as f:
+            self.console.log(f"Loading dataset from disk... {key}")
+            return json.load(f)
+
+    def _save_to_disk(self, save_suffix: str, value: Any):
+        with open(f"{self.dir}/{save_suffix}", "w") as f:
+            json.dump(value, f)
+        self.console.log(
+            f"[green]Saved intermediate results to disk at {self.dir}/{save_suffix}[/green]"
+        )
+
+    def __len__(self):
+        return len(os.listdir(self.dir))
+
+    def __iter__(self):
+        return iter(os.listdir(self.dir))
+
+    def __contains__(self, item):
+        return item in os.listdir(self.dir)
+
+    def keys(self):
+        return os.listdir(self.dir)
+
+    def values(self):
+        return [self[key] for key in self.keys()]
+
+    def items(self):
+        return [(key, self[key]) for key in self.keys()]
 
 
 class Optimizer:
@@ -72,15 +114,27 @@ class Optimizer:
         self.yaml_file_path = yaml_file
         self.config = load_config(yaml_file)
         self.console = Console()
-        self.optimized_config = self.config.copy()
+        self.optimized_config = copy.deepcopy(self.config)
         self.llm_client = LLMClient(model)
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.operations_cost = 0
         self.timeout = timeout
         self.selectivities = defaultdict(dict)
-        self.datasets = {}
+
+        home_dir = os.path.expanduser("~")
+        yaml_file_suffix = yaml_file.split("/")[-1].split(".")[0]
+        cache_dir = os.path.join(home_dir, f".motion/cache/{yaml_file_suffix}")
+        os.makedirs(cache_dir, exist_ok=True)
+        self.datasets = DatasetOnDisk(dir=cache_dir, console=self.console)
         base_name = yaml_file.rsplit(".", 1)[0]
         self.optimized_config_path = f"{base_name}_opt.yaml"
+
+        # Update sample size map
+        self.sample_size_map = SAMPLE_SIZE_MAP
+        if self.config.get("optimizer_config", {}).get("sample_sizes", {}):
+            self.sample_size_map.update(self.config["optimizer_config"]["sample_sizes"])
+
+        self.status = None
 
         self.print_optimizer_config()
 
@@ -126,14 +180,12 @@ class Optimizer:
         The output is color-coded and formatted for easy readability, with a header and
         separator lines to clearly delineate the configuration information.
         """
-        self.console.log("[bold cyan]Optimizer Configuration:[/bold cyan]")
-        self.console.log("─" * 40)
+        self.console.rule("[bold cyan]Optimizer Configuration[/bold cyan]")
         self.console.log(f"[yellow]YAML File:[/yellow] {self.yaml_file_path}")
-        self.console.log(f"[yellow]Sample Size:[/yellow] {SAMPLE_SIZE_MAP}")
+        self.console.log(f"[yellow]Sample Size:[/yellow] {self.sample_size_map}")
         self.console.log(f"[yellow]Max Threads:[/yellow] {self.max_threads}")
         self.console.log(f"[yellow]Model:[/yellow] {self.llm_client.model}")
         self.console.log(f"[yellow]Timeout:[/yellow] {self.timeout} seconds")
-        self.console.log("─" * 40)
 
     def compute_sample_size(
         self,
@@ -192,10 +244,10 @@ class Optimizer:
                 break
 
         if len(upstream_ops) == 0:
-            return SAMPLE_SIZE_MAP.get(op_config.get("type"), float("inf"))
+            return self.sample_size_map.get(op_config.get("type"), float("inf"))
 
         # Otherwise, compute the sample size based on the upstream operations
-        sample_size = SAMPLE_SIZE_MAP.get(op_config.get("type"), 1)
+        sample_size = self.sample_size_map.get(op_config.get("type"), 100)
 
         for op in reversed(upstream_ops):
             # Use the selectivity of the upstream operation to compute the sample size
@@ -233,6 +285,8 @@ class Optimizer:
             reduce_op = None
 
             for op in operations:
+                if isinstance(op, dict):
+                    op = list(op.keys())[0]
                 op_type = self.config["operations"][op].get("type")
                 if op_type == "map":
                     has_map = True
@@ -353,11 +407,11 @@ class Optimizer:
         - The optimization process is performed step by step, from upstream to downstream,
           with each step potentially depending on the results of previous steps.
         """
+        self.console.rule("[bold cyan]Beginning Pipeline Optimization[/bold cyan]")
+
         self.syntax_check()
         self._insert_empty_resolve_operations()
 
-        optimized_steps = []
-        optimized_operations = {}
         for step in self.config["pipeline"]["steps"]:
             step_name = step.get("name")
             if not step_name:
@@ -366,14 +420,50 @@ class Optimizer:
                 )
 
             optimized_step, step_operations, input_data = self._optimize_step(step)
-            optimized_steps.append(optimized_step)
-            optimized_operations.update(step_operations)
+
+            self.optimized_config["operations"].update(step_operations)
+            self.optimized_config["pipeline"]["steps"] = [
+                step
+                for step in self.optimized_config["pipeline"]["steps"]
+                if step["name"] != step_name
+            ] + [optimized_step]
 
             # Save the result to datasets using the step name
-            self.datasets[step_name] = copy.deepcopy(input_data)
+            step_hash = (
+                hashlib.md5(
+                    json.dumps(
+                        {
+                            "step": [
+                                s
+                                for s in self.optimized_config["pipeline"]["steps"]
+                                if s["name"] == step_name
+                            ][0],
+                            "operations": [
+                                self.optimized_config["operations"][op]
+                                for op in optimized_step["operations"]
+                            ],
+                        }
+                    ).encode()
+                ).hexdigest()
+                + ".json"
+            )
+            # If the dataset already exists, skip the step
+            if step_hash in self.datasets:
+                continue
 
-        self.optimized_config["operations"] = optimized_operations
-        self.optimized_config["pipeline"]["steps"] = optimized_steps
+            flush_cache(self.console)
+
+            if step_name in self.config.get("optimizer_config", {}).get(
+                "run_full_step", []
+            ):
+                # Run the entire step
+                input_data = self._run_partial_step(
+                    step, step_operations, float("inf"), optimized_operations
+                )
+                self.datasets[step_hash] = copy.deepcopy(input_data)
+            else:
+                self.datasets[step_hash] = copy.deepcopy(input_data)
+
         self._save_optimized_config()
 
         self.console.log(
@@ -443,7 +533,7 @@ class Optimizer:
 
     def _optimize_step(
         self, step: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Optimize a single step in the pipeline.
 
@@ -487,7 +577,7 @@ class Optimizer:
         optimized_operations = {}
         optimized_operation_names = []
 
-        for operation in step["operations"]:
+        for op_idx, operation in enumerate(step["operations"]):
             if isinstance(operation, dict):
                 operation_name = list(operation.keys())[0]
                 operation_config = operation[operation_name]
@@ -498,6 +588,9 @@ class Optimizer:
             op_object = self.config["operations"][operation_name].copy()
             op_object.update(operation_config)
             op_object["name"] = operation_name
+
+            # TODO: incorporate this into the optimizer to not run the most downstream operations
+            downstream_ops_exist = op_idx < len(step["operations"]) - 1
 
             # Run the pipeline
             step_ops = step.get("operations")
@@ -525,11 +618,13 @@ class Optimizer:
                 # Use rich console status to indicate optimization of the operation
                 with self.console.status(
                     f"[bold blue]Optimizing operation: {operation_name} (Type: {op_object['type']})[/bold blue]"
-                ):
+                ) as status:
+                    self.status = status
+
                     # Print the number of elements in input_data
-                    self.console.log("[yellow]Optimizing Operation:[/yellow]")
-                    self.console.log(f"[yellow]  Type: {op_object['type']}[/yellow]")
-                    self.console.log(f"[yellow]  Name: {operation_name}[/yellow]")
+                    self.console.rule(
+                        f"[yellow]Optimizing operation {operation_name} (Type: {op_object['type']})[/yellow]"
+                    )
                     if op_object.get("type") == "equijoin":
                         self.console.log(
                             f"[yellow]  Sample size (left): {len(input_data['left'])}[/yellow]"
@@ -544,34 +639,50 @@ class Optimizer:
 
                     # Run optimization
                     if op_object.get("type") == "map":
-                        optimized_ops, output_data = self._optimize_map(
-                            op_object, input_data
-                        )
+                        optimized_ops = self._optimize_map(op_object, input_data)
                     elif op_object.get("type") == "filter":
-                        optimized_ops, output_data = self._optimize_map(
+                        optimized_ops = self._optimize_map(
                             op_object, input_data, is_filter=True
                         )
                     elif op_object.get("type") == "reduce":
-                        optimized_ops, output_data = self._optimize_reduce(
-                            op_object, input_data
-                        )
+                        optimized_ops = self._optimize_reduce(op_object, input_data)
                     elif op_object.get("type") == "resolve":
-                        optimized_ops, output_data = self._optimize_resolve(
-                            op_object, input_data
-                        )
+                        optimized_ops = self._optimize_resolve(op_object, input_data)
                     elif op_object.get("type") == "equijoin":
-                        optimized_ops, output_data = self._optimize_equijoin(
-                            op_object, input_data["left"], input_data["right"]
+                        optimized_ops, input_data, new_left_name, new_right_name = (
+                            self._optimize_equijoin(
+                                op_object,
+                                operation["left"],
+                                operation["right"],
+                                input_data["left"],
+                                input_data["right"],
+                                status,
+                            )
                         )
                     else:
                         raise ValueError(
                             f"Unsupported operation type: {op_object['type']}"
                         )
 
+                    if self.status:
+                        self.status.update(
+                            f"[bold blue]Running optimized operation to estimate selectivities or fan-in/outs: {operation_name}[/bold blue]"
+                        )
+
                     for op in optimized_ops:
                         op_name = op.pop("name")
                         optimized_operations[op_name] = op
-                        optimized_operation_names.append(op_name)
+                        if op.get("type") == "equijoin":
+                            optimized_operation_names.append(
+                                {
+                                    op_name: {
+                                        "left": new_left_name,
+                                        "right": new_right_name,
+                                    }
+                                }
+                            )
+                        else:
+                            optimized_operation_names.append(op_name)
 
                         old_input_data_size = len(input_data)
                         input_data = self._run_operation(
@@ -580,6 +691,9 @@ class Optimizer:
                         new_input_data_size = len(input_data)
                         selectivity = new_input_data_size / old_input_data_size
                         self.selectivities[step.get("name")][op_name] = selectivity
+
+                    self.status = None
+                    output_data = input_data
 
         optimized_step = step.copy()
         optimized_step["operations"] = optimized_operation_names
@@ -609,8 +723,34 @@ class Optimizer:
         if dataset_name is None:
             return []
 
-        if dataset_name in self.datasets:
-            data = self.datasets[dataset_name]
+        if any(
+            s["name"] == dataset_name
+            for s in self.optimized_config["pipeline"]["steps"]
+        ):
+            step = [
+                s
+                for s in self.optimized_config["pipeline"]["steps"]
+                if s["name"] == dataset_name
+            ][0]
+            name_hash = (
+                hashlib.md5(
+                    json.dumps(
+                        {
+                            "step": step,
+                            "operations": [
+                                self.optimized_config["operations"][op]
+                                for op in step["operations"]
+                            ],
+                        }
+                    ).encode()
+                ).hexdigest()
+                + ".json"
+            )
+        else:
+            name_hash = None
+
+        if name_hash and name_hash in self.datasets:
+            data = self.datasets[name_hash]
         else:
             dataset = self.config["datasets"].get(dataset_name)
             if dataset is None:
@@ -727,7 +867,7 @@ class Optimizer:
 
     def _optimize_reduce(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> List[Dict[str, Any]]:
         """
         Optimize a reduce operation.
 
@@ -738,8 +878,7 @@ class Optimizer:
             input_data (List[Dict[str, Any]]): The input data for the reduce operation.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
-            configuration and the output data after applying the optimized operation.
+            List[Dict[str, Any]]: The optimized operation configuration.
         """
         reduce_optimizer = ReduceOptimizer(
             self.config,
@@ -748,55 +887,149 @@ class Optimizer:
             self.max_threads,
             self._run_operation,
         )
-        optimized_ops, output_data, cost = reduce_optimizer.optimize(
-            op_config, input_data
-        )
+        optimized_ops, _, cost = reduce_optimizer.optimize(op_config, input_data)
         self.operations_cost += cost
-        return optimized_ops, output_data
+        return optimized_ops
 
     def _optimize_equijoin(
         self,
         op_config: Dict[str, Any],
+        left_name: str,
+        right_name: str,
         left_data: List[Dict[str, Any]],
         right_data: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        status: Status,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str, str]:
         """
         Optimize an equijoin operation.
 
         This method creates a JoinOptimizer instance and uses it to optimize the equijoin operation.
         It updates the operation cost and runs the optimized operation.
+        If the LLM suggests a map transformation, it will optimize the map operation as its own step, and then go back to optimize the equijoin operation.
 
         Args:
             op_config (Dict[str, Any]): The configuration of the equijoin operation.
+            left_name (str): The name of the left dataset.
+            right_name (str): The name of the right dataset.
             left_data (List[Dict[str, Any]]): The left dataset for the join.
             right_data (List[Dict[str, Any]]): The right dataset for the join.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
-            configuration and the output data after applying the optimized operation.
+            Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str, str]: The optimized operation configuration, the new left and right datasets, and the new left and right names.
         """
-        join_optimizer = JoinOptimizer(
-            self.config, op_config, self.console, self.llm_client, self.max_threads
+        max_iterations = 2
+        new_left_name = left_name
+        new_right_name = right_name
+        for _ in range(max_iterations):
+            join_optimizer = JoinOptimizer(
+                self.config,
+                op_config,
+                self.console,
+                self.llm_client,
+                self.max_threads,
+                target_recall=self.config.get("optimizer_config", {})
+                .get("equijoin", {})
+                .get("target_recall", 0.95),
+                estimated_selectivity=self.config.get("optimizer_config", {})
+                .get("equijoin", {})
+                .get("estimated_selectivity", None),
+                status=status,
+            )
+            optimized_config, cost, agent_results = join_optimizer.optimize_equijoin(
+                left_data, right_data
+            )
+            self.operations_cost += cost
+            # Update the operation config with the optimized values
+            op_config.update(optimized_config)
+
+            if not agent_results.get("optimize_map", False):
+                break  # Exit the loop if no more map optimizations are necessary
+
+            # Update the status to indicate we're optimizing a map operation
+            output_key = agent_results["output_key"]
+            if self.status:
+                self.status.update(
+                    f"Optimizing map operation for {output_key} extraction to help with the equijoin"
+                )
+            map_prompt = agent_results["map_prompt"]
+            dataset_to_transform = (
+                left_data
+                if agent_results["dataset_to_transform"] == "left"
+                else right_data
+            )
+
+            # Create a new step for the map operation
+            map_operation = {
+                "name": f"synthesized_{output_key}_extraction",
+                "type": "map",
+                "prompt": map_prompt,
+                "model": self.config.get("default_model", "gpt-4o-mini"),
+                "output": {"schema": {output_key: "string"}},
+                "optimize": False,
+            }
+
+            # Optimize the map operation
+            if map_operation["optimize"]:
+                dataset_to_transform_sample = random.sample(
+                    dataset_to_transform, self.sample_size_map.get("map")
+                )
+                optimized_map_operations = self._optimize_map(
+                    map_operation, dataset_to_transform_sample
+                )
+            else:
+                optimized_map_operations = [map_operation]
+
+            new_step = {
+                "name": f"synthesized_{output_key}_extraction",
+                "input": (
+                    left_name
+                    if agent_results["dataset_to_transform"] == "left"
+                    else right_name
+                ),
+                "operations": [mo["name"] for mo in optimized_map_operations],
+            }
+            if agent_results["dataset_to_transform"] == "left":
+                new_left_name = new_step["name"]
+            else:
+                new_right_name = new_step["name"]
+
+            for optimized_map_op in optimized_map_operations:
+                optimized_map_op = {optimized_map_op["name"]: optimized_map_op}
+                self.optimized_config["operations"].update(optimized_map_op)
+
+            self.optimized_config["pipeline"]["steps"].append(new_step)
+
+            # Now run the optimized map operation on the entire dataset_to_transform
+            for op in optimized_map_operations:
+                dataset_to_transform = self._run_operation(op, dataset_to_transform)
+
+            # Update the appropriate dataset for the next iteration
+            if agent_results["dataset_to_transform"] == "left":
+                left_data = dataset_to_transform
+            else:
+                right_data = dataset_to_transform
+
+            if self.status:
+                self.status.update(
+                    f"Optimizing equijoin operation with {output_key} extraction"
+                )
+
+        # Pop off "left" and "right" from the op_config
+        op_config.pop("left")
+        op_config.pop("right")
+        return (
+            [op_config],
+            {"left": left_data, "right": right_data},
+            new_left_name,
+            new_right_name,
         )
-        optimized_config, cost = join_optimizer.optimize_equijoin(left_data, right_data)
-        self.operations_cost += cost
-
-        # Update the operation config with the optimized values
-        op_config.update(optimized_config)
-
-        # Run the optimized operation
-        output_data = self._run_operation(
-            op_config, {"left": left_data, "right": right_data}
-        )
-
-        return [op_config], output_data
 
     def _optimize_map(
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         is_filter: bool = False,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> List[Dict[str, Any]]:
         """
         Optimize a map operation.
 
@@ -808,8 +1041,7 @@ class Optimizer:
             is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
-            configuration and the output data after applying the optimized operation.
+            List[Dict[str, Any]]: The optimized operation configuration.
         """
         map_optimizer = MapOptimizer(
             self.config,
@@ -820,13 +1052,13 @@ class Optimizer:
             timeout=self.timeout,
             is_filter=is_filter,
         )
-        optimized_ops, output_data, cost = map_optimizer.optimize(op_config, input_data)
+        optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data)
         self.operations_cost += cost
-        return optimized_ops, output_data
+        return optimized_ops
 
     def _optimize_resolve(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> List[Dict[str, Any]]:
         """
         Optimize a resolve operation.
 
@@ -838,8 +1070,7 @@ class Optimizer:
             input_data (List[Dict[str, Any]]): The input data for the resolve operation.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: A tuple containing the optimized operation
-            configuration and the output data after applying the optimized operation.
+            List[Dict[str, Any]]: The optimized operation configuration.
         """
         optimized_config, cost = JoinOptimizer(
             self.config, op_config, self.console, self.llm_client, self.max_threads
@@ -854,10 +1085,7 @@ class Optimizer:
         # Update the operation config with the optimized values
         op_config.update(optimized_config)
 
-        # Run the optimized operation
-        output_data = self._run_operation(op_config, input_data)
-
-        return [op_config], output_data
+        return [op_config]
 
     def _run_operation(
         self,
@@ -888,6 +1116,7 @@ class Optimizer:
             "default_model": self.config["default_model"],
             "max_threads": self.max_threads,
             "console": self.console,
+            "status": self.status,
         }
         operation_instance = operation_class(**oc_kwargs)
         if op_config["type"] == "equijoin":

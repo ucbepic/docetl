@@ -5,11 +5,15 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from litellm import completion_cost, embedding
+from litellm import completion_cost, embedding, model_cost
 from rich.console import Console
+from rich.prompt import Confirm
+from rich.status import Status
 
 from motion.operations.equijoin import compare_pair as compare_pair_equijoin
 from motion.operations.resolve import compare_pair as compare_pair_resolve
+from motion.operations.utils import gen_embedding
+from motion.optimizers.utils import extract_jinja_variables
 
 
 class JoinOptimizer:
@@ -21,9 +25,11 @@ class JoinOptimizer:
         llm_client: Any,
         max_threads: int,
         target_recall: float = 0.95,
-        sample_size: int = 300,
-        sampling_weight: float = 5,
+        sample_size: int = 500,
+        sampling_weight: float = 20,
         agent_max_retries: int = 5,
+        estimated_selectivity: float = None,
+        status: Status = None,
     ):
         self.config = config
         self.op_config = op_config
@@ -34,6 +40,13 @@ class JoinOptimizer:
         self.sample_size = sample_size
         self.sampling_weight = sampling_weight
         self.agent_max_retries = agent_max_retries
+        self.estimated_selectivity = estimated_selectivity
+        self.console.log(f"Target Recall: {self.target_recall}")
+        self.status = status
+        # if self.estimated_selectivity is not None:
+        #     self.console.log(
+        #         f"[yellow]Using estimated selectivity of {self.estimated_selectivity}[/yellow]"
+        #     )
 
     def _analyze_map_prompt_categorization(self, map_prompt: str) -> bool:
         """
@@ -484,15 +497,90 @@ class JoinOptimizer:
 
     def optimize_equijoin(
         self, left_data: List[Dict[str, Any]], right_data: List[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], float]:
-        left_key = self.op_config["join_key"]["left"]["name"]
-        right_key = self.op_config["join_key"]["right"]["name"]
+    ) -> Tuple[Dict[str, Any], float, Dict[str, Any]]:
+        left_keys = self.op_config.get("blocking_keys", {}).get("left", [])
+        right_keys = self.op_config.get("blocking_keys", {}).get("right", [])
+
+        if not left_keys and not right_keys:
+            # Ask the LLM agent if it would be beneficial to do a map operation on
+            # one of the datasets before doing an equijoin
+            apply_transformation, dataset_to_transform, reason = (
+                self._should_apply_map_transformation(
+                    left_keys, right_keys, left_data, right_data
+                )
+            )
+
+            if apply_transformation:
+                self.console.log(
+                    f"LLM agent suggested applying a map transformation to {dataset_to_transform} dataset because: {reason}"
+                )
+                extraction_prompt, output_key, new_comparison_prompt = (
+                    self._generate_map_and_new_join_transformation(
+                        dataset_to_transform, reason, left_data, right_data
+                    )
+                )
+                self.console.log(
+                    f"Generated map transformation prompt: {extraction_prompt}"
+                )
+                self.console.log(f"\nNew output key: {output_key}")
+                self.console.log(
+                    f"\nNew equijoin comparison prompt: {new_comparison_prompt}"
+                )
+
+                # Update the comparison prompt
+                self.op_config["comparison_prompt"] = new_comparison_prompt
+
+                # Add the output key to the left_keys or right_keys
+                if dataset_to_transform == "left":
+                    left_keys.append(output_key)
+                else:
+                    right_keys.append(output_key)
+
+                # Reset the blocking keys in the config
+                self.op_config["blocking_keys"] = {
+                    "left": left_keys,
+                    "right": right_keys,
+                }
+
+                # Bubble up this config and return the transformation prompt, so we can optimize the map operation
+                return (
+                    self.op_config,
+                    0.0,
+                    {
+                        "optimize_map": True,
+                        "map_prompt": extraction_prompt,
+                        "output_key": output_key,
+                        "dataset_to_transform": dataset_to_transform,
+                    },
+                )
+
+            # Print the reason for not applying a map transformation
+            self.console.log(
+                f"Reason for not synthesizing a map transformation for either left or right dataset: {reason}"
+            )
+
+        # If there are no blocking keys, generate them
+        if not left_keys or not right_keys:
+            generated_left_keys, generated_right_keys = (
+                self._generate_blocking_keys_equijoin(left_data, right_data)
+            )
+            left_keys.extend(generated_left_keys)
+            right_keys.extend(generated_right_keys)
+            left_keys = list(set(left_keys))
+            right_keys = list(set(right_keys))
+
+            # Log the generated blocking keys
+            self.console.log(
+                f"[bold]Generated blocking keys (for embeddings-based blocking):[/bold]"
+            )
+            self.console.log(f"Left keys: {left_keys}")
+            self.console.log(f"Right keys: {right_keys}")
 
         left_embeddings, _, left_embedding_cost = self._compute_embeddings(
-            left_data, [left_key]
+            left_data, keys=left_keys
         )
         right_embeddings, _, right_embedding_cost = self._compute_embeddings(
-            right_data, [right_key]
+            right_data, keys=right_keys
         )
         self.console.log(
             f"[bold]Cost of creating embeddings on the sample: ${left_embedding_cost + right_embedding_cost:.4f}[/bold]"
@@ -506,15 +594,25 @@ class JoinOptimizer:
         comparison_results, comparison_cost = self._perform_comparisons_equijoin(
             left_data, right_data, sampled_pairs
         )
-
         self._print_similarity_histogram(similarities, comparison_results)
+        while not any(result[2] for result in comparison_results):
+            self.console.log(
+                "[yellow]No matches found in the current sample. Resampling pairs to compare...[/yellow]"
+            )
+            sampled_pairs = self._sample_pairs(similarities)
+            comparison_results, current_cost = self._perform_comparisons_equijoin(
+                left_data, right_data, sampled_pairs
+            )
+            comparison_cost += current_cost
+            self._print_similarity_histogram(similarities, comparison_results)
 
         threshold, estimated_selectivity = self._find_optimal_threshold(
             comparison_results, similarities
         )
+        self.estimated_selectivity = estimated_selectivity
 
         blocking_rules = self._generate_blocking_rules_equijoin(
-            left_key, right_key, left_data, right_data, comparison_results
+            left_keys, right_keys, left_data, right_data, comparison_results
         )
 
         if blocking_rules:
@@ -522,8 +620,8 @@ class JoinOptimizer:
                 left_data,
                 right_data,
                 blocking_rules[0],
-                left_key,
-                right_key,
+                left_keys,
+                right_keys,
                 comparison_results,
             )
             if not false_negatives and rule_selectivity <= estimated_selectivity:
@@ -537,7 +635,7 @@ class JoinOptimizer:
                     )
                     for i, j in false_negatives[:5]:  # Show up to 5 examples
                         self.console.log(
-                            f"  Filtered pair: {{ {left_key}: {left_data[i][left_key]} }} and {{ {right_key}: {right_data[j][right_key]} }}"
+                            f"  Filtered pair: Left: {{{', '.join(f'{key}: {left_data[i][key]}' for key in left_keys)}}} and Right: {{{', '.join(f'{key}: {right_data[j][key]}' for key in right_keys)}}}"
                         )
                     if len(false_negatives) > 5:
                         self.console.log(f"  ... and {len(false_negatives) - 5} more.")
@@ -549,36 +647,292 @@ class JoinOptimizer:
                     []
                 )  # Clear the blocking rule if it introduces false negatives or is too selective
 
+        containment_rules = self._generate_containment_rules_equijoin(
+            left_data, right_data
+        )
+        self.console.log(
+            f"[bold]Generated {len(containment_rules)} containment rules. Please select which ones to use as blocking conditions:[/bold]"
+        )
+        selected_containment_rules = []
+        for rule in containment_rules:
+            self.console.log(f"[green]{rule}[/green]")
+            # Temporarily stop the status
+            if self.status:
+                self.status.stop()
+            # Use Rich's Confirm for input
+            if Confirm.ask("Use this rule?"):
+                selected_containment_rules.append(rule)
+            # Restart the status
+            if self.status:
+                self.status.start()
+
+        if len(containment_rules) > 0:
+            self.console.log(
+                f"[bold]Selected {len(selected_containment_rules)} containment rules for blocking.[/bold]"
+            )
+        blocking_rules.extend(selected_containment_rules)
+
         optimized_config = self._update_config_equijoin(
-            threshold, left_key, right_key, blocking_rules
+            threshold, left_keys, right_keys, blocking_rules
         )
         return (
             optimized_config,
             left_embedding_cost + right_embedding_cost + comparison_cost,
+            {},
         )
 
+    def _should_apply_map_transformation(
+        self,
+        left_keys: List[str],
+        right_keys: List[str],
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        sample_size: int = 5,
+    ) -> Tuple[bool, str, str]:
+        # Sample data
+        left_sample = random.sample(left_data, min(sample_size, len(left_data)))
+        right_sample = random.sample(right_data, min(sample_size, len(right_data)))
+
+        # Get keys and their average lengths
+        all_left_keys = {
+            k: sum(len(str(d[k])) for d in left_sample) / len(left_sample)
+            for k in left_sample[0].keys()
+        }
+        all_right_keys = {
+            k: sum(len(str(d[k])) for d in right_sample) / len(right_sample)
+            for k in right_sample[0].keys()
+        }
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"""Analyze the following datasets and determine if an additional LLM transformation should be applied to generate a new key-value pair for easier joining:
+
+                Comparison prompt for the join operation: {self.op_config.get('comparison_prompt', 'No comparison prompt provided.')}
+
+                Left dataset keys and average lengths: {json.dumps(all_left_keys, indent=2)}
+                Right dataset keys and average lengths: {json.dumps(all_right_keys, indent=2)}
+
+                Left dataset sample:
+                {json.dumps(left_sample, indent=2)}
+
+                Right dataset sample:
+                {json.dumps(right_sample, indent=2)}
+
+                Current keys used for embedding-based ranking of likely matches:
+                Left keys: {left_keys}
+                Right keys: {right_keys}
+
+                Consider the following:
+                1. Are the current keys sufficient for accurate embedding-based ranking of likely matches? We don't want to use too many keys, or keys with too much information, as this will dilute the signal in the embeddings.
+                2. Are there any keys particularly long (e.g., full text fields), containing information that is not relevant for the join operation?
+                3. Is there information spread across multiple fields that could be combined?
+                4. Would a summary or extraction of key information be beneficial?
+                5. Is there a mismatch in information representation between the datasets?
+                6. Could an additional LLM-generated field improve the accuracy of embeddings or join comparisons?
+
+                If you believe an additional LLM transformation would be beneficial, specify which dataset (left or right) should be transformed and explain why. In most cases, you should pick the dataset with the longer keys unless there is a specific reason to pick the other dataset. Otherwise, indicate that no additional transformation is needed and explain why the current blocking keys are sufficient.""",
+            }
+        ]
+
+        response = self.llm_client.generate(
+            messages,
+            "You are an AI expert in data analysis and entity matching.",
+            {
+                "type": "object",
+                "properties": {
+                    "apply_transformation": {"type": "boolean"},
+                    "dataset_to_transform": {
+                        "type": "string",
+                        "enum": ["left", "right", "none"],
+                    },
+                    "reason": {"type": "string"},
+                },
+                "required": ["apply_transformation", "dataset_to_transform", "reason"],
+            },
+        )
+
+        result = json.loads(response.choices[0].message.content)
+
+        return (
+            result["apply_transformation"],
+            result["dataset_to_transform"],
+            result["reason"],
+        )
+
+    def _generate_map_and_new_join_transformation(
+        self,
+        dataset_to_transform: str,
+        reason: str,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        sample_size: int = 5,
+    ) -> Tuple[str, str, str]:
+        # Sample data
+        left_sample = random.sample(left_data, min(sample_size, len(left_data)))
+        right_sample = random.sample(right_data, min(sample_size, len(right_data)))
+
+        target_data = left_sample if dataset_to_transform == "left" else right_sample
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"""Generate an LLM prompt to transform the {dataset_to_transform} dataset for easier joining. The transformation should create a new key-value pair.
+
+                Current comparison prompt for the join operation: {self.op_config.get('comparison_prompt', 'No comparison prompt provided.')}
+
+                Target ({dataset_to_transform}) dataset sample:
+                {json.dumps(target_data, indent=2)}
+
+                Other ({'left' if dataset_to_transform == "right" else "right"}) dataset sample:
+                {json.dumps(right_sample if dataset_to_transform == "left" else left_sample, indent=2)}
+                
+                Reason for transforming {dataset_to_transform} dataset: {reason}
+
+                Please provide:
+                1. An LLM prompt to extract a smaller representation of what is relevant to the join task. The prompt should be a Jinja2 template, referring to any fields in the input data as {{ input.field_name }}. The prompt should instruct the LLM to return some **non-empty** string-valued output. The transformation should be tailored to the join task if possible, not just a generic summary of the data. 
+                2. A name for the new output key that will store the transformed data.
+                3. An edited comparison prompt that leverages the new attribute created by the transformation. This prompt should be a Jinja2 template, referring to any fields in the input data as {{ left.field_name }} and {{ right.field_name }}. The prompt should be the same as the current comparison prompt, but with a new instruction that leverages the new attribute created by the transformation. The prompt should instruct the LLM to return a boolean-valued output, like the current comparison prompt.""",
+            }
+        ]
+
+        response = self.llm_client.generate(
+            messages,
+            "You are an AI expert in data analysis and decomposing complex data processing pipelines.",
+            {
+                "type": "object",
+                "properties": {
+                    "extraction_prompt": {"type": "string"},
+                    "output_key": {"type": "string"},
+                    "new_comparison_prompt": {"type": "string"},
+                },
+                "required": [
+                    "extraction_prompt",
+                    "output_key",
+                    "new_comparison_prompt",
+                ],
+            },
+        )
+
+        result = json.loads(response.choices[0].message.content)
+
+        return (
+            result["extraction_prompt"],
+            result["output_key"],
+            result["new_comparison_prompt"],
+        )
+
+    def _generate_blocking_keys_equijoin(
+        self,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        sample_size: int = 5,
+    ) -> Tuple[List[str], List[str]]:
+        # Sample data
+        left_sample = random.sample(left_data, min(sample_size, len(left_data)))
+        right_sample = random.sample(right_data, min(sample_size, len(right_data)))
+
+        # Prepare sample data for LLM
+        left_keys = list(left_sample[0].keys())
+        right_keys = list(right_sample[0].keys())
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"""Given the following sample data from two datasets, select appropriate blocking keys for an equijoin operation.
+                The blocking process works as follows:
+                1. We create embeddings for the selected keys from both datasets.
+                2. We use cosine similarity between these embeddings to filter pairs for more detailed LLM comparison.
+                3. Pairs with high similarity will be passed to the LLM for final comparison.
+
+                The blocking keys should have relatively short values and be useful for generating embeddings that capture the essence of potential matches.
+                
+                Left dataset keys: {left_keys}
+                Right dataset keys: {right_keys}
+                
+                Sample from left dataset:
+                {json.dumps(left_sample, indent=2)}
+                
+                Sample from right dataset:
+                {json.dumps(right_sample, indent=2)}
+                
+                For context, here is the comparison prompt that will be used for the more detailed LLM comparison:
+                {self.op_config.get('comparison_prompt', 'No comparison prompt provided.')}
+
+                Please select one or more keys from each dataset that would be suitable for blocking. The keys should contain information that's likely to be similar in matching records and align with the comparison prompt's focus.""",
+            }
+        ]
+
+        response = self.llm_client.generate(
+            messages,
+            "You are an expert in entity matching and database operations.",
+            {
+                "type": "object",
+                "properties": {
+                    "left_blocking_keys": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of selected blocking keys from the left dataset",
+                    },
+                    "right_blocking_keys": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of selected blocking keys from the right dataset",
+                    },
+                },
+                "required": ["left_blocking_keys", "right_blocking_keys"],
+            },
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        left_blocking_keys = result["left_blocking_keys"]
+        right_blocking_keys = result["right_blocking_keys"]
+
+        return left_blocking_keys, right_blocking_keys
+
     def _compute_embeddings(
-        self, input_data: List[Dict[str, Any]], keys: List[str] = None
+        self,
+        input_data: List[Dict[str, Any]],
+        keys: List[str] = None,
+        is_join: bool = True,
     ) -> Tuple[List[List[float]], List[str], float]:
         if keys is None:
             keys = self.op_config.get("blocking_keys", [])
             if not keys:
                 prompt_template = self.op_config.get("comparison_prompt", "")
-                keys = list(set(re.findall(r"input[12]\.(\w+)", prompt_template)))
+                prompt_vars = extract_jinja_variables(prompt_template)
+                # strip all things before . in the prompt_vars
+                keys += list(set([var.split(".")[-1] for var in prompt_vars]))
             if not keys:
                 self.console.log(
                     "[yellow]Warning: No blocking keys found. Using all keys for blocking.[/yellow]"
                 )
                 keys = list(input_data[0].keys())
 
+        model_input_context_length = model_cost.get(
+            self.op_config.get("embedding_model", "text-embedding-3-small"), {}
+        ).get("max_input_tokens", 8192)
         texts = [
-            " ".join(str(item[key]) for key in keys if key in item)
+            " ".join(str(item[key]) for key in keys if key in item)[
+                : model_input_context_length * 4
+            ]
             for item in input_data
         ]
-        response = embedding(
-            model=self.op_config.get("embedding_model", "text-embedding-3-small"),
-            input=texts,
-        )
+
+        embeddings = []
+        total_cost = 0
+        batch_size = 2000
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            self.console.log(
+                f"[cyan]Processing batch {i//batch_size + 1} of {len(texts)//batch_size + 1}[/cyan]"
+            )
+            response = gen_embedding(
+                model=self.op_config.get("embedding_model", "text-embedding-3-small"),
+                input=batch,
+            )
+            embeddings.extend([data["embedding"] for data in response["data"]])
+            total_cost += completion_cost(response)
         embeddings = [data["embedding"] for data in response["data"]]
         cost = completion_cost(response)
         return embeddings, keys, cost
@@ -644,14 +998,13 @@ class JoinOptimizer:
     def _sample_pairs(
         self, similarities: List[Tuple[int, int, float]]
     ) -> List[Tuple[int, int]]:
+        # Sort similarities in descending order
         sorted_similarities = sorted(similarities, key=lambda x: x[2], reverse=True)
 
-        # Calculate weights that favor higher similarities
+        # Calculate weights using exponential weighting with self.sampling_weight
         similarities_array = np.array([sim[2] for sim in sorted_similarities])
-        weights = np.exp(
-            self.sampling_weight * similarities_array
-        )  # Exponential weighting
-        weights /= weights.sum()
+        weights = np.exp(self.sampling_weight * similarities_array)
+        weights /= weights.sum()  # Normalize weights to sum to 1
 
         # Sample pairs based on the calculated weights
         sampled_indices = np.random.choice(
@@ -962,21 +1315,94 @@ class JoinOptimizer:
 
         return filtered_pairs
 
+    def _generate_containment_rules_equijoin(
+        self,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+    ) -> List[str]:
+        # Get all available keys from the sample data
+        left_keys = set(left_data[0].keys())
+        right_keys = set(right_data[0].keys())
+
+        # Sample a few records from each dataset
+        sample_left = random.sample(left_data, min(3, len(left_data)))
+        sample_right = random.sample(right_data, min(3, len(right_data)))
+
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an AI assistant tasked with generating containment-based blocking rules for an equijoin operation.",
+            },
+            {
+                "role": "user",
+                "content": f"""Generate multiple one-line Python statements that act as containment-based blocking rules for equijoin. These rules will be used in the form: `eval(blocking_rule, {{"left": item1, "right": item2}})`.
+
+Available keys in left dataset: {', '.join(left_keys)}
+Available keys in right dataset: {', '.join(right_keys)}
+
+Sample data from left dataset:
+{json.dumps(sample_left, indent=2)}
+
+Sample data from right dataset:
+{json.dumps(sample_right, indent=2)}
+
+Comparison prompt used for detailed comparison:
+{self.op_config.get('comparison_prompt', 'No comparison prompt provided.')}
+
+Please generate multiple one-line blocking rules that adhere to the following criteria:
+1. The rules should focus on containment relationships between fields in the left and right datasets. Containment can mean that the left field contains all the words in the right field, or the right field contains all the words in the left field.
+2. Each rule should evaluate to True if there's a potential match based on containment, False otherwise.
+3. Rules must be single Python expressions that can be evaluated using the eval() function.
+4. Rules should handle inconsistent casing by using string methods like .lower() when comparing string values.
+5. Consider the length of the fields when generating rules: for example, if the left field is much longer than the right field, it's more likely to contain all the words in the right field.
+
+Example structures of containment-based blocking rules:
+"all(word in left['{{left_key}}'].lower() for word in right['{{right_key}}'].lower().split())"
+"any(word in right['{{right_key}}'].lower().split() for word in left['{{left_key}}'].lower().split())"
+
+Please provide 3-5 different containment-based blocking rules, based on the keys and sample data provided.""",
+            },
+        ]
+
+        response = self.llm_client.generate(
+            messages,
+            "You are an expert in data matching and Python programming.",
+            {
+                "type": "object",
+                "properties": {
+                    "containment_rules": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of containment-based blocking rules as Python expressions",
+                    }
+                },
+                "required": ["containment_rules"],
+            },
+        )
+
+        containment_rules = response.choices[0].message.content
+        containment_rules = json.loads(containment_rules).get("containment_rules")
+        return containment_rules
+
     def _generate_blocking_rules_equijoin(
         self,
-        left_key: str,
-        right_key: str,
+        left_keys: List[str],
+        right_keys: List[str],
         left_data: List[Dict[str, Any]],
         right_data: List[Dict[str, Any]],
         comparisons: List[Tuple[int, int, bool]],
     ) -> List[str]:
+        if not left_keys or not right_keys:
+            left_keys = list(left_data[0].keys())
+            right_keys = list(right_data[0].keys())
+
         # Sample 2 true and 2 false comparisons
         true_comparisons = [comp for comp in comparisons if comp[2]][:2]
         false_comparisons = [comp for comp in comparisons if not comp[2]][:2]
         sample_datas = [
             (
-                {left_key: left_data[i][left_key]},
-                {right_key: right_data[j][right_key]},
+                {key: left_data[i][key] for key in left_keys if key in left_data[i]},
+                {key: right_data[j][key] for key in right_keys if key in right_data[j]},
                 is_match,
             )
             for i, j, is_match in true_comparisons + false_comparisons
@@ -1007,9 +1433,9 @@ class JoinOptimizer:
     "(condition1) or (condition2) or (condition3)"
 
     Where conditions could be comparisons like:
-    "left['{left_key}'].lower() == right['{right_key}'].lower()"
-    "abs(len(left['{left_key}']) - len(right['{right_key}'])) <= 5"
-    "any(word in left['{left_key}'].lower() for word in right['{right_key}'].lower().split())"
+    "left['{left_keys[0]}'].lower() == right['{right_keys[0]}'].lower()"
+    "abs(len(left['{left_keys[0]}']) - len(right['{right_keys[0]}'])) <= 5"
+    "any(word in left['{left_keys[0]}'].lower() for word in right['{right_keys[0]}'].lower().split())"
 
     If there's no clear rule that can be generated based on the given information, return the string "True" to ensure all pairs are compared.
 
@@ -1053,8 +1479,8 @@ class JoinOptimizer:
                 filtered_pairs = self._test_blocking_rule_equijoin(
                     left_data,
                     right_data,
-                    left_key,
-                    right_key,
+                    left_keys,
+                    right_keys,
                     blocking_rule,
                     comparisons,
                 )
@@ -1070,10 +1496,8 @@ class JoinOptimizer:
                         "Here are up to 3 examples of incorrectly filtered pairs:\n"
                     )
                     for i, j in filtered_pairs[:3]:
-                        feedback += (
-                            f"Left: {json.dumps({left_key: left_data[i][left_key]})}\n"
-                        )
-                        feedback += f"Right: {json.dumps({right_key: right_data[j][right_key]})}\n"
+                        feedback += f"Left: {json.dumps({key: left_data[i][key] for key in left_keys})}\n"
+                        feedback += f"Right: {json.dumps({key: right_data[j][key] for key in right_keys})}\n"
                         feedback += "These pairs are known matches but were filtered out by the rule.\n"
                     feedback += "Please generate a new rule that doesn't filter out these matches."
 
@@ -1092,8 +1516,8 @@ class JoinOptimizer:
         self,
         left_data: List[Dict[str, Any]],
         right_data: List[Dict[str, Any]],
-        left_key: str,
-        right_key: str,
+        left_keys: List[str],
+        right_keys: List[str],
         blocking_rule: str,
         comparisons: List[Tuple[int, int, bool]],
     ) -> List[Tuple[int, int]]:
@@ -1108,9 +1532,8 @@ class JoinOptimizer:
 
         for i, j, is_match in comparisons:
             if is_match:
-                left = {left_key: left_data[i][left_key]}
-                right = {right_key: right_data[j][right_key]}
-
+                left = left_data[i]
+                right = right_data[j]
                 if not apply_blocking_rule(left, right):
                     filtered_pairs.append((i, j))
 
@@ -1119,8 +1542,10 @@ class JoinOptimizer:
                 f"[yellow italic]LLM Correction: The blocking rule incorrectly filtered out {len(filtered_pairs)} known positive matches.[/yellow italic]"
             )
             for i, j in filtered_pairs[:5]:  # Show up to 5 examples
+                left_dict = {key: left_data[i][key] for key in left_keys}
+                right_dict = {key: right_data[j][key] for key in right_keys}
                 self.console.log(
-                    f"  Incorrectly filtered pair - Left: {json.dumps({left_key: left_data[i][left_key]})}  Right: {json.dumps({right_key: right_data[j][right_key]})}"
+                    f"  Incorrectly filtered pair - Left: {json.dumps(left_dict)}  Right: {json.dumps(right_dict)}"
                 )
             if len(filtered_pairs) > 5:
                 self.console.log(
@@ -1134,8 +1559,8 @@ class JoinOptimizer:
         left_data: List[Dict[str, Any]],
         right_data: List[Dict[str, Any]],
         blocking_rule: str,
-        left_key: str,
-        right_key: str,
+        left_keys: List[str],
+        right_keys: List[str],
         comparison_results: List[Tuple[int, int, bool]],
     ) -> Tuple[List[Tuple[int, int]], float]:
         def apply_blocking_rule(left, right):
@@ -1151,9 +1576,8 @@ class JoinOptimizer:
 
         for i, j, is_match in comparison_results:
             total_pairs += 1
-            left = {left_key: left_data[i][left_key]}
-            right = {right_key: right_data[j][right_key]}
-
+            left = left_data[i]
+            right = right_data[j]
             if apply_blocking_rule(left, right):
                 blocked_pairs += 1
                 if is_match:
@@ -1164,12 +1588,16 @@ class JoinOptimizer:
         return false_negatives, rule_selectivity
 
     def _update_config_equijoin(
-        self, threshold: float, left_key: str, right_key: str, blocking_rules: List[str]
+        self,
+        threshold: float,
+        left_keys: List[str],
+        right_keys: List[str],
+        blocking_rules: List[str],
     ) -> Dict[str, Any]:
         optimized_config = self.op_config.copy()
-        optimized_config["join_key"] = {
-            "left": {"name": left_key},
-            "right": {"name": right_key},
+        optimized_config["blocking_keys"] = {
+            "left": left_keys,
+            "right": right_keys,
         }
         optimized_config["blocking_threshold"] = threshold
         if blocking_rules:

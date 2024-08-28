@@ -28,6 +28,7 @@ from motion.operations.utils import (
     parse_llm_response,
     rich_as_completed,
     validate_output,
+    gen_embedding,
 )
 
 
@@ -356,7 +357,7 @@ class ReduceOperation(BaseOperation):
             " ".join(str(item[key]) for key in embedding_keys if key in item)
             for item in items
         ]
-        response = embedding(embedding_model, texts)
+        response = gen_embedding(embedding_model, texts)
         embeddings = [data["embedding"] for data in response["data"]]
         cost = completion_cost(response)
 
@@ -391,7 +392,7 @@ class ReduceOperation(BaseOperation):
 
         embeddings, cost = self._get_embeddings(group_list, value_sampling)
 
-        query_response = embedding(embedding_model, [query_text])
+        query_response = gen_embedding(embedding_model, [query_text])
         query_embedding = query_response["data"][0]["embedding"]
         cost += completion_cost(query_response)
 

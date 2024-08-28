@@ -1,0 +1,2307 @@
+[
+  {
+    "id": "c9a3ef9f-6fb0-4293-b55a-74732b6eb2bf",
+    "ground_truth_reactions": [
+      "Pneumonia",
+      "Product use in unapproved indication",
+      "Sepsis"
+    ]
+  },
+  {
+    "id": "8c686461-247b-45c0-98e3-8bebf87cd8df",
+    "ground_truth_reactions": [
+      "Disease progression"
+    ]
+  },
+  {
+    "id": "2491d1cc-44a6-4555-95aa-b28762fa1877",
+    "ground_truth_reactions": [
+      "Abortion spontaneous",
+      "Maternal exposure during pregnancy"
+    ]
+  },
+  {
+    "id": "5d16ebab-af80-4f24-abf8-d3c0c11848c6",
+    "ground_truth_reactions": [
+      "Necrosis",
+      "Product use in unapproved indication"
+    ]
+  },
+  {
+    "id": "ce3f08cd-228f-43df-adfd-ce4b60a29184",
+    "ground_truth_reactions": [
+      "Disease complication",
+      "Off label use",
+      "Pulmonary hypertension",
+      "Treatment failure"
+    ]
+  },
+  {
+    "id": "211d4496-7ba3-4051-a58a-1519ae900d95",
+    "ground_truth_reactions": [
+      "Cardiac disorder",
+      "Cardioactive drug level increased",
+      "Heart rate decreased",
+      "Staring"
+    ]
+  },
+  {
+    "id": "cc869aeb-a3ad-4ee0-909e-e62e43989533",
+    "ground_truth_reactions": [
+      "Protein-losing gastroenteropathy"
+    ]
+  },
+  {
+    "id": "34ae61bd-63a9-45af-8500-0fa3034012cb",
+    "ground_truth_reactions": [
+      "Hypermagnesaemia",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "62dde88b-5829-4dcb-b19e-ca7577b32bf0",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "79db13b4-ba0d-44b2-9c4b-bf0ad572c7a3",
+    "ground_truth_reactions": [
+      "Condition aggravated"
+    ]
+  },
+  {
+    "id": "5158cfb0-c24d-4c5b-b9a6-385651c8d529",
+    "ground_truth_reactions": [
+      "Bradycardia",
+      "CYP2D6 gene status assay",
+      "CYP2D6 polymorphism",
+      "Cytogenetic analysis abnormal",
+      "Depression",
+      "Drug ineffective",
+      "Drug interaction",
+      "Therapeutic product effect decreased",
+      "Therapeutic product effect increased",
+      "Toxicity to various agents"
+    ]
+  },
+  {
+    "id": "9ab57b49-afc8-4c28-bd2c-c1436de085aa",
+    "ground_truth_reactions": [
+      "Clostridium difficile infection",
+      "Headache",
+      "Mucosal inflammation",
+      "Neuropathy peripheral"
+    ]
+  },
+  {
+    "id": "6ae64199-39ce-4a3a-87f5-5bdbc5e7d328",
+    "ground_truth_reactions": [
+      "Abortion induced",
+      "Congenital toxoplasmosis",
+      "Foetal exposure during pregnancy",
+      "Maternal exposure during pregnancy",
+      "Toxoplasmosis"
+    ]
+  },
+  {
+    "id": "0db5affa-831b-407c-ac9b-078f805abbb7",
+    "ground_truth_reactions": [
+      "Blood creatine phosphokinase increased",
+      "Delirium",
+      "Delusion",
+      "Hallucination",
+      "Sedation complication"
+    ]
+  },
+  {
+    "id": "7d5fff1c-76cd-4eae-ac51-1666cad46877",
+    "ground_truth_reactions": [
+      "Blood creatine increased",
+      "Blood potassium increased",
+      "Decreased appetite",
+      "Drug ineffective for unapproved indication",
+      "Drug intolerance",
+      "Dysgeusia",
+      "Gastrointestinal disorder",
+      "Nausea",
+      "Off label use",
+      "Treatment failure",
+      "Vomiting"
+    ]
+  },
+  {
+    "id": "6a6edca2-340a-456e-81e5-8c470d98bed2",
+    "ground_truth_reactions": [
+      "Facial paralysis",
+      "Methaemoglobinaemia"
+    ]
+  },
+  {
+    "id": "04683bad-16f7-483f-a193-95986a315bb7",
+    "ground_truth_reactions": [
+      "Erythema",
+      "Leiomyosarcoma",
+      "Leiomyosarcoma metastatic",
+      "Oedema peripheral",
+      "Off label use",
+      "Peripheral sensory neuropathy",
+      "Product use in unapproved indication",
+      "Skin exfoliation"
+    ]
+  },
+  {
+    "id": "b8e4f1e6-9731-41c8-81e5-3befab586d0d",
+    "ground_truth_reactions": [
+      "Antibody test positive",
+      "Transplant failure"
+    ]
+  },
+  {
+    "id": "b012c120-27e0-444e-9753-3aaa0b316abe",
+    "ground_truth_reactions": [
+      "Drug ineffective"
+    ]
+  },
+  {
+    "id": "333b63d7-98eb-4f89-aa4b-b4ed56ae0661",
+    "ground_truth_reactions": [
+      "Exposure during pregnancy",
+      "Foetal exposure during pregnancy",
+      "Low birth weight baby",
+      "Maternal exposure during pregnancy",
+      "Premature baby",
+      "Premature delivery",
+      "Product use in unapproved indication"
+    ]
+  },
+  {
+    "id": "457a5aff-5654-41b3-a0a7-b70e8f2a0e24",
+    "ground_truth_reactions": [
+      "Haemolytic anaemia"
+    ]
+  },
+  {
+    "id": "42a90488-c834-4b8b-ad25-4759cb767198",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Tissue infiltration"
+    ]
+  },
+  {
+    "id": "d853b95d-624d-4cf9-a4da-9120692ad06c",
+    "ground_truth_reactions": [
+      "Transient ischaemic attack"
+    ]
+  },
+  {
+    "id": "6b4aa0b8-3158-41cd-b7b7-14bde0e8cefa",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Exposure during pregnancy",
+      "Live birth"
+    ]
+  },
+  {
+    "id": "e5301ac4-d110-44ff-8f63-1012e6f2c9f7",
+    "ground_truth_reactions": [
+      "Blood calcitonin increased",
+      "Electrocardiogram QT prolonged",
+      "Mental disorder",
+      "Therapy partial responder"
+    ]
+  },
+  {
+    "id": "62755d4c-5dd0-496f-ac5f-74d1c344ab0c",
+    "ground_truth_reactions": [
+      "Immune-mediated enterocolitis",
+      "Neutropenia",
+      "Oesophageal ulcer",
+      "Rash"
+    ]
+  },
+  {
+    "id": "90305c57-ba00-4237-bc45-6b8e6db6c683",
+    "ground_truth_reactions": [
+      "Cerebrovascular accident",
+      "Contraindicated product administered",
+      "Lactic acidosis",
+      "Mitochondrial encephalomyopathy"
+    ]
+  },
+  {
+    "id": "89aac8c8-3e94-47fa-9728-2f25fec8616b",
+    "ground_truth_reactions": [
+      "Blood pressure increased",
+      "COVID-19",
+      "Cholestasis of pregnancy",
+      "Foetal exposure during pregnancy",
+      "Low birth weight baby",
+      "Maternal exposure during pregnancy",
+      "Placental insufficiency",
+      "Pneumothorax",
+      "Premature baby",
+      "Premature delivery",
+      "Pulmonary haemorrhage",
+      "Pulmonary haemorrhage neonatal",
+      "SARS-CoV-2 test positive",
+      "Sepsis",
+      "Sepsis neonatal"
+    ]
+  },
+  {
+    "id": "0fbfb2ae-88ee-4cca-9393-b6bb85ef97a8",
+    "ground_truth_reactions": [
+      "Febrile neutropenia",
+      "Generalised oedema",
+      "Neutropenia",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "44a64802-4d2e-4a65-9b52-499ce92cb947",
+    "ground_truth_reactions": [
+      "Acute hepatic failure",
+      "Cerebral atrophy",
+      "Coagulopathy",
+      "Congestive hepatopathy",
+      "Drug ineffective",
+      "Drug-induced liver injury",
+      "Encephalopathy"
+    ]
+  },
+  {
+    "id": "0c8b62f8-c932-46d3-b490-7c884e58347c",
+    "ground_truth_reactions": [
+      "Intestinal perforation",
+      "Peritonitis"
+    ]
+  },
+  {
+    "id": "06e75819-650d-4503-af37-045d5c91c8ee",
+    "ground_truth_reactions": [
+      "Cytomegalovirus infection reactivation",
+      "Leukopenia"
+    ]
+  },
+  {
+    "id": "5417e3e9-4832-4e09-abff-a99abbacc815",
+    "ground_truth_reactions": [
+      "Abnormal behaviour",
+      "Anxiety",
+      "Apathy",
+      "Depressive symptom",
+      "Hypersexuality",
+      "Hypomania",
+      "Impulse-control disorder",
+      "Libido increased",
+      "Personality change"
+    ]
+  },
+  {
+    "id": "81e3d9b5-f8d7-428b-8d0a-6a33be75b84a",
+    "ground_truth_reactions": [
+      "Exposure during pregnancy",
+      "Foetal exposure during pregnancy",
+      "Premature baby",
+      "Premature delivery",
+      "Respiratory distress"
+    ]
+  },
+  {
+    "id": "f53aba49-79a2-4af7-bc05-f2da7996f436",
+    "ground_truth_reactions": [
+      "Labelled drug-drug interaction issue",
+      "Pulmonary alveolar haemorrhage",
+      "Pulmonary haemorrhage",
+      "Thrombocytopenia"
+    ]
+  },
+  {
+    "id": "f95caffa-cf08-4dbc-8cc6-90052d8935e9",
+    "ground_truth_reactions": [
+      "Herpes zoster oticus"
+    ]
+  },
+  {
+    "id": "2d61bd44-7dc4-45e0-80bd-7c0fc35dcf63",
+    "ground_truth_reactions": [
+      "Drug ineffective"
+    ]
+  },
+  {
+    "id": "7c8390f8-d56b-44c4-8c74-7fac0b3cc7c6",
+    "ground_truth_reactions": [
+      "Headache",
+      "Idiopathic intracranial hypertension",
+      "Off label use",
+      "Papilloedema",
+      "Visual impairment"
+    ]
+  },
+  {
+    "id": "01d5a685-db27-47a1-9a25-bb951e2ef492",
+    "ground_truth_reactions": [
+      "Neurotoxicity",
+      "Overdose",
+      "Paralysis"
+    ]
+  },
+  {
+    "id": "286706b4-cced-4264-a688-41de535bfe96",
+    "ground_truth_reactions": [
+      "Accidental exposure to product by child",
+      "Cyanosis neonatal",
+      "Methaemoglobinaemia",
+      "Neonatal hypoxia"
+    ]
+  },
+  {
+    "id": "1ff1bdf7-b746-4843-b8ba-5547758e9c81",
+    "ground_truth_reactions": [
+      "Cognitive disorder",
+      "Headache",
+      "Off label use",
+      "Vision blurred"
+    ]
+  },
+  {
+    "id": "be544f63-afc3-4ef3-a951-bcd681c94916",
+    "ground_truth_reactions": [
+      "Congenital herpes simplex infection",
+      "Foetal death",
+      "Foetal exposure during pregnancy",
+      "Vertical infection transmission"
+    ]
+  },
+  {
+    "id": "8d064661-9bec-4755-b77b-52c8ef597774",
+    "ground_truth_reactions": [
+      "Off label use",
+      "Posterior reversible encephalopathy syndrome"
+    ]
+  },
+  {
+    "id": "48f8d23e-be46-4bb9-bc93-c0f47f12cb7e",
+    "ground_truth_reactions": [
+      "Product use issue"
+    ]
+  },
+  {
+    "id": "6c660d05-8dff-4785-97b1-d8817621bd42",
+    "ground_truth_reactions": [
+      "Optic atrophy"
+    ]
+  },
+  {
+    "id": "c376b9be-a78c-4c20-b8a4-c1cbf2bc65f2",
+    "ground_truth_reactions": [
+      "Desmoplastic small round cell tumour",
+      "Drug ineffective",
+      "Drug intolerance",
+      "Febrile neutropenia",
+      "Metastases to liver",
+      "Product use in unapproved indication"
+    ]
+  },
+  {
+    "id": "89b1b87a-dd95-4ad9-ad0e-34ad68ca6ac5",
+    "ground_truth_reactions": [
+      "Dysarthria",
+      "Hemiparesis"
+    ]
+  },
+  {
+    "id": "d5d49170-ff02-4526-9ab5-4554ecfca848",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "37877195-1739-4a0f-8856-e08a93d48416",
+    "ground_truth_reactions": [
+      "Gastrointestinal perforation"
+    ]
+  },
+  {
+    "id": "21b2cd0e-0d30-431c-ab11-3a86fd738e9b",
+    "ground_truth_reactions": [
+      "Brain oedema",
+      "Cross sensitivity reaction",
+      "Intracranial pressure increased",
+      "Microvascular cranial nerve palsy",
+      "Papilloedema",
+      "Transverse sinus stenosis"
+    ]
+  },
+  {
+    "id": "895901bc-8ebc-4c69-ac8b-b97ae7025ad6",
+    "ground_truth_reactions": [
+      "Exposure during pregnancy"
+    ]
+  },
+  {
+    "id": "57a7e1e2-0b66-4389-a588-c3ecb2ffe04d",
+    "ground_truth_reactions": [
+      "Disease progression",
+      "Drug ineffective"
+    ]
+  },
+  {
+    "id": "1cc000f6-9f42-4232-be77-cfe747bfae33",
+    "ground_truth_reactions": [
+      "Death",
+      "Diffuse large B-cell lymphoma",
+      "Drug ineffective",
+      "Follicular lymphoma",
+      "Infection"
+    ]
+  },
+  {
+    "id": "687fbab5-ea55-4f4e-8602-bf4f6f081def",
+    "ground_truth_reactions": [
+      "Alpha haemolytic streptococcal infection",
+      "Cytomegalovirus infection",
+      "Cytomegalovirus infection reactivation",
+      "Drug ineffective",
+      "Epstein-Barr virus infection",
+      "Escherichia infection",
+      "Haemophagocytic lymphohistiocytosis",
+      "Hepatic lesion",
+      "Metabolic acidosis",
+      "Off label use",
+      "Pancytopenia",
+      "Pneumonia fungal",
+      "Pulmonary cavitation",
+      "Renal failure",
+      "Renal transplant failure",
+      "Systemic lupus erythematosus",
+      "Transplant rejection"
+    ]
+  },
+  {
+    "id": "b38f4de3-e784-45f5-a0bb-40167b3a2ebd",
+    "ground_truth_reactions": [
+      "Serotonin syndrome"
+    ]
+  },
+  {
+    "id": "a5176a15-a713-4137-81d8-3df0cd433db9",
+    "ground_truth_reactions": [
+      "COVID-19",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "67c5e276-b12b-441f-888c-b2f3cf94c0ab",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Coronary artery aneurysm",
+      "Coronary artery thrombosis",
+      "Drug effective for unapproved indication",
+      "Hypotension",
+      "Mental status changes",
+      "Product use in unapproved indication",
+      "Respiratory failure"
+    ]
+  },
+  {
+    "id": "3aeacc90-9141-4676-9299-7315f25600e8",
+    "ground_truth_reactions": [
+      "Meningitis",
+      "Meningitis aseptic",
+      "Therapeutic product effect incomplete",
+      "Urinary retention"
+    ]
+  },
+  {
+    "id": "59234c26-9bf7-4d6f-a558-0d98855b30c9",
+    "ground_truth_reactions": [
+      "Osteonecrosis of jaw"
+    ]
+  },
+  {
+    "id": "4e0b2597-6f3a-4675-ab8e-738e69f94c5a",
+    "ground_truth_reactions": [
+      "Product use in unapproved indication"
+    ]
+  },
+  {
+    "id": "b9de38b7-93a0-4bf0-aa22-9deef991923a",
+    "ground_truth_reactions": [
+      "Pulmonary alveolar haemorrhage",
+      "Respiratory failure"
+    ]
+  },
+  {
+    "id": "e07194e4-be18-49c5-942b-f94cc384a559",
+    "ground_truth_reactions": [
+      "Acute respiratory distress syndrome",
+      "COVID-19",
+      "COVID-19 pneumonia",
+      "Condition aggravated",
+      "Drug ineffective for unapproved indication",
+      "Epstein-Barr viraemia",
+      "Epstein-Barr virus associated lymphoproliferative disorder",
+      "Graft versus host disease",
+      "Immunodeficiency common variable",
+      "Lymphopenia",
+      "Multiple organ dysfunction syndrome",
+      "Off label use",
+      "Post transplant lymphoproliferative disorder",
+      "Product use in unapproved indication",
+      "Respiratory failure"
+    ]
+  },
+  {
+    "id": "255c2bcb-8de5-45ea-96ec-1bd302f9a4ef",
+    "ground_truth_reactions": [
+      "Renal impairment"
+    ]
+  },
+  {
+    "id": "d374900f-63a0-4fe8-b4f4-ec2c766374c6",
+    "ground_truth_reactions": [
+      "Acute graft versus host disease in intestine",
+      "Acute graft versus host disease in skin",
+      "Chronic graft versus host disease in eye",
+      "Chronic graft versus host disease in skin",
+      "Drug ineffective for unapproved indication",
+      "Enterococcal bacteraemia",
+      "Graft versus host disease in gastrointestinal tract",
+      "Graft versus host disease in lung",
+      "Graft versus host disease in skin",
+      "Hypoalbuminaemia",
+      "Meningitis",
+      "Off label use",
+      "Pancytopenia",
+      "Primary mediastinal large B-cell lymphoma recurrent"
+    ]
+  },
+  {
+    "id": "4d8420ce-2ce9-40e5-99d7-fd94045e380f",
+    "ground_truth_reactions": [
+      "Aplastic anaemia"
+    ]
+  },
+  {
+    "id": "9dbf5ca4-857c-45ac-a645-01c52a864227",
+    "ground_truth_reactions": [
+      "Abdominal pain",
+      "Alopecia",
+      "Biliary obstruction",
+      "Blood glucose increased",
+      "Bradycardia",
+      "Cholecystitis acute",
+      "Cholelithiasis",
+      "Diarrhoea",
+      "Flatulence",
+      "Insulin-like growth factor increased",
+      "Therapeutic product effect incomplete"
+    ]
+  },
+  {
+    "id": "9b9ad0f6-2af1-48b9-be86-28261b7466b5",
+    "ground_truth_reactions": [
+      "Listeriosis",
+      "Osteomyelitis"
+    ]
+  },
+  {
+    "id": "aca5af64-06a9-4d7c-9aa6-f6226255f866",
+    "ground_truth_reactions": [
+      "Febrile neutropenia",
+      "Pyrexia",
+      "Septic shock"
+    ]
+  },
+  {
+    "id": "c9ac28b4-1e09-4744-bacc-4209deb93773",
+    "ground_truth_reactions": [
+      "Bronchopulmonary aspergillosis",
+      "Obliterative bronchiolitis",
+      "Off label use",
+      "Respiratory failure"
+    ]
+  },
+  {
+    "id": "161161d9-4318-4df2-afc9-d30e1a6eb05f",
+    "ground_truth_reactions": [
+      "Bacteraemia",
+      "Klebsiella infection",
+      "Peritonitis",
+      "Pneumonia klebsiella",
+      "Pseudomembranous colitis",
+      "Sepsis",
+      "Septic shock"
+    ]
+  },
+  {
+    "id": "f4c4d532-5b29-4106-ae9b-13f2682b7b77",
+    "ground_truth_reactions": [
+      "Malignant neoplasm progression"
+    ]
+  },
+  {
+    "id": "56703486-8123-4d80-8d93-bb0c99ff6ca2",
+    "ground_truth_reactions": [
+      "Major depression",
+      "Suicidal ideation"
+    ]
+  },
+  {
+    "id": "37f18200-6390-4b51-9ba4-1a175721abb9",
+    "ground_truth_reactions": [
+      "Hypophagia",
+      "Nephropathy"
+    ]
+  },
+  {
+    "id": "d4b15f4b-2e4a-4b5d-9436-756f897ed236",
+    "ground_truth_reactions": [
+      "Anaemia",
+      "Basal cell carcinoma",
+      "Epistaxis",
+      "Haematuria",
+      "Haemorrhage",
+      "Hyperhomocysteinaemia",
+      "Hypertensive heart disease",
+      "Melaena",
+      "Myocardial ischaemia",
+      "Transitional cell carcinoma"
+    ]
+  },
+  {
+    "id": "ddafdc64-5ba7-4d2e-9973-6a3c8cbcf190",
+    "ground_truth_reactions": [
+      "Amenorrhoea",
+      "Device issue",
+      "Drug ineffective",
+      "Ectopic pregnancy with contraceptive device",
+      "Exposure during pregnancy",
+      "Haemoperitoneum",
+      "Ruptured ectopic pregnancy"
+    ]
+  },
+  {
+    "id": "1a3fc810-377f-489a-bfee-3e379effa18e",
+    "ground_truth_reactions": [
+      "Acute generalised exanthematous pustulosis",
+      "Drug ineffective",
+      "Hypotension",
+      "Tachycardia",
+      "Tachypnoea"
+    ]
+  },
+  {
+    "id": "1a09af67-1d3f-4396-b6c8-fef46594875f",
+    "ground_truth_reactions": [
+      "Fungaemia",
+      "Trichosporon infection"
+    ]
+  },
+  {
+    "id": "055c613f-2f8a-48d9-8620-a24b9d57bfdd",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Drug interaction",
+      "Drug level increased",
+      "Paronychia",
+      "Pustule",
+      "Skin reaction",
+      "Therapy partial responder",
+      "Treatment noncompliance"
+    ]
+  },
+  {
+    "id": "7f84fb8a-fd5d-4251-9fdf-557666f15d07",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Endocarditis"
+    ]
+  },
+  {
+    "id": "cdda8a94-1ac0-44eb-9f28-a163c0cce8a1",
+    "ground_truth_reactions": [
+      "Abdominal abscess",
+      "Acquired diaphragmatic eventration",
+      "Cholecystitis acute",
+      "Intestinal perforation"
+    ]
+  },
+  {
+    "id": "163710ef-44f1-4dca-bf0c-b259b26705c3",
+    "ground_truth_reactions": [
+      "Renal cell carcinoma",
+      "Renal cell carcinoma stage III"
+    ]
+  },
+  {
+    "id": "0ee3b788-00c9-47cb-8121-d72a79e53427",
+    "ground_truth_reactions": [
+      "Abdominal pain lower",
+      "Abdominal tenderness",
+      "Acute kidney injury",
+      "Colitis microscopic",
+      "Diarrhoea",
+      "Erythema",
+      "Normocytic anaemia",
+      "Thrombocytopenia",
+      "Weight decreased"
+    ]
+  },
+  {
+    "id": "4b245f9d-2ef8-4dbf-a438-fba2722496b6",
+    "ground_truth_reactions": [
+      "Acute kidney injury",
+      "Acute respiratory failure",
+      "Haemangioma of spleen",
+      "Haemoperitoneum",
+      "Hypotension",
+      "Lung infiltration",
+      "Pneumonia influenzal",
+      "Shock haemorrhagic",
+      "Splenic rupture",
+      "Splenomegaly",
+      "Transaminases increased",
+      "Treatment failure"
+    ]
+  },
+  {
+    "id": "64d90149-38bc-4027-9911-63507d679704",
+    "ground_truth_reactions": [
+      "Diarrhoea",
+      "Electrocardiogram QT prolonged",
+      "Fatigue",
+      "Hypocalcaemia",
+      "Hypokalaemia",
+      "Hypomagnesaemia",
+      "Hypophosphataemia"
+    ]
+  },
+  {
+    "id": "2a26efb3-2357-4399-946a-1fec8996ab0e",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Drug ineffective for unapproved indication",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "f7387261-cff3-4a4c-9361-744e793399b3",
+    "ground_truth_reactions": [
+      "Disease progression",
+      "Drug ineffective",
+      "Peritonitis",
+      "Small intestinal obstruction"
+    ]
+  },
+  {
+    "id": "cb0657ee-2074-4c18-8b64-bc1c525e9707",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Drug withdrawal syndrome",
+      "Feeling hot",
+      "Hot flush",
+      "Hyperhidrosis",
+      "Nausea",
+      "Pain",
+      "Withdrawal syndrome"
+    ]
+  },
+  {
+    "id": "f2971374-2612-478a-b36a-8136e0acc124",
+    "ground_truth_reactions": [
+      "Pathogen resistance",
+      "Viral mutation identified",
+      "Virologic failure"
+    ]
+  },
+  {
+    "id": "ca53fd57-36f9-46e9-bb51-c35ce4cd8f8b",
+    "ground_truth_reactions": [
+      "Eosinophilic pneumonia",
+      "Traumatic lung injury"
+    ]
+  },
+  {
+    "id": "d797006f-9b1c-4094-bdaa-68c5b1553f5d",
+    "ground_truth_reactions": [
+      "Abdominal infection",
+      "Bile duct necrosis",
+      "Drug ineffective",
+      "Drug ineffective for unapproved indication",
+      "Drug resistance",
+      "Nervous system disorder",
+      "Neurological symptom",
+      "Off label use",
+      "Sepsis",
+      "Therapeutic product effect incomplete"
+    ]
+  },
+  {
+    "id": "24aa8d7f-1176-4cef-9f2e-f81b029bc424",
+    "ground_truth_reactions": [
+      "Drug ineffective for unapproved indication",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "314fe4a3-f83b-4413-88c1-137cca264fd2",
+    "ground_truth_reactions": [
+      "Acute graft versus host disease in intestine",
+      "Acute graft versus host disease in skin",
+      "Agitation",
+      "Asthenia",
+      "Chest pain",
+      "Confusional state",
+      "Cytomegalovirus infection",
+      "Cytomegalovirus infection reactivation",
+      "Drug ineffective",
+      "Drug resistance",
+      "Epstein-Barr virus infection",
+      "Off label use",
+      "Paraesthesia",
+      "Pathogen resistance"
+    ]
+  },
+  {
+    "id": "fcfdd8d8-6383-428e-822c-1bad62a7139c",
+    "ground_truth_reactions": [
+      "Death"
+    ]
+  },
+  {
+    "id": "d79bec21-d423-41a2-91a8-dc1c183c0074",
+    "ground_truth_reactions": [
+      "Blood lactate dehydrogenase increased",
+      "Bone pain",
+      "Condition aggravated",
+      "Cytopenia",
+      "Fatigue",
+      "Pyrexia",
+      "Therapeutic response shortened"
+    ]
+  },
+  {
+    "id": "7a524a83-acde-40ac-b4da-46a2c0762ed1",
+    "ground_truth_reactions": [
+      "Haemorrhagic cholecystitis"
+    ]
+  },
+  {
+    "id": "d673fe2f-b789-4199-ae61-04297138c5f9",
+    "ground_truth_reactions": [
+      "Acute kidney injury",
+      "Anaemia",
+      "Colitis ischaemic",
+      "Intestinal haemorrhage",
+      "Metabolic acidosis",
+      "Overdose",
+      "Shock haemorrhagic"
+    ]
+  },
+  {
+    "id": "9f5667dd-f464-4406-9b74-620a0b10b339",
+    "ground_truth_reactions": [
+      "Cytokine release syndrome",
+      "Diffuse large B-cell lymphoma",
+      "Febrile neutropenia",
+      "Immune effector cell-associated neurotoxicity syndrome",
+      "Infection"
+    ]
+  },
+  {
+    "id": "fa85190a-d4f2-425f-8a68-50ff5d9c822c",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Hyperthyroidism",
+      "Therapy non-responder",
+      "Treatment noncompliance"
+    ]
+  },
+  {
+    "id": "c1470126-20ca-4a9d-a31c-feaa6e1497f6",
+    "ground_truth_reactions": [
+      "Abdominal pain",
+      "Alopecia",
+      "Anaemia",
+      "Blood albumin decreased",
+      "Colorectal adenocarcinoma",
+      "Death",
+      "Deep vein thrombosis",
+      "Drug ineffective",
+      "Leukopenia",
+      "Lymphopenia",
+      "Neuropathy peripheral",
+      "Neutropenia",
+      "Sepsis"
+    ]
+  },
+  {
+    "id": "86faf42e-ab51-43ba-a8e1-622a70278541",
+    "ground_truth_reactions": [
+      "Death",
+      "Giant cell arteritis",
+      "Optic ischaemic neuropathy",
+      "Pneumonia"
+    ]
+  },
+  {
+    "id": "f0a49770-047d-408d-ae6f-efdbc2c67ca4",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Dyspnoea",
+      "Gastrooesophageal reflux disease",
+      "Product use in unapproved indication",
+      "Pulmonary oedema"
+    ]
+  },
+  {
+    "id": "e9fe0d9c-6904-4274-9eda-efbf8875164c",
+    "ground_truth_reactions": [
+      "Drug ineffective for unapproved indication",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "920e0b03-c5d7-43b6-abbd-a90e5625e8be",
+    "ground_truth_reactions": [
+      "Abdominal discomfort",
+      "Drug intolerance",
+      "Tremor"
+    ]
+  },
+  {
+    "id": "a4200d87-d4a9-4eeb-944d-8bc20a754838",
+    "ground_truth_reactions": [
+      "Off label use"
+    ]
+  },
+  {
+    "id": "480f6fc1-31f6-45a2-9cd4-62ea63753560",
+    "ground_truth_reactions": [
+      "Coronary artery occlusion",
+      "Coronary artery thrombosis",
+      "Haemodynamic instability",
+      "Heparin-induced thrombocytopenia"
+    ]
+  },
+  {
+    "id": "433bebc6-c940-49f8-abb4-5d74f809292f",
+    "ground_truth_reactions": [
+      "Multiple-drug resistance",
+      "Status epilepticus"
+    ]
+  },
+  {
+    "id": "e6c0cb06-9734-432a-96be-2f9a63dc05fe",
+    "ground_truth_reactions": [
+      "COVID-19",
+      "Drug ineffective",
+      "Exposure during pregnancy",
+      "Foetal exposure during pregnancy",
+      "Foetal growth restriction",
+      "Growth retardation",
+      "Live birth",
+      "Low birth weight baby",
+      "Maternal exposure during pregnancy",
+      "Myocarditis",
+      "Off label use",
+      "Premature baby",
+      "Premature delivery",
+      "Product use in unapproved indication",
+      "Tachycardia",
+      "Tachycardia foetal",
+      "Vertical infection transmission"
+    ]
+  },
+  {
+    "id": "6c9712cc-9b36-42be-ab92-b4779278542a",
+    "ground_truth_reactions": [
+      "Infection",
+      "Metastasis",
+      "Plasma cell myeloma recurrent"
+    ]
+  },
+  {
+    "id": "da6d0549-f5b1-413c-83bc-f55b6f7001f8",
+    "ground_truth_reactions": [
+      "Blood glucose abnormal",
+      "Spinal compression fracture"
+    ]
+  },
+  {
+    "id": "3cd6aea3-689d-49b3-95ca-1b1f83288ef1",
+    "ground_truth_reactions": [
+      "Epilepsy"
+    ]
+  },
+  {
+    "id": "341dea49-76aa-4ac4-9220-dcc6d6bfae45",
+    "ground_truth_reactions": [
+      "Toxic epidermal necrolysis"
+    ]
+  },
+  {
+    "id": "5cae8bcb-426b-4b49-92b0-b745d96b8e7d",
+    "ground_truth_reactions": [
+      "Acute kidney injury",
+      "Anaemia",
+      "Disease progression",
+      "Haematotoxicity",
+      "Microangiopathic haemolytic anaemia",
+      "Mucosal inflammation",
+      "Neoplasm progression",
+      "Neutropenia",
+      "Renal failure",
+      "Thrombocytopenia",
+      "Thrombotic microangiopathy"
+    ]
+  },
+  {
+    "id": "65d50770-5720-4700-9cde-1d4da33d96eb",
+    "ground_truth_reactions": [
+      "Neutropenia",
+      "Pneumonia parainfluenzae viral",
+      "Pneumonia pneumococcal"
+    ]
+  },
+  {
+    "id": "01ef3ed5-0f3f-4811-ad53-96a0635868b5",
+    "ground_truth_reactions": [
+      "Colitis",
+      "Immune-mediated enterocolitis"
+    ]
+  },
+  {
+    "id": "d71be633-9eaf-48b4-89ba-45457f9b10df",
+    "ground_truth_reactions": [
+      "Drug ineffective for unapproved indication",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "f8c9a8fe-58b4-4189-9dea-531129a91cf9",
+    "ground_truth_reactions": [
+      "Metastatic malignant melanoma"
+    ]
+  },
+  {
+    "id": "64a3a4bc-1d74-4529-bb23-620a70672a55",
+    "ground_truth_reactions": [
+      "Fatigue",
+      "Neutropenia"
+    ]
+  },
+  {
+    "id": "e69cc27e-2c3a-45fd-a6b8-2fc4669052d3",
+    "ground_truth_reactions": [
+      "Malignant neoplasm progression",
+      "Neutropenia",
+      "Off label use",
+      "Product use in unapproved indication"
+    ]
+  },
+  {
+    "id": "606e666f-48f5-49c4-9b60-a9d26ea87089",
+    "ground_truth_reactions": [
+      "Disease progression",
+      "Drug ineffective",
+      "Drug resistance",
+      "Headache",
+      "Meningism",
+      "Off label use",
+      "Overdose",
+      "Pneumocystis jirovecii pneumonia",
+      "Product use issue",
+      "Therapy non-responder",
+      "Uveitis"
+    ]
+  },
+  {
+    "id": "be96bb9e-5626-4e69-ac7d-2a3074e55f16",
+    "ground_truth_reactions": [
+      "Coagulopathy",
+      "Hypokalaemia",
+      "Hyponatraemia",
+      "Liver injury",
+      "Myelosuppression",
+      "Pyrexia"
+    ]
+  },
+  {
+    "id": "dda62396-42e2-4f53-946b-1d0539982631",
+    "ground_truth_reactions": [
+      "Drug hypersensitivity",
+      "Uveitis"
+    ]
+  },
+  {
+    "id": "78d11727-b32b-446e-b7df-230ee1193548",
+    "ground_truth_reactions": [
+      "Retinal detachment",
+      "Retinal tear"
+    ]
+  },
+  {
+    "id": "6ab9a4fc-1d41-4de2-a765-39800b5db346",
+    "ground_truth_reactions": [
+      "Loss of consciousness"
+    ]
+  },
+  {
+    "id": "efdc5348-f589-49ef-b187-3e91cd1f6f29",
+    "ground_truth_reactions": [
+      "Asthenia",
+      "Disease progression",
+      "Drug ineffective",
+      "Mucosal inflammation",
+      "Therapeutic product effect incomplete"
+    ]
+  },
+  {
+    "id": "365d851e-1bca-42d0-bccb-527b4f04d377",
+    "ground_truth_reactions": [
+      "Condition aggravated"
+    ]
+  },
+  {
+    "id": "8b1372c9-9de5-40c3-b3b8-ee2940957959",
+    "ground_truth_reactions": [
+      "Decreased appetite",
+      "Disease progression",
+      "Dyspnoea",
+      "Fatigue"
+    ]
+  },
+  {
+    "id": "0016fa39-29e5-415d-a340-4a2728e5a08b",
+    "ground_truth_reactions": [
+      "Clostridium test positive",
+      "Gastrointestinal wall thickening",
+      "Large intestine perforation",
+      "Vascular wall hypertrophy"
+    ]
+  },
+  {
+    "id": "33bf3dc0-65eb-4b16-8d5d-d01e03c34f03",
+    "ground_truth_reactions": [
+      "Bradycardia",
+      "Cardiac arrest",
+      "Condition aggravated",
+      "Hypocalcaemia",
+      "Hypotension",
+      "Hypothermia",
+      "Ischaemia",
+      "Metabolic acidosis",
+      "Myocardial infarction",
+      "Myocardial ischaemia",
+      "Ventricular fibrillation"
+    ]
+  },
+  {
+    "id": "0c852a4a-d474-45d6-9d50-9cf02a9d2591",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Vitiligo"
+    ]
+  },
+  {
+    "id": "81e46bfe-ccb3-4a1f-8c7a-eb4db0739e9b",
+    "ground_truth_reactions": [
+      "Heparin-induced thrombocytopenia"
+    ]
+  },
+  {
+    "id": "56d23f3d-4558-4b1b-9117-2af1d01415fb",
+    "ground_truth_reactions": [
+      "Histoplasmosis disseminated"
+    ]
+  },
+  {
+    "id": "012f1db8-fb47-4665-8c37-39acfd3b7763",
+    "ground_truth_reactions": [
+      "Cutaneous T-cell lymphoma stage II"
+    ]
+  },
+  {
+    "id": "8c6af122-8f35-4fdb-8570-1eced8e174e4",
+    "ground_truth_reactions": [
+      "Therapy partial responder"
+    ]
+  },
+  {
+    "id": "c29d680c-45da-44c3-b2ac-6142f80102c2",
+    "ground_truth_reactions": [
+      "Anticoagulation drug level above therapeutic",
+      "Anticoagulation drug level below therapeutic",
+      "Contraindicated product administered",
+      "Device related thrombosis",
+      "Drug interaction",
+      "Food interaction",
+      "Gastric disorder",
+      "Gastrointestinal haemorrhage",
+      "Haematuria",
+      "Haemorrhagic erosive gastritis",
+      "Intentional product use issue",
+      "Labelled drug-drug interaction medication error",
+      "Thrombosis in device",
+      "Treatment failure",
+      "Upper gastrointestinal haemorrhage"
+    ]
+  },
+  {
+    "id": "526bba9c-b2b8-4aec-8955-736a6ced1aa6",
+    "ground_truth_reactions": [
+      "Blood creatinine increased",
+      "Febrile neutropenia",
+      "Hepatic function abnormal",
+      "Mucosal inflammation"
+    ]
+  },
+  {
+    "id": "e0161341-e6a2-4b40-9c84-4664d196e080",
+    "ground_truth_reactions": [
+      "Cardiotoxicity"
+    ]
+  },
+  {
+    "id": "2d2cd421-dcd3-477c-bb0b-974ec8dfc2e8",
+    "ground_truth_reactions": [
+      "Cardiotoxicity",
+      "Electrocardiogram QRS complex abnormal",
+      "Orthostatic hypotension",
+      "Pericardial effusion",
+      "Sinus tachycardia",
+      "Tachycardia"
+    ]
+  },
+  {
+    "id": "1b76b97f-320c-4896-9829-1a8c2aeedfe7",
+    "ground_truth_reactions": [
+      "Atrial fibrillation",
+      "Death",
+      "Pneumonia legionella"
+    ]
+  },
+  {
+    "id": "bfa86c36-97b0-4f85-a4c7-e8be39e336fc",
+    "ground_truth_reactions": [
+      "Glomerulonephritis membranoproliferative",
+      "Therapeutic product effect incomplete"
+    ]
+  },
+  {
+    "id": "07fedbb2-5e85-44ec-91e7-f282194f7371",
+    "ground_truth_reactions": [
+      "Anaemia",
+      "Cerebral haemorrhage",
+      "Depressed level of consciousness",
+      "Headache",
+      "Retinal haemorrhage",
+      "Seizure",
+      "Thrombocytosis"
+    ]
+  },
+  {
+    "id": "9e88a67d-c46a-4b24-901f-be554188bd52",
+    "ground_truth_reactions": [
+      "Device related infection",
+      "Neutropenic infection"
+    ]
+  },
+  {
+    "id": "dd7b9954-83a1-42ef-af50-c03f6fcb2c3f",
+    "ground_truth_reactions": [
+      "Lichenoid keratosis",
+      "Pemphigoid",
+      "Skin toxicity",
+      "Tubulointerstitial nephritis"
+    ]
+  },
+  {
+    "id": "2adc10ea-8e01-499f-8876-3072d7eca836",
+    "ground_truth_reactions": [
+      "Cerebrovascular accident",
+      "Eye infection",
+      "Gastrointestinal infection",
+      "Genital infection",
+      "Hypogammaglobulinaemia",
+      "Infection",
+      "Inflammatory bowel disease",
+      "Lower respiratory tract infection",
+      "Meningitis enteroviral",
+      "Myocardial infarction",
+      "Off label use",
+      "Oral infection",
+      "Psoriasis",
+      "Skin infection",
+      "Tooth infection",
+      "Toxic skin eruption",
+      "Upper respiratory tract infection",
+      "Urinary tract infection"
+    ]
+  },
+  {
+    "id": "5b2d2a47-ad00-4377-80aa-ea8b212503b4",
+    "ground_truth_reactions": [
+      "Haemolytic anaemia",
+      "Hyperbilirubinaemia",
+      "Intentional product misuse",
+      "Liver injury",
+      "Renal disorder"
+    ]
+  },
+  {
+    "id": "a5001612-3d3d-41e3-a6f3-5f290af61794",
+    "ground_truth_reactions": [
+      "Abdominal distension",
+      "Ascites",
+      "Hepatic cirrhosis",
+      "Malignant ascites",
+      "Pleural effusion",
+      "Pseudocirrhosis",
+      "Varices oesophageal"
+    ]
+  },
+  {
+    "id": "48cdc1c5-e4ac-47f1-acdf-7994a2394e7b",
+    "ground_truth_reactions": [
+      "Administration site extravasation",
+      "Breast necrosis"
+    ]
+  },
+  {
+    "id": "08f2c33f-6c95-4239-8a09-36be4b6dbe7e",
+    "ground_truth_reactions": [
+      "Tumour lysis syndrome"
+    ]
+  },
+  {
+    "id": "7d66d1e3-adbb-4837-b873-c362eb0f9357",
+    "ground_truth_reactions": [
+      "Sepsis"
+    ]
+  },
+  {
+    "id": "affcfcce-06ec-4652-9ef9-fee3e8cb74ad",
+    "ground_truth_reactions": [
+      "Gingivitis",
+      "Hepatic function abnormal",
+      "Paraplegia",
+      "White blood cell count decreased"
+    ]
+  },
+  {
+    "id": "d9457fdc-96e9-443e-88d9-8753e3a17dec",
+    "ground_truth_reactions": [
+      "COVID-19",
+      "Drug effective for unapproved indication",
+      "Exposure during pregnancy",
+      "Foetal exposure during pregnancy",
+      "Maternal exposure during pregnancy",
+      "Off label use",
+      "Premature baby",
+      "Premature delivery"
+    ]
+  },
+  {
+    "id": "3f88a379-3830-4f65-9ad8-de94c288e7e9",
+    "ground_truth_reactions": [
+      "Hypocalcaemia",
+      "Hypoparathyroidism"
+    ]
+  },
+  {
+    "id": "b53b020f-46a0-4de1-8753-2da07c1b29ba",
+    "ground_truth_reactions": [
+      "Drug hypersensitivity"
+    ]
+  },
+  {
+    "id": "2aa243ef-5c1b-4622-ba03-231d839fbcac",
+    "ground_truth_reactions": [
+      "Angioedema"
+    ]
+  },
+  {
+    "id": "e06127ff-8ae3-429d-84ae-a7c286943ba7",
+    "ground_truth_reactions": [
+      "Acute hepatic failure",
+      "Acute respiratory failure",
+      "Anaemia",
+      "Cardiac arrest",
+      "Cardiac failure acute",
+      "Decreased appetite",
+      "Dehydration",
+      "Diarrhoea",
+      "Disseminated intravascular coagulation",
+      "Dyspnoea",
+      "Electrolyte imbalance",
+      "Enterobacter infection",
+      "Haemophagocytic lymphohistiocytosis",
+      "Hypoproteinaemia",
+      "Multiple organ dysfunction syndrome",
+      "Nausea",
+      "Oliguria",
+      "Pyrexia",
+      "Shock",
+      "Splenomegaly",
+      "Still's disease",
+      "Treatment noncompliance",
+      "Vomiting"
+    ]
+  },
+  {
+    "id": "1b6cc809-5945-4fe2-9767-a87b67692143",
+    "ground_truth_reactions": [
+      "Arteriospasm coronary"
+    ]
+  },
+  {
+    "id": "48a52e3c-9d75-4838-b3dd-1662166aa221",
+    "ground_truth_reactions": [
+      "Chromoblastomycosis"
+    ]
+  },
+  {
+    "id": "6b83b7d1-7810-4147-b937-4c10a87e8599",
+    "ground_truth_reactions": [
+      "Arterial injury",
+      "Arterial rupture",
+      "Decreased immune responsiveness",
+      "Drug interaction",
+      "Localised infection"
+    ]
+  },
+  {
+    "id": "4aa9a19f-acf3-42c0-91bc-06fd8fe0dad7",
+    "ground_truth_reactions": [
+      "Agitation",
+      "Ataxia",
+      "Deep vein thrombosis",
+      "Disease progression",
+      "Disturbance in attention",
+      "Fatigue",
+      "Memory impairment",
+      "Status epilepticus"
+    ]
+  },
+  {
+    "id": "98403040-c322-41b0-bef5-e7700ac4e289",
+    "ground_truth_reactions": [
+      "Abdominal discomfort",
+      "Alanine aminotransferase increased",
+      "Aspartate aminotransferase increased",
+      "Condition aggravated",
+      "Drug-induced liver injury",
+      "Dry eye",
+      "Exercise tolerance decreased",
+      "Forced expiratory volume decreased",
+      "Gamma-glutamyltransferase increased",
+      "Hepatic necrosis",
+      "Hepatitis",
+      "Off label use",
+      "Respiratory disorder",
+      "Transaminases increased",
+      "Weight decreased"
+    ]
+  },
+  {
+    "id": "b2d57e58-6411-4f5c-bc87-1b1858f0ca3a",
+    "ground_truth_reactions": [
+      "Angle closure glaucoma",
+      "Choroidal effusion"
+    ]
+  },
+  {
+    "id": "19e14460-08bb-4da2-80b8-aa5ae3054bb3",
+    "ground_truth_reactions": [
+      "Drug intolerance",
+      "Febrile neutropenia",
+      "Neuropathy peripheral",
+      "Off label use",
+      "Toxicity to various agents",
+      "Vomiting"
+    ]
+  },
+  {
+    "id": "df1fb469-da09-4889-9b4e-f2d930863619",
+    "ground_truth_reactions": [
+      "Cholecystitis acute",
+      "Haemobilia",
+      "Haemorrhagic ascites",
+      "Haemorrhagic cholecystitis"
+    ]
+  },
+  {
+    "id": "bc662c5d-3a87-4cca-9958-73f36452502f",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Metastases to meninges",
+      "Product use in unapproved indication"
+    ]
+  },
+  {
+    "id": "767ca2a8-817c-42a5-9a79-86b7b4dd625e",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "IgM nephropathy",
+      "Interstitial lung disease",
+      "Mesenteric haematoma",
+      "Nephrotic syndrome",
+      "Oedema peripheral",
+      "Pancreatic pseudocyst",
+      "Pancreatic pseudocyst haemorrhage",
+      "Pancreatitis acute",
+      "Pleural effusion",
+      "Respiratory failure"
+    ]
+  },
+  {
+    "id": "a4fd8cf2-61ec-49e9-a5f4-41af35e3833a",
+    "ground_truth_reactions": [
+      "Blood creatinine increased",
+      "Blood urea increased",
+      "Bradyarrhythmia",
+      "Bundle branch block left",
+      "Congestive cardiomyopathy",
+      "Diarrhoea",
+      "Dizziness",
+      "Drug abuse",
+      "Electrocardiogram QRS complex prolonged",
+      "Electrocardiogram QT prolonged",
+      "Electrocardiogram T wave alternans",
+      "Hyperhidrosis",
+      "Hypokalaemia",
+      "Long QT syndrome",
+      "Overdose",
+      "Renal impairment",
+      "Substance abuse",
+      "Substance use",
+      "Syncope",
+      "Torsade de pointes",
+      "Ventricular arrhythmia",
+      "Ventricular tachycardia"
+    ]
+  },
+  {
+    "id": "adacc962-5f2f-4d8c-a153-f835610b2ca7",
+    "ground_truth_reactions": [
+      "Cerebrovascular accident",
+      "Therapy non-responder"
+    ]
+  },
+  {
+    "id": "ec5b5855-d843-48e9-b161-85e02e227ea0",
+    "ground_truth_reactions": [
+      "Drug ineffective for unapproved indication",
+      "Off label use",
+      "Treatment failure"
+    ]
+  },
+  {
+    "id": "1ca7f9cd-3606-4448-b383-7e14d5a167be",
+    "ground_truth_reactions": [
+      "Bacteroides test positive",
+      "Fusarium infection",
+      "Gastrointestinal necrosis",
+      "Granulomatous liver disease",
+      "Hepatic necrosis",
+      "Leukaemia recurrent",
+      "Liver abscess",
+      "Peritonitis"
+    ]
+  },
+  {
+    "id": "1a8ec545-5464-4fb6-b642-c61cdbebd5d0",
+    "ground_truth_reactions": [
+      "Coronary artery dissection"
+    ]
+  },
+  {
+    "id": "836b66af-3c99-4e38-998e-8b58f58c420e",
+    "ground_truth_reactions": [
+      "Inflammation",
+      "Multiple organ dysfunction syndrome",
+      "Product use in unapproved indication"
+    ]
+  },
+  {
+    "id": "77c926b8-20b9-43be-9e0c-6024824b6d6e",
+    "ground_truth_reactions": [
+      "Anticonvulsant drug level below therapeutic",
+      "Drug interaction",
+      "Drug level decreased",
+      "Epilepsy",
+      "Neurotoxicity",
+      "Petit mal epilepsy",
+      "Seizure"
+    ]
+  },
+  {
+    "id": "a04776a2-6e74-4493-84ec-1ed470b78a8b",
+    "ground_truth_reactions": [
+      "Breast cancer"
+    ]
+  },
+  {
+    "id": "8fb29437-c598-49e8-ba9d-bb5e5516003e",
+    "ground_truth_reactions": [
+      "Acute generalised exanthematous pustulosis",
+      "Acute kidney injury",
+      "Condition aggravated",
+      "SJS-TEN overlap",
+      "Stevens-Johnson syndrome",
+      "Toxic epidermal necrolysis",
+      "Tubulointerstitial nephritis"
+    ]
+  },
+  {
+    "id": "24a12f6d-b557-43aa-acc6-79b74735ec84",
+    "ground_truth_reactions": [
+      "Immune-mediated myocarditis"
+    ]
+  },
+  {
+    "id": "ede8b5f6-a0b8-4f5a-983a-7c0b34bfec2c",
+    "ground_truth_reactions": [
+      "Haemoglobin decreased",
+      "Off label use",
+      "Retroperitoneal haemorrhage"
+    ]
+  },
+  {
+    "id": "ed1225f5-de3e-464b-9db4-deb437292d08",
+    "ground_truth_reactions": [
+      "Drug ineffective"
+    ]
+  },
+  {
+    "id": "6f84739a-d110-45e8-97e9-978e954b13ae",
+    "ground_truth_reactions": [
+      "Drug interaction",
+      "Injury",
+      "Musculoskeletal injury",
+      "Neuroleptic malignant syndrome"
+    ]
+  },
+  {
+    "id": "861817d9-3d89-42b7-aa36-86fd02b10366",
+    "ground_truth_reactions": [
+      "Abscess bacterial",
+      "Acute graft versus host disease in skin",
+      "Chronic graft versus host disease",
+      "Chronic graft versus host disease in skin",
+      "Disease recurrence",
+      "Drug ineffective",
+      "Graft versus host disease in gastrointestinal tract",
+      "Graft versus host disease in skin",
+      "Nocardiosis",
+      "Pleural effusion",
+      "Product use in unapproved indication",
+      "Renal impairment"
+    ]
+  },
+  {
+    "id": "1434614b-82fa-4804-b731-afe7b910ed04",
+    "ground_truth_reactions": [
+      "Therapeutic product effect incomplete"
+    ]
+  },
+  {
+    "id": "b9b39fb6-0db4-406f-9386-554c8285a4f6",
+    "ground_truth_reactions": [
+      "Overdose",
+      "Pneumonia aspiration"
+    ]
+  },
+  {
+    "id": "960f2652-9627-4a19-b722-d9bb12b351ca",
+    "ground_truth_reactions": [
+      "Disease recurrence",
+      "Therapeutic product effect incomplete"
+    ]
+  },
+  {
+    "id": "0182947c-1340-4bee-8d95-e8891a4914b9",
+    "ground_truth_reactions": [
+      "Blood pressure decreased",
+      "Bradycardia",
+      "Electrocardiogram QT prolonged",
+      "Torsade de pointes"
+    ]
+  },
+  {
+    "id": "8b30775e-a338-4639-b30a-1266eda9a267",
+    "ground_truth_reactions": [
+      "Cardiac failure acute",
+      "Castleman's disease",
+      "Organ failure",
+      "Pancytopenia",
+      "Pulmonary oedema"
+    ]
+  },
+  {
+    "id": "d37ba741-2530-4266-ac50-8fdd8a304806",
+    "ground_truth_reactions": [
+      "Procedural haemorrhage"
+    ]
+  },
+  {
+    "id": "3d2f91a8-94af-4739-aeef-edd7ae9f603b",
+    "ground_truth_reactions": [
+      "Tracheal dilatation",
+      "Tracheo-oesophageal fistula"
+    ]
+  },
+  {
+    "id": "e13aee68-3a46-4110-94e5-eabd040d5267",
+    "ground_truth_reactions": [
+      "Pulmonary sarcoidosis"
+    ]
+  },
+  {
+    "id": "896e04a5-5d96-4d52-b31e-a8041731f16f",
+    "ground_truth_reactions": [
+      "Haematoma"
+    ]
+  },
+  {
+    "id": "9224e6a5-85e0-4849-bfbd-1f9107d235b1",
+    "ground_truth_reactions": [
+      "Cardiac arrest"
+    ]
+  },
+  {
+    "id": "ba0d5db5-97f0-4213-86a7-126697c1a372",
+    "ground_truth_reactions": [
+      "Bradycardia",
+      "Brugada syndrome",
+      "Drug ineffective",
+      "Electrocardiogram abnormal",
+      "Unmasking of previously unidentified disease"
+    ]
+  },
+  {
+    "id": "3147f9ce-ba26-4427-bbca-aee51af6b553",
+    "ground_truth_reactions": [
+      "Hyperglycaemia"
+    ]
+  },
+  {
+    "id": "12c29f85-f8ba-4910-87db-297fb37d61aa",
+    "ground_truth_reactions": [
+      "Basal cell carcinoma",
+      "CD4 lymphocytes decreased",
+      "Neutropenia",
+      "Thrombocytopenia",
+      "Toxicity to various agents"
+    ]
+  },
+  {
+    "id": "71e91eb7-eaaf-47cd-8831-567b51e7d3d2",
+    "ground_truth_reactions": [
+      "Off label use",
+      "Palmar-plantar erythrodysaesthesia syndrome"
+    ]
+  },
+  {
+    "id": "027927aa-f514-418a-85ba-785dc0fb3f65",
+    "ground_truth_reactions": [
+      "Cytokine release syndrome",
+      "Drug ineffective"
+    ]
+  },
+  {
+    "id": "e264f313-d9e9-47bd-b220-ab6eaa121f36",
+    "ground_truth_reactions": [
+      "Drug ineffective"
+    ]
+  },
+  {
+    "id": "cabdcb8e-6182-47ee-8860-45dab1a02566",
+    "ground_truth_reactions": [
+      "Candida infection",
+      "Condition aggravated",
+      "Drug effective for unapproved indication",
+      "Drug hypersensitivity",
+      "Intentional product use issue",
+      "Keratitis",
+      "Ocular hypertension",
+      "Oedema",
+      "Rebound effect"
+    ]
+  },
+  {
+    "id": "cef169fc-4a4f-48d7-b52c-f35b64d51c44",
+    "ground_truth_reactions": [
+      "Product use in unapproved indication",
+      "Respiratory tract infection"
+    ]
+  },
+  {
+    "id": "b65ceb98-e578-4db3-8028-21dbd368d194",
+    "ground_truth_reactions": [
+      "Acute kidney injury",
+      "Drug interaction",
+      "Labelled drug-drug interaction medication error"
+    ]
+  },
+  {
+    "id": "95ba3176-a363-45d1-a9a8-d103f30eed41",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Product use in unapproved indication"
+    ]
+  },
+  {
+    "id": "e2a384bc-3f80-4c3a-a6f0-abd2af86084f",
+    "ground_truth_reactions": [
+      "Hepatitis B",
+      "Liver injury"
+    ]
+  },
+  {
+    "id": "1c1eb467-8cab-4b62-afd3-07ed784e6770",
+    "ground_truth_reactions": [
+      "Drug ineffective"
+    ]
+  },
+  {
+    "id": "d21c0452-047d-4d31-a543-e2701a0f104d",
+    "ground_truth_reactions": [
+      "Interstitial lung disease"
+    ]
+  },
+  {
+    "id": "66858fae-37ca-4536-93ff-26ef13ebf54d",
+    "ground_truth_reactions": [
+      "Haemothorax",
+      "Pneumonia",
+      "Rib fracture"
+    ]
+  },
+  {
+    "id": "dc1c6194-60ab-4c6a-8c25-3a8b818af350",
+    "ground_truth_reactions": [
+      "Abdominal pain",
+      "Metabolic acidosis",
+      "Product use issue"
+    ]
+  },
+  {
+    "id": "547fc142-f7d9-4a3f-a030-508cc5b26131",
+    "ground_truth_reactions": [
+      "Ataxia",
+      "Diabetic neuropathy",
+      "Disease recurrence",
+      "Dizziness",
+      "Drug interaction",
+      "Duplicate therapy error",
+      "Fatigue",
+      "Product prescribing error",
+      "Somnolence"
+    ]
+  },
+  {
+    "id": "45bd89ac-212b-4c2b-9ded-61316cf4baad",
+    "ground_truth_reactions": [
+      "Foetal exposure during pregnancy",
+      "Low birth weight baby",
+      "Premature baby",
+      "Small for dates baby"
+    ]
+  },
+  {
+    "id": "0e63ba27-aac1-434b-89b6-176a1eb40c44",
+    "ground_truth_reactions": [
+      "Colitis ulcerative",
+      "Myocarditis",
+      "Rebound effect"
+    ]
+  },
+  {
+    "id": "09651cfc-9da7-4e72-948d-5f812cf106ce",
+    "ground_truth_reactions": [
+      "Electrocardiogram QT prolonged",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "fc40e392-7167-4736-b688-b8587a94aeef",
+    "ground_truth_reactions": [
+      "Neuroleptic malignant syndrome"
+    ]
+  },
+  {
+    "id": "c5e35d5e-f958-40f1-a918-7e3d39015504",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Osteonecrosis"
+    ]
+  },
+  {
+    "id": "83a14518-06eb-4a3d-946c-0705a2610168",
+    "ground_truth_reactions": [
+      "Acute generalised exanthematous pustulosis"
+    ]
+  },
+  {
+    "id": "53cea37c-fecc-4b1e-8493-3fe341a75f46",
+    "ground_truth_reactions": [
+      "Pulmonary hypertension",
+      "Tricuspid valve incompetence"
+    ]
+  },
+  {
+    "id": "dbc081b4-faea-4b6a-8647-915994a3954a",
+    "ground_truth_reactions": [
+      "Deafness neurosensory",
+      "Ototoxicity"
+    ]
+  },
+  {
+    "id": "8bd498e7-6391-4e8e-b0af-93fd480c671b",
+    "ground_truth_reactions": [
+      "Cholestatic liver injury",
+      "Gastrointestinal infection",
+      "Somnolence",
+      "Stevens-Johnson syndrome"
+    ]
+  },
+  {
+    "id": "844de5ab-084d-4d67-9ca0-58e74fc0fae4",
+    "ground_truth_reactions": [
+      "Product use in unapproved indication",
+      "Seizure"
+    ]
+  },
+  {
+    "id": "56b0ec15-9ebc-4145-aeeb-ca28817ee020",
+    "ground_truth_reactions": [
+      "Blood creatinine increased",
+      "Chronic kidney disease",
+      "Disseminated mycobacterium avium complex infection",
+      "Drug intolerance",
+      "Extradural abscess",
+      "Gastritis",
+      "Gastritis erosive",
+      "HIV wasting syndrome",
+      "Hiatus hernia",
+      "Hypercalcaemia",
+      "Intervertebral discitis",
+      "Kaposi's sarcoma",
+      "Mycobacterium avium complex infection",
+      "Nausea",
+      "Oesophageal ulcer",
+      "Oesophagitis",
+      "Oral candidiasis",
+      "Vomiting"
+    ]
+  },
+  {
+    "id": "d66a643b-37f9-4e10-af71-9b9e7747fce0",
+    "ground_truth_reactions": [
+      "Pancreatic failure",
+      "Pancreatic toxicity",
+      "Pancreatitis",
+      "Pancreatitis acute",
+      "Pancreatitis haemorrhagic",
+      "Pancreatitis necrotising",
+      "Pancreatolithiasis"
+    ]
+  },
+  {
+    "id": "710537b1-cddc-4f2a-b8b7-593cc2ad68d5",
+    "ground_truth_reactions": [
+      "Drug ineffective for unapproved indication",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "3fa3eab5-e691-488d-bc58-3b80c94b6ba1",
+    "ground_truth_reactions": [
+      "Acquired gene mutation",
+      "Drug resistance",
+      "Malignant neoplasm progression",
+      "Malignant transformation",
+      "Metastases to central nervous system",
+      "Metastases to kidney",
+      "Metastases to stomach"
+    ]
+  },
+  {
+    "id": "8def5a29-4e9f-48e7-8726-1152fe679a41",
+    "ground_truth_reactions": [
+      "Drug ineffective for unapproved indication",
+      "Off label use",
+      "Tachycardia",
+      "Ventricular pre-excitation"
+    ]
+  },
+  {
+    "id": "279be1fa-0527-4f32-b037-2265f293f83f",
+    "ground_truth_reactions": [
+      "Exposure during pregnancy",
+      "Foetal exposure during pregnancy",
+      "Premature baby",
+      "Premature delivery",
+      "Respiratory distress"
+    ]
+  },
+  {
+    "id": "54e049e0-d152-4569-bb1f-217b93e0e895",
+    "ground_truth_reactions": [
+      "Bipolar I disorder",
+      "Drug intolerance",
+      "Muscle twitching",
+      "Tremor"
+    ]
+  },
+  {
+    "id": "d49830a9-d645-460b-b332-6b9e23f66433",
+    "ground_truth_reactions": [
+      "Anti-glomerular basement membrane disease",
+      "COVID-19",
+      "Exposure to SARS-CoV-2",
+      "Leukopenia"
+    ]
+  },
+  {
+    "id": "5fb6434e-54a1-4c29-82d0-c4d939289d9e",
+    "ground_truth_reactions": [
+      "Cerebral infarction",
+      "Renal infarct"
+    ]
+  },
+  {
+    "id": "f40c3ac0-2452-438a-bd19-c232e3a4973f",
+    "ground_truth_reactions": [
+      "Drug ineffective for unapproved indication",
+      "Immune-mediated hepatitis",
+      "Off label use",
+      "Shock haemorrhagic",
+      "Small intestinal haemorrhage"
+    ]
+  },
+  {
+    "id": "279d1ff2-e9d8-47e2-9710-1a2b8c386fe5",
+    "ground_truth_reactions": [
+      "Multiple-drug resistance",
+      "Pneumonia"
+    ]
+  },
+  {
+    "id": "45916e4c-cc04-4696-b29c-38b115674492",
+    "ground_truth_reactions": [
+      "Immune reconstitution inflammatory syndrome",
+      "Pancytopenia",
+      "Pneumocystis jirovecii pneumonia"
+    ]
+  },
+  {
+    "id": "7186ed9d-f3b2-42fb-a8e2-5e78f8b05565",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Paradoxical drug reaction",
+      "Vitiligo"
+    ]
+  },
+  {
+    "id": "6784ded9-d8ef-4b74-a98c-d8a22cd9617c",
+    "ground_truth_reactions": [
+      "Cytomegalovirus hepatitis",
+      "Cytomegalovirus infection",
+      "Haemophagocytic lymphohistiocytosis",
+      "Hyperferritinaemia",
+      "Myelosuppression"
+    ]
+  },
+  {
+    "id": "95957864-aad9-4846-9fc6-0b2a30f21800",
+    "ground_truth_reactions": [
+      "Drug intolerance",
+      "Hepatitis B core antigen positive",
+      "Treatment failure"
+    ]
+  },
+  {
+    "id": "9591992c-2825-4a5b-b883-4f63c54d2a20",
+    "ground_truth_reactions": [
+      "Differentiation syndrome",
+      "Myocarditis",
+      "Myopericarditis",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "b702885c-811f-4b2e-ba20-7112f3275601",
+    "ground_truth_reactions": [
+      "Fatigue",
+      "Leukopenia",
+      "Liver disorder",
+      "Neutropenia",
+      "Palmar-plantar erythrodysaesthesia syndrome",
+      "Vomiting"
+    ]
+  },
+  {
+    "id": "c8702d38-f7fd-4948-954d-7318817dccbf",
+    "ground_truth_reactions": [
+      "Off label use",
+      "Suicide attempt"
+    ]
+  },
+  {
+    "id": "14ed55fd-3200-4389-8197-4d6380653440",
+    "ground_truth_reactions": [
+      "Hypertension",
+      "Hypogonadism"
+    ]
+  },
+  {
+    "id": "05faa35e-4248-4b48-b328-92639d5fb6bc",
+    "ground_truth_reactions": [
+      "Brachiocephalic artery stenosis",
+      "Ischaemic stroke"
+    ]
+  },
+  {
+    "id": "9d6ce894-77c8-4637-a154-8ee096b9e03a",
+    "ground_truth_reactions": [
+      "Acute kidney injury",
+      "Nephropathy toxic"
+    ]
+  },
+  {
+    "id": "664d6ab7-9196-4388-9681-678b80b45b08",
+    "ground_truth_reactions": [
+      "Acute kidney injury",
+      "Myelosuppression",
+      "Nephropathy toxic",
+      "Off label use",
+      "Renal impairment"
+    ]
+  },
+  {
+    "id": "8adda2cd-455d-4985-87b9-6b80a337e7a0",
+    "ground_truth_reactions": [
+      "Drug resistance"
+    ]
+  },
+  {
+    "id": "161931da-2960-46f3-8c1f-647932eb983e",
+    "ground_truth_reactions": [
+      "Anxiety",
+      "Depression",
+      "Disease recurrence",
+      "Drug effective for unapproved indication",
+      "Drug interaction",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "c68e2b6b-5640-474b-998d-252e4e0f8dab",
+    "ground_truth_reactions": [
+      "Cardiac tamponade",
+      "Systemic lupus erythematosus"
+    ]
+  },
+  {
+    "id": "b426a1d3-b5f5-4081-b07b-f9c7dd1f163f",
+    "ground_truth_reactions": [
+      "Drug ineffective",
+      "Hypotension",
+      "Somnolence"
+    ]
+  },
+  {
+    "id": "8f27f1c4-1f35-43c4-91f3-a5ec7671c77b",
+    "ground_truth_reactions": [
+      "Pathogen resistance"
+    ]
+  },
+  {
+    "id": "f61ff611-18e7-407f-b200-823ee6d9b40a",
+    "ground_truth_reactions": [
+      "Metastases to bone",
+      "Therapy non-responder"
+    ]
+  },
+  {
+    "id": "ea233acc-d23c-4f6c-92e5-e2860477020a",
+    "ground_truth_reactions": [
+      "Atypical haemolytic uraemic syndrome",
+      "Hepatic haematoma",
+      "Off label use"
+    ]
+  },
+  {
+    "id": "c47729c1-975e-40ee-a155-e7052445098d",
+    "ground_truth_reactions": [
+      "Drug ineffective for unapproved indication",
+      "Off label use",
+      "Therapy non-responder"
+    ]
+  },
+  {
+    "id": "da11b26d-99ad-44a3-9ed2-e4a6181c516f",
+    "ground_truth_reactions": [
+      "Bacterial infection",
+      "Mental status changes",
+      "Pneumonia",
+      "Pneumonia aspiration",
+      "Sepsis"
+    ]
+  },
+  {
+    "id": "ce24e30b-34ec-42fc-8f81-7882cb17a578",
+    "ground_truth_reactions": [
+      "Gastroenteritis radiation",
+      "Ileal perforation"
+    ]
+  },
+  {
+    "id": "ef21b126-cbad-48f2-a5dc-20337756f378",
+    "ground_truth_reactions": [
+      "Acute monocytic leukaemia",
+      "Cytomegalovirus infection",
+      "Death",
+      "Epstein-Barr virus infection",
+      "Febrile neutropenia",
+      "Haemophagocytic lymphohistiocytosis",
+      "Klebsiella infection",
+      "Neutropenia",
+      "Palpitations",
+      "Pancytopenia",
+      "Pyrexia",
+      "Splenomegaly",
+      "Staphylococcal infection",
+      "Toxoplasmosis"
+    ]
+  },
+  {
+    "id": "cb7fa009-4165-4476-a4ff-c85bfb71fb08",
+    "ground_truth_reactions": [
+      "Condition aggravated",
+      "Interstitial lung disease"
+    ]
+  },
+  {
+    "id": "79e23235-bffe-45d4-856b-2c1cab533788",
+    "ground_truth_reactions": [
+      "Chronic kidney disease",
+      "Pneumonia cytomegaloviral"
+    ]
+  },
+  {
+    "id": "98bc4c48-05e0-4526-a2c2-42b99736035d",
+    "ground_truth_reactions": [
+      "Drug ineffective"
+    ]
+  }
+]

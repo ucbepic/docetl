@@ -240,13 +240,12 @@ operations:
 
   join_book_author:
     type: equijoin
-    join_key:
-      left:
-        name: genre
-        limit: 3
-      right:
-        name: primary_genre
-        limit: 3
+    blocking_keys:
+      left: ["genre"]
+      right: ["primary_genre"]
+    limits:
+      left: 3
+      right: 3
     embedding_model: "text-embedding-3-small"
     comparison_model: "gpt-4o-mini"
     blocking_threshold: 0.5

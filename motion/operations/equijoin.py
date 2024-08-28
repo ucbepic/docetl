@@ -2,13 +2,18 @@
 The `EquijoinOperation` class is a subclass of `BaseOperation` that performs an equijoin operation on two datasets. It uses a combination of blocking techniques and LLM-based comparisons to efficiently join the datasets.
 """
 
+from multiprocessing import Pool, cpu_count
 import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+import random
 from typing import Any, Dict, List, Tuple
+from rich.prompt import Confirm
+
+import numpy as np
 
 from jinja2 import Template
-from litellm import completion_cost, embedding
+from litellm import completion_cost, embedding, model_cost
 from sklearn.metrics.pairwise import cosine_similarity
 
 from motion.operations.base import BaseOperation
@@ -17,7 +22,35 @@ from motion.operations.utils import (
     parse_llm_response,
     rich_as_completed,
     validate_output,
+    gen_embedding,
 )
+
+# Global variables to store shared data
+_right_data = None
+_blocking_conditions = None
+
+
+def init_worker(right_data, blocking_conditions):
+    global _right_data, _blocking_conditions
+    _right_data = right_data
+    _blocking_conditions = blocking_conditions
+
+
+def is_match(left_item: Dict[str, Any], right_item: Dict[str, Any]) -> bool:
+    return any(
+        eval(condition, {"left": left_item, "right": right_item})
+        for condition in _blocking_conditions
+    )
+
+
+def process_left_item(
+    left_item: Dict[str, Any]
+) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+    return [
+        (left_item, right_item)
+        for right_item in _right_data
+        if is_match(left_item, right_item)
+    ]
 
 
 def compare_pair(
@@ -54,32 +87,38 @@ class EquijoinOperation(BaseOperation):
         Checks the configuration of the EquijoinOperation for required keys and valid structure.
 
         Raises:
-            ValueError: If required keys are missing or if the join_key structure is invalid.
+            ValueError: If required keys are missing or if the blocking_keys structure is invalid.
             Specifically:
-            - Raises if 'join_key' or 'comparison_prompt' are missing from the config.
-            - Raises if 'left' or 'right' are missing from the 'join_key' structure.
-            - Raises if 'name' is missing from either the left or right join key.
+            - Raises if 'comparison_prompt' is missing from the config.
+            - Raises if 'left' or 'right' are missing from the 'blocking_keys' structure (if present).
+            - Raises if 'left' or 'right' are missing from the 'limits' structure (if present).
         """
-        required_keys = ["join_key", "comparison_prompt"]
-        for key in required_keys:
-            if key not in self.config:
+        if "comparison_prompt" not in self.config:
+            raise ValueError(
+                "Missing required key 'comparison_prompt' in EquijoinOperation configuration"
+            )
+
+        if "blocking_keys" in self.config:
+            if (
+                "left" not in self.config["blocking_keys"]
+                or "right" not in self.config["blocking_keys"]
+            ):
                 raise ValueError(
-                    f"Missing required key '{key}' in EquijoinOperation configuration"
+                    "Both 'left' and 'right' must be specified in 'blocking_keys'"
                 )
 
-        if (
-            "left" not in self.config["join_key"]
-            or "right" not in self.config["join_key"]
-        ):
-            raise ValueError("Both 'left' and 'right' must be specified in 'join_key'")
+        if "limits" in self.config:
+            if (
+                "left" not in self.config["limits"]
+                or "right" not in self.config["limits"]
+            ):
+                raise ValueError(
+                    "Both 'left' and 'right' must be specified in 'limits'"
+                )
 
-        if (
-            "name" not in self.config["join_key"]["left"]
-            or "name" not in self.config["join_key"]["right"]
-        ):
-            raise ValueError(
-                "Both left and right join keys must have a 'name' specified"
-            )
+        if "limit_comparisons" in self.config:
+            if not isinstance(self.config["limit_comparisons"], int):
+                raise ValueError("limit_comparisons must be an integer")
 
     def execute(
         self, left_data: List[Dict], right_data: List[Dict]
@@ -99,13 +138,18 @@ class EquijoinOperation(BaseOperation):
         from motion.operations import EquijoinOperation
 
         config = {
-            "join_key": {
-                "left": {"name": "id", "limit": 1},
-                "right": {"name": "user_id", "limit": 1}
+            "blocking_keys": {
+                "left": ["id"],
+                "right": ["user_id"]
+            },
+            "limits": {
+                "left": 1,
+                "right": 1
             },
             "comparison_prompt": "Compare {{left}} and {{right}} and determine if they match.",
             "blocking_threshold": 0.8,
-            "blocking_conditions": ["left['id'] == right['user_id']"]
+            "blocking_conditions": ["left['id'] == right['user_id']"],
+            "limit_comparisons": 1000
         }
         equijoin_op = EquijoinOperation(config)
         left_data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
@@ -116,7 +160,7 @@ class EquijoinOperation(BaseOperation):
         ```
 
         This method performs the following steps:
-        1. Initial blocking based on specified conditions
+        1. Initial blocking based on specified conditions (if any)
         2. Embedding-based blocking (if threshold is provided)
         3. LLM-based comparison for blocked pairs
         4. Result aggregation and validation
@@ -124,67 +168,178 @@ class EquijoinOperation(BaseOperation):
         The method also calculates and logs statistics such as comparisons saved by blocking and join selectivity.
         """
 
-        left_key = self.config["join_key"]["left"]["name"]
-        right_key = self.config["join_key"]["right"]["name"]
-        left_limit = self.config["join_key"]["left"].get("limit", float("inf"))
-        right_limit = self.config["join_key"]["right"].get("limit", float("inf"))
+        blocking_keys = self.config.get("blocking_keys", {})
+        left_keys = blocking_keys.get(
+            "left", list(left_data[0].keys()) if left_data else []
+        )
+        right_keys = blocking_keys.get(
+            "right", list(right_data[0].keys()) if right_data else []
+        )
+        limits = self.config.get(
+            "limits", {"left": float("inf"), "right": float("inf")}
+        )
+        left_limit = limits["left"]
+        right_limit = limits["right"]
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
+        limit_comparisons = self.config.get("limit_comparisons")
         total_cost = 0
 
-        def is_match(left_item: Dict[str, Any], right_item: Dict[str, Any]) -> bool:
-            return any(
-                eval(condition, {"left": left_item, "right": right_item})
-                for condition in blocking_conditions
-            )
+        # LLM-based comparison for blocked pairs
+        def get_hashable_key(item: Dict) -> str:
+            return json.dumps(item, sort_keys=True)
 
         if len(left_data) == 0 or len(right_data) == 0:
             return [], 0
 
-        # Initial blocking
-        blocked_pairs = []
-        for left_item in left_data:
-            for right_item in right_data:
-                if is_match(left_item, right_item):
-                    blocked_pairs.append((left_item, right_item))
+        # Initial blocking using multiprocessing
+        num_processes = min(cpu_count(), len(left_data))
+
+        self.console.log(
+            f"Starting to run code-based blocking rules for {len(left_data)} left and {len(right_data)} right rows ({len(left_data) * len(right_data)} total pairs) with {num_processes} processes..."
+        )
+
+        with Pool(
+            processes=num_processes,
+            initializer=init_worker,
+            initargs=(right_data, blocking_conditions),
+        ) as pool:
+            blocked_pairs_nested = pool.map(process_left_item, left_data)
+
+        # Flatten the nested list of blocked pairs
+        blocked_pairs = [pair for sublist in blocked_pairs_nested for pair in sublist]
+
+        # Check if we have exceeded the pairwise comparison limit
+        if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
+            # Sample pairs randomly
+            sampled_pairs = random.sample(blocked_pairs, limit_comparisons)
+
+            # Calculate number of dropped pairs
+            dropped_pairs = len(blocked_pairs) - limit_comparisons
+
+            # Prompt the user for confirmation
+            if self.status:
+                self.status.stop()
+            if not Confirm.ask(
+                f"[yellow]Warning: {dropped_pairs} pairs will be dropped due to the comparison limit. "
+                f"Proceeding with {limit_comparisons} randomly sampled pairs. "
+                f"Do you want to continue?[/yellow]",
+            ):
+                raise ValueError("Operation cancelled by user due to pair limit.")
+
+            if self.status:
+                self.status.start()
+
+            blocked_pairs = sampled_pairs
+
+        self.console.log(
+            f"Number of blocked pairs after initial blocking: {len(blocked_pairs)}"
+        )
 
         if blocking_threshold is not None:
             embedding_model = self.config.get("embedding_model", self.default_model)
+            model_input_context_length = model_cost.get(embedding_model, {}).get(
+                "max_input_tokens", 8192
+            )
 
-            def get_embedding(
-                item: Dict[str, Any], keys: List[str]
-            ) -> Tuple[List[float], float]:
-                text = " ".join(str(item[key]) for key in keys if key in item)
-                response = embedding(model=embedding_model, input=[text])
-                return response["data"][0]["embedding"], completion_cost(response)
+            def get_embeddings(
+                input_data: List[Dict[str, Any]], keys: List[str], name: str
+            ) -> Tuple[List[List[float]], float]:
+                texts = [
+                    " ".join(str(item[key]) for key in keys if key in item)[
+                        : model_input_context_length * 4
+                    ]
+                    for item in input_data
+                ]
 
-            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                left_embeddings = list(
-                    executor.map(
-                        lambda x: get_embedding(x, [left_key]),
-                        left_data,
+                embeddings = []
+                total_cost = 0
+                batch_size = 2000
+                for i in range(0, len(texts), batch_size):
+                    batch = texts[i : i + batch_size]
+                    self.console.log(
+                        f"On iteration {i} for creating embeddings for {name} data"
                     )
-                )
-                right_embeddings = list(
-                    executor.map(
-                        lambda x: get_embedding(x, [right_key]),
-                        right_data,
+                    response = gen_embedding(
+                        model=embedding_model,
+                        input=batch,
                     )
-                )
+                    embeddings.extend([data["embedding"] for data in response["data"]])
+                    total_cost += completion_cost(response)
+                return embeddings, total_cost
 
-            left_embeddings, left_costs = zip(*left_embeddings)
-            right_embeddings, right_costs = zip(*right_embeddings)
-            total_cost += sum(left_costs) + sum(right_costs)
+            left_embeddings, left_cost = get_embeddings(left_data, left_keys, "left")
+            right_embeddings, right_cost = get_embeddings(
+                right_data, right_keys, "right"
+            )
+            total_cost += left_cost + right_cost
+            self.console.log(
+                f"Created embeddings for datasets. Total embedding creation cost: {total_cost}"
+            )
 
             # Compute all cosine similarities in one call
             similarities = cosine_similarity(left_embeddings, right_embeddings)
 
             # Additional blocking based on embeddings
-            for i, left_item in enumerate(left_data):
-                for j, right_item in enumerate(right_data):
-                    if (left_item, right_item) not in blocked_pairs:
-                        if similarities[i][j] >= blocking_threshold:
-                            blocked_pairs.append((left_item, right_item))
+            # Find indices where similarity is above threshold
+            above_threshold = np.argwhere(similarities >= blocking_threshold)
+            self.console.log(
+                f"There are {above_threshold.shape[0]} pairs above the threshold."
+            )
+            block_pair_set = set(
+                (get_hashable_key(left_item), get_hashable_key(right_item))
+                for left_item, right_item in blocked_pairs
+            )
+
+            # If limit_comparisons is set, take only the top pairs
+            if limit_comparisons is not None:
+                # First, get all pairs above threshold
+                above_threshold_pairs = [(int(i), int(j)) for i, j in above_threshold]
+
+                # Sort these pairs by their similarity scores
+                sorted_pairs = sorted(
+                    above_threshold_pairs,
+                    key=lambda pair: similarities[pair[0], pair[1]],
+                    reverse=True,
+                )
+
+                # Take the top 'limit_comparisons' pairs
+                top_pairs = sorted_pairs[:limit_comparisons]
+
+                # Create new blocked_pairs based on top similarities and existing blocked pairs
+                new_blocked_pairs = []
+                remaining_limit = limit_comparisons - len(blocked_pairs)
+
+                # First, include all existing blocked pairs
+                final_blocked_pairs = blocked_pairs.copy()
+
+                # Then, add new pairs from top similarities until we reach the limit
+                for i, j in top_pairs:
+                    if remaining_limit <= 0:
+                        break
+                    left_item, right_item = left_data[i], right_data[j]
+                    left_key = get_hashable_key(left_item)
+                    right_key = get_hashable_key(right_item)
+                    if (left_key, right_key) not in block_pair_set:
+                        new_blocked_pairs.append((left_item, right_item))
+                        block_pair_set.add((left_key, right_key))
+                        remaining_limit -= 1
+
+                final_blocked_pairs.extend(new_blocked_pairs)
+                blocked_pairs = final_blocked_pairs
+
+                self.console.log(
+                    f"Limited comparisons to top {limit_comparisons} pairs, including {len(blocked_pairs) - len(new_blocked_pairs)} from code-based blocking and {len(new_blocked_pairs)} based on cosine similarity. Lowest cosine similarity included: {similarities[top_pairs[-1]]:.4f}"
+                )
+            else:
+                # Add new pairs to blocked_pairs
+                for i, j in above_threshold:
+                    left_item, right_item = left_data[i], right_data[j]
+                    left_key = get_hashable_key(left_item)
+                    right_key = get_hashable_key(right_item)
+                    if (left_key, right_key) not in block_pair_set:
+                        blocked_pairs.append((left_item, right_item))
+                        block_pair_set.add((left_key, right_key))
 
         # If there are no blocking conditions or embedding threshold, use all pairs
         if not blocking_conditions and blocking_threshold is None:
@@ -194,6 +349,17 @@ class EquijoinOperation(BaseOperation):
                 for right_item in right_data
             ]
 
+        # If there's a limit on the number of comparisons, randomly sample pairs
+        if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
+            self.console.log(
+                f"Randomly sampling {limit_comparisons} pairs out of {len(blocked_pairs)} blocked pairs."
+            )
+            blocked_pairs = random.sample(blocked_pairs, limit_comparisons)
+
+        self.console.log(
+            f"Total pairs to compare after blocking and sampling: {len(blocked_pairs)}"
+        )
+
         # Calculate and print statistics
         total_possible_comparisons = len(left_data) * len(right_data)
         comparisons_made = len(blocked_pairs)
@@ -202,10 +368,6 @@ class EquijoinOperation(BaseOperation):
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
-
-        # LLM-based comparison for blocked pairs
-        def get_hashable_key(item: Dict) -> str:
-            return json.dumps(item, sort_keys=True)
 
         left_match_counts = defaultdict(int)
         right_match_counts = defaultdict(int)

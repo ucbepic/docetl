@@ -17,6 +17,7 @@ from motion.operations.utils import (
     parse_llm_response,
     rich_as_completed,
     validate_output,
+    gen_embedding,
 )
 
 
@@ -193,7 +194,7 @@ class ResolveOperation(BaseOperation):
                     " ".join(str(item[key]) for key in blocking_keys if key in item)
                     for item in items
                 ]
-                response = embedding(model=embedding_model, input=texts)
+                response = gen_embedding(model=embedding_model, input=texts)
                 return [
                     (data["embedding"], completion_cost(response))
                     for data in response["data"]

@@ -465,8 +465,11 @@ class PlanGenerator:
             }
 
             total_score = sum(
-                score_map.get(future.result()["quality_category"], 0)
+                score_map.get(
+                    future.result().get("quality_category", "Unsatisfactory"), 0
+                )
                 for future in as_completed(futures)
+                if not isinstance(future.exception(), Exception)
             )
 
         return total_score / len(split_op_output)

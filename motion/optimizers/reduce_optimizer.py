@@ -219,7 +219,9 @@ class ReduceOptimizer:
             "resolution_model": self.config.get("default_model", "gpt-4o-mini"),
             "comparison_model": self.config.get("default_model", "gpt-4o-mini"),
             "_intermediates": {
-                "map_prompt": op_config["_intermediates"].get("last_map_prompt"),
+                "map_prompt": op_config.get("_intermediates", {}).get(
+                    "last_map_prompt"
+                ),
                 "reduce_key": first_reduce_config["reduce_key"],
             },
         }

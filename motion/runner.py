@@ -3,12 +3,13 @@ import os
 from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
-from rich import print as rprint
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.status import Status
 
 from motion.operations import get_operation
 from motion.utils import load_config
+from motion.operations.utils import flush_cache
 
 load_dotenv()
 
@@ -41,6 +42,7 @@ class DSLRunner:
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.console = Console()
+        self.status = None
         self.datasets = {}
         self.syntax_check()
 
@@ -99,6 +101,7 @@ class DSLRunner:
                 input_data = self.datasets[step["input"]] if "input" in step else None
                 output_data, step_cost = self.execute_step(step, input_data, progress)
                 self.datasets[step_name] = output_data
+                flush_cache(self.console)
                 total_cost += step_cost
                 progress.update(
                     step_task,
@@ -107,7 +110,7 @@ class DSLRunner:
                 )
 
         self.save_output(self.datasets[self.config["pipeline"]["steps"][-1]["name"]])
-        rprint(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")
+        self.console.log(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")
 
         return total_cost
 
@@ -124,6 +127,7 @@ class DSLRunner:
             if dataset_config["type"] == "file":
                 with open(dataset_config["path"], "r") as file:
                     self.datasets[name] = json.load(file)
+                    self.datasets[name] = self.datasets[name]
             else:
                 raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
 

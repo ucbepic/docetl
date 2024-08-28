@@ -20,8 +20,9 @@ Motion is a powerful tool for creating and executing data processing pipelines u
 5. [Schemas](#schemas)
    - [Schema Definition](#schema-definition)
    - [Schema Pass-through](#schema-pass-through)
-6. [Validation Rules](#validation-rules)
-7. [Example Pipeline](#example-pipeline)
+6. [Tool Use](#tool-use)
+7. [Validation Rules](#validation-rules)
+8. [Example Pipeline](#example-pipeline)
 
 ## Installation
 
@@ -246,17 +247,18 @@ output_data:
 
 ### Equijoin
 
-The Equijoin operation performs a join between two datasets based on a key, using embedding similarity and a language model for comparison.
+The Equijoin operation performs a join between two datasets using embedding similarity and a language model for comparison.
 
 Required parameters:
 
 - `type`: Must be set to `"equijoin"`.
-- `join_key`: Specification of the join keys for left and right datasets. Both left and right must have at least a `name` field, and may optionally include a `limit` field. The `limit` field specifies that for each tuple from the relevant dataset, there are at most `limit` matching tuples from the other dataset.
 - `comparison_model`: The language model to use for comparing join candidates.
 - `comparison_prompt`: The prompt template to use for comparing join candidates. This should be designed to elicit a yes or no answer.
 
 Optional parameters:
 
+- `blocking_keys`: Specification of the blocking keys for left and right datasets. If provided, both left and right must be specified as lists of key names to use for blocking. We will embed the values of these keys and use the embeddings to filter the potential matches before performing the join.
+- `limits`: Specification of the maximum number of matches for each tuple. If provided, both left and right must be specified with integer values.
 - `embedding_model`: The model to use for creating embeddings. Only used if blocking threshold is set.
 - `blocking_threshold`: Embedding similarity threshold for considering entries as potential matches.
 - `blocking_conditions`: List of conditions for initial blocking.
@@ -266,13 +268,12 @@ Example:
 ```yaml
 join_book_author:
   type: equijoin
-  join_key:
-    left:
-      name: genre
-      limit: 3
-    right:
-      name: primary_genre
-      limit: 3
+  blocking_keys:
+    left: ["genre"]
+    right: ["primary_genre"]
+  limits:
+    left: 3
+    right: 3
   embedding_model: "text-embedding-3-small"
   comparison_model: "gpt-4o-mini"
   blocking_threshold: 0.5
@@ -632,6 +633,54 @@ It's worth noting that the schema definition is flexible and can accommodate var
 ### Schema Pass-through
 
 It's important to note that all schema items pass through the pipeline. The `output` schema in each operation is ONLY for what is extracted from the LLM. All other fields from the input data are automatically passed through to the next step in the pipeline.
+
+## Tool Use
+
+Motion supports the use of tools in operations, allowing for more complex and specific data processing tasks. Tools are defined as Python functions that can be called by the language model during execution.
+
+To use tools in an operation, you need to define them in the operation's configuration. Here's an example of how to define and use a tool:
+
+```yaml
+operations:
+  word_count_analysis:
+    type: map
+    prompt: |
+      Count the number of words in the following book title:
+      Title: {{ input.title }}
+    tools:
+      - required: true
+        code: |
+          def count(iterable):
+            return {"word_count": len(iterable)}
+        function:
+          name: count
+          description: Count the number of items in an iterable. Must pass in a list.
+          parameters:
+            type: object
+            properties:
+              iterable:
+                type: array
+                items:
+                  type: string
+          required:
+            - iterable
+    output:
+      schema:
+        word_count: int
+```
+
+In this example:
+
+1. The tool is defined within the `tools` list of the operation.
+2. The `required` field indicates whether the tool must be used in the operation.
+3. The `code` field contains the actual Python function definition. The function must return a dictionary with keys specified in the `output` schema.
+4. The `function` field provides metadata about the tool, including its name, description, and parameters.
+
+The language model can then use this tool to count words in the input title. The tool's output will be incorporated into the operation's result according to the defined output schema.
+
+You can define multiple tools for an operation, allowing the model to choose the most appropriate one for the task at hand. Tools can range from simple utility functions to more complex data processing or external API calls, enhancing the capabilities of your Motion pipeline.
+
+Currently, only map and parallel_map operations support tools.
 
 ## Validation Rules
 

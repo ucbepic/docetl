@@ -1,4 +1,5 @@
 import functools
+import os
 import hashlib
 import json
 import threading
@@ -8,12 +9,16 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
-from litellm import completion, completion_cost
+from litellm import completion, completion_cost, embedding
 from rich.console import Console
 from tqdm import tqdm
+from diskcache import Cache
 
 load_dotenv()
 # litellm.set_verbose = True
+MOTION_HOME_DIR = os.path.expanduser("~/.motion")
+CACHE_DIR = os.path.join(MOTION_HOME_DIR, "llm_cache")
+cache = Cache(CACHE_DIR)
 
 
 def freezeargs(func):
@@ -51,6 +56,49 @@ def freezeargs(func):
         return func(*args, **kwargs)
 
     return wrapped
+
+
+@freezeargs
+def gen_embedding(model: str, input: List[str]) -> List[float]:
+    """
+    A cached wrapper around litellm.embedding function.
+
+    This function uses LRU (Least Recently Used) cache to store and retrieve
+    embeddings for given inputs. It can significantly speed up repeated calls
+    with the same model and input.
+
+    Args:
+        model (str): The name of the embedding model to use.
+        input (str): The input text to generate an embedding for.
+
+    Returns:
+        List[float]: The embedding vector as a list of floats.
+
+    Note:
+        The cache size is set to 1000. Adjust this value based on your memory
+        constraints and usage patterns.
+    """
+    # Create a unique key for the cache
+    key = hashlib.md5(f"{model}_{input}".encode()).hexdigest()
+
+    # Try to get the result from cache
+    result = cache.get(key)
+    if result is None:
+        # If not in cache, compute the embedding
+        result = embedding(model=model, input=json.loads(input))
+        # Cache the result
+        cache.set(key, result)
+
+    return result
+
+
+def flush_cache(console: Console = Console()):
+    """
+    Flush the cache to disk.
+    """
+    console.log("[bold green]Flushing cache to disk...[/bold green]")
+    cache.close()
+    console.log("[bold green]Cache flushed to disk.[/bold green]")
 
 
 def convert_val(value: Any) -> Dict[str, Any]:
@@ -131,7 +179,6 @@ def cache_key(
 
 # TODO: optimize this
 @freezeargs
-@functools.lru_cache(maxsize=100000)
 def cached_call_llm(
     cache_key: str,
     model: str,
@@ -157,7 +204,11 @@ def cached_call_llm(
     Returns:
         str: The result from call_llm_with_cache.
     """
-    return call_llm_with_cache(model, op_type, messages, output_schema, tools)
+    result = cache.get(cache_key)
+    if result is None:
+        result = call_llm_with_cache(model, op_type, messages, output_schema, tools)
+        cache.set(cache_key, result)
+    return result
 
 
 def call_llm_with_validation(

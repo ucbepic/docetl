@@ -261,16 +261,48 @@ class Evaluator:
         validator_prompt: str,
     ) -> Dict[str, Any]:
         system_prompt = "You are an AI assistant tasked with assessing the performance of data processing operations. Use the provided validator prompt to evaluate the operation's output."
-        prompt = f"""
-        {validator_prompt}
+
+        # Extract input variables from the prompt
+        variables_in_prompt = extract_jinja_variables(op_config["prompt"])
+        variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
+        input_sample = input_data[:2]
+        output_sample = [
+            next(
+                (
+                    output
+                    for output in output_data
+                    if output["_map_opt_id"] == input_item["_map_opt_id"]
+                ),
+                "N/A",
+            )
+            for input_item in input_sample
+        ]
+
+        # Get output schema
+        output_schema = op_config.get("output", {}).get("schema", {})
+
+        prompt = f"""Task: Assess the performance of a data processing operation based on sample input-output pairs and a custom validator prompt.
 
         Operation Name: {op_config['name']}
         Operation Type: {op_config['type']}
-        Input Data (sample): {json.dumps(input_data[:2] if input_data else {}, indent=2)}
-        Output Data (sample): {json.dumps([output for output in output_data[:2] if output['_map_opt_id'] in [input['_map_opt_id'] for input in input_data[:2]]] if output_data else {}, indent=2)}
-        Current Prompt: {op_config.get('prompt', 'N/A')}
+        Current Task Prompt: {op_config.get('prompt', 'N/A')}
 
-        Based on this information and the validator prompt, assess the operation's performance. Provide your assessment in the following format:
+        Sample Input-Output Pairs:
+        ---Pair 1---
+        {json.dumps({
+            "input": {key: input_sample[0].get(key, 'N/A') for key in variables_in_prompt},
+            "output": {key: output_sample[0].get(key, 'N/A') for key in output_schema}
+        }, indent=2)}
+        ---Pair 2---
+        {json.dumps({
+            "input": {key: input_sample[1].get(key, 'N/A') for key in variables_in_prompt},
+            "output": {key: output_sample[1].get(key, 'N/A') for key in output_schema}
+        }, indent=2)}
+
+        Custom Validator Prompt:
+        {validator_prompt}
+
+        Based on the above information, please assess the operation's performance. Provide your assessment in the following format:
         """
 
         parameters = {

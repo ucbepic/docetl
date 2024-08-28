@@ -1,4 +1,4 @@
 .env
 *__pycache__*
 *scratch*
-*relevance_assessment_tool.json*
+*relevance_assessment*

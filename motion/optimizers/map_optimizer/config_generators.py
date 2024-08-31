@@ -74,14 +74,17 @@ class ConfigGenerator:
         Operation Name: {op_config['name']}
         Operation Type: {op_config['type']}
         Current Prompt: {op_config.get('prompt', 'N/A')}
+        Current Output Schema: {json.dumps(output_schema, indent=2)}
+        
+        Input keys: {input_data_sample[0].keys()}
 
         Input Data Sample:
-        {json.dumps(random_sample, indent=2)}
+        {json.dumps(random_sample, indent=2)[:5000]}
 
         Determine the split key and subprompt for processing chunks of the input data.
         The split key should be a key in the input data that contains a string to be split.
         The subprompt should be designed to process individual chunks of the split data.
-        Note that the subprompt's output schema will be: {json.dumps(output_schema, indent=2)}.
+        Note that the subprompt's output schema might be different from the original operation's output schema, since you may want to extract more information or make the information less structured/more free text. The original output schema will be preserved when combining the chunks' processed results.
 
         Important:
         - The subprompt should be a Jinja template.
@@ -97,8 +100,17 @@ class ConfigGenerator:
             "properties": {
                 "split_key": {"type": "string"},
                 "subprompt": {"type": "string"},
+                "split_output_schema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": {
+                        "type": "string",
+                        "enum": ["string", "integer", "number", "boolean", "array"],
+                    },
+                },
             },
-            "required": ["split_key", "subprompt"],
+            "required": ["split_key", "subprompt", "split_output_schema"],
+            "additionalProperties": False,
         }
 
         response = self.llm_client.generate(
@@ -290,6 +302,7 @@ class ConfigGenerator:
                 "metadata_prompt": {"type": "string"},
                 "output_schema": {
                     "type": "object",
+                    "properties": {},
                     "additionalProperties": {
                         "type": "string",
                         "enum": ["string", "integer", "number", "boolean", "array"],
@@ -297,6 +310,7 @@ class ConfigGenerator:
                 },
             },
             "required": ["metadata_prompt", "output_schema"],
+            "additionalProperties": False,
         }
 
         result = generate_and_validate_prompt(
@@ -396,19 +410,46 @@ class ConfigGenerator:
         self,
         split_key: str,
         input_data_sample: List[Dict[str, Any]],
-        num_chunks: int = 5,
+        token_limit: int,
+        num_chunks: int = 6,
     ) -> List[int]:
         # Get the average document length
         avg_doc_length = sum(
             len(doc[split_key].split()) for doc in input_data_sample
         ) / len(input_data_sample)
 
-        # Create a linspace of chunk sizes from 100 to half the average document length
-        max_chunk_size = int(avg_doc_length / 2)
-        return [
-            int(100 + i * (max_chunk_size - 100) / (num_chunks - 1))
-            for i in range(num_chunks)
+        # Calculate the word limit based on the token limit
+        word_limit = min(int(token_limit * 0.75), int(avg_doc_length))
+
+        # Create chunk sizes based on word_limit
+        min_chunk_size_word_limit = max(20, int(0.2 * word_limit))
+        word_limit_chunks = [
+            int(
+                min_chunk_size_word_limit
+                + i * (word_limit - min_chunk_size_word_limit) / (num_chunks // 2 - 1)
+            )
+            for i in range(num_chunks // 2)
         ]
+
+        # Create chunk sizes based on avg_doc_length
+        min_chunk_size_doc_length = max(20, int(0.2 * avg_doc_length))
+        doc_length_chunks = [
+            min(
+                int(
+                    min_chunk_size_doc_length
+                    + i
+                    * (avg_doc_length - min_chunk_size_doc_length)
+                    / (num_chunks // 2 - 1)
+                ),
+                word_limit,
+            )
+            for i in range(num_chunks // 2)
+        ]
+
+        # Combine both lists and remove duplicates
+        all_chunks = sorted(set(word_limit_chunks + doc_length_chunks))
+
+        return all_chunks
 
     def _generate_peripheral_configs(
         self, summary_key: str, chunk_size: int, avg_doc_size: int

@@ -548,21 +548,42 @@ class ReduceOperation(BaseOperation):
         total_cost = 0
         current_output = None
 
+        # Calculate and log the number of folds to be performed
+        num_folds = (len(group_list) + fold_batch_size - 1) // fold_batch_size
+
+        scratchpad = ""
         for i in range(0, len(group_list), fold_batch_size):
+            # Log the current iteration and total number of folds
+            current_fold = i // fold_batch_size + 1
+            self.console.log(
+                f"Processing fold {current_fold} of {num_folds} for group with key {key}"
+            )
             batch = group_list[i : i + fold_batch_size]
 
-            folded_output, fold_cost = self._increment_fold(key, batch, current_output)
+            folded_output, fold_cost = self._increment_fold(
+                key, batch, current_output, scratchpad
+            )
             total_cost += fold_cost
 
             if folded_output is None:
                 continue
+
+            # Pop off updated_scratchpad
+            if "updated_scratchpad" in folded_output:
+                scratchpad = folded_output["updated_scratchpad"]
+                self.console.log(f"Updated notes: {scratchpad}")
+                del folded_output["updated_scratchpad"]
 
             current_output = folded_output
 
         return current_output, total_cost
 
     def _increment_fold(
-        self, key: Tuple, batch: List[Dict], current_output: Optional[Dict]
+        self,
+        key: Tuple,
+        batch: List[Dict],
+        current_output: Optional[Dict],
+        scratchpad: Optional[str] = None,
     ) -> Tuple[Optional[Dict], float]:
         """
         Perform an incremental fold operation on a batch of items.
@@ -573,7 +594,7 @@ class ReduceOperation(BaseOperation):
             key (Tuple): The reduce key tuple for the group.
             batch (List[Dict]): The batch of items to be folded.
             current_output (Optional[Dict]): The current accumulated output, if any.
-
+            scratchpad (Optional[str]): The scratchpad to use for the fold operation.
         Returns:
             Tuple[Optional[Dict], float]: A tuple containing the folded output (or None if processing failed)
             and the cost of the fold operation.
@@ -593,8 +614,11 @@ class ReduceOperation(BaseOperation):
             "reduce",
             [{"role": "user", "content": fold_prompt}],
             self.config["output"]["schema"],
+            scratchpad=scratchpad,
+            console=self.console,
         )
         folded_output = parse_llm_response(response)[0]
+
         folded_output.update(dict(zip(self.config["reduce_key"], key)))
         fold_cost = completion_cost(response)
         end_time = time.time()
@@ -630,6 +654,7 @@ class ReduceOperation(BaseOperation):
             "merge",
             [{"role": "user", "content": merge_prompt}],
             self.config["output"]["schema"],
+            console=self.console,
         )
         merged_output = parse_llm_response(response)[0]
         merged_output.update(dict(zip(self.config["reduce_key"], key)))
@@ -721,6 +746,7 @@ class ReduceOperation(BaseOperation):
                 self.config["output"]["schema"],
                 self.config["gleaning"]["validation_prompt"],
                 self.config["gleaning"]["num_rounds"],
+                console=self.console,
             )
             item_cost += gleaning_cost
         else:
@@ -729,6 +755,7 @@ class ReduceOperation(BaseOperation):
                 "reduce",
                 [{"role": "user", "content": prompt}],
                 self.config["output"]["schema"],
+                console=self.console,
             )
 
         item_cost += completion_cost(response)

@@ -1,7 +1,7 @@
 ci:
   autofix_prs: false
 
-files: "^(motion|ui)/"
+files: "^(motion)/"
 exclude: '\__init__.py$'
 
 repos:

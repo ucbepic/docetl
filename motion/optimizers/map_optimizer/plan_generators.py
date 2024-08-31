@@ -45,6 +45,7 @@ class PlanGenerator:
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
+        token_limit: int,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Generate plans with different chunk sizes for the given operation.
@@ -57,6 +58,7 @@ class PlanGenerator:
             op_config (Dict[str, Any]): The configuration of the operation.
             input_data (List[Dict[str, Any]]): The input data for the operation.
             validator_prompt (str): The prompt used for validating the operation's output.
+            token_limit (int): The maximum number of tokens allowed in the operation's input.
 
         Returns:
             Dict[str, List[Dict[str, Any]]]: A dictionary of plans, where each key
@@ -71,7 +73,9 @@ class PlanGenerator:
         summary_key = f"{split_key}_summary"
         doc_id_key = f"split_{op_config['name']}_id"
 
-        chunk_sizes = self.config_generator._generate_chunk_sizes(split_key, input_data)
+        chunk_sizes = self.config_generator._generate_chunk_sizes(
+            split_key, input_data, token_limit
+        )
 
         self.console.log("[bold]Chunk Sizes to Evaluate:[/bold]")
         self.console.log(f"{chunk_sizes}")

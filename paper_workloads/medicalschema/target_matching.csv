@@ -1,0 +1,17 @@
+target_attribute,li,cao,clark,dou,gilette,huang,krug,mcdermott,satpathy,vasaikar,wang
+case_submitter_id,Patient_ID,case_id,case_id,Proteomics_Participant_ID,participant,case_id,Sample.ID,CPTAC Case ID,Participant,SampleID,case_id
+age_at_diagnosis,Age,age,age,age,age,age,Age.in.Months,"Age in Months at Time of Tissue Procurement 	",Age,Age,age
+race,Race,race,race,race,ethnicity,missing,Ethnicity,Race,Ethnicity,missing,race
+ethnicity,Ethnicity,missing,ethnicity_self_identify,ethnicity,missing,missing,missing,Ethnicity,missing,missing,ethnicity
+gender,Sex,sex,gender,gender,gender,gender,Gender,Gender,Gender,Gender,gender
+vital_status,"Survival status (1, dead; 0, alive)
+",vital_status,missing,missing,missing,missing,missing,missing,missing,Vital.Status,vital_status
+ajcc_pathologic_t,baseline/pathologic_staging_primary_tumor_pt,pathologic_staging_primary_tumor_pt,path_stage_primary_tumor_pt,Path_Stage_Primary_Tumor-pT,missing,patho_staging_pt,missing,missing,missing,PT,missing
+ajcc_pathologic_n,baseline/pathologic_staging_regional_lymph_nodes_pn,pathologic_staging_regional_lymph_nodes_pn,path_stage_reg_lymph_nodes_pN,Path_Stage_Reg_Lymph_Nodes-pN,missing,patho_staging_pn,missing,missing,missing,PN,missing
+ajcc_pathologic_stage,baseline/tumor_stage_pathological,tumor_stage_pathological,tumor_stage_pathological,tumor_Stage-Pathological,stage,tumor_stage,Tumor.Stage,Tumor Stage (Pathological) Ovary FIGO Staging System,Stage,Stage,missing
+tumor_grade,cptac_path/histologic_grade,missing,grade,Histologic_Grade_FIGO,missing,histologic_grade,missing,Tumor Grade,missing,missing,missing
+tumor_focality,baseline/tumor_focality,tumor_focality,tumor_focality,Tumor_Focality,missing,tumor_focality,missing,missing,missing,missing,missing
+tumor_largest_dimension_diameter,baseline/tumor_size_cm,tumor_size_cm,tumor_size_cm,Tumor_Size_cm,missing,tumor_size_cm,missing,missing,missing,missing,missing
+primary_diagnosis,baseline/histologic_type,histology_diagnosis,histologic_type,histologic_type,Dominant.Histological.Subtype,histologic_type,missing,Histological Subtype,missing,paper,paper
+morphology,missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,missing
+tissue_or_organ_of_origin,baseline/tumor_site,paper,paper,Tumor_Site,paper,paper,paper,paper,paper,paper,paper

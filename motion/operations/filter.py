@@ -134,6 +134,7 @@ class FilterOperation(BaseOperation):
                     "filter",
                     messages,
                     self.config["output"]["schema"],
+                    console=self.console,
                 ),
                 validation_fn=validation_fn,
                 val_rule=self.config.get("validate", []),

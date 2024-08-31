@@ -2,10 +2,12 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from litellm import model_cost
 
 from rich.console import Console
 
 from motion.optimizers.utils import LLMClient, extract_jinja_variables
+from motion.utils import truncate_sample_data, count_tokens
 
 
 class Evaluator:
@@ -280,6 +282,30 @@ class Evaluator:
 
         # Get output schema
         output_schema = op_config.get("output", {}).get("schema", {})
+        # Calculate available tokens for sample data
+        model_input_context_length = model_cost.get(self.llm_client.model, {}).get(
+            "max_input_tokens", 8192
+        )
+        prompt_tokens = count_tokens(
+            op_config.get("prompt", "N/A"), self.llm_client.model
+        )
+        available_tokens = (
+            model_input_context_length - prompt_tokens - 100
+        ) // 4  # 100 token buffer, divide by 4 for each sample
+
+        # Prepare and truncate sample data
+        input_1 = truncate_sample_data(
+            {key: input_sample[0].get(key, "N/A") for key in variables_in_prompt},
+            available_tokens,
+            [variables_in_prompt],
+            self.llm_client.model,
+        )
+        output_1 = truncate_sample_data(
+            {key: output_sample[0].get(key, "N/A") for key in output_schema.keys()},
+            available_tokens,
+            [list(output_schema.keys())],
+            self.llm_client.model,
+        )
 
         prompt = f"""Task: Assess the performance of a data processing operation based on sample input-output pairs and a custom validator prompt.
 
@@ -289,16 +315,28 @@ class Evaluator:
 
         Sample Input-Output Pairs:
         ---Pair 1---
-        {json.dumps({
-            "input": {key: input_sample[0].get(key, 'N/A') for key in variables_in_prompt},
-            "output": {key: output_sample[0].get(key, 'N/A') for key in output_schema}
-        }, indent=2)}
-        ---Pair 2---
-        {json.dumps({
-            "input": {key: input_sample[1].get(key, 'N/A') for key in variables_in_prompt},
-            "output": {key: output_sample[1].get(key, 'N/A') for key in output_schema}
-        }, indent=2)}
+        {json.dumps({"input": input_1, "output": output_1}, indent=2)}
+        """
 
+        if len(input_sample) > 1:
+            input_2 = truncate_sample_data(
+                {key: input_sample[1].get(key, "N/A") for key in variables_in_prompt},
+                available_tokens,
+                [variables_in_prompt],
+                self.llm_client.model,
+            )
+            output_2 = truncate_sample_data(
+                {key: output_sample[1].get(key, "N/A") for key in output_schema.keys()},
+                available_tokens,
+                [list(output_schema.keys())],
+                self.llm_client.model,
+            )
+            prompt += f"""
+        ---Pair 2---
+        {json.dumps({"input": input_2, "output": output_2}, indent=2)}
+        """
+
+        prompt += f"""
         Custom Validator Prompt:
         {validator_prompt}
 

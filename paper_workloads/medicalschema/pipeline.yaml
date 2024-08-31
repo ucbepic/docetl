@@ -1,0 +1,102 @@
+default_model: gpt-4o-mini
+
+datasets:
+  excel_data:
+    type: file
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/medicalschema/excel_data.json"
+
+operations:
+  extract_schema:
+    type: map
+    output:
+      schema:
+        metadata: "str"
+    prompt: |
+      Given the following data from multiple tabs in an Excel workbook:
+
+      {{ input.sheet_data }}
+
+      Extract any metadata that might be useful in extracting this downstream data later. You may want to extract column headers that are relevant, schemas, etc.
+
+  split_text:
+    type: split
+    split_key: sheet_data
+    method: token_count
+    method_kwargs:
+      token_count: 80000
+
+  gather_peripherals:
+    type: gather
+    content_key: sheet_data
+    doc_id_key: split_text_id
+    order_key: split_text_chunk_num
+    peripheral_chunks:
+      previous:
+        tail:
+          count: 0.05
+      next:
+        head:
+          count: 0.05
+
+  extract_patient_data:
+    type: map
+    output:
+      schema:
+        case_submitter_id: "list[str]"
+        age_at_diagnosis: "list[int]"
+        race: "list[str]"
+        ethnicity: "list[str]"
+        gender: "list[str]"
+        vital_status: "list[str]"
+        ajcc_pathologic_t: "list[str]"
+        ajcc_pathologic_n: "list[str]"
+        ajcc_pathologic_stage: "list[str]"
+        tumor_grade: "list[str]"
+        tumor_focality: "list[str]"
+        tumor_largest_dimension_diameter: "list[float]"
+        primary_diagnosis: "list[str]"
+        morphology: "list[str]"
+        tissue_or_organ_of_origin: "list[str]"
+        study: "list[str]"
+    prompt: |
+      Given the following table data:
+
+      Sheet Name: {{ input.sheet_name }}
+      Table Schema: {{ input.table_schema }}
+      Snippet of table data:
+      {{ input.sheet_data_chunk }}
+
+      Extract the following patient data fields if present:
+
+      - case_submitter_id: The ID of the case (required)
+      - age_at_diagnosis: The age of the patient at the time of diagnosis
+      - race: An arbitrary classification of a taxonomic group that is a division of a species
+      - ethnicity: Whether an individual describes themselves as Hispanic or Latino or not
+      - gender: Text designations that identify gender
+      - vital_status: The vital status of the patient
+      - ajcc_pathologic_t: The AJCC pathologic T
+      - ajcc_pathologic_n: The AJCC pathologic N
+      - ajcc_pathologic_stage: The AJCC pathologic stage
+      - tumor_grade: The tumor grade
+      - tumor_focality: The tumor focality
+      - tumor_largest_dimension_diameter: The tumor largest dimension diameter
+      - primary_diagnosis: The primary diagnosis
+      - morphology: The morphology
+      - tissue_or_organ_of_origin: The tissue or organ of origin
+      - study: The last name of the author of the study, from the table name
+
+      If a field is not present in the data, give an empty string for it. The case_submitter_id is required.
+
+pipeline:
+  steps:
+    - name: biometric_task
+      input: excel_data
+      operations:
+        - extract_schema
+        - split_text
+        - gather_peripherals
+        - extract_patient_data
+
+  output:
+    type: file
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/medicalschema/extracted_patient_data.json"

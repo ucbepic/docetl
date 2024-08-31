@@ -10,6 +10,10 @@ from rich.console import Console
 from motion.operations.base import BaseOperation
 from motion.optimizers.join_optimizer import JoinOptimizer
 from motion.optimizers.utils import LLMClient
+from motion.utils import count_tokens
+from motion.operations.utils import truncate_messages
+from litellm import model_cost
+from jinja2 import Template
 
 
 class ReduceOptimizer:
@@ -85,6 +89,58 @@ class ReduceOptimizer:
             Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
             and the list of outputs from the optimized operation(s), and the cost of the operation due to synthesizing any resolve operations.
         """
+        # Check if we're running out of token limits for the reduce prompt
+        model = op_config.get("model", self.config.get("default_model", "gpt-4o-mini"))
+        model_input_context_length = model_cost.get(model, {}).get(
+            "max_input_tokens", 4096
+        )
+
+        # Find the key with the longest value
+        longest_key = max(
+            op_config["reduce_key"], key=lambda k: len(str(input_data[0][k]))
+        )
+        sample_key = tuple(
+            input_data[0][k] if k == longest_key else input_data[0][k]
+            for k in op_config["reduce_key"]
+        )
+
+        # Render the prompt with a sample input
+        prompt_template = Template(op_config["prompt"])
+        sample_prompt = prompt_template.render(
+            reduce_key=dict(zip(op_config["reduce_key"], sample_key)),
+            values=[input_data[0]],
+        )
+
+        # Count tokens in the sample prompt
+        prompt_tokens = count_tokens(sample_prompt, model)
+
+        add_map_op = False
+        if prompt_tokens * 2 > model_input_context_length:
+            add_map_op = True
+            self.console.log(
+                f"[yellow]Warning: The reduce prompt exceeds the token limit for model {model}. "
+                f"Token count: {prompt_tokens}, Limit: {model_input_context_length}. "
+                f"Add a map operation to the pipeline.[/yellow]"
+            )
+
+        # # Also query an agent to look at a sample of the inputs and see if they think a map operation would be helpful
+        # preprocessing_steps = ""
+        # should_use_map, preprocessing_steps = self._should_use_map(
+        #     op_config, input_data
+        # )
+        # if should_use_map or add_map_op:
+        #     # Synthesize a map operation
+        #     map_prompt, map_output_schema = self._synthesize_map_operation(
+        #         op_config, preprocessing_steps, input_data
+        #     )
+        #     # Change the reduce operation prompt to use the map schema
+        #     new_reduce_prompt = self._change_reduce_prompt_to_use_map_schema(
+        #         op_config["prompt"], map_output_schema
+        #     )
+        #     op_config["prompt"] = new_reduce_prompt
+
+        #     # Return unoptimized map and reduce operations
+        #     return [map_prompt, op_config], input_data, 0.0
 
         original_output = self._run_operation(op_config, input_data)
 
@@ -125,6 +181,77 @@ class ReduceOptimizer:
         else:
             self.console.log("No improvements identified.")
             return [op_config], original_output, 0.0
+
+    def _should_use_map(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[bool, str]:
+        """
+        Determine if a map operation should be used based on the input data.
+        """
+        # Sample a random input item
+        sample_input = random.choice(input_data)
+
+        # Format the prompt with the sample input
+        prompt_template = Template(op_config["prompt"])
+        formatted_prompt = prompt_template.render(
+            reduce_key=dict(
+                zip(op_config["reduce_key"], sample_input[op_config["reduce_key"]])
+            ),
+            values=[sample_input],
+        )
+
+        # Prepare the message for the LLM
+        messages = [{"role": "user", "content": formatted_prompt}]
+
+        # Truncate the messages to fit the model's context window
+        truncated_messages = truncate_messages(
+            messages, self.config.get("model", self.default_model)
+        )
+
+        # Query the LLM for preprocessing suggestions
+        preprocessing_prompt = (
+            "Based on the following reduce operation prompt, should we do any preprocessing on the input data? "
+            "Consider if we need to remove unnecessary context, or logically construct an output that will help in the task. "
+            "If preprocessing would be beneficial, explain why and suggest specific steps. If not, explain why preprocessing isn't necessary.\n\n"
+            f"Reduce operation prompt:\n{truncated_messages[0]['content']}"
+        )
+
+        preprocessing_response = self.llm_client.generate(
+            model=self.config.get("model", self.default_model),
+            messages=[{"role": "user", "content": preprocessing_prompt}],
+            response_format={
+                "type": "json_object",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "preprocessing_needed": {"type": "boolean"},
+                        "rationale": {"type": "string"},
+                        "suggested_steps": {"type": "string"},
+                    },
+                    "required": [
+                        "preprocessing_needed",
+                        "rationale",
+                        "suggested_steps",
+                    ],
+                },
+            },
+        )
+
+        preprocessing_result = preprocessing_response.choices[0].message.content
+
+        should_preprocess = preprocessing_result["preprocessing_needed"]
+        preprocessing_rationale = preprocessing_result["rationale"]
+
+        self.console.log(f"[bold]Map-Reduce Decomposition Analysis:[/bold]")
+        self.console.log(f"Should write a map operation: {should_preprocess}")
+        self.console.log(f"Rationale: {preprocessing_rationale}")
+
+        if should_preprocess:
+            self.console.log(
+                f"Suggested steps: {preprocessing_result['suggested_steps']}"
+            )
+
+        return should_preprocess, preprocessing_result["suggested_steps"]
 
     def _optimize_single_reduce(
         self,
@@ -938,10 +1065,7 @@ class ReduceOptimizer:
         Create multiple reduce plans based on the input data and operation configuration.
 
         This method generates various reduce plans by varying batch sizes and fold prompts.
-        It also calculates a compression ratio, which is the ratio of input data size to output data size.
-        The compression ratio weakly indicates how much the data is being condensed by the reduce operation.
-        A higher compression ratio suggests that larger batch sizes may be more efficient, as more data
-        can be processed in each reduce step.
+        It takes into account the LLM's context window size to determine appropriate batch sizes.
 
         Args:
             op_config (Dict[str, Any]): Configuration for the reduce operation.
@@ -951,68 +1075,42 @@ class ReduceOptimizer:
         Returns:
             List[Dict[str, Any]]: A list of reduce plans, each with different batch sizes and fold prompts.
         """
-        reduce_key = op_config["reduce_key"]
-        if isinstance(reduce_key, list):
-            key_counts = Counter(
-                tuple(item[k] for k in reduce_key) for item in input_data
-            )
-        else:
-            key_counts = Counter(item[reduce_key] for item in input_data)
-        values_per_key = list(key_counts.values())
-
-        avg_values = mean(values_per_key)
-        median_values = median(values_per_key)
-        max_values = max(values_per_key)
-
-        # Run the operation once on a sample of the input data
-        sample_size = min(100, len(input_data))
-        sample_input = random.sample(input_data, sample_size)
-        sample_output = self._run_operation(op_config, sample_input)
-
-        # Calculate compression ratio
-        compression_ratio = self._calculate_compression_ratio(
-            op_config, sample_input, sample_output
+        model = op_config.get("model", "gpt-4o-mini")
+        model_input_context_length = model_cost.get(model, {}).get(
+            "max_input_tokens", 8192
         )
 
-        # Print the compression ratio
-        self.console.log(
-            f"[bold]Estimated Compression Ratio:[/bold] {compression_ratio:.2f}"
+        # Estimate tokens for prompt, input, and output
+        prompt_tokens = count_tokens(op_config["prompt"], model)
+        sample_input = input_data[:100]
+        sample_output = self._run_operation(op_config, input_data[:100])
+        avg_input_tokens = mean(
+            [count_tokens(json.dumps(item), model) for item in sample_input]
         )
+        avg_output_tokens = mean(
+            [count_tokens(json.dumps(item), model) for item in sample_output]
+        )
+
+        # Calculate max batch size that fits in context window
+        max_batch_size = (
+            model_input_context_length - prompt_tokens - avg_output_tokens
+        ) // avg_input_tokens
+
+        # Generate 5 candidate batch sizes
+        batch_sizes = [
+            max(1, int(max_batch_size * ratio)) for ratio in [0.2, 0.4, 0.6, 0.8, 1.0]
+        ]
+        batch_sizes = sorted(set(batch_sizes))  # Remove duplicates and sort
 
         plans = []
 
-        if "fold_prompt" in op_config:
-            current_batch_size = op_config.get("fold_batch_size", max_values)
-            batch_sizes = [
-                max(1, int(current_batch_size * 0.25)),
-                max(1, int(current_batch_size * 0.5)),
-                max(1, int(current_batch_size * 0.75)),
-                current_batch_size,
-            ]
-            fold_prompts = [op_config["fold_prompt"]]
-        else:
-            batch_sizes = [
-                max(1, int(avg_values * 0.5)),
-                max(1, int(avg_values)),
-                max(1, int(median_values)),
-                max(1, int(max_values * 0.5)),
-                max_values,
-            ]
-
-            # Add compression ratio-based batch size
-            compression_batch_size = max(1, int(compression_ratio * max_values))
-            batch_sizes.append(compression_batch_size)
-
-            # Remove duplicates and sort
-            batch_sizes = sorted(set(batch_sizes))
-
-            # Generate multiple fold prompts
-            fold_prompts = self._synthesize_fold_prompts(
-                op_config,
-                sample_input,
-                sample_output,
-                num_prompts=self.num_fold_prompts,
-            )
+        # Generate multiple fold prompts
+        fold_prompts = self._synthesize_fold_prompts(
+            op_config,
+            sample_input,
+            sample_output,
+            num_prompts=2,
+        )
 
         for batch_size in batch_sizes:
             for fold_prompt in fold_prompts:
@@ -1047,6 +1145,7 @@ class ReduceOptimizer:
         reduce_key = op_config["reduce_key"]
         input_schema = op_config.get("input", {}).get("schema", {})
         output_schema = op_config["output"]["schema"]
+        model = op_config.get("model", "gpt-4o")
 
         compression_ratios = {}
 
@@ -1075,20 +1174,27 @@ class ReduceOptimizer:
                 key_output = [item for item in sample_output if item[reduce_key] == key]
 
             if input_schema:
-                key_input_chars = sum(
-                    len(json.dumps({k: item[k] for k in input_schema if k in item}))
+                key_input_tokens = sum(
+                    count_tokens(
+                        json.dumps({k: item[k] for k in input_schema if k in item}),
+                        model,
+                    )
                     for item in key_input
                 )
             else:
-                key_input_chars = sum(len(json.dumps(item)) for item in key_input)
+                key_input_tokens = sum(
+                    count_tokens(json.dumps(item), model) for item in key_input
+                )
 
-            key_output_chars = sum(
-                len(json.dumps({k: item[k] for k in output_schema if k in item}))
+            key_output_tokens = sum(
+                count_tokens(
+                    json.dumps({k: item[k] for k in output_schema if k in item}), model
+                )
                 for item in key_output
             )
 
             compression_ratios[key] = (
-                key_output_chars / key_input_chars if key_input_chars > 0 else 1
+                key_output_tokens / key_input_tokens if key_input_tokens > 0 else 1
             )
 
         if not compression_ratios:

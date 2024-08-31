@@ -120,7 +120,7 @@ class OperationCreator:
             "content_key": content_key,
             "doc_id_key": f"{split_name}_id",
             "order_key": f"{split_name}_chunk_num",
-            "doc_header_key": "headers" if header_output_schema else [],
+            "doc_header_key": "headers" if header_output_schema else None,
             "peripheral_chunks": {},
         }
 

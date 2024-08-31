@@ -5,7 +5,7 @@ import typer
 
 from motion.builder import Optimizer
 from motion.runner import DSLRunner
-from motion.operations.utils import flush_cache
+from motion.operations.utils import clear_cache as cc
 
 app = typer.Typer()
 
@@ -68,7 +68,7 @@ def clear_cache():
     Clear the LLM cache stored on disk.
     """
     try:
-        flush_cache()
+        cc()
         typer.echo("Cache cleared successfully.")
     except Exception as e:
         typer.echo(f"An error occurred while clearing the cache: {str(e)}")

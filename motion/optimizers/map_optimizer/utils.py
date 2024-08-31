@@ -58,7 +58,11 @@ def generate_and_validate_prompt(
                 )
             else:
                 dummy_op_config.update(
-                    {"type": "reduce", "prompt": result["combine_prompt"]}
+                    {
+                        "type": "reduce",
+                        "prompt": result["combine_prompt"],
+                        "reduce_key": result["reduce_key"],
+                    }
                 )
 
             operation_class = get_operation(dummy_op_config["type"])
@@ -74,8 +78,9 @@ def generate_and_validate_prompt(
 
         except jinja2.exceptions.TemplateError as e:
             error_message = f"Invalid Jinja2 template: {str(e)}"
-        except Exception:
+        except Exception as e:
             # We only care about jinja errors
+            console.log(f"Error: {e}")
             return result
 
         # Print the error message to the console

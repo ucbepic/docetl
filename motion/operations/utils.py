@@ -9,10 +9,13 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
-from litellm import completion, completion_cost, embedding
+from litellm import completion, completion_cost, embedding, model_cost
 from rich.console import Console
 from tqdm import tqdm
 from diskcache import Cache
+import tiktoken
+
+from motion.utils import count_tokens
 
 load_dotenv()
 # litellm.set_verbose = True
@@ -101,6 +104,26 @@ def flush_cache(console: Console = Console()):
     console.log("[bold green]Cache flushed to disk.[/bold green]")
 
 
+def clear_cache(console: Console = Console()):
+    """
+    Clear the LLM cache stored on disk.
+
+    This function removes all cached items from the disk-based cache,
+    effectively clearing the LLM's response history.
+
+    Args:
+        console (Console, optional): A Rich console object for logging.
+            Defaults to a new Console instance.
+    """
+    console.log("[bold yellow]Clearing LLM cache...[/bold yellow]")
+    try:
+        cache.clear()
+        cache.close()
+        console.log("[bold green]LLM cache cleared successfully.[/bold green]")
+    except Exception as e:
+        console.log(f"[bold red]Error clearing cache: {str(e)}[/bold red]")
+
+
 def convert_val(value: Any) -> Dict[str, Any]:
     """
     Convert a string representation of a type to a dictionary representation.
@@ -152,6 +175,7 @@ def cache_key(
     op_type: str,
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
+    scratchpad: Optional[str] = None,
 ) -> str:
     """
     Generate a unique cache key based on function arguments.
@@ -164,6 +188,7 @@ def cache_key(
         op_type (str): The operation type.
         messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
+        scratchpad (Optional[str]): The scratchpad to use for the operation.
 
     Returns:
         str: A unique hash string representing the cache key.
@@ -173,6 +198,7 @@ def cache_key(
         "op_type": op_type,
         "messages": json.dumps(messages, sort_keys=True),
         "output_schema": json.dumps(output_schema, sort_keys=True),
+        "scratchpad": scratchpad,
     }
     return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest()
 
@@ -186,6 +212,7 @@ def cached_call_llm(
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
     tools: Optional[str] = None,
+    scratchpad: Optional[str] = None,
 ) -> str:
     """
     Cached version of the call_llm function.
@@ -201,12 +228,15 @@ def cached_call_llm(
         messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
         tools (Optional[str]): The tools to pass to the LLM.
+        scratchpad (Optional[str]): The scratchpad to use for the operation.
     Returns:
         str: The result from call_llm_with_cache.
     """
     result = cache.get(cache_key)
     if result is None:
-        result = call_llm_with_cache(model, op_type, messages, output_schema, tools)
+        result = call_llm_with_cache(
+            model, op_type, messages, output_schema, tools, scratchpad
+        )
         cache.set(cache_key, result)
     return result
 
@@ -257,7 +287,9 @@ def call_llm(
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
     tools: Optional[List[Dict[str, str]]] = None,
-) -> str:
+    scratchpad: Optional[str] = None,
+    console: Console = Console(),
+) -> Any:
     """
     Wrapper function that uses caching for LLM calls.
 
@@ -270,29 +302,34 @@ def call_llm(
         messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
         tools (Optional[List[Dict[str, str]]]): The tools to pass to the LLM.
-
+        scratchpad (Optional[str]): The scratchpad to use for the operation.
     Returns:
         str: The result from the cached LLM call.
 
     Raises:
         TimeoutError: If the call times out after retrying.
     """
-    key = cache_key(model, op_type, messages, output_schema)
+    key = cache_key(model, op_type, messages, output_schema, scratchpad)
 
     max_retries = 2
     for attempt in range(max_retries):
         try:
-            return timeout(60)(cached_call_llm)(
+            return timeout(120)(cached_call_llm)(
                 key,
                 model,
                 op_type,
                 messages,
                 output_schema,
                 json.dumps(tools) if tools else None,
+                scratchpad,
             )
         except TimeoutError:
             if attempt == max_retries - 1:
-                raise TimeoutError("LLM call timed out after multiple retries")
+                console.log(
+                    f"[bold red]LLM call timed out after {max_retries} retries[/bold red]"
+                )
+                # TODO: HITL
+                return {}
 
 
 def timeout(seconds):
@@ -325,6 +362,7 @@ def call_llm_with_cache(
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
     tools: Optional[str] = None,
+    scratchpad: Optional[str] = None,
 ) -> str:
     """
     Make an LLM call with caching.
@@ -338,11 +376,14 @@ def call_llm_with_cache(
         messages (List[Dict[str, str]]): The messages to send to the LLM.
         output_schema (Dict[str, str]): The output schema dictionary.
         tools (Optional[str]): The tools to pass to the LLM.
+        scratchpad (Optional[str]): The scratchpad to use for the operation.
     Returns:
         str: The response from the LLM.
     """
     if tools is None:
         props = {key: convert_val(value) for key, value in output_schema.items()}
+        if scratchpad is not None:
+            props["updated_scratchpad"] = {"type": "string"}
 
         parameters = {"type": "object", "properties": props}
         parameters["required"] = list(props.keys())
@@ -370,7 +411,12 @@ def call_llm_with_cache(
         tools = [{"type": "function", "function": tool["function"]} for tool in tools]
 
     system_prompt = f"You are a helpful assistant to intelligently process data. This is a {op_type} operation."
+    if scratchpad:
+        system_prompt += f"\n\nYou are incrementally processing the data. Your scratchpad has the following info: {scratchpad}\n\nWhen you read the data, you will take notes in your scratchpad to include information that you did not write to {output_schema.keys()}, but might be useful for processing the next batch of data. The scratchpad is shorthand that only you will read (you can use bullets); ~500 chars."
     messages = json.loads(messages)
+
+    # Truncate messages if they exceed the model's context length
+    messages = truncate_messages(messages, model)
 
     response = completion(
         model=model,
@@ -381,21 +427,44 @@ def call_llm_with_cache(
             },
         ]
         + messages,
-        # response_format={
-        #     "type": "json_schema",
-        #     "json_schema": {
-        #         "name": "output",
-        #         "strict": True,
-        #         "schema": parameters,
-        #     },
-        # },
         tools=tools,
-        # parallel_tool_calls=False,
-        # num_retries=1,
         tool_choice=tool_choice,
     )
 
     return response
+
+
+def truncate_messages(
+    messages: List[Dict[str, str]], model: str
+) -> List[Dict[str, str]]:
+    """
+    Truncate the messages to fit the model's context length.
+    """
+    model_input_context_length = model_cost.get(model, {}).get("max_input_tokens", 8192)
+    total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
+
+    if total_tokens <= model_input_context_length - 100:
+        return messages
+
+    truncated_messages = messages.copy()
+    longest_message = max(truncated_messages, key=lambda x: len(x["content"]))
+    content = longest_message["content"]
+    excess_tokens = total_tokens - model_input_context_length + 200  # 200 token buffer
+
+    encoder = tiktoken.encoding_for_model(model)
+    encoded_content = encoder.encode(content)
+    tokens_to_remove = min(len(encoded_content), excess_tokens)
+    mid_point = len(encoded_content) // 2
+    truncated_encoded = (
+        encoded_content[: mid_point - tokens_to_remove // 2]
+        + encoder.encode(" ... [content truncated] ... ")
+        + encoded_content[mid_point + tokens_to_remove // 2 :]
+    )
+    truncated_content = encoder.decode(truncated_encoded)
+
+    longest_message["content"] = truncated_content
+
+    return truncated_messages
 
 
 def call_llm_with_gleaning(
@@ -405,6 +474,7 @@ def call_llm_with_gleaning(
     output_schema: Dict[str, str],
     validator_prompt_template: str,
     num_gleaning_rounds: int,
+    console: Console = Console(),
 ) -> Tuple[str, float]:
     """
     Call LLM with a gleaning process, including validation and improvement rounds.
@@ -430,7 +500,7 @@ def call_llm_with_gleaning(
     parameters["additionalProperties"] = False
 
     # Initial LLM call
-    response = call_llm(model, op_type, messages, output_schema)
+    response = call_llm(model, op_type, messages, output_schema, console=console)
 
     cost = 0.0
 
@@ -521,6 +591,9 @@ def parse_llm_response(
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing the parsed output.
     """
+    if not response:
+        return [{}]
+
     # Parse the response based on the provided tools
     if tools:
         # If custom tools are provided, parse accordingly
@@ -529,7 +602,10 @@ def parse_llm_response(
         for tool_call in tool_calls:
             for tool in tools:
                 if tool_call.function.name == tool["function"]["name"]:
-                    function_args = json.loads(tool_call.function.arguments)
+                    try:
+                        function_args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        return [{}]
                     # Execute the function defined in the tool's code
                     local_scope = {}
                     exec(tool["code"].strip(), globals(), local_scope)
@@ -545,7 +621,10 @@ def parse_llm_response(
         outputs = []
         for tool_call in tool_calls:
             if tool_call.function.name == "write_output":
-                outputs.append(json.loads(tool_call.function.arguments))
+                try:
+                    outputs.append(json.loads(tool_call.function.arguments))
+                except json.JSONDecodeError:
+                    return [{}]
         return outputs
 
     # message = response.choices[0].message
@@ -567,8 +646,13 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
     if "validate" not in operation:
         return True
     for validation in operation["validate"]:
-        if not eval(validation, {"output": output}):
-            console.log(f"[bold red]Validation failed:[/bold red] {validation}")
+        try:
+            if not eval(validation, {"output": output}):
+                console.log(f"[bold red]Validation failed:[/bold red] {validation}")
+                console.log(f"[yellow]Output:[/yellow] {output}")
+                return False
+        except Exception as e:
+            console.log(f"[bold red]Validation error:[/bold red] {str(e)}")
             console.log(f"[yellow]Output:[/yellow] {output}")
             return False
     return True

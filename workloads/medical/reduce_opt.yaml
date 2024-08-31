@@ -6,17 +6,27 @@ default_model: gpt-4o-mini
 operations:
   summarize_medication_contexts:
     commutative: true
-    fold_batch_size: 7
-    fold_prompt: 'Combine the following additional doctor-patient transcripts where
-      the medication "{{ reduce_key }}" is mentioned to enhance the summary of patient
-      settings and experiences:
+    fold_batch_size: 15
+    fold_prompt: 'Summarize the settings in which patients take the medication "{{
+      reduce_key }}" by combining the new information in the following doctor-patient
+      transcripts with the current summary:
 
 
-      {% for item in values %}
+      Current Summary:
 
-      Transcript {{ loop.index }}:
+      {{ output.summary }}
 
-      {{ item.src }}
+
+      ---
+
+
+      New Transcripts:
+
+      {% for value in values %}
+
+      Transcript {{ loop.index + 1 }}:
+
+      {{ value.src }}
 
 
       ---
@@ -24,61 +34,37 @@ operations:
       {% endfor %}
 
 
-      Update the current summary with these new transcripts. Include any new information
-      about:
-
-
-      1. A brief summary of why a patient takes this medication.
-
-      2. Any side effects experienced or mentioned.
-
-      3. Any interactions with other medications or treatments mentioned.
-
-
-      Start with the existing summary:
-
-
-      {{ output[''summary''] }}'
+      Based on the new transcripts, update the summary to include any additional reasons
+      for taking the medication "{{ reduce_key }}", side effects mentioned, or interactions
+      with other medications or treatments. Ensure the updated summary merges seamlessly
+      with the current information and clearly reflects any additional insights gathered
+      from the new set of transcripts.'
     input:
       schema:
         medication: str
         src: str
     merge_batch_size: 2
-    merge_prompt: 'Merge the summaries of multiple folded outputs to create a cohesive
-      overview of the settings in which the medication "{{ reduce_key }}" is used.
-      This task aims to simulate a comprehensive analysis as if the original reduce
-      prompt had processed all transcripts collectively from the start.
+    merge_prompt: 'Combine the summaries produced by the previous fold operations
+      into a comprehensive summary. These fold outputs are based on separate analyses
+      of doctor-patient transcripts where the medication "{{ reduce_key }}" is mentioned.
+      The goal is to merge these summaries into one cohesive output.
 
 
-      You have the following summaries:
-
+      Folded Outputs to Merge:
 
       {% for output in outputs %}
 
-      Summary {{ loop.index }}:
-
-      {{ output[''summary''] }}
-
-
-      ---
+      - Summary {{ loop.index + 1 }}: {{ output.summary }}
 
       {% endfor %}
 
 
-      Combine the information from these summaries. Ensure the consolidated summary
-      captures:
-
-
-      1. A cohesive summary of why patients take this medication.
-
-      2. Comprehensive details on any side effects experienced or mentioned.
-
-      3. A clear description of any interactions with other medications or treatments
-      mentioned.
-
-
-      Produce a unified final summary that integrates findings from all summaries
-      provided, maintaining consistency and clarity of information.'
+      Create a unified summary by synthesizing the information from these folded outputs.
+      Ensure that the combined summary covers all insights gathered, including any
+      additional reasons for taking the medication "{{ reduce_key }}", new side effects,
+      or interactions with other medications or treatments mentioned across all transcripts.
+      The final summary should flow logically and encapsulate all essential findings
+      in a clear and concise manner.'
     output:
       schema:
         summary: str

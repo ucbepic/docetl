@@ -130,6 +130,7 @@ class MapOperation(BaseOperation):
                         self.config["output"]["schema"],
                         self.config["gleaning"]["validation_prompt"],
                         self.config["gleaning"]["num_rounds"],
+                        self.console,
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
@@ -145,6 +146,7 @@ class MapOperation(BaseOperation):
                         messages,
                         self.config["output"]["schema"],
                         tools=self.config.get("tools", None),
+                        console=self.console,
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
@@ -297,6 +299,7 @@ class ParallelMapOperation(BaseOperation):
                 [{"role": "user", "content": prompt}],
                 local_output_schema,
                 tools=prompt_config.get("tools", None),
+                console=self.console,
             )
             output = parse_llm_response(
                 response, tools=prompt_config.get("tools", None)

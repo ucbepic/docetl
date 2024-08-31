@@ -8,12 +8,16 @@ from typing import Any, Callable, Dict, List, Tuple
 
 from rich.console import Console
 from rich.table import Table
+from jinja2 import Template
 
 from motion.optimizers.map_optimizer.evaluator import Evaluator
 from motion.optimizers.map_optimizer.plan_generators import PlanGenerator
 from motion.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from motion.optimizers.map_optimizer.utils import select_evaluation_samples
 from motion.optimizers.utils import LLMClient
+from motion.utils import count_tokens
+
+from litellm import model_cost
 
 
 class MapOptimizer:
@@ -133,9 +137,40 @@ class MapOptimizer:
         for i in range(len(input_data)):
             input_data[i]["_map_opt_id"] = str(uuid.uuid4())
 
+        # Define the token limit (adjust as needed)
+        model_input_context_length = model_cost.get(
+            op_config.get("model", self.config.get("default_model")), {}
+        ).get("max_input_tokens", 8192)
+
+        # Render the prompt with all sample inputs and count tokens
+        total_tokens = 0
+        exceed_count = 0
+        for sample in input_data:
+            rendered_prompt = Template(op_config["prompt"]).render(input=sample)
+            prompt_tokens = count_tokens(
+                rendered_prompt,
+                op_config.get("model", self.config.get("default_model")),
+            )
+            total_tokens += prompt_tokens
+
+            if prompt_tokens > model_input_context_length:
+                exceed_count += 1
+
+        # Calculate average tokens and percentage of samples exceeding limit
+        avg_tokens = total_tokens / len(input_data)
+        exceed_percentage = (exceed_count / len(input_data)) * 100
+
+        data_exceeds_limit = exceed_count > 0
+        if exceed_count > 0:
+            self.console.log(
+                f"[yellow]Warning: {exceed_percentage:.2f}% of prompts exceed token limit. "
+                f"Average token count: {avg_tokens:.2f}. "
+                f"Truncating input data when generating validators.[/yellow]"
+            )
+
         # Execute the original operation on the sample data
         no_change_start = time.time()
-        output_data = self._run_operation(op_config, input_data)
+        output_data = self._run_operation(op_config, input_data, is_build=True)
         no_change_runtime = time.time() - no_change_start
 
         # Generate custom validator prompt
@@ -161,59 +196,59 @@ class MapOptimizer:
         self.console.log("\n")  # Add a newline for better readability
 
         # Check if improvement is needed based on the assessment
-        if not assessment.get("needs_improvement", True):
+        if not data_exceeds_limit and not assessment.get("needs_improvement", True):
             self.console.log(
                 f"[green]No improvement needed for operation {op_config['name']}[/green]"
             )
             return [op_config], output_data, self.plan_generator.reduce_optimizer_cost
 
+        candidate_plans = {}
+
         # Generate improved prompt plan
-        improved_prompt_plan = self.prompt_generator._get_improved_prompt(
-            op_config, assessment, input_data
-        )
+        if not data_exceeds_limit:
+            improved_prompt_plan = self.prompt_generator._get_improved_prompt(
+                op_config, assessment, input_data
+            )
+            candidate_plans["improved_instructions"] = improved_prompt_plan
+            candidate_plans["no_change"] = [op_config]
 
         # Generate chunk size plans
         chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
-            op_config, input_data, validator_prompt
+            op_config, input_data, validator_prompt, model_input_context_length
         )
+        for pname, plan in chunk_size_plans.items():
+            candidate_plans[pname] = plan
 
         # Generate gleaning plans
-        gleaning_plans = self.plan_generator._generate_gleaning_plans(
-            op_config, validator_prompt
-        )
+        if not data_exceeds_limit:
+            gleaning_plans = self.plan_generator._generate_gleaning_plans(
+                op_config, validator_prompt
+            )
+            for pname, plan in gleaning_plans.items():
+                candidate_plans[pname] = plan
 
         # Generate chain decomposition plans
-        if not self.is_filter:
-            chain_plans = self.plan_generator._generate_chain_plans(
-                op_config, input_data
-            )
-        else:
-            chain_plans = {}
+        if not data_exceeds_limit:
+            if not self.is_filter:
+                chain_plans = self.plan_generator._generate_chain_plans(
+                    op_config, input_data
+                )
+                for pname, plan in chain_plans.items():
+                    candidate_plans[pname] = plan
 
-        # Generate parallel map plans
-        if not self.is_filter:
-            parallel_plans = self.plan_generator._generate_parallel_plans(
-                op_config, input_data
-            )
-        else:
-            parallel_plans = {}
-
-        # Evaluate all plans
-        plans_to_evaluate = {
-            "improved_instructions": improved_prompt_plan,
-            "no_change": [op_config],
-            **chunk_size_plans,
-            **gleaning_plans,
-            **chain_plans,
-            **parallel_plans,
-        }
+                # Generate parallel map plans
+                parallel_plans = self.plan_generator._generate_parallel_plans(
+                    op_config, input_data
+                )
+                for pname, plan in parallel_plans.items():
+                    candidate_plans[pname] = plan
 
         # Select consistent evaluation samples
         num_evaluations = min(5, len(input_data))
         evaluation_samples = select_evaluation_samples(input_data, num_evaluations)
 
         results = {}
-        plans_list = list(plans_to_evaluate.items())
+        plans_list = list(candidate_plans.items())
         for i in range(0, len(plans_list), self._num_plans_to_evaluate_in_parallel):
             batch = plans_list[i : i + self._num_plans_to_evaluate_in_parallel]
             with ThreadPoolExecutor(
@@ -261,15 +296,6 @@ class MapOptimizer:
             reverse=True,
         )
 
-        self.console.log(
-            f"\n[bold]Plan Evaluation Results for {op_config['name']} ({op_config['type']}, {len(scores)} plans, {num_evaluations} samples):[/bold]"
-        )
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Plan", style="dim")
-        table.add_column("Score", justify="right", width=10)
-        table.add_column("Runtime", justify="right", width=10)
-        table.add_column("Pairwise Wins", justify="right", width=10)
-
         # Sort results by score in descending order
         sorted_results = sorted(results.items(), key=lambda x: x[1][0], reverse=True)
 
@@ -301,6 +327,15 @@ class MapOptimizer:
                 else max(results, key=lambda x: results[x][0])
             )
 
+        self.console.log(
+            f"\n[bold]Plan Evaluation Results for {op_config['name']} ({op_config['type']}, {len(scores)} plans, {num_evaluations} samples):[/bold]"
+        )
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Plan", style="dim")
+        table.add_column("Score", justify="right", width=10)
+        table.add_column("Runtime", justify="right", width=10)
+        table.add_column("Pairwise Wins", justify="right", width=10)
+
         for score, runtime, plan in scores:
             table.add_row(
                 plan,
@@ -318,7 +353,7 @@ class MapOptimizer:
         )
 
         return (
-            plans_to_evaluate[best_plan_name],
+            candidate_plans[best_plan_name],
             best_output,
             self.plan_generator.reduce_optimizer_cost,
         )

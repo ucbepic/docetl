@@ -3,9 +3,11 @@ import random
 from typing import Any, Dict, List, Tuple
 
 from rich.console import Console
+from litellm import model_cost
 
 from motion.optimizers.map_optimizer.utils import generate_and_validate_prompt
-from motion.optimizers.utils import LLMClient
+from motion.optimizers.utils import LLMClient, extract_jinja_variables
+from motion.utils import count_tokens, truncate_sample_data
 
 
 class PromptGenerator:
@@ -31,15 +33,42 @@ class PromptGenerator:
     ) -> str:
         system_prompt = "You are an AI assistant tasked with creating custom validation prompts for data processing operations. Your goal is to create a prompt that will assess how well the operation performed its intended task."
 
+        variables_in_prompt = extract_jinja_variables(op_config["prompt"])
+        variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
+        output_keys_not_in_input = [
+            k for k in output_data[0].keys() if k not in input_data[0].keys()
+        ]
+
+        # Get the model's input context length
+        model_input_context_length = model_cost.get(self.llm_client.model, {}).get(
+            "max_input_tokens", 8192
+        )
+        # Count tokens in the prompt
+        prompt_tokens = count_tokens(
+            op_config.get("prompt", "N/A"), self.llm_client.model
+        )
+
+        # Calculate available tokens for sample data
+        available_tokens = (
+            model_input_context_length - prompt_tokens - 100
+        )  # 100 token buffer
+
+        truncated_output = truncate_sample_data(
+            output_data[0],
+            available_tokens,
+            output_keys_not_in_input + variables_in_prompt,
+            self.llm_client.model,
+        )
+
         prompt = f"""
         Analyze the following operation and its input/output:
 
         Operation Name: {op_config['name']}
         Operation Type: {op_config['type']}
-        Sample Input & Output: {json.dumps(output_data[0] if output_data else {}, indent=2)}
+        Sample Input & Output: {json.dumps(truncated_output, indent=2)}
         Task Prompt: {op_config.get('prompt', 'N/A')}
 
-        Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask specific questions about the quality and completeness of the output, such as:
+        Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask 2 or 3 specific questions about the quality and completeness of the output, such as:
         1. Are there any instances of the target information missed?
         2. Would the output improve if the input was analyzed more carefully?
         3. Is the output format correct and consistent?

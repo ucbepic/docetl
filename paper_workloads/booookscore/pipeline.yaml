@@ -1,0 +1,77 @@
+default_model: gpt-4o-mini
+
+datasets:
+  books:
+    type: file
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/booookscore/books.json"
+
+operations:
+  split_text:
+    type: split
+    split_key: text
+    method: token_count
+    method_kwargs:
+      token_count: 2048
+
+  summarize_story:
+    type: reduce
+    reduce_key: book
+    output:
+      schema:
+        summary: "str"
+    commutative: false
+    fold_batch_size: 1
+    prompt: |
+      Below are the beginning parts of a story:
+
+      ---
+
+      {% for chunk in values %}
+      {{ chunk.text_chunk }}
+
+      {% if not loop.last %}
+      ---
+      {% endif %}
+      {% endfor %}
+
+      ---
+
+      We are going over segments of a story sequentially to gradually update one comprehensive summary of the entire plot. Write a summary for the excerpt provided above, make sure to include vital information related to key events, backgrounds, settings, characters, their objectives, and motivations. You must briefly introduce characters, places, and other major elements if they are being mentioned for the first time in the summary. The story may feature non-linear narratives, flashbacks, switches between alternate worlds or viewpoints, etc. Therefore, you should organize the summary so it presents a consistent and chronological narrative. Despite this step-by-step process of updating the summary, you need to create a summary that seems as though it is written in one go. The summary could include multiple paragraphs.
+    fold_prompt: |
+      Below is a summary of the story up until a certain point:
+
+      ---
+
+      {{ output.summary }}
+
+      ---
+
+      Below are the next segments of the story:
+
+      ---
+
+      {% for chunk in values %}
+      {{ chunk.text_chunk }}
+
+      {% if not loop.last %}
+      ---
+      {% endif %}
+      {% endfor %}
+
+      ---
+
+      We are going over segments of a story sequentially to gradually update one comprehensive summary of the entire plot. You are required to update the summary to incorporate any new vital information in the current excerpt. This information may relate to key events, backgrounds, settings, characters, their objectives, and motivations. You must briefly introduce characters, places, and other major elements if they are being mentioned for the first time in the summary. The story may feature non-linear narratives, flashbacks, switches between alternate worlds or viewpoints, etc. Therefore, you should organize the summary so it presents a consistent and chronological narrative. Despite this step-by-step process of updating the summary, you need to create a summary that seems as though it is written in one go. The updated summary could include multiple paragraphs.
+
+      Updated summary:
+
+pipeline:
+  steps:
+    - name: split_text
+      input: books
+      operations:
+        - split_text
+        - summarize_story
+
+  output:
+    type: file
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/booookscore/summarized_books.json"

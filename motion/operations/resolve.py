@@ -43,6 +43,7 @@ def compare_pair(
         "compare",
         [{"role": "user", "content": prompt}],
         {"is_match": "bool"},
+        console=self.console,
     )
     output = parse_llm_response(response)[0]
     return output["is_match"], completion_cost(response)
@@ -329,6 +330,7 @@ class ResolveOperation(BaseOperation):
                     "reduce",
                     [{"role": "user", "content": resolution_prompt}],
                     self.config["output"]["schema"],
+                    console=self.console,
                 )
                 reduction_output = parse_llm_response(reduction_response)[0]
                 reduction_cost = completion_cost(reduction_response)

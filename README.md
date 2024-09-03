@@ -821,7 +821,7 @@ pipeline:
 
   output:
     type: file
-    path: "output/theme_summaries.json" # Your summaries will be saved to the summary key
+    path: "theme_summaries.json" # Your summaries will be saved to the summary key
 ```
 
 To run this pipeline, save it as `pipeline.yaml` and execute:

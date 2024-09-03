@@ -827,7 +827,7 @@ pipeline:
 To run this pipeline, save it as `pipeline.yaml` and execute:
 
 ```bash
-motion pipeline.yaml
+motion run pipeline.yaml
 ```
 
 This will process the student submissions data, extract themes from each response, unnest the themes, summarize the responses for each theme, and save the theme summaries in `output/theme_summaries.json`.

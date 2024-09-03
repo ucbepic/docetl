@@ -135,6 +135,7 @@ class Optimizer:
             self.sample_size_map.update(self.config["optimizer_config"]["sample_sizes"])
 
         self.status = None
+        self.step_op_to_optimized_ops = {}
 
         self.print_optimizer_config()
 
@@ -239,7 +240,10 @@ class Optimizer:
         upstream_ops = []
         for step_op in step_ops:
             if step_op != op_config.get("name"):
-                upstream_ops.append(step_op)
+                if step_op in self.step_op_to_optimized_ops:
+                    upstream_ops.extend(self.step_op_to_optimized_ops[step_op])
+                else:
+                    upstream_ops.append(step_op)
             else:
                 break
 
@@ -291,7 +295,9 @@ class Optimizer:
                 if op_type == "map":
                     has_map = True
                     map_op = op
-                elif op_type == "reduce":
+                elif op_type == "reduce" and self.config["operations"][op].get(
+                    "synthesize_resolve", True
+                ):
                     has_reduce = True
                     reduce_op = op
                 elif op_type == "resolve":
@@ -428,7 +434,8 @@ class Optimizer:
                 if step["name"] != step_name
             ] + [optimized_step]
 
-            # Save the result to datasets using the step name
+            self.step_op_to_optimized_ops[step_name] = optimized_step["operations"]
+
             step_hash = (
                 hashlib.md5(
                     json.dumps(
@@ -458,7 +465,9 @@ class Optimizer:
             ):
                 # Run the entire step
                 input_data = self._run_partial_step(
-                    step, step_operations, float("inf"), optimized_operations
+                    step,
+                    step_operations,
+                    float("inf"),  # TODO: FIX THIS
                 )
                 self.datasets[step_hash] = copy.deepcopy(input_data)
             else:
@@ -772,7 +781,20 @@ class Optimizer:
                     data, op_config.get("reduce_key"), sample_size
                 )
 
-        return random.sample(data, min(sample_size, len(data)))
+        # Take the random 500 examples or all if less than 500
+        initial_data = random.sample(data, min(500, len(data)))
+
+        # Calculate counts for each example
+        char_counts = [len(str(item)) for item in initial_data]
+        total_counts = sum(char_counts)
+
+        # Calculate weights based on word counts
+        weights = [count / total_counts for count in char_counts]
+
+        # Perform weighted random sampling
+        return random.choices(
+            initial_data, weights=weights, k=min(sample_size, len(initial_data))
+        )
 
     def _get_reduce_sample(
         self, data: List[Dict[str, Any]], reduce_key: str, sample_size: int

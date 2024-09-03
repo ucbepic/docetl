@@ -48,7 +48,7 @@ def config_yaml(sample_data):
                     "optimize": False,
                     "reduce_key": "medication",
                     "output": {"schema": {"summary": "string"}},
-                    "prompt": "Summarize the usage of the medication '{{ reduce_key }}' based on the following contexts:\n\n{% for item in values %}{{ item.text }}\n{% endfor %}\n\nProvide a brief summary of how this medication is typically used.",
+                    "prompt": "Summarize the usage of the medication '{{ reduce_key }}' based on the following contexts:\n\n{% for item in inputs %}{{ item.text }}\n{% endfor %}\n\nProvide a brief summary of how this medication is typically used.",
                 },
             },
             "pipeline": {
@@ -97,6 +97,7 @@ def test_synth_resolve(config_yaml):
                 assert "reduce_key" in synthesized_op["_intermediates"]
                 assert "comparison_prompt" in synthesized_op
                 assert "resolution_prompt" in synthesized_op
+                assert "blocking_threshold" in synthesized_op
 
                 break
         if synthesized_resolve_found:

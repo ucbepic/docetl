@@ -35,7 +35,7 @@ def test_random_sampling(default_model, max_threads, large_sample_data):
     config = {
         "reduce_key": "group",
         "value_sampling": {"enabled": True, "method": "random", "sample_size": 50},
-        "prompt": "Summarize the following texts: {{ values|map(attribute='text')|join(' | ') }}",
+        "prompt": "Summarize the following texts: {{ inputs|map(attribute='text')|join(' | ') }}",
         "output": {"schema": {"summary": "string"}},
     }
 
@@ -52,7 +52,7 @@ def test_first_n_sampling(default_model, max_threads, large_sample_data):
     config = {
         "reduce_key": "group",
         "value_sampling": {"enabled": True, "method": "first_n", "sample_size": 100},
-        "prompt": "Summarize the following texts: {{ values|map(attribute='text')|join(' | ') }}",
+        "prompt": "Summarize the following texts: {{ inputs|map(attribute='text')|join(' | ') }}",
         "output": {"schema": {"summary": "string"}},
     }
 
@@ -75,7 +75,7 @@ def test_cluster_sampling(default_model, max_threads, large_sample_data):
             "embedding_model": "text-embedding-3-small",
             "embedding_keys": ["text"],
         },
-        "prompt": "Summarize the following texts: {{ values|map(attribute='text')|join(' | ') }}",
+        "prompt": "Summarize the following texts: {{ inputs|map(attribute='text')|join(' | ') }}",
         "output": {"schema": {"summary": "string"}},
     }
 
@@ -99,7 +99,7 @@ def test_semantic_similarity_sampling(default_model, max_threads, large_sample_d
             "embedding_keys": ["text"],
             "query_text": "technology",
         },
-        "prompt": "Summarize the following texts: {{ values|map(attribute='text')|join(' | ') }}",
+        "prompt": "Summarize the following texts: {{ inputs|map(attribute='text')|join(' | ') }}",
         "output": {"schema": {"summary": "string"}},
     }
 
@@ -126,7 +126,7 @@ def test_invalid_sampling_method(default_model, max_threads, large_sample_data):
             "method": "invalid_method",
             "sample_size": 50,
         },
-        "prompt": "Summarize the following texts: {{ values|map(attribute='text')|join(' | ') }}",
+        "prompt": "Summarize the following texts: {{ inputs|map(attribute='text')|join(' | ') }}",
         "output": {"schema": {"summary": "string"}},
     }
 

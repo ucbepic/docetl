@@ -65,9 +65,9 @@ TODO:
     - [ ] Support this kind of chunking in the optimizer
   - [x] Extract headers & levels from documents, and add the level hierarchy to the chunk.
 - [x] Support tool use in map operators
-- [ ] Fix DSL to handle inputs like we've done in the Overleaf writeup
-- [ ] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
+- [x] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
 - [ ] Support retries in the optimizers
+- [ ] Fix bug in recursively optimizing reduce in the map optimizer
 - [ ] Write tests for optimizers
 - [ ] Filter optimizer
   - [x] Extend map optimizer to support filter

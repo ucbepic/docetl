@@ -2,3 +2,9 @@
 *__pycache__*
 *scratch*
 *relevance_assessment*
+palimpzest/*
+paper_workloads/contracts/full_contract_txt*
+paper_workloads/contracts/sample_contract_txt*
+*.xlsx
+*.csv
+paper_workloads/*

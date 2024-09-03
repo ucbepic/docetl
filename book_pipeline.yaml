@@ -99,7 +99,7 @@ operations:
       Are these genres likely to be the same or closely related?
     resolution_prompt: |
       Given the following matched genre entries:
-      {% for entry in matched_entries %}
+      {% for entry in inputs %}
       Entry {{ loop.index }}:
       Genre: {{ entry.genre }}
       Example Book: {{ entry.title }}
@@ -179,7 +179,7 @@ operations:
     prompt: |
       Summarize the books in the {{ reduce_key }} genre:
       Books:
-      {% for book in values %}
+      {% for book in inputs %}
       - Title: "{{ book.title }}"
         Word Count: {{ book.word_count }}
         Theme: "{{ book.theme }}"

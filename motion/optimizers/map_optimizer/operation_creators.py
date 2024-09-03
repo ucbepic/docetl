@@ -191,7 +191,7 @@ class OperationCreator:
         return {
             "type": "reduce",
             "name": name,
-            "reduce_key": doc_id_key,
+            "reduce_key": [doc_id_key],
             "input": op_config["output"],  # subselect keys
             "prompt": combine_prompt,
             "model": (

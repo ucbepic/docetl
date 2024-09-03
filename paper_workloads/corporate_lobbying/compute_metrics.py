@@ -50,6 +50,11 @@ tool_metrics = compute_metrics(
     "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/corporate_lobbying/relevance_assessment_tool.json",
 )
 
+our_metrics = compute_metrics(
+    "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/corporate_lobbying/ground_truth.json",
+    "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/corporate_lobbying/relevance_assessment_ours.json",
+)
+
 # Prepare data for the DataFrame
 data = {
     "Metric": ["Accuracy", "Precision", "Recall", "F1 Score"],
@@ -59,11 +64,17 @@ data = {
         f"{baseline_metrics['recall']:.4f}",
         f"{baseline_metrics['f1_score']:.4f}",
     ],
-    "Tool": [
+    "Raw Article Text from Google Search": [
         f"{tool_metrics['accuracy']:.4f}",
         f"{tool_metrics['precision']:.4f}",
         f"{tool_metrics['recall']:.4f}",
         f"{tool_metrics['f1_score']:.4f}",
+    ],
+    "Motion": [
+        f"{our_metrics['accuracy']:.4f}",
+        f"{our_metrics['precision']:.4f}",
+        f"{our_metrics['recall']:.4f}",
+        f"{our_metrics['f1_score']:.4f}",
     ],
 }
 

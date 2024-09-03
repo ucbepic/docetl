@@ -13,7 +13,8 @@ from rich.prompt import Confirm
 import numpy as np
 
 from jinja2 import Template
-from litellm import completion_cost, embedding, model_cost
+from litellm import embedding, model_cost
+from motion.utils import completion_cost
 from sklearn.metrics.pairwise import cosine_similarity
 
 from motion.operations.base import BaseOperation

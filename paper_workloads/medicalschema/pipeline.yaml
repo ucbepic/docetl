@@ -87,6 +87,76 @@ operations:
 
       If a field is not present in the data, give an empty string for it. The case_submitter_id is required.
 
+  combine_patient_data:
+    type: reduce
+    commutative: false
+    reduce_key:
+      - file_name
+    output:
+      schema:
+        case_submitter_id: "list[str]"
+        age_at_diagnosis: "list[int]"
+        race: "list[str]"
+        ethnicity: "list[str]"
+        gender: "list[str]"
+        vital_status: "list[str]"
+        ajcc_pathologic_t: "list[str]"
+        ajcc_pathologic_n: "list[str]"
+        ajcc_pathologic_stage: "list[str]"
+        tumor_grade: "list[str]"
+        tumor_focality: "list[str]"
+        tumor_largest_dimension_diameter: "list[float]"
+        primary_diagnosis: "list[str]"
+        morphology: "list[str]"
+        tissue_or_organ_of_origin: "list[str]"
+        study: "list[str]"
+    prompt: |
+      Combine the patient data from multiple chunks of the same file. Each chunk contains lists of patient data fields. You should concatenate the relevant lists from each chunk.
+
+      Input chunks to merge:
+      {% for chunk in values %}
+      Chunk {{ loop.index }}:
+      case_submitter_id: {{ chunk.case_submitter_id }}
+      age_at_diagnosis: {{ chunk.age_at_diagnosis }}
+      race: {{ chunk.race }}
+      ethnicity: {{ chunk.ethnicity }}
+      gender: {{ chunk.gender }}
+      vital_status: {{ chunk.vital_status }}
+      ajcc_pathologic_t: {{ chunk.ajcc_pathologic_t }}
+      ajcc_pathologic_n: {{ chunk.ajcc_pathologic_n }}
+      ajcc_pathologic_stage: {{ chunk.ajcc_pathologic_stage }}
+      tumor_grade: {{ chunk.tumor_grade }}
+      tumor_focality: {{ chunk.tumor_focality }}
+      tumor_largest_dimension_diameter: {{ chunk.tumor_largest_dimension_diameter }}
+      primary_diagnosis: {{ chunk.primary_diagnosis }}
+      morphology: {{ chunk.morphology }}
+      tissue_or_organ_of_origin: {{ chunk.tissue_or_organ_of_origin }}
+      study: {{ chunk.study }}
+
+      {% endfor %}
+
+      Merge the data from all chunks into a single set of lists, maintaining the order of the case_submitter_ids. If there are any conflicts in the data for the same case_submitter_id, use the data from the later chunk.
+
+      Ensure the output maintains the following schema:
+      - case_submitter_id: list[str]
+      - age_at_diagnosis: list[int]
+      - race: list[str]
+      - ethnicity: list[str]
+      - gender: list[str]
+      - vital_status: list[str]
+      - ajcc_pathologic_t: list[str]
+      - ajcc_pathologic_n: list[str]
+      - ajcc_pathologic_stage: list[str]
+      - tumor_grade: list[str]
+      - tumor_focality: list[str]
+      - tumor_largest_dimension_diameter: list[float]
+      - primary_diagnosis: list[str]
+      - morphology: list[str]
+      - tissue_or_organ_of_origin: list[str]
+      - study: list[str]
+
+      Provide the merged data in the same format as the input chunks.
+
 pipeline:
   steps:
     - name: biometric_task
@@ -96,7 +166,8 @@ pipeline:
         - split_text
         - gather_peripherals
         - extract_patient_data
+        - combine_patient_data
 
   output:
     type: file
-    path: "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/medicalschema/extracted_patient_data.json"
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/medicalschema/extracted_patient_data_with_reduce.json"

@@ -9,7 +9,7 @@ from rich.console import Console
 
 from motion.operations.base import BaseOperation
 from motion.optimizers.join_optimizer import JoinOptimizer
-from motion.optimizers.utils import LLMClient
+from motion.optimizers.utils import LLMClient, extract_jinja_variables
 from motion.utils import count_tokens
 from motion.operations.utils import truncate_messages
 from litellm import model_cost
@@ -67,6 +67,7 @@ class ReduceOptimizer:
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
+        level: int = 1,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize the reduce operation based on the given configuration and input data.
@@ -108,7 +109,7 @@ class ReduceOptimizer:
         prompt_template = Template(op_config["prompt"])
         sample_prompt = prompt_template.render(
             reduce_key=dict(zip(op_config["reduce_key"], sample_key)),
-            values=[input_data[0]],
+            inputs=[input_data[0]],
         )
 
         # Count tokens in the sample prompt
@@ -170,11 +171,13 @@ class ReduceOptimizer:
             )
 
             # Step 3: Evaluate if decomposition is beneficial
-            decomposition_result = self._evaluate_decomposition(op_config, input_data)
+            decomposition_result = self._evaluate_decomposition(
+                op_config, input_data, level
+            )
 
             if decomposition_result["should_decompose"]:
                 return self._optimize_decomposed_reduce(
-                    decomposition_result, op_config, input_data
+                    decomposition_result, op_config, input_data, level
                 )
 
             return self._optimize_single_reduce(op_config, input_data, validator_prompt)
@@ -197,7 +200,7 @@ class ReduceOptimizer:
             reduce_key=dict(
                 zip(op_config["reduce_key"], sample_input[op_config["reduce_key"]])
             ),
-            values=[sample_input],
+            inputs=[sample_input],
         )
 
         # Prepare the message for the LLM
@@ -290,7 +293,7 @@ class ReduceOptimizer:
         # Step 3: Create and evaluate multiple reduce plans
         reduce_plans = self._create_reduce_plans(op_config, input_data, is_commutative)
         best_plan = self._evaluate_reduce_plans(
-            reduce_plans, input_data, validator_prompt
+            op_config, reduce_plans, input_data, validator_prompt
         )
 
         # Step 4: Run the best reduce plan
@@ -303,6 +306,7 @@ class ReduceOptimizer:
         decomposition_result: Dict[str, Any],
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
+        level: int,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize a decomposed reduce operation.
@@ -318,7 +322,7 @@ class ReduceOptimizer:
             decomposition_result (Dict[str, Any]): The result of the decomposition evaluation.
             op_config (Dict[str, Any]): The original reduce operation configuration.
             input_data (List[Dict[str, Any]]): The input data for the reduce operation.
-
+            level (int): The current level of decomposition.
         Returns:
             Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
             for both reduce operations and the final output of the second reduce operation, and the cost of the operation due to synthesizing any resolve operations.
@@ -339,35 +343,41 @@ class ReduceOptimizer:
             first_reduce_config["reduce_key"] = [sub_group_key, op_config["reduce_key"]]
         first_reduce_config["pass_through"] = True
 
-        resolve_config = {
-            "type": "resolve",
-            "empty": True,
-            "embedding_model": "text-embedding-3-small",
-            "resolution_model": self.config.get("default_model", "gpt-4o-mini"),
-            "comparison_model": self.config.get("default_model", "gpt-4o-mini"),
-            "_intermediates": {
-                "map_prompt": op_config.get("_intermediates", {}).get(
-                    "last_map_prompt"
-                ),
-                "reduce_key": first_reduce_config["reduce_key"],
-            },
-        }
-        optimized_resolve_config, resolve_cost = JoinOptimizer(
-            self.config, resolve_config, self.console, self.llm_client, self.max_threads
-        ).optimize_resolve(input_data)
-        all_cost += resolve_cost
+        if first_reduce_config.get("synthesize_resolve", True):
+            resolve_config = {
+                "type": "resolve",
+                "empty": True,
+                "embedding_model": "text-embedding-3-small",
+                "resolution_model": self.config.get("default_model", "gpt-4o-mini"),
+                "comparison_model": self.config.get("default_model", "gpt-4o-mini"),
+                "_intermediates": {
+                    "map_prompt": op_config.get("_intermediates", {}).get(
+                        "last_map_prompt"
+                    ),
+                    "reduce_key": first_reduce_config["reduce_key"],
+                },
+            }
+            optimized_resolve_config, resolve_cost = JoinOptimizer(
+                self.config,
+                resolve_config,
+                self.console,
+                self.llm_client,
+                self.max_threads,
+            ).optimize_resolve(input_data)
+            all_cost += resolve_cost
 
-        if not optimized_resolve_config.get("empty", False):
-            # Add this to the pipeline
-            pipeline += [optimized_resolve_config]
+            if not optimized_resolve_config.get("empty", False):
+                # Add this to the pipeline
+                pipeline += [optimized_resolve_config]
 
-            # Run the resolver
-            optimized_output = self._run_operation(optimized_resolve_config, input_data)
-            input_data = optimized_output
+                # Run the resolver
+                optimized_output = self._run_operation(
+                    optimized_resolve_config, input_data
+                )
+                input_data = optimized_output
 
         first_optimized_configs, first_outputs, first_cost = self.optimize(
-            first_reduce_config,
-            input_data,
+            first_reduce_config, input_data, level + 1
         )
         pipeline += first_optimized_configs
         all_cost += first_cost
@@ -378,7 +388,7 @@ class ReduceOptimizer:
         second_reduce_config["pass_through"] = True
 
         second_optimized_configs, second_outputs, second_cost = self.optimize(
-            second_reduce_config, first_outputs
+            second_reduce_config, first_outputs, level + 1
         )
 
         # Combine optimized configs and return with final output
@@ -391,6 +401,7 @@ class ReduceOptimizer:
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
+        level: int = 1,
     ) -> Dict[str, Any]:
         """
         Evaluate whether decomposing the reduce operation would be beneficial.
@@ -401,11 +412,12 @@ class ReduceOptimizer:
         Args:
             op_config (Dict[str, Any]): Configuration for the reduce operation.
             input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            level (int): The current level of decomposition.
 
         Returns:
             Dict[str, Any]: A dictionary containing the decomposition decision and details.
         """
-        should_decompose = self._should_decompose(op_config, input_data)
+        should_decompose = self._should_decompose(op_config, input_data, level)
 
         # Log the decomposition decision
         if should_decompose["should_decompose"]:
@@ -436,6 +448,7 @@ class ReduceOptimizer:
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
+        level: int = 1,
     ) -> Dict[str, Any]:
         """
         Determine if decomposing the reduce operation would be beneficial.
@@ -443,10 +456,18 @@ class ReduceOptimizer:
         Args:
             op_config (Dict[str, Any]): Configuration for the reduce operation.
             input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            level (int): The current level of decomposition.
 
         Returns:
             Dict[str, Any]: A dictionary containing the decomposition decision and explanation.
         """
+        # TODO: we have not enabled recursive decomposition yet
+        if level > 1 and not op_config.get("recursively_optimize", False):
+            return {
+                "should_decompose": False,
+                "explanation": "Recursive decomposition is not enabled.",
+            }
+
         system_prompt = (
             "You are an AI assistant tasked with optimizing data processing pipelines."
         )
@@ -559,7 +580,7 @@ class ReduceOptimizer:
         2. A prompt for the first reduce operation
         3. A prompt for the second (final) reduce operation
 
-        For the reduce operation prompts, you should only minimally modify the original prompt. The prompts should be Jinja templates, and the only variables they can access are the `reduce_key` and `values` variables.
+        For the reduce operation prompts, you should only minimally modify the original prompt. The prompts should be Jinja templates, and the only variables they can access are the `reduce_key` and `inputs` variables.
 
         Provide your suggestions in the following format:
         """
@@ -695,12 +716,15 @@ class ReduceOptimizer:
             # Determine embedding keys
             prompt = f"""
             For the {method} sampling method, we need to determine which keys from the input data should be used for generating embeddings.
+            
+            Input data keys:
+            {', '.join(sample_input[0].keys())}
 
             Sample Input Data:
-            {json.dumps(sample_input[0], indent=2)}
+            {json.dumps(sample_input[0], indent=2)[:1000]}...
 
             Based on the reduce operation prompt and the sample input data, which keys should be used for generating embeddings? Use keys that will create meaningful embeddings (i.e., not id-related keys).
-            Provide your answer as a list of key names.
+            Provide your answer as a list of key names that is a subset of the input data keys. You should pick only the 1-3 keys that are necessary for generating meaningful embeddings, that have relatively short values.
             """
 
             parameters = {
@@ -718,7 +742,24 @@ class ReduceOptimizer:
                 parameters,
             )
             result = json.loads(response.choices[0].message.content)
-            value_sampling_config["embedding_keys"] = result["embedding_keys"]
+            # TODO: validate that these exist
+            embedding_keys = result["embedding_keys"]
+            for key in result["embedding_keys"]:
+                if key not in sample_input[0]:
+                    embedding_keys.remove(key)
+
+            if not embedding_keys:
+                # Select the reduce key
+                self.console.log(
+                    "No embedding keys found, selecting reduce key for embedding key"
+                )
+                embedding_keys = (
+                    op_config["reduce_key"]
+                    if isinstance(op_config["reduce_key"], list)
+                    else [op_config["reduce_key"]]
+                )
+
+            value_sampling_config["embedding_keys"] = embedding_keys
 
         if method == "sem_sim":
             # Determine query text
@@ -783,12 +824,12 @@ class ReduceOptimizer:
         {op_config['prompt']}
 
         Sample Input Data:
-        {json.dumps(sample_input, indent=2)}
+        {json.dumps(sample_input, indent=2)[:1000]}...
 
         A reduce operation is commutative if the order of combining elements doesn't affect the final result.
         For example, sum and product operations are commutative, while subtraction and division are not.
 
-        Based on the reduce operation prompt and the sample input data, determine if this operation is likely to be commutative.
+        Based on the reduce operation prompt, determine if this operation is likely to be commutative.
         Answer with 'yes' if order matters (non-commutative) or 'no' if order doesn't matter (commutative).
         Explain your reasoning briefly.
 
@@ -1084,11 +1125,24 @@ class ReduceOptimizer:
         prompt_tokens = count_tokens(op_config["prompt"], model)
         sample_input = input_data[:100]
         sample_output = self._run_operation(op_config, input_data[:100])
+
+        prompt_vars = extract_jinja_variables(op_config["prompt"])
+        prompt_vars = [var.split(".")[-1] for var in prompt_vars]
         avg_input_tokens = mean(
-            [count_tokens(json.dumps(item), model) for item in sample_input]
+            [
+                count_tokens(
+                    json.dumps({k: item[k] for k in prompt_vars if k in item}), model
+                )
+                for item in sample_input
+            ]
         )
         avg_output_tokens = mean(
-            [count_tokens(json.dumps(item), model) for item in sample_output]
+            [
+                count_tokens(
+                    json.dumps({k: item[k] for k in prompt_vars if k in item}), model
+                )
+                for item in sample_output
+            ]
         )
 
         # Calculate max batch size that fits in context window
@@ -1096,21 +1150,43 @@ class ReduceOptimizer:
             model_input_context_length - prompt_tokens - avg_output_tokens
         ) // avg_input_tokens
 
-        # Generate 5 candidate batch sizes
+        # Generate 6 candidate batch sizes
         batch_sizes = [
-            max(1, int(max_batch_size * ratio)) for ratio in [0.2, 0.4, 0.6, 0.8, 1.0]
+            max(1, int(max_batch_size * ratio))
+            for ratio in [0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
         ]
+        # Log the generated batch sizes
+        self.console.log("[cyan]Generating plans for batch sizes:[/cyan]")
+        for size in batch_sizes:
+            self.console.log(f"  - {size}")
         batch_sizes = sorted(set(batch_sizes))  # Remove duplicates and sort
 
         plans = []
 
         # Generate multiple fold prompts
-        fold_prompts = self._synthesize_fold_prompts(
-            op_config,
-            sample_input,
-            sample_output,
-            num_prompts=2,
-        )
+        max_retries = 5
+        retry_count = 0
+        fold_prompts = []
+
+        while retry_count < max_retries and not fold_prompts:
+            try:
+                fold_prompts = self._synthesize_fold_prompts(
+                    op_config,
+                    sample_input,
+                    sample_output,
+                    num_prompts=2,
+                )
+                if not fold_prompts:
+                    raise ValueError("No fold prompts generated")
+            except Exception as e:
+                retry_count += 1
+                if retry_count == max_retries:
+                    raise RuntimeError(
+                        f"Failed to generate fold prompts after {max_retries} attempts: {str(e)}"
+                    )
+                self.console.log(
+                    f"Retry {retry_count}/{max_retries}: Failed to generate fold prompts. Retrying..."
+                )
 
         for batch_size in batch_sizes:
             for fold_prompt in fold_prompts:
@@ -1345,7 +1421,7 @@ class ReduceOptimizer:
 
             The fold prompt should be a Jinja2 template with the following variables available:
             - {{ output }}: The current reduced value (a dictionary with the current output schema)
-            - {{ values }}: A list of new values to be folded in
+            - {{ inputs }}: A list of new values to be folded in
             - {{ reduce_key }}: The key used for grouping in the reduce operation
 
             Provide the fold prompt as a string.
@@ -1355,7 +1431,21 @@ class ReduceOptimizer:
                 system_prompt,
                 parameters,
             )
-            return json.loads(response.choices[0].message.content)["fold_prompt"]
+            fold_prompt = json.loads(response.choices[0].message.content)["fold_prompt"]
+
+            # Run the operation with the fold prompt
+            # Create a temporary plan with the fold prompt
+            temp_plan = op_config.copy()
+            temp_plan["fold_prompt"] = fold_prompt
+            temp_plan["fold_batch_size"] = min(
+                len(sample_input), 2
+            )  # Use a small batch size for testing
+
+            # Run the operation with the fold prompt
+            self._run_operation(temp_plan, sample_input[: temp_plan["fold_batch_size"]])
+
+            # If the operation runs successfully, return the fold prompt
+            return fold_prompt
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             fold_prompts = list(
@@ -1366,6 +1456,7 @@ class ReduceOptimizer:
 
     def _evaluate_reduce_plans(
         self,
+        op_config: Dict[str, Any],
         plans: List[Dict[str, Any]],
         input_data: List[Dict[str, Any]],
         validator_prompt: str,
@@ -1384,6 +1475,7 @@ class ReduceOptimizer:
         together. We default to a merge batch size of 2, but one can increase this.
 
         Args:
+            op_config (Dict[str, Any]): The configuration of the reduce operation.
             plans (List[Dict[str, Any]]): A list of reduce plans to evaluate.
             input_data (List[Dict[str, Any]]): The input data to use for evaluation.
             validator_prompt (str): The prompt to use for validating the output of each plan.
@@ -1447,53 +1539,56 @@ class ReduceOptimizer:
             f"\n[green]Selected best plan with score: {best_score:.2f} and batch size: {best_plan['fold_batch_size']}[/green]"
         )
 
-        # Create a new plan with merge prompt and updated parameters
-        merged_plan = best_plan.copy()
+        if op_config.get("synthesize_merge", True):
+            # Create a new plan with merge prompt and updated parameters
+            merged_plan = best_plan.copy()
 
-        # Synthesize merge prompt if it doesn't exist
-        if "merge_prompt" not in merged_plan:
-            merged_plan["merge_prompt"] = self._synthesize_merge_prompt(
-                merged_plan, plan_outputs[id(best_plan)]
+            # Synthesize merge prompt if it doesn't exist
+            if "merge_prompt" not in merged_plan:
+                merged_plan["merge_prompt"] = self._synthesize_merge_prompt(
+                    merged_plan, plan_outputs[id(best_plan)]
+                )
+                # Print the synthesized merge prompt
+                self.console.log("\n[bold]Synthesized Merge Prompt:[/bold]")
+                self.console.log(merged_plan["merge_prompt"])
+
+            # Set merge_batch_size to 2 and num_parallel_folds to 5
+            merged_plan["merge_batch_size"] = 2
+
+            # Evaluate the merged plan
+            _, merged_plan_score, _, operation_instance = self._evaluate_single_plan(
+                merged_plan,
+                evaluation_sample,
+                validator_prompt,
+                validation_inputs,
+                return_instance=True,
             )
-            # Print the synthesized merge prompt
-            self.console.log("\n[bold]Synthesized Merge Prompt:[/bold]")
-            self.console.log(merged_plan["merge_prompt"])
 
-        # Set merge_batch_size to 2 and num_parallel_folds to 5
-        merged_plan["merge_batch_size"] = 2
+            # Get the merge and fold times from the operation instance
+            merge_times = operation_instance.merge_times
+            fold_times = operation_instance.fold_times
+            merge_avg_time = mean(merge_times) if merge_times else None
+            fold_avg_time = mean(fold_times) if fold_times else None
 
-        # Evaluate the merged plan
-        _, merged_plan_score, _, operation_instance = self._evaluate_single_plan(
-            merged_plan,
-            evaluation_sample,
-            validator_prompt,
-            validation_inputs,
-            return_instance=True,
-        )
+            self.console.log("\n[bold]Scores:[/bold]")
+            self.console.log(f"Original plan: {best_score:.2f}")
+            self.console.log(f"Merged plan: {merged_plan_score:.2f}")
 
-        # Get the merge and fold times from the operation instance
-        merge_times = operation_instance.merge_times
-        fold_times = operation_instance.fold_times
-        merge_avg_time = mean(merge_times) if merge_times else None
-        fold_avg_time = mean(fold_times) if fold_times else None
-
-        self.console.log("\n[bold]Scores:[/bold]")
-        self.console.log(f"Original plan: {best_score:.2f}")
-        self.console.log(f"Merged plan: {merged_plan_score:.2f}")
-
-        # Compare scores and decide which plan to use
-        if merged_plan_score >= best_score * 0.75:
-            self.console.log(
-                f"\n[green]Using merged plan with score: {merged_plan_score:.2f}[/green]"
-            )
-            if merge_avg_time and fold_avg_time:
-                merged_plan["merge_time"] = merge_avg_time
-                merged_plan["fold_time"] = fold_avg_time
-            return merged_plan
+            # Compare scores and decide which plan to use
+            if merged_plan_score >= best_score * 0.75:
+                self.console.log(
+                    f"\n[green]Using merged plan with score: {merged_plan_score:.2f}[/green]"
+                )
+                if merge_avg_time and fold_avg_time:
+                    merged_plan["merge_time"] = merge_avg_time
+                    merged_plan["fold_time"] = fold_avg_time
+                return merged_plan
+            else:
+                self.console.log(
+                    f"\n[yellow]Merged plan quality too low. Using original plan with score: {best_score:.2f}[/yellow]"
+                )
+                return best_plan
         else:
-            self.console.log(
-                f"\n[yellow]Merged plan quality too low. Using original plan with score: {best_score:.2f}[/yellow]"
-            )
             return best_plan
 
     def _evaluate_single_plan(

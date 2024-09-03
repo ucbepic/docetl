@@ -7,7 +7,8 @@ operations:
   summarize_medication_contexts:
     commutative: true
     fold_batch_size: 15
-    fold_prompt: 'Summarize the settings in which patients take the medication "{{
+    fold_prompt:
+      'Summarize the settings in which patients take the medication "{{
       reduce_key }}" by combining the new information in the following doctor-patient
       transcripts with the current summary:
 
@@ -22,7 +23,7 @@ operations:
 
       New Transcripts:
 
-      {% for value in values %}
+      {% for value in inputs %}
 
       Transcript {{ loop.index + 1 }}:
 
@@ -44,7 +45,8 @@ operations:
         medication: str
         src: str
     merge_batch_size: 2
-    merge_prompt: 'Combine the summaries produced by the previous fold operations
+    merge_prompt:
+      'Combine the summaries produced by the previous fold operations
       into a comprehensive summary. These fold outputs are based on separate analyses
       of doctor-patient transcripts where the medication "{{ reduce_key }}" is mentioned.
       The goal is to merge these summaries into one cohesive output.
@@ -68,11 +70,12 @@ operations:
     output:
       schema:
         summary: str
-    prompt: 'Analyze the following doctor-patient transcripts where the medication
+    prompt:
+      'Analyze the following doctor-patient transcripts where the medication
       "{{ reduce_key }}" is mentioned:
 
 
-      {% for item in values %}
+      {% for item in inputs %}
 
       Transcript {{ loop.index }}:
 
@@ -97,14 +100,14 @@ operations:
 
       '
     reduce_key:
-    - medication
+      - medication
     type: reduce
 pipeline:
   output:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/medication_context_summaries.json
     type: file
   steps:
-  - input: deduped_meds
-    name: medication_context_summarization
-    operations:
-    - summarize_medication_contexts
+    - input: deduped_meds
+      name: medication_context_summarization
+      operations:
+        - summarize_medication_contexts

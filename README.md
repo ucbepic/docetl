@@ -30,8 +30,23 @@ To install Motion, clone this repository and install the required dependencies:
 
 ```bash
 git clone https://github.com/shreyashankar/motion-v3.git
-cd motion
-pip install -r requirements.txt
+cd motion-v3
+pip install poetry
+make install
+```
+
+Then set up a .env file in your repository with the following:
+
+```bash
+OPENAI_API_KEY=your_openai_api_key
+```
+
+or you can set the OPENAI_API_KEY environment variable in your environment.
+
+Then run the basic test suite to ensure everything is working:
+
+```bash
+make tests-basic
 ```
 
 ## Usage
@@ -57,6 +72,12 @@ The configuration file is a YAML document with the following top-level keys:
 
 Motion supports various operation types, each designed for specific data transformation tasks. All prompt templates used in these operations are Jinja2 templates, allowing for the use of loops, conditionals, and other Jinja2 features to create dynamic prompts based on input data.
 
+All operations have the following optional parameters:
+
+- `optimize`: Boolean flag. If true, the operation will be optimized. Default is True.
+- `recursively_optimize`: Boolean flag. If true, the operation will be recursively optimized (e.g., reduces generated in map operations will be optimized). Default is false. I recommend not settting this to true unless you are willing to babysit the optimizer.
+- `sample_size`: Integer. The number of samples to use for the operation, if you want to run it only on a sample of data. (Only applicable at runtime, not in optimization time.)
+
 Here's an overview of the supported operation types:
 
 ### Map
@@ -66,7 +87,7 @@ The Map operation applies a transformation to each item in the input data.
 Required parameters:
 
 - `type`: Must be set to `"map"`.
-- `prompt`: The prompt template to use for the transformation.
+- `prompt`: The prompt template to use for the transformation. Access variables with `input.keyname`
 - `output`: Schema definition for the output from the LLM.
 - `model` (optional): The language model to use, falls back to `default_model` if not specified.
 
@@ -397,16 +418,18 @@ Required parameters:
 
 - `type`: Must be set to `"reduce"`.
 - `reduce_key`: The key to use for grouping data. This can be a single key (string) or a list of keys.
-- `prompt`: The prompt template to use for the reduction operation. This template can access the grouped values using `{{ values }}` (a list of dictionary objects or records) and the reduce key using `{{ reduce_key }}`.
+- `prompt`: The prompt template to use for the reduction operation. This template can access the grouped values using `{{ inputs }}` (a list of dictionary objects or records) and the reduce key using `{{ reduce_key }}`.
 - `output`: Schema definition for the output from the LLM.
 
 Optional parameters:
 
+- `synthesize_resolve`: Boolean flag. If false, we will not synthesize a resolve operation in between a map and a reduce operation. Default is true.
+- `synthesize_merge`: Boolean flag. If false, we will not synthesize a merge optimization (we will only rely on folding). Default is true.
 - `model`: The language model to use, falls back to `default_model` if not specified.
 - `input`: Specifies the schema or keys to subselect from each item or value to pass into the prompt. If omitted, all keys from the input items will be used.
 - `pass_through`: Boolean flag. If true, keys (not on input) from the first item in the group will be passed through to the output. Default is false.
 - `commutative`: Boolean flag. If true, the reduce operation is commutative, meaning the order of operations doesn't matter. This can enable further optimizations. Default is true.
-- `fold_prompt`: A prompt template for incremental folding. This enables processing of large groups in smaller batches. The template should access the current reduced values using `{{ output.field_name }}` and the new batch of values using `{{ values }}`.
+- `fold_prompt`: A prompt template for incremental folding. This enables processing of large groups in smaller batches. The template should access the current reduced values using `{{ output.field_name }}` and the new batch of values using `{{ inputs }}`.
 - `fold_batch_size`: The number of items to process in each fold operation when using incremental folding.
 - `merge_prompt`: A prompt template for merging the results of multiple fold operations. This is used when processing large groups in parallel. The template should access the list of intermediate results using `{{ outputs }}`.
 - `merge_batch_size`: The number of intermediate results to merge in each merge operation. The optimizers uses a default of 2 if it can find a good merge prompt.
@@ -430,7 +453,7 @@ reduce_operation:
   reduce_key: category
   prompt: |
     Analyze the following items in the category '{{ reduce_key.category }}':
-    {% for item in values %}
+    {% for item in inputs %}
     - {{ item.name }}: ${{ item.price }}
     {% endfor %}
 
@@ -465,7 +488,7 @@ reduce_operation:
       age: integer
   prompt: |
     Analyze the following group of values for the group '{{ reduce_key }}':
-    {% for value in values %}
+    {% for value in inputs %}
     - {{ value }}
     {% endfor %}
 
@@ -487,7 +510,7 @@ reduce_operation:
   reduce_key: group
   prompt: |
     Analyze the following group of values for the group '{{ reduce_key }}':
-    {% for value in values %}
+    {% for value in inputs %}
     - {{ value }}
     {% endfor %}
 
@@ -500,7 +523,7 @@ reduce_operation:
     Average: {{ output.avg }}
 
     New values to be folded in:
-    {% for value in values %}
+    {% for value in inputs %}
     - {{ value }}
     {% endfor %}
 
@@ -531,7 +554,7 @@ Required parameters:
 
 - `type`: Must be set to `"resolve"`.
 - `comparison_prompt`: The prompt template to use for comparing potential matches.
-- `resolution_prompt`: The prompt template to use for reducing matched entries. The matched entries are accessed via the `matched_entries` variable.
+- `resolution_prompt`: The prompt template to use for reducing matched entries. The matched entries are accessed via the `inputs` variable.
 - `output`: Schema definition for the output from the LLM. This should include the resolved key.
 
 Optional parameters:
@@ -564,7 +587,7 @@ resolve_operation:
   resolution_prompt: |
     Merge the following patient records into a single, consolidated record:
 
-    {% for entry in matched_entries %}
+    {% for entry in inputs %}
     Patient Record {{ loop.index }}:
     {{ entry | tojson }}
 
@@ -713,55 +736,92 @@ If any of these validation rules fail, the output will be discarded and not pass
 
 ## Example Pipeline
 
-Here's an example of a pipeline that performs sentiment analysis and word counting using a parallel map operation, then filters based on word count:
+Here's an example of a pipeline that extracts themes from student survey responses, unnests the themes, and then summarizes the responses for each theme:
 
 ```yaml
 default_model: gpt-4o-mini
 
-operations:
-  parallel_map_operation:
-    type: parallel_map
-    prompts:
-      - name: sentiment
-        prompt: "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral."
-        output_keys: ["sentiment"]
-      - name: word_count
-        prompt: "Count the number of words in the following text: '{{ input.text }}'. Return the count as an integer."
-        output_keys: ["word_count"]
-    output:
-      schema:
-        sentiment: string
-        word_count: integer
-    validate:
-      - output["word_count"] > 0
-      - output["sentiment"] in ["positive", "negative", "neutral"]
-
-  filter_operation:
-    type: filter
-    prompt: "Determine if the word count {{ input.word_count }} is greater than 10. Return true if it is, false otherwise."
-    output:
-      schema:
-        keep: boolean
-
 datasets:
-  sample_dataset:
+  student_submissions:
     type: file
-    path: "data/sample_data.json"
+    path: "data/student_survey_responses.json" # Assuming all items have a "survey_response" attribute
+
+operations:
+  extract_themes:
+    type: map
+    prompt: |
+      I'm teaching a class on databases. Analyze the following student survey response:
+
+      {{ input.survey_response }}
+
+      Extract 2-3 main themes from this response. Return the themes as a list of strings.
+    output:
+      schema:
+        themes: list[str]
+        class_id: str
+    validate:
+      - len(output["themes"]) >= 2)
+    num_retries_on_validate_failure: 3
+
+  unnest_themes:
+    type: unnest
+    unnest_key: themes
+
+  resolve_themes:
+    type: resolve
+    embedding_model: text-embedding-3-small
+    blocking_threshold: 0.7
+    limit_comparisons: 1000 # You can change this or remove it entirely
+
+    comparison_prompt: |
+      Compare the following two themes extracted from student survey responses about a database class:
+
+      Theme 1: {{ left.theme }}
+      Theme 2: {{ right.theme }}
+
+      Are these themes essentially the same or very closely related?
+    resolution_prompt: |
+      You are merging similar themes from student survey responses about a database class. Here are the themes to merge:
+
+      {% for theme in inputs %}
+      Theme {{ loop.index }}: {{ theme.theme }}
+      {% endfor %}
+
+      Create a single, concise theme that captures the essence of all these themes.
+    output: # Merge prompt output. no need to define schema for comparison prompt output
+      schema:
+        theme: str
+    model: gpt-4o-mini
+
+  summarize_themes:
+    type: reduce
+    reduce_key: theme
+    prompt: |
+      I am teaching a class on databases. You are helping me analyze student survey responses. Summarize the responses for the theme: {{ inputs[0].theme }}
+
+      Responses:
+      {% for item in inputs %}
+      Survey {{ loop.index }}:
+      - {{ item.survey_response }}
+      {% endfor %}
+
+      Summarize the main points from the surveys expressed about this theme. Do not mention any names of students or any other identifying information.
+    output:
+      schema:
+        summary: str
 
 pipeline:
   steps:
-    - name: analyze_text
-      input: sample_dataset
+    - name: extract_response_themes
+      input: student_submissions
       operations:
-        - parallel_map_operation
-    - name: filter_long_texts
-      input: analyze_text
-      operations:
-        - filter_operation
+        - extract_themes
+        - unnest_themes
+        - summarize_themes
 
   output:
     type: file
-    path: "output/results.json"
+    path: "output/theme_summaries.json" # Your summaries will be saved to the summary key
 ```
 
 To run this pipeline, save it as `pipeline.yaml` and execute:
@@ -770,4 +830,4 @@ To run this pipeline, save it as `pipeline.yaml` and execute:
 motion pipeline.yaml
 ```
 
-This will process the data in `data/sample_data.json`, perform sentiment analysis and word counting in parallel, validate the results, filter out short texts, and save the results in `output/results.json`.
+This will process the student submissions data, extract themes from each response, unnest the themes, summarize the responses for each theme, and save the theme summaries in `output/theme_summaries.json`.

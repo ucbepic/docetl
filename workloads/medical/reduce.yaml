@@ -19,7 +19,7 @@ operations:
     prompt: |
       Analyze the following doctor-patient transcripts where the medication "{{ reduce_key }}" is mentioned:
 
-      {% for item in values %}
+      {% for item in inputs %}
       Transcript {{ loop.index }}:
       {{ item.src }}
 

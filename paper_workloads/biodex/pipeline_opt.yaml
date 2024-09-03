@@ -77,7 +77,6 @@ operations:
 
       Determine if {{ right.reaction }} is described in the medical article, considering the context and meaning beyond just the presence of individual words.
     embedding_model: text-embedding-3-small
-    limit_comparisons: 100000
     type: equijoin
   synthesized_conditions_extraction:
     model: gpt-4o-mini

@@ -21,8 +21,8 @@ def reduce_config():
     return {
         "type": "reduce",
         "reduce_key": "category",
-        "prompt": "Categorize and summarize the following items: {{ values }} Provide a brief summary of the category and list the most common themes.",
-        "fold_prompt": "Combine the following category summaries: {{ output }} with new items: {{ values }}. Provide an updated summary and list of common themes.",
+        "prompt": "Categorize and summarize the following items: {{ inputs }} Provide a brief summary of the category and list the most common themes.",
+        "fold_prompt": "Combine the following category summaries: {{ output }} with new items: {{ inputs }}. Provide an updated summary and list of common themes.",
         "merge_prompt": "Merge the following category summaries: {% for output in outputs %}{{ output.summary }}, Themes: {{ output.themes }}{% if not loop.last %} | {% endif %}{% endfor %}. Provide a final summary and list of common themes for each category.",
         "output": {"schema": {"summary": "string", "themes": "list[string]"}},
         "fold_batch_size": 3,
@@ -150,8 +150,8 @@ def test_reduce_operation_non_commutative(default_model, max_threads):
     non_commutative_config = {
         "reduce_key": "sequence",
         "commutative": False,
-        "prompt": "Combine the sentences in '{{ values }}'. Maintain order.",
-        "fold_prompt": "Combine sequences: Previous result '{{ output }}', New value '{{ values[0] }}'. Maintain order.",
+        "prompt": "Combine the sentences in '{{ inputs }}'. Maintain order.",
+        "fold_prompt": "Combine sequences: Previous result '{{ output }}', New value '{{ inputs[0] }}'. Maintain order.",
         "fold_batch_size": 1,
         "output": {"schema": {"combined_result": "string"}},
     }

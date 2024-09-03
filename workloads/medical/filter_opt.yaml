@@ -16,11 +16,11 @@ operations:
           count: 1
     split_key: src
     summary_model: gpt-4o-mini
-    summary_prompt: 'Summarize the following chunk: {{ chunk_content }}
+    summary_prompt: "Summarize the following chunk: {{ chunk_content }}
 
 
       Identify and highlight any mentions of pain reliever medications in the conversation
-      for clarity in the analysis task.'
+      for clarity in the analysis task."
     type: split
   subfilter_extract_medical_info:
     model: gpt-4o-mini
@@ -28,15 +28,15 @@ operations:
       schema:
         _short_explanation: string
         references_pain_reliever: bool
-    prompt: 'Analyze the provided portion of the conversation:
+    prompt: "Analyze the provided portion of the conversation:
 
 
       {{ input.chunk_content }}
 
 
       Does this part of the transcript mention a pain reliever medication? Provide
-      the result as a boolean value under the key ''references_pain_reliever''. Only
-      process the main chunk.'
+      the result as a boolean value under the key 'references_pain_reliever'. Only
+      process the main chunk."
     type: filter
   subreduce_extract_medical_info:
     commutative: true
@@ -50,22 +50,23 @@ operations:
         _short_explanation: string
         references_pain_reliever: bool
     pass_through: true
-    prompt: "Combine the following chunk results to determine if the full conversation\
-      \ transcript references a pain reliever medication:\n\n{% for value in values\
+    prompt:
+      "Combine the following chunk results to determine if the full conversation\
+      \ transcript references a pain reliever medication:\n\n{% for value in inputs\
       \ %}\n- {{ value._short_explanation }}\n  (References pain reliever: {{ value.references_pain_reliever\
       \ }})\n{% endfor %}\n\nBased on the information above, does the complete transcript\
       \ mention any pain reliever medication? Provide a final answer and a brief explanation."
     reduce_key:
-    - extract_medical_info_chunk_group_id
+      - extract_medical_info_chunk_group_id
     type: reduce
 pipeline:
   output:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/pain_reliever_references.json
     type: file
   steps:
-  - input: transcripts
-    name: medical_info_extraction
-    operations:
-    - split_extract_medical_info
-    - subfilter_extract_medical_info
-    - subreduce_extract_medical_info
+    - input: transcripts
+      name: medical_info_extraction
+      operations:
+        - split_extract_medical_info
+        - subfilter_extract_medical_info
+        - subreduce_extract_medical_info

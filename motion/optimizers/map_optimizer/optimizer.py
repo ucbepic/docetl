@@ -284,11 +284,12 @@ class MapOptimizer:
                         print(traceback.format_exc())
 
         # Add no change plan
-        results["no_change"] = (
-            results["no_change"][0],
-            no_change_runtime,
-            results["no_change"][2],
-        )
+        if not data_exceeds_limit:
+            results["no_change"] = (
+                results["no_change"][0],
+                no_change_runtime,
+                results["no_change"][2],
+            )
 
         # Create a table of scores sorted in descending order
         scores = sorted(

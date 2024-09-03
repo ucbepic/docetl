@@ -2,6 +2,7 @@ import functools
 import os
 import hashlib
 import json
+import shutil
 import threading
 from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
@@ -9,19 +10,22 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
-from litellm import completion, completion_cost, embedding, model_cost
+from litellm import completion, embedding, model_cost
+from motion.utils import completion_cost
 from rich.console import Console
 from tqdm import tqdm
 from diskcache import Cache
 import tiktoken
+from rich import print as rprint
 
 from motion.utils import count_tokens
 
 load_dotenv()
 # litellm.set_verbose = True
 MOTION_HOME_DIR = os.path.expanduser("~/.motion")
-CACHE_DIR = os.path.join(MOTION_HOME_DIR, "llm_cache")
-cache = Cache(CACHE_DIR)
+CACHE_DIR = os.path.join(MOTION_HOME_DIR, "cache")
+LLM_CACHE_DIR = os.path.join(MOTION_HOME_DIR, "llm_cache")
+cache = Cache(LLM_CACHE_DIR)
 
 
 def freezeargs(func):
@@ -119,7 +123,20 @@ def clear_cache(console: Console = Console()):
     try:
         cache.clear()
         cache.close()
-        console.log("[bold green]LLM cache cleared successfully.[/bold green]")
+        # Remove all files in the cache directory
+        cache_dir = CACHE_DIR
+        for filename in os.listdir(cache_dir):
+            file_path = os.path.join(cache_dir, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                console.log(
+                    f"[bold red]Error deleting {file_path}: {str(e)}[/bold red]"
+                )
+        console.log("[bold green]Cache cleared successfully.[/bold green]")
     except Exception as e:
         console.log(f"[bold red]Error clearing cache: {str(e)}[/bold red]")
 
@@ -253,6 +270,10 @@ def call_llm_with_validation(
     cost = 0.0
     for i in range(num_tries):
         response = llm_call_fn(messages)
+        if isinstance(response, tuple):
+            response, curr_cost = response
+            cost += curr_cost
+
         cost += completion_cost(response)
 
         parsed_output, result = validation_fn(response)
@@ -457,10 +478,17 @@ def truncate_messages(
     mid_point = len(encoded_content) // 2
     truncated_encoded = (
         encoded_content[: mid_point - tokens_to_remove // 2]
-        + encoder.encode(" ... [content truncated] ... ")
+        + encoder.encode(f" ... [{tokens_to_remove} tokens truncated] ... ")
         + encoded_content[mid_point + tokens_to_remove // 2 :]
     )
     truncated_content = encoder.decode(truncated_encoded)
+    # Calculate the total number of tokens in the original content
+    total_tokens = len(encoded_content)
+
+    # Print the warning message using rprint
+    rprint(
+        f"[yellow]Warning:[/yellow] Cutting {tokens_to_remove} tokens from a prompt with {total_tokens} tokens..."
+    )
 
     longest_message["content"] = truncated_content
 
@@ -532,14 +560,37 @@ def call_llm_with_gleaning(
         validator_response = completion(
             model=model,
             messages=messages + [{"role": "user", "content": validator_prompt}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "response",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "should_refine": {"type": "boolean"},
+                            "improvements": {"type": "string"},
+                        },
+                        "required": ["should_refine", "improvements"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
         )
         cost += completion_cost(validator_response)
+
+        # Parse the validator response
+        suggestion = json.loads(validator_response.choices[0].message.content)
+        if suggestion["should_refine"] == False:
+            break
+
+        console.log(f"Improvements: {suggestion['improvements']}")
 
         # Prompt for improvement
         improvement_prompt = f"""Based on the validation feedback:
 
 ```
-{validator_response.choices[0].message.content}
+{suggestion['improvements']}
 ```
 
 Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""

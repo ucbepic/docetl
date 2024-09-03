@@ -34,7 +34,7 @@ operations:
     prompt: |
       Analyze the following transcripts related to the medication "{{ reduce_key }}":
 
-      {% for item in values %}
+      {% for item in inputs %}
       Transcript {{ loop.index }}:
       {{ item.src }}
       {% endfor %}

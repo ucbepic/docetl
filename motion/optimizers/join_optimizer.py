@@ -5,7 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from litellm import completion_cost, embedding, model_cost
+from motion.utils import completion_cost
+from litellm import embedding, model_cost
 from rich.console import Console
 from rich.prompt import Confirm
 from rich.status import Status
@@ -300,7 +301,7 @@ class JoinOptimizer:
         system_prompt = f"""You are an AI assistant tasked with creating a resolution prompt for LLM-assisted entity resolution.
         Your task is to create a prompt that will be used to merge multiple duplicate keys into a single, consolidated key.
         The key(s) being resolved (known as the reduce_key) are {', '.join(reduce_key)}.
-        The duplicate keys will be provided in a list called 'matched_entries' in a Jinja2 template.
+        The duplicate keys will be provided in a list called 'inputs' in a Jinja2 template.
         """
 
         if map_prompt:
@@ -312,7 +313,7 @@ class JoinOptimizer:
                 "content": f"""
     Create a resolution prompt for merging duplicate keys into a single key. The prompt should:
     1. Be tailored to the specific domain and type of data being merged, based on the context provided.
-    2. Use a Jinja2 template to iterate over the duplicate keys (accessed as 'matched_entries', where each item is a dictionary containing the reduce_key fields, which you can access as entry.reduce_key for each reduce_key in {reduce_key}).
+    2. Use a Jinja2 template to iterate over the duplicate keys (accessed as 'inputs', where each item is a dictionary containing the reduce_key fields, which you can access as entry.reduce_key for each reduce_key in {reduce_key}).
     3. Instruct to create a single, consolidated key from the duplicate keys.
     4. Include guidelines for resolving conflicts (e.g., choosing the most recent, most complete, or most reliable information).
     5. Specify that the output of the resolution prompt should conform to the given output schema: {json.dumps(output_schema, indent=2)}
@@ -321,7 +322,7 @@ class JoinOptimizer:
     ```
     Analyze the following duplicate entries:
 
-    {{% for key in matched_entries %}}
+    {{% for key in inputs %}}
     Entry {{{{ loop.index }}}}:
     {{{{ key | tojson }}}}
 
@@ -901,6 +902,13 @@ class JoinOptimizer:
             if not keys:
                 prompt_template = self.op_config.get("comparison_prompt", "")
                 prompt_vars = extract_jinja_variables(prompt_template)
+                # Get rid of input, input1, input2
+                prompt_vars = [
+                    var
+                    for var in prompt_vars
+                    if var not in ["input", "input1", "input2"]
+                ]
+
                 # strip all things before . in the prompt_vars
                 keys += list(set([var.split(".")[-1] for var in prompt_vars]))
             if not keys:

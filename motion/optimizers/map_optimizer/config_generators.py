@@ -143,6 +143,10 @@ class ConfigGenerator:
             f"[yellow]Breaking down operation {op_config['name']}[/yellow]"
         )
         self.console.log(f"[cyan]Subprompt:[/cyan] {result['subprompt']}")
+        self.console.log(
+            f"[cyan]Split Output Schema:[/cyan] {result['split_output_schema']}"
+        )
+
         return result
 
     def _determine_metadata_needs(
@@ -234,7 +238,7 @@ class ConfigGenerator:
         There are {num_words_before} words before this chunk and {num_words_after} words after this chunk in the full text.
 
         Full input sample:
-        {json.dumps(random.choice(input_data_sample), indent=2)}
+        {json.dumps(random.choice(input_data_sample), indent=2)[:1000]}
 
         Determine if metadata is needed to perform the subtask.
 
@@ -324,6 +328,9 @@ class ConfigGenerator:
             max_threads=self.max_threads,
             console=self.console,
         )
+        if "output_schema" not in result or result["output_schema"] == {}:
+            result["output_schema"] = {"metadata": "str"}
+
         result["needs_metadata"] = True
         return result
 
@@ -411,7 +418,7 @@ class ConfigGenerator:
         split_key: str,
         input_data_sample: List[Dict[str, Any]],
         token_limit: int,
-        num_chunks: int = 6,
+        num_chunks: int = 8,
     ) -> List[int]:
         # Get the average document length
         avg_doc_length = sum(

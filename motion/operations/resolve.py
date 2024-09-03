@@ -4,10 +4,12 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple
+import random
 
 import jinja2
 from jinja2 import Template
-from litellm import completion_cost, embedding
+from motion.utils import completion_cost
+from litellm import embedding
 from sklearn.metrics.pairwise import cosine_similarity
 
 from motion.operations.base import BaseOperation
@@ -22,7 +24,11 @@ from motion.operations.utils import (
 
 
 def compare_pair(
-    comparison_prompt: str, model: str, item1: Dict, item2: Dict
+    comparison_prompt: str,
+    model: str,
+    item1: Dict,
+    item2: Dict,
+    blocking_keys: List[str] = [],
 ) -> Tuple[bool, float]:
     """
     Compares two items using an LLM model to determine if they match.
@@ -36,6 +42,13 @@ def compare_pair(
     Returns:
         Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
     """
+    if blocking_keys:
+        if all(
+            key in item1 and key in item2 and item1[key].lower() == item2[key].lower()
+            for key in blocking_keys
+        ):
+            return True, 0
+
     prompt_template = Template(comparison_prompt)
     prompt = prompt_template.render(input1=item1, input2=item2)
     response = call_llm(
@@ -43,7 +56,6 @@ def compare_pair(
         "compare",
         [{"role": "user", "content": prompt}],
         {"is_match": "bool"},
-        console=self.console,
     )
     output = parse_llm_response(response)[0]
     return output["is_match"], completion_cost(response)
@@ -59,7 +71,7 @@ class ResolveOperation(BaseOperation):
         2. Ensures 'output' contains a 'schema' key.
         3. Validates that 'schema' in 'output' is a non-empty dictionary.
         4. Checks if 'comparison_prompt' is a valid Jinja2 template with 'input1' and 'input2' variables.
-        5. If 'resolution_prompt' is present, verifies it as a valid Jinja2 template with 'matched_entries' variable.
+        5. If 'resolution_prompt' is present, verifies it as a valid Jinja2 template with 'inputs' variable.
         6. Optionally checks if 'model' is a string (if present).
         7. Optionally checks 'blocking_keys' (if present, further checks are performed).
 
@@ -106,9 +118,9 @@ class ResolveOperation(BaseOperation):
                     self.config["resolution_prompt"]
                 ).find_all(jinja2.nodes.Name)
                 reduction_var_names = {var.name for var in reduction_vars}
-                if "matched_entries" not in reduction_var_names:
+                if "inputs" not in reduction_var_names:
                     raise ValueError(
-                        "'resolution_prompt' must contain 'matched_entries' variable"
+                        "'resolution_prompt' must contain 'inputs' variable"
                     )
         except Exception as e:
             raise ValueError(f"Invalid Jinja2 template: {str(e)}")
@@ -149,6 +161,13 @@ class ResolveOperation(BaseOperation):
                     "'schema' in 'input' configuration must be a dictionary"
                 )
 
+        # Check limit_comparisons (optional)
+        if "limit_comparisons" in self.config:
+            if not isinstance(self.config["limit_comparisons"], int):
+                raise TypeError("'limit_comparisons' must be an integer")
+            if self.config["limit_comparisons"] <= 0:
+                raise ValueError("'limit_comparisons' must be a positive integer")
+
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
         Executes the resolve operation on the provided dataset.
@@ -172,6 +191,7 @@ class ResolveOperation(BaseOperation):
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
         input_schema = self.config.get("input", {}).get("schema", {})
+        limit_comparisons = self.config.get("limit_comparisons")
         total_cost = 0
 
         if len(input_data) == 0:
@@ -244,23 +264,48 @@ class ResolveOperation(BaseOperation):
             for j in range(i + 1, len(input_data))
         ]
 
-        # Filter pairs based on blocking rules
-        def should_compare(pair):
+        # Filter pairs based on blocking conditions
+        def meets_blocking_conditions(pair):
             i, j = pair
-            if find_cluster(i) == find_cluster(j):
-                return False
-            if blocking_threshold is not None:
-                if (
-                    cosine_similarity([embeddings[i]], [embeddings[j]])[0][0]
-                    < blocking_threshold
-                ):
-                    return False
-            if blocking_conditions:
-                if not is_match(input_data[i], input_data[j]):
-                    return False
-            return True
+            return (
+                is_match(input_data[i], input_data[j]) if blocking_conditions else True
+            )
 
-        filtered_pairs = list(filter(should_compare, all_pairs))
+        blocked_pairs = list(filter(meets_blocking_conditions, all_pairs))
+
+        # Apply limit_comparisons to blocked pairs
+        if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
+            self.console.log(
+                f"Randomly sampling {limit_comparisons} pairs out of {len(blocked_pairs)} blocked pairs."
+            )
+            blocked_pairs = random.sample(blocked_pairs, limit_comparisons)
+
+        # If there are remaining comparisons, fill with highest cosine similarities
+        remaining_comparisons = (
+            limit_comparisons - len(blocked_pairs)
+            if limit_comparisons is not None
+            else float("inf")
+        )
+        if remaining_comparisons > 0 and blocking_threshold is not None:
+            cosine_pairs = []
+            for i, j in all_pairs:
+                if (i, j) not in blocked_pairs and find_cluster(i) != find_cluster(j):
+                    similarity = cosine_similarity([embeddings[i]], [embeddings[j]])[0][
+                        0
+                    ]
+                    if similarity >= blocking_threshold:
+                        cosine_pairs.append((i, j, similarity))
+
+            if remaining_comparisons != float("inf"):
+                cosine_pairs.sort(key=lambda x: x[2], reverse=True)
+                additional_pairs = [
+                    (i, j) for i, j, _ in cosine_pairs[: int(remaining_comparisons)]
+                ]
+                blocked_pairs.extend(additional_pairs)
+            else:
+                blocked_pairs.extend((i, j) for i, j, _ in cosine_pairs)
+
+        filtered_pairs = blocked_pairs
 
         # Calculate and print statistics
         total_possible_comparisons = len(input_data) * (len(input_data) - 1) // 2
@@ -291,6 +336,7 @@ class ResolveOperation(BaseOperation):
                         self.config.get("comparison_model", self.default_model),
                         input_data[pair[0]],
                         input_data[pair[1]],
+                        blocking_keys,
                     ): pair
                     for pair in batch
                 }
@@ -322,9 +368,7 @@ class ResolveOperation(BaseOperation):
                         for item in cluster_items
                     ]
 
-                resolution_prompt = reduction_template.render(
-                    matched_entries=cluster_items
-                )
+                resolution_prompt = reduction_template.render(inputs=cluster_items)
                 reduction_response = call_llm(
                     self.config.get("resolution_model", self.default_model),
                     "reduce",

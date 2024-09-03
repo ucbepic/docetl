@@ -4,6 +4,15 @@ import yaml
 import tiktoken
 import json
 
+from litellm import completion_cost as lcc
+
+
+def completion_cost(response) -> float:
+    try:
+        return lcc(response)
+    except Exception:
+        return 0.0
+
 
 def load_config(config_path: str) -> Dict[str, Any]:
     """

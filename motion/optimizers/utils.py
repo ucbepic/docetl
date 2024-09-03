@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 from jinja2 import Environment, meta
 from litellm import completion, completion_cost
+from motion.operations.utils import truncate_messages
 
 
 def extract_jinja_variables(template_string: str) -> List[str]:
@@ -81,6 +82,8 @@ class LLMClient:
             Any: The response from the LLM.
         """
         parameters["additionalProperties"] = False
+
+        messages = truncate_messages(messages, self.model)
 
         response = completion(
             model=self.model,

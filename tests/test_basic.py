@@ -433,7 +433,7 @@ def reduce_config():
     return {
         "type": "reduce",
         "reduce_key": "group",
-        "prompt": "Summarize the following group of values: {{ values }} Provide a total and any other relevant statistics.",
+        "prompt": "Summarize the following group of values: {{ inputs }} Provide a total and any other relevant statistics.",
         "output": {"schema": {"total": "number", "avg": "number"}},
         "model": "gpt-4o-mini",
     }
@@ -514,7 +514,7 @@ def resolve_config():
         "embedding_model": "text-embedding-3-small",
         "comparison_model": "gpt-4o-mini",
         "resolution_model": "gpt-4o-mini",
-        "resolution_prompt": "Given the following list of similar entries, determine one common name and email. {{ matched_entries }}",
+        "resolution_prompt": "Given the following list of similar entries, determine one common name and email. {{ inputs }}",
     }
 
 

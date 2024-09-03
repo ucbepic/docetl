@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 from jinja2 import Template
-from litellm import completion_cost
+from motion.utils import completion_cost
 
 from motion.operations.base import BaseOperation
 from motion.operations.utils import (

@@ -23,7 +23,7 @@ med_schema_keys = [
 ]
 
 with open(
-    "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/medicalschema/extracted_patient_data.json"
+    "/Users/shreyashankar/Documents/hacking/motion-v3/paper_workloads/medicalschema/extracted_patient_data_with_reduce.json"
 ) as f:
     data = json.load(f)
 

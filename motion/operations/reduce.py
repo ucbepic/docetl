@@ -17,7 +17,8 @@ from typing import Dict, List, Optional, Tuple
 import jinja2
 import numpy as np
 from jinja2 import Template
-from litellm import completion_cost, embedding
+from motion.utils import completion_cost
+from litellm import embedding
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -70,12 +71,12 @@ class ReduceOperation(BaseOperation):
         The method performs the following checks:
         1. Verifies the presence of all required keys in the configuration.
         2. Validates the structure and content of the 'output' configuration, including its 'schema'.
-        3. Checks if the main 'prompt' is a valid Jinja2 template and contains the required 'values' variable.
+        3. Checks if the main 'prompt' is a valid Jinja2 template and contains the required 'inputs' variable.
         4. If 'merge_prompt' is specified, ensures that 'fold_prompt' is also present.
         5. If 'fold_prompt' is present, verifies the existence of 'fold_batch_size'.
-        6. Validates the 'fold_prompt' as a Jinja2 template with required variables 'values' and 'output'.
+        6. Validates the 'fold_prompt' as a Jinja2 template with required variables 'inputs' and 'output'.
         7. If present, checks 'merge_prompt' as a valid Jinja2 template with required 'outputs' variable.
-        8. Verifies types of various configuration values (e.g., 'fold_batch_size' as int).
+        8. Verifies types of various configuration inputs (e.g., 'fold_batch_size' as int).
         9. Checks for the presence and validity of optional configurations like 'model'.
 
         Raises:
@@ -107,8 +108,8 @@ class ReduceOperation(BaseOperation):
                 jinja2.nodes.Name
             )
             template_var_names = {var.name for var in template_vars}
-            if "values" not in template_var_names:
-                raise ValueError("Template must include the 'values' variable")
+            if "inputs" not in template_var_names:
+                raise ValueError("Template must include the 'inputs' variable")
         except Exception as e:
             raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}")
 
@@ -131,7 +132,7 @@ class ReduceOperation(BaseOperation):
                     self.config["fold_prompt"]
                 ).find_all(jinja2.nodes.Name)
                 fold_template_var_names = {var.name for var in fold_template_vars}
-                required_vars = {"values", "output"}
+                required_vars = {"inputs", "output"}
                 if not required_vars.issubset(fold_template_var_names):
                     raise ValueError(
                         f"Fold template must include variables: {required_vars}"
@@ -352,9 +353,10 @@ class ReduceOperation(BaseOperation):
     ) -> Tuple[List[List[float]], float]:
         embedding_model = value_sampling["embedding_model"]
         embedding_keys = value_sampling["embedding_keys"]
-
+        if not embedding_keys:
+            embedding_keys = list(items[0].keys())
         texts = [
-            " ".join(str(item[key]) for key in embedding_keys if key in item)
+            " ".join(str(item[key]) for key in embedding_keys if key in item)[:10000]
             for item in items
         ]
         response = gen_embedding(embedding_model, texts)
@@ -605,7 +607,7 @@ class ReduceOperation(BaseOperation):
         start_time = time.time()
         fold_prompt_template = Template(self.config["fold_prompt"])
         fold_prompt = fold_prompt_template.render(
-            values=batch,
+            inputs=batch,
             output=current_output,
             reduce_key=dict(zip(self.config["reduce_key"], key)),
         )
@@ -734,7 +736,7 @@ class ReduceOperation(BaseOperation):
         """
         prompt_template = Template(self.config["prompt"])
         prompt = prompt_template.render(
-            reduce_key=dict(zip(self.config["reduce_key"], key)), values=group_list
+            reduce_key=dict(zip(self.config["reduce_key"], key)), inputs=group_list
         )
         item_cost = 0
 

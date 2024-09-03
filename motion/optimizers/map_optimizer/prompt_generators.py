@@ -297,7 +297,7 @@ class PromptGenerator:
         6. Determines whether the combine operation is commutative.
 
         Note:
-            The generated combine prompt is constrained to use only the 'values'
+            The generated combine prompt is constrained to use only the 'inputs'
             variable, which contains all chunk results. It must be a valid Jinja2
             template and avoid using complex logic or filters.
 
@@ -330,10 +330,10 @@ class PromptGenerator:
         Modify the original prompt to be a prompt that will combine these chunk results to accomplish the original task.
 
         Guidelines for your prompt template:
-        - The only variable you are allowed to use is the values variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(schema_keys)}
+        - The only variable you are allowed to use is the inputs variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(schema_keys)}
         - Avoid using filters or complex logic, even though Jinja technically supports it
         - The prompt template must be a valid Jinja2 template
-        - You must use the {{ values }} variable somehow (you can access specific schema keys if you'ld like)
+        - You must use the {{ inputs }} variable somehow (you can access specific schema keys if you'ld like)
 
         Provide your prompt template as a single string.
         """

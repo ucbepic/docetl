@@ -38,7 +38,7 @@ operations:
       Are these medications likely to be the same or closely related?
     resolution_prompt: |
       Given the following matched medication entries:
-      {% for entry in matched_entries %}
+      {% for entry in inputs %}
       Entry {{ loop.index }}: {{ entry.medication }}
       {% endfor %}
 

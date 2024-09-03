@@ -293,7 +293,7 @@ class PlanGenerator:
                         f"[bold]Evaluation score for {plan_name}:[/bold] {plan_evaluation_score}"
                     )
 
-                    if plan_evaluation_score >= 0.7:  # TODO: make this a parameter
+                    if plan_evaluation_score >= 0.6:  # TODO: make this a parameter
                         self.console.log(f"Keeping configuration: {plan_name}")
                     else:
                         self.console.log(f"Pruning configuration: {plan_name}")
@@ -307,7 +307,7 @@ class PlanGenerator:
 
                     plan = copy.deepcopy(base_operations)
                     if self.is_filter or not op_config.get(
-                        "recursively_optimize", True
+                        "recursively_optimize", False
                     ):
                         plan.extend(smg_ops + [map_op] + unnest_ops + [reduce_op])
                         return plan_name, plan
@@ -327,10 +327,11 @@ class PlanGenerator:
                             smg_ops + [map_op] + unnest_ops + optimized_reduce_ops
                         )
                     except Exception as e:
-                        self.console.log(
-                            f"[yellow]Error optimizing reduce operation: {e}. Skipping...[/yellow]"
-                        )
-                        return plan_name, []
+                        raise e
+                        # self.console.log(
+                        #     f"[yellow]Error optimizing reduce operation: {e}. Skipping...[/yellow]"
+                        # )
+                        # return plan_name, []
 
                     return plan_name, plan
 
@@ -671,6 +672,26 @@ class PlanGenerator:
             covered_keys.update(subtask["output_keys"])
 
         missing_keys = output_schema_keys - covered_keys
+        # Attempt to add missing keys to the most appropriate subtask
+        if missing_keys:
+            self.console.log(
+                "[bold yellow]Warning:[/bold yellow] Some output schema keys are not covered by subtasks. Attempting to add them to the most appropriate subtask."
+            )
+            for key in missing_keys:
+                # Find the subtask with the most similar existing output keys
+                best_subtask = max(
+                    result["subtasks"],
+                    key=lambda s: len(set(s["output_keys"]) & output_schema_keys),
+                )
+                best_subtask["output_keys"].append(key)
+                covered_keys.add(key)
+                self.console.log(
+                    f"[yellow]Added missing key '{key}' to subtask '{best_subtask['name']}'[/yellow]"
+                )
+
+        # Check again for any remaining missing keys
+        missing_keys = output_schema_keys - covered_keys
+
         if missing_keys:
             raise ValueError(
                 f"Trying to create a parallel map decomposition. The following output schema keys are not covered by any subtask: {missing_keys}"
@@ -820,9 +841,9 @@ class PlanGenerator:
         for subtask in result["subtasks"]:
             subtask_output_keys.update(subtask["output_keys"])
 
-        if output_schema_keys != subtask_output_keys:
+        if len(output_schema_keys - subtask_output_keys) > 0:
             raise ValueError(
-                "Not all output schema keys are covered by subtasks after correction attempt."
+                f"Not all output schema keys are covered by subtasks after correction attempt. Missing keys: {output_schema_keys - subtask_output_keys}"
             )
 
         chain_plan = []

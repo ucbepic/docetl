@@ -67,11 +67,7 @@ def clear_cache():
     """
     Clear the LLM cache stored on disk.
     """
-    try:
-        cc()
-        typer.echo("Cache cleared successfully.")
-    except Exception as e:
-        typer.echo(f"An error occurred while clearing the cache: {str(e)}")
+    cc()
 
 
 if __name__ == "__main__":

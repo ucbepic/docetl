@@ -187,15 +187,18 @@ class ResolveOperation(BaseOperation):
 
         The method also calculates and logs statistics such as comparisons saved by blocking and self-join selectivity.
         """
+        if len(input_data) == 0:
+            return [], 0
+
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
         input_schema = self.config.get("input", {}).get("schema", {})
+        if not blocking_keys:
+            # Set them to all keys in the input data
+            blocking_keys = list(input_data[0].keys())
         limit_comparisons = self.config.get("limit_comparisons")
         total_cost = 0
-
-        if len(input_data) == 0:
-            return [], 0
 
         def is_match(item1: Dict[str, Any], item2: Dict[str, Any]) -> bool:
             return any(

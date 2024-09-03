@@ -271,7 +271,7 @@ class ResolveOperation(BaseOperation):
         def meets_blocking_conditions(pair):
             i, j = pair
             return (
-                is_match(input_data[i], input_data[j]) if blocking_conditions else True
+                is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
         blocked_pairs = list(filter(meets_blocking_conditions, all_pairs))

@@ -69,7 +69,7 @@ TODO:
 - [ ] Support retries in the optimizers
 - [ ] Fix bug in recursively optimizing reduce in the map optimizer
 - [ ] Write tests for optimizers
-- [ ] Filter optimizer
+- [ ] Refactor reduce and join optimizers
   - [x] Extend map optimizer to support filter
   - [ ] Train an embedding classifier for filter
 - [ ] Support model pools

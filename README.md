@@ -754,32 +754,33 @@ operations:
 
       {{ input.survey_response }}
 
-      Extract 2-3 main themes from this response. Return the themes as a list of strings.
+      Extract 2-3 main themes from this response, each being 1-2 words. Return the themes as a list of strings.
     output:
       schema:
-        themes: list[str]
-        class_id: str
+        theme: list[str]
     validate:
-      - len(output["themes"]) >= 2)
+      - len(output["theme"]) >= 2)
     num_retries_on_validate_failure: 3
 
   unnest_themes:
     type: unnest
-    unnest_key: themes
+    unnest_key: theme
 
   resolve_themes:
     type: resolve
     embedding_model: text-embedding-3-small
     blocking_threshold: 0.7
+    blocking_keys:
+      - theme
     limit_comparisons: 1000 # You can change this or remove it entirely
 
     comparison_prompt: |
       Compare the following two themes extracted from student survey responses about a database class:
 
-      Theme 1: {{ left.theme }}
-      Theme 2: {{ right.theme }}
+      Theme 1: {{ input1.theme }}
+      Theme 2: {{ input2.theme }}
 
-      Are these themes essentially the same or very closely related?
+      Are these themes similar/should they be merged?
     resolution_prompt: |
       You are merging similar themes from student survey responses about a database class. Here are the themes to merge:
 

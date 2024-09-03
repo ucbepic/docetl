@@ -70,6 +70,8 @@ TODO:
 - [ ] Fix bug in recursively optimizing reduce in the map optimizer
 - [ ] Write tests for optimizers
 - [ ] Refactor reduce and join optimizers
+- [ ] Support prompt prefix/custom instructions so users don't have to put them in every operation
+- [ ] Filter optimizer
   - [x] Extend map optimizer to support filter
   - [ ] Train an embedding classifier for filter
 - [ ] Support model pools

@@ -1,12 +1,12 @@
 import pytest
-from motion.operations.map import MapOperation, ParallelMapOperation
-from motion.operations.filter import FilterOperation
-from motion.operations.unnest import UnnestOperation
-from motion.operations.equijoin import EquijoinOperation
-from motion.operations.split import SplitOperation
-from motion.operations.gather import GatherOperation
-from motion.operations.reduce import ReduceOperation
-from motion.operations.resolve import ResolveOperation
+from docetl.operations.map import MapOperation, ParallelMapOperation
+from docetl.operations.filter import FilterOperation
+from docetl.operations.unnest import UnnestOperation
+from docetl.operations.equijoin import EquijoinOperation
+from docetl.operations.split import SplitOperation
+from docetl.operations.gather import GatherOperation
+from docetl.operations.reduce import ReduceOperation
+from docetl.operations.resolve import ResolveOperation
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,6 +26,7 @@ def max_threads():
 @pytest.fixture
 def map_config():
     return {
+        "name": "sentiment_analysis",
         "type": "map",
         "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
         "output": {"schema": {"sentiment": "string"}},
@@ -66,6 +67,7 @@ def test_map_operation_empty_input(map_config, default_model, max_threads):
 @pytest.fixture
 def parallel_map_config():
     return {
+        "name": "sentiment_and_word_count",
         "type": "parallel_map",
         "prompts": [
             {
@@ -124,6 +126,7 @@ def test_parallel_map_operation_empty_input(
 @pytest.fixture
 def filter_config():
     return {
+        "name": "long_text_filter",
         "type": "filter",
         "prompt": "Determine if the following text is longer than 3 words: '{{ input.text }}'. Return true if it is, false otherwise.",
         "output": {"schema": {"keep": "boolean"}},
@@ -162,7 +165,12 @@ def test_filter_operation_empty_input(filter_config, default_model, max_threads)
 # Unnest Operation Tests
 @pytest.fixture
 def unnest_config():
-    return {"type": "unnest", "unnest_key": "tag", "keep_empty": True}
+    return {
+        "name": "tag_unnest",
+        "type": "unnest",
+        "unnest_key": "tag",
+        "keep_empty": True,
+    }
 
 
 @pytest.fixture
@@ -177,6 +185,7 @@ def unnest_sample_data():
 @pytest.fixture
 def dict_unnest_config():
     return {
+        "name": "details_unnest",
         "type": "unnest",
         "unnest_key": "details",
         "expand_fields": ["age", "city", "occupation"],
@@ -247,6 +256,7 @@ def test_unnest_operation_empty_input(unnest_config, default_model, max_threads)
 @pytest.fixture
 def equijoin_config():
     return {
+        "name": "user_data_join",
         "type": "equijoin",
         "blocking_keys": {"left": ["id"], "right": ["user_id"]},
         "comparison_prompt": "Compare the following two entries and determine if they are the same id: Left: {{ left.id }} Right: {{ right.user_id }}",
@@ -295,6 +305,7 @@ def test_equijoin_operation_empty_input(equijoin_config, default_model, max_thre
 @pytest.fixture
 def split_config():
     return {
+        "name": "document_splitter",
         "type": "split",
         "split_key": "content",
         "method": "token_count",
@@ -306,6 +317,7 @@ def split_config():
 @pytest.fixture
 def gather_config():
     return {
+        "name": "document_gatherer",
         "type": "gather",
         "content_key": "content_chunk",
         "doc_id_key": "split_doc_id",
@@ -431,6 +443,7 @@ def test_split_gather_empty_input(
 @pytest.fixture
 def reduce_config():
     return {
+        "name": "group_summary",
         "type": "reduce",
         "reduce_key": "group",
         "prompt": "Summarize the following group of values: {{ inputs }} Provide a total and any other relevant statistics.",
@@ -506,6 +519,7 @@ def test_reduce_operation_empty_input(reduce_config, default_model, max_threads)
 @pytest.fixture
 def resolve_config():
     return {
+        "name": "name_email_resolver",
         "type": "resolve",
         "blocking_keys": ["name", "email"],
         "blocking_threshold": 0.8,

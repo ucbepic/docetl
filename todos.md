@@ -36,7 +36,7 @@ TODO:
 - [x] Write gleaning optimization step
   - [ ] Incorporate gleaning in reduce
 - [x] Support a summary type reduce, where we sample k elements to put in the prompt do a batch reduce
-- [x] Write a non-commutative reduce
+- [x] Write a non-associative reduce
 - [x] Write documentation on how all the operators work
 - [x] Auto-generate resolver
 - [x] Support summarizing peripheral chunks
@@ -66,8 +66,13 @@ TODO:
   - [x] Extract headers & levels from documents, and add the level hierarchy to the chunk.
 - [x] Support tool use in map operators
 - [x] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
-- [ ] Support retries in the optimizers
+- [x] Support retries in the optimizers
+- [ ] Operations should not be defined as dictionaries; they should be objects
+- [x] Support unnests in the optimizer
+- [ ] Add gleaning plan to reduce
+- [ ] HITL for prompt selection (generally, a textual app)
 - [ ] Fix bug in recursively optimizing reduce in the map optimizer
+- [ ] Support reduce key of "all"
 - [ ] Write tests for optimizers
 - [ ] Refactor reduce and join optimizers
 - [ ] Support prompt prefix/custom instructions so users don't have to put them in every operation
@@ -101,3 +106,4 @@ Things to think about
 - Filter optimizer: we should recursively optimize reduces if the reduce isn't good on its own
 - Support retry on val failure for operations beyond map/filter
 - If reduce input is too big to fit in the prompt, prompt for a map operation
+- Pipeline optimization: group maps and reduces together after one pass of optimization

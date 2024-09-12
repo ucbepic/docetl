@@ -1,7 +1,7 @@
 import pytest
-from motion.operations.split import SplitOperation
-from motion.operations.map import MapOperation
-from motion.operations.gather import GatherOperation
+from docetl.operations.split import SplitOperation
+from docetl.operations.map import MapOperation
+from docetl.operations.gather import GatherOperation
 
 
 @pytest.fixture
@@ -17,6 +17,7 @@ def max_threads():
 @pytest.fixture
 def split_config():
     return {
+        "name": "split_doc",
         "type": "split",
         "split_key": "content",
         "method": "token_count",
@@ -28,6 +29,7 @@ def split_config():
 @pytest.fixture
 def split_config_delimiter():
     return {
+        "name": "split_doc_delimiter",
         "type": "split",
         "split_key": "content",
         "method": "delimiter",
@@ -39,6 +41,7 @@ def split_config_delimiter():
 @pytest.fixture
 def map_config():
     return {
+        "name": "summarize_doc",
         "type": "map",
         "prompt": "Summarize the following text:\n\n{{input.content_chunk}}\n\nSummary:",
         "output": {"schema": {"summary": "string"}},
@@ -49,6 +52,7 @@ def map_config():
 @pytest.fixture
 def gather_config():
     return {
+        "name": "gather_doc",
         "type": "gather",
         "content_key": "content_chunk",
         "doc_id_key": "split_doc_id",

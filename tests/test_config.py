@@ -1,8 +1,8 @@
 import pytest
 import json
 import os
-from motion.runner import DSLRunner
-from motion.utils import load_config
+from docetl.runner import DSLRunner
+from docetl.utils import load_config
 import yaml
 
 # Sample configuration for the test
@@ -10,7 +10,7 @@ SAMPLE_CONFIG = """
 default_model: "gpt-4o-mini"
 
 operations:
-  map_operation:
+  - name: map_operation
     type: map
     prompt: |
       Analyze the sentiment of the following text: "{{ input.text }}"
@@ -20,7 +20,7 @@ operations:
         sentiment: string
     model: "gpt-4o-mini"
 
-  filter_operation:
+  - name: filter_operation
     type: filter
     prompt: |
       Determine if the following text is longer than 5 words:
@@ -54,7 +54,7 @@ pipeline:
 SAMPLE_DATA = [
     {"text": "This is a very positive sentence.", "id": 1},
     {"text": "A short negative phrase.", "id": 2},
-    {"text": "Neutral statement without much emotion.", "id": 3},
+    {"text": "Neutral statement without much edocetl.", "id": 3},
     {"text": "Brief.", "id": 4},
 ]
 

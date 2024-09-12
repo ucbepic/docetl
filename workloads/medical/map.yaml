@@ -6,7 +6,7 @@ datasets:
 default_model: gpt-4o-mini
 
 operations:
-  extract_medical_info:
+  - name: extract_medical_info
     type: map
     output:
       schema:

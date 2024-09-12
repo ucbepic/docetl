@@ -1,11 +1,12 @@
 import pytest
-from motion.operations.map import MapOperation
+from docetl.operations.map import MapOperation
 
 
 @pytest.fixture
 def map_config_with_tools():
     return {
         "type": "map",
+        "name": "word_count",
         "prompt": "Count the number of words in the following text: '{{ input.text }}'",
         "output": {"schema": {"word_count": "integer"}},
         "model": "gpt-4o-mini",

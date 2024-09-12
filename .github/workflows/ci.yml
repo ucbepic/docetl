@@ -1,4 +1,4 @@
-name: motion
+name: docetl
 
 on:
   workflow_dispatch:

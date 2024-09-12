@@ -1,15 +1,15 @@
 [tool.poetry]
-name = "motion"
+name = "docetl"
 version = "0.1.0"
 description = "ETL with LLM operations."
 authors = ["Shreya Shankar <ss.shankar505@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [
-    { include = "motion" }
+    { include = "docetl" }
 ]
 [tool.poetry.scripts]
-motion = "motion.cli:app"
+docetl = "docetl.cli:app"
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -20,6 +20,7 @@ tenacity = "^9.0.0"
 frozendict = "^2.4.4"
 scikit-learn = "^1.5.1"
 diskcache = "^5.6.3"
+textual = "^0.79.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"
@@ -38,12 +39,12 @@ filterwarnings = [
 ]
 
 [tool.mypy]
-files = "motion"
-mypy_path = "motion"
+files = "docetl"
+mypy_path = "docetl"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
-exclude = ['motion/tests*']
+exclude = ['docetl/tests*']
 ignore_missing_imports = true
 show_error_codes = true
 

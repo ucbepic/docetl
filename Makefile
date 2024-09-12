@@ -7,7 +7,7 @@ tests-basic:
 	poetry run pytest tests/test_basic.py
 
 lint:
-	poetry run ruff check motion/* --fix
+	poetry run ruff check docetl/* --fix
 
 install:
 	pip install poetry

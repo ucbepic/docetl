@@ -1,6 +1,6 @@
 import pytest
 import random
-from motion.operations.reduce import ReduceOperation
+from docetl.operations.reduce import ReduceOperation
 
 
 @pytest.fixture
@@ -33,6 +33,8 @@ def large_sample_data():
 
 def test_random_sampling(default_model, max_threads, large_sample_data):
     config = {
+        "name": "reduce_value_sampling",
+        "type": "reduce",
         "reduce_key": "group",
         "value_sampling": {"enabled": True, "method": "random", "sample_size": 50},
         "prompt": "Summarize the following texts: {{ inputs|map(attribute='text')|join(' | ') }}",
@@ -50,6 +52,8 @@ def test_random_sampling(default_model, max_threads, large_sample_data):
 
 def test_first_n_sampling(default_model, max_threads, large_sample_data):
     config = {
+        "name": "reduce_value_sampling",
+        "type": "reduce",
         "reduce_key": "group",
         "value_sampling": {"enabled": True, "method": "first_n", "sample_size": 100},
         "prompt": "Summarize the following texts: {{ inputs|map(attribute='text')|join(' | ') }}",
@@ -67,6 +71,8 @@ def test_first_n_sampling(default_model, max_threads, large_sample_data):
 
 def test_cluster_sampling(default_model, max_threads, large_sample_data):
     config = {
+        "name": "reduce_value_sampling",
+        "type": "reduce",
         "reduce_key": "group",
         "value_sampling": {
             "enabled": True,
@@ -90,6 +96,8 @@ def test_cluster_sampling(default_model, max_threads, large_sample_data):
 
 def test_semantic_similarity_sampling(default_model, max_threads, large_sample_data):
     config = {
+        "name": "reduce_value_sampling",
+        "type": "reduce",
         "reduce_key": "group",
         "value_sampling": {
             "enabled": True,
@@ -120,6 +128,8 @@ def test_semantic_similarity_sampling(default_model, max_threads, large_sample_d
 
 def test_invalid_sampling_method(default_model, max_threads, large_sample_data):
     config = {
+        "name": "reduce_value_sampling",
+        "type": "reduce",
         "reduce_key": "group",
         "value_sampling": {
             "enabled": True,

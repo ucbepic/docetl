@@ -1,6 +1,6 @@
-# Motion
+# docetl
 
-Motion is a powerful tool for creating and executing data processing pipelines using LLMs. It allows you to define complex data operations in a YAML configuration file and execute them efficiently.
+docetl is a powerful tool for creating and executing data processing pipelines using LLMs. It allows you to define complex data operations in a YAML configuration file and execute them efficiently.
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ Motion is a powerful tool for creating and executing data processing pipelines u
 
 ## Installation
 
-To install Motion, clone this repository and install the required dependencies:
+To install docetl, clone this repository and install the required dependencies:
 
 ```bash
 git clone https://github.com/shreyashankar/motion-v3.git
@@ -51,10 +51,10 @@ make tests-basic
 
 ## Usage
 
-To run a pipeline defined in a YAML file, use the `motion` command:
+To run a pipeline defined in a YAML file, use the `docetl` command:
 
 ```bash
-motion run pipeline.yaml
+docetl run pipeline.yaml
 ```
 
 This command will execute the pipeline defined in `pipeline.yaml`.
@@ -70,7 +70,7 @@ The configuration file is a YAML document with the following top-level keys:
 
 ## Operation Types
 
-Motion supports various operation types, each designed for specific data transformation tasks. All prompt templates used in these operations are Jinja2 templates, allowing for the use of loops, conditionals, and other Jinja2 features to create dynamic prompts based on input data.
+docetl supports various operation types, each designed for specific data transformation tasks. All prompt templates used in these operations are Jinja2 templates, allowing for the use of loops, conditionals, and other Jinja2 features to create dynamic prompts based on input data.
 
 All operations have the following optional parameters:
 
@@ -86,6 +86,7 @@ The Map operation applies a transformation to each item in the input data.
 
 Required parameters:
 
+- `name`: A unique name for the operation.
 - `type`: Must be set to `"map"`.
 - `prompt`: The prompt template to use for the transformation. Access variables with `input.keyname`
 - `output`: Schema definition for the output from the LLM.
@@ -94,7 +95,7 @@ Required parameters:
 Example:
 
 ```yaml
-map_operation:
+- name: sentiment
   type: map
   prompt: "Analyze the sentiment of the following text: '{{ input.text }}'"
   output:
@@ -109,6 +110,7 @@ The Parallel Map operation applies multiple transformations to each item in the 
 
 Required parameters:
 
+- `name`: A unique name for the operation.
 - `type`: Must be set to `"parallel_map"`.
 - `prompts`: A list of prompt configurations, each containing:
   - `name`: A unique name for the prompt.
@@ -120,7 +122,7 @@ Required parameters:
 Example:
 
 ```yaml
-parallel_map_operation:
+- name: sentiment
   type: parallel_map
   prompts:
     - name: sentiment
@@ -140,7 +142,7 @@ parallel_map_operation:
 ```
 
 ```yaml
-extract_info:
+- name: extract_info
   type: map
   model: gpt-4o-mini
   output:
@@ -169,6 +171,7 @@ The Filter operation selects items from the input data based on a condition.
 Required parameters:
 
 - `type`: Must be set to `"filter"`.
+- `name`: A unique name for the operation.
 - `prompt`: The prompt template to use for the filtering condition.
 - `output`: Schema definition for the output from the LLM. It must include only one field, a boolean field. This field can be named anything, but it must be a boolean field.
 - `model` (optional): The language model to use, falls back to `default_model` if not specified.
@@ -176,7 +179,7 @@ Required parameters:
 Example:
 
 ```yaml
-filter_operation:
+- name: filter
   type: filter
   prompt: "Determine if the following text is longer than 5 words: '{{ input.text }}'"
   output:
@@ -191,6 +194,7 @@ The Unnest operation expands an array field in the input data into multiple item
 
 Required parameters:
 
+- `name`: A unique name for the operation.
 - `type`: Must be set to `"unnest"`.
 - `unnest_key`: The key of the array field to unnest.
 
@@ -198,11 +202,12 @@ Optional parameters:
 
 - `keep_empty`: Boolean flag. If true, empty arrays being exploded will be kept in the output (with value None). Default is false.
 - `expand_fields`: A list of fields to expand from the nested dictionary into the parent dictionary, if unnesting a dictionary.
+- `recursive`: Boolean flag. If true, the unnest operation will be applied recursively to the nested arrays. Default is false.
 
 Example of a list unnest:
 
 ```yaml
-unnest_operation:
+- name: unnest_people
   type: unnest
   unnest_key: people
 ```
@@ -229,7 +234,7 @@ output_data:
 Example of a dictionary unnest:
 
 ```yaml
-unnest_operation:
+- name: unnest_people
   type: unnest
   unnest_key: people
   expand_fields:
@@ -240,7 +245,7 @@ unnest_operation:
 The above example will unnest the `people` field, expanding the `name` and `age` fields from the nested dictionary into the parent dictionary. For example, if the input data is:
 
 ```yaml
-input_data:
+- name: unnest_people
   people:
     - person:
         name: Alice
@@ -273,6 +278,7 @@ The Equijoin operation performs a join between two datasets using embedding simi
 Required parameters:
 
 - `type`: Must be set to `"equijoin"`.
+- `name`: A unique name for the operation.
 - `comparison_model`: The language model to use for comparing join candidates.
 - `comparison_prompt`: The prompt template to use for comparing join candidates. This should be designed to elicit a yes or no answer.
 
@@ -287,7 +293,7 @@ Optional parameters:
 Example:
 
 ```yaml
-join_book_author:
+- name: join_book_author
   type: equijoin
   blocking_keys:
     left: ["genre"]
@@ -326,12 +332,13 @@ The Split operation divides long text content into smaller chunks.
 
 Required parameters:
 
-- type: Must be set to "split".
-- split_key: The key of the field containing the text to split.
-- method: The method to use for splitting. Options are "delimiter" and "token_count".
-- method_kwargs: A dictionary of keyword arguments to pass to the splitting method.
-  - delimiter: The delimiter to use for splitting. Only used if method is "delimiter".
-  - token_count: The maximum number of tokens to include in each chunk. Only used if method is "token_count".
+- `name`: A unique name for the operation.
+- `type`: Must be set to "split".
+- `split_key`: The key of the field containing the text to split.
+- `method`: The method to use for splitting. Options are "delimiter" and "token_count".
+- `method_kwargs`: A dictionary of keyword arguments to pass to the splitting method.
+  - `delimiter`: The delimiter to use for splitting. Only used if method is "delimiter".
+  - `token_count`: The maximum number of tokens to include in each chunk. Only used if method is "token_count".
 
 Optional parameters:
 
@@ -341,7 +348,7 @@ Optional parameters:
 Example:
 
 ```yaml
-split_operation:
+- name: split_operation
   type: split
   split_key: content
   method: token_count
@@ -364,10 +371,11 @@ The Gather operation adds contextual information from surrounding chunks to each
 
 Required parameters:
 
-- type: Must be set to "gather".
-- content_key: The key containing the chunk content.
-- doc_id_key: The key containing the document ID.
-- order_key: The key containing the chunk order number.
+- `name`: A unique name for the operation.
+- `type`: Must be set to "gather".
+- `content_key`: The key containing the chunk content.
+- `doc_id_key`: The key containing the document ID.
+- `order_key`: The key containing the chunk order number.
 
 Optional parameters:
 
@@ -388,7 +396,7 @@ Each section (head, middle, tail) can have a count property specifying the numbe
 Example:
 
 ```yaml
-gather_operation:
+- name: gather_operation
   type: gather
   content_key: content_chunk
   doc_id_key: split_id
@@ -416,6 +424,7 @@ The Reduce operation aggregates data based on a key. It supports both batch redu
 
 Required parameters:
 
+- `name`: A unique name for the operation.
 - `type`: Must be set to `"reduce"`.
 - `reduce_key`: The key to use for grouping data. This can be a single key (string) or a list of keys.
 - `prompt`: The prompt template to use for the reduction operation. This template can access the grouped values using `{{ inputs }}` (a list of dictionary objects or records) and the reduce key using `{{ reduce_key }}`.
@@ -428,7 +437,7 @@ Optional parameters:
 - `model`: The language model to use, falls back to `default_model` if not specified.
 - `input`: Specifies the schema or keys to subselect from each item or value to pass into the prompt. If omitted, all keys from the input items will be used.
 - `pass_through`: Boolean flag. If true, keys (not on input) from the first item in the group will be passed through to the output. Default is false.
-- `commutative`: Boolean flag. If true, the reduce operation is commutative, meaning the order of operations doesn't matter. This can enable further optimizations. Default is true.
+- `associative`: Boolean flag. If true, the reduce operation is associative, meaning the order of operations doesn't matter. This can enable further optimizations. Default is true.
 - `fold_prompt`: A prompt template for incremental folding. This enables processing of large groups in smaller batches. The template should access the current reduced values using `{{ output.field_name }}` and the new batch of values using `{{ inputs }}`.
 - `fold_batch_size`: The number of items to process in each fold operation when using incremental folding.
 - `merge_prompt`: A prompt template for merging the results of multiple fold operations. This is used when processing large groups in parallel. The template should access the list of intermediate results using `{{ outputs }}`.
@@ -448,7 +457,7 @@ Optional parameters:
 Example of a reduce operation with value sampling:
 
 ```yaml
-reduce_operation:
+- name: reduce_operation
   type: reduce
   reduce_key: category
   prompt: |
@@ -480,7 +489,7 @@ reduce_operation:
 Example of a basic reduce operation:
 
 ```yaml
-reduce_operation:
+- name: reduce_operation
   type: reduce
   reduce_key: group
   input:
@@ -505,7 +514,7 @@ reduce_operation:
 Example of a reduce operation with incremental folding:
 
 ```yaml
-reduce_operation:
+- name: reduce_operation
   type: reduce
   reduce_key: group
   prompt: |
@@ -572,7 +581,7 @@ Optional parameters:
 Example:
 
 ```yaml
-resolve_operation:
+- name: resolve_operation
   type: resolve
   comparison_prompt: |
     Compare the following two patient records:
@@ -609,7 +618,7 @@ resolve_operation:
 
 ### Schema Definition
 
-Schemas in Motion are defined using a simple key-value structure, where each key represents a field name and the value specifies the data type. The supported data types are:
+Schemas in docetl are defined using a simple key-value structure, where each key represents a field name and the value specifies the data type. The supported data types are:
 
 - `string` (or `str`, `text`, `varchar`): For text data
 - `integer` (or `int`): For whole numbers
@@ -659,13 +668,13 @@ It's important to note that all schema items pass through the pipeline. The `out
 
 ## Tool Use
 
-Motion supports the use of tools in operations, allowing for more complex and specific data processing tasks. Tools are defined as Python functions that can be called by the language model during execution.
+docetl supports the use of tools in operations, allowing for more complex and specific data processing tasks. Tools are defined as Python functions that can be called by the language model during execution.
 
 To use tools in an operation, you need to define them in the operation's configuration. Here's an example of how to define and use a tool:
 
 ```yaml
 operations:
-  word_count_analysis:
+  - name: word_count_analysis
     type: map
     prompt: |
       Count the number of words in the following book title:
@@ -701,7 +710,7 @@ In this example:
 
 The language model can then use this tool to count words in the input title. The tool's output will be incorporated into the operation's result according to the defined output schema.
 
-You can define multiple tools for an operation, allowing the model to choose the most appropriate one for the task at hand. Tools can range from simple utility functions to more complex data processing or external API calls, enhancing the capabilities of your Motion pipeline.
+You can define multiple tools for an operation, allowing the model to choose the most appropriate one for the task at hand. Tools can range from simple utility functions to more complex data processing or external API calls, enhancing the capabilities of your docetl pipeline.
 
 Currently, only map and parallel_map operations support tools.
 
@@ -712,7 +721,7 @@ You can add validation rules to your operations to ensure the output meets certa
 Example:
 
 ```yaml
-map_operation:
+- name: map_operation
   type: map
   prompt: "Analyze the following text: '{{ input.text }}'. Provide the word count, theme, and genre."
   output:
@@ -747,7 +756,7 @@ datasets:
     path: "data/student_survey_responses.json" # Assuming all items have a "survey_response" attribute
 
 operations:
-  extract_themes:
+  - name: extract_themes
     type: map
     prompt: |
       I'm teaching a class on databases. Analyze the following student survey response:
@@ -762,11 +771,11 @@ operations:
       - len(output["theme"]) >= 2)
     num_retries_on_validate_failure: 3
 
-  unnest_themes:
+  - name: unnest_themes
     type: unnest
     unnest_key: theme
 
-  resolve_themes:
+  - name: resolve_themes
     type: resolve
     embedding_model: text-embedding-3-small
     blocking_threshold: 0.7
@@ -794,7 +803,7 @@ operations:
         theme: str
     model: gpt-4o-mini
 
-  summarize_themes:
+  - name: summarize_themes
     type: reduce
     reduce_key: theme
     prompt: |
@@ -828,7 +837,7 @@ pipeline:
 To run this pipeline, save it as `pipeline.yaml` and execute:
 
 ```bash
-motion run pipeline.yaml
+docetl run pipeline.yaml
 ```
 
 This will process the student submissions data, extract themes from each response, unnest the themes, summarize the responses for each theme, and save the theme summaries in `output/theme_summaries.json`.

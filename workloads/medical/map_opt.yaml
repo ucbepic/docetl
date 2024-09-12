@@ -9,7 +9,8 @@ operations:
     output:
       schema:
         medication_info: str
-    prompt: 'Analyze the following transcript of a conversation between a doctor and
+    prompt:
+      'Analyze the following transcript of a conversation between a doctor and
       a patient:
 
 
@@ -26,13 +27,13 @@ operations:
     recursively_optimize: false
     type: map
     validate:
-    - 'output[''medication_info''].startswith(''Medication Info: '')'
+      - "output['medication_info'].startswith('Medication Info: ')"
 pipeline:
   output:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/extracted_medical_info.json
     type: file
   steps:
-  - input: transcripts
-    name: medical_info_extraction
-    operations:
-    - extract_medical_info
+    - input: transcripts
+      name: medical_info_extraction
+      operations:
+        - extract_medical_info

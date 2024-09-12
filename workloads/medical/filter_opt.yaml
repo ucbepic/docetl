@@ -39,7 +39,7 @@ operations:
       process the main chunk."
     type: filter
   subreduce_extract_medical_info:
-    commutative: true
+    associative: true
     input:
       schema:
         _short_explanation: string

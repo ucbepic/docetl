@@ -5,7 +5,7 @@ datasets:
 default_model: gpt-4o-mini
 operations:
   summarize_medication_contexts:
-    commutative: true
+    associative: true
     fold_batch_size: 15
     fold_prompt:
       'Summarize the settings in which patients take the medication "{{

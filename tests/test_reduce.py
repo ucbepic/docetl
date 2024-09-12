@@ -1,5 +1,5 @@
 import pytest
-from motion.operations.reduce import ReduceOperation
+from docetl.operations.reduce import ReduceOperation
 from dotenv import load_dotenv
 import random
 
@@ -19,6 +19,7 @@ def max_threads():
 @pytest.fixture
 def reduce_config():
     return {
+        "name": "reduce_operation",
         "type": "reduce",
         "reduce_key": "category",
         "prompt": "Categorize and summarize the following items: {{ inputs }} Provide a brief summary of the category and list the most common themes.",
@@ -145,11 +146,13 @@ def test_reduce_operation_error_handling(reduce_config, default_model, max_threa
         ReduceOperation(invalid_config, default_model, max_threads)
 
 
-def test_reduce_operation_non_commutative(default_model, max_threads):
-    # Define a new non-commutative reduce config
-    non_commutative_config = {
+def test_reduce_operation_non_associative(default_model, max_threads):
+    # Define a new non-associative reduce config
+    non_associative_config = {
+        "name": "non_associative_reduce",
+        "type": "reduce",
         "reduce_key": "sequence",
-        "commutative": False,
+        "associative": False,
         "prompt": "Combine the sentences in '{{ inputs }}'. Maintain order.",
         "fold_prompt": "Combine sequences: Previous result '{{ output }}', New value '{{ inputs[0] }}'. Maintain order.",
         "fold_batch_size": 1,
@@ -164,7 +167,7 @@ def test_reduce_operation_non_commutative(default_model, max_threads):
         {"sequence": "story", "value": "and lived happily ever after."},
     ]
 
-    operation = ReduceOperation(non_commutative_config, default_model, max_threads)
+    operation = ReduceOperation(non_associative_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
     assert len(results) == 1, "Should have one result for the 'story' sequence"

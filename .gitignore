@@ -8,3 +8,8 @@ paper_workloads/contracts/sample_contract_txt*
 *.xlsx
 *.csv
 paper_workloads/*
+preprint_workloads/*
+*mypy_cache*
+*.DS_Store
+*pytest_cache*
+*ruff_cache*

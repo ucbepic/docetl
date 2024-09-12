@@ -1,8 +1,8 @@
 import pytest
-from motion.operations.map import MapOperation
-from motion.operations.unnest import UnnestOperation
-from motion.operations.resolve import ResolveOperation
-from motion.operations.reduce import ReduceOperation
+from docetl.operations.map import MapOperation
+from docetl.operations.unnest import UnnestOperation
+from docetl.operations.resolve import ResolveOperation
+from docetl.operations.reduce import ReduceOperation
 
 
 @pytest.fixture
@@ -64,6 +64,7 @@ def synthetic_data():
 @pytest.fixture
 def extract_themes_config():
     return {
+        "name": "extract_themes",
         "type": "map",
         "prompt": """
         I'm teaching a class on databases. Analyze the following student survey response:
@@ -86,6 +87,7 @@ def unnest_themes_config():
 @pytest.fixture
 def resolve_themes_config():
     return {
+        "name": "resolve_themes",
         "type": "resolve",
         "embedding_model": "text-embedding-3-small",
         "blocking_threshold": 0.7,
@@ -116,6 +118,7 @@ def resolve_themes_config():
 @pytest.fixture
 def summarize_themes_config():
     return {
+        "name": "summarize_themes",
         "type": "reduce",
         "reduce_key": "theme",
         "prompt": """

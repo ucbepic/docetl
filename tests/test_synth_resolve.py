@@ -2,7 +2,7 @@ import pytest
 import json
 import tempfile
 import os
-from motion.builder import Optimizer
+from docetl.builder import Optimizer
 
 
 @pytest.fixture
@@ -36,21 +36,23 @@ def config_yaml(sample_data):
                 "patient_records": {"type": "file", "path": "patient_records.json"}
             },
             "default_model": "gpt-4o-mini",
-            "operations": {
-                "extract_medications": {
+            "operations": [
+                {
+                    "name": "extract_medications",
                     "type": "map",
                     "optimize": False,
                     "output": {"schema": {"medication": "string"}},
                     "prompt": "Extract the first medication from the following text:\n\n{{ input.text }}\n\nReturn the medication.",
                 },
-                "summarize_medications": {
+                {
+                    "name": "summarize_medications",
                     "type": "reduce",
                     "optimize": False,
                     "reduce_key": "medication",
                     "output": {"schema": {"summary": "string"}},
                     "prompt": "Summarize the usage of the medication '{{ reduce_key }}' based on the following contexts:\n\n{% for item in inputs %}{{ item.text }}\n{% endfor %}\n\nProvide a brief summary of how this medication is typically used.",
                 },
-            },
+            ],
             "pipeline": {
                 "steps": [
                     {

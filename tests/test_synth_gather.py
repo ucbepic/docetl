@@ -2,9 +2,9 @@ import pytest
 import json
 import tempfile
 import os
-from motion.builder import Optimizer
-from motion.runner import DSLRunner
-from motion.operations import SplitOperation, MapOperation, GatherOperation
+from docetl.builder import Optimizer
+from docetl.runner import DSLRunner
+from docetl.operations import SplitOperation, MapOperation, GatherOperation
 
 
 def generate_random_content(length):
@@ -66,14 +66,15 @@ def config_yaml(sample_data):
                 "long_documents": {"type": "file", "path": long_documents_file.name}
             },
             "default_model": "gpt-4o-mini",
-            "operations": {
-                "count_words": {
+            "operations": [
+                {
+                    "name": "count_words",
                     "type": "map",
                     "recursively_optimize": False,
                     "output": {"schema": {"count": "integer"}},
                     "prompt": "Count the number of words that start with the letter 'a' in the following text:\n\n{{ input.content }}\n\nReturn only the count as an integer.",
-                },
-            },
+                }
+            ],
             "pipeline": {
                 "steps": [
                     {
@@ -168,6 +169,7 @@ def test_split_map_gather(sample_data):
     default_model = "gpt-4o-mini"
     # Define split operation
     split_config = {
+        "name": "split_doc",
         "type": "split",
         "split_key": "content",
         "method": "token_count",
@@ -177,6 +179,7 @@ def test_split_map_gather(sample_data):
 
     # Define map operation to extract headers
     map_config = {
+        "name": "extract_headers",
         "type": "map",
         "prompt": """Analyze the following chunk of a document and extract any headers you see.
 
@@ -196,6 +199,7 @@ def test_split_map_gather(sample_data):
 
     # Define gather operation
     gather_config = {
+        "name": "gather_doc",
         "type": "gather",
         "content_key": "content_chunk",
         "doc_id_key": "split_doc_id",

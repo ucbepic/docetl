@@ -23,6 +23,7 @@ from docetl.utils import count_tokens
 load_dotenv()
 # litellm.set_verbose = True
 DOCETL_HOME_DIR = os.path.expanduser("~/.docetl")
+
 CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "cache")
 LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm_cache")
 cache = Cache(LLM_CACHE_DIR)
@@ -131,6 +132,8 @@ def clear_cache(console: Console = Console()):
         cache.close()
         # Remove all files in the cache directory
         cache_dir = CACHE_DIR
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
         for filename in os.listdir(cache_dir):
             file_path = os.path.join(cache_dir, filename)
             try:

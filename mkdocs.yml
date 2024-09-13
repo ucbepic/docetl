@@ -1,12 +1,12 @@
 site_name: docetl docs
-site_url: https://docetl.com/docs/
-use_directory_urls: false
-strict: true
-docs_dir: docs
-site_dir: public/docs
+site_url: https://docetl.com/
+# use_directory_urls: false
+# strict: true
+# docs_dir: docs
+# site_dir: public/docs
 
-extra:
-  docs_url: /docs
+# extra:
+#   docs_url: /docs
 
 repo_url: https://github.com/shreyashankar/docetl
 repo_name: shreyashankar/docetl

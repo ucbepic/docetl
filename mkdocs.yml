@@ -1,6 +1,7 @@
 site_name: docetl docs
 site_url: https://docetl.com/docs/
 use_directory_urls: false
+strict: true
 docs_dir: docs
 site_dir: public/docs
 

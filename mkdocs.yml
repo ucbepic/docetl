@@ -5,7 +5,7 @@ docs_dir: docs
 site_dir: public/docs
 
 extra:
-  docs_path: /docs
+  docs_url: /docs
 
 repo_url: https://github.com/shreyashankar/docetl
 repo_name: shreyashankar/docetl

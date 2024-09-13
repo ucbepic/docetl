@@ -39,7 +39,7 @@ jobs:
           echo "Creating new docs directory..."
           mkdir -p next-repo/public/docs
           echo "Copying MkDocs site to Next.js repo..."
-          cp -rv site/* next-repo/public/docs/
+          cp -rv public/docs/* next-repo/public/docs/
           cd next-repo
           echo "Contents of public/docs directory:"
           ls -R public/docs

@@ -19,6 +19,7 @@ nav:
           - Reduce: operators/reduce.md
           - Split: operators/split.md
           - Gather: operators/gather.md
+          - Parallel Map: operators/parallel-map.md
           - Filter: operators/filter.md
           - Equijoin: operators/equijoin.md
       - Execution:
@@ -26,7 +27,7 @@ nav:
           - Running Pipelines: execution/running-pipelines.md
           - Optimizing Pipelines: execution/optimizing-pipelines.md
       - Advanced Usage:
-          - Custom Operators: advanced/custom-operators.md
+          - User-Defined Functions: advanced/custom-operators.md
           - Extending Optimizer Agents: advanced/extending-agents.md
           - Performance Tuning: advanced/performance-tuning.md
   - API Reference:
@@ -42,15 +43,15 @@ nav:
 theme:
   name: material
   icon:
-    logo: material/pipe
+    logo: fontawesome/solid/scroll
     repo: fontawesome/brands/git-alt
-  favicon: images/logo.png
+  favicon: assets/docetl-favicon-color.png
   extra_files:
-    - images/
+    - assets/
   palette:
     # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
-      primary: "#002676" # Berkeley Blue
+      primary: "#003262" # Berkeley Blue
       accent: "#FDB515" # California Gold
       toggle:
         icon: material/brightness-auto
@@ -58,7 +59,7 @@ theme:
 
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
-      primary: "#002676" # Berkeley Blue
+      primary: "#003262" # Berkeley Blue
       accent: "#FDB515" # California Gold
       scheme: default
       toggle:
@@ -67,7 +68,7 @@ theme:
 
     # Palette toggle for dark mode
     - media: "(prefers-color-scheme: dark)"
-      primary: "#002676" # Berkeley Blue
+      primary: "#003262" # Berkeley Blue
       accent: "#FDB515" # California Gold
       scheme: slate
       toggle:
@@ -99,6 +100,7 @@ plugins:
   - search
   - mkdocstrings
   - autorefs
+  - glightbox
 
 markdown_extensions:
   - abbr

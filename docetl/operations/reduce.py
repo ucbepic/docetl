@@ -610,7 +610,7 @@ class ReduceOperation(BaseOperation):
             and the cost of the fold operation.
         """
         if current_output is None:
-            return self._batch_reduce(key, batch)
+            return self._batch_reduce(key, batch, scratchpad)
 
         start_time = time.time()
         fold_prompt_template = Template(self.config["fold_prompt"])
@@ -727,7 +727,7 @@ class ReduceOperation(BaseOperation):
             self.merge_times.append(time)
 
     def _batch_reduce(
-        self, key: Tuple, group_list: List[Dict]
+        self, key: Tuple, group_list: List[Dict], scratchpad: Optional[str] = None
     ) -> Tuple[Optional[Dict], float]:
         """
         Perform a batch reduce operation on a group of items.
@@ -737,7 +737,7 @@ class ReduceOperation(BaseOperation):
         Args:
             key (Tuple): The reduce key tuple for the group.
             group_list (List[Dict]): The list of items to be reduced.
-
+            scratchpad (Optional[str]): The scratchpad to use for the reduce operation.
         Returns:
             Tuple[Optional[Dict], float]: A tuple containing the reduced output (or None if processing failed)
             and the cost of the reduce operation.
@@ -766,6 +766,7 @@ class ReduceOperation(BaseOperation):
                 [{"role": "user", "content": prompt}],
                 self.config["output"]["schema"],
                 console=self.console,
+                scratchpad=scratchpad,
             )
 
         item_cost += completion_cost(response)

@@ -32,7 +32,7 @@ datasets:
 
 ### Operators
 
-Operators are the building blocks of your pipeline, defining the transformations and analyses to be performed on your data. They are detailed in the [Operators](/concepts/operators.md) documentation. Operators can include map, reduce, filter, and other types of operations.
+Operators are the building blocks of your pipeline, defining the transformations and analyses to be performed on your data. They are detailed in the [Operators](../concepts/operators.md) documentation. Operators can include map, reduce, filter, and other types of operations.
 
 ### Pipeline Specification
 
@@ -57,4 +57,4 @@ pipeline:
     path: "country_summaries.json"
 ```
 
-For a practical example of how these components come together, refer to the [Tutorial](tutorial.md), which demonstrates a complete pipeline for analyzing user behavior data.
+For a practical example of how these components come together, refer to the [Tutorial](../tutorial.md), which demonstrates a complete pipeline for analyzing user behavior data.

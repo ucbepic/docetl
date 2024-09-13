@@ -1,6 +1,6 @@
 # Map Operation
 
-The Map operation in docetl is a powerful tool for transforming and analyzing data at scale. It applies a specified transformation to each item in your input data, allowing for complex processing and insight extraction from large, unstructured documents.
+The Map operation in docetl applies a specified transformation to each item in your input data, allowing for complex processing and insight extraction from large, unstructured documents.
 
 ## 🚀 Example: Analyzing Long-Form News Articles
 

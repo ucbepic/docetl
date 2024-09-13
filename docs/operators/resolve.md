@@ -1,6 +1,6 @@
 # Resolve Operation
 
-The Resolve operation in docetl is a powerful tool for identifying and merging duplicate entities in your data. It's particularly useful when dealing with inconsistencies that can arise from LLM-generated content or data from multiple sources.
+The Resolve operation in docetl identifies and merges duplicate entities in your data. It's particularly useful when dealing with inconsistencies that can arise from LLM-generated content or data from multiple sources.
 
 ## Motivation
 

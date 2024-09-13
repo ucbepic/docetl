@@ -489,9 +489,27 @@ def call_llm_with_cache(
         tools = [{"type": "function", "function": tool["function"]} for tool in tools]
         response_format = None
 
-    system_prompt = f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation. You will perform the task on the user-provided data and write the output to a database."
+    system_prompt = f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation. You will perform the specified task on the provided data."
     if scratchpad:
-        system_prompt += f"\n\nYou are incrementally processing data across multiple batches. Your task is to {op_type} the data. Consider what intermediate state you need to maintain between batches to accomplish this task effectively.\n\nYour current scratchpad contains: {scratchpad}\n\nAs you process each batch, update your scratchpad with information crucial for processing subsequent batches. This may include partial results, counters, or any other relevant data that doesn't fit into {output_schema.keys()}. For example, if you're counting occurrences, track items that have appeared once.\n\nKeep your scratchpad concise (~500 chars) and use a format you can easily parse in future batches. You may use bullet points, key-value pairs, or any other clear structure."
+        system_prompt += f"""
+
+You are incrementally processing data across multiple batches. Maintain intermediate state between batches to accomplish this task effectively.
+
+Current scratchpad: {scratchpad}
+
+As you process each batch:
+1. Update the scratchpad with crucial information for subsequent batches.
+2. This may include partial results, counters, or data that doesn't fit into {list(output_schema.keys())}.
+3. Example: For counting elements that appear more than twice, track all occurrences in the scratchpad until an item exceeds the threshold.
+
+Keep the scratchpad concise (~500 chars) and easily parsable. Use clear structures like:
+- Bullet points
+- Key-value pairs
+- JSON-like format
+
+Update the 'updated_scratchpad' field in your output with the new scratchpad content.
+
+Remember: The scratchpad should contain information necessary for processing future batches, not the final result."""
     messages = json.loads(messages)
 
     # Truncate messages if they exceed the model's context length

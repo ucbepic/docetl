@@ -1,6 +1,6 @@
 # Operators
 
-Operators in docetl are powerful tools designed for processing unstructured data. They form the building blocks of data processing pipelines, allowing you to transform, analyze, and manipulate datasets efficiently.
+Operators in docetl are designed for semantically processing unstructured data. They form the building blocks of data processing pipelines, allowing you to transform, analyze, and manipulate datasets efficiently.
 
 ## Overview
 

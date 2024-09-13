@@ -34,6 +34,7 @@ jobs:
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
           git clone https://x-access-token:${NEXT_REPO_TOKEN}@github.com/shreyashankar/docetl-website.git next-repo
+          rm -rf next-repo/public/docs
           mkdir -p next-repo/public/docs
           cp -r site/* next-repo/public/docs/
           cd next-repo

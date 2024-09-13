@@ -29,7 +29,7 @@ docetl is a powerful tool for creating and executing data processing pipelines u
 To install docetl, clone this repository and install the required dependencies:
 
 ```bash
-git clone https://github.com/shreyashankar/motion-v3.git
+git clone https://github.com/shreyashankar/docetl.git
 cd motion-v3
 pip install poetry
 make install

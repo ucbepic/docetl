@@ -134,7 +134,7 @@ Create a file named `pipeline.yaml` with the following structure:
 
 ??? example "Full Pipeline Configuration"
 
-    ````yaml
+    ```yaml
     default_model: gpt-4o-mini
 
     datasets:

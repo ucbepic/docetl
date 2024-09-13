@@ -25,7 +25,7 @@ jobs:
         run: make install
 
       - name: Build MkDocs site
-        run: poetry run mkdocs build
+        run: poetry run mkdocs build --verbose
 
       - name: Deploy to Next.js repo
         env:
@@ -34,10 +34,16 @@ jobs:
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
           git clone https://x-access-token:${NEXT_REPO_TOKEN}@github.com/shreyashankar/docetl-website.git next-repo
+          echo "Removing existing docs directory..."
           rm -rf next-repo/public/docs
+          echo "Creating new docs directory..."
           mkdir -p next-repo/public/docs
-          cp -r site/* next-repo/public/docs/
+          echo "Copying MkDocs site to Next.js repo..."
+          cp -rv site/* next-repo/public/docs/
           cd next-repo
+          echo "Contents of public/docs directory:"
+          ls -R public/docs
           git add .
+          git status
           git commit -m "Update docs" || echo "No changes to commit"
           git push

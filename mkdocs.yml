@@ -1,5 +1,6 @@
 site_name: docetl docs
 site_url: https://docetl.com/docs/
+use_directory_urls: false
 repo_url: https://github.com/shreyashankar/docetl
 repo_name: shreyashankar/docetl
 remote_branch: gh-pages

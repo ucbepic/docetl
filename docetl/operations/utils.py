@@ -6,6 +6,7 @@ import shutil
 import threading
 from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from openai import OpenAI
 
 from dotenv import load_dotenv
 from frozendict import frozendict
@@ -17,6 +18,7 @@ from tqdm import tqdm
 from diskcache import Cache
 import tiktoken
 from rich import print as rprint
+from pydantic import BaseModel, create_model
 
 from docetl.utils import count_tokens
 
@@ -27,6 +29,8 @@ DOCETL_HOME_DIR = os.path.expanduser("~/.docetl")
 CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "cache")
 LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm_cache")
 cache = Cache(LLM_CACHE_DIR)
+
+client = OpenAI()
 
 
 def freezeargs(func):
@@ -148,6 +152,49 @@ def clear_cache(console: Console = Console()):
         console.log("[bold green]Cache cleared successfully.[/bold green]")
     except Exception as e:
         console.log(f"[bold red]Error clearing cache: {str(e)}[/bold red]")
+
+
+def create_dynamic_model(schema: Dict[str, Any], model_name: str = "DynamicModel"):
+    fields = {}
+
+    def process_schema(s: Dict[str, Any], prefix: str = "") -> None:
+        for key, value in s.items():
+            field_name = f"{prefix}__{key}" if prefix else key
+            if isinstance(value, dict):
+                process_schema(value, field_name)
+            else:
+                fields[field_name] = parse_type(value, field_name)
+
+    def parse_type(type_str: str, field_name: str) -> tuple:
+        type_str = type_str.strip().lower()
+        if type_str in ["str", "text", "string", "varchar"]:
+            return (str, ...)
+        elif type_str in ["int", "integer"]:
+            return (int, ...)
+        elif type_str in ["float", "decimal", "number"]:
+            return (float, ...)
+        elif type_str in ["bool", "boolean"]:
+            return (bool, ...)
+        elif type_str.startswith("list["):
+            inner_type = type_str[5:-1].strip()
+            item_type = parse_type(inner_type, f"{field_name}_item")[0]
+            return (List[item_type], ...)
+        elif type_str == "list":
+            return (List[Any], ...)
+        elif type_str.startswith("{") and type_str.endswith("}"):
+            subfields = {}
+            for item in type_str[1:-1].split(","):
+                sub_key, sub_type = item.strip().split(":")
+                subfields[sub_key.strip()] = parse_type(
+                    sub_type.strip(), f"{field_name}_{sub_key}"
+                )
+            SubModel = create_model(f"{model_name}_{field_name}", **subfields)
+            return (SubModel, ...)
+        else:
+            return (Any, ...)
+
+    process_schema(schema)
+    return create_model(model_name, **fields)
 
 
 def convert_val(value: Any) -> Dict[str, Any]:
@@ -419,19 +466,20 @@ def call_llm_with_cache(
         parameters["required"] = list(props.keys())
         parameters["additionalProperties"] = False
 
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "write_output",
-                    "description": "Write processing output to a database",
-                    "strict": True,
-                    "parameters": parameters,
-                    "additionalProperties": False,
-                },
-            }
-        ]
-        tool_choice = {"type": "function", "function": {"name": "write_output"}}
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "write_output",
+                "description": "Write task output to a database",
+                "strict": True,
+                "schema": parameters,
+                # "additionalProperties": False,
+            },
+        }
+
+        tools = []
+        # tool_choice = {"type": "function", "function": {"name": "write_output"}}
+        tool_choice = "auto"
 
     else:
         tools = json.loads(tools)
@@ -439,8 +487,9 @@ def call_llm_with_cache(
             "required" if any(tool.get("required", False) for tool in tools) else "auto"
         )
         tools = [{"type": "function", "function": tool["function"]} for tool in tools]
+        response_format = None
 
-    system_prompt = f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation."
+    system_prompt = f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation. You will perform the task on the user-provided data and write the output to a database."
     if scratchpad:
         system_prompt += f"\n\nYou are incrementally processing data across multiple batches. Your task is to {op_type} the data. Consider what intermediate state you need to maintain between batches to accomplish this task effectively.\n\nYour current scratchpad contains: {scratchpad}\n\nAs you process each batch, update your scratchpad with information crucial for processing subsequent batches. This may include partial results, counters, or any other relevant data that doesn't fit into {output_schema.keys()}. For example, if you're counting occurrences, track items that have appeared once.\n\nKeep your scratchpad concise (~500 chars) and use a format you can easily parse in future batches. You may use bullet points, key-value pairs, or any other clear structure."
     messages = json.loads(messages)
@@ -448,18 +497,31 @@ def call_llm_with_cache(
     # Truncate messages if they exceed the model's context length
     messages = truncate_messages(messages, model)
 
-    response = completion(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": system_prompt,
-            },
-        ]
-        + messages,
-        tools=tools,
-        tool_choice=tool_choice,
-    )
+    if response_format is None:
+        response = completion(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+            ]
+            + messages,
+            tools=tools,
+            tool_choice=tool_choice,
+        )
+    else:
+        response = completion(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+            ]
+            + messages,
+            response_format=response_format,
+        )
 
     return response
 
@@ -612,22 +674,20 @@ Please improve your previous response. Ensure that the output adheres to the req
         messages.append({"role": "user", "content": improvement_prompt})
 
         # Call LLM for improvement
+        # TODO: support gleaning and tools
         response = completion(
             model=model,
             messages=truncate_messages(messages, model),
-            tools=[
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "write_output",
-                        "description": "Write processing output to a database",
-                        "strict": True,
-                        "parameters": parameters,
-                        "additionalProperties": False,
-                    },
-                }
-            ],
-            tool_choice={"type": "function", "function": {"name": "write_output"}},
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "write_output",
+                    "description": "Write processing output to a database",
+                    "strict": True,
+                    "schema": parameters,
+                    # "additionalProperties": False,
+                },
+            },
         )
 
         # Update messages with the new response
@@ -682,16 +742,20 @@ def parse_llm_response(
                     results.append(function_args)
         return results
     else:
-        # Default behavior for write_output function
-        tool_calls = response.choices[0].message.tool_calls
-        outputs = []
-        for tool_call in tool_calls:
-            if tool_call.function.name == "write_output":
-                try:
-                    outputs.append(json.loads(tool_call.function.arguments))
-                except json.JSONDecodeError:
-                    return [{}]
-        return outputs
+        if "tool_calls" in response.choices[0].message:
+            # Default behavior for write_output function
+            tool_calls = response.choices[0].message.tool_calls
+            outputs = []
+            for tool_call in tool_calls:
+                if tool_call.function.name == "write_output":
+                    try:
+                        outputs.append(json.loads(tool_call.function.arguments))
+                    except json.JSONDecodeError:
+                        return [{}]
+            return outputs
+
+        else:
+            return [json.loads(response.choices[0].message.content)]
 
     # message = response.choices[0].message
     # return [json.loads(message.content)]

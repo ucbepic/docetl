@@ -70,6 +70,7 @@ def config_yaml(sample_data):
                 {
                     "name": "count_words",
                     "type": "map",
+                    "optimize": True,
                     "recursively_optimize": False,
                     "output": {"schema": {"count": "integer"}},
                     "prompt": "Count the number of words that start with the letter 'a' in the following text:\n\n{{ input.content }}\n\nReturn only the count as an integer.",
@@ -181,6 +182,7 @@ def test_split_map_gather(sample_data):
     map_config = {
         "name": "extract_headers",
         "type": "map",
+        "optimize": True,
         "prompt": """Analyze the following chunk of a document and extract any headers you see.
 
         {{ input.content_chunk }}

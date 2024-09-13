@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple
 import random
 
+import numpy as np
+
 import jinja2
 from jinja2 import Template
 from docetl.utils import completion_cost
@@ -291,17 +293,16 @@ class ResolveOperation(BaseOperation):
             else float("inf")
         )
         if remaining_comparisons > 0 and blocking_threshold is not None:
+            # Compute cosine similarity for all pairs at once
+            all_embeddings = np.array([embeddings[i] for i in range(len(input_data))])
+            similarity_matrix = cosine_similarity(all_embeddings)
+
             cosine_pairs = []
             for i, j in all_pairs:
                 if (i, j) not in blocked_pairs and find_cluster(i) != find_cluster(j):
-                    try:
-                        similarity = cosine_similarity(
-                            [embeddings[i]], [embeddings[j]]
-                        )[0][0]
-                        if similarity >= blocking_threshold:
-                            cosine_pairs.append((i, j, similarity))
-                    except Exception as e:
-                        self.console.log(f"Error comparing pair {i} and {j}: {e}")
+                    similarity = similarity_matrix[i, j]
+                    if similarity >= blocking_threshold:
+                        cosine_pairs.append((i, j, similarity))
 
             if remaining_comparisons != float("inf"):
                 cosine_pairs.sort(key=lambda x: x[2], reverse=True)

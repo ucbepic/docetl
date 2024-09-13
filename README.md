@@ -480,7 +480,7 @@ Example of a reduce operation with value sampling:
     enabled: true
     method: cluster
     sample_size: 50
-    embedding_model: text-embedding-ada-002
+    embedding_model: text-embedding-3-small
     embedding_keys:
       - name
       - price
@@ -609,7 +609,7 @@ Example:
   blocking_keys:
     - record
   blocking_threshold: 0.8
-  embedding_model: text-embedding-ada-002
+  embedding_model: text-embedding-3-small
   resolution_model: gpt-4o-mini
   comparison_model: gpt-4o-mini
 ```

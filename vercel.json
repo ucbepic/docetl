@@ -1,0 +1,7 @@
+{
+    "buildCommand": "mkdocs build",
+    "outputDirectory": "site",
+    "rewrites": [
+      { "source": "/docs/(.*)", "destination": "/$1" }
+    ]
+  }

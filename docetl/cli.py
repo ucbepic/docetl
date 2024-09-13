@@ -73,5 +73,15 @@ def clear_cache():
     cc()
 
 
+@app.command()
+def version():
+    """
+    Display the current version of DocETL.
+    """
+    import docetl
+
+    typer.echo(f"DocETL version: {docetl.__version__}")
+
+
 if __name__ == "__main__":
     app()

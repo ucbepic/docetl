@@ -24,16 +24,16 @@ operations:
     num_retries_on_validate_failure: 1
     recursively_optimize: false
 
-    # gleaning:
-    #   num_rounds: 1
-    #   validation_prompt: |
-    #     Review the original transcript and the extracted information:
+    gleaning:
+      num_rounds: 1
+      validation_prompt: |
+        Review the original transcript and the extracted information:
 
-    #     Extracted: {{ output }}
+        Extracted: {{ output }}
 
-    #     Evaluate the extraction for completeness and accuracy:
-    #     1. Are all medications, dosages, and symptoms from the transcript included?
-    #     2. Is the extracted information correct and relevant?
+        Evaluate the extraction for completeness and accuracy:
+        1. Are all medications, dosages, and symptoms from the transcript included?
+        2. Is the extracted information correct and relevant?
 
 pipeline:
   steps:

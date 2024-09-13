@@ -1,0 +1,123 @@
+site_name: docetl
+site_url: https://docetl.com/docs
+repo_url: https://github.com/shreyashankar/docetl
+repo_name: shreyashankar/docetl
+remote_branch: gh-pages
+nav:
+  - Home:
+      - What is DocETL?: index.md
+      - Getting started:
+          - Installation: installation.md
+          - Tutorial: tutorial.md
+      - Core Concepts:
+          - Operators: concepts/operators.md
+          - Pipelines: concepts/pipelines.md
+          - Optimization: concepts/optimization.md
+      - Operators:
+          - Map: operators/map.md
+          - Resolve: operators/resolve.md
+          - Reduce: operators/reduce.md
+          - Split: operators/split.md
+          - Gather: operators/gather.md
+          - Filter: operators/filter.md
+          - Equijoin: operators/equijoin.md
+      - Execution:
+          - Defining Pipelines: execution/defining-pipelines.md
+          - Running Pipelines: execution/running-pipelines.md
+          - Optimizing Pipelines: execution/optimizing-pipelines.md
+      - Advanced Usage:
+          - Custom Operators: advanced/custom-operators.md
+          - Extending Optimizer Agents: advanced/extending-agents.md
+          - Performance Tuning: advanced/performance-tuning.md
+  - API Reference:
+      - docetl: api-reference/docetl.md
+      - docetl.operations: api-reference/operations.md
+      - docetl.optimizers: api-reference/optimizers.md
+  - Cookbook:
+      - Mining Product Reviews for Polarizing Features: examples/mining-product-reviews.md
+      - Annotating Legal Documents: examples/annotating-legal-documents.md
+      - Characterizing Troll Behavior on Wikipedia: examples/characterizing-troll-behavior.md
+  - Roadmap & Community: community.md
+
+theme:
+  name: material
+  icon:
+    logo: material/pipe
+    repo: fontawesome/brands/git-alt
+  favicon: images/logo.png
+  extra_files:
+    - images/
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      primary: "#002676" # Berkeley Blue
+      accent: "#FDB515" # California Gold
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: "#002676" # Berkeley Blue
+      accent: "#FDB515" # California Gold
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      primary: "#002676" # Berkeley Blue
+      accent: "#FDB515" # California Gold
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: Inter
+    code: Source Code Pro
+
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tracking
+    - navigation.expand
+    - navigation.path
+    - navigation.prune
+    - navigation.indexes
+    - navigation.top
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - toc.follow
+    - navigation.footer
+    # - toc.integrate
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings
+  - autorefs
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - pymdownx.snippets
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg

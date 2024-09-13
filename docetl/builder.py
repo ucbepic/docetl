@@ -709,7 +709,7 @@ class Optimizer:
             )
 
             if (
-                not op_object.get("optimize", True)
+                not op_object.get("optimize", False)  # Default don't optimize
                 or op_object.get("type") not in SUPPORTED_OPS
             ):
                 # If optimize is False or operation type is not supported, just use the operation without optimization

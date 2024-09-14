@@ -73,7 +73,7 @@ TODO:
 - [x] Add gleaning plan to reduce
 - [ ] HITL for prompt selection (generally, a textual app)
 - [ ] Fix bug in recursively optimizing reduce in the map optimizer
-- [ ] Support reduce key of "all"
+- [x] Support reduce key of "all"
 - [ ] Write tests for optimizers
 - [ ] Refactor reduce and join optimizers
 - [ ] Support prompt prefix/custom instructions so users don't have to put them in every operation

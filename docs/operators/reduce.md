@@ -43,7 +43,7 @@ This Reduce operation processes customer feedback grouped by department:
 ### Required Parameters
 
 - `type`: Must be set to "reduce".
-- `reduce_key`: The key (or list of keys) to use for grouping data.
+- `reduce_key`: The key (or list of keys) to use for grouping data. Use `_all` to group all data into one group.
 - `prompt`: The prompt template to use for the reduction operation.
 - `output`: Schema definition for the output from the LLM.
 

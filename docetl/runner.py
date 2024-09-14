@@ -17,7 +17,7 @@ load_dotenv()
 
 class DSLRunner:
     """
-    A runner class for executing Domain-Specific Language (DSL) configurations.
+    A class for executing Domain-Specific Language (DSL) configurations.
 
     This class is responsible for loading, validating, and executing DSL configurations
     defined in YAML files. It manages datasets, executes pipeline steps, and tracks

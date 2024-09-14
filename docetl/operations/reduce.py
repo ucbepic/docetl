@@ -306,6 +306,7 @@ class ReduceOperation(BaseOperation):
 
                 group_list = group_sample
 
+            # Only execute merge-based plans if associative = True
             if "merge_prompt" in self.config and self.config.get("associative", True):
                 result, cost = self._parallel_fold_and_merge(key, group_list)
             elif "fold_prompt" in self.config:

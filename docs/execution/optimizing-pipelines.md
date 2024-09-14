@@ -4,10 +4,12 @@ After creating your initial map-reduce pipeline, you might want to optimize it f
 
 ## Understanding the Optimizer
 
-The optimizer in docetl finds optimal plans for operations marked with `optimize: True`. It can also insert resolve operations before reduce operations if needed. The optimizer uses GPT-4 under the hood (requiring an OpenAI API key) and can be customized with different models like gpt-4-turbo or gpt-4o-mini.
+The optimizer in docetl finds optimal plans for operations marked with `optimize: True`. It can also insert resolve operations before reduce operations if needed. The optimizer uses GPT-4 under the hood (requiring an OpenAI API key) and can be customized with different models like gpt-4-turbo or gpt-4o-mini. Note that only LLM-powered operations can be optimized (e.g., `map`, `reduce`, `resolve`, `filter`, `equijoin`).
 
 At its core, the optimizer employs two types of AI agents: generation agents and validation agents. Generation agents work to rewrite operators into better plans, potentially decomposing a single operation into multiple, more efficient steps. Validation agents then evaluate these candidate plans, synthesizing task-specific validation prompts to compare outputs and determine the best plan for each operator.
 
+<div class="mermaid-wrapper" style="display: flex; justify-content: center;">
+  <div class="mermaid" style="width: 100%; height: auto;">
 ```mermaid
 graph LR
     A[User-Defined Operation] --> B[Validation Agent]
@@ -16,34 +18,40 @@ graph LR
     C --> D[Evaluate on Sample Data]
     D --> E{Needs Optimization?}
     E -->|Yes| F[Generation Agent]
+    E -->|No| J[Optimized Operation]
     style F fill:#bbf,stroke:#333,stroke-width:2px
     F -->|Create| G[Candidate Plans]
     G --> H[Validation Agent]
     style H fill:#f9f,stroke:#333,stroke-width:2px
-    H -->|Rank/Compare Plans| I[Select Best Plan]
-    I --> J[Optimized Operation]
-    E -->|No| J
+    H -->|Rank/Compare| I[Select Best Plan]
+    I --> J
 ```
+  </div>
+</div>
 
 !!! note "Optimizer Stability"
 
-    The optimization process can be unstable. We recommend optimizing one operation at a time and retrying if necessary, as results may vary between runs. This approach also allows you to confidently verify that each optimized operation is performing as expected before moving on to the next. See the [API](#api) for more details on how to resume the optimizer from a failed run.
+    The optimization process can be unstable, as well as resource-intensive (we've seen it take up to 10 minutes to optimize a single operation, spending up to ~$50 in API costs for end-to-end pipelines). We recommend optimizing one operation at a time and retrying if necessary, as results may vary between runs. This approach also allows you to confidently verify that each optimized operation is performing as expected before moving on to the next. See the [API](#optimizer-api) for more details on how to resume the optimizer from a failed run, by rerunning `docetl build pipeline.yaml --resume` (with the `--resume` flag).
 
 ## Optimization Process
 
 To optimize your pipeline, start with your initial configuration and follow these steps:
 
-1. Choose the first operation you want to optimize and set `optimize: True` for that operation.
+1. Set `optimize: True` for the operation you want to optimize (start with the first operation, if you're not sure which one).
 
 2. Run the optimizer using the command `docetl build pipeline.yaml`. This will generate an optimized version in `pipeline_opt.yaml`.
 
 3. Review the optimized operation in `pipeline_opt.yaml`. If you're satisfied with the changes, copy the optimized operation back into your original `pipeline.yaml`.
 
-4. Move on to the next operation and repeat steps 1-3.
+4. Move on to the next LLM-powered operation and repeat steps 1-3.
 
 5. Once all operations are optimized, your `pipeline.yaml` will contain the fully optimized pipeline.
 
 When optimizing a resolve operation, the optimizer will also set blocking configurations and thresholds, saving you from manual configuration.
+
+!!! example "Feeling Ambitious?"
+
+    You can run the optimizer on your entire pipeline by setting `optimize: True` for each operation you want to optimize. But sometimes the agent fails to find a better plan, and you'll need to manually intervene. We are exploring human-in-the-loop optimization, where the optimizer can ask for human feedback to improve its plans.
 
 ## Example: Optimizing a Medical Transcripts Pipeline
 
@@ -104,9 +112,7 @@ pipeline:
 
 First, we'll optimize the `extract_medications` operation. Set `optimize: True` for this operation and run the optimizer. Review the changes and integrate them into your pipeline.
 
-Next, optimize the `unnest_medications` operation in the same manner. The optimizer may suggest adding a resolve operation at this point. If so, add it to your pipeline and set `optimize: True` to let the optimizer configure blocking and thresholds.
-
-Finally, optimize the `summarize_prescriptions` operation. After completing all steps, your optimized pipeline might look like this:
+Then, optimize the `summarize_prescriptions` operation by setting `optimize: True` and running `docetl build pipeline.yaml` again. The optimizer may suggest adding a resolve operation at this point, and will automatically configure blocking and thresholds. After completing all steps, your optimized pipeline might look like this:
 
 ### Optimized Pipeline
 
@@ -173,11 +179,11 @@ operations:
       {% for value in values %}
       Transcript {{ loop.index }}: {{ value.src }}
       {% endfor %}
-      
+
       Existing summary:
       Side effects: {{ output.side_effects }}
       Uses: {{ output.uses }}
-      
+
       Provide an updated and comprehensive summary, incorporating both the existing information and any new insights from the additional transcripts.
 
 pipeline:
@@ -200,14 +206,15 @@ This optimized pipeline now includes improved prompts, a resolve operation, and 
 
     We're continually improving the optimizer. Your feedback on its performance and usability is invaluable. Please share your experiences and suggestions!
 
-## API
+## Optimizer API
 
 ::: docetl.cli.build
-handler: python
-options:
-members: - build
-show_root_full_path: true
-show_root_toc_entry: true
-show_root_heading: true
-show_source: false
-show_name: true
+    handler: python
+    options:
+        members: 
+            - build
+    show_root_full_path: true
+    show_root_toc_entry: true
+    show_root_heading: true
+    show_source: false
+    show_name: true

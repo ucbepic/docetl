@@ -18,25 +18,28 @@ nav:
           - Installation: installation.md
           - Tutorial: tutorial.md
       - Core Concepts:
+          - Schemas: concepts/schemas.md
           - Operators: concepts/operators.md
           - Pipelines: concepts/pipelines.md
           - Optimization: concepts/optimization.md
-      - Operators:
+      - LLM-Powered Operators:
           - Map: operators/map.md
           - Resolve: operators/resolve.md
           - Reduce: operators/reduce.md
-          - Split: operators/split.md
-          - Gather: operators/gather.md
           - Parallel Map: operators/parallel-map.md
           - Filter: operators/filter.md
           - Equijoin: operators/equijoin.md
+      - Auxiliary Operators:
+          - Split: operators/split.md
+          - Gather: operators/gather.md
+          - Unnest: operators/unnest.md
       - Execution:
           - Running Pipelines: execution/running-pipelines.md
           - Optimizing Pipelines: execution/optimizing-pipelines.md
-      - Advanced Usage:
-          - User-Defined Functions: advanced/custom-operators.md
-          - Extending Optimizer Agents: advanced/extending-agents.md
-          - Performance Tuning: advanced/performance-tuning.md
+      # - Advanced Usage:
+      #     - User-Defined Functions: advanced/custom-operators.md
+      #     - Extending Optimizer Agents: advanced/extending-agents.md
+      #     - Performance Tuning: advanced/performance-tuning.md
   - API Reference:
       - docetl: api-reference/docetl.md
       - docetl.operations: api-reference/operations.md

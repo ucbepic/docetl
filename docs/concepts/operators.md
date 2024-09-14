@@ -84,7 +84,7 @@ The `output` attribute defines the structure of the LLM's response. It supports 
 - `number` (or `float`, `decimal`): For decimal numbers
 - `boolean` (or `bool`): For true/false values
 - `list`: For arrays or sequences of items
-- Complex types: Use compact notation for nested structures
+- objects: Using notation `{field: type}`
 
 Example:
 
@@ -92,7 +92,7 @@ Example:
 output:
   schema:
     insights: "list[{insight: string, supporting_actions: string}]"
-        detailed_summary: string
+    detailed_summary: string
 ```
 
 !!! tip "Keep Output Types Simple"
@@ -114,6 +114,8 @@ output:
     ```
 
     And then use a separate operation to further process the supporting actions if needed.
+
+Read more about schemas in the [schemas](../concepts/schemas.md) section.
 
 ## Validation
 

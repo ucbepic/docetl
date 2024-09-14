@@ -74,13 +74,13 @@ Let's consider an example pipeline that extracts themes from student survey resp
 
 !!! example "Original Pipeline"
 
-    Here's a simplified version of the pipeline focusing on the reduce operation:
+    Here's a simplified version of the pipeline, focusing on the reduce operation:
 
     ```yaml
     - name: summarize_themes
-    type: reduce
-    reduce_key: theme
-    prompt: |
+      type: reduce
+      reduce_key: theme
+      prompt: |
         Summarize the responses for the theme: {{ reduce_key }}
 
         Responses:
@@ -89,9 +89,9 @@ Let's consider an example pipeline that extracts themes from student survey resp
         {% endfor %}
 
         Provide a summary of the main points expressed about this theme.
-    output:
+      output:
         schema:
-        summary: string
+          summary: string
     ```
 
 ??? example "Optimized Pipeline"

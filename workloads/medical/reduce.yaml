@@ -6,8 +6,9 @@ datasets:
 default_model: gpt-4o-mini
 
 operations:
-  summarize_medication_contexts:
+  - name: summarize_medication_contexts
     type: reduce
+    optimize: true
     reduce_key: medication
     input:
       schema:

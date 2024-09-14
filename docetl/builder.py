@@ -149,8 +149,10 @@ class Optimizer:
 
         self.print_optimizer_config()
 
-    def find_operation(self, op_name: str) -> Dict:
-        for operation_config in self.config["operations"]:
+    def find_operation(self, op_name: str, config: Optional[Dict] = None) -> Dict:
+        if not config:
+            config = self.config
+        for operation_config in config["operations"]:
             if operation_config["name"] == op_name:
                 return operation_config
         raise ValueError(f"Operation '{op_name}' not found in configuration.")
@@ -511,11 +513,27 @@ class Optimizer:
                 )
 
             optimized_step, step_operations, input_data = self._optimize_step(step)
+            old_op_names = [
+                op
+                for op in step["operations"]
+                if op not in optimized_step["operations"]
+            ]
 
-            self.optimized_config["operations"].update(step_operations)
-            for i, op in enumerate(self.optimized_config["operations"]):
-                if op["name"] in step_operations:
-                    self.optimized_config["operations"][i] = step_operations[op["name"]]
+            # Remove all old_op_names from self.optimized_config["operations"]
+            self.optimized_config["operations"] = [
+                op
+                for op in self.optimized_config["operations"]
+                if op["name"] not in old_op_names
+            ]
+
+            for op in optimized_step["operations"]:
+                changed_op = False
+                for i, op_config in enumerate(self.optimized_config["operations"]):
+                    if op_config["name"] == op:
+                        self.optimized_config["operations"][i] = op
+                        changed_op = True
+                if not changed_op:
+                    self.optimized_config["operations"].append(step_operations[op])
 
             self.optimized_config["pipeline"]["steps"] = [
                 step
@@ -535,7 +553,7 @@ class Optimizer:
                                 if s["name"] == step_name
                             ][0],
                             "operations": [
-                                self.find_operation(op)
+                                self.find_operation(op, self.optimized_config)
                                 for op in optimized_step["operations"]
                             ],
                         }

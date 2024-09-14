@@ -1,3 +1,4 @@
+import copy
 import json
 import random
 from collections import Counter
@@ -164,7 +165,7 @@ class ReduceOptimizer:
         )
 
         # Print the validation results
-        self.console.log("[bold]Validation Results:[/bold]")
+        self.console.log("[bold]Validation Results on Initial Sample:[/bold]")
         if validation_results["needs_improvement"]:
             self.console.log(
                 "\n".join(
@@ -296,15 +297,62 @@ class ReduceOptimizer:
         is_associative = self._is_associative(op_config, input_data)
 
         # Step 3: Create and evaluate multiple reduce plans
+        self.console.log("[bold magenta]Generating batched plans...[/bold magenta]")
         reduce_plans = self._create_reduce_plans(op_config, input_data, is_associative)
+
+        # Create gleaning plans
+        self.console.log("[bold magenta]Generating gleaning plans...[/bold magenta]")
+        gleaning_plans = self._generate_gleaning_plans(reduce_plans, validator_prompt)
+
+        self.console.log("[bold magenta]Evaluating plans...[/bold magenta]")
         best_plan = self._evaluate_reduce_plans(
-            op_config, reduce_plans, input_data, validator_prompt
+            op_config, reduce_plans + gleaning_plans, input_data, validator_prompt
         )
 
         # Step 4: Run the best reduce plan
         optimized_output = self._run_operation(best_plan, input_data)
 
         return [best_plan], optimized_output, 0.0
+
+    def _generate_gleaning_plans(
+        self,
+        plans: List[Dict[str, Any]],
+        validation_prompt: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate plans that use gleaning for the given operation.
+
+        Gleaning involves iteratively refining the output of an operation
+        based on validation feedback. This method creates plans with different
+        numbers of gleaning rounds.
+
+        Args:
+            plans (List[Dict[str, Any]]): The list of plans to use for gleaning.
+            validation_prompt (str): The prompt used for validating the operation's output.
+
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: A dictionary of gleaning plans, where each key
+            is a plan name and each value is a list containing a single operation configuration
+            with gleaning parameters.
+
+        """
+        # Generate an op with gleaning num_rounds and validation_prompt
+        gleaning_plans = []
+        gleaning_rounds = [1]
+        biggest_batch_size = max([plan["fold_batch_size"] for plan in plans])
+        for plan in plans:
+            if plan["fold_batch_size"] != biggest_batch_size:
+                continue
+            for gleaning_round in gleaning_rounds:
+                plan_copy = copy.deepcopy(plan)
+                plan_copy["gleaning"] = {
+                    "num_rounds": gleaning_round,
+                    "validation_prompt": validation_prompt,
+                }
+                plan_name = f"gleaning_{gleaning_round}_rounds_{plan['name']}"
+                plan_copy["name"] = plan_name
+                gleaning_plans.append(plan_copy)
+        return gleaning_plans
 
     def _optimize_decomposed_reduce(
         self,
@@ -860,7 +908,7 @@ class ReduceOptimizer:
         result["is_associative"] = not result["order_matters"]
 
         self.console.log(
-            f"Reduce operation {'is associative' if result['is_associative'] else 'is not associative'}. Analysis: {result['explanation']}"
+            f"[yellow]Reduce operation {'is associative' if result['is_associative'] else 'is not associative'}.[/yellow] Analysis: {result['explanation']}"
         )
         return result["is_associative"]
 
@@ -1192,11 +1240,12 @@ class ReduceOptimizer:
                 )
 
         for batch_size in batch_sizes:
-            for fold_prompt in fold_prompts:
+            for fold_idx, fold_prompt in enumerate(fold_prompts):
                 plan = op_config.copy()
                 plan["fold_prompt"] = fold_prompt
                 plan["fold_batch_size"] = batch_size
                 plan["associative"] = is_associative
+                plan["name"] = f"{op_config['name']}_bs_{batch_size}_fp_{fold_idx}"
                 plans.append(plan)
 
         return plans

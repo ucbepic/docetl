@@ -4,110 +4,143 @@ datasets:
     type: file
 default_model: gpt-4o-mini
 operations:
-  summarize_medication_contexts:
-    associative: true
-    fold_batch_size: 15
-    fold_prompt:
-      'Summarize the settings in which patients take the medication "{{
-      reduce_key }}" by combining the new information in the following doctor-patient
-      transcripts with the current summary:
+- associative: true
+  fold_batch_size: 65
+  fold_prompt: 'Analyze additional doctor-patient transcripts where the medication
+    "{{ reduce_key }}" is mentioned and update the summary accordingly.
 
 
-      Current Summary:
+    Current Summary:
 
-      {{ output.summary }}
-
-
-      ---
+    {{ output.summary }}
 
 
-      New Transcripts:
+    New Transcripts:
 
-      {% for value in inputs %}
+    {% for item in inputs %}
 
-      Transcript {{ loop.index + 1 }}:
+    Transcript {{ loop.index }}:
 
-      {{ value.src }}
-
-
-      ---
-
-      {% endfor %}
+    {{ item.src }}
 
 
-      Based on the new transcripts, update the summary to include any additional reasons
-      for taking the medication "{{ reduce_key }}", side effects mentioned, or interactions
-      with other medications or treatments. Ensure the updated summary merges seamlessly
-      with the current information and clearly reflects any additional insights gathered
-      from the new set of transcripts.'
-    input:
-      schema:
-        medication: str
-        src: str
-    merge_batch_size: 2
-    merge_prompt:
-      'Combine the summaries produced by the previous fold operations
-      into a comprehensive summary. These fold outputs are based on separate analyses
-      of doctor-patient transcripts where the medication "{{ reduce_key }}" is mentioned.
-      The goal is to merge these summaries into one cohesive output.
+    ---
+
+    {% endfor %}
 
 
-      Folded Outputs to Merge:
-
-      {% for output in outputs %}
-
-      - Summary {{ loop.index + 1 }}: {{ output.summary }}
-
-      {% endfor %}
+    Based on the new transcripts, augment the summary of the settings in which patients
+    take the medication "{{ reduce_key }}". Include:
 
 
-      Create a unified summary by synthesizing the information from these folded outputs.
-      Ensure that the combined summary covers all insights gathered, including any
-      additional reasons for taking the medication "{{ reduce_key }}", new side effects,
-      or interactions with other medications or treatments mentioned across all transcripts.
-      The final summary should flow logically and encapsulate all essential findings
-      in a clear and concise manner.'
-    output:
-      schema:
-        summary: str
-    prompt:
-      'Analyze the following doctor-patient transcripts where the medication
-      "{{ reduce_key }}" is mentioned:
+    1. Any new reasons for taking this medication.
+
+    2. Any additional side effects experienced or mentioned.
+
+    3. Any further interactions with other medications or treatments.
 
 
-      {% for item in inputs %}
+    Ensure the updated summary incorporates both previously reduced information and
+    insights from the new transcripts.'
+  gleaning:
+    num_rounds: 1
+    validation_prompt: '1. Does the output provide a clear and accurate summary of
+      why patients take the medication "{{ reduce_key }}" as described in the transcripts,
+      ensuring it captures the primary medical context and reasons presented by the
+      doctors?
 
-      Transcript {{ loop.index }}:
+      2. Does the output accurately list any side effects or adverse reactions mentioned
+      in the transcripts, ensuring that all relevant information is included and is
+      clearly linked to the medication "{{ reduce_key }}"?
 
-      {{ item.src }}
+      3. Are any interactions with other medications or treatments mentioned in the
+      transcripts correctly identified and summarized in the output, capturing the
+      key context and implications as discussed by the participants in the transcript?
+
+      4. Does the output follow the formatting and detail requirements specified in
+      the prompt, making sure it is concise, covers the three specified categories,
+      and avoids inclusion of unrelated or superfluous details?'
+  input:
+    schema:
+      medication: str
+      src: str
+  merge_batch_size: 2
+  merge_prompt: 'Combine the summarized insights from multiple doctor-patient transcripts
+    regarding the medication "{{ reduce_key }}" into a cohesive and comprehensive
+    analysis. This merged summary should reflect information as if the initial analysis
+    was conducted on all transcripts simultaneously.
 
 
-      ---
-
-      {% endfor %}
+    You have received the following summaries from previous fold operations:
 
 
-      Based on these doctor-patient transcripts, provide a summary of the settings
-      in which patients take the medication "{{ reduce_key }}". Include the following
-      information:
+    {% for fold_output in outputs %}
+
+    Folded Output {{ loop.index + 1 }}:
+
+    "{{ fold_output.summary }}"
+
+    ---
+
+    {% endfor %}
 
 
-      1. A brief summary of why a patient takes this medication.
+    Instructions for merging the summaries:
 
-      2. Any side effects experienced or mentioned.
+    1. Consolidate reasons why patients are prescribed or are taking the medication,
+    incorporating any unique scenarios from each fold output.
 
-      3. Any interactions with other medications or treatments mentioned.
+    2. Compile and enhance the list of side effects, focusing on both frequently mentioned
+    and rare occurrences from the folded outputs.
 
-      '
-    reduce_key:
-      - medication
-    type: reduce
+    3. Identify and merge any interactions with other medications or treatments, noting
+    where multiple fold outputs share similar insights or highlight unique cases.
+
+
+    Ensure that this merged summary is coherent, all-inclusive, and captures the essence
+    of each set of inputs processed previously, providing a thorough overview of the
+    settings in which the medication is used.'
+  name: gleaning_1_rounds_summarize_medication_contexts_bs_65_fp_0
+  optimize: true
+  output:
+    schema:
+      summary: str
+  prompt: 'Analyze the following doctor-patient transcripts where the medication "{{
+    reduce_key }}" is mentioned:
+
+
+    {% for item in inputs %}
+
+    Transcript {{ loop.index }}:
+
+    {{ item.src }}
+
+
+    ---
+
+    {% endfor %}
+
+
+    Based on these doctor-patient transcripts, provide a summary of the settings in
+    which patients take the medication "{{ reduce_key }}". Include the following information:
+
+
+    1. A brief summary of why a patient takes this medication.
+
+    2. Any side effects experienced or mentioned.
+
+    3. Any interactions with other medications or treatments mentioned.
+
+    '
+  reduce_key:
+  - medication
+  type: reduce
 pipeline:
   output:
     path: /Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/medication_context_summaries.json
     type: file
   steps:
-    - input: deduped_meds
-      name: medication_context_summarization
-      operations:
-        - summarize_medication_contexts
+  - input: deduped_meds
+    name: medication_context_summarization
+    operations:
+    - gleaning_1_rounds_summarize_medication_contexts_bs_65_fp_0

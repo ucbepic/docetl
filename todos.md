@@ -69,8 +69,8 @@ TODO:
 - [x] Support retries in the optimizers
 - [x] Operations should not be defined as dictionaries; they should be objects
 - [x] Support unnests in the optimizer
-- [ ] Print out the name of the plan we are synthesizing
-- [ ] Add gleaning plan to reduce
+- [x] Print out the name of the plan we are synthesizing
+- [x] Add gleaning plan to reduce
 - [ ] HITL for prompt selection (generally, a textual app)
 - [ ] Fix bug in recursively optimizing reduce in the map optimizer
 - [ ] Support reduce key of "all"
@@ -83,7 +83,6 @@ TODO:
 - [ ] Support passing expectations
 - [x] Write intermediates to disk
 - [ ] Support order by
-- [ ] Track traces
 - [ ] Reduce operations: eagerly process merges to prevent against stragglers/tail latencies in folds?
 - [ ] Rewrite API for equijoin input data
 

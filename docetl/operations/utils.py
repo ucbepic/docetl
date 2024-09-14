@@ -710,16 +710,29 @@ Please improve your previous response. Ensure that the output adheres to the req
         response = completion(
             model=model,
             messages=truncate_messages(messages, model),
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "write_output",
-                    "description": "Write processing output to a database",
-                    "strict": True,
-                    "schema": parameters,
-                    # "additionalProperties": False,
-                },
-            },
+            # response_format={
+            #     "type": "json_schema",
+            #     "json_schema": {
+            #         "name": "write_output",
+            #         "description": "Write processing output to a database",
+            #         "strict": True,
+            #         "schema": parameters,
+            #         # "additionalProperties": False,
+            #     },
+            # },
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "write_output",
+                        "description": "Write processing output to a database",
+                        "strict": True,
+                        "parameters": parameters,
+                        "additionalProperties": False,
+                    },
+                }
+            ],
+            tool_choice={"type": "function", "function": {"name": "write_output"}},
         )
 
         # Update messages with the new response
@@ -777,6 +790,9 @@ def parse_llm_response(
         if "tool_calls" in dir(response.choices[0].message):
             # Default behavior for write_output function
             tool_calls = response.choices[0].message.tool_calls
+            if not tool_calls:
+                raise ValueError("No tool calls found in response")
+
             outputs = []
             for tool_call in tool_calls:
                 if tool_call.function.name == "write_output":

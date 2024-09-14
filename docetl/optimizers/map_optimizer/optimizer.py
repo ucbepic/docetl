@@ -69,6 +69,7 @@ class MapOptimizer:
         self.timeout = timeout
         self._num_plans_to_evaluate_in_parallel = 5
         self.is_filter = is_filter
+        self.k_to_pairwise_compare = 6
 
         self.plan_generator = PlanGenerator(
             llm_client, console, config, run_operation, max_threads, is_filter
@@ -192,7 +193,10 @@ class MapOptimizer:
         self.console.log(
             f"[bold]Assessment for whether we should improve operation {op_config['name']}:[/bold]"
         )
-        self.console.log(json.dumps(assessment, indent=2))
+        for key, value in assessment.items():
+            self.console.print(
+                f"[bold cyan]{key}:[/bold cyan] [yellow]{value}[/yellow]"
+            )
         self.console.log("\n")  # Add a newline for better readability
 
         # Check if improvement is needed based on the assessment
@@ -213,6 +217,7 @@ class MapOptimizer:
             candidate_plans["no_change"] = [op_config]
 
         # Generate chunk size plans
+        self.console.log("[bold magenta]Generating chunking plans...[/bold magenta]")
         chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
             op_config, input_data, validator_prompt, model_input_context_length
         )
@@ -221,6 +226,9 @@ class MapOptimizer:
 
         # Generate gleaning plans
         if not data_exceeds_limit:
+            self.console.log(
+                "[bold magenta]Generating gleaning plans...[/bold magenta]"
+            )
             gleaning_plans = self.plan_generator._generate_gleaning_plans(
                 op_config, validator_prompt
             )
@@ -230,6 +238,9 @@ class MapOptimizer:
         # Generate chain decomposition plans
         if not data_exceeds_limit:
             if not self.is_filter:
+                self.console.log(
+                    "[bold magenta]Generating chain projection synthesis plans...[/bold magenta]"
+                )
                 chain_plans = self.plan_generator._generate_chain_plans(
                     op_config, input_data
                 )
@@ -237,6 +248,9 @@ class MapOptimizer:
                     candidate_plans[pname] = plan
 
                 # Generate parallel map plans
+                self.console.log(
+                    "[bold magenta]Generating independent projection synthesis plans...[/bold magenta]"
+                )
                 parallel_plans = self.plan_generator._generate_parallel_plans(
                     op_config, input_data
                 )
@@ -249,6 +263,10 @@ class MapOptimizer:
 
         results = {}
         plans_list = list(candidate_plans.items())
+
+        self.console.log(
+            f"[bold magenta]Evaluating {len(plans_list)} plans...[/bold magenta]"
+        )
         for i in range(0, len(plans_list), self._num_plans_to_evaluate_in_parallel):
             batch = plans_list[i : i + self._num_plans_to_evaluate_in_parallel]
             with ThreadPoolExecutor(
@@ -301,7 +319,7 @@ class MapOptimizer:
         sorted_results = sorted(results.items(), key=lambda x: x[1][0], reverse=True)
 
         # Take the top 6 plans
-        top_plans = sorted_results[:6]
+        top_plans = sorted_results[: self.k_to_pairwise_compare]
 
         # Check if there are no top plans
         if len(top_plans) == 0:
@@ -310,7 +328,11 @@ class MapOptimizer:
             )
 
         # Include any additional plans that are tied with the last plan
-        tail_score = top_plans[-1][1][0] if len(top_plans) == 6 else float("-inf")
+        tail_score = (
+            top_plans[-1][1][0]
+            if len(top_plans) == self.k_to_pairwise_compare
+            else float("-inf")
+        )
         filtered_results = dict(
             top_plans
             + [

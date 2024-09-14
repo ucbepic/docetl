@@ -466,20 +466,34 @@ def call_llm_with_cache(
         parameters["required"] = list(props.keys())
         parameters["additionalProperties"] = False
 
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "write_output",
-                "description": "Write task output to a database",
-                "strict": True,
-                "schema": parameters,
-                # "additionalProperties": False,
-            },
-        }
+        # response_format = {
+        #     "type": "json_schema",
+        #     "json_schema": {
+        #         "name": "write_output",
+        #         "description": "Write task output to a database",
+        #         "strict": True,
+        #         "schema": parameters,
+        #         # "additionalProperties": False,
+        #     },
+        # }
 
-        tools = []
-        # tool_choice = {"type": "function", "function": {"name": "write_output"}}
-        tool_choice = "auto"
+        # tools = []
+        # tool_choice = "auto"
+
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "write_output",
+                    "description": "Write processing output to a database",
+                    "strict": True,
+                    "parameters": parameters,
+                    "additionalProperties": False,
+                },
+            }
+        ]
+        tool_choice = {"type": "function", "function": {"name": "write_output"}}
+        response_format = None
 
     else:
         tools = json.loads(tools)
@@ -760,7 +774,7 @@ def parse_llm_response(
                     results.append(function_args)
         return results
     else:
-        if "tool_calls" in response.choices[0].message:
+        if "tool_calls" in dir(response.choices[0].message):
             # Default behavior for write_output function
             tool_calls = response.choices[0].message.tool_calls
             outputs = []

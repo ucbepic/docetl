@@ -336,6 +336,7 @@ class Optimizer:
                         "name": new_resolve_op,
                         "type": "resolve",
                         "empty": True,
+                        "optimize": True,
                         "embedding_model": "text-embedding-3-small",
                         "resolution_model": self.config.get(
                             "default_model", "gpt-4o-mini"

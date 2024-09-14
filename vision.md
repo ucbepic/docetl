@@ -8,3 +8,4 @@ Things I'd like for the interface/agents to do:
 - When users are looking at intermediates, we should have the ability to run validators on the intermediate prompts.
 - We need to store intermediates and have provenance.
 - Have an interface to interactively create docetl pipelines. Start by users defining a high-level task, and optimize one operation at a time.
+- Synthesize validate statements for each operation during optimization.

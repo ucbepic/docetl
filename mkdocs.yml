@@ -31,7 +31,6 @@ nav:
           - Filter: operators/filter.md
           - Equijoin: operators/equijoin.md
       - Execution:
-          - Defining Pipelines: execution/defining-pipelines.md
           - Running Pipelines: execution/running-pipelines.md
           - Optimizing Pipelines: execution/optimizing-pipelines.md
       - Advanced Usage:

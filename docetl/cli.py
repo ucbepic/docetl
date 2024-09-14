@@ -16,7 +16,7 @@ def build(
         ..., help="Path to the YAML file containing the pipeline configuration"
     ),
     max_threads: Optional[int] = typer.Option(
-        None, help="Maximum number of threads to use for parallel operations"
+        None, help="Maximum number of threads to use for running operations"
     ),
     model: str = typer.Option("gpt-4o", help="Model to use for optimization"),
     resume: bool = typer.Option(False, help="Resume optimization from a previous run"),
@@ -29,7 +29,7 @@ def build(
 
     Args:
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
-        max_threads (Optional[int]): Maximum number of threads to use for parallel operations.
+        max_threads (Optional[int]): Maximum number of threads to use for running operations.
         model (str): Model to use for optimization. Defaults to "gpt-4o".
         resume (bool): Whether to resume optimization from a previous run. Defaults to False.
         timeout (int): Timeout for optimization operations in seconds. Defaults to 60.
@@ -51,7 +51,7 @@ def run(
         ..., help="Path to the YAML file containing the pipeline configuration"
     ),
     max_threads: Optional[int] = typer.Option(
-        None, help="Maximum number of threads to use for parallel operations"
+        None, help="Maximum number of threads to use for running operations"
     ),
 ):
     """
@@ -59,7 +59,7 @@ def run(
 
     Args:
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
-        max_threads (Optional[int]): Maximum number of threads to use for parallel operations.
+        max_threads (Optional[int]): Maximum number of threads to use for running operations.
     """
     runner = DSLRunner(str(yaml_file), max_threads=max_threads)
     runner.run()

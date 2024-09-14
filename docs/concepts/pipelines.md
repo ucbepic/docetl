@@ -4,7 +4,7 @@ Pipelines in docetl are the core structures that define the flow of data process
 
 ## Components of a Pipeline
 
-A pipeline in docetl consists of three main components:
+A pipeline in docetl consists of four main components:
 
 1. **Default Model**: The language model to use for the pipeline.
 2. **Datasets**: The input data sources for your pipeline.
@@ -29,6 +29,10 @@ datasets:
     type: file
     path: "user_logs.json"
 ```
+
+!!! note
+
+    Currently, docetl only supports JSON files as input datasets. If you're interested in support for other data types or cloud-based datasets, please reach out to us or join our open-source community and contribute! We welcome new ideas and contributions to expand the capabilities of docetl.
 
 ### Operators
 

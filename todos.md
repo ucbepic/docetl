@@ -67,8 +67,9 @@ TODO:
 - [x] Support tool use in map operators
 - [x] Support prompts exceeding context windows; figure out how to throw out data / prioritize elements
 - [x] Support retries in the optimizers
-- [ ] Operations should not be defined as dictionaries; they should be objects
+- [x] Operations should not be defined as dictionaries; they should be objects
 - [x] Support unnests in the optimizer
+- [ ] Print out the name of the plan we are synthesizing
 - [ ] Add gleaning plan to reduce
 - [ ] HITL for prompt selection (generally, a textual app)
 - [ ] Fix bug in recursively optimizing reduce in the map optimizer

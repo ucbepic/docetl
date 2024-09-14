@@ -80,9 +80,8 @@ TODO:
 - [ ] Filter optimizer
   - [x] Extend map optimizer to support filter
   - [ ] Train an embedding classifier for filter
-- [ ] Support model pools
 - [ ] Support passing expectations
-- [ ] Write intermediates to disk
+- [x] Write intermediates to disk
 - [ ] Support order by
 - [ ] Track traces
 - [ ] Reduce operations: eagerly process merges to prevent against stragglers/tail latencies in folds?

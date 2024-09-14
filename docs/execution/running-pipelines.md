@@ -9,7 +9,7 @@ In this section, we will walk through an example of a complex medical informatio
 3. **Unnesting**: The extracted medication list is unnested to process each medication individually.
 4. **Medication Resolution**: Similar medication names are resolved to standardize the entries. _Note: If you are unsure about the optimal configuration for this operation, you can skip this step and move on to the optimizer section (covered in a later part of this documentation)._
 5. **Summary Generation**: For each unique medication, the pipeline generates a summary of side effects and therapeutic uses based on information from all relevant transcripts.
-6. **Output**: The final summaries are saved to a JSON file.
+6. **Output**: The final summaries are saved to a JSON file. If you provide an intermediate directory in your configuration, the outputs of each operation will be saved to this directory. This allows you to inspect the results of individual steps in the pipeline and can be useful for debugging or analyzing the pipeline's progress.
 
 Now, let's look at the detailed configuration for this pipeline:
 
@@ -94,6 +94,7 @@ Now, let's look at the detailed configuration for this pipeline:
       output:
         path: medication_summaries.json
         type: file
+        intermediate_dir: intermediate_results # This is optional, but if you want to inspect intermediate results, you can specify a checkpoint directory
       steps:
         - input: transcripts
           name: medical_info_extraction
@@ -115,7 +116,7 @@ Ensure your pipeline configuration includes all the required components as descr
 - Default model
 - Datasets
 - Operations
-- Pipeline specification (steps and output)
+- Pipeline specification (steps and output configuration)
 
 Once you have your pipeline configuration ready, you can execute it using the `docetl run` command if you're confident that this pipeline is suitable for your task and data. This is typically the case when your documents are relatively small and your task is straightforward.
 
@@ -150,18 +151,26 @@ Here are some additional notes to help you get the most out of your pipeline:
       # ... rest of the operation configuration
   ```
 
+- **Caching**: Docetl caches the results of operations by default. This means that if you run the same operation on the same data multiple times, the results will be retrieved from the cache rather than being recomputed. You can clear the cache by running `docetl clear-cache`.
+
 - **The `run` Function**: The main entry point for running a pipeline is the `run` function in `docetl/cli.py`. Here's a description of its parameters and functionality:
 
-
 ::: docetl.cli.run
-    handler: python
-    options:
-        members:
-            - run
-        show_root_full_path: true
-        show_root_toc_entry: true
-        show_root_heading: true
-        show_source: false
-        show_name: true
+handler: python
+options:
+members: - run
+show_root_full_path: true
+show_root_toc_entry: true
+show_root_heading: true
+show_source: false
+show_name: true
 
-- **Raw Object Output**: We have not implemented this yet! But we are working on it. If you need access to the raw objects produced by the pipeline for debugging or further processing, use the `--write-raw-objects` flag.
+- **Intermediate Output**: If you provide an intermediate directory in your configuration, the outputs of each operation will be saved to this directory. This allows you to inspect the results of individual steps in the pipeline and can be useful for debugging or analyzing the pipeline's progress. Set the `intermediate_dir` parameter in your pipeline's output configuration to specify the directory where intermediate results should be saved; e.g.,
+
+```yaml
+pipeline:
+  output:
+    type: file
+    path: ...
+    intermediate_dir: intermediate_results
+```

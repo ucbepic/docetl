@@ -10,7 +10,7 @@ In docetl, schemas play an important role in defining the structure of output fr
 
 !!! tip "Schema Simplicity"
 
-    Empirically, we've observed that **the more complex the output schema is, the worse the quality of the output tends to be**. Keep your schemas as simple as possible for better results.
+    We've observed that **the more complex the output schema is, the worse the quality of the output tends to be**. Keep your schemas as simple as possible for better results.
 
 ## Defining Schemas
 

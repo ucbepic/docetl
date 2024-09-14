@@ -6,7 +6,7 @@ datasets:
 default_model: gpt-4o-mini
 
 operations:
-  extract_medications:
+  - name: extract_medications
     type: map
     output:
       schema:
@@ -19,11 +19,11 @@ operations:
       Extract and list all medications mentioned in the transcript.
       If no medications are mentioned, return an empty list.
 
-  unnest_medications:
+  - name: unnest_medications
     type: unnest
     unnest_key: medication
 
-  resolve_medications:
+  - name: resolve_medications
     type: resolve
     output:
       schema:
@@ -54,4 +54,5 @@ pipeline:
 
   output:
     type: file
-    path: "extracted_medical_info.json"
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/extracted_medical_info.json"
+    intermediate_dir: "/Users/shreyashankar/Documents/hacking/motion-v3/workloads/medical/checkpoints"

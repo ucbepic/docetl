@@ -18,8 +18,8 @@ nav:
           - Installation: installation.md
           - Tutorial: tutorial.md
       - Core Concepts:
-          - Schemas: concepts/schemas.md
           - Operators: concepts/operators.md
+          - Schemas: concepts/schemas.md
           - Pipelines: concepts/pipelines.md
           - Optimization: concepts/optimization.md
       - LLM-Powered Operators:
@@ -42,6 +42,7 @@ nav:
       #     - Performance Tuning: advanced/performance-tuning.md
   - API Reference:
       - docetl: api-reference/docetl.md
+      - docetl.cli: api-reference/cli.md
       - docetl.operations: api-reference/operations.md
       - docetl.optimizers: api-reference/optimizers.md
   - Cookbook:

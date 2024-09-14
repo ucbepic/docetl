@@ -26,5 +26,3 @@ docetl is the ideal choice when you're looking to **maximize correctness and out
 - You're unsure how to best express your task to maximize LLM accuracy
 - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
 - You have validation criteria and want tasks to automatically retry when the validation fails
-
-docetl is particularly well-suited for complex document processing tasks. It excels in analyzing large corpora of legal documents, processing extensive medical records, conducting in-depth social science research, and investigating complex datasets in journalism. These scenarios benefit greatly from docetl's ability to handle intricate data processing workflows efficiently and accurately.

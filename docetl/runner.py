@@ -45,6 +45,23 @@ class DSLRunner:
         self.console = Console()
         self.status = None
         self.datasets = {}
+
+        self.intermediate_dir = self.config["pipeline"]["output"].get(
+            "intermediate_dir"
+        )
+
+        # Check if output path is correctly formatted as JSON
+        output_path = self.config.get("pipeline", {}).get("output", {}).get("path")
+        if output_path:
+            if not output_path.lower().endswith(".json"):
+                raise ValueError(
+                    f"Output path '{output_path}' is not a JSON file. Please provide a path ending with '.json'."
+                )
+        else:
+            raise ValueError(
+                "No output path specified in the configuration. Please provide an output path ending with '.json' in the configuration."
+            )
+
         self.syntax_check()
 
     def syntax_check(self):
@@ -57,6 +74,10 @@ class DSLRunner:
         Raises:
             ValueError: If any operation fails the syntax check.
         """
+        self.console.log(
+            "[yellow]Performing syntax check on all operations...[/yellow]"
+        )
+
         for operation_config in self.config["operations"]:
             operation = operation_config["name"]
             operation_type = operation_config["type"]
@@ -218,7 +239,38 @@ class DSLRunner:
                 description=f"Operation [cyan]{operation_name}[/cyan] completed. Cost: [green]${cost:.2f}[/green]",
             )
 
+            # Checkpoint after each operation
+            if self.intermediate_dir:
+                self._save_checkpoint(step["name"], operation_name, input_data)
+
         return input_data, total_cost
+
+    def _save_checkpoint(self, step_name: str, operation_name: str, data: List[Dict]):
+        """
+        Save a checkpoint of the current data after an operation.
+
+        This method creates a JSON file containing the current state of the data
+        after an operation has been executed. The checkpoint is saved in a directory
+        structure that reflects the step and operation names.
+
+        Args:
+            step_name (str): The name of the current step in the pipeline.
+            operation_name (str): The name of the operation that was just executed.
+            data (List[Dict]): The current state of the data to be checkpointed.
+
+        Note:
+            The checkpoint is saved only if a checkpoint directory has been specified
+            when initializing the DSLRunner.
+        """
+        checkpoint_path = os.path.join(
+            self.intermediate_dir, step_name, f"{operation_name}.json"
+        )
+        os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+        with open(checkpoint_path, "w") as f:
+            json.dump(data, f)
+        self.console.log(
+            f"[green]Checkpoint saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/green]"
+        )
 
 
 if __name__ == "__main__":

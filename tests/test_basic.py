@@ -488,6 +488,17 @@ def test_reduce_operation(
     assert cost > 0
 
 
+def test_reduce_operation_with_all_key(
+    reduce_config, default_model, max_threads, reduce_sample_data
+):
+    reduce_config["reduce_key"] = "_all"
+    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    results, cost = operation.execute(reduce_sample_data)
+
+    assert len(results) == 1
+    assert cost > 0
+
+
 def test_reduce_operation_with_list_key(
     reduce_config, default_model, max_threads, reduce_sample_data_with_list_key
 ):

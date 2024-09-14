@@ -253,19 +253,23 @@ class ReduceOperation(BaseOperation):
             reduce_keys = [reduce_keys]
         input_schema = self.config.get("input", {}).get("schema", {})
 
-        # Group the input data by the reduce key(s) while maintaining original order
-        def get_group_key(item):
-            return tuple(item[key] for key in reduce_keys)
+        # Check if we need to group everything into one group
+        if reduce_keys == ["_all"] or reduce_keys == "_all":
+            grouped_data = [("_all", input_data)]
+        else:
+            # Group the input data by the reduce key(s) while maintaining original order
+            def get_group_key(item):
+                return tuple(item[key] for key in reduce_keys)
 
-        grouped_data = {}
-        for item in input_data:
-            key = get_group_key(item)
-            if key not in grouped_data:
-                grouped_data[key] = []
-            grouped_data[key].append(item)
+            grouped_data = {}
+            for item in input_data:
+                key = get_group_key(item)
+                if key not in grouped_data:
+                    grouped_data[key] = []
+                grouped_data[key].append(item)
 
-        # Convert the grouped data to a list of tuples
-        grouped_data = list(grouped_data.items())
+            # Convert the grouped data to a list of tuples
+            grouped_data = list(grouped_data.items())
 
         def process_group(
             key: Tuple, group_elems: List[Dict]

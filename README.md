@@ -1,6 +1,6 @@
-# docetl
+# DocETL
 
-docetl is a powerful tool for creating and executing data processing pipelines using LLMs. It allows you to define complex data operations in a YAML configuration file and execute them efficiently.
+DocETL is a powerful tool for creating and executing data processing pipelines using LLMs. It allows you to define complex data operations in a YAML configuration file and execute them efficiently.
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ docetl is a powerful tool for creating and executing data processing pipelines u
 
 ## Installation
 
-To install docetl, clone this repository and install the required dependencies:
+To install DocETL, clone this repository and install the required dependencies:
 
 ```bash
 git clone https://github.com/shreyashankar/docetl.git
@@ -70,7 +70,7 @@ The configuration file is a YAML document with the following top-level keys:
 
 ## Operation Types
 
-docetl supports various operation types, each designed for specific data transformation tasks. All prompt templates used in these operations are Jinja2 templates, allowing for the use of loops, conditionals, and other Jinja2 features to create dynamic prompts based on input data.
+DocETL supports various operation types, each designed for specific data transformation tasks. All prompt templates used in these operations are Jinja2 templates, allowing for the use of loops, conditionals, and other Jinja2 features to create dynamic prompts based on input data.
 
 All operations have the following optional parameters:
 
@@ -618,7 +618,7 @@ Example:
 
 ### Schema Definition
 
-Schemas in docetl are defined using a simple key-value structure, where each key represents a field name and the value specifies the data type. The supported data types are:
+Schemas in DocETL are defined using a simple key-value structure, where each key represents a field name and the value specifies the data type. The supported data types are:
 
 - `string` (or `str`, `text`, `varchar`): For text data
 - `integer` (or `int`): For whole numbers
@@ -668,7 +668,7 @@ It's important to note that all schema items pass through the pipeline. The `out
 
 ## Tool Use
 
-docetl supports the use of tools in operations, allowing for more complex and specific data processing tasks. Tools are defined as Python functions that can be called by the language model during execution.
+DocETL supports the use of tools in operations, allowing for more complex and specific data processing tasks. Tools are defined as Python functions that can be called by the language model during execution.
 
 To use tools in an operation, you need to define them in the operation's configuration. Here's an example of how to define and use a tool:
 
@@ -710,7 +710,7 @@ In this example:
 
 The language model can then use this tool to count words in the input title. The tool's output will be incorporated into the operation's result according to the defined output schema.
 
-You can define multiple tools for an operation, allowing the model to choose the most appropriate one for the task at hand. Tools can range from simple utility functions to more complex data processing or external API calls, enhancing the capabilities of your docetl pipeline.
+You can define multiple tools for an operation, allowing the model to choose the most appropriate one for the task at hand. Tools can range from simple utility functions to more complex data processing or external API calls, enhancing the capabilities of your DocETL pipeline.
 
 Currently, only map and parallel_map operations support tools.
 

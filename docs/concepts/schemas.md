@@ -1,12 +1,12 @@
 # Schemas
 
-In docetl, schemas play an important role in defining the structure of output from LLM operations. Every LLM call in docetl is associated with an output schema, which specifies the expected format and types of the output data.
+In DocETL, schemas play an important role in defining the structure of output from LLM operations. Every LLM call in DocETL is associated with an output schema, which specifies the expected format and types of the output data.
 
 ## Overview
 
 - Schemas define the structure and types of output data from LLM operations.
 - They help ensure consistency and facilitate downstream processing.
-- docetl uses structured outputs or tool API to enforce these schemas.
+- DocETL uses structured outputs or tool API to enforce these schemas.
 
 !!! tip "Schema Simplicity"
 
@@ -74,7 +74,7 @@ Objects are defined using curly braces and must have typed fields:
 
 ## Structured Outputs and Tool API
 
-docetl uses structured outputs or tool API to enforce schema typing. This ensures that the LLM outputs adhere to the specified schema, making the results more consistent and easier to process in subsequent operations.
+DocETL uses structured outputs or tool API to enforce schema typing. This ensures that the LLM outputs adhere to the specified schema, making the results more consistent and easier to process in subsequent operations.
 
 ## Best Practices
 
@@ -108,4 +108,4 @@ docetl uses structured outputs or tool API to enforce schema typing. This ensure
 
     The only reason to use the complex schema is if you need to do an operation at the point level, like resolve them and reduce on them.
 
-By following these guidelines and best practices, you can create effective schemas that enhance the performance and reliability of your docetl operations.
+By following these guidelines and best practices, you can create effective schemas that enhance the performance and reliability of your DocETL operations.

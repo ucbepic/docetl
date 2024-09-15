@@ -1,10 +1,10 @@
 # Optimizing Pipelines
 
-After creating your initial map-reduce pipeline, you might want to optimize it for better performance or to automatically add resolve operations. The docetl pipeline optimizer is designed to help you achieve this.
+After creating your initial map-reduce pipeline, you might want to optimize it for better performance or to automatically add resolve operations. The DocETL pipeline optimizer is designed to help you achieve this.
 
 ## Understanding the Optimizer
 
-The optimizer in docetl finds optimal plans for operations marked with `optimize: True`. It can also insert resolve operations before reduce operations if needed. The optimizer uses GPT-4 under the hood (requiring an OpenAI API key) and can be customized with different models like gpt-4-turbo or gpt-4o-mini. Note that only LLM-powered operations can be optimized (e.g., `map`, `reduce`, `resolve`, `filter`, `equijoin`), but the optimized plans may involve new non-LLM operations (e.g., `split`).
+The optimizer in DocETL finds optimal plans for operations marked with `optimize: True`. It can also insert resolve operations before reduce operations if needed. The optimizer uses GPT-4 under the hood (requiring an OpenAI API key) and can be customized with different models like gpt-4-turbo or gpt-4o-mini. Note that only LLM-powered operations can be optimized (e.g., `map`, `reduce`, `resolve`, `filter`, `equijoin`), but the optimized plans may involve new non-LLM operations (e.g., `split`).
 
 At its core, the optimizer employs two types of AI agents: generation agents and validation agents. Generation agents work to rewrite operators into better plans, potentially decomposing a single operation into multiple, more efficient steps. Validation agents then evaluate these candidate plans, synthesizing task-specific validation prompts to compare outputs and determine the best plan for each operator.
 
@@ -33,7 +33,6 @@ graph LR
 
     The optimization process can be unstable, as well as resource-intensive (we've seen it take up to 10 minutes to optimize a single operation, spending up to ~$50 in API costs for end-to-end pipelines). We recommend optimizing one operation at a time and retrying if necessary, as results may vary between runs. This approach also allows you to confidently verify that each optimized operation is performing as expected before moving on to the next. See the [API](#optimizer-api) for more details on how to resume the optimizer from a failed run, by rerunning `docetl build pipeline.yaml --resume` (with the `--resume` flag).
 
-
 ## Should I Use the Optimizer?
 
 While any pipeline can potentially benefit from optimization, there are specific scenarios where using the optimizer can significantly improve your pipeline's performance and accuracy. When should you use the optimizer?
@@ -47,21 +46,19 @@ While any pipeline can potentially benefit from optimization, there are specific
     - Optimize for large-scale data handling
 
 !!! info "Entity Resolution"
-    The optimizer is particularly useful when:
+The optimizer is particularly useful when:
 
     - You need a resolve operation before your reduce operation
     - You've defined a resolve operation but want to optimize it for speed using blocking
 
 !!! info "High-Volume Reduce Operations"
-    Consider using the optimizer when:
+Consider using the optimizer when:
 
     - You have many documents feeding into a reduce operation for a given key
     - You're concerned about the accuracy of the reduce operation due to high volume
     - You want to optimize for better accuracy in complex reductions
 
-
 Even if your pipeline doesn't fall into these specific categories, optimization can still be beneficial. For example, the optimizer can enhance your operations by adding gleaning to an operation, which uses an LLM-powered validator to ensure operation correctness. [Learn more about gleaning](../concepts/operators.md).
-
 
 ## Optimization Process
 
@@ -238,7 +235,7 @@ This optimized pipeline now includes improved prompts, a resolve operation, and 
 
 ## Advanced: Customizing Optimization
 
-You can customize the optimization process for specific operations using the ``optimizer_config in your pipeline. 
+You can customize the optimization process for specific operations using the ``optimizer_config in your pipeline.
 
 ### Global Configuration
 
@@ -314,12 +311,11 @@ This configuration will:
 ## Optimizer API
 
 ::: docetl.cli.build
-    handler: python
-    options:
-        members:
-            - build
-        show_root_full_path: true
-        show_root_toc_entry: true
-        show_root_heading: true
-        show_source: false
-        show_name: true
+handler: python
+options:
+members: - build
+show_root_full_path: true
+show_root_toc_entry: true
+show_root_heading: true
+show_source: false
+show_name: true

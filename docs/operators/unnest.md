@@ -1,6 +1,6 @@
 # Unnest Operation
 
-The Unnest operation in docetl is designed to expand an array field or a dictionary in the input data into multiple items. This operation is particularly useful when you need to process or analyze individual elements of an array or specific fields of a nested dictionary separately.
+The Unnest operation in DocETL is designed to expand an array field or a dictionary in the input data into multiple items. This operation is particularly useful when you need to process or analyze individual elements of an array or specific fields of a nested dictionary separately.
 
 !!! warning "How Unnest Works"
 

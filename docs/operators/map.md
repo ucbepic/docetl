@@ -1,6 +1,6 @@
 # Map Operation
 
-The Map operation in docetl applies a specified transformation to each item in your input data, allowing for complex processing and insight extraction from large, unstructured documents.
+The Map operation in DocETL applies a specified transformation to each item in your input data, allowing for complex processing and insight extraction from large, unstructured documents.
 
 ## 🚀 Example: Analyzing Long-Form News Articles
 
@@ -178,7 +178,7 @@ Tools can extend the capabilities of the Map operation. Each tool is a Python fu
 
 ### Input Truncation
 
-If the input doesn't fit within the token limit, docetl automatically truncates tokens from the middle of the input data, preserving the beginning and end which often contain more important context. A warning is displayed when truncation occurs.
+If the input doesn't fit within the token limit, DocETL automatically truncates tokens from the middle of the input data, preserving the beginning and end which often contain more important context. A warning is displayed when truncation occurs.
 
 ## Best Practices
 

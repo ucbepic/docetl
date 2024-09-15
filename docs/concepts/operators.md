@@ -1,16 +1,16 @@
 # Operators
 
-Operators in docetl are designed for semantically processing unstructured data. They form the building blocks of data processing pipelines, allowing you to transform, analyze, and manipulate datasets efficiently.
+Operators in DocETL are designed for semantically processing unstructured data. They form the building blocks of data processing pipelines, allowing you to transform, analyze, and manipulate datasets efficiently.
 
 ## Overview
 
 - Datasets contain documents, where a document is an object in the JSON list, with fields and values.
-- docetl provides several operators, each tailored for specific unstructured data processing tasks.
+- DocETL provides several operators, each tailored for specific unstructured data processing tasks.
 - By default, operations are parallelized on your data using multithreading for improved performance.
 
-!!! tip "Caching in docetl"
+!!! tip "Caching in DocETL"
 
-    docetl employs caching for all LLM calls and partially-optimized plans. The cache is stored in the `.docetl/cache` and `.docetl/llm_cache` directories within your home directory. This caching mechanism helps to improve performance and reduce redundant API calls when running similar operations or reprocessing data.
+    DocETL employs caching for all LLM calls and partially-optimized plans. The cache is stored in the `.docetl/cache` and `.docetl/llm_cache` directories within your home directory. This caching mechanism helps to improve performance and reduce redundant API calls when running similar operations or reprocessing data.
 
 ## Common Attributes
 
@@ -69,7 +69,7 @@ prompt: |
 
 !!! question "What happens if the input is too long?"
 
-    When the input data exceeds the token limit of the LLM, docetl automatically truncates tokens from the middle of the data to make it fit in the prompt. This approach preserves the beginning and end of the input, which often contain crucial context.
+    When the input data exceeds the token limit of the LLM, DocETL automatically truncates tokens from the middle of the data to make it fit in the prompt. This approach preserves the beginning and end of the input, which often contain crucial context.
 
     A warning is displayed whenever truncation occurs, alerting you to potential loss of information:
 
@@ -77,7 +77,7 @@ prompt: |
     WARNING: Input exceeded token limit. Truncated 500 tokens from the middle of the input.
     ```
 
-    If you frequently encounter this warning, consider using docetl's optimizer or breaking down your input yourself into smaller chunks to handle large inputs more effectively.
+    If you frequently encounter this warning, consider using DocETL's optimizer or breaking down your input yourself into smaller chunks to handle large inputs more effectively.
 
 ## Output Schema
 
@@ -123,7 +123,7 @@ Read more about schemas in the [schemas](../concepts/schemas.md) section.
 
 ## Validation
 
-Validation is a first-class citizen in docetl, ensuring the quality and correctness of processed data.
+Validation is a first-class citizen in DocETL, ensuring the quality and correctness of processed data.
 
 ### Basic Validation
 

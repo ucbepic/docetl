@@ -1,6 +1,6 @@
 # Parallel Map Operation
 
-The Parallel Map operation in docetl applies multiple independent transformations to each item in the input data concurrently, maintaining a 1:1 input-to-output ratio while generating multiple fields simultaneously.
+The Parallel Map operation in DocETL applies multiple independent transformations to each item in the input data concurrently, maintaining a 1:1 input-to-output ratio while generating multiple fields simultaneously.
 
 !!! note "Similarity to Map Operation"
 

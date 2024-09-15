@@ -1,6 +1,6 @@
-# docetl: A System for Complex Document Processing
+# DocETL: A System for Complex Document Processing
 
-docetl is a powerful tool for creating and executing data processing pipelines, especially suited for complex document processing tasks. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
+DocETL is a powerful tool for creating and executing data processing pipelines, especially suited for complex document processing tasks. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
 
 ## Features
 
@@ -11,15 +11,15 @@ docetl is a powerful tool for creating and executing data processing pipelines, 
 
 ## Getting Started
 
-To get started with docetl:
+To get started with DocETL:
 
 1. Install the package (see [installation](installation.md) for detailed instructions)
 2. Define your pipeline in a YAML file
-3. Run your pipeline using the docetl command-line interface
+3. Run your pipeline using the DocETL command-line interface
 
-## Why Should I Use docetl?
+## Why Should I Use DocETL?
 
-docetl is the ideal choice when you're looking to **maximize correctness and output quality** for complex tasks over a collection of documents or unstructured datasets. You should consider using docetl if:
+DocETL is the ideal choice when you're looking to **maximize correctness and output quality** for complex tasks over a collection of documents or unstructured datasets. You should consider using DocETL if:
 
 - You want to perform semantic processing on a collection of data
 - You have complex tasks that you want to represent via map-reduce (e.g., map over your documents, then group by the result of your map call & reduce)

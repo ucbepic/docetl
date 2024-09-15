@@ -1,6 +1,6 @@
 # Equijoin Operation (Experimental)
 
-The Equijoin operation in docetl is an experimental feature designed for joining two datasets based on flexible, LLM-powered criteria. It leverages many of the same techniques as the [Resolve operation](resolve.md), but applies them to the task of joining datasets rather than deduplicating within a single dataset.
+The Equijoin operation in DocETL is an experimental feature designed for joining two datasets based on flexible, LLM-powered criteria. It leverages many of the same techniques as the [Resolve operation](resolve.md), but applies them to the task of joining datasets rather than deduplicating within a single dataset.
 
 ## Motivation
 

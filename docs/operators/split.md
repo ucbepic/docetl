@@ -1,6 +1,6 @@
 # Split Operation
 
-The Split operation in docetl is designed to divide long text content into smaller, manageable chunks. This is particularly useful when dealing with large documents that exceed the token limit of language models or when the LLM's performance degrades with increasing input size for complex tasks.
+The Split operation in DocETL is designed to divide long text content into smaller, manageable chunks. This is particularly useful when dealing with large documents that exceed the token limit of language models or when the LLM's performance degrades with increasing input size for complex tasks.
 
 ## Motivation
 
@@ -176,7 +176,7 @@ This pipeline allows for detailed analysis of customer frustration in long suppo
 
 1. **Choose the Right Splitting Method**: Use the token count method when working with models that have strict token limits. Use the delimiter method when you need to split at logical boundaries in your text.
 
-2. **Balance Chunk Size**: When using the token count method, choose a chunk size that balances between context preservation and model performance. Smaller chunks may lose context, while larger chunks may degrade model performance. The \docetl optimizer can find the chunk size that works best for your task, if you choose to use the optimizer.
+2. **Balance Chunk Size**: When using the token count method, choose a chunk size that balances between context preservation and model performance. Smaller chunks may lose context, while larger chunks may degrade model performance. The DocETL optimizer can find the chunk size that works best for your task, if you choose to use the optimizer.
 
 3. **Consider Overlap**: In some cases, you might want to implement overlap between chunks to maintain context. This isn't built into the Split operation, but you can achieve it by post-processing the split chunks.
 

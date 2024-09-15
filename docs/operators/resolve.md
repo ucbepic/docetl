@@ -1,6 +1,6 @@
 # Resolve Operation
 
-The Resolve operation in docetl identifies and merges duplicate entities in your data. It's particularly useful when dealing with inconsistencies that can arise from LLM-generated content or data from multiple sources.
+The Resolve operation in DocETL identifies and merges duplicate entities in your data. It's particularly useful when dealing with inconsistencies that can arise from LLM-generated content or data from multiple sources.
 
 ## Motivation
 
@@ -50,7 +50,7 @@ Note: The prompt templates use Jinja2 syntax, allowing you to reference input fi
 
 ## Blocking
 
-To improve efficiency, the Resolve operation supports "blocking" - a technique to reduce the number of comparisons by only comparing entries that are likely to be matches. docetl supports two types of blocking:
+To improve efficiency, the Resolve operation supports "blocking" - a technique to reduce the number of comparisons by only comparing entries that are likely to be matches. DocETL supports two types of blocking:
 
 1. Embedding similarity: Compare embeddings of specified fields and only process pairs above a certain similarity threshold.
 2. Python conditions: Apply custom Python expressions to determine if a pair should be compared.

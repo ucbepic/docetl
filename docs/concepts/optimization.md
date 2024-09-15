@@ -7,11 +7,11 @@ In the world of data processing and analysis, finding the optimal pipeline for y
     - Will a single LLM call suffice for your task?
     - Do you need to decompose your task or data further for better results?
 
-To address these questions and improve your pipeline's performance, docetl provides a powerful optimization feature.
+To address these questions and improve your pipeline's performance, DocETL provides a powerful optimization feature.
 
-## The docetl Optimizer
+## The DocETL Optimizer
 
-The docetl optimizer is designed to decompose operators (and sequences of operators) into their own subpipelines, potentially leading to higher accuracy.
+The DocETL optimizer is designed to decompose operators (and sequences of operators) into their own subpipelines, potentially leading to higher accuracy.
 
 !!! example
 
@@ -46,13 +46,13 @@ The docetl optimizer is designed to decompose operators (and sequences of operat
 
 ### How It Works
 
-The docetl optimizer operates using the following mechanism:
+The DocETL optimizer operates using the following mechanism:
 
 1. **Generation and Evaluation Agents**: These agents generate different plans for the pipeline according to predefined rewrite rules. Evaluation agents then compare plans and outputs to determine the best approach.
 
 2. **Operator Rewriting**: The optimizer looks through operators in your pipeline where you've set optimize: true, and attempts to rewrite them using predefined rules.
 
-3. **Output**: After optimization, docetl outputs a new YAML file representing the optimized pipeline.
+3. **Output**: After optimization, DocETL outputs a new YAML file representing the optimized pipeline.
 
 ### Using the Optimizer
 

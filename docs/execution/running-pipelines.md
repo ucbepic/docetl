@@ -109,7 +109,7 @@ This example pipeline configuration demonstrates a complex medical information e
 
 ## Running the Pipeline
 
-To run a pipeline in docetl, follow these steps:
+To run a pipeline in DocETL, follow these steps:
 
 Ensure your pipeline configuration includes all the required components as described in the [Pipelines](../concepts/pipelines.md) documentation. Your configuration should specify:
 
@@ -130,7 +130,7 @@ docetl run pipeline.yaml
 
     If you're unsure about the optimal pipeline configuration or dealing with more complex scenarios, you may want to skip directly to the optimizer section (covered in a later part of this documentation).
 
-As the pipeline runs, docetl will display progress information and eventually show the output. Here's an example of what you might see:
+As the pipeline runs, DocETL will display progress information and eventually show the output. Here's an example of what you might see:
 
 ```
 [Placeholder for pipeline execution output]
@@ -151,7 +151,7 @@ Here are some additional notes to help you get the most out of your pipeline:
       # ... rest of the operation configuration
   ```
 
-- **Caching**: Docetl caches the results of operations by default. This means that if you run the same operation on the same data multiple times, the results will be retrieved from the cache rather than being recomputed. You can clear the cache by running `docetl clear-cache`.
+- **Caching**: DocETL caches the results of operations by default. This means that if you run the same operation on the same data multiple times, the results will be retrieved from the cache rather than being recomputed. You can clear the cache by running `docetl clear-cache`.
 
 - **The `run` Function**: The main entry point for running a pipeline is the `run` function in `docetl/cli.py`. Here's a description of its parameters and functionality:
 

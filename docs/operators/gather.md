@@ -1,6 +1,6 @@
 # Gather Operation
 
-The Gather operation in docetl is designed to maintain context when processing divided documents. It complements the Split operation by adding contextual information from surrounding chunks to each segment.
+The Gather operation in DocETL is designed to maintain context when processing divided documents. It complements the Split operation by adding contextual information from surrounding chunks to each segment.
 
 ## Motivation
 

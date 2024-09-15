@@ -1,16 +1,16 @@
-# Tutorial: Mining User Behavior Data with docetl
+# Tutorial: Mining User Behavior Data with DocETL
 
-This tutorial will guide you through the process of using docetl to analyze user behavior data from UI logs. We'll create a simple pipeline that extracts key insights and supporting actions from user logs, then summarizes them by country.
+This tutorial will guide you through the process of using DocETL to analyze user behavior data from UI logs. We'll create a simple pipeline that extracts key insights and supporting actions from user logs, then summarizes them by country.
 
 ## Installation
 
-First, let's install docetl. Follow the instructions in the [installation guide](installation.md) to set up docetl on your system.
+First, let's install DocETL. Follow the instructions in the [installation guide](installation.md) to set up DocETL on your system.
 
 ## Setting up API Keys
 
-docetl uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, which supports various LLM providers. For this tutorial, we'll use OpenAI, as docetl tests and existing pipelines are run with OpenAI.
+DocETL uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, which supports various LLM providers. For this tutorial, we'll use OpenAI, as DocETL tests and existing pipelines are run with OpenAI.
 
-!!! tip "Setting up API Key"
+!!! tip "Setting up your API Key"
 
     Set your OpenAI API key as an environment variable:
 
@@ -49,7 +49,7 @@ Save this file as `user_logs.json` in your project directory.
 
 ## Creating the Pipeline
 
-Now, let's create a docetl pipeline to analyze this data. We'll use a map-reduce-like approach:
+Now, let's create a DocETL pipeline to analyze this data. We'll use a map-reduce-like approach:
 
 1. Map each user log to key insights and supporting actions
 2. Unnest the insights
@@ -208,8 +208,8 @@ This will process the user logs, extract key insights and supporting actions, an
 
 ??? question "What if I want to reduce by insights or an LLM-generated field?"
 
-    You can modify the reduce operation to use any field as the reduce key, including LLM-generated fields from prior operations. Simply change the `reduce_key` in the `summarize_by_country` operation to the desired field. Note that we may need to perform entity resolution on the LLM-generated fields, which docetl can do for you in the optimization process (to be discussed later).
+    You can modify the reduce operation to use any field as the reduce key, including LLM-generated fields from prior operations. Simply change the `reduce_key` in the `summarize_by_country` operation to the desired field. Note that we may need to perform entity resolution on the LLM-generated fields, which DocETL can do for you in the optimization process (to be discussed later).
 
 ??? question "How do I know what pipeline configuration to write? Can't I do this all in one map operation?"
 
-    While it's possible to perform complex operations in a single map step, breaking down the process into multiple steps often leads to more maintainable and flexible pipelines. To learn more about optimizing your pipeline configuration, read on to discover docetl's optimizer, which can be invoked using `docetl build` instead of `docetl run`.
+    While it's possible to perform complex operations in a single map step, breaking down the process into multiple steps often leads to more maintainable and flexible pipelines. To learn more about optimizing your pipeline configuration, read on to discover DocETL's optimizer, which can be invoked using `DocETL build` instead of `docetl run`.

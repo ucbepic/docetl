@@ -1,6 +1,6 @@
 # Reduce Operation
 
-The Reduce operation in docetl aggregates data based on a key. It supports both batch reduction and incremental folding for large datasets, making it versatile for various data processing tasks.
+The Reduce operation in DocETL aggregates data based on a key. It supports both batch reduction and incremental folding for large datasets, making it versatile for various data processing tasks.
 
 ## Motivation
 

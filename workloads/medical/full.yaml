@@ -29,6 +29,9 @@ operations:
       schema:
         medication: str
     embedding_model: "text-embedding-3-small"
+    blocking_threshold: 0.8
+    # blocking_keys:
+    #   - medication
     comparison_prompt: |
       Compare the following two medication entries:
       Entry 1: {{ input1.medication }}

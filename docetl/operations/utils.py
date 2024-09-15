@@ -101,7 +101,7 @@ def gen_embedding(model: str, input: List[str]) -> List[float]:
         if not isinstance(input[0], str):
             input = [json.dumps(item) for item in input]
 
-        input = [item if not item else "None" for item in input]
+        input = [item if item else "None" for item in input]
 
         result = embedding(model=model, input=input)
         # Cache the result
@@ -656,7 +656,7 @@ def call_llm_with_gleaning(
         ]
     )
 
-    for _ in range(num_gleaning_rounds):
+    for rnd in range(num_gleaning_rounds):
         cost += completion_cost(response)
 
         # Prepare validator prompt
@@ -693,7 +693,9 @@ def call_llm_with_gleaning(
         if suggestion["should_refine"] == False:
             break
 
-        console.log(f"Validator improvements: {suggestion['improvements']}")
+        console.log(
+            f"Validator improvements (gleaning round {rnd + 1}): {suggestion['improvements']}"
+        )
 
         # Prompt for improvement
         improvement_prompt = f"""Based on the validation feedback:

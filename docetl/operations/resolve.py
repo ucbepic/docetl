@@ -293,9 +293,8 @@ class ResolveOperation(BaseOperation):
             else float("inf")
         )
         if remaining_comparisons > 0 and blocking_threshold is not None:
-            # Compute cosine similarity for all pairs at once
-            all_embeddings = np.array([embeddings[i] for i in range(len(input_data))])
-            similarity_matrix = cosine_similarity(all_embeddings)
+            # Compute cosine similarity for all pairs efficiently
+            similarity_matrix = cosine_similarity(embeddings)
 
             cosine_pairs = []
             for i, j in all_pairs:

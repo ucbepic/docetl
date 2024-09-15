@@ -1275,7 +1275,14 @@ class Optimizer:
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         optimized_config, cost = JoinOptimizer(
-            self.config, op_config, self.console, self.llm_client, self.max_threads
+            self.config,
+            op_config,
+            self.console,
+            self.llm_client,
+            self.max_threads,
+            target_recall=self.config.get("optimizer_config", {})
+            .get("resolve", {})
+            .get("target_recall", 0.95),
         ).optimize_resolve(input_data)
 
         if optimized_config.get("empty", False):

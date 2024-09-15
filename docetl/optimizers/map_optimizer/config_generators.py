@@ -413,7 +413,7 @@ class ConfigGenerator:
         split_key: str,
         input_data_sample: List[Dict[str, Any]],
         token_limit: int,
-        num_chunks: int = 4,
+        num_chunks: int = 8,
     ) -> List[int]:
         # Get the average document length
         avg_doc_length = sum(

@@ -18,8 +18,8 @@ nav:
           - Installation: installation.md
           - Tutorial: tutorial.md
       - Core Concepts:
-          - Operators: concepts/operators.md
-          - Schemas: concepts/schemas.md
+          - Operators & Validation: concepts/operators.md
+          - Output Schemas: concepts/schemas.md
           - Pipelines: concepts/pipelines.md
           - Optimization: concepts/optimization.md
       - LLM-Powered Operators:
@@ -36,6 +36,7 @@ nav:
       - Execution:
           - Running Pipelines: execution/running-pipelines.md
           - Optimizing Pipelines: execution/optimizing-pipelines.md
+          - Best Practices: execution/best-practices.md
       # - Advanced Usage:
       #     - User-Defined Functions: advanced/custom-operators.md
       #     - Extending Optimizer Agents: advanced/extending-agents.md

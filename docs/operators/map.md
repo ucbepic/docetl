@@ -32,7 +32,7 @@ Let's see a practical example of using the Map operation to analyze long-form ne
       categories: list[string]
       credibility_score: integer
 
-  model: gpt-4-turbo
+  model: gpt-4o-mini
   validate:
     - len(output["main_topic"].split()) <= 3
     - len(output["key_entities"]) <= 5

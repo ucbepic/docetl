@@ -269,7 +269,7 @@ class DSLRunner:
         with open(checkpoint_path, "w") as f:
             json.dump(data, f)
         self.console.log(
-            f"[green]Checkpoint saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/green]"
+            f"[green]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/green]"
         )
 
 

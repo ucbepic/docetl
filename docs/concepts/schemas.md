@@ -70,6 +70,8 @@ Objects are defined using curly braces and must have typed fields:
         users: "list[{name: string, age: integer, hobbies: list[string]}]"
     ```
 
+    Make sure that you put the type in quotation marks, if it references an object type (i.e., has curly braces)! Otherwise the yaml won't compile!
+
 ## Structured Outputs and Tool API
 
 docetl uses structured outputs or tool API to enforce schema typing. This ensures that the LLM outputs adhere to the specified schema, making the results more consistent and easier to process in subsequent operations.

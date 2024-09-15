@@ -9,6 +9,7 @@ paper_workloads/contracts/sample_contract_txt*
 *.csv
 paper_workloads/*
 preprint_workloads/*
+workloads/*
 *mypy_cache*
 *.DS_Store
 *pytest_cache*

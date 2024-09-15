@@ -320,7 +320,7 @@ class JoinOptimizer:
 
     Example structure:
     ```
-    Analyze the following duplicate entries:
+    Analyze the following duplicate entries for the {reduce_key} key:
 
     {{% for key in inputs %}}
     Entry {{{{ loop.index }}}}:
@@ -328,11 +328,10 @@ class JoinOptimizer:
 
     {{% endfor %}}
 
-    Create a single, consolidated key that combines the information from all duplicate entries.
+    Create a single, consolidated key for {reduce_key} that combines the information from all duplicate entries.
     When merging, follow these guidelines:
     1. [Provide specific merging instructions relevant to the data type]
-    2. [Provide conflict resolution guidelines]
-    3. [Any other relevant instructions]
+    2. [Do not make the prompt too long]
 
     Ensure that the merged key conforms to the following schema:
     {json.dumps(output_schema, indent=2)}

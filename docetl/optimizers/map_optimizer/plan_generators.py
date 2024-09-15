@@ -323,6 +323,10 @@ class PlanGenerator:
                         return plan_name, plan
 
                     # Optimize the reduce op for this current plan
+                    # TODO: enable this by default. it's just that
+                    # reduce drilldown decomposition is unreliable via the
+                    # agent, and I don't want users to have to confirm/interact
+                    # on every synthesized reduce op
                     try:
                         optimized_reduce_ops, _, cost = ReduceOptimizer(
                             self.config,

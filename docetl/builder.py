@@ -788,7 +788,7 @@ class Optimizer:
                                 )
                             elif op_object.get("type") == "reduce":
                                 optimized_ops = self._optimize_reduce(
-                                    op_object, input_data
+                                    op_object, input_data, status
                                 )
                             elif op_object.get("type") == "resolve":
                                 optimized_ops = self._optimize_resolve(
@@ -1079,7 +1079,10 @@ class Optimizer:
         return sample
 
     def _optimize_reduce(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        status: Status,
     ) -> List[Dict[str, Any]]:
         """
         Optimize a reduce operation.
@@ -1089,6 +1092,7 @@ class Optimizer:
         Args:
             op_config (Dict[str, Any]): The configuration of the reduce operation.
             input_data (List[Dict[str, Any]]): The input data for the reduce operation.
+            status (Status): The status object to update with the progress of the optimization.
 
         Returns:
             List[Dict[str, Any]]: The optimized operation configuration.
@@ -1099,6 +1103,7 @@ class Optimizer:
             self.llm_client,
             self.max_threads,
             self._run_operation,
+            status=status,
         )
         optimized_ops, _, cost = reduce_optimizer.optimize(op_config, input_data)
         self.operations_cost += cost

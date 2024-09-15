@@ -4,9 +4,11 @@ import random
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from statistics import mean, median
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from rich.console import Console
+from rich.prompt import Confirm
+from rich.status import Status
 
 from docetl.operations.base import BaseOperation
 from docetl.optimizers.join_optimizer import JoinOptimizer
@@ -43,6 +45,7 @@ class ReduceOptimizer:
         run_operation: Callable,
         num_fold_prompts: int = 1,
         num_samples_in_validation: int = 10,
+        status: Optional[Status] = None,
     ):
         """
         Initialize the ReduceOptimizer.
@@ -63,6 +66,7 @@ class ReduceOptimizer:
         self.max_threads = max_threads
         self.num_fold_prompts = num_fold_prompts
         self.num_samples_in_validation = num_samples_in_validation
+        self.status = status
 
     def optimize(
         self,
@@ -483,6 +487,33 @@ class ReduceOptimizer:
             )
 
         # Return early if decomposition is not recommended
+        if not should_decompose["should_decompose"]:
+            return should_decompose
+
+        # Temporarily stop the status
+        if self.status:
+            self.status.stop()
+
+        # Ask user if they agree with the decomposition assessment
+        user_agrees = Confirm.ask(
+            f"Do you agree with the decomposition assessment? "
+            f"[bold]{'Recommended' if should_decompose['should_decompose'] else 'Not recommended'}[/bold]"
+        )
+
+        # If user disagrees, invert the decomposition decision
+        if not user_agrees:
+            should_decompose["should_decompose"] = not should_decompose[
+                "should_decompose"
+            ]
+            should_decompose["explanation"] = (
+                "User disagreed with the initial assessment."
+            )
+
+        # Restart the status
+        if self.status:
+            self.status.start()
+
+        # Return if decomposition is not recommended
         if not should_decompose["should_decompose"]:
             return should_decompose
 
@@ -1204,7 +1235,7 @@ class ReduceOptimizer:
         # Generate 6 candidate batch sizes
         batch_sizes = [
             max(1, int(max_batch_size * ratio))
-            for ratio in [0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+            for ratio in [0.1, 0.2, 0.4, 0.6, 0.75, 0.9]
         ]
         # Log the generated batch sizes
         self.console.log("[cyan]Generating plans for batch sizes:[/cyan]")
@@ -1225,7 +1256,7 @@ class ReduceOptimizer:
                     op_config,
                     sample_input,
                     sample_output,
-                    num_prompts=2,
+                    num_prompts=self.num_fold_prompts,
                 )
                 if not fold_prompts:
                     raise ValueError("No fold prompts generated")

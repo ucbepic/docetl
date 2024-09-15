@@ -71,7 +71,7 @@ TODO:
 - [x] Support unnests in the optimizer
 - [x] Print out the name of the plan we are synthesizing
 - [x] Add gleaning plan to reduce
-- [ ] Reduce optimizer should get a human to confirm if a drill-down roll-up decomposition makes sense
+- [x] Reduce optimizer should get a human to confirm if a drill-down roll-up decomposition makes sense
 - [ ] Allow gleaning model to be different from the main op model
 - [ ] HITL for prompt selection (generally, a textual app)
 - [ ] Fix bug in recursively optimizing reduce in the map optimizer

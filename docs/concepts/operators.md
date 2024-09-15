@@ -8,6 +8,10 @@ Operators in docetl are designed for semantically processing unstructured data. 
 - docetl provides several operators, each tailored for specific unstructured data processing tasks.
 - By default, operations are parallelized on your data using multithreading for improved performance.
 
+!!! tip "Caching in docetl"
+
+    docetl employs caching for all LLM calls and partially-optimized plans. The cache is stored in the `.docetl/cache` and `.docetl/llm_cache` directories within your home directory. This caching mechanism helps to improve performance and reduce redundant API calls when running similar operations or reprocessing data.
+
 ## Common Attributes
 
 All operators share some common attributes:

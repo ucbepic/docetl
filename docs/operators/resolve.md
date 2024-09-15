@@ -13,6 +13,7 @@ Let's see a practical example of using the Resolve operation to standardize pati
 ```yaml
 - name: standardize_patient_names
   type: resolve
+  optimize: true
   comparison_prompt: |
     Compare the following two patient name entries:
 
@@ -38,14 +39,14 @@ Let's see a practical example of using the Resolve operation to standardize pati
 
 This Resolve operation processes patient names to identify and standardize duplicates:
 
-1. Compares all pairs of patient names using the `comparison_prompt`.
-2. For identified duplicates, it applies the `resolution_prompt` to generate a standardized name.
+1. Compares all pairs of patient names using the `comparison_prompt`. In the prompt, you can reference to the documenst via `input1` and `input2`.
+2. For identified duplicates, it applies the `resolution_prompt` to generate a standardized name. You can reference all matched entries via the `inputs` variable.
 
 Note: The prompt templates use Jinja2 syntax, allowing you to reference input fields directly (e.g., `input1.patient_name`).
 
 !!! warning "Performance Consideration"
 
-    You should not run this operation as-is unless your dataset is small! Running O(n^2) comparisons with an LLM can be extremely time-consuming for large datasets. Instead, optimize your pipeline first using `docetl build pipeline.yaml` and run the optimized version, which will generate efficient blocking rules for the operation.
+    You should not run this operation as-is unless your dataset is small! Running O(n^2) comparisons with an LLM can be extremely time-consuming for large datasets. Instead, optimize your pipeline first using `docetl build pipeline.yaml` and run the optimized version, which will generate efficient blocking rules for the operation. Make sure you've set `optimize: true` in your resolve operation config.
 
 ## Blocking
 

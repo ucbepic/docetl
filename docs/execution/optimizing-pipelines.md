@@ -4,7 +4,7 @@ After creating your initial map-reduce pipeline, you might want to optimize it f
 
 ## Understanding the Optimizer
 
-The optimizer in docetl finds optimal plans for operations marked with `optimize: True`. It can also insert resolve operations before reduce operations if needed. The optimizer uses GPT-4 under the hood (requiring an OpenAI API key) and can be customized with different models like gpt-4-turbo or gpt-4o-mini. Note that only LLM-powered operations can be optimized (e.g., `map`, `reduce`, `resolve`, `filter`, `equijoin`).
+The optimizer in docetl finds optimal plans for operations marked with `optimize: True`. It can also insert resolve operations before reduce operations if needed. The optimizer uses GPT-4 under the hood (requiring an OpenAI API key) and can be customized with different models like gpt-4-turbo or gpt-4o-mini. Note that only LLM-powered operations can be optimized (e.g., `map`, `reduce`, `resolve`, `filter`, `equijoin`), but the optimized plans may involve new non-LLM operations (e.g., `split`).
 
 At its core, the optimizer employs two types of AI agents: generation agents and validation agents. Generation agents work to rewrite operators into better plans, potentially decomposing a single operation into multiple, more efficient steps. Validation agents then evaluate these candidate plans, synthesizing task-specific validation prompts to compare outputs and determine the best plan for each operator.
 
@@ -32,6 +32,36 @@ graph LR
 !!! note "Optimizer Stability"
 
     The optimization process can be unstable, as well as resource-intensive (we've seen it take up to 10 minutes to optimize a single operation, spending up to ~$50 in API costs for end-to-end pipelines). We recommend optimizing one operation at a time and retrying if necessary, as results may vary between runs. This approach also allows you to confidently verify that each optimized operation is performing as expected before moving on to the next. See the [API](#optimizer-api) for more details on how to resume the optimizer from a failed run, by rerunning `docetl build pipeline.yaml --resume` (with the `--resume` flag).
+
+
+## Should I Use the Optimizer?
+
+While any pipeline can potentially benefit from optimization, there are specific scenarios where using the optimizer can significantly improve your pipeline's performance and accuracy. When should you use the optimizer?
+
+!!! info "Large Documents"
+
+    If you have documents that approach or exceed context limits and a map operation that transforms these documents using an LLM, the optimizer can help:
+
+    - Improve accuracy
+    - Enable processing of entire documents
+    - Optimize for large-scale data handling
+
+!!! info "Entity Resolution"
+    The optimizer is particularly useful when:
+
+    - You need a resolve operation before your reduce operation
+    - You've defined a resolve operation but want to optimize it for speed using blocking
+
+!!! info "High-Volume Reduce Operations"
+    Consider using the optimizer when:
+
+    - You have many documents feeding into a reduce operation for a given key
+    - You're concerned about the accuracy of the reduce operation due to high volume
+    - You want to optimize for better accuracy in complex reductions
+
+
+Even if your pipeline doesn't fall into these specific categories, optimization can still be beneficial. For example, the optimizer can enhance your operations by adding gleaning to an operation, which uses an LLM-powered validator to ensure operation correctness. [Learn more about gleaning](../concepts/operators.md).
+
 
 ## Optimization Process
 

@@ -407,8 +407,10 @@ class ResolveOperation(BaseOperation):
         # Calculate the number of records before and clusters after
         num_records_before = len(input_data)
         num_clusters_after = len(final_clusters)
-        self.console.log(f"Number of documents before: {num_records_before}")
-        self.console.log(f"Number of distinct documents after: {num_clusters_after}")
+        self.console.log(f"Number of keys before resolution: {num_records_before}")
+        self.console.log(
+            f"Number of distinct keys after resolution: {num_clusters_after}"
+        )
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [

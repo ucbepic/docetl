@@ -74,6 +74,7 @@ TODO:
 - [ ] HITL for prompt selection (generally, a textual app)
 - [ ] Fix bug in recursively optimizing reduce in the map optimizer
 - [x] Support reduce key of "all"
+- [ ] Show estimated cost for the full pipeline after optimization
 - [ ] Write tests for optimizers
 - [ ] Refactor reduce and join optimizers
 - [ ] Support prompt prefix/custom instructions so users don't have to put them in every operation

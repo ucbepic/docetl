@@ -128,6 +128,7 @@ class Optimizer:
         self.operations_cost = 0
         self.timeout = timeout
         self.selectivities = defaultdict(dict)
+        self.samples_taken = defaultdict(dict)
         self.resume = resume
 
         home_dir = os.path.expanduser("~")
@@ -424,6 +425,13 @@ class Optimizer:
                         op["name"] for op in self.config["operations"]
                     ]:
                         # Update the config with the optimized operations
+                        # First, remove all operations that are already in the config with the same name
+                        self.config["operations"] = [
+                            op
+                            for op in self.config["operations"]
+                            if op["name"] != original_op_name
+                        ]
+
                         for op in optimized_ops:
                             op["optimize"] = False
                             self.config["operations"].append(op)
@@ -530,7 +538,7 @@ class Optimizer:
                 changed_op = False
                 for i, op_config in enumerate(self.optimized_config["operations"]):
                     if op_config["name"] == op:
-                        self.optimized_config["operations"][i] = op
+                        self.optimized_config["operations"][i] = step_operations[op]
                         changed_op = True
                 if not changed_op:
                     self.optimized_config["operations"].append(step_operations[op])
@@ -739,6 +747,7 @@ class Optimizer:
                 selectivity = len(output_data) / len(input_data)
 
                 self.selectivities[step.get("name")][operation_name] = selectivity
+                self.samples_taken[step.get("name")][operation_name] = sample_size
             else:
                 # Use rich console status to indicate optimization of the operation
                 with self.console.status(
@@ -842,6 +851,7 @@ class Optimizer:
                         new_input_data_size = len(input_data)
                         selectivity = new_input_data_size / old_input_data_size
                         self.selectivities[step.get("name")][op_name] = selectivity
+                        self.samples_taken[step.get("name")][op_name] = sample_size
 
                     # Set replacement_operations
                     replacement_operations[op_object["name"]] = [

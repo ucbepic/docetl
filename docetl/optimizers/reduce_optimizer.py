@@ -286,12 +286,12 @@ class ReduceOptimizer:
             Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing a single-item list with the optimized configuration
             and a single-item list with the output from the optimized operation, and the cost of the operation due to synthesizing any resolve operations.
         """
-        # Step 1: Determine and configure value sampling
-        value_sampling_config = self._determine_value_sampling(op_config, input_data)
-        if value_sampling_config["enabled"]:
-            op_config["value_sampling"] = value_sampling_config
-            self.console.log("[bold]Value Sampling Configuration:[/bold]")
-            self.console.log(json.dumps(value_sampling_config, indent=2))
+        # Step 1: Determine and configure value sampling (TODO: re-enable this when the agent is more reliable)
+        # value_sampling_config = self._determine_value_sampling(op_config, input_data)
+        # if value_sampling_config["enabled"]:
+        #     op_config["value_sampling"] = value_sampling_config
+        #     self.console.log("[bold]Value Sampling Configuration:[/bold]")
+        #     self.console.log(json.dumps(value_sampling_config, indent=2))
 
         # Step 2: Determine if the reduce operation is associative
         is_associative = self._is_associative(op_config, input_data)

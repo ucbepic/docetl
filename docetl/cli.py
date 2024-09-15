@@ -19,7 +19,9 @@ def build(
         None, help="Maximum number of threads to use for running operations"
     ),
     model: str = typer.Option("gpt-4o", help="Model to use for optimization"),
-    resume: bool = typer.Option(False, help="Resume optimization from a previous run"),
+    resume: bool = typer.Option(
+        False, help="Resume optimization from a previous build that may have failed"
+    ),
     timeout: int = typer.Option(
         60, help="Timeout for optimization operations in seconds"
     ),

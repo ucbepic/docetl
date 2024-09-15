@@ -50,7 +50,9 @@ nav:
       - Mining Product Reviews for Polarizing Features: examples/mining-product-reviews.md
       # - Annotating Legal Documents: examples/annotating-legal-documents.md
       # - Characterizing Troll Behavior on Wikipedia: examples/characterizing-troll-behavior.md
-  - Roadmap & Community: community.md
+  - Community:
+      - Community: community/index.md
+      - Roadmap: community/roadmap.md
 
 theme:
   name: material

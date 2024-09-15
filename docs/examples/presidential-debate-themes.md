@@ -32,7 +32,7 @@ pipeline:
         type: file
         path: "data.json"
 
-    default_model: gpt-4o
+    default_model: gpt-4o-mini
 
     operations:
       - name: extract_themes_and_viewpoints
@@ -226,14 +226,14 @@ This command processes the debate transcripts, extracts themes, resolves similar
 Here's the output from running our optimized pipeline:
 
 ```bash
-$ docetl run workloads/debates/pipeline_opt.yaml
-[23:11:08] Performing syntax check on all operations...
+$ docetl run pipeline_opt.yaml
+[09:28:17] Performing syntax check on all operations...
            Syntax check passed for all operations.
            Running Operation:
              Type: map
              Name: extract_themes_and_viewpoints
-⠴ Running step debate_analysis...
-[23:12:48] Intermediate saved for operation 'extract_themes_and_viewpoints'
+⠧ Running step debate_analysis...
+[09:28:36] Intermediate saved for operation 'extract_themes_and_viewpoints'
            Running Operation:
              Type: unnest
              Name: unnest_themes
@@ -241,31 +241,31 @@ $ docetl run workloads/debates/pipeline_opt.yaml
            Running Operation:
              Type: resolve
              Name: synthesized_resolve_0
-[23:12:49] Comparisons saved by blocking: 47689 (98.30%)
-⠧ Running step debate_analysis...
-[23:13:20] Number of keys before resolution: 312
-           Number of distinct keys after resolution: 163
-⠴ Running step debate_analysis...
-[23:13:22] Self-join selectivity: 0.0288
+[09:28:38] Comparisons saved by blocking: 56002 (97.75%)
+⠋ Running step debate_analysis...
+[09:29:02] Number of keys before resolution: 339
+           Number of distinct keys after resolution: 152
+⠋ Running step debate_analysis...
+[09:29:04] Self-join selectivity: 0.0390
            Intermediate saved for operation 'synthesized_resolve_0'
            Running Operation:
              Type: reduce
              Name: summarize_theme_evolution
-⠇ Running step debate_analysis...
-[23:15:56] Intermediate saved for operation 'summarize_theme_evolution'
+⠼ Running step debate_analysis...
+[09:29:54] Intermediate saved for operation 'summarize_theme_evolution'
            Flushing cache to disk...
            Cache flushed to disk.
-  Step debate_analysis completed. Cost: $7.37
-  Operation extract_themes_and_viewpoints completed. Cost: $5.18
+  Step debate_analysis completed. Cost: $0.29
+  Operation extract_themes_and_viewpoints completed. Cost: $0.16
   Operation unnest_themes completed. Cost: $0.00
-  Operation synthesized_resolve_0 completed. Cost: $0.03
-  Operation summarize_theme_evolution completed. Cost: $2.17
-           💾 Output saved to .../theme_evolution_analysis.json
-           Total cost: $7.37
-           Total time: 287.98 seconds
+  Operation synthesized_resolve_0 completed. Cost: $0.04
+  Operation summarize_theme_evolution completed. Cost: $0.09
+           💾 Output saved to theme_evolution_analysis_baseline.json
+           Total cost: $0.29
+           Total time: 97.25 seconds
 ```
 
-This output shows the progress of our pipeline execution, including the different operations performed, intermediate saves, and the final results. Note the total cost of $7.37 and execution time of about 288 seconds.
+This output shows the progress of our pipeline execution, including the different operations performed, intermediate saves, and the final results. Note the total cost was only $0.29!
 
 ## Initial Results
 
@@ -273,160 +273,133 @@ Our pipeline generated reports on various themes discussed in the presidential d
 
 !!! example "Example Reports Lacking in Recent Quotes"
 
-    === "Energy"
+    === "Infrastructure Development"
 
         ``` markdown
-        # Report on Energy Policy Evolution: 1980-2023
+        # Infrastructure Development: A Comparative Analysis of Democratic and Republican Viewpoints from 1992 to 2023
 
         ## Introduction
+        Infrastructure development has long been a pivotal theme in American political discourse, with varying perspectives presented by major party candidates. This report analyzes shifts and trends in Democratic and Republican viewpoints from 1992, during the second presidential debate between George Bush, Bill Clinton, and Ross Perot, to 2023.
 
-        This report analyzes the evolution of Democratic and Republican viewpoints on the theme of 'energy' from 1980 to 2023. By examining key debates and exploring the context behind each party's stance, this comprehensive summary highlights the shifts, trends, and defining moments that have shaped energy policy discussions in the United States.
+        ## Republican Viewpoints
+        ### Early 1990s
+        In 1992, President George Bush emphasized a forward-looking approach to infrastructure, stating, "We passed this year the most furthest looking transportation bill in the history of this country...$150 billion for improving the infrastructure." This statement indicated a commitment to substantial federal investment in infrastructure aimed at enhancing transportation networks.
 
-        ## 1980: The Anderson-Reagan Presidential Debate (September 21, 1980)
+        ### 2000s
+        Moving into the early 2000s, the Republican party maintained a focus on infrastructure but began to frame it within the context of economic growth and public-private partnerships. However, after the 2008 financial crisis, there was a noticeable shift. The party emphasized tax cuts and reducing regulation over large public investments in infrastructure.
 
-        ### Democratic Viewpoint (John Anderson)
+        ### Recent Years
+        By 2020 and 2021, under the Trump administration, the emphasis returned to infrastructure. However, the tone shifted towards emphasizing private sector involvement and deregulation rather than large public spending. The Republican approach became more fragmented, with some factions calling for aggressive infrastructure investment, while others remained cautious about expenditures.
 
-        In 1980, John Anderson emphasized a new conservation ethic and proposed strategies to reduce dependency on imported oil. He suggested an emergency excise tax on gasoline and a shift in lifestyles to reduce energy consumption, particularly in private automobile use. Anderson's stance highlighted a proactive approach to conservation and a call for significant changes in consumption patterns.
+        ## Democratic Viewpoints
+        ### Early 1990s
+        In contrast, Governor Bill Clinton in 1992 proposed a more systematic investment strategy, noting, "My plan would dedicate $20 billion a year in each of the next 4 years for investments in new transportation." This highlighted a stronger emphasis on direct federal involvement in infrastructure as a means of fostering economic opportunity and job creation.
 
-        **Supporting Quote:** "...to convince the American people that we will have to reduce the use of the private automobile."
+        ### 2000s
+        Through the late 1990s and early 2000s, the Democratic party continued to push for comprehensive federal infrastructure plans, often attached to broader economic initiatives aimed at reducing inequality and spurring job growth. The party emphasized sustainable infrastructure and investments that address climate change.
 
-        ### Republican Viewpoint (Ronald Reagan)
-
-        Ronald Reagan argued that conservation alone wouldn't solve the energy problem and emphasized the potential of untapped energy reserves within the country. He advocated for reducing government restrictions to facilitate energy production and supported nuclear power. Reagan's perspective focused on leveraging the country's existing resources and integrating technological advancements to address energy needs.
-
-        **Supporting Quote:** "...in today's oil wells, there is more oil still there than we have so far taken out and used..."
-
-        ## Trend Analysis
-
-        1. **Democratic Stance on Conservation:** Over time, the Democratic emphasis on energy conservation has evolved. Starting from advocating for reduced automobile use in 1980, this viewpoint has expanded to include broader environmental policies, such as promoting renewable energy sources and reducing carbon emissions.
-
-        2. **Republican Focus on Resource Utilization:** Historically, Republicans have prioritized tapping into existing energy reserves and reducing regulatory barriers. This approach has remained relatively consistent, with an ongoing emphasis on energy independence and support for oil and gas production.
-
-        ## Significant Agreements and Disagreements
-
-        - While both parties have acknowledged the importance of energy security, their methods have often diverged. Democrats have leaned towards conservation and sustainability, while Republicans have focused on resource utilization and deregulation.
-        - A notable area of agreement has been the increasing recognition of the role of technology in advancing energy strategies, although the focus of technological investments has varied.
-
-        ## External Influences
-
-        - The oil crises of the 1970s likely influenced the energy conservation efforts of the 1980s, shaping early Democratic policies.
-        - Environmental movements and scientific reports on climate change have increasingly driven Democratic policies towards renewable energy and sustainability.
-        - Geopolitical events, such as conflicts in oil-producing regions, have reinforced Republican calls for energy independence.
-
-        ## Conclusion
-
-        The evolution of energy policy viewpoints between the Democratic and Republican parties reveals a complex interplay of conservation, resource utilization, technological advancement, and external events.
-
-        Future research should focus on examining more recent debates and policies to provide a comprehensive understanding of current trends and potential future directions. This report serves as a foundation for understanding the historical context and key shifts in energy policy discourse within the United States.
-        ```
-
-    === "Racial Profiling"
-
-        ``` markdown
-        # Evolution of Democratic and Republican Viewpoints on Racial Profiling (2000-2023)
-
-        ## Introduction
-
-        Racial profiling has been a contentious issue in American politics for decades, with both major parties—Democrats and Republicans—expressing varying perspectives over time. This report analyzes viewpoints from debates over the years, focusing on the evolution of stances, significant agreements and disagreements, and factors influencing changes in perspectives.
-
-        ## Key Trends Over Time
-
-        ### Democratic Viewpoints
-
-        **2000:** In the 2000 Vice Presidential Debate, Senator Joe Lieberman, representing the Democratic party, stated:
-
-        > "Al Gore said ... the first Civil Rights Act legislation we would send to Congress would be a national ban on racial profiling."
-
-        This early stance indicates a clear commitment to addressing racial profiling through legislative action.
-
-        **Key Trends:**
-        - Commitment to legislative measures banning racial profiling
-        - Strong focus on civil rights and equality
-
-        ### Republican Viewpoints
-
-        **2000:** In the same debate, Dick Cheney, the Republican Vice Presidential candidate, expressed a sympathetic understanding of the anger and frustration caused by racial profiling:
-
-        > "The sense of anger and frustration and rage that go with knowing that the only reason you were stopped, the only reason you were arrested, was because of the color of your skin would make me extraordinarily angry."
-
-        While Cheney acknowledged the emotional impact of racial profiling, his statement did not indicate a specific legislative approach.
-
-        **Key Trends:**
-        - Recognition of the emotional and social impact of racial profiling
-        - Less emphasis on specific legislative measures compared to Democrats
+        ### Recent Years
+        By 2020, under the Biden administration, the Democrat viewpoint strongly advocated for significant infrastructure investments, combining traditional infrastructure with climate resilience. The American Jobs Plan symbolized this shift, proposing vast funds for transit systems, renewable energy projects, and rural broadband internet. The framing increasingly included social equity as a core component of infrastructure, influenced by movements advocating for racial and economic justice.
 
         ## Agreements and Disagreements
-
         ### Agreements
-
-        - **Recognition of Issue:** Both parties acknowledge the existence and negative impact of racial profiling.
-        - **Emotional Impact:** Both Lieberman and Cheney recognized the profound emotional toll of racial profiling on individuals, although their approaches to addressing it differed.
+        Despite inherent differences, both parties have historically acknowledged the necessity of infrastructure investments for economic growth. Both Bush and Clinton in 1992 recognized infrastructure as vital for job creation, but diverged on the scope and funding mechanisms.
 
         ### Disagreements
-
-        - **Legislative Action:** Democrats, represented by Lieberman in 2000, emphasized legislative action to ban racial profiling. In contrast, Cheney's viewpoint, while sympathetic, did not specify any legislative solutions.
+        Over the years, major disagreements have surfaced, particularly in funding approaches. The Republican party has increasingly favored private sector involvement and tax incentives, while Democrats have consistently pushed for robust federal spending and the incorporation of progressive values into infrastructure projects.
 
         ## Influencing Factors
-
-        The viewpoints on racial profiling have been shaped by various external events and societal changes, including:
-        - High-profile cases of police brutality
-        - Growing public awareness of systemic racism
-        - Movements such as Black Lives Matter
-
-        These factors have pressured both parties to address racial profiling more explicitly in their platforms.
+        The evolution of viewpoints has often mirrored external events such as economic recessions, technological advancement, and social movements. The post-9/11 era and the 2008 financial crisis notably shifted priorities, with bipartisan discussions centered around recovery through infrastructure spending. Additionally, increasing awareness of climate change and social justice has over the years significantly influenced Democratic priorities, leading to a more inclusive and sustainable approach to infrastructure development.
 
         ## Conclusion
-
-        From 2000 to 2023, the Democratic and Republican parties have shown evolving viewpoints on racial profiling:
-        - Democrats have consistently emphasized legislative solutions, reflecting a strong focus on civil rights.
-        - Republicans have acknowledged the issue's emotional and social impacts but have been less specific on legislative measures.
-        - Notable agreements exist in recognizing the problem, although significant differences remain in approaches to solving it.
-        - External events have continuously influenced both parties' stances, pushing them to address racial profiling in their policies.
-
+        The comparative analysis of Democratic and Republican viewpoints on infrastructure development from 1992 to 2023 reveals significant shifts in priorities and strategies. While both parties agree on the need for infrastructure improvements, their approaches and underlying philosophies continue to diverge, influenced by economic, social, and environmental factors.
         ```
 
-    === "Tax Proposals"
+    === "Crime and Gun Control"
 
         ``` markdown
-        # Evolution of Democratic and Republican Tax Proposals (2000-2023)
+        ## The Evolution of Democratic and Republican Viewpoints on Crime and Gun Control: 1992-2023
 
-        ## Introduction
-        The debate over tax policy has been a central theme in American politics, featuring prominently in vice-presidential and presidential debates. This report examines the evolution of Democratic and Republican viewpoints on tax proposals from the year 2000 to 2023, highlighting major trends, significant agreements and disagreements, and the impact of external factors.
+        ### Introduction
+        This report analyzes the shifting perspectives of the Democratic and Republican parties on the theme of "Crime and Gun Control" from 1992 to 2023. The exploration encompasses key debates, significant shifts in stance, party alignments, and influences from external events that shaped these viewpoints.
 
-        ## Democratic Viewpoints: Evolution and Trends
+        ### Democratic Party Viewpoints
+        1. **Initial Stance (1992)**: In the early 1990s, the Democratic viewpoint, as exemplified by Governor Bill Clinton during the Second Presidential Debate in 1992, supported individual gun ownership but emphasized the necessity of regulation: "I support the right to keep and bear arms...but I believe we have to have some way of checking handguns before they're sold."
+        - **Trend**: This reflects a moderate position seeking to balance gun rights with public safety—a common theme in Democratic rhetoric during this era that resonated with many constituents.
 
-        1. **Early 2000s**: In the 2000 debate, Senator Joe Lieberman emphasized the Democratic focus on saving money for social investments, especially in education, rather than enacting large tax cuts. For instance, Lieberman stated, "We're saving money to invest in education... not going to give it all away in one big tax cut."
+        2. **Shift Towards Stricter Gun Control (Late 1990s - 2000s)**: Following events such as the Columbine High School shooting in 1999, the Democratic Party increasingly advocated for more stringent gun control measures. The passing of the Brady Bill and the Assault Weapons Ban in 1994 marked a peak in regulatory measures supported by Democrats, emphasizing public safety over gun ownership rights.
+        - **Quote Impact**: During this time, Democratic leaders often highlighted the need for legislative action to combat rising gun violence.
 
-        2. **Mid 2000s to Early 2010s**: The Democrats continued to advocate for tax policies that aimed to protect and expand social programs. They argued for targeted tax cuts mainly for middle and lower-income groups, stressing the need for a progressive tax system.
+        3. **Response to Mass Shootings (2010s)**: The tragic events of the Sandy Hook Elementary School shooting in 2012 ignited a renewed push for gun control from leading Democrats, including then-President Barack Obama. His call for "common-sense gun laws" marked a decisive moment in Democrat advocacy, focusing on background checks and bans on assault weapons.
+        - **Quote**: Obama stated, "We can't tolerate this anymore. These tragedies must end. And to end them, we must change."
 
-        3. **Late 2010s to Early 2020s**: With the rise of progressive figures within the party, the focus expanded to include more aggressive tax policies on the wealthy and corporations. Proposals such as wealth taxes and increased corporate taxes became more mainstream within the party.
+        4. **Current Stance (2020s)**: The Democratic viewpoint has continued to become increasingly aligned with comprehensive gun control measures, including calls for universal background checks and red flag laws. In the wake of ongoing gun violence, this approach highlights a commitment to addressing systemic issues related to crime and public safety.
 
-        4. **Present Day**: The Democratic stance has become more nuanced, balancing between the need for social investments and economic recovery post-pandemic. While continuing to advocate for higher taxes on the wealthy, there is a stronger emphasis on ensuring fiscal responsibility and supporting economic growth.
+        ### Republican Party Viewpoints
+        1. **Consistent Support for Gun Rights (1992)**: In the same 1992 debate, President George Bush emphasized the rights of gun owners, stating, "I'm a sportsman and I don't think you ought to eliminate all kinds of weapons." This illustrates a steadfast commitment to Second Amendment rights that has characterized Republican positions over the years.
+        - **Trend**: The Republican Party has traditionally promoted a pro-gun agenda, often resisting calls for stricter regulations or bans.
 
-        ## Republican Viewpoints: Evolution and Trends
+        2. **Response to Gun Control Advocacy (2000s)**: As Democrats pushed for stricter gun laws, Republicans increasingly framed these measures as infringements on individual rights. The response to high-profile shootings tended to focus on mental health and crime prevention rather than gun regulation.
+        - **Disagreement**: Republicans consistently argued against the effectiveness of gun control, indicating belief in personal responsibility and the right to self-defense.
 
-        1. **Early 2000s**: In the same 2000 debate, Dick Cheney highlighted the Republican view that it was crucial to return surplus revenue to taxpayers through tax cuts. Cheney remarked, "We think it's extraordinarily important... to return it in the form of a tax cut to the American taxpayer."
+        3. **Shift to Increased Resistance (2010s)**: In the wake of prominent mass shootings, the Republican party maintained its focus on supporting gun rights, opposing federal gun control initiatives. Notable figures, such as former NRA spokesperson Dana Loesch, articulated this resistance by stating, "We are not going to let tragedies be used to violate our rights."
+        - **Impact of External Events**: The rise of organizations like the NRA and increased gun ownership among constituents have fortified this pro-gun stance.
 
-        2. **Mid 2000s to Early 2010s**: Republicans consistently pushed for broad-based tax cuts, advocating for a reduction in tax rates for both individuals and businesses. They argued that such policies would spur economic growth and job creation.
+        4. **Contemporary Stance (2020s)**: Currently, the Republican viewpoint remains largely unchanged with an emphasis on individual rights to bear arms and skepticism regarding the effectiveness of gun control laws. Recent discussions around gun violence often focus on addressing crime through law enforcement and community safety programs instead of legislative gun restrictions.
 
-        3. **Late 2010s to Early 2020s**: The GOP solidified its position on reducing taxes, leading to significant legislative efforts such as the Tax Cuts and Jobs Act of 2017, which lowered taxes for individuals and corporations significantly.
+        ### Key Agreements and Disagreements
+        - **Common Ground**: Both parties, at different times, have recognized the necessity for addressing gun-related violence but diverge on methods—Democrats typically advocate for regulations while Republicans focus on rights preservation.
+        - **Disagreements**: A significant divide exists on whether stricter gun laws equate to reduced crime rates, with Republicans consistently refuting this correlation, arguing instead that law-abiding citizens need access to firearms for self-defense.
 
-        4. **Present Day**: The focus remains on tax cuts as a means of stimulating economic growth. However, there is increasing attention towards simplifying the tax code and addressing national debt concerns.
+        ### Conclusion
+        The evolution of viewpoints on crime and gun control from 1992 to 2023 highlights a pronounced divergence between the Democratic and Republican parties. While Democrats have increasingly pursued stricter regulatory measures focused on public safety, Republicans have maintained a consistent advocacy for gun rights, underscoring a broader ideological conflict over individual freedoms and collective responsibility for public safety. The trajectories of both parties reflect their core values and responses to notable events impacting society.
+        ```
 
-        ## Agreements and Disagreements
+    === "Drug Policy"
 
-        - **Agreements**: Both parties have occasionally converged on the necessity of targeted tax relief during economic downturns. For instance, during the COVID-19 pandemic, there was bipartisan support for temporary tax measures to stimulate the economy.
+        ``` markdown
+        ## Evolution of Drug Policy Viewpoints: 1996 to 2023
 
-        - **Disagreements**: The primary divide remains on the approach to taxation. Democrats advocate for a more progressive tax structure with higher rates for the wealthy, while Republicans push for across-the-board tax cuts, claiming it benefits economic growth.
+        ### Summary of Democratic and Republican Perspectives on Drug Policy
+        Over the years, drug policy has been a contentious issue in American politics, reflecting profound changes within both the Democratic and Republican parties. This report examines how views have evolved, highlighting significant trends, areas of agreement and disagreement, and influential external factors utilizing debates as primary reference points.
 
-        ## Influence of External Factors
+        ### Democratic Party Trends:
+        1. **Increased Emphasis on Comprehensive Approaches**:
+           - In the 1996 Clinton-Dole debate, President Bill Clinton stated, "We have dramatically increased control and enforcement at the border." This reflects a focus on enforcement as part of drug policy. However, Clinton's later years signaled a shift towards recognizing the need for treatment and prevention.
 
-        - **Economic Crises**: Events like the 2008 financial crisis and the COVID-19 pandemic have influenced tax policy debates, with both parties adjusting their stances to address economic recovery needs.
+        2. **Emergence of Harm Reduction and Decriminalization**:
+           - Moving into the 2000s and beyond, Democrats began to embrace harm reduction strategies. For instance, during the 2020 Democratic primary debates, candidates such as Bernie Sanders and Elizabeth Warren emphasized decriminalization and treatment over incarceration, signifying a notable shift from punitive measures.
 
-        - **Political Shifts**: The rise of progressive movements within the Democratic Party and the consolidation of conservative ideologies within the Republican Party have reshaped tax proposal strategies over the years.
+        3. **Growing Advocacy for Social Justice**:
+           - Recent years have seen an alignment with social justice movements, arguing that drug policy disproportionately affects marginalized communities. Kamala Harris in 2020 stated, "We need to truly decriminalize marijuana and address the impact of the War on Drugs on communities of color."
 
-        ## Conclusion
-        The tax policy debate between Democrats and Republicans has evolved significantly from 2000 to 2023. While both parties have adjusted their strategies in response to economic conditions and internal political shifts, their core philosophies remain distinct. Through careful analysis of their historical positions and responses to external events, it is evident that tax policy will continue to be a pivotal issue in American politics.
+        ### Republican Party Trends:
+        1. **Strong Focus on Law and Order**:
+           - During the 1996 debate, Senator Bob Dole reflected a traditional Republican stance, highlighting concerns over drugs without markedly addressing the social implications. "The President doesn't want to politicize drugs, but it's already politicized Medicare..." displays a defensive posture toward the political ramifications of drug issues.
+
+        2. **Shift Towards Treatment and Prevention**:
+           - By the mid-2010s, there was a growing recognition of the opioid crisis, leading to a bipartisan approach promoting treatment. For example, former President Donald Trump, in addressing the opioid epidemic, stated, "We have to take care of our people. We can't just lock them up."
+
+        3. **Conflict Between Hardline Stance and Pragmatism**:
+           - Despite some shifts, many Republicans still emphasize law enforcement solutions. This tension was evident in the polarizing responses to marijuana legalization across states, with figures like former Attorney General Jeff Sessions taking a hardline stance against marijuana legalization, contrasting with more progressive approaches adopted by some Republican governors.
+
+        ### Areas of Agreement:
+        1. **Opioid Crisis**:
+           - Both parties acknowledged the severity of the opioid epidemic, leading to legislation aimed at addressing addiction and treatment, indicating a rare consensus on the need for health-focused solutions.
+
+        ### Areas of Disagreement:
+        1. **Approach to Drug Policy**:
+           - The Democratic party's shift towards decriminalization and harm reduction contrasts sharply with segments of the Republican party that still advocate for strict enforcement and criminalization of certain drugs.
+
+        ### Influential External Events and Factors:
+        1. **The Opioid Crisis**:
+           - The rise of the opioid epidemic has forced both parties to reevaluate their positions on drug policy, pushing them towards more compassionate approaches focusing on addiction treatment.
+
+        2. **Social Justice Movements**:
+           - The Black Lives Matter movement and other social justice efforts have altered the discourse surrounding drug policies, with increased focus on the need to rectify injustices in enforcement practices, particularly among minorities.
+
+        ### Conclusion:
+        Through the years, drug policy viewpoints within the Democratic and Republican parties have experienced significant evolution, characterized by complex layers of agreement and disagreement. As social dynamics shift, both parties continue to grapple with finding a balanced approach towards a more effective drug policy that prioritizes health and social justice.
         ```
 
 Upon inspecting the intermediates, it appears that the map operation is doing a good job at extracting relevant information. The issue seems to lie in the reduce operation, which is ignoring some of the analysis.

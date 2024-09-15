@@ -161,3 +161,34 @@ gleaning:
 ```
 
 This approach allows for _context-aware_ validation and refinement of LLM outputs. Note that it is expensive, since it at least doubles the number of LLM calls required for each operator.
+
+### How Gleaning Works
+
+Gleaning is an iterative process that refines LLM outputs using context-aware validation. Here's how it works:
+
+1. **Initial Operation**: The LLM generates an initial output based on the original operation prompt.
+
+2. **Validation**: The validation prompt is appended to the chat thread, along with the original operation prompt and output. This is submitted to the LLM. _Note that the validation prompt doesn't need any variables, since it's appended to the chat thread._
+
+3. **Assessment**: The LLM responds with an assessment of the output according to the validation prompt.
+
+4. **Decision**: The system interprets the assessment:
+
+   - If there's no error or room for improvement, the current output is returned.
+   - If improvements are suggested, the process continues.
+
+5. **Refinement**: If improvements are needed:
+
+   - A new prompt is created, including the original operation prompt, the original output, and the validator feedback.
+   - This is submitted to the LLM to generate an improved output.
+
+6. **Iteration**: Steps 2-5 are repeated until either:
+
+   - The validator has no more feedback (i.e., the evaluation passes), or
+   - The number of iterations exceeds `num_rounds`.
+
+7. **Final Output**: The last refined output is returned.
+
+This process allows for nuanced, context-aware validation and refinement of LLM outputs. It's particularly useful for complex tasks where simple rule-based validation might miss subtleties or context-dependent aspects of the output.
+
+Note that gleaning can significantly increase the number of LLM calls for each operator, potentially doubling it at minimum. While this increases cost and latency, it can lead to higher quality outputs for complex tasks.

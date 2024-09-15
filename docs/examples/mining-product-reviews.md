@@ -39,6 +39,122 @@ pipeline:
     intermediate_dir: "intermediates"
 ```
 
+??? example "Full Pipeline Configuration"
+
+    ```yaml
+    default_model: gpt-4o-mini
+
+    datasets:
+      steam_reviews:
+        type: file
+        path: "path/to/top_apps_steam_sample.json"
+
+    operations:
+      - name: identify_polarizing_themes
+        optimize: true
+        type: map
+        prompt: |
+          Analyze the following concatenated reviews for a video game and identify polarizing themes that divide player opinions. A polarizing theme is one that some players love while others strongly dislike.
+
+          Game: {{ input.app_name }}
+          Reviews: {{ input.concatenated_reviews }}
+
+          For each polarizing theme you identify:
+          1. Provide a summary of the theme
+          2. Explain why it's polarizing
+          3. Include supporting quotes from both positive and negative perspectives
+
+          Aim to identify ~10 polarizing themes, if present.
+
+        output:
+          schema:
+            polarizing_themes: "list[{theme: str, summary: str, polarization_reason: str, positive_quotes: str, negative_quotes: str}]"
+
+      - name: unnest_polarizing_themes
+        type: unnest
+        unnest_key: polarizing_themes
+        recursive: true
+        depth: 2
+
+      - name: resolve_themes
+        type: resolve
+        optimize: true
+        comparison_prompt: |
+          Are the themes "{{ input1.theme }}" and "{{ input2.theme }}" the same? Here is some context to help you decide:
+
+          Theme 1: {{ input1.theme }}
+          Summary 1: {{ input1.summary }}
+
+          Theme 2: {{ input2.theme }}
+          Summary 2: {{ input2.summary }}
+        resolution_prompt: |
+          Given the following themes, please come up with a theme that best captures the essence of all the themes:
+
+          {% for input in inputs %}
+          Theme {{ loop.index }}: {{ input.theme }}
+          {% if not loop.last %}
+          ---
+          {% endif %}
+          {% endfor %}
+
+          Based on these themes, provide a consolidated theme that captures the essence of all the above themes. Ensure that the consolidated theme is concise yet comprehensive.
+        output:
+          schema:
+            theme: str
+
+      - name: aggregate_common_themes
+        type: reduce
+        optimize: true
+        reduce_key: theme
+        prompt: |
+          You are given a theme and summary that appears across multiple video games, along with various apps and review quotes related to this theme. Your task is to consolidate this information into a comprehensive report.
+
+          For each input, you will receive:
+          - theme: A specific polarizing theme
+          - summary: A brief summary of the theme
+          - app_name: The name of the game
+          - positive_quotes: List of supporting quotes from positive perspectives
+          - negative_quotes: List of supporting quotes from negative perspectives
+
+          Create a report that includes:
+          1. The name of the common theme
+          2. A summary of the theme and why it's common across games
+          3. Representative quotes from different games, both positive and negative
+
+          Here's the information for the theme:
+          Theme: {{ inputs[0].theme }}
+          Summary: {{ inputs[0].summary }}
+
+          {% for app in inputs %}
+          Game: {{ app.app_name }}
+          Positive Quotes: {{ app.positive_quotes }}
+          Negative Quotes: {{ app.negative_quotes }}
+          {% if not loop.last %}
+          ----------------------------------------
+          {% endif %}
+          {% endfor %}
+
+        output:
+          schema:
+            theme_summary: str
+            representative_quotes: "list[{game: str, quote: str, sentiment: str}]"
+
+    pipeline:
+      steps:
+        - name: game_analysis
+          input: steam_reviews
+          operations:
+            - identify_polarizing_themes
+            - unnest_polarizing_themes
+            - resolve_themes
+            - aggregate_common_themes
+
+      output:
+        type: file
+        path: "path/to/output_polarizing_themes.json"
+        intermediate_dir: "path/to/intermediates"
+    ```
+
 ## Pipeline Operations
 
 ### 1. Identify Polarizing Themes

@@ -39,7 +39,7 @@ Let's see a practical example of using the Resolve operation to standardize pati
 
 This Resolve operation processes patient names to identify and standardize duplicates:
 
-1. Compares all pairs of patient names using the `comparison_prompt`. In the prompt, you can reference to the documenst via `input1` and `input2`.
+1. Compares all pairs of patient names using the `comparison_prompt`. In the prompt, you can reference to the documents via `input1` and `input2`.
 2. For identified duplicates, it applies the `resolution_prompt` to generate a standardized name. You can reference all matched entries via the `inputs` variable.
 
 Note: The prompt templates use Jinja2 syntax, allowing you to reference input fields directly (e.g., `input1.patient_name`).
@@ -81,6 +81,23 @@ In this example, pairs will be considered for comparison if:
 - The embedding similarity of their `last_name` and `date_of_birth` fields is above 0.8, OR
 - Both entries have non-empty `last_name` fields AND their `date_of_birth` fields match exactly.
 
+## How the Comparison Algorithm Works
+
+After determining eligible pairs for comparison, the Resolve operation uses a Union-Find (Disjoint Set Union) algorithm to efficiently group similar items. Here's a breakdown of the process:
+
+1. **Initialization**: Each item starts in its own cluster.
+2. **Pair Generation**: All possible pairs of items are generated for comparison.
+3. **Batch Processing**: Pairs are processed in batches (controlled by `compare_batch_size`).
+4. **Comparison**: For each batch:
+   a. An LLM performs pairwise comparisons to determine if items match.
+   b. Matching pairs trigger a `merge_clusters` operation to combine their clusters.
+5. **Iteration**: Steps 3-4 repeat until all pairs are compared.
+6. **Result Collection**: All non-empty clusters are collected as the final result.
+
+!!! note "Efficiency"
+
+    The batch processing of comparisons allows for efficient, incremental clustering as matches are found, without needing to rebuild the entire cluster structure after each match. This allows for parallelization of LLM calls, improving overall performance. However, this also limits parallelism to the batch size, so choose an appropriate value for `compare_batch_size` based on your dataset size and system capabilities.
+
 ## Required Parameters
 
 - `type`: Must be set to "resolve".
@@ -110,5 +127,10 @@ In this example, pairs will be considered for comparison if:
 3. **Effective Comparison Prompts**: Design comparison prompts that consider all relevant factors for determining matches.
 4. **Detailed Resolution Prompts**: Create resolution prompts that effectively standardize or combine information from matched records.
 5. **Appropriate Model Selection**: Choose suitable models for embedding (if used) and language tasks.
+6. **Optimize Batch Size**: If you expect to compare a large number of pairs, consider increasing the `compare_batch_size`. This parameter effectively limits parallelism, so a larger value can improve performance for large datasets.
+
+!!! tip "Balancing Batch Size"
+
+    While increasing `compare_batch_size` can improve parallelism, be cautious not to set it too high. Extremely large batch sizes might overwhelm system memory or exceed API rate limits. Consider your system's capabilities and the characteristics of your dataset when adjusting this parameter.
 
 The Resolve operation is particularly useful for data cleaning, deduplication, and creating standardized records from multiple data sources. It can significantly improve data quality and consistency in your dataset.

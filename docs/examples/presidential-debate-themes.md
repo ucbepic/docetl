@@ -200,6 +200,56 @@ docetl build pipeline.yaml
 This command adds a resolve operation to our pipeline, resulting in an optimized version:
 
 ```yaml
+operations:
+    ...
+    - name: synthesized_resolve_0
+      type: resolve
+      blocking_keys:
+        - theme
+      blocking_threshold: 0.6465
+      comparison_model: gpt-4o-mini
+      comparison_prompt: |
+        Compare the following two debate themes:
+
+        [Entity 1]:
+        {{ input1.theme }}
+
+        [Entity 2]:
+        {{ input2.theme }}
+
+        Are these themes likely referring to the same concept? Consider the following attributes:
+        - The core subject matter being discussed
+        - The context in which the theme is presented
+        - The viewpoints of the candidates associated with each theme
+
+        Respond with "True" if they are likely the same theme, or "False" if they are likely different themes.
+      embedding_model: text-embedding-3-small
+      compare_batch_size: 1000
+      output:
+        schema:
+          theme: string
+      resolution_model: gpt-4o-mini
+      resolution_prompt: |
+        Analyze the following duplicate themes:
+
+        {% for key in inputs %}
+        Entry {{ loop.index }}:
+        {{ key.theme }}
+
+        {% endfor %}
+
+        Create a single, consolidated key that combines the information from all duplicate entries. When merging, follow these guidelines:
+        1. Prioritize the most comprehensive and detailed viewpoint available among the duplicates. If multiple entries discuss the same theme with varying details, select the entry that includes the most information.
+        2. Ensure clarity and coherence in the merged key; if key terms or phrases are duplicated, synthesize them into a single statement or a cohesive description that accurately represents the theme.
+
+        Ensure that the merged key conforms to the following schema:
+        {
+          "theme": "string"
+        }
+
+        Return the consolidated key as a single JSON object.
+
+
 pipeline:
   steps:
     - name: debate_analysis

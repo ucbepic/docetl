@@ -24,6 +24,12 @@ DocETL uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, which 
     OPENAI_API_KEY=your_api_key_here
     ```
 
+!!! warning "OpenAI Dependency"
+
+    DocETL has been primarily tested with OpenAI's language models and relies heavily on their structured output capabilities. While we aim to support other providers in the future, using OpenAI is currently recommended for the best experience and most reliable results.
+
+    If you choose to use a different provider, be aware that you may encounter unexpected behavior or reduced functionality, especially with operations that depend on structured outputs.
+
 ## Preparing the Data
 
 Organize your user behavior data in a JSON file as a list of objects. Each object should have the following keys: "user_id", "country", and "log". The "log" field contains the user interaction logs.

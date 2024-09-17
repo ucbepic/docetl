@@ -18,7 +18,11 @@ python --version
 pip install docetl
 ```
 
-This command will install DocETL along with its dependencies as specified in the pyproject.toml file.
+This command will install DocETL along with its dependencies as specified in the pyproject.toml file. To verify that DocETL has been installed correctly, you can run the following command in your terminal:
+
+```bash
+docetl version
+```
 
 ## Installation from Source
 
@@ -45,15 +49,21 @@ poetry install
 
 This will create a virtual environment and install all the required dependencies.
 
-## Verifying the Installation
+4. Set up your OpenAI API key:
 
-To verify that DocETL has been installed correctly, you can run the following command in your terminal:
+Create a .env file in the project root and add your OpenAI API key:
 
 ```bash
-docetl version
+OPENAI_API_KEY=your_api_key_here
 ```
 
-If the installation was successful, this command will display the version of DocETL installed on your system.
+Alternatively, you can set the OPENAI_API_KEY environment variable in your shell.
+
+5. Run the basic test suite to ensure everything is working (this costs less than $0.01 with OpenAI):
+
+```bash
+make tests-basic
+```
 
 ## Troubleshooting
 
@@ -63,4 +73,4 @@ If you encounter any issues during installation, please ensure that:
 - You have the latest version of pip installed
 - Your system meets all the requirements specified in the pyproject.toml file
 
-For further assistance, please refer to the project's GitHub repository or reach out to the community for support.
+For further assistance, please refer to the project's GitHub repository or reach out on the [Discord server](https://discord.gg/fHp7B2X3xx).

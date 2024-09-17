@@ -2,7 +2,7 @@
 
 DocETL is a powerful tool for creating and executing data processing pipelines, especially suited for complex document processing tasks. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
 
-[Documentation](https://shreyashankar.github.io/docetl) | [Website](https://docetl.com)
+[Website](https://docetl.com) | [Documentation](https://shreyashankar.github.io/docetl) | [Discord](https://discord.gg/fHp7B2X3xx)
 
 ## When to Use DocETL
 
@@ -23,13 +23,15 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 
 ## Installation
 
+See the documentation for installing from PyPI.
+
 ### Prerequisites
 
 Before installing DocETL, ensure you have Python 3.10 or later installed on your system. You can check your Python version by running:
 
 python --version
 
-### Installation Steps
+### Installation Steps (from Source)
 
 1. Clone the DocETL repository:
 
@@ -60,7 +62,7 @@ OPENAI_API_KEY=your_api_key_here
 
 Alternatively, you can set the OPENAI_API_KEY environment variable in your shell.
 
-5. Run the basic test suite to ensure everything is working:
+5. Run the basic test suite to ensure everything is working (this costs less than $0.01 with OpenAI):
 
 ```bash
 make tests-basic

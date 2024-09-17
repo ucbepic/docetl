@@ -35,6 +35,7 @@ mindmap
 
 - **Model Diversity**: Extending support beyond OpenAI to include a wider range of models, with a focus on local models.
 - **OCR and PDF Extraction**: Improving integration with OCR technologies and PDF extraction tools for more robust document processing.
+- **Multimodal Data Processing**: Enhancing DocETL to handle multimodal data, including text, images, audio, and video (as many of the LLMs support multimodal inputs, anyways).
 
 ## Agents and Planning
 

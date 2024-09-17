@@ -1,4 +1,4 @@
-name: docetl
+name: ci
 
 on:
   workflow_dispatch:

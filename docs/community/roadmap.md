@@ -2,7 +2,7 @@
 
 !!! info "Join Our Working Groups"
 
-    Are you interested in contributing to any of these projects or have ideas for new areas of exploration? Join our [Discord server](https://discord.gg/docetl) to participate in our working groups and collaborate with the community!
+    Are you interested in contributing to any of these projects or have ideas for new areas of exploration? Join our [Discord server](https://discord.gg/fHp7B2X3xx) to participate in our working groups and collaborate with the community!
 
 We're constantly working to improve DocETL and explore new possibilities in document processing. Our current ideas span both research and engineering problems, and are organized into the following categories:
 
@@ -41,3 +41,5 @@ mindmap
 - **Smarter Agent and Planning Architectures**: Optimizing plan exploration based on data characteristics. For instance, refining the optimizer to avoid unnecessary exploration of plans with the [gather operator](../operators/gather.md) for tasks that don't require peripheral context when decomposing map operations for large documents.
 
 - **Context-Aware Sampling for Validation**: Creating algorithms that can identify and extract the most representative samples from different parts of a document, including the beginning, middle, and end, to use in validaton prompts. This approach will help validation agents to verify that all sections of documents are adequately represented in the outputs, avoiding blind spots in the analysis due to truncation--as we currently naive truncate the middle of documents in validation prompts.
+
+- **Benchmarks**: Developing a suite of benchmarks to evaluate the performance of different optimization strategies and agent architectures. These benchmarks will help us understand the trade-offs between accuracy, efficiency, and cost in different scenarios, guiding the development of more effective optimization techniques.

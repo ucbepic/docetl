@@ -35,8 +35,11 @@ nav:
           - Unnest: operators/unnest.md
       - Execution:
           - Running Pipelines: execution/running-pipelines.md
-          - Optimizing Pipelines: execution/optimizing-pipelines.md
           - Best Practices: execution/best-practices.md
+      - Optimization:
+          - Overview: optimization/overview.md
+          - Example: optimization/example.md
+          - Configuration: optimization/configuration.md
       # - Advanced Usage:
       #     - User-Defined Functions: advanced/custom-operators.md
       #     - Extending Optimizer Agents: advanced/extending-agents.md

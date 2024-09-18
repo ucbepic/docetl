@@ -328,7 +328,7 @@ class JoinOptimizer:
 
     {{% endfor %}}
 
-    Create a single, consolidated key for {reduce_key} that combines the information from all duplicate entries.
+    Merge these into a single key.
     When merging, follow these guidelines:
     1. [Provide specific merging instructions relevant to the data type]
     2. [Do not make the prompt too long]

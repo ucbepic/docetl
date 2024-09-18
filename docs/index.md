@@ -1,14 +1,13 @@
 # DocETL: A System for Complex Document Processing
 
-DocETL is a powerful tool for creating and executing data processing pipelines, especially suited for complex document processing tasks. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
+DocETL is a powerful tool for creating and executing LLM-powered data processing pipelines. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
 
 !!! tip "When to Use DocETL"
 
     DocETL is the ideal choice when you're looking to **maximize correctness and output quality** for complex tasks over a collection of documents or unstructured datasets. You should consider using DocETL if:
 
-    - You want to perform semantic processing on a collection of data
     - You have complex tasks that you want to represent via map-reduce (e.g., map over your documents, then group by the result of your map call & reduce)
-    - You're unsure how to best express your task to maximize LLM accuracy
+    - You're unsure how to best write your pipeline or sequence of operations to maximize LLM accuracy
     - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
     - You have validation criteria and want tasks to automatically retry when the validation fails
 

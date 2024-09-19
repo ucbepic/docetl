@@ -87,7 +87,11 @@ def test_synth_resolve(config_yaml):
         for op in step["operations"]:
             if op.startswith("synthesized_resolve_"):
                 synthesized_resolve_found = True
-                synthesized_op = optimizer.optimized_config["operations"][op]
+                synthesized_op = [
+                    operation
+                    for operation in optimizer.optimized_config["operations"]
+                    if operation["name"] == op
+                ]
 
                 # Check if the synthesized operation has the correct properties
                 assert synthesized_op["type"] == "resolve"

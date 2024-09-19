@@ -174,7 +174,7 @@ def test_split_map_gather(sample_data):
         "type": "split",
         "split_key": "content",
         "method": "token_count",
-        "method_kwargs": {"token_count": 100},
+        "method_kwargs": {"num_tokens": 100},
         "name": "split_doc",
     }
 

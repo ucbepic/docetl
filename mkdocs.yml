@@ -8,8 +8,8 @@ site_url: https://docetl.com/
 # extra:
 #   docs_url: /docs
 
-repo_url: https://github.com/shreyashankar/docetl
-repo_name: shreyashankar/docetl
+repo_url: https://github.com/ucbepic/docetl
+repo_name: ucbepic/docetl
 remote_branch: gh-pages
 nav:
   - Home:

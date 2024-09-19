@@ -1,6 +1,6 @@
 # DocETL Optimizer
 
-The DocETL optimizer is a powerful tool designed to enhance the performance and accuracy of your document processing pipelines. It works by analyzing and potentially rewriting operations marked for optimization, finding optimal plans for execution.
+The DocETL optimizer finds a plan that improves the accuracy of your document processing pipelines. It works by analyzing and potentially rewriting operations marked for optimization, finding optimal plans for execution.
 
 ## Key Features
 

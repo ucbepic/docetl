@@ -1,6 +1,6 @@
 # DocETL: A System for Complex Document Processing
 
-DocETL is a powerful tool for creating and executing LLM-powered data processing pipelines. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
+DocETL is a tool for creating and executing LLM-powered data processing pipelines. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
 
 !!! tip "When to Use DocETL"
 

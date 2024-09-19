@@ -39,23 +39,20 @@ class SplitOperation(BaseOperation):
 
         if self.config["method"] == "token_count":
             if (
-                not isinstance(self.config["method_kwargs"]["token_count"], int)
-                or self.config["method_kwargs"]["token_count"] <= 0
+                not isinstance(self.config["method_kwargs"]["num_tokens"], int)
+                or self.config["method_kwargs"]["num_tokens"] <= 0
             ):
-                raise ValueError("'token_count' must be a positive integer")
+                raise ValueError("'num_tokens' must be a positive integer")
         elif self.config["method"] == "delimiter":
             if not isinstance(self.config["method_kwargs"]["delimiter"], str):
                 raise ValueError("'delimiter' must be a string")
-
-        if "model" in self.config and not isinstance(self.config["model"], str):
-            raise TypeError("'model' in configuration must be a string")
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         split_key = self.config["split_key"]
         method = self.config["method"]
         method_kwargs = self.config["method_kwargs"]
         encoder = tiktoken.encoding_for_model(
-            self.config.get("model", self.default_model)
+            self.config["method_kwargs"].get("model", self.default_model)
         )
         results = []
         cost = 0.0
@@ -68,7 +65,7 @@ class SplitOperation(BaseOperation):
             doc_id = str(uuid.uuid4())
 
             if method == "token_count":
-                token_count = method_kwargs["token_count"]
+                token_count = method_kwargs["num_tokens"]
                 tokens = encoder.encode(content)
 
                 for chunk_num, i in enumerate(

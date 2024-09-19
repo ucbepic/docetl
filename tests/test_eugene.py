@@ -81,7 +81,7 @@ def extract_themes_config():
 
 @pytest.fixture
 def unnest_themes_config():
-    return {"type": "unnest", "unnest_key": "theme"}
+    return {"type": "unnest", "unnest_key": "theme", "name": "unnest_themes"}
 
 
 @pytest.fixture

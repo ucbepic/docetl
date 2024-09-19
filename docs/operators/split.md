@@ -21,8 +21,8 @@ Here's an example of using the Split operation to divide customer support transc
   split_key: transcript
   method: token_count
   method_kwargs:
-    token_count: 500
-  model: gpt-4o-mini
+    num_tokens: 500
+    model: gpt-4o-mini
 ```
 
 This Split operation processes long customer support transcripts:
@@ -44,7 +44,7 @@ Note that chunks will not overlap in content.
   - For "delimiter" method: `delimiter` (string) to use for splitting.
   - For "token_count" method: `token_count` (integer) specifying the maximum number of tokens per chunk.
 
-### Optional Parameters
+### Optional Parameters in `method_kwargs
 
 | Parameter             | Description                                                                     | Default                       |
 | --------------------- | ------------------------------------------------------------------------------- | ----------------------------- |

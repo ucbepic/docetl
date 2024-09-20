@@ -126,21 +126,24 @@ This example demonstrates how the Map operation can transform long, unstructured
 
 - `name`: A unique name for the operation.
 - `type`: Must be set to "map".
-- `prompt`: The prompt template to use for the transformation. Access input variables with `input.keyname`.
-- `output`: Schema definition for the output from the LLM.
 
 ## Optional Parameters
 
-| Parameter                         | Description                                                    | Default                       |
-| --------------------------------- | -------------------------------------------------------------- | ----------------------------- |
-| `model`                           | The language model to use                                      | Falls back to `default_model` |
-| `optimize`                        | Flag to enable operation optimization                          | `True`                        |
-| `recursively_optimize`            | Flag to enable recursive optimization                          | `false`                       |
-| `sample_size`                     | Number of samples to use for the operation                     | Processes all data            |
-| `tools`                           | List of tool definitions for LLM use                           | None                          |
-| `validate`                        | List of Python expressions to validate the output              | None                          |
-| `num_retries_on_validate_failure` | Number of retry attempts on validation failure                 | 0                             |
-| `gleaning`                        | Configuration for advanced validation and LLM-based refinement | None                          |
+| Parameter                         | Description                                                                                     | Default                       |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------- |
+| `prompt`                          | The prompt template to use for the transformation. Access input variables with `input.keyname`. | None                          |
+| `output`                          | Schema definition for the output from the LLM.                                                  | None                          |
+| `model`                           | The language model to use                                                                       | Falls back to `default_model` |
+| `optimize`                        | Flag to enable operation optimization                                                           | `True`                        |
+| `recursively_optimize`            | Flag to enable recursive optimization of operators synthesized as part of rewrite rules         | `false`                       |
+| `sample_size`                     | Number of samples to use for the operation                                                      | Processes all data            |
+| `tools`                           | List of tool definitions for LLM use                                                            | None                          |
+| `validate`                        | List of Python expressions to validate the output                                               | None                          |
+| `num_retries_on_validate_failure` | Number of retry attempts on validation failure                                                  | 0                             |
+| `gleaning`                        | Configuration for advanced validation and LLM-based refinement                                  | None                          |
+| `drop_keys`                       | List of keys to drop from the input before processing                                           | None                          |
+
+Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
 
 !!! info "Validation and Gleaning"
 

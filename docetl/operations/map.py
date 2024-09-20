@@ -36,6 +36,11 @@ class MapOperation(BaseOperation):
             for key in self.config["drop_keys"]:
                 if not isinstance(key, str):
                     raise TypeError("All items in 'drop_keys' must be strings")
+        else:
+            if "prompt" not in self.config or "output" not in self.config:
+                raise ValueError(
+                    "If 'drop_keys' is not specified, both 'prompt' and 'output' must be present in the configuration"
+                )
 
         if "prompt" in self.config or "output" in self.config:
             required_keys = ["prompt", "output"]
@@ -112,11 +117,18 @@ class MapOperation(BaseOperation):
 
         The method uses parallel processing to improve performance.
         """
+        # Check if there's no prompt and only drop_keys
+        if "prompt" not in self.config and "drop_keys" in self.config:
+            # If only drop_keys is specified, simply drop the keys and return
+            dropped_results = []
+            for item in input_data:
+                new_item = {
+                    k: v for k, v in item.items() if k not in self.config["drop_keys"]
+                }
+                dropped_results.append(new_item)
+            return dropped_results, 0.0  # Return the modified data with no cost
 
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
-            if "prompt" not in self.config:
-                return item, 0.0
-
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
 
@@ -229,6 +241,11 @@ class ParallelMapOperation(BaseOperation):
             for key in self.config["drop_keys"]:
                 if not isinstance(key, str):
                     raise TypeError("All items in 'drop_keys' must be strings")
+        else:
+            if "prompts" not in self.config:
+                raise ValueError(
+                    "If 'drop_keys' is not specified, 'prompts' must be present in the configuration"
+                )
 
         if "prompts" in self.config:
             if not isinstance(self.config["prompts"], list):
@@ -318,6 +335,17 @@ class ParallelMapOperation(BaseOperation):
         results = {}
         total_cost = 0
         output_schema = self.config.get("output", {}).get("schema", {})
+
+        # Check if there's no prompt and only drop_keys
+        if "prompts" not in self.config and "drop_keys" in self.config:
+            # If only drop_keys is specified, simply drop the keys and return
+            dropped_results = []
+            for item in input_data:
+                new_item = {
+                    k: v for k, v in item.items() if k not in self.config["drop_keys"]
+                }
+                dropped_results.append(new_item)
+            return dropped_results, 0.0  # Return the modified data with no cost
 
         def process_prompt(item, prompt_config):
             prompt_template = Template(prompt_config["prompt"])

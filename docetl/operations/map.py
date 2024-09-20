@@ -1,5 +1,5 @@
 """
-The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOperation` that perform mapping operations on input data. They use LLM-based processing to transform input items into output items based on specified prompts and schemas.
+The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOperation` that perform mapping operations on input data. They use LLM-based processing to transform input items into output items based on specified prompts and schemas, and can also perform key dropping operations.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -25,66 +25,73 @@ class MapOperation(BaseOperation):
         Checks the configuration of the MapOperation for required keys and valid structure.
 
         Raises:
-            ValueError: If required keys ('prompt' or 'output') are missing in the configuration.
-            ValueError: If 'schema' is missing in the 'output' configuration.
-            ValueError: If 'schema' in the 'output' configuration is empty.
-            ValueError: If the 'prompt' is not a valid Jinja2 template.
-            TypeError: If 'schema' in the 'output' configuration is not a dictionary.
-            TypeError: If 'model' is present in the configuration but is not a string.
-            ValueError: If any gleaning-related configuration is invalid (raised by self.gleaning_check()).
+            ValueError: If required keys are missing or invalid in the configuration.
+            TypeError: If configuration values have incorrect types.
         """
-        required_keys = ["prompt", "output"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in MapOperation configuration"
+        if "drop_keys" in self.config:
+            if not isinstance(self.config["drop_keys"], list):
+                raise TypeError(
+                    "'drop_keys' in configuration must be a list of strings"
                 )
+            for key in self.config["drop_keys"]:
+                if not isinstance(key, str):
+                    raise TypeError("All items in 'drop_keys' must be strings")
 
-        if "schema" not in self.config["output"]:
-            raise ValueError("Missing 'schema' in 'output' configuration")
-
-        if not isinstance(self.config["output"]["schema"], dict):
-            raise TypeError("'schema' in 'output' configuration must be a dictionary")
-
-        if not self.config["output"]["schema"]:
-            raise ValueError("'schema' in 'output' configuration cannot be empty")
-
-        # Check if the prompt is a valid Jinja2 template
-        try:
-            Template(self.config["prompt"])
-        except Exception as e:
-            raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}")
-
-        # Check if the model is specified (optional)
-        if "model" in self.config and not isinstance(self.config["model"], str):
-            raise TypeError("'model' in configuration must be a string")
-
-        # Check if tools are specified and validate their structure
-        if "tools" in self.config:
-            if not isinstance(self.config["tools"], list):
-                raise TypeError("'tools' in configuration must be a list")
-
-            for i, tool in enumerate(self.config["tools"]):
-                if not isinstance(tool, dict):
-                    raise TypeError(f"Tool {i} in 'tools' must be a dictionary")
-
-                if "code" not in tool or "function" not in tool:
+        if "prompt" in self.config or "output" in self.config:
+            required_keys = ["prompt", "output"]
+            for key in required_keys:
+                if key not in self.config:
                     raise ValueError(
-                        f"Tool {i} is missing required 'code' or 'function' key"
+                        f"Missing required key '{key}' in MapOperation configuration"
                     )
 
-                function = tool.get("function", {})
-                if not isinstance(function, dict):
-                    raise TypeError(f"'function' in tool {i} must be a dictionary")
+            if "schema" not in self.config["output"]:
+                raise ValueError("Missing 'schema' in 'output' configuration")
 
-                required_function_keys = ["name", "description", "parameters"]
-                for key in required_function_keys:
-                    if key not in function:
+            if not isinstance(self.config["output"]["schema"], dict):
+                raise TypeError(
+                    "'schema' in 'output' configuration must be a dictionary"
+                )
+
+            if not self.config["output"]["schema"]:
+                raise ValueError("'schema' in 'output' configuration cannot be empty")
+
+            # Check if the prompt is a valid Jinja2 template
+            try:
+                Template(self.config["prompt"])
+            except Exception as e:
+                raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}")
+
+            # Check if the model is specified (optional)
+            if "model" in self.config and not isinstance(self.config["model"], str):
+                raise TypeError("'model' in configuration must be a string")
+
+            # Check if tools are specified and validate their structure
+            if "tools" in self.config:
+                if not isinstance(self.config["tools"], list):
+                    raise TypeError("'tools' in configuration must be a list")
+
+                for i, tool in enumerate(self.config["tools"]):
+                    if not isinstance(tool, dict):
+                        raise TypeError(f"Tool {i} in 'tools' must be a dictionary")
+
+                    if "code" not in tool or "function" not in tool:
                         raise ValueError(
-                            f"Tool {i} is missing required '{key}' in 'function'"
+                            f"Tool {i} is missing required 'code' or 'function' key"
                         )
 
-        self.gleaning_check()
+                    function = tool.get("function", {})
+                    if not isinstance(function, dict):
+                        raise TypeError(f"'function' in tool {i} must be a dictionary")
+
+                    required_function_keys = ["name", "description", "parameters"]
+                    for key in required_function_keys:
+                        if key not in function:
+                            raise ValueError(
+                                f"Tool {i} is missing required '{key}' in 'function'"
+                            )
+
+            self.gleaning_check()
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
@@ -97,15 +104,19 @@ class MapOperation(BaseOperation):
             Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
 
         This method performs the following steps:
-        1. Processes each input item using the specified prompt and LLM model
+        1. If a prompt is specified, it processes each input item using the specified prompt and LLM model
         2. Applies gleaning if configured
         3. Validates the output
-        4. Aggregates results and calculates total cost
+        4. If drop_keys is specified, it drops the specified keys from each document
+        5. Aggregates results and calculates total cost
 
         The method uses parallel processing to improve performance.
         """
 
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
+            if "prompt" not in self.config:
+                return item, 0.0
+
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
 
@@ -171,6 +182,12 @@ class MapOperation(BaseOperation):
             for i in pbar:
                 result, item_cost = futures[i].result()
                 if result is not None:
+                    if "drop_keys" in self.config:
+                        result = {
+                            k: v
+                            for k, v in result.items()
+                            if k not in self.config["drop_keys"]
+                        }
                     results.append(result)
                 total_cost += item_cost
                 pbar.update(i)
@@ -204,66 +221,82 @@ class ParallelMapOperation(BaseOperation):
             ValueError: If required keys are missing or if the configuration structure is invalid.
             TypeError: If the configuration values have incorrect types.
         """
-        if "prompts" not in self.config or not isinstance(self.config["prompts"], list):
-            raise ValueError(
-                "ParallelMapOperation requires a 'prompts' list in the configuration"
-            )
+        if "drop_keys" in self.config:
+            if not isinstance(self.config["drop_keys"], list):
+                raise TypeError(
+                    "'drop_keys' in configuration must be a list of strings"
+                )
+            for key in self.config["drop_keys"]:
+                if not isinstance(key, str):
+                    raise TypeError("All items in 'drop_keys' must be strings")
 
-        if not self.config["prompts"]:
-            raise ValueError("The 'prompts' list cannot be empty")
+        if "prompts" in self.config:
+            if not isinstance(self.config["prompts"], list):
+                raise ValueError(
+                    "ParallelMapOperation requires a 'prompts' list in the configuration"
+                )
 
-        for i, prompt_config in enumerate(self.config["prompts"]):
-            if not isinstance(prompt_config, dict):
-                raise TypeError(f"Prompt configuration {i} must be a dictionary")
+            if not self.config["prompts"]:
+                raise ValueError("The 'prompts' list cannot be empty")
 
-            required_keys = ["name", "prompt", "output_keys"]
-            for key in required_keys:
-                if key not in prompt_config:
-                    raise ValueError(
-                        f"Missing required key '{key}' in prompt configuration {i}"
+            for i, prompt_config in enumerate(self.config["prompts"]):
+                if not isinstance(prompt_config, dict):
+                    raise TypeError(f"Prompt configuration {i} must be a dictionary")
+
+                required_keys = ["name", "prompt", "output_keys"]
+                for key in required_keys:
+                    if key not in prompt_config:
+                        raise ValueError(
+                            f"Missing required key '{key}' in prompt configuration {i}"
+                        )
+
+                if not isinstance(prompt_config["name"], str):
+                    raise TypeError(
+                        f"'name' in prompt configuration {i} must be a string"
                     )
 
-            if not isinstance(prompt_config["name"], str):
-                raise TypeError(f"'name' in prompt configuration {i} must be a string")
+                if not isinstance(prompt_config["prompt"], str):
+                    raise TypeError(
+                        f"'prompt' in prompt configuration {i} must be a string"
+                    )
 
-            if not isinstance(prompt_config["prompt"], str):
-                raise TypeError(
-                    f"'prompt' in prompt configuration {i} must be a string"
-                )
+                if not isinstance(prompt_config["output_keys"], list):
+                    raise TypeError(
+                        f"'output_keys' in prompt configuration {i} must be a list"
+                    )
 
-            if not isinstance(prompt_config["output_keys"], list):
-                raise TypeError(
-                    f"'output_keys' in prompt configuration {i} must be a list"
-                )
+                if not prompt_config["output_keys"]:
+                    raise ValueError(
+                        f"'output_keys' list in prompt configuration {i} cannot be empty"
+                    )
 
-            if not prompt_config["output_keys"]:
+                # Check if the prompt is a valid Jinja2 template
+                try:
+                    Template(prompt_config["prompt"])
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in prompt configuration {i}: {str(e)}"
+                    )
+
+                # Check if the model is specified (optional)
+                if "model" in prompt_config and not isinstance(
+                    prompt_config["model"], str
+                ):
+                    raise TypeError(
+                        f"'model' in prompt configuration {i} must be a string"
+                    )
+
+            # Check if all output schema keys are covered by the prompts
+            output_schema = self.config["output"]["schema"]
+            output_keys_covered = set()
+            for prompt_config in self.config["prompts"]:
+                output_keys_covered.update(prompt_config["output_keys"])
+
+            missing_keys = set(output_schema.keys()) - output_keys_covered
+            if missing_keys:
                 raise ValueError(
-                    f"'output_keys' list in prompt configuration {i} cannot be empty"
+                    f"The following output schema keys are not covered by any prompt: {missing_keys}"
                 )
-
-            # Check if the prompt is a valid Jinja2 template
-            try:
-                Template(prompt_config["prompt"])
-            except Exception as e:
-                raise ValueError(
-                    f"Invalid Jinja2 template in prompt configuration {i}: {str(e)}"
-                )
-
-            # Check if the model is specified (optional)
-            if "model" in prompt_config and not isinstance(prompt_config["model"], str):
-                raise TypeError(f"'model' in prompt configuration {i} must be a string")
-
-        # Check if all output schema keys are covered by the prompts
-        output_schema = self.config["output"]["schema"]
-        output_keys_covered = set()
-        for prompt_config in self.config["prompts"]:
-            output_keys_covered.update(prompt_config["output_keys"])
-
-        missing_keys = set(output_schema.keys()) - output_keys_covered
-        if missing_keys:
-            raise ValueError(
-                f"The following output schema keys are not covered by any prompt: {missing_keys}"
-            )
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
@@ -276,14 +309,15 @@ class ParallelMapOperation(BaseOperation):
             Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
 
         This method performs the following steps:
-        1. Processes each input item using multiple prompts in parallel
+        1. If prompts are specified, it processes each input item using multiple prompts in parallel
         2. Aggregates results from different prompts for each input item
         3. Validates the combined output for each item
-        4. Calculates total cost of the operation
+        4. If drop_keys is specified, it drops the specified keys from each document
+        5. Calculates total cost of the operation
         """
         results = {}
         total_cost = 0
-        output_schema = self.config["output"]["schema"]
+        output_schema = self.config.get("output", {}).get("schema", {})
 
         def process_prompt(item, prompt_config):
             prompt_template = Template(prompt_config["prompt"])
@@ -307,40 +341,50 @@ class ParallelMapOperation(BaseOperation):
             return output, completion_cost(response)
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            # Create all futures at once
-            all_futures = [
-                executor.submit(process_prompt, item, prompt_config)
-                for item in input_data
-                for prompt_config in self.config["prompts"]
-            ]
+            if "prompts" in self.config:
+                # Create all futures at once
+                all_futures = [
+                    executor.submit(process_prompt, item, prompt_config)
+                    for item in input_data
+                    for prompt_config in self.config["prompts"]
+                ]
 
-            # Process results in order
-            pbar = RichLoopBar(
-                range(len(all_futures)),
-                desc="Processing parallel map items",
-                console=self.console,
-            )
-            for i in pbar:
-                future = all_futures[i]
-                output, cost = future.result()
-                total_cost += cost
+                # Process results in order
+                pbar = RichLoopBar(
+                    range(len(all_futures)),
+                    desc="Processing parallel map items",
+                    console=self.console,
+                )
+                for i in pbar:
+                    future = all_futures[i]
+                    output, cost = future.result()
+                    total_cost += cost
 
-                # Determine which item this future corresponds to
-                item_index = i // len(self.config["prompts"])
-                prompt_index = i % len(self.config["prompts"])
+                    # Determine which item this future corresponds to
+                    item_index = i // len(self.config["prompts"])
+                    prompt_index = i % len(self.config["prompts"])
 
-                # Initialize or update the item_result
-                if prompt_index == 0:
-                    item_result = input_data[item_index].copy()
-                    results[item_index] = item_result
+                    # Initialize or update the item_result
+                    if prompt_index == 0:
+                        item_result = input_data[item_index].copy()
+                        results[item_index] = item_result
 
-                # Fetch the item_result
-                item_result = results[item_index]
+                    # Fetch the item_result
+                    item_result = results[item_index]
 
-                # Update the item_result with the output
-                item_result.update(output)
+                    # Update the item_result with the output
+                    item_result.update(output)
 
-                pbar.update(i)
+                    pbar.update(i)
+            else:
+                results = {i: item.copy() for i, item in enumerate(input_data)}
+
+        # Apply drop_keys if specified
+        if "drop_keys" in self.config:
+            drop_keys = self.config["drop_keys"]
+            for item in results.values():
+                for key in drop_keys:
+                    item.pop(key, None)
 
         # Return the results in order
         return [results[i] for i in range(len(input_data)) if i in results], total_cost

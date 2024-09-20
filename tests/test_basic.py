@@ -63,6 +63,86 @@ def test_map_operation_empty_input(map_config, default_model, max_threads):
     assert cost == 0
 
 
+@pytest.fixture
+def map_config_with_drop_keys():
+    return {
+        "name": "sentiment_analysis_with_drop",
+        "type": "map",
+        "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+        "output": {"schema": {"sentiment": "string"}},
+        "model": "gpt-4o-mini",
+        "drop_keys": ["original_sentiment"],
+    }
+
+
+@pytest.fixture
+def map_config_with_drop_keys_no_prompt():
+    return {
+        "name": "drop_keys_only",
+        "type": "map",
+        "drop_keys": ["to_be_dropped"],
+        "model": "gpt-4o-mini",
+    }
+
+
+@pytest.fixture
+def map_sample_data_with_extra_keys():
+    return [
+        {
+            "text": "This is a positive sentence.",
+            "original_sentiment": "positive",
+            "to_be_dropped": "extra",
+        },
+        {
+            "text": "This is a negative sentence.",
+            "original_sentiment": "negative",
+            "to_be_dropped": "extra",
+        },
+        {
+            "text": "This is a neutral sentence.",
+            "original_sentiment": "neutral",
+            "to_be_dropped": "extra",
+        },
+    ]
+
+
+def test_map_operation_with_drop_keys(
+    map_config_with_drop_keys,
+    default_model,
+    max_threads,
+    map_sample_data_with_extra_keys,
+):
+    operation = MapOperation(map_config_with_drop_keys, default_model, max_threads)
+    results, cost = operation.execute(map_sample_data_with_extra_keys)
+
+    assert len(results) == len(map_sample_data_with_extra_keys)
+    assert all("sentiment" in result for result in results)
+    assert all("original_sentiment" not in result for result in results)
+    assert all("to_be_dropped" in result for result in results)
+    assert all(
+        result["sentiment"] in ["positive", "negative", "neutral"] for result in results
+    )
+    assert cost > 0
+
+
+def test_map_operation_with_drop_keys_no_prompt(
+    map_config_with_drop_keys_no_prompt,
+    default_model,
+    max_threads,
+    map_sample_data_with_extra_keys,
+):
+    operation = MapOperation(
+        map_config_with_drop_keys_no_prompt, default_model, max_threads
+    )
+    results, cost = operation.execute(map_sample_data_with_extra_keys)
+
+    assert len(results) == len(map_sample_data_with_extra_keys)
+    assert all("to_be_dropped" not in result for result in results)
+    assert all("text" in result for result in results)
+    assert all("original_sentiment" in result for result in results)
+    assert cost == 0  # No LLM calls should be made
+
+
 # Parallel Map Operation Tests
 @pytest.fixture
 def parallel_map_config():

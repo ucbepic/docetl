@@ -16,7 +16,7 @@ DocETL is a tool for creating and executing LLM-powered data processing pipeline
 - **Rich Suite of Operators**: Tailored for complex data processing, including specialized operators like "resolve" for entity resolution and "gather" for maintaining context when splitting documents.
 - **Low-Code Interface**: Define your pipeline and prompts easily using YAML. You have 100% control over the prompts.
 - **Flexible Processing**: Handle various document types and processing tasks across domains like law, medicine, and social sciences.
-- **Optional Optimization**: Improve pipeline accuracy with agent-based rewriting and assessment if desired.
+- **Accuracy Optimization**: Our optimizer leverages LLM agents to experiment with different logically-equivalent rewrites of your pipeline and automatically selects the most accurate version. This includes finding limits of how many documents to process in a single reduce operation before the accuracy plateaus.
 
 ## Getting Started
 

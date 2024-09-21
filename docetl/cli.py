@@ -44,7 +44,6 @@ def build(
         resume=resume,
     )
     optimizer.optimize()
-    typer.echo("Optimization complete. Check the optimized configuration.")
 
 
 @app.command()

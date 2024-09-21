@@ -1021,12 +1021,12 @@ class ReduceOptimizer:
         {json.dumps(sample_output, indent=2)}
 
         Create a custom validator prompt that will assess how well the reduce operation performed its intended task. The prompt should ask specific 2-3 questions about the quality of the output, such as:
-        1. Does the output accurately reflect the aggregation method specified in the task? For example, if summing numeric values, are the totals correct?
+        1. Does the output accurately reflect the aggregation method specified in the task? For example, if finding anomalies, are the identified anomalies actually anomalies?
         2. Are there any missing fields, unexpected null values, or data type mismatches in the output compared to the expected schema?
         3. Does the output maintain the key information from the input while appropriately condensing or summarizing it? For instance, in a text summarization task, are the main points preserved?
         4. How well does the output adhere to any specific formatting requirements mentioned in the original prompt, such as character limits for summaries or specific data types for aggregated values?
 
-        Note that the output may reflect more than just the input provided, since we only provide a one-item sample input. Provide your response as a single string containing the custom validator prompt. The prompt should be tailored to the task and avoid generic criteria.
+        Note that the output may reflect more than just the input provided, since we only provide a one-item sample input. Provide your response as a single string containing the custom validator prompt. The prompt should be tailored to the task and avoid generic criteria. The prompt should not reference a specific value in the sample input, but rather a general property.
         """
 
         parameters = {
@@ -1622,7 +1622,7 @@ class ReduceOptimizer:
             f"\n[green]Selected best plan with score: {best_score:.2f} and batch size: {best_plan['fold_batch_size']}[/green]"
         )
 
-        if op_config.get("synthesize_merge", True):
+        if op_config.get("synthesize_merge", False):
             # Create a new plan with merge prompt and updated parameters
             merged_plan = best_plan.copy()
 

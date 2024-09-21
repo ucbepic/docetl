@@ -238,22 +238,24 @@ class JoinOptimizer:
                 "role": "user",
                 "content": f"""
     Create a comparison prompt for entity resolution: The prompt should:
-    1. Be tailored to the specific domain and type of data being compared, based on the context provided.
+    1. Be tailored to the specific domain and type of data being compared ({reduce_key}), based on the context provided.
     2. Instruct to compare two entities, referred to as input1 and input2.
-    3. Specifically mention comparing each reduce key in input1 and input2 (e.g., input1.{{key}} and input2.{{key}} for each key in {reduce_key}).
+    3. Specifically mention comparing each reduce key in input1 and input2 (e.g., input1.{{key}} and input2.{{key}} for each key in {reduce_key}). You can reference other fields in the input as well, as long as they are short.
     4. Include instructions to consider relevant attributes or characteristics for comparison.
     5. Ask to respond with "True" if the entities are likely the same, or "False" if they are likely different.
 
     Example structure:
     ```
-    Compare the following two [entity type]:
+    Compare the following two {reduce_key} from [entity or document type]:
 
     [Entity 1]:
     {{{{ input1.key1 }}}}
+    {{{{ input1.optional_key2 }}}}
 
     [Entity 2]:
     {{{{ input2.key1 }}}}
-
+    {{{{ input2.optional_key2 }}}}
+    
     Are these [entities] likely referring to the same [entity type]? Consider [list relevant attributes or characteristics to compare]. Respond with "True" if they are likely the same [entity type], or "False" if they are likely different [entity types].
     ```
 
@@ -324,7 +326,9 @@ class JoinOptimizer:
 
     {{% for key in inputs %}}
     Entry {{{{ loop.index }}}}:
-    {{{{ key | tojson }}}}
+    {{ % for key in reduce_key %}}
+    {{{{ key }}}}: {{{{ key[reduce_key] }}}}
+    {{% endfor %}}
 
     {{% endfor %}}
 

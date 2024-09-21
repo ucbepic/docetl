@@ -570,9 +570,10 @@ class ReduceOperation(BaseOperation):
         for i in range(0, len(group_list), fold_batch_size):
             # Log the current iteration and total number of folds
             current_fold = i // fold_batch_size + 1
-            self.console.log(
-                f"Processing fold {current_fold} of {num_folds} for group with key {key}"
-            )
+            if self.config.get("verbose", False):
+                self.console.log(
+                    f"Processing fold {current_fold} of {num_folds} for group with key {key}"
+                )
             batch = group_list[i : i + fold_batch_size]
 
             folded_output, fold_cost = self._increment_fold(
@@ -586,7 +587,10 @@ class ReduceOperation(BaseOperation):
             # Pop off updated_scratchpad
             if "updated_scratchpad" in folded_output:
                 scratchpad = folded_output["updated_scratchpad"]
-                self.console.log(f"Updated notes: {scratchpad}")
+                if self.config.get("verbose", False):
+                    self.console.log(
+                        f"Updated scratchpad for fold {current_fold}: {scratchpad}"
+                    )
                 del folded_output["updated_scratchpad"]
 
             current_output = folded_output

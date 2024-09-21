@@ -36,7 +36,7 @@ def build(
         resume (bool): Whether to resume optimization from a previous run. Defaults to False.
         timeout (int): Timeout for optimization operations in seconds. Defaults to 60.
     """
-    optimizer = Optimizer(
+    optimizer = Optimizer.from_yaml(
         str(yaml_file),
         max_threads=max_threads,
         model=model,
@@ -44,6 +44,7 @@ def build(
         resume=resume,
     )
     optimizer.optimize()
+    optimizer.save_optimized_config()
 
 
 @app.command()
@@ -62,7 +63,7 @@ def run(
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
         max_threads (Optional[int]): Maximum number of threads to use for running operations.
     """
-    runner = DSLRunner(str(yaml_file), max_threads=max_threads)
+    runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
     runner.run()
 
 

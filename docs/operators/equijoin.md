@@ -55,6 +55,59 @@ Key differences for Equijoin include:
 - `resolution_prompt` is not used in Equijoin.
 - `limits` parameter is specific to Equijoin, allowing you to set maximum matches for each left and right item.
 
+## Incorporating Into a Pipeline
+
+Here's an example of how to incorporate the Equijoin operation into a pipeline using the job candidate matching scenario:
+
+```yaml
+model: gpt-4o-mini
+
+datasets:
+  candidates:
+    type: file
+    path: /path/to/candidates.json
+  job_postings:
+    type: file
+    path: /path/to/job_postings.json
+
+operations:
+  match_candidates_to_jobs:
+    type: equijoin
+    join_key:
+      left:
+        name: candidate_id
+      right:
+        name: job_id
+    comparison_prompt: |
+      Compare the following job candidate and job posting:
+
+      Candidate Skills: {{ left.skills }}
+      Candidate Experience: {{ left.years_experience }}
+
+      Job Required Skills: {{ right.required_skills }}
+      Job Desired Experience: {{ right.desired_experience }}
+
+      Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
+    output:
+      schema:
+        match_score: float
+        match_rationale: string
+
+pipeline:
+  steps:
+    - name: match_candidates_to_jobs
+      operations:
+        - match_candidates_to_jobs:
+            left: candidates
+            right: job_postings
+
+  output:
+    type: file
+    path: "/path/to/matched_candidates_jobs.json"
+```
+
+This pipeline configuration demonstrates how to use the Equijoin operation to match job candidates with job postings. The pipeline reads candidate and job posting data from JSON files, performs the matching using the defined comparison prompt, and outputs the results to a new JSON file.
+
 ## Best Practices
 
 1. **Leverage the Optimizer**: Use `docetl build pipeline.yaml` to automatically generate efficient blocking rules for your Equijoin operation.

@@ -59,6 +59,7 @@ This Reduce operation processes customer feedback grouped by department:
 | `fold_prompt`        | A prompt template for incremental folding                                       | None                        |
 | `fold_batch_size`    | Number of items to process in each fold operation                               | None                        |
 | `value_sampling`     | A dictionary specifying the sampling strategy for large groups                  | None                        |
+| `verbose`            | If true, enables detailed logging of the reduce operation                       | false                       |
 
 ## Advanced Features
 

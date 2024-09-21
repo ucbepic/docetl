@@ -74,7 +74,8 @@ class DSLRunner:
         Raises:
             ValueError: If any operation fails the syntax check.
         """
-        self.console.log(
+        self.console.rule("[yellow]Syntax Check[/yellow]")
+        self.console.print(
             "[yellow]Performing syntax check on all operations...[/yellow]"
         )
 
@@ -95,7 +96,7 @@ class DSLRunner:
                     f"Syntax check failed for operation '{operation}': {str(e)}"
                 )
 
-        self.console.log("[green]Syntax check passed for all operations.[/green]")
+        self.console.print("[green]Syntax check passed for all operations.[/green]")
 
     def find_operation(self, op_name: str) -> Dict:
         for operation_config in self.config["operations"]:
@@ -113,6 +114,7 @@ class DSLRunner:
         Returns:
             float: The total cost of executing the pipeline.
         """
+        self.console.rule("[bold blue]Pipeline Execution[/bold blue]")
         start_time = time.time()
         self.load_datasets()
         total_cost = 0
@@ -123,23 +125,19 @@ class DSLRunner:
         ) as progress:
             for step in self.config["pipeline"]["steps"]:
                 step_name = step["name"]
-                step_task = progress.add_task(
-                    f"Running step [cyan]{step_name}[/cyan]...", total=1
-                )
                 input_data = self.datasets[step["input"]] if "input" in step else None
                 output_data, step_cost = self.execute_step(step, input_data, progress)
                 self.datasets[step_name] = output_data
                 flush_cache(self.console)
                 total_cost += step_cost
-                progress.update(
-                    step_task,
-                    advance=1,
-                    description=f"Step [cyan]{step_name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]",
+                self.console.log(
+                    f"Step [cyan]{step_name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]"
                 )
 
         self.save_output(self.datasets[self.config["pipeline"]["steps"][-1]["name"]])
-        self.console.log(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")
-        self.console.log(
+        self.console.rule("[bold green]Execution Summary[/bold green]")
+        self.console.print(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")
+        self.console.print(
             f"[bold green]Total time: [green]{time.time() - start_time:.2f} seconds[/green]"
         )
 
@@ -154,11 +152,13 @@ class DSLRunner:
         Raises:
             ValueError: If an unsupported dataset type is encountered.
         """
+        self.console.rule("[cyan]Loading Datasets[/cyan]")
         for name, dataset_config in self.config["datasets"].items():
             if dataset_config["type"] == "file":
                 with open(dataset_config["path"], "r") as file:
                     self.datasets[name] = json.load(file)
                     self.datasets[name] = self.datasets[name]
+                self.console.print(f"Loaded dataset: [bold]{name}[/bold]")
             else:
                 raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
 
@@ -172,11 +172,12 @@ class DSLRunner:
         Raises:
             ValueError: If an unsupported output type is specified in the configuration.
         """
+        self.console.rule("[cyan]Saving Output[/cyan]")
         output_config = self.config["pipeline"]["output"]
         if output_config["type"] == "file":
             with open(output_config["path"], "w") as file:
                 json.dump(data, file, indent=2)
-            self.console.log(
+            self.console.print(
                 f"[green italic]💾 Output saved to {output_config['path']}[/green italic]"
             )
         else:
@@ -199,6 +200,7 @@ class DSLRunner:
         Returns:
             Tuple[List[Dict], float]: A tuple containing the output data and the total cost of the step.
         """
+        self.console.rule(f"[bold blue]Executing Step: {step['name']}[/bold blue]")
         total_cost = 0
         for operation in step["operations"]:
             if isinstance(operation, dict):
@@ -215,12 +217,11 @@ class DSLRunner:
             if op_object.get("sample"):
                 input_data = input_data[: op_object["sample"]]
 
-            op_task = progress.add_task(
-                f"Running operation [cyan]{operation_name}[/cyan]...", total=1
+            self.console.print("[bold]Running Operation:[/bold]")
+            self.console.print(f"  Type: [cyan]{op_object['type']}[/cyan]")
+            self.console.print(
+                f"  Name: [cyan]{op_object.get('name', 'Unnamed')}[/cyan]"
             )
-            self.console.log("[bold]Running Operation:[/bold]")
-            self.console.log(f"  Type: [cyan]{op_object['type']}[/cyan]")
-            self.console.log(f"  Name: [cyan]{op_object.get('name', 'Unnamed')}[/cyan]")
 
             operation_class = get_operation(op_object["type"])
             operation_instance = operation_class(
@@ -233,10 +234,8 @@ class DSLRunner:
             else:
                 input_data, cost = operation_instance.execute(input_data)
             total_cost += cost
-            progress.update(
-                op_task,
-                advance=1,
-                description=f"Operation [cyan]{operation_name}[/cyan] completed. Cost: [green]${cost:.2f}[/green]",
+            self.console.log(
+                f"\tOperation [cyan]{operation_name}[/cyan] completed. Cost: [green]${cost:.2f}[/green]"
             )
 
             # Checkpoint after each operation
@@ -268,8 +267,8 @@ class DSLRunner:
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         with open(checkpoint_path, "w") as f:
             json.dump(data, f)
-        self.console.log(
-            f"[green]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/green]"
+        self.console.print(
+            f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )
 
 

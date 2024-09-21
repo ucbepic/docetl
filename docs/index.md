@@ -1,4 +1,6 @@
-# DocETL: A System for Complex Document Processing
+# 📜 DocETL: A System for Complex Document Processing
+
+![DocETL Figure](assets/readmefig.png)
 
 DocETL is a tool for creating and executing LLM-powered data processing pipelines. It offers a low-code, declarative YAML interface to define complex data operations on complex data.
 
@@ -11,14 +13,14 @@ DocETL is a tool for creating and executing LLM-powered data processing pipeline
     - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
     - You have validation criteria and want tasks to automatically retry when the validation fails
 
-## Features
+## 🚀 Features
 
 - **Rich Suite of Operators**: Tailored for complex data processing, including specialized operators like "resolve" for entity resolution and "gather" for maintaining context when splitting documents.
 - **Low-Code Interface**: Define your pipeline and prompts easily using YAML. You have 100% control over the prompts.
 - **Flexible Processing**: Handle various document types and processing tasks across domains like law, medicine, and social sciences.
 - **Accuracy Optimization**: Our optimizer leverages LLM agents to experiment with different logically-equivalent rewrites of your pipeline and automatically selects the most accurate version. This includes finding limits of how many documents to process in a single reduce operation before the accuracy plateaus.
 
-## Getting Started
+## ⚡ Getting Started
 
 To get started with DocETL:
 
@@ -26,7 +28,7 @@ To get started with DocETL:
 2. Define your pipeline in a YAML file
 3. Run your pipeline using the DocETL command-line interface
 
-## Project Origin
+## 🏛️ Project Origin
 
 DocETL was created by members of the EPIC Data Lab and Data Systems and Foundations group at UC Berkeley. The EPIC (Effective Programming, Interaction, and Computation with Data) Lab focuses on developing low-code and no-code interfaces for data work, powered by next-generation predictive programming techniques. DocETL is one of the projects that emerged from our research efforts to streamline complex document processing tasks.
 

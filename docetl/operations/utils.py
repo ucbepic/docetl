@@ -693,9 +693,9 @@ def call_llm_with_gleaning(
         if suggestion["should_refine"] == False:
             break
 
-        console.log(
-            f"Validator improvements (gleaning round {rnd + 1}): {suggestion['improvements']}"
-        )
+        # console.log(
+        #     f"Validator improvements (gleaning round {rnd + 1}): {suggestion['improvements']}"
+        # )
 
         # Prompt for improvement
         improvement_prompt = f"""Based on the validation feedback:

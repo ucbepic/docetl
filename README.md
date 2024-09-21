@@ -2,7 +2,7 @@
 
 DocETL is a tool for creating and executing data processing pipelines, especially suited for complex document processing tasks. It offers a low-code, declarative YAML interface to define LLM-powered operations on complex data.
 
-[Website (Includes Demo)](https://docetl.com) | [Documentation](https://shreyashankar.github.io/docetl) | [Discord](https://discord.gg/fHp7B2X3xx) | Paper (coming soon!)
+[Website (Includes Demo)](https://docetl.com) | [Documentation](https://ucbepic.github.io/docetl) | [Discord](https://discord.gg/fHp7B2X3xx) | Paper (coming soon!)
 
 ## When to Use DocETL
 

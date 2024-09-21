@@ -31,15 +31,14 @@ class DSLRunner:
         datasets (Dict): Storage for loaded datasets.
     """
 
-    def __init__(self, yaml_file: str, max_threads: int = None):
+    def __init__(self, config: Dict, max_threads: int = None):
         """
         Initialize the DSLRunner with a YAML configuration file.
 
         Args:
-            yaml_file (str): Path to the YAML configuration file.
             max_threads (int, optional): Maximum number of threads to use. Defaults to None.
         """
-        self.config = load_config(yaml_file)
+        self.config = config
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.console = Console()
@@ -63,6 +62,11 @@ class DSLRunner:
             )
 
         self.syntax_check()
+
+    @classmethod
+    def from_yaml(cls, yaml_file: str, **kwargs):
+        config = load_config(yaml_file)
+        return cls(config, **kwargs)
 
     def syntax_check(self):
         """

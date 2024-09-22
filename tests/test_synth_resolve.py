@@ -76,10 +76,11 @@ def config_yaml(sample_data):
 
 def test_synth_resolve(config_yaml):
     # Initialize the optimizer
-    optimizer = Optimizer(config_yaml)
+    optimizer = Optimizer.from_yaml(config_yaml)
 
     # Run the optimization
     optimizer.optimize()
+    optimizer.save_optimized_config()
 
     # Check if a resolve operation was synthesized
     synthesized_resolve_found = False
@@ -91,7 +92,7 @@ def test_synth_resolve(config_yaml):
                     operation
                     for operation in optimizer.optimized_config["operations"]
                     if operation["name"] == op
-                ]
+                ][0]
 
                 # Check if the synthesized operation has the correct properties
                 assert synthesized_op["type"] == "resolve"

@@ -102,7 +102,7 @@ def test_synth_gather(config_yaml):
     config_path, long_documents_path, output_path = config_yaml
 
     # Initialize the optimizer
-    optimizer = Optimizer(config_path)
+    optimizer = Optimizer.from_yaml(config_path)
 
     # Run the optimization
     optimizer.optimize()
@@ -111,7 +111,11 @@ def test_synth_gather(config_yaml):
     synthesized_gather_found = False
     for step in optimizer.optimized_config["pipeline"]["steps"]:
         for op in step["operations"]:
-            synthesized_op = optimizer.optimized_config["operations"][op]
+            synthesized_op = [
+                operation
+                for operation in optimizer.optimized_config["operations"]
+                if operation["name"] == op
+            ][0]
             if synthesized_op.get("type") == "gather":
                 synthesized_gather_found = True
 

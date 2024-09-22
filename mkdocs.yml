@@ -40,6 +40,7 @@ nav:
           - Overview: optimization/overview.md
           - Example: optimization/example.md
           - Configuration: optimization/configuration.md
+      - Python API: python-api.md
       # - Advanced Usage:
       #     - User-Defined Functions: advanced/custom-operators.md
       #     - Extending Optimizer Agents: advanced/extending-agents.md
@@ -49,6 +50,7 @@ nav:
       - docetl.cli: api-reference/cli.md
       - docetl.operations: api-reference/operations.md
       - docetl.optimizers: api-reference/optimizers.md
+      - Python API: api-reference/python.md
   - Examples:
       - Reporting on Themes from Presidential Debates: examples/presidential-debate-themes.md
       - Mining Product Reviews for Polarizing Features: examples/mining-product-reviews.md

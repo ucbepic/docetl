@@ -86,7 +86,7 @@ def test_end_to_end_pipeline(config_file, sample_data_file, tmp_path):
         yaml.dump(config, f)
 
     # Create and run the DSLRunner
-    runner = DSLRunner(str(config_file))
+    runner = DSLRunner.from_yaml(str(config_file))
     total_cost = runner.run()
 
     # Check if the output file was created

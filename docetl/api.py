@@ -44,6 +44,7 @@ Usage:
 """
 
 from dataclasses import dataclass
+import os
 from typing import List, Optional, Dict, Any, Union
 
 from docetl.builder import Optimizer
@@ -137,15 +138,20 @@ class FilterOp(BaseOp):
 
 @dataclass
 class EquijoinOp(BaseOp):
-    join_key: Dict[str, Dict[str, str]]
+    left: str
+    right: str
     comparison_prompt: str
     output: Optional[Dict[str, Any]] = None
-    blocking_keys: Optional[List[str]] = None
     blocking_threshold: Optional[float] = None
-    blocking_conditions: Optional[List[str]] = None
+    blocking_conditions: Optional[Dict[str, List[str]]] = None
     limits: Optional[Dict[str, int]] = None
-    model: Optional[str] = None
+    comparison_model: Optional[str] = None
     optimize: Optional[bool] = None
+    embedding_model: Optional[str] = None
+    embedding_batch_size: Optional[int] = None
+    compare_batch_size: Optional[int] = None
+    limit_comparisons: Optional[int] = None
+    blocking_keys: Optional[Dict[str, List[str]]] = None
 
 
 @dataclass
@@ -190,8 +196,8 @@ OpType = Union[
 @dataclass
 class PipelineStep:
     name: str
-    input: str
-    operations: List[str]
+    operations: List[Union[Dict[str, Any], str]]
+    input: Optional[str] = None
 
 
 @dataclass
@@ -203,6 +209,7 @@ class PipelineOutput:
 
 @dataclass
 class Pipeline:
+    name: str
     datasets: Dict[str, Dataset]
     operations: List[OpType]
     steps: List[PipelineStep]
@@ -231,6 +238,8 @@ class Pipeline:
         config = self._to_dict()
         optimizer = Optimizer(
             config,
+            base_name=os.path.join(os.getcwd(), self.name),
+            yaml_file_suffix=self.name,
             max_threads=max_threads,
             model=model,
             timeout=timeout,
@@ -239,7 +248,14 @@ class Pipeline:
         optimizer.optimize()
         optimized_config = optimizer.clean_optimized_config()
 
-        updated_pipeline = Pipeline()
+        updated_pipeline = Pipeline(
+            name=self.name,
+            datasets=self.datasets,
+            operations=self.operations,
+            steps=self.steps,
+            output=self.output,
+            default_model=self.default_model,
+        )
         updated_pipeline._update_from_dict(optimized_config)
         return updated_pipeline
 
@@ -269,9 +285,15 @@ class Pipeline:
             "datasets": {
                 name: dataset.__dict__ for name, dataset in self.datasets.items()
             },
-            "operations": [op.__dict__ for op in self.operations],
+            "operations": [
+                {k: v for k, v in op.__dict__.items() if v is not None}
+                for op in self.operations
+            ],
             "pipeline": {
-                "steps": [step.__dict__ for step in self.steps],
+                "steps": [
+                    {k: v for k, v in step.__dict__.items() if v is not None}
+                    for step in self.steps
+                ],
                 "output": self.output.__dict__,
             },
             "default_model": self.default_model,

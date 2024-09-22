@@ -80,7 +80,7 @@ class Optimizer:
     @classmethod
     def from_yaml(cls, yaml_file: str, **kwargs):
         base_name = yaml_file.rsplit(".", 1)[0]
-        suffix = yaml_file.rsplit(".", 1)[1]
+        suffix = yaml_file.split("/")[-1].split(".")[0]
         config = load_config(yaml_file)
         return cls(config, base_name, suffix, **kwargs)
 

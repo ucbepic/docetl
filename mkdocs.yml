@@ -40,6 +40,7 @@ nav:
           - Overview: optimization/overview.md
           - Example: optimization/example.md
           - Configuration: optimization/configuration.md
+      - Python API: python-api.md
       # - Advanced Usage:
       #     - User-Defined Functions: advanced/custom-operators.md
       #     - Extending Optimizer Agents: advanced/extending-agents.md

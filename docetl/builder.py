@@ -77,9 +77,18 @@ class DatasetOnDisk(dict):
 
 
 class Optimizer:
+    @classmethod
+    def from_yaml(cls, yaml_file: str, **kwargs):
+        base_name = yaml_file.rsplit(".", 1)[0]
+        suffix = yaml_file.split("/")[-1].split(".")[0]
+        config = load_config(yaml_file)
+        return cls(config, base_name, suffix, **kwargs)
+
     def __init__(
         self,
-        yaml_file: str,
+        config: Dict,
+        base_name: str,
+        yaml_file_suffix: str,
         max_threads: Optional[int] = None,
         model: str = "gpt-4o",
         resume: bool = False,
@@ -119,8 +128,7 @@ class Optimizer:
 
         The method also calls print_optimizer_config() to display the initial configuration.
         """
-        self.yaml_file_path = yaml_file
-        self.config = load_config(yaml_file)
+        self.config = config
         self.console = Console()
         self.optimized_config = copy.deepcopy(self.config)
         self.llm_client = LLMClient(model)
@@ -132,12 +140,10 @@ class Optimizer:
         self.resume = resume
 
         home_dir = os.path.expanduser("~")
-        yaml_file_suffix = yaml_file.split("/")[-1].split(".")[0]
         cache_dir = os.path.join(home_dir, f".docetl/cache/{yaml_file_suffix}")
         os.makedirs(cache_dir, exist_ok=True)
         self.datasets = DatasetOnDisk(dir=cache_dir, console=self.console)
         self.optimized_ops_path = f"{cache_dir}/optimized_ops"
-        base_name = yaml_file.rsplit(".", 1)[0]
         self.optimized_config_path = f"{base_name}_opt.yaml"
 
         # Update sample size map
@@ -200,7 +206,6 @@ class Optimizer:
         separator lines to clearly delineate the configuration information.
         """
         self.console.rule("[bold cyan]Optimizer Configuration[/bold cyan]")
-        self.console.log(f"[yellow]YAML File:[/yellow] {self.yaml_file_path}")
         self.console.log(f"[yellow]Sample Size:[/yellow] {self.sample_size_map}")
         self.console.log(f"[yellow]Max Threads:[/yellow] {self.max_threads}")
         self.console.log(f"[yellow]Model:[/yellow] {self.llm_client.model}")
@@ -587,8 +592,6 @@ class Optimizer:
                 self.datasets[step_hash] = copy.deepcopy(input_data)
             else:
                 self.datasets[step_hash] = copy.deepcopy(input_data)
-
-        self._save_optimized_config()
 
         self.console.log(
             f"[bold]Total agent cost: ${self.llm_client.total_cost:.2f}[/bold]"
@@ -1379,12 +1382,9 @@ class Optimizer:
         else:
             return data
 
-    def _save_optimized_config(self):
+    def clean_optimized_config(self):
         """
-        Save the optimized configuration to a YAML file.
-
-        This method creates a copy of the optimized configuration, resolves all anchors and aliases,
-        and saves it to a new YAML file. The new file name is based on the original file name with '_opt' appended.
+        Remove _intermediates from each operation in the optimized config
         """
         # Create a copy of the optimized config to modify
         config_to_save = self.optimized_config.copy()
@@ -1396,6 +1396,17 @@ class Optimizer:
             for op_config in resolved_config["operations"]:
                 if "_intermediates" in op_config:
                     del op_config["_intermediates"]
+
+        return resolved_config
+
+    def save_optimized_config(self):
+        """
+        Save the optimized configuration to a YAML file.
+
+        This method creates a copy of the optimized configuration, resolves all anchors and aliases,
+        and saves it to a new YAML file. The new file name is based on the original file name with '_opt' appended.
+        """
+        resolved_config = self.clean_optimized_config()
 
         with open(self.optimized_config_path, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False, width=80)

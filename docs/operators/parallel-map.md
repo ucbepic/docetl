@@ -38,11 +38,12 @@ Each prompt configuration in the `prompts` list should contain:
 | `sample_size`          | Number of samples to use for the operation | Processes all data            |
 
 ??? question "Why use Parallel Map instead of multiple Map operations?"
-While you could achieve similar results with multiple Map operations, Parallel Map offers several advantages:
 
-        1. **Concurrency**: Prompts run in parallel, potentially reducing overall processing time.
-        2. **Simplified Configuration**: You define multiple transformations in a single operation, reducing pipeline complexity.
-        3. **Unified Output**: Results from all prompts are combined into a single output item, simplifying downstream operations.
+    While you could achieve similar results with multiple Map operations, Parallel Map offers several advantages:
+
+    1. **Concurrency**: Prompts run in parallel, potentially reducing overall processing time.
+    2. **Simplified Configuration**: You define multiple transformations in a single operation, reducing pipeline complexity.
+    3. **Unified Output**: Results from all prompts are combined into a single output item, simplifying downstream operations.
 
 ## 🚀 Example: Processing Job Applications
 

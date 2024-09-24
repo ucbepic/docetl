@@ -5,6 +5,9 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 from concurrent.futures import ThreadPoolExecutor
 import random
 from typing import Any, Dict, List, Optional, Tuple
+from sklearn.cluster import KMeans
+from sklearn.metrics import pairwise_distances_argmin_min
+from sentence_transformers import SentenceTransformer
 from rich.console import Console
 
 from jinja2 import Template
@@ -126,7 +129,16 @@ class MapOperation(BaseOperation):
         def cluster_documents(documents: List[Dict]) -> List[List[Dict]]:
             if self.clustering_method == "random":
                 random.shuffle(documents)
-            # Implement other clustering methods as needed
+            elif self.clustering_method == "sem_cluster":
+                model = SentenceTransformer("all-MiniLM-L6-v2")
+                embeddings = model.encode([str(doc) for doc in documents])
+                num_clusters = max(1, len(documents) // self.batch_size)
+                kmeans = KMeans(n_clusters=num_clusters)
+                kmeans.fit(embeddings)
+                clusters = {i: [] for i in range(num_clusters)}
+                for idx, label in enumerate(kmeans.labels_):
+                    clusters[label].append(documents[idx])
+                return list(clusters.values())
             return [
                 documents[i : i + self.batch_size]
                 for i in range(0, len(documents), self.batch_size)

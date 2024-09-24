@@ -12,7 +12,8 @@ from rich.status import Status
 
 from docetl.operations.base import BaseOperation
 from docetl.optimizers.join_optimizer import JoinOptimizer
-from docetl.optimizers.utils import LLMClient, extract_jinja_variables
+from docetl.optimizers.utils import LLMClient
+from docetl.utils import extract_jinja_variables
 from docetl.utils import count_tokens
 from docetl.operations.utils import truncate_messages
 from litellm import model_cost

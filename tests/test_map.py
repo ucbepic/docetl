@@ -1,51 +1,124 @@
+<<<<<<< HEAD
 import docetl
 import pytest
+=======
+# ruff: noqa: F811
+
+>>>>>>> 4a2b626 (fix: Update dependencies in pyproject.toml and add new schemas.py, test_map_parallel, conftest.py files)
 from docetl.operations.map import MapOperation
+from tests.conftest import (
+    map_config_with_batching as map_config_with_batching,
+    default_model as default_model,
+    max_threads as max_threads,
+    map_sample_data as map_sample_data,
+    map_sample_data_large as map_sample_data_large,
+    map_config as map_config,
+    test_map_operation_instance as test_map_operation_instance,
+    map_config_with_drop_keys as map_config_with_drop_keys,
+    map_sample_data_with_extra_keys as map_sample_data_with_extra_keys,
+    map_config_with_drop_keys_no_prompt as map_config_with_drop_keys_no_prompt,
+)
 
 
-@pytest.fixture
-def map_config_with_tools():
-    return {
-        "type": "map",
-        "name": "word_count",
-        "prompt": "Count the number of words in the following text: '{{ input.text }}'",
-        "output": {"schema": {"word_count": "integer"}},
-        "model": "gpt-4o-mini",
-        "tools": [
-            {
-                "required": True,
-                "code": """
-def count_words(text):
-    return {"word_count": len(text.split())}
-                """,
-                "function": {
-                    "name": "count_words",
-                    "description": "Count the number of words in a text string.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "text": {
-                                "type": "string",
-                            }
-                        },
-                        "required": ["text"],
-                    },
-                },
-            }
-        ],
-        "validate": ["len(output['text']) > 0"],
-        "num_retries_on_validate_failure": 3,
-    }
+def test_map_operation(
+    test_map_operation_instance,
+    map_sample_data,
+    response_lookup,
+):
+    results, cost = test_map_operation_instance.execute(map_sample_data)
+
+    assert len(results) == len(map_sample_data)
+    assert all("sentiment" in result for result in results)
+    assert all(
+        result["sentiment"] in ["positive", "negative", "neutral"] for result in results
+    )
+    assert cost > 0
 
 
-@pytest.fixture
-def synthetic_data():
-    return [
-        {"text": "This is a short sentence."},
-        {"text": "This sentence has exactly six words."},
-        {"text": "Pneumonoultramicroscopicsilicovolcanoconiosis is a long word."},
-        {"text": "One"},
-    ]
+def test_map_operation_empty_input(map_config, default_model, max_threads):
+    operation = MapOperation(map_config, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+def test_map_operation_with_drop_keys(
+    map_config_with_drop_keys,
+    default_model,
+    max_threads,
+    map_sample_data_with_extra_keys,
+):
+    operation = MapOperation(map_config_with_drop_keys, default_model, max_threads)
+    results, cost = operation.execute(map_sample_data_with_extra_keys)
+
+    assert len(results) == len(map_sample_data_with_extra_keys)
+    assert all("sentiment" in result for result in results)
+    assert all("original_sentiment" not in result for result in results)
+    assert all("to_be_dropped" in result for result in results)
+    assert all(
+        result["sentiment"] in ["positive", "negative", "neutral"] for result in results
+    )
+    assert cost > 0
+
+
+def test_map_operation_with_drop_keys_no_prompt(
+    map_config_with_drop_keys_no_prompt,
+    default_model,
+    max_threads,
+    map_sample_data_with_extra_keys,
+):
+    operation = MapOperation(
+        map_config_with_drop_keys_no_prompt, default_model, max_threads
+    )
+    results, cost = operation.execute(map_sample_data_with_extra_keys)
+
+    assert len(results) == len(map_sample_data_with_extra_keys)
+    assert all("to_be_dropped" not in result for result in results)
+    assert all("text" in result for result in results)
+    assert all("original_sentiment" in result for result in results)
+    assert cost == 0  # No LLM calls should be made
+
+
+def test_map_operation_with_batching(
+    map_config_with_batching,
+    default_model,
+    max_threads,
+    map_sample_data,
+):
+    operation = MapOperation(map_config_with_batching, default_model, max_threads)
+    results, cost = operation.execute(map_sample_data)
+
+    assert len(results) == len(map_sample_data)
+    assert cost > 0
+    assert all("sentiment" in result for result in results)
+    assert all(
+        result["sentiment"] in ["positive", "negative", "neutral"] for result in results
+    )
+
+
+def test_map_operation_with_empty_input(
+    map_config_with_batching, default_model, max_threads
+):
+    operation = MapOperation(map_config_with_batching, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0
+
+
+def test_map_operation_with_large_batch_size(
+    map_config_with_batching,
+    default_model,
+    max_threads,
+    map_sample_data,
+):
+    map_config_with_batching["batch_size"] = 5  # Set batch size larger than data
+    operation = MapOperation(map_config_with_batching, default_model, max_threads)
+    results, cost = operation.execute(map_sample_data)
+
+    assert len(results) == len(map_sample_data)
+    assert cost > 0
 
 
 def test_map_operation_with_word_count_tool(map_config_with_tools, synthetic_data):

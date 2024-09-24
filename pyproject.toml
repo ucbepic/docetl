@@ -22,6 +22,9 @@ scikit-learn = "^1.5.1"
 diskcache = "^5.6.3"
 textual = "^0.79.1"
 typer = "^0.12.5"
+transformers = "^4.44.2"
+flask = "^3.0.3"
+pydantic = "^2.9.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"

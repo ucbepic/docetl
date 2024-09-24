@@ -152,6 +152,10 @@ class Optimizer:
         if self.config.get("optimizer_config", {}).get("sample_sizes", {}):
             self.sample_size_map.update(self.config["optimizer_config"]["sample_sizes"])
 
+        # Set default batch parameters
+        self.batch_size = self.config.get("batch_size", 1)
+        self.clustering_method = self.config.get("clustering_method", "random")
+
         self.status = None
         self.step_op_to_optimized_ops = {}
 
@@ -1292,41 +1296,6 @@ class Optimizer:
         # Implement a method to calculate accuracy based on your specific requirements
         # For example, you could compare the number of correctly processed items
         return np.random.rand()  # Placeholder for actual accuracy calculation
-        self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        is_filter: bool = False,
-    ) -> List[Dict[str, Any]]:
-        """
-        Optimize a map operation.
-
-        This method creates a MapOptimizer instance and uses it to optimize the map operation.
-
-        Args:
-            op_config (Dict[str, Any]): The configuration of the map operation.
-            input_data (List[Dict[str, Any]]): The input data for the map operation.
-            is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
-
-        Returns:
-            List[Dict[str, Any]]: The optimized operation configuration.
-        """
-        # Determine the optimal batch size
-        batch_sizes = [1, 5, 10, 20, 50]  # Example batch sizes to evaluate
-        optimal_batch_size = self._evaluate_batch_size(op_config, input_data, batch_sizes)
-        op_config["batch_size"] = optimal_batch_size
-
-        map_optimizer = MapOptimizer(
-            self.config,
-            self.console,
-            self.llm_client,
-            self.max_threads,
-            self._run_operation,
-            timeout=self.timeout,
-            is_filter=is_filter,
-        )
-        optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data)
-        self.operations_cost += cost
-        return optimized_ops
 
     def _optimize_resolve(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]

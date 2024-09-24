@@ -14,7 +14,7 @@ from rich.status import Status
 from docetl.operations.equijoin import compare_pair as compare_pair_equijoin
 from docetl.operations.resolve import compare_pair as compare_pair_resolve
 from docetl.operations.utils import gen_embedding
-from docetl.optimizers.utils import extract_jinja_variables
+from docetl.utils import extract_jinja_variables
 
 
 class JoinOptimizer:

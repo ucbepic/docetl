@@ -6,8 +6,8 @@ from litellm import model_cost
 
 from rich.console import Console
 
-from docetl.optimizers.utils import LLMClient, extract_jinja_variables
-from docetl.utils import truncate_sample_data, count_tokens
+from docetl.optimizers.utils import LLMClient
+from docetl.utils import extract_jinja_variables, truncate_sample_data, count_tokens
 
 
 class Evaluator:

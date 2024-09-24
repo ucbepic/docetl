@@ -6,7 +6,8 @@ from typing import Any, Dict, List, Tuple
 from rich.console import Console
 
 from docetl.optimizers.map_optimizer.utils import generate_and_validate_prompt
-from docetl.optimizers.utils import LLMClient, extract_jinja_variables
+from docetl.optimizers.utils import LLMClient
+from docetl.utils import extract_jinja_variables
 
 
 class ConfigGenerator:

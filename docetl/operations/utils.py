@@ -6,7 +6,15 @@ import shutil
 import threading
 from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+<<<<<<< HEAD
 import litellm
+=======
+<<<<<<< HEAD
+=======
+from openai import OpenAI
+from sklearn.cluster import KMeans
+>>>>>>> 73b9ff3 (fix: Update dependencies in pyproject.toml and add new schemas.py, test_map_parallel, conftest.py files)
+>>>>>>> 4a2b626 (fix: Update dependencies in pyproject.toml and add new schemas.py, test_map_parallel, conftest.py files)
 
 from dotenv import load_dotenv
 from frozendict import frozendict
@@ -19,9 +27,15 @@ from tqdm import tqdm
 from diskcache import Cache
 import tiktoken
 from rich import print as rprint
+<<<<<<< HEAD
 from pydantic import BaseModel, create_model
 import ast
 
+=======
+from pydantic import create_model
+import random
+from sentence_transformers import SentenceTransformer
+>>>>>>> 4a2b626 (fix: Update dependencies in pyproject.toml and add new schemas.py, test_map_parallel, conftest.py files)
 from docetl.utils import count_tokens
 
 load_dotenv()
@@ -53,7 +67,9 @@ def freezeargs(func):
             (
                 frozendict(arg)
                 if isinstance(arg, dict)
-                else json.dumps(arg) if isinstance(arg, list) else arg
+                else json.dumps(arg)
+                if isinstance(arg, list)
+                else arg
             )
             for arg in args
         )
@@ -61,7 +77,9 @@ def freezeargs(func):
             k: (
                 frozendict(v)
                 if isinstance(v, dict)
-                else json.dumps(v) if isinstance(v, list) else v
+                else json.dumps(v)
+                if isinstance(v, list)
+                else v
             )
             for k, v in kwargs.items()
         }
@@ -266,6 +284,7 @@ def cache_key(
     Returns:
         str: A unique hash string representing the cache key.
     """
+    # Ensure no non-serializable objects are included
     key_dict = {
         "model": model,
         "op_type": op_type,
@@ -772,7 +791,7 @@ def call_llm_with_gleaning(
 
         # Parse the validator response
         suggestion = json.loads(validator_response.choices[0].message.content)
-        if suggestion["should_refine"] == False:
+        if not suggestion["should_refine"]:
             break
 
         # console.log(
@@ -976,6 +995,46 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
             console.log(f"[yellow]Output:[/yellow] {output}")
             return False
     return True
+
+
+def cluster_documents(
+    documents: List[Dict], batch_size: int, clustering_method: str
+) -> List[List[Dict]]:
+    """
+    Clusters documents based on the configured clustering method.
+    """
+    if batch_size == 1:
+        return [documents]
+
+    if batch_size > 1:
+        if clustering_method == "random":
+            random.shuffle(documents)
+            return [
+                documents[i : i + batch_size]
+                for i in range(0, len(documents), batch_size)
+            ]
+        elif clustering_method == "sem_cluster":
+            import torch
+
+            device = "cpu"
+            if torch.backends.mps.is_available():
+                device = "mps"
+            elif torch.cuda.is_available():
+                device = "cuda"
+
+            model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+            embeddings = model.encode([str(doc) for doc in documents])
+            num_clusters = max(1, len(documents) // batch_size)
+            kmeans = KMeans(n_clusters=num_clusters)
+            kmeans.fit(embeddings)
+            clusters = {i: [] for i in range(num_clusters)}
+            for idx, label in enumerate(kmeans.labels_):
+                clusters[label].append(documents[idx])
+            return list(clusters.values())
+        else:
+            raise ValueError("Invalid clustering method.")
+    else:
+        raise ValueError("Batch size must be greater than 0.")
 
 
 class RichLoopBar:

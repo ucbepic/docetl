@@ -5,6 +5,43 @@ import tiktoken
 import json
 
 from litellm import completion_cost as lcc
+from jinja2 import Environment, meta
+import re
+
+
+def extract_jinja_variables(template_string: str) -> List[str]:
+    """
+    Extract variables from a Jinja2 template string.
+
+    This function uses both Jinja2's AST parsing and regex to find all variables
+    referenced in the given template string, including nested variables.
+
+    Args:
+        template_string (str): The Jinja2 template string to analyze.
+
+    Returns:
+        List[str]: A list of unique variable names found in the template.
+    """
+    # Create a Jinja2 environment
+    env = Environment()
+
+    # Parse the template
+    ast = env.parse(template_string)
+
+    # Find all the variables referenced in the template
+    variables = meta.find_undeclared_variables(ast)
+
+    # Use regex to find any additional variables that might be missed
+    # This regex looks for {{ variable }} patterns, including nested ones
+    regex_variables = set(re.findall(r"{{\s*([\w.]+)\s*}}", template_string))
+
+    # Combine both sets of variables
+    all_variables = variables.union(regex_variables)
+
+    # Special-case: remove "input"
+    all_variables.discard("input")
+
+    return list(all_variables)
 
 
 def completion_cost(response) -> float:

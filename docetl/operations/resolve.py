@@ -23,6 +23,7 @@ from docetl.operations.utils import (
     validate_output,
     gen_embedding,
 )
+from rich.prompt import Confirm
 
 
 def compare_pair(
@@ -195,6 +196,22 @@ class ResolveOperation(BaseOperation):
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
+
+        if not blocking_threshold and not blocking_conditions:
+            # Prompt the user for confirmation
+            if self.status:
+                self.status.stop()
+            if not Confirm.ask(
+                f"[yellow]Warning: No blocking keys or conditions specified. "
+                f"This may result in a large number of comparisons. "
+                f"We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
+                f"Do you want to continue without blocking?[/yellow]",
+            ):
+                raise ValueError("Operation cancelled by user.")
+
+            if self.status:
+                self.status.start()
+
         input_schema = self.config.get("input", {}).get("schema", {})
         if not blocking_keys:
             # Set them to all keys in the input data

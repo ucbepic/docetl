@@ -229,7 +229,11 @@ class DSLRunner:
 
             operation_class = get_operation(op_object["type"])
             operation_instance = operation_class(
-                op_object, self.default_model, self.max_threads, self.console
+                op_object,
+                self.default_model,
+                self.max_threads,
+                self.console,
+                self.status,
             )
             if op_object["type"] == "equijoin":
                 left_data = self.datasets[op_object["left"]]

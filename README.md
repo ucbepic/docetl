@@ -65,4 +65,4 @@ make tests-basic
 
 That's it! You've successfully installed DocETL and are ready to start processing documents.
 
-For more detailed information on usage and configuration, please refer to our [documentation](https://shreyashankar.github.io/docetl).
+For more detailed information on usage and configuration, please refer to our [documentation](https://ucbepic.github.io/docetl).

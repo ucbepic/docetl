@@ -20,7 +20,10 @@ from docetl.operations.utils import (
 
 
 class MapOperation(BaseOperation):
-    def syntax_check(self) -> None:
+    def __init__(self, config: Dict[str, Any], console: Console):
+        super().__init__(config, console)
+        self.batch_size = config.get("batch_size", 1)
+        self.clustering_method = config.get("clustering_method", "random")
         """
         Checks the configuration of the MapOperation for required keys and valid structure.
 
@@ -109,7 +112,7 @@ class MapOperation(BaseOperation):
             Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
 
         This method performs the following steps:
-        1. If a prompt is specified, it processes each input item using the specified prompt and LLM model
+        1. If a prompt is specified, it processes input items in batches using the specified prompt and LLM model
         2. Applies gleaning if configured
         3. Validates the output
         4. If drop_keys is specified, it drops the specified keys from each document
@@ -117,7 +120,11 @@ class MapOperation(BaseOperation):
 
         The method uses parallel processing to improve performance.
         """
-        # Check if there's no prompt and only drop_keys
+        def cluster_documents(documents: List[Dict]) -> List[List[Dict]]:
+            if self.clustering_method == "random":
+                random.shuffle(documents)
+            # Implement other clustering methods as needed
+            return [documents[i:i + self.batch_size] for i in range(0, len(documents), self.batch_size)]
         if "prompt" not in self.config and "drop_keys" in self.config:
             # If only drop_keys is specified, simply drop the keys and return
             dropped_results = []
@@ -196,8 +203,10 @@ class MapOperation(BaseOperation):
 
             return None, cost
 
+        batched_data = cluster_documents(input_data)
+
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = [executor.submit(_process_map_item, item) for item in input_data]
+            futures = [executor.submit(_process_map_item, batch) for batch in batched_data]
             results = []
             total_cost = 0
             pbar = RichLoopBar(

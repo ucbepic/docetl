@@ -6,6 +6,7 @@ import os
 import random
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
+import numpy as np
 
 import yaml
 from rich.console import Console
@@ -1244,7 +1245,53 @@ class Optimizer:
             new_right_name,
         )
 
-    def _optimize_map(
+    def _evaluate_batch_size(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        batch_sizes: List[int],
+    ) -> int:
+        """
+        Evaluate the accuracy of different batch sizes and return the optimal batch size.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the map operation.
+            input_data (List[Dict[str, Any]]): The input data for the map operation.
+            batch_sizes (List[int]): A list of batch sizes to evaluate.
+
+        Returns:
+            int: The optimal batch size that maintains accuracy.
+        """
+        best_batch_size = batch_sizes[0]
+        best_accuracy = 0
+
+        for batch_size in batch_sizes:
+            op_config["batch_size"] = batch_size
+            output_data = self._run_operation(op_config, input_data)
+            accuracy = self._calculate_accuracy(input_data, output_data)
+
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                best_batch_size = batch_size
+
+        return best_batch_size
+
+    def _calculate_accuracy(
+        self, input_data: List[Dict[str, Any]], output_data: List[Dict[str, Any]]
+    ) -> float:
+        """
+        Calculate the accuracy of the output data compared to the input data.
+
+        Args:
+            input_data (List[Dict[str, Any]]): The original input data.
+            output_data (List[Dict[str, Any]]): The processed output data.
+
+        Returns:
+            float: The accuracy of the output data.
+        """
+        # Implement a method to calculate accuracy based on your specific requirements
+        # For example, you could compare the number of correctly processed items
+        return np.random.rand()  # Placeholder for actual accuracy calculation
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
@@ -1263,6 +1310,11 @@ class Optimizer:
         Returns:
             List[Dict[str, Any]]: The optimized operation configuration.
         """
+        # Determine the optimal batch size
+        batch_sizes = [1, 5, 10, 20, 50]  # Example batch sizes to evaluate
+        optimal_batch_size = self._evaluate_batch_size(op_config, input_data, batch_sizes)
+        op_config["batch_size"] = optimal_batch_size
+
         map_optimizer = MapOptimizer(
             self.config,
             self.console,

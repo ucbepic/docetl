@@ -60,6 +60,7 @@ This Reduce operation processes customer feedback grouped by department:
 | `fold_batch_size`    | Number of items to process in each fold operation                               | None                        |
 | `value_sampling`     | A dictionary specifying the sampling strategy for large groups                  | None                        |
 | `verbose`            | If true, enables detailed logging of the reduce operation                       | false                       |
+| `persist_intermediates` | If true, persists the intermediate results for each group to the key `_{operation_name}_intermediates` | false |
 
 ## Advanced Features
 

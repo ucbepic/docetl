@@ -194,3 +194,71 @@ def test_reduce_operation_non_associative(default_model, max_threads):
     assert combined_result.index("brave princess") < combined_result.index(
         "dragon"
     ), "Princess should be mentioned before the dragon in the story"
+
+
+def test_reduce_operation_persist_intermediates(default_model, max_threads):
+    # Define a config with persist_intermediates enabled
+    persist_intermediates_config = {
+        "name": "persist_intermediates_reduce",
+        "type": "reduce",
+        "reduce_key": "group",
+        "persist_intermediates": True,
+        "prompt": "Summarize the numbers in '{{ inputs }}'.",
+        "fold_prompt": "Combine summaries: Previous '{{ output }}', New '{{ inputs[0] }}'.",
+        "fold_batch_size": 2,
+        "output": {"schema": {"summary": "string"}},
+    }
+
+    # Sample data with more items than fold_batch_size
+    sample_data = [
+        {"group": "numbers", "value": "1, 2"},
+        {"group": "numbers", "value": "3, 4"},
+        {"group": "numbers", "value": "5, 6"},
+        {"group": "numbers", "value": "7, 8"},
+        {"group": "numbers", "value": "9, 10"},
+    ]
+
+    operation = ReduceOperation(
+        persist_intermediates_config, default_model, max_threads
+    )
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == 1, "Should have one result for the 'numbers' group"
+    assert cost > 0, "Cost should be greater than 0"
+
+    result = results[0]
+    assert "summary" in result, "Result should have a 'summary' key"
+
+    # Check if intermediates were persisted
+    assert (
+        "_persist_intermediates_reduce_intermediates" in result
+    ), "Result should have '_persist_intermediates_reduce_intermediates' key"
+    intermediates = result["_persist_intermediates_reduce_intermediates"]
+    assert isinstance(intermediates, list), "Intermediates should be a list"
+    assert len(intermediates) > 1, "Should have multiple intermediate results"
+
+    # Check the structure of intermediates
+    for intermediate in intermediates:
+        assert "iter" in intermediate, "Each intermediate should have an 'iter' key"
+        assert (
+            "intermediate" in intermediate
+        ), "Each intermediate should have an 'intermediate' key"
+        assert (
+            "scratchpad" in intermediate
+        ), "Each intermediate should have a 'scratchpad' key"
+
+    # Verify that the intermediate results are stored in the correct order
+    for i in range(1, len(intermediates)):
+        assert (
+            intermediates[i]["iter"] > intermediates[i - 1]["iter"]
+        ), "Intermediate results should be in ascending order of iterations"
+
+    # Check if the intermediate results are accessible via the special key
+    for result in results:
+        assert (
+            f"_persist_intermediates_reduce_intermediates" in result
+        ), "Result should contain the special intermediate key"
+        stored_intermediates = result[f"_persist_intermediates_reduce_intermediates"]
+        assert (
+            stored_intermediates == intermediates
+        ), "Stored intermediates should match the operation's intermediates"

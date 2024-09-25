@@ -60,6 +60,7 @@ class ReduceOperation(BaseOperation):
             if isinstance(self.config["reduce_key"], str)
             else self.config["reduce_key"]
         )
+        self.intermediates = {}
 
     def syntax_check(self) -> None:
         """
@@ -351,6 +352,14 @@ class ReduceOperation(BaseOperation):
                 if output is not None:
                     results.append(output)
 
+        if self.config.get("persist_intermediates", False):
+            for result in results:
+                key = tuple(result[k] for k in self.config["reduce_key"])
+                if key in self.intermediates:
+                    result[f"_{self.config['name']}_intermediates"] = (
+                        self.intermediates[key]
+                    )
+
         return results, total_cost
 
     def _get_embeddings(
@@ -464,6 +473,10 @@ class ReduceOperation(BaseOperation):
         fold_results = []
         remaining_items = group_list
 
+        if self.config.get("persist_intermediates", False):
+            self.intermediates[key] = []
+            iter_count = 0
+
         # Parallel folding and merging
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             while remaining_items:
@@ -485,6 +498,15 @@ class ReduceOperation(BaseOperation):
                     total_cost += cost
                     if result is not None:
                         new_fold_results.append(result)
+                        if self.config.get("persist_intermediates", False):
+                            self.intermediates[key].append(
+                                {
+                                    "iter": iter_count,
+                                    "intermediate": result,
+                                    "scratchpad": result["updated_scratchpad"],
+                                }
+                            )
+                            iter_count += 1
 
                 # Update fold_results with new results
                 fold_results = new_fold_results + fold_results[len(new_fold_results) :]
@@ -507,6 +529,15 @@ class ReduceOperation(BaseOperation):
                         total_cost += cost
                         if result is not None:
                             new_results.append(result)
+                            if self.config.get("persist_intermediates", False):
+                                self.intermediates[key].append(
+                                    {
+                                        "iter": iter_count,
+                                        "intermediate": result,
+                                        "scratchpad": None,
+                                    }
+                                )
+                                iter_count += 1
 
                     fold_results = new_results
 
@@ -538,6 +569,15 @@ class ReduceOperation(BaseOperation):
                     total_cost += cost
                     if result is not None:
                         new_results.append(result)
+                        if self.config.get("persist_intermediates", False):
+                            self.intermediates[key].append(
+                                {
+                                    "iter": iter_count,
+                                    "intermediate": result,
+                                    "scratchpad": None,
+                                }
+                            )
+                            iter_count += 1
 
                 fold_results = new_results
 
@@ -567,6 +607,10 @@ class ReduceOperation(BaseOperation):
         num_folds = (len(group_list) + fold_batch_size - 1) // fold_batch_size
 
         scratchpad = ""
+        if self.config.get("persist_intermediates", False):
+            self.intermediates[key] = []
+            iter_count = 0
+
         for i in range(0, len(group_list), fold_batch_size):
             # Log the current iteration and total number of folds
             current_fold = i // fold_batch_size + 1
@@ -583,6 +627,16 @@ class ReduceOperation(BaseOperation):
 
             if folded_output is None:
                 continue
+
+            if self.config.get("persist_intermediates", False):
+                self.intermediates[key].append(
+                    {
+                        "iter": iter_count,
+                        "intermediate": folded_output,
+                        "scratchpad": folded_output["updated_scratchpad"],
+                    }
+                )
+                iter_count += 1
 
             # Pop off updated_scratchpad
             if "updated_scratchpad" in folded_output:

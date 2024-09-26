@@ -1249,53 +1249,37 @@ class Optimizer:
             new_right_name,
         )
 
-    def _evaluate_batch_size(
+    def _optimize_map(
         self,
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
-        batch_sizes: List[int],
-    ) -> int:
+        is_filter: bool = False,
+    ) -> List[Dict[str, Any]]:
         """
-        Evaluate the accuracy of different batch sizes and return the optimal batch size.
+        Optimize a map operation.
+
+        This method creates a MapOptimizer instance and uses it to optimize the map operation.
 
         Args:
             op_config (Dict[str, Any]): The configuration of the map operation.
             input_data (List[Dict[str, Any]]): The input data for the map operation.
-            batch_sizes (List[int]): A list of batch sizes to evaluate.
+            is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
 
         Returns:
-            int: The optimal batch size that maintains accuracy.
+            List[Dict[str, Any]]: The optimized operation configuration.
         """
-        best_batch_size = batch_sizes[0]
-        best_accuracy = 0
-
-        for batch_size in batch_sizes:
-            op_config["batch_size"] = batch_size
-            output_data = self._run_operation(op_config, input_data)
-            accuracy = self._calculate_accuracy(input_data, output_data)
-
-            if accuracy > best_accuracy:
-                best_accuracy = accuracy
-                best_batch_size = batch_size
-
-        return best_batch_size
-
-    def _calculate_accuracy(
-        self, input_data: List[Dict[str, Any]], output_data: List[Dict[str, Any]]
-    ) -> float:
-        """
-        Calculate the accuracy of the output data compared to the input data.
-
-        Args:
-            input_data (List[Dict[str, Any]]): The original input data.
-            output_data (List[Dict[str, Any]]): The processed output data.
-
-        Returns:
-            float: The accuracy of the output data.
-        """
-        # Implement a method to calculate accuracy based on your specific requirements
-        # For example, you could compare the number of correctly processed items
-        return np.random.rand()  # Placeholder for actual accuracy calculation
+        map_optimizer = MapOptimizer(
+            self.config,
+            self.console,
+            self.llm_client,
+            self.max_threads,
+            self._run_operation,
+            timeout=self.timeout,
+            is_filter=is_filter,
+        )
+        optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data)
+        self.operations_cost += cost
+        return optimized_ops
 
     def _optimize_resolve(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]

@@ -25,6 +25,8 @@ typer = "^0.12.5"
 transformers = "^4.44.2"
 flask = "^3.0.3"
 pydantic = "^2.9.2"
+pytest-sugar = "^1.0.0"
+pytest-xdist = "^3.6.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"

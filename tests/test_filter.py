@@ -209,7 +209,6 @@ def split_config():
         "split_key": "content",
         "method": "token_count",
         "method_kwargs": {"num_tokens": 4},
-        "name": "split_doc",
     }
 
 

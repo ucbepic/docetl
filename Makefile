@@ -4,7 +4,9 @@ tests:
 	poetry run pytest
 
 tests-basic:
-	poetry run pytest tests/test_basic.py
+	poetry run pytest tests/test_map.py
+	poetry run pytest tests/test_map_parallel.py
+	poetry run pytest tests/test_filter.py
 	poetry run pytest tests/test_api.py
 
 lint:

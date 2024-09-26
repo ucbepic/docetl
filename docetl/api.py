@@ -47,8 +47,12 @@ from dataclasses import dataclass
 import os
 from typing import List, Optional, Dict, Any, Union
 
+import yaml
+
 from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
+
+from rich import print
 
 
 @dataclass
@@ -273,6 +277,22 @@ class Pipeline:
         runner = DSLRunner(config, max_threads=max_threads)
         result = runner.run()
         return result
+
+    def to_yaml(self, path: str) -> None:
+        """
+        Convert the Pipeline object to a YAML string and save it to a file.
+
+        Args:
+            path (str): Path to save the YAML file.
+
+        Returns:
+            None
+        """
+        config = self._to_dict()
+        with open(path, "w") as f:
+            yaml.safe_dump(config, f)
+
+        print(f"[green]Pipeline saved to {path}[/green]")
 
     def _to_dict(self) -> Dict[str, Any]:
         """

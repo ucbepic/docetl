@@ -2,19 +2,12 @@ import functools
 import os
 import hashlib
 import json
+import random
 import shutil
 import threading
 from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-<<<<<<< HEAD
 import litellm
-=======
-<<<<<<< HEAD
-=======
-from openai import OpenAI
-from sklearn.cluster import KMeans
->>>>>>> 73b9ff3 (fix: Update dependencies in pyproject.toml and add new schemas.py, test_map_parallel, conftest.py files)
->>>>>>> 4a2b626 (fix: Update dependencies in pyproject.toml and add new schemas.py, test_map_parallel, conftest.py files)
 
 from dotenv import load_dotenv
 from frozendict import frozendict
@@ -27,16 +20,11 @@ from tqdm import tqdm
 from diskcache import Cache
 import tiktoken
 from rich import print as rprint
-<<<<<<< HEAD
 from pydantic import BaseModel, create_model
 import ast
 
-=======
-from pydantic import create_model
-import random
-from sentence_transformers import SentenceTransformer
->>>>>>> 4a2b626 (fix: Update dependencies in pyproject.toml and add new schemas.py, test_map_parallel, conftest.py files)
 from docetl.utils import count_tokens
+from sklearn.cluster import KMeans
 
 load_dotenv()
 # litellm.set_verbose = True
@@ -67,9 +55,7 @@ def freezeargs(func):
             (
                 frozendict(arg)
                 if isinstance(arg, dict)
-                else json.dumps(arg)
-                if isinstance(arg, list)
-                else arg
+                else json.dumps(arg) if isinstance(arg, list) else arg
             )
             for arg in args
         )
@@ -77,9 +63,7 @@ def freezeargs(func):
             k: (
                 frozendict(v)
                 if isinstance(v, dict)
-                else json.dumps(v)
-                if isinstance(v, list)
-                else v
+                else json.dumps(v) if isinstance(v, list) else v
             )
             for k, v in kwargs.items()
         }

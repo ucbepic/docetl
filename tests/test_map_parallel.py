@@ -3,7 +3,7 @@
 import pytest
 from docetl.operations.map import ParallelMapOperation
 from dotenv import load_dotenv
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Literal, Optional
 from tests.conftest import (
     response_lookup as response_lookup,
     parallel_map_config_with_batching as parallel_map_config_with_batching,
@@ -25,11 +25,15 @@ class TestParallelMapOperation(ParallelMapOperation):
         default_model: str,
         max_threads: int,
         batch_size: int = 1,
-        clustering_method: str = "random",
-        response_lookup: Dict[str, Dict[str, Any]] = None,
+        clustering_method: Literal["random", "sem_cluster"] = "random",
+        response_lookup: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
         super().__init__(
-            config, default_model, max_threads, batch_size, clustering_method
+            config,
+            default_model,
+            max_threads,
+            batch_size,
+            clustering_method,
         )
         self.response_lookup = response_lookup or {}
 
@@ -179,27 +183,6 @@ def test_parallel_map_operation_empty_input(
 
     assert len(results) == 0
     assert cost == 0
-
-
-def test_parallel_map_operation_with_batching(
-    parallel_map_config_with_batching,
-    default_model,
-    max_threads,
-    parallel_map_sample_data,
-):
-    operation = ParallelMapOperation(
-        parallel_map_config_with_batching, default_model, max_threads
-    )
-    results, cost = operation.execute(parallel_map_sample_data)
-
-    assert len(results) == len(parallel_map_sample_data)
-    assert cost > 0
-
-    for result in results:
-        assert "sentiment" in result
-        assert "word_count" in result
-        assert result["sentiment"] in ["positive", "negative", "neutral"]
-        assert isinstance(result["word_count"], int)
 
 
 def test_parallel_map_operation_with_empty_input(

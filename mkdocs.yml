@@ -45,17 +45,17 @@ nav:
       #     - User-Defined Functions: advanced/custom-operators.md
       #     - Extending Optimizer Agents: advanced/extending-agents.md
       #     - Performance Tuning: advanced/performance-tuning.md
+  - Examples:
+      - Reporting on Themes from Presidential Debates: examples/presidential-debate-themes.md
+      - Mining Product Reviews for Polarizing Features: examples/mining-product-reviews.md
+      # - Annotating Legal Documents: examples/annotating-legal-documents.md
+      # - Characterizing Troll Behavior on Wikipedia: examples/characterizing-troll-behavior.md
   - API Reference:
       - docetl: api-reference/docetl.md
       - docetl.cli: api-reference/cli.md
       - docetl.operations: api-reference/operations.md
       - docetl.optimizers: api-reference/optimizers.md
       - Python API: api-reference/python.md
-  - Examples:
-      - Reporting on Themes from Presidential Debates: examples/presidential-debate-themes.md
-      - Mining Product Reviews for Polarizing Features: examples/mining-product-reviews.md
-      # - Annotating Legal Documents: examples/annotating-legal-documents.md
-      # - Characterizing Troll Behavior on Wikipedia: examples/characterizing-troll-behavior.md
   - Community:
       - Community: community/index.md
       - Roadmap: community/roadmap.md

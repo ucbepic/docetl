@@ -260,18 +260,12 @@ class ParallelMapOperation(BaseOperation):
                 if not isinstance(prompt_config, dict):
                     raise TypeError(f"Prompt configuration {i} must be a dictionary")
 
-                required_keys = ["name", "prompt", "output_keys"]
+                required_keys = ["prompt", "output_keys"]
                 for key in required_keys:
                     if key not in prompt_config:
                         raise ValueError(
                             f"Missing required key '{key}' in prompt configuration {i}"
                         )
-
-                if not isinstance(prompt_config["name"], str):
-                    raise TypeError(
-                        f"'name' in prompt configuration {i} must be a string"
-                    )
-
                 if not isinstance(prompt_config["prompt"], str):
                     raise TypeError(
                         f"'prompt' in prompt configuration {i} must be a string"

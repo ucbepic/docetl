@@ -189,7 +189,7 @@ class Optimizer:
                     operation_config,
                     self.config.get("default_model", "gpt-4o-mini"),
                     self.max_threads,
-                    self.console,
+                    console=self.console,
                 )
             except Exception as e:
                 raise ValueError(

@@ -81,6 +81,8 @@ class MapOp(BaseOp):
     gleaning: Optional[Dict[str, Any]] = None
     drop_keys: Optional[List[str]] = None
     timeout: Optional[int] = None
+    batch_size: Optional[int] = None
+    clustering_method: Optional[str] = None
 
 
 @dataclass
@@ -130,6 +132,8 @@ class ParallelMapOp(BaseOp):
     sample_size: Optional[int] = None
     drop_keys: Optional[List[str]] = None
     timeout: Optional[int] = None
+    batch_size: Optional[int] = None
+    clustering_method: Optional[str] = None
 
 
 @dataclass

@@ -204,7 +204,7 @@ def test_equijoin_operation_empty_input(equijoin_config, default_model, max_thre
 @pytest.fixture
 def split_config():
     return {
-        "name": "document_splitter",
+        "name": "split_doc",
         "type": "split",
         "split_key": "content",
         "method": "token_count",

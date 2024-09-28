@@ -9,6 +9,9 @@ from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 import litellm
 
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, Literal
+from openai import OpenAI
+from sklearn.cluster import KMeans
 from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
@@ -24,7 +27,6 @@ from pydantic import BaseModel, create_model
 import ast
 
 from docetl.utils import count_tokens
-from sklearn.cluster import KMeans
 
 load_dotenv()
 # litellm.set_verbose = True
@@ -982,10 +984,20 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
 
 
 def cluster_documents(
-    documents: List[Dict], batch_size: int, clustering_method: str
+    documents: List[Dict],
+    batch_size: int,
+    clustering_method: Literal["random", "sem_cluster"],
 ) -> List[List[Dict]]:
     """
     Clusters documents based on the configured clustering method.
+
+    Args:
+        documents (List[Dict]): The list of documents to cluster.
+        batch_size (int): The number of documents to cluster.
+        clustering_method (str): The clustering method to use.
+
+    Returns:
+        List[List[Dict]]: A list of clusters, where each cluster is a list of documents.
     """
     if batch_size == 1:
         return [documents]
@@ -998,27 +1010,39 @@ def cluster_documents(
                 for i in range(0, len(documents), batch_size)
             ]
         elif clustering_method == "sem_cluster":
-            import torch
-
-            device = "cpu"
-            if torch.backends.mps.is_available():
-                device = "mps"
-            elif torch.cuda.is_available():
-                device = "cuda"
-
-            model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
-            embeddings = model.encode([str(doc) for doc in documents])
-            num_clusters = max(1, len(documents) // batch_size)
-            kmeans = KMeans(n_clusters=num_clusters)
-            kmeans.fit(embeddings)
-            clusters = {i: [] for i in range(num_clusters)}
-            for idx, label in enumerate(kmeans.labels_):
-                clusters[label].append(documents[idx])
-            return list(clusters.values())
-        else:
-            raise ValueError("Invalid clustering method.")
+            return kmeans_cluster(documents, batch_size)
     else:
         raise ValueError("Batch size must be greater than 0.")
+
+
+def kmeans_cluster(documents: List[Dict], k: int) -> List[List[Dict]]:
+    """
+    Cluster documents using KMeans clustering algorithm.
+
+    Args:
+        documents (List[Dict]): The list of documents to cluster.
+        k (int): The number of clusters to create.
+
+    Returns:
+        List[List[Dict]]: A list of clusters, where each cluster is a list of documents.
+    """
+    import torch
+
+    device = "cpu"
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+
+    model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+    embeddings = model.encode([str(doc) for doc in documents])
+    num_clusters = max(1, len(documents) // k)
+    kmeans = KMeans(n_clusters=num_clusters)
+    kmeans.fit(embeddings)
+    clusters = {i: [] for i in range(num_clusters)}
+    for idx, label in enumerate(kmeans.labels_):
+        clusters[label].append(documents[idx])
+    return list(clusters.values())
 
 
 class RichLoopBar:

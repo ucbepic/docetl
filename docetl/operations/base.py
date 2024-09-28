@@ -17,6 +17,7 @@ class BaseOperation(ABC):
         max_threads: int,
         console: Optional[Console] = None,
         status: Optional[Status] = None,
+        **kwargs,
     ):
         """
         Initialize the BaseOperation.
@@ -95,9 +96,7 @@ class BaseOperation(ABC):
             )
 
         if "validation_prompt" not in self.config["gleaning"]:
-            raise ValueError(
-                "Missing 'validation_prompt' in 'gleaning' configuration"
-            )
+            raise ValueError("Missing 'validation_prompt' in 'gleaning' configuration")
         if not isinstance(self.config["gleaning"]["validation_prompt"], str):
             raise TypeError(
                 "'validation_prompt' in 'gleaning' configuration must be a string"

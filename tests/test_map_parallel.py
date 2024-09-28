@@ -3,7 +3,7 @@
 import pytest
 from docetl.operations.map import ParallelMapOperation
 from dotenv import load_dotenv
-from typing import Dict, Any, List, Tuple, Literal, Optional
+from typing import Dict, Any, List, Tuple
 from .conftest import (
     response_lookup as response_lookup,
     parallel_map_config_with_batching as parallel_map_config_with_batching,
@@ -13,7 +13,7 @@ from .conftest import (
     default_model as default_model,
     max_threads as max_threads,
     map_config_with_tools as map_config_with_tools,
-) 
+)
 
 load_dotenv()
 
@@ -21,59 +21,41 @@ load_dotenv()
 class TestParallelMapOperation(ParallelMapOperation):
     def __init__(
         self,
-        config: Dict[str, Any],
-        default_model: str,
-        max_threads: int,
-        batch_size: int = 1,
-        clustering_method: Literal["random", "sem_cluster"] = "random",
-        response_lookup: Optional[Dict[str, Dict[str, Any]]] = None,
+        *args,
+        **kwargs,
     ):
         super().__init__(
-            config,
-            default_model,
-            max_threads,
-            batch_size,
-            clustering_method,
+            *args,
+            **kwargs,
         )
-        self.response_lookup = response_lookup or {}
+        self.response_lookup = self.config.get("response_lookup", {}) or kwargs.get(
+            "response_lookup", {}
+        )
 
     def _process_map_batch(
         self, batch: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], float]:
         results = []
         total_cost = 0.0
-        cost = 0.01  # Assign a mock cost
+        cost_per_prompt = 0.01  # Assign a mock cost per prompt
 
         for item in batch:
+            item_result = item.copy()
+            input_text = item["text"]  # Use item["text"] directly
+
+            # Retrieve the response for the current input text
+            response = self.response_lookup.get(input_text, {})
+
             for prompt_config in self.config["prompts"]:
-                prompt = self._generate_prompt(item, prompt_config)
-                input_text = self._extract_input_text(prompt)
+                if response:
+                    # Extract only the keys relevant to this prompt
+                    output = {k: response[k] for k in prompt_config["output_keys"]}
+                    item_result.update(output)
 
-                if response := self.response_lookup.get(input_text, {}):
-                    results.append(response)
-                else:
-                    results.append(None)
+                total_cost += cost_per_prompt
 
-                total_cost += cost
+            results.append(item_result)
         return results, total_cost
-
-    def _generate_prompt(
-        self, item: Dict[str, Any], prompt_config: Dict[str, Any]
-    ) -> str:
-        """Helper method to generate prompt based on item and prompt configuration."""
-        from jinja2 import Template
-
-        template = Template(prompt_config["prompt"])
-        return template.render(input=item)
-
-    def _extract_input_text(self, prompt: str) -> str:
-        """Helper method to extract input text from prompt."""
-        # Adjust this method based on your actual prompt structure
-        prefix = "Analyze the sentiment of the following text: '"
-        suffix = "'. Classify it as either positive, negative, or neutral."
-        start = prompt.find(prefix) + len(prefix)
-        end = prompt.rfind(suffix)
-        return prompt[start:end]
 
 
 @pytest.fixture
@@ -83,12 +65,14 @@ def test_parallel_map_operation_instance(
     max_threads,
     response_lookup,
 ):
+    # Ensure 'batch_size' and 'clustering_method' are part of the config
+    parallel_map_config_with_batching["batch_size"] = 1
+    parallel_map_config_with_batching["clustering_method"] = "sem_cluster"
+
     return TestParallelMapOperation(
         config=parallel_map_config_with_batching,
         default_model=default_model,
         max_threads=max_threads,
-        batch_size=1,
-        clustering_method="sem_cluster",
         response_lookup=response_lookup,
     )
 

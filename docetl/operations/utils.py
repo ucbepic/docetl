@@ -27,6 +27,9 @@ from pydantic import BaseModel, create_model
 import ast
 
 from docetl.utils import count_tokens
+from asteval import Interpreter
+
+aeval = Interpreter()
 
 load_dotenv()
 # litellm.set_verbose = True
@@ -983,6 +986,21 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
     return True
 
 
+def safe_eval(expression: str, output: Dict) -> bool:
+    """
+    Safely evaluate an expression with a given output dictionary.
+    Uses asteval to evaluate the expression.
+    https://lmfit.github.io/asteval/index.html
+    """
+    try:
+        # Add the output dictionary to the symbol table
+        aeval.symtable["output"] = output
+        # Safely evaluate the expression
+        return bool(aeval(expression))
+    except Exception:
+        return False
+
+
 def cluster_documents(
     documents: List[Dict],
     batch_size: int,
@@ -999,16 +1017,26 @@ def cluster_documents(
     Returns:
         List[List[Dict]]: A list of clusters, where each cluster is a list of documents.
     """
+
+    # If there are no documents, return an empty list
+    if not documents:
+        return []
+
+    # If the batch size is 1, return the documents as a single cluster
     if batch_size == 1:
         return [documents]
 
+    # If the batch size is greater than 1, cluster the documents
     if batch_size > 1:
+        # If the clustering method is random, shuffle the documents and return batches
         if clustering_method == "random":
             random.shuffle(documents)
             return [
                 documents[i : i + batch_size]
                 for i in range(0, len(documents), batch_size)
             ]
+
+        # If the clustering method is sem_cluster, use kmeans clustering
         elif clustering_method == "sem_cluster":
             return kmeans_cluster(documents, batch_size)
     else:

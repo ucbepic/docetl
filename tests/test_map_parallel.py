@@ -4,7 +4,7 @@ import pytest
 from docetl.operations.map import ParallelMapOperation
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Tuple, Literal, Optional
-from tests.conftest import (
+from .conftest import (
     response_lookup as response_lookup,
     parallel_map_config_with_batching as parallel_map_config_with_batching,
     parallel_map_config as parallel_map_config,
@@ -13,7 +13,7 @@ from tests.conftest import (
     default_model as default_model,
     max_threads as max_threads,
     map_config_with_tools as map_config_with_tools,
-)
+) 
 
 load_dotenv()
 
@@ -42,16 +42,14 @@ class TestParallelMapOperation(ParallelMapOperation):
     ) -> Tuple[List[Dict[str, Any]], float]:
         results = []
         total_cost = 0.0
+        cost = 0.01  # Assign a mock cost
+
         for item in batch:
             for prompt_config in self.config["prompts"]:
                 prompt = self._generate_prompt(item, prompt_config)
                 input_text = self._extract_input_text(prompt)
 
-                # Retrieve the predetermined response
-                response = self.response_lookup.get(input_text, {})
-                cost = 0.01  # Assign a mock cost
-
-                if response:
+                if response := self.response_lookup.get(input_text, {}):
                     results.append(response)
                 else:
                     results.append(None)

@@ -15,7 +15,6 @@ import numpy as np
 from jinja2 import Template
 from litellm import embedding, model_cost
 from docetl.utils import completion_cost
-from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
@@ -279,6 +278,8 @@ class EquijoinOperation(BaseOperation):
             )
 
             # Compute all cosine similarities in one call
+            from sklearn.metrics.pairwise import cosine_similarity
+
             similarities = cosine_similarity(left_embeddings, right_embeddings)
 
             # Additional blocking based on embeddings

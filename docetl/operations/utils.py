@@ -6,7 +6,6 @@ import shutil
 import threading
 from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-from openai import OpenAI
 
 from dotenv import load_dotenv
 from frozendict import frozendict
@@ -29,8 +28,6 @@ DOCETL_HOME_DIR = os.path.expanduser("~/.docetl")
 CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "cache")
 LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm_cache")
 cache = Cache(LLM_CACHE_DIR)
-
-client = OpenAI()
 
 
 def freezeargs(func):
@@ -792,16 +789,16 @@ def parse_llm_response(
         if "tool_calls" in dir(response.choices[0].message):
             # Default behavior for write_output function
             tool_calls = response.choices[0].message.tool_calls
+
             if not tool_calls:
                 raise ValueError("No tool calls found in response")
 
             outputs = []
             for tool_call in tool_calls:
-                if tool_call.function.name == "write_output":
-                    try:
-                        outputs.append(json.loads(tool_call.function.arguments))
-                    except json.JSONDecodeError:
-                        return [{}]
+                try:
+                    outputs.append(json.loads(tool_call.function.arguments))
+                except json.JSONDecodeError:
+                    return [{}]
             return outputs
 
         else:

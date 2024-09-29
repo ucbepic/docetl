@@ -363,6 +363,8 @@ def call_llm(
     tools: Optional[List[Dict[str, str]]] = None,
     scratchpad: Optional[str] = None,
     console: Console = Console(),
+    timeout_seconds: int = 120,
+    max_retries_per_timeout: int = 2,
 ) -> Any:
     """
     Wrapper function that uses caching for LLM calls.
@@ -377,6 +379,8 @@ def call_llm(
         output_schema (Dict[str, str]): The output schema dictionary.
         tools (Optional[List[Dict[str, str]]]): The tools to pass to the LLM.
         scratchpad (Optional[str]): The scratchpad to use for the operation.
+        timeout_seconds (int): The timeout for the LLM call.
+        max_retries_per_timeout (int): The maximum number of retries per timeout.
     Returns:
         str: The result from the cached LLM call.
 
@@ -385,10 +389,10 @@ def call_llm(
     """
     key = cache_key(model, op_type, messages, output_schema, scratchpad)
 
-    max_retries = 2
-    for attempt in range(max_retries):
+    max_retries = max_retries_per_timeout
+    for attempt in range(max_retries + 1):
         try:
-            return timeout(120)(cached_call_llm)(
+            return timeout(timeout_seconds)(cached_call_llm)(
                 key,
                 model,
                 op_type,
@@ -607,6 +611,8 @@ def call_llm_with_gleaning(
     validator_prompt_template: str,
     num_gleaning_rounds: int,
     console: Console = Console(),
+    timeout_seconds: int = 120,
+    max_retries_per_timeout: int = 2,
 ) -> Tuple[str, float]:
     """
     Call LLM with a gleaning process, including validation and improvement rounds.
@@ -621,7 +627,7 @@ def call_llm_with_gleaning(
         output_schema (Dict[str, str]): The output schema dictionary.
         validator_prompt_template (str): Template for the validator prompt.
         num_gleaning_rounds (int): Number of gleaning rounds to perform.
-
+        timeout_seconds (int): The timeout for the LLM call.
     Returns:
         Tuple[str, float]: A tuple containing the final LLM response and the total cost.
     """
@@ -632,7 +638,15 @@ def call_llm_with_gleaning(
     parameters["additionalProperties"] = False
 
     # Initial LLM call
-    response = call_llm(model, op_type, messages, output_schema, console=console)
+    response = call_llm(
+        model,
+        op_type,
+        messages,
+        output_schema,
+        console=console,
+        timeout_seconds=timeout_seconds,
+        max_retries_per_timeout=max_retries_per_timeout,
+    )
 
     cost = 0.0
 

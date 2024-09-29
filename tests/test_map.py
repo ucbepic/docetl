@@ -55,3 +55,50 @@ def test_map_operation_with_word_count_tool(map_config_with_tools, synthetic_dat
     assert all("word_count" in result for result in results)
     assert [result["word_count"] for result in results] == [5, 6, 5, 1]
     assert cost > 0  # Ensure there was some cost associated with the operation
+
+
+@pytest.fixture
+def simple_map_config():
+    return {
+        "name": "simple_sentiment_analysis",
+        "type": "map",
+        "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+        "output": {"schema": {"sentiment": "string"}},
+        "model": "gpt-4o-mini",
+    }
+
+
+@pytest.fixture
+def simple_sample_data():
+    import random
+    import string
+
+    def generate_random_text(length):
+        return "".join(
+            random.choice(
+                string.ascii_letters + string.digits + string.punctuation + " "
+            )
+            for _ in range(length)
+        )
+
+    return [
+        {"text": generate_random_text(random.randint(20, 100000))},
+        {"text": generate_random_text(random.randint(20, 100000))},
+        {"text": generate_random_text(random.randint(20, 100000))},
+    ]
+
+
+def test_map_operation_with_timeout(simple_map_config, simple_sample_data):
+    # Add timeout to the map configuration
+    map_config_with_timeout = {
+        **simple_map_config,
+        "timeout": 1,
+        "max_retries_per_timeout": 0,
+    }
+
+    operation = MapOperation(map_config_with_timeout, "gpt-4o-mini", 4)
+
+    # Execute the operation and expect empty results
+    results, cost = operation.execute(simple_sample_data)
+    for result in results:
+        assert "sentiment" not in result

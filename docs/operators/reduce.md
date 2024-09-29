@@ -49,18 +49,20 @@ This Reduce operation processes customer feedback grouped by department:
 
 ### Optional Parameters
 
-| Parameter            | Description                                                                     | Default                     |
-| -------------------- | ------------------------------------------------------------------------------- | --------------------------- |
-| `synthesize_resolve` | If false, won't synthesize a resolve operation between map and reduce           | true                        |
-| `model`              | The language model to use                                                       | Falls back to default_model |
-| `input`              | Specifies the schema or keys to subselect from each item                        | All keys from input items   |
-| `pass_through`       | If true, non-input keys from the first item in the group will be passed through | false                       |
-| `associative`        | If true, the reduce operation is associative (i.e., order doesn't matter)       | true                        |
-| `fold_prompt`        | A prompt template for incremental folding                                       | None                        |
-| `fold_batch_size`    | Number of items to process in each fold operation                               | None                        |
-| `value_sampling`     | A dictionary specifying the sampling strategy for large groups                  | None                        |
-| `verbose`            | If true, enables detailed logging of the reduce operation                       | false                       |
-| `persist_intermediates` | If true, persists the intermediate results for each group to the key `_{operation_name}_intermediates` | false |
+| Parameter                 | Description                                                                                            | Default                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------- |
+| `synthesize_resolve`      | If false, won't synthesize a resolve operation between map and reduce                                  | true                        |
+| `model`                   | The language model to use                                                                              | Falls back to default_model |
+| `input`                   | Specifies the schema or keys to subselect from each item                                               | All keys from input items   |
+| `pass_through`            | If true, non-input keys from the first item in the group will be passed through                        | false                       |
+| `associative`             | If true, the reduce operation is associative (i.e., order doesn't matter)                              | true                        |
+| `fold_prompt`             | A prompt template for incremental folding                                                              | None                        |
+| `fold_batch_size`         | Number of items to process in each fold operation                                                      | None                        |
+| `value_sampling`          | A dictionary specifying the sampling strategy for large groups                                         | None                        |
+| `verbose`                 | If true, enables detailed logging of the reduce operation                                              | false                       |
+| `persist_intermediates`   | If true, persists the intermediate results for each group to the key `_{operation_name}_intermediates` | false                       |
+| `timeout`                 | Timeout for each LLM call in seconds                                                                   | 120                         |
+| `max_retries_per_timeout` | Maximum number of retries per timeout                                                                  | 2                           |
 
 ## Advanced Features
 

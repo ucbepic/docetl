@@ -29,12 +29,14 @@ Each prompt configuration in the `prompts` list should contain:
 
 ### Optional Parameters
 
-| Parameter              | Description                                | Default                       |
-| ---------------------- | ------------------------------------------ | ----------------------------- |
-| `model`                | The default language model to use          | Falls back to `default_model` |
-| `optimize`             | Flag to enable operation optimization      | True                          |
-| `recursively_optimize` | Flag to enable recursive optimization      | false                         |
-| `sample_size`          | Number of samples to use for the operation | Processes all data            |
+| Parameter                 | Description                                | Default                       |
+| ------------------------- | ------------------------------------------ | ----------------------------- |
+| `model`                   | The default language model to use          | Falls back to `default_model` |
+| `optimize`                | Flag to enable operation optimization      | True                          |
+| `recursively_optimize`    | Flag to enable recursive optimization      | false                         |
+| `sample_size`             | Number of samples to use for the operation | Processes all data            |
+| `timeout`                 | Timeout for each LLM call in seconds       | 120                           |
+| `max_retries_per_timeout` | Maximum number of retries per timeout      | 2                             |
 
 ??? question "Why use Parallel Map instead of multiple Map operations?"
 

@@ -54,7 +54,7 @@ def map_config():
         type="map",
         prompt="Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
         output={"schema": {"sentiment": "string"}},
-        model="ollama_chat/llama3",
+        model="ollama/llama3",
     )
 
 
@@ -66,7 +66,7 @@ def reduce_config():
         reduce_key="group",
         prompt="Summarize the following group of values: {{ inputs }} Provide a total and any other relevant statistics.",
         output={"schema": {"total": "number", "avg": "number"}},
-        model="ollama_chat/llama3",
+        model="ollama/llama3",
     )
 
 
@@ -95,7 +95,7 @@ def test_ollama_map_reduce_pipeline(
         output=PipelineOutput(
             type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
         ),
-        default_model="ollama_chat/llama3",
+        default_model="ollama/llama3",
     )
 
     cost = pipeline.run()

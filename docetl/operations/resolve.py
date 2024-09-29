@@ -31,6 +31,8 @@ def compare_pair(
     item1: Dict,
     item2: Dict,
     blocking_keys: List[str] = [],
+    timeout_seconds: int = 120,
+    max_retries_per_timeout: int = 2,
 ) -> Tuple[bool, float]:
     """
     Compares two items using an LLM model to determine if they match.
@@ -58,6 +60,8 @@ def compare_pair(
         "compare",
         [{"role": "user", "content": prompt}],
         {"is_match": "bool"},
+        timeout_seconds=timeout_seconds,
+        max_retries_per_timeout=max_retries_per_timeout,
     )
     output = parse_llm_response(response)[0]
     return output["is_match"], completion_cost(response)
@@ -362,6 +366,10 @@ class ResolveOperation(BaseOperation):
                         input_data[pair[0]],
                         input_data[pair[1]],
                         blocking_keys,
+                        timeout_seconds=self.config.get("timeout", 120),
+                        max_retries_per_timeout=self.config.get(
+                            "max_retries_per_timeout", 2
+                        ),
                     ): pair
                     for pair in batch
                 }
@@ -400,6 +408,10 @@ class ResolveOperation(BaseOperation):
                     [{"role": "user", "content": resolution_prompt}],
                     self.config["output"]["schema"],
                     console=self.console,
+                    timeout_seconds=self.config.get("timeout", 120),
+                    max_retries_per_timeout=self.config.get(
+                        "max_retries_per_timeout", 2
+                    ),
                 )
                 reduction_output = parse_llm_response(reduction_response)[0]
                 reduction_cost = completion_cost(reduction_response)

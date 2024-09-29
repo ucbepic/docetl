@@ -691,6 +691,8 @@ class ReduceOperation(BaseOperation):
             self.config["output"]["schema"],
             scratchpad=scratchpad,
             console=self.console,
+            timeout_seconds=self.config.get("timeout", 120),
+            max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
         )
         folded_output = parse_llm_response(response)[0]
 
@@ -730,6 +732,8 @@ class ReduceOperation(BaseOperation):
             [{"role": "user", "content": merge_prompt}],
             self.config["output"]["schema"],
             console=self.console,
+            timeout_seconds=self.config.get("timeout", 120),
+            max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
         )
         merged_output = parse_llm_response(response)[0]
         merged_output.update(dict(zip(self.config["reduce_key"], key)))
@@ -822,6 +826,8 @@ class ReduceOperation(BaseOperation):
                 self.config["gleaning"]["validation_prompt"],
                 self.config["gleaning"]["num_rounds"],
                 console=self.console,
+                timeout_seconds=self.config.get("timeout", 120),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
             )
             item_cost += gleaning_cost
         else:
@@ -832,6 +838,8 @@ class ReduceOperation(BaseOperation):
                 self.config["output"]["schema"],
                 console=self.console,
                 scratchpad=scratchpad,
+                timeout_seconds=self.config.get("timeout", 120),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
             )
 
         item_cost += completion_cost(response)

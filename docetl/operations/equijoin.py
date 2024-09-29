@@ -54,7 +54,12 @@ def process_left_item(
 
 
 def compare_pair(
-    comparison_prompt: str, model: str, item1: Dict, item2: Dict
+    comparison_prompt: str,
+    model: str,
+    item1: Dict,
+    item2: Dict,
+    timeout_seconds: int = 120,
+    max_retries_per_timeout: int = 2,
 ) -> Tuple[bool, float]:
     """
     Compares two items using an LLM model to determine if they match.
@@ -64,6 +69,8 @@ def compare_pair(
         model (str): The LLM model to use for comparison.
         item1 (Dict): The first item to compare.
         item2 (Dict): The second item to compare.
+        timeout_seconds (int): The timeout for the LLM call in seconds.
+        max_retries_per_timeout (int): The maximum number of retries per timeout.
 
     Returns:
         Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
@@ -76,6 +83,8 @@ def compare_pair(
         "compare",
         [{"role": "user", "content": prompt}],
         {"is_match": "bool"},
+        timeout_seconds=timeout_seconds,
+        max_retries_per_timeout=max_retries_per_timeout,
     )
     output = parse_llm_response(response)[0]
     return output["is_match"], completion_cost(response)
@@ -384,6 +393,8 @@ class EquijoinOperation(BaseOperation):
                     self.config.get("comparison_model", self.default_model),
                     left,
                     right,
+                    self.config.get("timeout", 120),
+                    self.config.get("max_retries_per_timeout", 2),
                 ): (left, right)
                 for left, right in blocked_pairs
             }

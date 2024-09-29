@@ -154,6 +154,10 @@ class MapOperation(BaseOperation):
                         self.config["gleaning"]["validation_prompt"],
                         self.config["gleaning"]["num_rounds"],
                         self.console,
+                        timeout_seconds=self.config.get("timeout", 120),
+                        max_retries_per_timeout=self.config.get(
+                            "max_retries_per_timeout", 2
+                        ),
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
@@ -170,6 +174,10 @@ class MapOperation(BaseOperation):
                         self.config["output"]["schema"],
                         tools=self.config.get("tools", None),
                         console=self.console,
+                        timeout_seconds=self.config.get("timeout", 120),
+                        max_retries_per_timeout=self.config.get(
+                            "max_retries_per_timeout", 2
+                        ),
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
@@ -356,6 +364,8 @@ class ParallelMapOperation(BaseOperation):
                 local_output_schema,
                 tools=prompt_config.get("tools", None),
                 console=self.console,
+                timeout_seconds=self.config.get("timeout", 120),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
             )
             output = parse_llm_response(
                 response, tools=prompt_config.get("tools", None)

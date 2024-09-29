@@ -142,8 +142,12 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `num_retries_on_validate_failure` | Number of retry attempts on validation failure                                                  | 0                             |
 | `gleaning`                        | Configuration for advanced validation and LLM-based refinement                                  | None                          |
 | `drop_keys`                       | List of keys to drop from the input before processing                                           | None                          |
+| `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
+| `max_retries_per_timeout`         | Maximum number of retries per timeout                                                           | 2                             |
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
+
+| `timeout` | Timeout for each LLM call in seconds | 120 |
 
 !!! info "Validation and Gleaning"
 

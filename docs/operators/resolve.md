@@ -107,18 +107,20 @@ After determining eligible pairs for comparison, the Resolve operation uses a Un
 
 ## Optional Parameters
 
-| Parameter              | Description                                                                       | Default                       |
-| ---------------------- | --------------------------------------------------------------------------------- | ----------------------------- |
-| `embedding_model`      | The model to use for creating embeddings                                          | Falls back to `default_model` |
-| `resolution_model`     | The language model to use for reducing matched entries                            | Falls back to `default_model` |
-| `comparison_model`     | The language model to use for comparing potential matches                         | Falls back to `default_model` |
-| `blocking_keys`        | List of keys to use for initial blocking                                          | All keys in the input data    |
-| `blocking_threshold`   | Embedding similarity threshold for considering entries as potential matches       | None                          |
-| `blocking_conditions`  | List of conditions for initial blocking                                           | []                            |
-| `input`                | Specifies the schema or keys to subselect from each item to pass into the prompts | All keys from input items     |
-| `embedding_batch_size` | The number of entries to send to the embedding model at a time                    | 1000                          |
-| `compare_batch_size`   | The number of entity pairs processed in each batch during the comparison phase    | 100                           |
-| `limit_comparisons`    | Maximum number of comparisons to perform                                          | None                          |
+| Parameter                 | Description                                                                       | Default                       |
+| ------------------------- | --------------------------------------------------------------------------------- | ----------------------------- |
+| `embedding_model`         | The model to use for creating embeddings                                          | Falls back to `default_model` |
+| `resolution_model`        | The language model to use for reducing matched entries                            | Falls back to `default_model` |
+| `comparison_model`        | The language model to use for comparing potential matches                         | Falls back to `default_model` |
+| `blocking_keys`           | List of keys to use for initial blocking                                          | All keys in the input data    |
+| `blocking_threshold`      | Embedding similarity threshold for considering entries as potential matches       | None                          |
+| `blocking_conditions`     | List of conditions for initial blocking                                           | []                            |
+| `input`                   | Specifies the schema or keys to subselect from each item to pass into the prompts | All keys from input items     |
+| `embedding_batch_size`    | The number of entries to send to the embedding model at a time                    | 1000                          |
+| `compare_batch_size`      | The number of entity pairs processed in each batch during the comparison phase    | 100                           |
+| `limit_comparisons`       | Maximum number of comparisons to perform                                          | None                          |
+| `timeout`                 | Timeout for each LLM call in seconds                                              | 120                           |
+| `max_retries_per_timeout` | Maximum number of retries per timeout                                             | 2                             |
 
 ## Best Practices
 

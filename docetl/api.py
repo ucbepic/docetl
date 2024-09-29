@@ -80,6 +80,7 @@ class MapOp(BaseOp):
     num_retries_on_validate_failure: Optional[int] = None
     gleaning: Optional[Dict[str, Any]] = None
     drop_keys: Optional[List[str]] = None
+    timeout: Optional[int] = None
 
 
 @dataclass
@@ -98,6 +99,7 @@ class ResolveOp(BaseOp):
     compare_batch_size: Optional[int] = None
     limit_comparisons: Optional[int] = None
     optimize: Optional[bool] = None
+    timeout: Optional[int] = None
 
 
 @dataclass
@@ -115,6 +117,7 @@ class ReduceOp(BaseOp):
     fold_batch_size: Optional[int] = None
     value_sampling: Optional[Dict[str, Any]] = None
     verbose: Optional[bool] = None
+    timeout: Optional[int] = None
 
 
 @dataclass
@@ -126,6 +129,7 @@ class ParallelMapOp(BaseOp):
     recursively_optimize: Optional[bool] = None
     sample_size: Optional[int] = None
     drop_keys: Optional[List[str]] = None
+    timeout: Optional[int] = None
 
 
 @dataclass
@@ -138,6 +142,7 @@ class FilterOp(BaseOp):
     sample_size: Optional[int] = None
     validate: Optional[List[str]] = None
     num_retries_on_validate_failure: Optional[int] = None
+    timeout: Optional[int] = None
 
 
 @dataclass
@@ -156,6 +161,7 @@ class EquijoinOp(BaseOp):
     compare_batch_size: Optional[int] = None
     limit_comparisons: Optional[int] = None
     blocking_keys: Optional[Dict[str, List[str]]] = None
+    timeout: Optional[int] = None
 
 
 @dataclass

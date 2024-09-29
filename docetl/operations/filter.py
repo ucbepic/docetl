@@ -135,6 +135,10 @@ class FilterOperation(BaseOperation):
                     messages,
                     self.config["output"]["schema"],
                     console=self.console,
+                    timeout_seconds=self.config.get("timeout", 120),
+                    max_retries_per_timeout=self.config.get(
+                        "max_retries_per_timeout", 2
+                    ),
                 ),
                 validation_fn=validation_fn,
                 val_rule=self.config.get("validate", []),

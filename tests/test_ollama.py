@@ -15,6 +15,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Set the OLLAMA_API_BASE environment variable
+os.environ["OLLAMA_API_BASE"] = "http://localhost:11434/"
+
 
 @pytest.fixture
 def temp_input_file():

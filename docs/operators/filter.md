@@ -89,6 +89,8 @@ This example demonstrates how the Filter operation distinguishes between high-im
 | `sample_size`                     | Number of samples to use for the operation        | Processes all data            |
 | `validate`                        | List of Python expressions to validate the output | None                          |
 | `num_retries_on_validate_failure` | Number of retry attempts on validation failure    | 0                             |
+| `timeout`                         | Timeout for each LLM call in seconds              | 120                           |
+| `max_retries_per_timeout`         | Maximum number of retries per timeout             | 2                             |
 
 !!! info "Validation"
 

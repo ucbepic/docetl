@@ -19,8 +19,6 @@ import numpy as np
 from jinja2 import Template
 from docetl.utils import completion_cost
 from litellm import embedding
-from sklearn.cluster import KMeans
-from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
@@ -392,6 +390,8 @@ class ReduceOperation(BaseOperation):
     ) -> Tuple[List[Dict], float]:
         embeddings, cost = self._get_embeddings(group_list, value_sampling)
 
+        from sklearn.cluster import KMeans
+
         kmeans = KMeans(n_clusters=sample_size, random_state=42)
         cluster_labels = kmeans.fit_predict(embeddings)
 
@@ -419,6 +419,8 @@ class ReduceOperation(BaseOperation):
         query_response = gen_embedding(embedding_model, [query_text])
         query_embedding = query_response["data"][0]["embedding"]
         cost += completion_cost(query_response)
+
+        from sklearn.metrics.pairwise import cosine_similarity
 
         similarities = cosine_similarity([query_embedding], embeddings)[0]
 

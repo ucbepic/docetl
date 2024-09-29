@@ -12,7 +12,6 @@ import jinja2
 from jinja2 import Template
 from docetl.utils import completion_cost
 from litellm import embedding
-from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
@@ -311,6 +310,8 @@ class ResolveOperation(BaseOperation):
         )
         if remaining_comparisons > 0 and blocking_threshold is not None:
             # Compute cosine similarity for all pairs efficiently
+            from sklearn.metrics.pairwise import cosine_similarity
+
             similarity_matrix = cosine_similarity(embeddings)
 
             cosine_pairs = []

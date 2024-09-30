@@ -6,6 +6,7 @@ import shutil
 import threading
 from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+import litellm
 
 from dotenv import load_dotenv
 from frozendict import frozendict
@@ -388,6 +389,11 @@ def call_llm(
     Raises:
         TimeoutError: If the call times out after retrying.
     """
+    if not litellm.supports_function_calling(model):
+        raise ValueError(
+            f"Model {model} does not support function calling (which we use for structured outputs). Please use a different model."
+        )
+
     key = cache_key(model, op_type, messages, output_schema, scratchpad)
 
     max_retries = max_retries_per_timeout
@@ -632,6 +638,11 @@ def call_llm_with_gleaning(
     Returns:
         Tuple[str, float]: A tuple containing the final LLM response and the total cost.
     """
+    if not litellm.supports_function_calling(model):
+        raise ValueError(
+            f"Model {model} does not support function calling (which we use for structured outputs). Please use a different model."
+        )
+
     props = {key: convert_val(value) for key, value in output_schema.items()}
 
     parameters = {"type": "object", "properties": props}
@@ -814,7 +825,7 @@ def parse_llm_response(
                     output_dict = json.loads(tool_call.function.arguments)
                     if "ollama" in response.model:
                         for key, value in output_dict.items():
-                            if isinstance(value, str):
+                            if not isinstance(value, str):
                                 continue
                             try:
                                 output_dict[key] = ast.literal_eval(value)

@@ -5,7 +5,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
-from jinja2 import Template, Environment
+from jinja2 import Environment, Template
 from tqdm import tqdm
 
 from docetl.operations.base import BaseOperation

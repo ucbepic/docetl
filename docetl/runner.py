@@ -5,7 +5,6 @@ from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache

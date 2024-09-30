@@ -44,29 +44,22 @@ Usage:
 """
 
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 import yaml
 from rich import print
 
 from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
+from docetl.schemas import Dataset, EquijoinOp, FilterOp, GatherOp, MapOp, ParallelMapOp
+from docetl.schemas import Pipeline as PipelineModel
 from docetl.schemas import (
-    Dataset,
-    BaseOp,
-    MapOp,
-    ResolveOp,
-    ReduceOp,
-    ParallelMapOp,
-    FilterOp,
-    EquijoinOp,
-    SplitOp,
-    GatherOp,
-    UnnestOp,
-    PipelineStep,
     PipelineOutput,
-    Pipeline as PipelineModel,
-    OpType,
+    PipelineStep,
+    ReduceOp,
+    ResolveOp,
+    SplitOp,
+    UnnestOp,
 )
 
 

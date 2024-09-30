@@ -1,13 +1,14 @@
+import ast
 import functools
 import hashlib
 import json
-import random
+import os
 import shutil
 import threading
 from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-import litellm
 
+import litellm
 import tiktoken
 from asteval import Interpreter
 from diskcache import Cache
@@ -20,15 +21,8 @@ from rich import print as rprint
 from rich.console import Console
 from rich.prompt import Prompt
 from tqdm import tqdm
-from diskcache import Cache
-import tiktoken
-from rich import print as rprint
-from pydantic import BaseModel, create_model
-import ast
-import os
 
 from docetl.utils import completion_cost, count_tokens
-from asteval import Interpreter
 
 aeval = Interpreter()
 

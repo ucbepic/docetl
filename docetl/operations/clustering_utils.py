@@ -4,8 +4,7 @@ This module contains utilities for clustering based on different methods.
 We use these in map and reduce operations.
 """
 
-import random
-from typing import Dict, List, Literal, Tuple
+from typing import Dict, List, Tuple
 
 from docetl.operations.utils import gen_embedding
 from docetl.utils import completion_cost

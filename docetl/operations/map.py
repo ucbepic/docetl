@@ -5,7 +5,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
-from jinja2 import Template
+from jinja2 import Template, Environment
 from tqdm import tqdm
 
 from docetl.operations.base import BaseOperation
@@ -19,7 +19,20 @@ from docetl.operations.utils import (
     validate_output,
 )
 from docetl.schemas import MapOperationConfig, Tool, ToolFunction
-from docetl.utils import completion_cost, render_jinja_template
+from docetl.utils import completion_cost
+
+
+def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
+    """
+    Render a Jinja2 template with the given data, ensuring protection against template injection vulnerabilities.
+    If the data is empty, return an empty string.
+    """
+    if not data:
+        return ""
+
+    env = Environment(autoescape=True)
+    template = env.from_string(template_string)
+    return template.render(input=data)
 
 
 class MapOperation(BaseOperation):

@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import docetl
-import pytest
-=======
 # ruff: noqa: F811
 
->>>>>>> 4a2b626 (fix: Update dependencies in pyproject.toml and add new schemas.py, test_map_parallel, conftest.py files)
 from docetl.operations.map import MapOperation
 from tests.conftest import (
     map_config_with_batching as map_config_with_batching,
@@ -19,6 +14,7 @@ from tests.conftest import (
     map_config_with_drop_keys_no_prompt as map_config_with_drop_keys_no_prompt,
 )
 import pytest
+import docetl
 
 
 def test_map_operation(

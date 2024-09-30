@@ -207,6 +207,17 @@ class DSLRunner:
                 operation_name = operation
                 operation_config = {}
 
+            # Load from checkpoint if it exists
+            attempted_input_data = self._load_from_checkpoint_if_exists(
+                step["name"], operation_name
+            )
+            if attempted_input_data is not None:
+                input_data = attempted_input_data
+                self.console.print(
+                    f"[green]✓ [italic]Loaded saved data for operation '{operation_name}' in step '{step['name']}'[/italic][/green]"
+                )
+                continue
+
             op_object = self.find_operation(operation_name).copy()
             op_object.update(operation_config)
 
@@ -243,6 +254,18 @@ class DSLRunner:
                 self._save_checkpoint(step["name"], operation_name, input_data)
 
         return input_data, total_cost
+
+    def _load_from_checkpoint_if_exists(
+        self, step_name: str, operation_name: str
+    ) -> Optional[List[Dict]]:
+        checkpoint_path = os.path.join(
+            self.intermediate_dir, step_name, f"{operation_name}.json"
+        )
+        # check if checkpoint exists
+        if os.path.exists(checkpoint_path):
+            with open(checkpoint_path, "r") as f:
+                return json.load(f)
+        return None
 
     def _save_checkpoint(self, step_name: str, operation_name: str, data: List[Dict]):
         """

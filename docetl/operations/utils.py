@@ -27,7 +27,7 @@ from pydantic import BaseModel, create_model
 import ast
 import os
 
-from docetl.utils import count_tokens
+from docetl.utils import completion_cost, count_tokens
 from asteval import Interpreter
 
 aeval = Interpreter()

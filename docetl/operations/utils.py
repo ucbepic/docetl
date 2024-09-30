@@ -1,5 +1,4 @@
 import functools
-import os
 import hashlib
 import json
 import random
@@ -9,14 +8,15 @@ from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 import litellm
 
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, Literal
-from openai import OpenAI
-from sklearn.cluster import KMeans
+import tiktoken
+from asteval import Interpreter
+from diskcache import Cache
 from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
 from litellm import completion, embedding, model_cost
-from docetl.utils import completion_cost
+from pydantic import create_model
+from rich import print as rprint
 from rich.console import Console
 from rich.prompt import Prompt
 from tqdm import tqdm
@@ -25,6 +25,7 @@ import tiktoken
 from rich import print as rprint
 from pydantic import BaseModel, create_model
 import ast
+import os
 
 from docetl.utils import count_tokens
 from asteval import Interpreter
@@ -975,7 +976,7 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
         return True
     for validation in operation["validate"]:
         try:
-            if not eval(validation, {"output": output}):
+            if not safe_eval(validation, output):
                 console.log(f"[bold red]Validation failed:[/bold red] {validation}")
                 console.log(f"[yellow]Output:[/yellow] {output}")
                 return False
@@ -999,78 +1000,6 @@ def safe_eval(expression: str, output: Dict) -> bool:
         return bool(aeval(expression))
     except Exception:
         return False
-
-
-def cluster_documents(
-    documents: List[Dict],
-    batch_size: int,
-    clustering_method: Literal["random", "sem_cluster"],
-) -> List[List[Dict]]:
-    """
-    Clusters documents based on the configured clustering method.
-
-    Args:
-        documents (List[Dict]): The list of documents to cluster.
-        batch_size (int): The number of documents to cluster.
-        clustering_method (str): The clustering method to use.
-
-    Returns:
-        List[List[Dict]]: A list of clusters, where each cluster is a list of documents.
-    """
-
-    # If there are no documents, return an empty list
-    if not documents:
-        return []
-
-    # If the batch size is 1, return the documents as a single cluster
-    if batch_size == 1:
-        return [documents]
-
-    # If the batch size is greater than 1, cluster the documents
-    if batch_size > 1:
-        # If the clustering method is random, shuffle the documents and return batches
-        if clustering_method == "random":
-            random.shuffle(documents)
-            return [
-                documents[i : i + batch_size]
-                for i in range(0, len(documents), batch_size)
-            ]
-
-        # If the clustering method is sem_cluster, use kmeans clustering
-        elif clustering_method == "sem_cluster":
-            return kmeans_cluster(documents, batch_size)
-    else:
-        raise ValueError("Batch size must be greater than 0.")
-
-
-def kmeans_cluster(documents: List[Dict], k: int) -> List[List[Dict]]:
-    """
-    Cluster documents using KMeans clustering algorithm.
-
-    Args:
-        documents (List[Dict]): The list of documents to cluster.
-        k (int): The number of clusters to create.
-
-    Returns:
-        List[List[Dict]]: A list of clusters, where each cluster is a list of documents.
-    """
-    import torch
-
-    device = "cpu"
-    if torch.backends.mps.is_available():
-        device = "mps"
-    elif torch.cuda.is_available():
-        device = "cuda"
-
-    model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
-    embeddings = model.encode([str(doc) for doc in documents])
-    num_clusters = max(1, len(documents) // k)
-    kmeans = KMeans(n_clusters=num_clusters)
-    kmeans.fit(embeddings)
-    clusters = {i: [] for i in range(num_clusters)}
-    for idx, label in enumerate(kmeans.labels_):
-        clusters[label].append(documents[idx])
-    return list(clusters.values())
 
 
 class RichLoopBar:

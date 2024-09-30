@@ -6,14 +6,11 @@ import os
 import random
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
-import numpy as np
 
 import yaml
 from rich.console import Console
 from rich.status import Status
 from rich.traceback import install
-
-install(show_locals=True)
 
 from docetl.operations import get_operation
 from docetl.operations.base import BaseOperation
@@ -23,6 +20,8 @@ from docetl.optimizers.map_optimizer import MapOptimizer
 from docetl.optimizers.reduce_optimizer import ReduceOptimizer
 from docetl.optimizers.utils import LLMClient
 from docetl.utils import load_config
+
+install(show_locals=True)
 
 SUPPORTED_OPS = ["map", "resolve", "reduce", "equijoin", "filter"]
 NUM_OPTIMIZER_RETRIES = 1
@@ -151,10 +150,6 @@ class Optimizer:
         self.sample_size_map = SAMPLE_SIZE_MAP
         if self.config.get("optimizer_config", {}).get("sample_sizes", {}):
             self.sample_size_map.update(self.config["optimizer_config"]["sample_sizes"])
-
-        # Set default batch parameters
-        self.batch_size = self.config.get("batch_size", 1)
-        self.clustering_method = self.config.get("clustering_method", "random")
 
         self.status = None
         self.step_op_to_optimized_ops = {}

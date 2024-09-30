@@ -25,6 +25,23 @@ LLM-based operators have additional attributes:
 - `output`: Specifies the schema for the output from the LLM call.
 - `model` (optional): Allows specifying a different model from the pipeline default.
 
+Example:
+
+```yaml
+- name: extract_insights
+  type: map
+  model: gpt-4o
+  prompt: |
+    Analyze the following user interaction log:
+    {{ input.log }}
+
+    Extract 2-3 main insights from this log, each being 1-2 words, to help inform future product development. Consider any difficulties or pain points the user may have had. Also provide 1-2 supporting actions for each insight.
+    Return the results as a list of dictionaries, each containing 'insight' and 'supporting_actions' keys.
+  output:
+    schema:
+      insights: "list[{insight: string, supporting_actions: list[string]}]"
+```
+
 ## Input and Output
 
 Prompts can reference any fields in the data, including:
@@ -175,96 +192,3 @@ Gleaning is an iterative process that refines LLM outputs using context-aware va
 This process allows for nuanced, context-aware validation and refinement of LLM outputs. It's particularly useful for complex tasks where simple rule-based validation might miss subtleties or context-dependent aspects of the output.
 
 Note that gleaning can significantly increase the number of LLM calls for each operator, potentially doubling it at minimum. While this increases cost and latency, it can lead to higher quality outputs for complex tasks.
-``` 
-
-
-Example:
-
-```yaml
-- name: extract_insights
-  type: map
-  model: gpt-4o
-  prompt: |
-    Analyze the following user interaction log:
-    {{ input.log }}
-
-    Extract 2-3 main insights from this log, each being 1-2 words, to help inform future product development. Consider any difficulties or pain points the user may have had. Also provide 1-2 supporting actions for each insight.
-    Return the results as a list of dictionaries, each containing 'insight' and 'supporting_actions' keys.
-  output:
-    schema:
-      insights: "list[{insight: string, supporting_actions: list[string]}]"
-```
-
-## Batching in Map Operations
-
-### Batching
-
-Batching in map operations allows you to process multiple input items simultaneously, improving efficiency and potentially reducing costs associated with API calls to language models. By grouping input data into batches, you can optimize the performance of your operations, especially when dealing with large datasets.
-
-### How to Use and Configure Batching
-
-To enable batching in your map operations, you need to specify the `batch_size` and optionally the `clustering_method` in your configuration. The `batch_size` determines how many input items will be processed together in a single call, while the `clustering_method` can be used to group similar items together for more efficient processing.
-
-#### Clustering Methods
-
-- `random`: Groups items into batches randomly.
-- `sem_cluster`: Uses semantic similarity measures to cluster similar items together before batching. This method leverages similarity measures to ensure that items within a batch are contextually related, which can enhance the quality and coherence of the output.
-
-### Example Configuration
-
-Here’s an example of how to configure batching in a map operation with semantic clustering:
-
-```yaml
-- name: analyze_responses
-  type: map
-  batch_size: 10
-  clustering_method: sem_cluster
-  prompt: |
-    Analyze the following set of responses:
-    {% for response in inputs %}
-    - {{ response.text }}
-    {% endfor %}
-
-    Provide a summary for each response.
-  output:
-    schema:
-      summaries: "list[string]"
-```
-
-### Example Usage
-
-You can use the configured map operation as follows:
-
-```yaml
-- name: extract_summaries
-  type: map
-  batch_size: 5
-  clustering_method: random
-  prompt: |
-    Summarize each of the following items:
-    {% for item in inputs %}
-    - {{ item.description }}
-    {% endfor %}
-  output:
-    schema:
-      summaries: "list[string]"
-```
-
-## Trade-offs and Considerations for Batch Size Selection
-
-When selecting a batch size, consider the following trade-offs:
-
-1. **Performance:**
-   Larger batch sizes can improve throughput by reducing the number of API calls, but they may also increase latency if the processing time for a single batch is significantly longer.
-
-2. **Cost:**
-   Depending on the pricing model of the language model API, larger batches may reduce the cost per item processed. However, if the batch size exceeds the model's limits, it could lead to errors or increased costs.
-
-3. **Memory Usage:**
-   Larger batches require more memory to hold the input data and the intermediate results. Ensure that your system has sufficient resources to handle the selected batch size.
-
-4. **Accuracy:**
-   When using clustering methods like `sem_cluster`, ensure that the items in a batch are similar enough to maintain the accuracy of the results. Poor clustering can lead to mixed results that may not accurately reflect the sentiment or other metrics being analyzed.
-
-5. **Error Handling:**
-   Consider how errors will be handled in batched operations. If one item in a batch fails, you may need to implement logic to retry or log the error without affecting the entire batch.

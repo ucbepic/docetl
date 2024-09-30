@@ -76,7 +76,7 @@ class ConfigGenerator:
         Operation Type: {op_config['type']}
         Current Prompt: {op_config.get('prompt', 'N/A')}
         Current Output Schema: {json.dumps(output_schema, indent=2)}
-        
+
         Input keys: {input_data_sample[0].keys()}
 
         Input Data Sample:

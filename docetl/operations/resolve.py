@@ -2,27 +2,24 @@
 The `ResolveOperation` class is a subclass of `BaseOperation` that performs a resolution operation on a dataset. It uses a combination of blocking techniques and LLM-based comparisons to efficiently identify and resolve duplicate or related entries within the dataset.
 """
 
+import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple
-import random
-
-import numpy as np
 
 import jinja2
 from jinja2 import Template
-from docetl.utils import completion_cost
-from litellm import embedding
+from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
     RichLoopBar,
     call_llm,
+    gen_embedding,
     parse_llm_response,
     rich_as_completed,
     validate_output,
-    gen_embedding,
 )
-from rich.prompt import Confirm
+from docetl.utils import completion_cost
 
 
 def compare_pair(

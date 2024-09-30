@@ -3,16 +3,13 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple, Literal
+from typing import Any, Dict, List, Optional, Tuple
+
 from jinja2 import Template
-from docetl.utils import completion_cost
-from docetl.schemas import (
-    MapOperationConfig,
-    Tool,
-    ToolFunction,
-)
+from tqdm import tqdm
 
 from docetl.operations.base import BaseOperation
+from docetl.operations.clustering_utils import cluster_documents_for_map
 from docetl.operations.utils import (
     RichLoopBar,
     call_llm,
@@ -20,10 +17,9 @@ from docetl.operations.utils import (
     call_llm_with_validation,
     parse_llm_response,
     validate_output,
-    cluster_documents,
 )
-from tqdm import tqdm
-from docetl.optimizers.utils import render_jinja_template
+from docetl.schemas import MapOperationConfig, Tool, ToolFunction
+from docetl.utils import completion_cost, render_jinja_template
 
 
 class MapOperation(BaseOperation):
@@ -33,13 +29,10 @@ class MapOperation(BaseOperation):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        print(f"Config: {self.config}")
-        self.batch_size: int = self.config.get(
-            "batch_size", kwargs.get("batch_size", 1)
+        self.max_batch_size: int = self.config.get(
+            "max_batch_size", kwargs.get("max_batch_size", float("inf"))
         )
-        self.clustering_method: Literal["random", "sem_cluster"] = self.config.get(
-            "clustering_method", kwargs.get("clustering_method", "random")
-        )
+        self.clustering_method = "random"
 
     def syntax_check(self) -> None:
         """
@@ -278,71 +271,87 @@ class MapOperation(BaseOperation):
         self, batch: List[Dict]
     ) -> Tuple[List[Optional[Dict]], float]:
         """
-        Processes a single batch of documents with gleaning.
+        Processes a single batch of documents with gleaning in parallel.
         """
         results = []
         total_cost = 0.0
 
-        for item in batch:
-            prompt = render_jinja_template(self.config["prompt"], item)
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = [
+                executor.submit(self._process_single_item, item) for item in batch
+            ]
 
-            def validation_fn(response: Dict[str, Any]):
-                output = parse_llm_response(
-                    response, tools=self.config.get("tools", None)
-                )[0]
-                for key, value in item.items():
-                    if key not in self.config["output"]["schema"]:
-                        output[key] = value
-                if validate_output(self.config, output, self.console):
-                    return output, True
-                return output, False
+            pbar = RichLoopBar(
+                futures, desc="Processing batch items", console=self.console
+            )
 
-            if "gleaning" in self.config:
-                output, cost, success = call_llm_with_validation(
-                    [{"role": "user", "content": prompt}],
-                    llm_call_fn=lambda messages: call_llm_with_gleaning(
-                        self.config.get("model", self.default_model),
-                        "map",
-                        messages,
-                        self.config["output"]["schema"],
-                        self.config["gleaning"]["validation_prompt"],
-                        self.config["gleaning"]["num_rounds"],
-                        self.console,
-                        timeout=self.config.get("timeout", 120),
-                        max_retries=self.config.get("max_retries_per_timeout", 2),
-                    ),
-                    validation_fn=validation_fn,
-                    val_rule=self.config.get("validate", []),
-                    num_retries=self.num_retries_on_validate_failure,
-                    console=self.console,
-                )
-            else:
-                output, cost, success = call_llm_with_validation(
-                    [{"role": "user", "content": prompt}],
-                    llm_call_fn=lambda messages: call_llm(
-                        self.config.get("model", self.default_model),
-                        "map",
-                        messages,
-                        self.config["output"]["schema"],
-                        tools=self.config.get("tools", None),
-                        console=self.console,
-                        timeout=self.config.get("timeout", 120),
-                        max_retries=self.config.get("max_retries_per_timeout", 2),
-                    ),
-                    validation_fn=validation_fn,
-                    val_rule=self.config.get("validate", []),
-                    num_retries=self.num_retries_on_validate_failure,
-                    console=self.console,
-                )
-
-            if success:
-                results.append(output)
-            else:
-                results.append(None)
-
-            total_cost += cost
+            for future in pbar:
+                result, cost = future.result()
+                results.append(result)
+                total_cost += cost
 
         return results, total_cost
+
+    def _process_single_item(self, item: Dict) -> Tuple[Optional[Dict], float]:
+        """
+        Processes a single item from the batch.
+        """
+        prompt = render_jinja_template(self.config["prompt"], item)
+
+        def validation_fn(response: Dict[str, Any]):
+            output = parse_llm_response(response, tools=self.config.get("tools", None))[
+                0
+            ]
+            for key, value in item.items():
+                if key not in self.config["output"]["schema"]:
+                    output[key] = value
+            if validate_output(self.config, output, self.console):
+                return output, True
+            return output, False
+
+        if "gleaning" in self.config:
+            output, cost, success = call_llm_with_validation(
+                [{"role": "user", "content": prompt}],
+                llm_call_fn=lambda messages: call_llm_with_gleaning(
+                    self.config.get("model", self.default_model),
+                    "map",
+                    messages,
+                    self.config["output"]["schema"],
+                    self.config["gleaning"]["validation_prompt"],
+                    self.config["gleaning"]["num_rounds"],
+                    self.console,
+                    timeout_seconds=self.config.get("timeout", 120),
+                    max_retries_per_timeout=self.config.get(
+                        "max_retries_per_timeout", 2
+                    ),
+                ),
+                validation_fn=validation_fn,
+                val_rule=self.config.get("validate", []),
+                num_retries=self.num_retries_on_validate_failure,
+                console=self.console,
+            )
+        else:
+            output, cost, success = call_llm_with_validation(
+                [{"role": "user", "content": prompt}],
+                llm_call_fn=lambda messages: call_llm(
+                    self.config.get("model", self.default_model),
+                    "map",
+                    messages,
+                    self.config["output"]["schema"],
+                    tools=self.config.get("tools", None),
+                    console=self.console,
+                    timeout_seconds=self.config.get("timeout", 120),
+                    max_retries_per_timeout=self.config.get(
+                        "max_retries_per_timeout", 2
+                    ),
+                ),
+                validation_fn=validation_fn,
+                val_rule=self.config.get("validate", []),
+                num_retries=self.num_retries_on_validate_failure,
+                console=self.console,
+            )
+
+        return (output if success else None), cost
 
 
 class ParallelMapOperation(BaseOperation):
@@ -352,12 +361,6 @@ class ParallelMapOperation(BaseOperation):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.batch_size: int = self.config.get(
-            "batch_size", kwargs.get("batch_size", 1)
-        )
-        self.clustering_method: Literal["random", "sem_cluster"] = self.config.get(
-            "clustering_method", kwargs.get("clustering_method", "random")
-        )
 
     def syntax_check(self) -> None:
         """
@@ -459,9 +462,6 @@ class ParallelMapOperation(BaseOperation):
         4. If drop_keys is specified, it drops the specified keys from each document
         5. Calculates total cost of the operation
         """
-        batched_data = cluster_documents(
-            input_data, self.batch_size, self.clustering_method
-        )
         results = {}
         total_cost = 0
         output_schema = self.config.get("output", {}).get("schema", {})
@@ -495,8 +495,8 @@ class ParallelMapOperation(BaseOperation):
                 local_output_schema,
                 tools=prompt_config.get("tools", None),
                 console=self.console,
-                timeout=self.config.get("timeout", 120),
-                max_retries=self.config.get("max_retries_per_timeout", 2),
+                timeout_seconds=self.config.get("timeout", 120),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
             )
             output = parse_llm_response(
                 response,
@@ -511,8 +511,7 @@ class ParallelMapOperation(BaseOperation):
                 # Create all futures at once
                 all_futures = [
                     executor.submit(process_prompt, item, prompt_config)
-                    for batch in batched_data
-                    for item in batch
+                    for item in input_data
                     for prompt_config in self.config["prompts"]
                 ]
 

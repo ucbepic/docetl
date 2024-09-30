@@ -2,12 +2,12 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from litellm import model_cost
 
+from litellm import model_cost
 from rich.console import Console
 
 from docetl.optimizers.utils import LLMClient
-from docetl.utils import extract_jinja_variables, truncate_sample_data, count_tokens
+from docetl.utils import count_tokens, extract_jinja_variables, truncate_sample_data
 
 
 class Evaluator:

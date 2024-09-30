@@ -4,8 +4,10 @@ tests:
 	poetry run pytest
 
 tests-basic:
-	poetry run pytest tests/test_basic.py
-	poetry run pytest tests/test_api.py
+	poetry run pytest tests/basic/test_basic_map.py
+	poetry run pytest tests/basic/test_basic_reduce_resolve.py
+	poetry run pytest tests/basic/test_basic_parallel_map.py
+	poetry run pytest tests/basic/test_basic_filter_split_gather.py
 
 lint:
 	poetry run ruff check docetl/* --fix

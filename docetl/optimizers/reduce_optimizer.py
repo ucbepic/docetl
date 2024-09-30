@@ -1,22 +1,21 @@
 import copy
 import json
 import random
-from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from statistics import mean, median
+from statistics import mean
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from jinja2 import Template
+from litellm import model_cost
 from rich.console import Console
 from rich.prompt import Confirm
 from rich.status import Status
 
 from docetl.operations.base import BaseOperation
-from docetl.optimizers.join_optimizer import JoinOptimizer
-from docetl.optimizers.utils import LLMClient, extract_jinja_variables
-from docetl.utils import count_tokens
 from docetl.operations.utils import truncate_messages
-from litellm import model_cost
-from jinja2 import Template
+from docetl.optimizers.join_optimizer import JoinOptimizer
+from docetl.optimizers.utils import LLMClient
+from docetl.utils import count_tokens, extract_jinja_variables
 
 
 class ReduceOptimizer:
@@ -800,7 +799,7 @@ class ReduceOptimizer:
             # Determine embedding keys
             prompt = f"""
             For the {method} sampling method, we need to determine which keys from the input data should be used for generating embeddings.
-            
+
             Input data keys:
             {', '.join(sample_input[0].keys())}
 

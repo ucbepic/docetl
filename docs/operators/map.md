@@ -187,6 +187,26 @@ Tools can extend the capabilities of the Map operation. Each tool is a Python fu
 
 If the input doesn't fit within the token limit, DocETL automatically truncates tokens from the middle of the input data, preserving the beginning and end which often contain more important context. A warning is displayed when truncation occurs.
 
+### Batching
+
+If you have a really large collection of documents and you don't want to run them through the Map operation at the same time, you can use the `batch_size` parameter to process data in smaller chunks. This can significantly reduce memory usage and improve performance.
+
+To enable batching in your map operations, you need to specify the `max_batch_size` parameter in your configuration.
+
+```yaml
+- name: extract_summaries
+  type: map
+  max_batch_size: 5
+  clustering_method: random
+  prompt: |
+    Summarize this text: "{{ input.text }}"
+  output:
+    schema:
+      summary: string
+```
+
+In the above config, there will be no more than 5 API calls to the LLM at a time (i.e., 5 documents processed at a time, one per API call).
+
 ## Best Practices
 
 1. **Clear Prompts**: Write clear, specific prompts that guide the LLM to produce the desired output.

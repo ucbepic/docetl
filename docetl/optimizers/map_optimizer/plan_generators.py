@@ -10,7 +10,8 @@ from docetl.optimizers.map_optimizer.config_generators import ConfigGenerator
 from docetl.optimizers.map_optimizer.operation_creators import OperationCreator
 from docetl.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from docetl.optimizers.reduce_optimizer import ReduceOptimizer
-from docetl.optimizers.utils import LLMClient, extract_jinja_variables
+from docetl.optimizers.utils import LLMClient
+from docetl.utils import extract_jinja_variables
 
 
 class PlanGenerator:
@@ -632,7 +633,7 @@ class PlanGenerator:
 
         Output schema the operation will produce:
         {json.dumps(output_schema, indent=2)}
-        
+
         Input data keys:
         {json.dumps(variables_in_prompt, indent=2)}
 

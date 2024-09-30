@@ -1,28 +1,30 @@
+import ast
 import functools
-import os
 import hashlib
 import json
+import os
 import shutil
 import threading
 from concurrent.futures import as_completed
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-import litellm
 
+import litellm
+import tiktoken
+from asteval import Interpreter
+from diskcache import Cache
 from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
 from litellm import completion, embedding, model_cost
-from docetl.utils import completion_cost
+from pydantic import create_model
+from rich import print as rprint
 from rich.console import Console
 from rich.prompt import Prompt
 from tqdm import tqdm
-from diskcache import Cache
-import tiktoken
-from rich import print as rprint
-from pydantic import BaseModel, create_model
-import ast
 
-from docetl.utils import count_tokens
+from docetl.utils import completion_cost, count_tokens
+
+aeval = Interpreter()
 
 load_dotenv()
 # litellm.set_verbose = True
@@ -266,6 +268,7 @@ def cache_key(
     Returns:
         str: A unique hash string representing the cache key.
     """
+    # Ensure no non-serializable objects are included
     key_dict = {
         "model": model,
         "op_type": op_type,
@@ -772,7 +775,7 @@ def call_llm_with_gleaning(
 
         # Parse the validator response
         suggestion = json.loads(validator_response.choices[0].message.content)
-        if suggestion["should_refine"] == False:
+        if not suggestion["should_refine"]:
             break
 
         # console.log(
@@ -967,7 +970,7 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
         return True
     for validation in operation["validate"]:
         try:
-            if not eval(validation, {"output": output}):
+            if not safe_eval(validation, output):
                 console.log(f"[bold red]Validation failed:[/bold red] {validation}")
                 console.log(f"[yellow]Output:[/yellow] {output}")
                 return False
@@ -976,6 +979,21 @@ def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
             console.log(f"[yellow]Output:[/yellow] {output}")
             return False
     return True
+
+
+def safe_eval(expression: str, output: Dict) -> bool:
+    """
+    Safely evaluate an expression with a given output dictionary.
+    Uses asteval to evaluate the expression.
+    https://lmfit.github.io/asteval/index.html
+    """
+    try:
+        # Add the output dictionary to the symbol table
+        aeval.symtable["output"] = output
+        # Safely evaluate the expression
+        return bool(aeval(expression))
+    except Exception:
+        return False
 
 
 class RichLoopBar:

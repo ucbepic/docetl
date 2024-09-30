@@ -633,7 +633,7 @@ class PlanGenerator:
 
         Output schema the operation will produce:
         {json.dumps(output_schema, indent=2)}
-        
+
         Input data keys:
         {json.dumps(variables_in_prompt, indent=2)}
 

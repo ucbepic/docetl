@@ -43,16 +43,15 @@ Usage:
     result = optimized_pipeline.run()
 """
 
-from dataclasses import dataclass
 import os
-from typing import List, Optional, Dict, Any, Union
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
+from rich import print
 
 from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
-
-from rich import print
 
 
 @dataclass

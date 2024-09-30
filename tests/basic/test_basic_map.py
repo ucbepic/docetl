@@ -18,12 +18,12 @@ from tests.conftest import (
     map_sample_data_with_extra_keys as map_sample_data_with_extra_keys,
     map_config_with_drop_keys_no_prompt as map_config_with_drop_keys_no_prompt,
 )
+import pytest
 
 
 def test_map_operation(
     test_map_operation_instance,
     map_sample_data,
-    response_lookup,
 ):
     results, cost = test_map_operation_instance.execute(map_sample_data)
 
@@ -107,13 +107,13 @@ def test_map_operation_with_empty_input(
     assert cost == 0
 
 
-def test_map_operation_with_large_batch_size(
+def test_map_operation_with_large_max_batch_size(
     map_config_with_batching,
     default_model,
     max_threads,
     map_sample_data,
 ):
-    map_config_with_batching["batch_size"] = 5  # Set batch size larger than data
+    map_config_with_batching["max_batch_size"] = 5  # Set batch size larger than data
     operation = MapOperation(map_config_with_batching, default_model, max_threads)
     results, cost = operation.execute(map_sample_data)
 

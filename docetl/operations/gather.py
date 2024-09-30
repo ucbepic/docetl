@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict, List, Tuple
 
 from docetl.operations.base import BaseOperation
 
@@ -311,8 +311,7 @@ class GatherOperation(BaseOperation):
         rendered_headers = [
             f"{'#' * level} {header}"
             for level, header in sorted(current_hierarchy.items())
-            if header is not None
-            and (highest_level is None or level < highest_level)
+            if header is not None and (highest_level is None or level < highest_level)
         ]
         rendered_headers = " > ".join(rendered_headers)
         return f"_Current Section:_ {rendered_headers}" if rendered_headers else ""

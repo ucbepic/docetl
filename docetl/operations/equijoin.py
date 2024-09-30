@@ -2,28 +2,27 @@
 The `EquijoinOperation` class is a subclass of `BaseOperation` that performs an equijoin operation on two datasets. It uses a combination of blocking techniques and LLM-based comparisons to efficiently join the datasets.
 """
 
-from multiprocessing import Pool, cpu_count
 import json
+import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-import random
+from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, List, Tuple
-from rich.prompt import Confirm
 
 import numpy as np
-
 from jinja2 import Template
-from litellm import embedding, model_cost
-from docetl.utils import completion_cost
+from litellm import model_cost
+from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
     call_llm,
+    gen_embedding,
     parse_llm_response,
     rich_as_completed,
     validate_output,
-    gen_embedding,
 )
+from docetl.utils import completion_cost
 
 # Global variables to store shared data
 _right_data = None

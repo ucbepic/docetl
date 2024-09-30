@@ -1,12 +1,10 @@
 import json
 import random
-import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from docetl.utils import completion_cost
-from litellm import embedding, model_cost
+from litellm import model_cost
 from rich.console import Console
 from rich.prompt import Confirm
 from rich.status import Status
@@ -14,7 +12,7 @@ from rich.status import Status
 from docetl.operations.equijoin import compare_pair as compare_pair_equijoin
 from docetl.operations.resolve import compare_pair as compare_pair_resolve
 from docetl.operations.utils import gen_embedding
-from docetl.utils import extract_jinja_variables
+from docetl.utils import completion_cost, extract_jinja_variables
 
 
 class JoinOptimizer:
@@ -255,7 +253,7 @@ class JoinOptimizer:
     [Entity 2]:
     {{{{ input2.key1 }}}}
     {{{{ input2.optional_key2 }}}}
-    
+
     Are these [entities] likely referring to the same [entity type]? Consider [list relevant attributes or characteristics to compare]. Respond with "True" if they are likely the same [entity type], or "False" if they are likely different [entity types].
     ```
 
@@ -818,11 +816,11 @@ class JoinOptimizer:
 
                 Other ({'left' if dataset_to_transform == "right" else "right"}) dataset sample:
                 {json.dumps(right_sample if dataset_to_transform == "left" else left_sample, indent=2)}
-                
+
                 Reason for transforming {dataset_to_transform} dataset: {reason}
 
                 Please provide:
-                1. An LLM prompt to extract a smaller representation of what is relevant to the join task. The prompt should be a Jinja2 template, referring to any fields in the input data as {{ input.field_name }}. The prompt should instruct the LLM to return some **non-empty** string-valued output. The transformation should be tailored to the join task if possible, not just a generic summary of the data. 
+                1. An LLM prompt to extract a smaller representation of what is relevant to the join task. The prompt should be a Jinja2 template, referring to any fields in the input data as {{ input.field_name }}. The prompt should instruct the LLM to return some **non-empty** string-valued output. The transformation should be tailored to the join task if possible, not just a generic summary of the data.
                 2. A name for the new output key that will store the transformed data.
                 3. An edited comparison prompt that leverages the new attribute created by the transformation. This prompt should be a Jinja2 template, referring to any fields in the input data as {{ left.field_name }} and {{ right.field_name }}. The prompt should be the same as the current comparison prompt, but with a new instruction that leverages the new attribute created by the transformation. The prompt should instruct the LLM to return a boolean-valued output, like the current comparison prompt.""",
             }
@@ -878,16 +876,16 @@ class JoinOptimizer:
                 3. Pairs with high similarity will be passed to the LLM for final comparison.
 
                 The blocking keys should have relatively short values and be useful for generating embeddings that capture the essence of potential matches.
-                
+
                 Left dataset keys: {left_keys}
                 Right dataset keys: {right_keys}
-                
+
                 Sample from left dataset:
                 {json.dumps(left_sample, indent=2)}
-                
+
                 Sample from right dataset:
                 {json.dumps(right_sample, indent=2)}
-                
+
                 For context, here is the comparison prompt that will be used for the more detailed LLM comparison:
                 {self.op_config.get('comparison_prompt', 'No comparison prompt provided.')}
 

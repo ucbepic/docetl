@@ -1,14 +1,14 @@
 import concurrent
 import copy
-import json
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Tuple
 
+from jinja2 import Template
+from litellm import model_cost
 from rich.console import Console
 from rich.table import Table
-from jinja2 import Template
 
 from docetl.optimizers.map_optimizer.evaluator import Evaluator
 from docetl.optimizers.map_optimizer.plan_generators import PlanGenerator
@@ -16,8 +16,6 @@ from docetl.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from docetl.optimizers.map_optimizer.utils import select_evaluation_samples
 from docetl.optimizers.utils import LLMClient
 from docetl.utils import count_tokens
-
-from litellm import model_cost
 
 
 class MapOptimizer:

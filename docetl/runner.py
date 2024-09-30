@@ -1,16 +1,15 @@
 import json
 import os
-from typing import Dict, List, Optional, Tuple
 import time
+from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.status import Status
 
 from docetl.operations import get_operation
-from docetl.utils import load_config
 from docetl.operations.utils import flush_cache
+from docetl.utils import load_config
 
 load_dotenv()
 

@@ -2,8 +2,8 @@ import json
 import random
 from typing import Any, Dict, List, Tuple
 
-from rich.console import Console
 from litellm import model_cost
+from rich.console import Console
 
 from docetl.optimizers.map_optimizer.utils import generate_and_validate_prompt
 from docetl.optimizers.utils import LLMClient

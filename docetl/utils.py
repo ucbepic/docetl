@@ -1,12 +1,24 @@
+import json
+import re
 from typing import Any, Dict, List
 
-import yaml
 import tiktoken
-import json
-
-from litellm import completion_cost as lcc
+import yaml
 from jinja2 import Environment, meta
-import re
+from litellm import completion_cost as lcc
+
+
+def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
+    """
+    Render a Jinja2 template with the given data, ensuring protection against template injection vulnerabilities.
+    If the data is empty, return an empty string.
+    """
+    if not data:
+        return ""
+
+    env = Environment(autoescape=True)
+    template = env.from_string(template_string)
+    return template.render(input=data)
 
 
 def extract_jinja_variables(template_string: str) -> List[str]:
@@ -23,7 +35,7 @@ def extract_jinja_variables(template_string: str) -> List[str]:
         List[str]: A list of unique variable names found in the template.
     """
     # Create a Jinja2 environment
-    env = Environment()
+    env = Environment(autoescape=True)
 
     # Parse the template
     ast = env.parse(template_string)

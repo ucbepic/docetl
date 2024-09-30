@@ -122,11 +122,16 @@ class MapOperation(BaseOperation):
 
         The method uses parallel processing to improve performance.
         """
+
         def cluster_documents(documents: List[Dict]) -> List[List[Dict]]:
             if self.clustering_method == "random":
                 random.shuffle(documents)
             # Implement other clustering methods as needed
-            return [documents[i:i + self.batch_size] for i in range(0, len(documents), self.batch_size)]
+            return [
+                documents[i : i + self.batch_size]
+                for i in range(0, len(documents), self.batch_size)
+            ]
+
         if "prompt" not in self.config and "drop_keys" in self.config:
             # If only drop_keys is specified, simply drop the keys and return
             dropped_results = []
@@ -140,31 +145,39 @@ class MapOperation(BaseOperation):
         if self.status:
             self.status.stop()
 
-        def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
-            prompt_template = Template(self.config["prompt"])
-            prompt = prompt_template.render(input=item)
+        def _process_map_batch(batch: List[Dict]) -> Tuple[List[Optional[Dict]], float]:
+            prompts = []
+            for item in batch:
+                prompt_template = Template(self.config["prompt"])
+                prompts.append(prompt_template.render(input=item))
 
-            def validation_fn(response: Dict[str, Any]):
-                output = parse_llm_response(
-                    response,
-                    schema=self.config["output"]["schema"],
-                    tools=self.config.get("tools", None),
-                    manually_fix_errors=self.manually_fix_errors,
-                )[0]
-                for key, value in item.items():
-                    if key not in self.config["output"]["schema"]:
-                        output[key] = value
-                if validate_output(self.config, output, self.console):
-                    return output, True
-                return output, False
+            def validation_fn(responses: List[Dict[str, Any]]):
+                outputs = []
+                for response, item in zip(responses, batch):
+                    output = parse_llm_response(
+                        response,
+                        schema=self.config["output"]["schema"],
+                        tools=self.config.get("tools", None),
+                        manually_fix_errors=self.manually_fix_errors,
+                    )[0]
+                    for key, value in item.items():
+                        if key not in self.config["output"]["schema"]:
+                            output[key] = value
+                    if validate_output(self.config, output, self.console):
+                        outputs.append((output, True))
+                    else:
+                        outputs.append((output, False))
+                return outputs
+
+            messages = [{"role": "user", "content": prompt} for prompt in prompts]
 
             if "gleaning" in self.config:
-                output, cost, success = call_llm_with_validation(
-                    [{"role": "user", "content": prompt}],
-                    llm_call_fn=lambda messages: call_llm_with_gleaning(
+                responses, cost, successes = call_llm_with_validation(
+                    messages,
+                    llm_call_fn=lambda msgs: call_llm_with_gleaning(
                         self.config.get("model", self.default_model),
                         "map",
-                        messages,
+                        msgs,
                         self.config["output"]["schema"],
                         self.config["gleaning"]["validation_prompt"],
                         self.config["gleaning"]["num_rounds"],
@@ -180,12 +193,12 @@ class MapOperation(BaseOperation):
                     console=self.console,
                 )
             else:
-                output, cost, success = call_llm_with_validation(
-                    [{"role": "user", "content": prompt}],
-                    llm_call_fn=lambda messages: call_llm(
+                responses, cost, successes = call_llm_with_validation(
+                    messages,
+                    llm_call_fn=lambda msgs: call_llm(
                         self.config.get("model", self.default_model),
                         "map",
-                        messages,
+                        msgs,
                         self.config["output"]["schema"],
                         tools=self.config.get("tools", None),
                         console=self.console,
@@ -200,15 +213,21 @@ class MapOperation(BaseOperation):
                     console=self.console,
                 )
 
-            if success:
-                return output, cost
+            outputs = []
+            for response, success in zip(responses, successes):
+                if success:
+                    outputs.append(response)
+                else:
+                    outputs.append(None)
 
-            return None, cost
+            return outputs, cost
 
         batched_data = cluster_documents(input_data)
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = [executor.submit(_process_map_item, batch) for batch in batched_data]
+            futures = [
+                executor.submit(_process_map_batch, batch) for batch in batched_data
+            ]
             results = []
             total_cost = 0
             pbar = RichLoopBar(
@@ -217,16 +236,17 @@ class MapOperation(BaseOperation):
                 console=self.console,
             )
             for i in pbar:
-                result, item_cost = futures[i].result()
-                if result is not None:
-                    if "drop_keys" in self.config:
-                        result = {
-                            k: v
-                            for k, v in result.items()
-                            if k not in self.config["drop_keys"]
-                        }
-                    results.append(result)
-                total_cost += item_cost
+                batch_results, batch_cost = futures[i].result()
+                for result in batch_results:
+                    if result is not None:
+                        if "drop_keys" in self.config:
+                            result = {
+                                k: v
+                                for k, v in result.items()
+                                if k not in self.config["drop_keys"]
+                            }
+                        results.append(result)
+                total_cost += batch_cost
                 pbar.update(i)
 
         if self.status:

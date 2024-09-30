@@ -122,21 +122,16 @@ class DSLRunner:
         start_time = time.time()
         self.load_datasets()
         total_cost = 0
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=self.console,
-        ) as progress:
-            for step in self.config["pipeline"]["steps"]:
-                step_name = step["name"]
-                input_data = self.datasets[step["input"]] if "input" in step else None
-                output_data, step_cost = self.execute_step(step, input_data, progress)
-                self.datasets[step_name] = output_data
-                flush_cache(self.console)
-                total_cost += step_cost
-                self.console.log(
-                    f"Step [cyan]{step_name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]"
-                )
+        for step in self.config["pipeline"]["steps"]:
+            step_name = step["name"]
+            input_data = self.datasets[step["input"]] if "input" in step else None
+            output_data, step_cost = self.execute_step(step, input_data)
+            self.datasets[step_name] = output_data
+            flush_cache(self.console)
+            total_cost += step_cost
+            self.console.log(
+                f"Step [cyan]{step_name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]"
+            )
 
         self.save_output(self.datasets[self.config["pipeline"]["steps"][-1]["name"]])
         self.console.rule("[bold green]Execution Summary[/bold green]")
@@ -188,7 +183,7 @@ class DSLRunner:
             raise ValueError(f"Unsupported output type: {output_config['type']}")
 
     def execute_step(
-        self, step: Dict, input_data: Optional[List[Dict]], progress: Progress
+        self, step: Dict, input_data: Optional[List[Dict]]
     ) -> Tuple[List[Dict], float]:
         """
         Execute a single step in the pipeline.
@@ -199,7 +194,6 @@ class DSLRunner:
         Args:
             step (Dict): The step configuration.
             input_data (Optional[List[Dict]]): Input data for the step.
-            progress (Progress): Progress tracker for rich output.
 
         Returns:
             Tuple[List[Dict], float]: A tuple containing the output data and the total cost of the step.
@@ -221,30 +215,29 @@ class DSLRunner:
             if op_object.get("sample"):
                 input_data = input_data[: op_object["sample"]]
 
-            self.console.print("[bold]Running Operation:[/bold]")
-            self.console.print(f"  Type: [cyan]{op_object['type']}[/cyan]")
-            self.console.print(
-                f"  Name: [cyan]{op_object.get('name', 'Unnamed')}[/cyan]"
-            )
+            with self.console.status("[bold]Running Operation:[/bold]") as status:
+                status.update(f"Type: [cyan]{op_object['type']}[/cyan]")
+                status.update(f"Name: [cyan]{op_object.get('name', 'Unnamed')}[/cyan]")
+                self.status = status
 
-            operation_class = get_operation(op_object["type"])
-            operation_instance = operation_class(
-                op_object,
-                self.default_model,
-                self.max_threads,
-                self.console,
-                self.status,
-            )
-            if op_object["type"] == "equijoin":
-                left_data = self.datasets[op_object["left"]]
-                right_data = self.datasets[op_object["right"]]
-                input_data, cost = operation_instance.execute(left_data, right_data)
-            else:
-                input_data, cost = operation_instance.execute(input_data)
-            total_cost += cost
-            self.console.log(
-                f"\tOperation [cyan]{operation_name}[/cyan] completed. Cost: [green]${cost:.2f}[/green]"
-            )
+                operation_class = get_operation(op_object["type"])
+                operation_instance = operation_class(
+                    op_object,
+                    self.default_model,
+                    self.max_threads,
+                    self.console,
+                    self.status,
+                )
+                if op_object["type"] == "equijoin":
+                    left_data = self.datasets[op_object["left"]]
+                    right_data = self.datasets[op_object["right"]]
+                    input_data, cost = operation_instance.execute(left_data, right_data)
+                else:
+                    input_data, cost = operation_instance.execute(input_data)
+                total_cost += cost
+                self.console.log(
+                    f"\tOperation [cyan]{operation_name}[/cyan] completed. Cost: [green]${cost:.2f}[/green]"
+                )
 
             # Checkpoint after each operation
             if self.intermediate_dir:

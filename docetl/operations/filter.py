@@ -114,6 +114,9 @@ class FilterOperation(BaseOperation):
             )
         )
 
+        if self.status:
+            self.status.start()
+
         def _process_filter_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
@@ -159,7 +162,7 @@ class FilterOperation(BaseOperation):
             total_cost = 0
             pbar = RichLoopBar(
                 range(len(futures)),
-                desc="Processing filter items",
+                desc=f"Processing {self.config['name']} (filter) on all documents",
                 console=self.console,
             )
             for i in pbar:
@@ -173,5 +176,8 @@ class FilterOperation(BaseOperation):
                         if result.get(filter_key, False):
                             results.append(result)
                 pbar.update(1)
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost

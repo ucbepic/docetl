@@ -18,6 +18,7 @@ from diskcache import Cache
 import tiktoken
 from rich import print as rprint
 from pydantic import BaseModel, create_model
+import ast
 
 from docetl.utils import count_tokens
 
@@ -810,7 +811,22 @@ def parse_llm_response(
             outputs = []
             for tool_call in tool_calls:
                 try:
-                    outputs.append(json.loads(tool_call.function.arguments))
+                    output_dict = json.loads(tool_call.function.arguments)
+                    if "ollama" in response.model:
+                        for key, value in output_dict.items():
+                            if isinstance(value, str):
+                                continue
+                            try:
+                                output_dict[key] = ast.literal_eval(value)
+                            except:
+                                try:
+                                    if value.startswith("["):
+                                        output_dict[key] = ast.literal_eval(value + "]")
+                                    else:
+                                        output_dict[key] = value
+                                except:
+                                    pass
+                    outputs.append(output_dict)
                 except json.JSONDecodeError:
                     return [{}]
             return outputs

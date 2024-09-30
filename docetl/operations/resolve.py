@@ -199,11 +199,11 @@ class ResolveOperation(BaseOperation):
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
+        if self.status:
+            self.status.stop()
 
         if not blocking_threshold and not blocking_conditions:
             # Prompt the user for confirmation
-            if self.status:
-                self.status.stop()
             if not Confirm.ask(
                 f"[yellow]Warning: No blocking keys or conditions specified. "
                 f"This may result in a large number of comparisons. "
@@ -211,9 +211,6 @@ class ResolveOperation(BaseOperation):
                 f"Do you want to continue without blocking?[/yellow]",
             ):
                 raise ValueError("Operation cancelled by user.")
-
-            if self.status:
-                self.status.start()
 
         input_schema = self.config.get("input", {}).get("schema", {})
         if not blocking_keys:
@@ -466,5 +463,8 @@ class ResolveOperation(BaseOperation):
             true_match_count / total_pairs if total_pairs > 0 else 0
         )
         self.console.log(f"Self-join selectivity: {true_match_selectivity:.4f}")
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost

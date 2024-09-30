@@ -128,6 +128,9 @@ class MapOperation(BaseOperation):
                 dropped_results.append(new_item)
             return dropped_results, 0.0  # Return the modified data with no cost
 
+        if self.status:
+            self.status.stop()
+
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
@@ -196,7 +199,7 @@ class MapOperation(BaseOperation):
             total_cost = 0
             pbar = RichLoopBar(
                 range(len(futures)),
-                desc="Processing map items",
+                desc=f"Processing {self.config['name']} (map) on all documents",
                 console=self.console,
             )
             for i in pbar:
@@ -211,6 +214,9 @@ class MapOperation(BaseOperation):
                     results.append(result)
                 total_cost += item_cost
                 pbar.update(i)
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost
 
@@ -349,6 +355,9 @@ class ParallelMapOperation(BaseOperation):
                 dropped_results.append(new_item)
             return dropped_results, 0.0  # Return the modified data with no cost
 
+        if self.status:
+            self.status.stop()
+
         def process_prompt(item, prompt_config):
             prompt_template = Template(prompt_config["prompt"])
             prompt = prompt_template.render(input=item)
@@ -384,7 +393,7 @@ class ParallelMapOperation(BaseOperation):
                 # Process results in order
                 pbar = RichLoopBar(
                     range(len(all_futures)),
-                    desc="Processing parallel map items",
+                    desc=f"Processing {self.config['name']} (parallel map) on all documents",
                     console=self.console,
                 )
                 for i in pbar:
@@ -417,6 +426,9 @@ class ParallelMapOperation(BaseOperation):
             for item in results.values():
                 for key in drop_keys:
                     item.pop(key, None)
+
+        if self.status:
+            self.status.start()
 
         # Return the results in order
         return [results[i] for i in range(len(input_data)) if i in results], total_cost

@@ -201,6 +201,9 @@ class EquijoinOperation(BaseOperation):
         if len(left_data) == 0 or len(right_data) == 0:
             return [], 0
 
+        if self.status:
+            self.status.stop()
+
         # Initial blocking using multiprocessing
         num_processes = min(cpu_count(), len(left_data))
 
@@ -440,5 +443,8 @@ class EquijoinOperation(BaseOperation):
             else 0
         )
         self.console.log(f"Equijoin selectivity: {join_selectivity:.4f}")
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost

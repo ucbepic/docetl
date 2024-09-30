@@ -252,6 +252,9 @@ class ReduceOperation(BaseOperation):
             reduce_keys = [reduce_keys]
         input_schema = self.config.get("input", {}).get("schema", {})
 
+        if self.status:
+            self.status.stop()
+
         # Check if we need to group everything into one group
         if reduce_keys == ["_all"] or reduce_keys == "_all":
             grouped_data = [("_all", input_data)]
@@ -341,7 +344,7 @@ class ReduceOperation(BaseOperation):
             for future in rich_as_completed(
                 futures,
                 total=len(futures),
-                desc="Processing reduce items",
+                desc=f"Processing {self.config['name']} (reduce) on all documents",
                 leave=True,
                 console=self.console,
             ):
@@ -357,6 +360,9 @@ class ReduceOperation(BaseOperation):
                     result[f"_{self.config['name']}_intermediates"] = (
                         self.intermediates[key]
                     )
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost
 

@@ -122,7 +122,11 @@ class FilterOperation(BaseOperation):
             prompt = prompt_template.render(input=item)
 
             def validation_fn(response: Dict[str, Any]):
-                output = parse_llm_response(response)[0]
+                output = parse_llm_response(
+                    response,
+                    self.config["output"]["schema"],
+                    manually_fix_errors=self.manually_fix_errors,
+                )[0]
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value

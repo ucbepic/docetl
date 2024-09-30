@@ -137,7 +137,10 @@ class MapOperation(BaseOperation):
 
             def validation_fn(response: Dict[str, Any]):
                 output = parse_llm_response(
-                    response, tools=self.config.get("tools", None)
+                    response,
+                    schema=self.config["output"]["schema"],
+                    tools=self.config.get("tools", None),
+                    manually_fix_errors=self.manually_fix_errors,
                 )[0]
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
@@ -377,7 +380,10 @@ class ParallelMapOperation(BaseOperation):
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
             )
             output = parse_llm_response(
-                response, tools=prompt_config.get("tools", None)
+                response,
+                schema=local_output_schema,
+                tools=prompt_config.get("tools", None),
+                manually_fix_errors=self.manually_fix_errors,
             )[0]
             return output, completion_cost(response)
 

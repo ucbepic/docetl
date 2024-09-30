@@ -1,3 +1,4 @@
+import docetl
 import pytest
 from docetl.operations.map import MapOperation
 
@@ -99,6 +100,5 @@ def test_map_operation_with_timeout(simple_map_config, simple_sample_data):
     operation = MapOperation(map_config_with_timeout, "gpt-4o-mini", 4)
 
     # Execute the operation and expect empty results
-    results, cost = operation.execute(simple_sample_data)
-    for result in results:
-        assert "sentiment" not in result
+    with pytest.raises(docetl.operations.utils.InvalidOutputError):
+        operation.execute(simple_sample_data)

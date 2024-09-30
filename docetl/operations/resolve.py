@@ -63,7 +63,10 @@ def compare_pair(
         timeout_seconds=timeout_seconds,
         max_retries_per_timeout=max_retries_per_timeout,
     )
-    output = parse_llm_response(response)[0]
+    output = parse_llm_response(
+        response,
+        {"is_match": "bool"},
+    )[0]
     return output["is_match"], completion_cost(response)
 
 
@@ -199,11 +202,11 @@ class ResolveOperation(BaseOperation):
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
+        if self.status:
+            self.status.stop()
 
         if not blocking_threshold and not blocking_conditions:
             # Prompt the user for confirmation
-            if self.status:
-                self.status.stop()
             if not Confirm.ask(
                 f"[yellow]Warning: No blocking keys or conditions specified. "
                 f"This may result in a large number of comparisons. "
@@ -211,9 +214,6 @@ class ResolveOperation(BaseOperation):
                 f"Do you want to continue without blocking?[/yellow]",
             ):
                 raise ValueError("Operation cancelled by user.")
-
-            if self.status:
-                self.status.start()
 
         input_schema = self.config.get("input", {}).get("schema", {})
         if not blocking_keys:
@@ -413,7 +413,11 @@ class ResolveOperation(BaseOperation):
                         "max_retries_per_timeout", 2
                     ),
                 )
-                reduction_output = parse_llm_response(reduction_response)[0]
+                reduction_output = parse_llm_response(
+                    reduction_response,
+                    self.config["output"]["schema"],
+                    manually_fix_errors=self.manually_fix_errors,
+                )[0]
                 reduction_cost = completion_cost(reduction_response)
 
                 if validate_output(self.config, reduction_output, self.console):
@@ -466,5 +470,8 @@ class ResolveOperation(BaseOperation):
             true_match_count / total_pairs if total_pairs > 0 else 0
         )
         self.console.log(f"Self-join selectivity: {true_match_selectivity:.4f}")
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost

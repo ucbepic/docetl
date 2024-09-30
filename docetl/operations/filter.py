@@ -114,12 +114,19 @@ class FilterOperation(BaseOperation):
             )
         )
 
+        if self.status:
+            self.status.start()
+
         def _process_filter_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
 
             def validation_fn(response: Dict[str, Any]):
-                output = parse_llm_response(response)[0]
+                output = parse_llm_response(
+                    response,
+                    self.config["output"]["schema"],
+                    manually_fix_errors=self.manually_fix_errors,
+                )[0]
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value
@@ -159,7 +166,7 @@ class FilterOperation(BaseOperation):
             total_cost = 0
             pbar = RichLoopBar(
                 range(len(futures)),
-                desc="Processing filter items",
+                desc=f"Processing {self.config['name']} (filter) on all documents",
                 console=self.console,
             )
             for i in pbar:
@@ -173,5 +180,8 @@ class FilterOperation(BaseOperation):
                         if result.get(filter_key, False):
                             results.append(result)
                 pbar.update(1)
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost

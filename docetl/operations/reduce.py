@@ -252,6 +252,9 @@ class ReduceOperation(BaseOperation):
             reduce_keys = [reduce_keys]
         input_schema = self.config.get("input", {}).get("schema", {})
 
+        if self.status:
+            self.status.stop()
+
         # Check if we need to group everything into one group
         if reduce_keys == ["_all"] or reduce_keys == "_all":
             grouped_data = [("_all", input_data)]
@@ -341,7 +344,7 @@ class ReduceOperation(BaseOperation):
             for future in rich_as_completed(
                 futures,
                 total=len(futures),
-                desc="Processing reduce items",
+                desc=f"Processing {self.config['name']} (reduce) on all documents",
                 leave=True,
                 console=self.console,
             ):
@@ -357,6 +360,9 @@ class ReduceOperation(BaseOperation):
                     result[f"_{self.config['name']}_intermediates"] = (
                         self.intermediates[key]
                     )
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost
 
@@ -694,7 +700,11 @@ class ReduceOperation(BaseOperation):
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
         )
-        folded_output = parse_llm_response(response)[0]
+        folded_output = parse_llm_response(
+            response,
+            self.config["output"]["schema"],
+            manually_fix_errors=self.manually_fix_errors,
+        )[0]
 
         folded_output.update(dict(zip(self.config["reduce_key"], key)))
         fold_cost = completion_cost(response)
@@ -735,7 +745,7 @@ class ReduceOperation(BaseOperation):
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
         )
-        merged_output = parse_llm_response(response)[0]
+        merged_output = parse_llm_response(response, self.config["output"]["schema"])[0]
         merged_output.update(dict(zip(self.config["reduce_key"], key)))
         merge_cost = completion_cost(response)
         end_time = time.time()
@@ -844,7 +854,11 @@ class ReduceOperation(BaseOperation):
 
         item_cost += completion_cost(response)
 
-        output = parse_llm_response(response)[0]
+        output = parse_llm_response(
+            response,
+            self.config["output"]["schema"],
+            manually_fix_errors=self.manually_fix_errors,
+        )[0]
         output.update(dict(zip(self.config["reduce_key"], key)))
 
         if validate_output(self.config, output, self.console):

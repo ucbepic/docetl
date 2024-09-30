@@ -14,6 +14,7 @@ from jinja2 import Template
 from litellm import completion, embedding, model_cost
 from docetl.utils import completion_cost
 from rich.console import Console
+from rich.prompt import Prompt
 from tqdm import tqdm
 from diskcache import Cache
 import tiktoken
@@ -357,6 +358,45 @@ def call_llm_with_validation(
     return parsed_output, cost, False
 
 
+def get_user_input_for_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Prompt the user for input for each key in the schema using Rich,
+    then parse the input values with json.loads().
+
+    Args:
+        schema (Dict[str, Any]): The schema dictionary.
+
+    Returns:
+        Dict[str, Any]: A dictionary with user inputs parsed according to the schema.
+    """
+    user_input = {}
+
+    for key, value_type in schema.items():
+        prompt_text = f"Enter value for '{key}' ({value_type}): "
+        user_value = Prompt.ask(prompt_text)
+
+        try:
+            # Parse the input value using json.loads()
+            parsed_value = json.loads(user_value)
+
+            # Check if the parsed value matches the expected type
+            if isinstance(parsed_value, eval(value_type)):
+                user_input[key] = parsed_value
+            else:
+                rprint(
+                    f"[bold red]Error:[/bold red] Input for '{key}' does not match the expected type {value_type}."
+                )
+                return get_user_input_for_schema(schema)  # Recursive call to retry
+
+        except json.JSONDecodeError:
+            rprint(
+                f"[bold red]Error:[/bold red] Invalid JSON input for '{key}'. Please try again."
+            )
+            return get_user_input_for_schema(schema)  # Recursive call to retry
+
+    return user_input
+
+
 def call_llm(
     model: str,
     op_type: str,
@@ -415,6 +455,25 @@ def call_llm(
                 )
                 # TODO: HITL
                 return {}
+
+
+class InvalidOutputError(Exception):
+    """
+    Custom exception raised when the LLM output is invalid or cannot be parsed.
+
+    Attributes:
+        message (str): Explanation of the error.
+        output (str): The invalid output that caused the exception.
+    """
+
+    def __init__(self, message: str, output: str, expected_schema: Dict[str, Any]):
+        self.message = message
+        self.output = output
+        self.expected_schema = expected_schema
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f"{self.message}\nInvalid output: {self.output}\nExpected schema: {self.expected_schema}"
 
 
 def timeout(seconds):
@@ -663,7 +722,7 @@ def call_llm_with_gleaning(
     cost = 0.0
 
     # Parse the response
-    parsed_response = parse_llm_response(response)
+    parsed_response = parse_llm_response(response, output_schema)
     output = parsed_response[0]
 
     messages = (
@@ -764,7 +823,7 @@ Please improve your previous response. Ensure that the output adheres to the req
         messages.append(
             {
                 "role": "assistant",
-                "content": json.dumps(parse_llm_response(response)[0]),
+                "content": json.dumps(parse_llm_response(response, output_schema)[0]),
             }
         )
 
@@ -772,7 +831,36 @@ Please improve your previous response. Ensure that the output adheres to the req
 
 
 def parse_llm_response(
-    response: Any, tools: Optional[List[Dict[str, str]]] = None
+    response: Any,
+    schema: Dict[str, Any] = {},
+    tools: Optional[List[Dict[str, str]]] = None,
+    manually_fix_errors: bool = False,
+) -> List[Dict[str, Any]]:
+    """
+    Parse the response from a language model.
+    This function extracts the tool calls from the LLM response and returns the arguments
+    """
+    try:
+        return parse_llm_response_helper(response, schema, tools)
+    except InvalidOutputError as e:
+        if manually_fix_errors:
+            rprint(
+                f"[bold red]Could not parse LLM output:[/bold red] {e.message}\n"
+                f"\tExpected Schema: {e.expected_schema}\n"
+                f"\tPlease manually set this output."
+            )
+            rprint(f"\n[bold yellow]LLM-Generated Response:[/bold yellow]\n{response}")
+            output = get_user_input_for_schema(schema)
+
+            return [output]
+        else:
+            raise e
+
+
+def parse_llm_response_helper(
+    response: Any,
+    schema: Dict[str, Any] = {},
+    tools: Optional[List[Dict[str, str]]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Parse the response from a language model.
@@ -782,13 +870,17 @@ def parse_llm_response(
 
     Args:
         response (Any): The response object from the language model.
+        schema (Optional[Dict[str, Any]]): The schema that was passed to the LLM.
         tools (Optional[List[Dict[str, str]]]): The tools that were passed to the LLM.
 
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing the parsed output.
+
+    Raises:
+        InvalidOutputError: If the response is not valid.
     """
     if not response:
-        return [{}]
+        raise InvalidOutputError("No response from LLM", [{}], schema)
 
     # Parse the response based on the provided tools
     if tools:
@@ -817,7 +909,7 @@ def parse_llm_response(
             tool_calls = response.choices[0].message.tool_calls
 
             if not tool_calls:
-                raise ValueError("No tool calls found in response")
+                raise InvalidOutputError("No tool calls in LLM response", [{}], schema)
 
             outputs = []
             for tool_call in tool_calls:
@@ -839,7 +931,17 @@ def parse_llm_response(
                                     pass
                     outputs.append(output_dict)
                 except json.JSONDecodeError:
-                    return [{}]
+                    raise InvalidOutputError(
+                        "Could not decode LLM JSON response",
+                        [tool_call.function.arguments],
+                        schema,
+                    )
+                except Exception as e:
+                    raise InvalidOutputError(
+                        f"Error parsing LLM response: {e}",
+                        [tool_call.function.arguments],
+                        schema,
+                    )
             return outputs
 
         else:

@@ -128,13 +128,19 @@ class MapOperation(BaseOperation):
                 dropped_results.append(new_item)
             return dropped_results, 0.0  # Return the modified data with no cost
 
+        if self.status:
+            self.status.stop()
+
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
 
             def validation_fn(response: Dict[str, Any]):
                 output = parse_llm_response(
-                    response, tools=self.config.get("tools", None)
+                    response,
+                    schema=self.config["output"]["schema"],
+                    tools=self.config.get("tools", None),
+                    manually_fix_errors=self.manually_fix_errors,
                 )[0]
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
@@ -196,7 +202,7 @@ class MapOperation(BaseOperation):
             total_cost = 0
             pbar = RichLoopBar(
                 range(len(futures)),
-                desc="Processing map items",
+                desc=f"Processing {self.config['name']} (map) on all documents",
                 console=self.console,
             )
             for i in pbar:
@@ -211,6 +217,9 @@ class MapOperation(BaseOperation):
                     results.append(result)
                 total_cost += item_cost
                 pbar.update(i)
+
+        if self.status:
+            self.status.start()
 
         return results, total_cost
 
@@ -349,6 +358,9 @@ class ParallelMapOperation(BaseOperation):
                 dropped_results.append(new_item)
             return dropped_results, 0.0  # Return the modified data with no cost
 
+        if self.status:
+            self.status.stop()
+
         def process_prompt(item, prompt_config):
             prompt_template = Template(prompt_config["prompt"])
             prompt = prompt_template.render(input=item)
@@ -368,7 +380,10 @@ class ParallelMapOperation(BaseOperation):
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
             )
             output = parse_llm_response(
-                response, tools=prompt_config.get("tools", None)
+                response,
+                schema=local_output_schema,
+                tools=prompt_config.get("tools", None),
+                manually_fix_errors=self.manually_fix_errors,
             )[0]
             return output, completion_cost(response)
 
@@ -384,7 +399,7 @@ class ParallelMapOperation(BaseOperation):
                 # Process results in order
                 pbar = RichLoopBar(
                     range(len(all_futures)),
-                    desc="Processing parallel map items",
+                    desc=f"Processing {self.config['name']} (parallel map) on all documents",
                     console=self.console,
                 )
                 for i in pbar:
@@ -417,6 +432,9 @@ class ParallelMapOperation(BaseOperation):
             for item in results.values():
                 for key in drop_keys:
                     item.pop(key, None)
+
+        if self.status:
+            self.status.start()
 
         # Return the results in order
         return [results[i] for i in range(len(input_data)) if i in results], total_cost

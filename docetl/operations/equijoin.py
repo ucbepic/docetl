@@ -86,7 +86,7 @@ def compare_pair(
         timeout_seconds=timeout_seconds,
         max_retries_per_timeout=max_retries_per_timeout,
     )
-    output = parse_llm_response(response)[0]
+    output = parse_llm_response(response, {"is_match": "bool"})[0]
     return output["is_match"], completion_cost(response)
 
 

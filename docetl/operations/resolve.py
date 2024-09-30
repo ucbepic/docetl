@@ -63,7 +63,10 @@ def compare_pair(
         timeout_seconds=timeout_seconds,
         max_retries_per_timeout=max_retries_per_timeout,
     )
-    output = parse_llm_response(response)[0]
+    output = parse_llm_response(
+        response,
+        {"is_match": "bool"},
+    )[0]
     return output["is_match"], completion_cost(response)
 
 
@@ -410,7 +413,11 @@ class ResolveOperation(BaseOperation):
                         "max_retries_per_timeout", 2
                     ),
                 )
-                reduction_output = parse_llm_response(reduction_response)[0]
+                reduction_output = parse_llm_response(
+                    reduction_response,
+                    self.config["output"]["schema"],
+                    manually_fix_errors=self.manually_fix_errors,
+                )[0]
                 reduction_cost = completion_cost(reduction_response)
 
                 if validate_output(self.config, reduction_output, self.console):

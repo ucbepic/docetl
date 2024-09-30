@@ -1,6 +1,6 @@
 # Python API
 
-::: docetl.api.Dataset
+::: docetl.schemas.Dataset
     options:
         show_root_heading: true
         heading_level: 3
@@ -9,7 +9,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.BaseOp
+::: docetl.schemas.BaseOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -18,7 +18,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.MapOp
+::: docetl.schemas.MapOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -27,7 +27,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.ResolveOp
+::: docetl.schemas.ResolveOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -36,7 +36,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.ReduceOp
+::: docetl.schemas.ReduceOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -45,7 +45,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.ParallelMapOp
+::: docetl.schemas.ParallelMapOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -54,7 +54,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.FilterOp
+::: docetl.schemas.FilterOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -63,7 +63,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.EquijoinOp
+::: docetl.schemas.EquijoinOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -72,7 +72,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.SplitOp
+::: docetl.schemas.SplitOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -81,7 +81,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.GatherOp
+::: docetl.schemas.GatherOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -90,7 +90,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.UnnestOp
+::: docetl.schemas.UnnestOp
     options:
         show_root_heading: true
         heading_level: 3
@@ -99,7 +99,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.PipelineStep
+::: docetl.schemas.PipelineStep
     options:
         show_root_heading: true
         heading_level: 3
@@ -108,7 +108,7 @@
             ignore_init_summary: false
             trim_doctest_flags: true
 
-::: docetl.api.PipelineOutput
+::: docetl.schemas.PipelineOutput
     options:
         show_root_heading: true
         heading_level: 3

@@ -1,7 +1,7 @@
 """
 This module defines the core data structures and classes for the DocETL pipeline.
 
-It includes dataclasses for various operation types, pipeline steps, and the main Pipeline class.
+It includes Pydantic models for various operation types, pipeline steps, and the main Pipeline class.
 The module provides a high-level API for defining, optimizing, and running document processing pipelines.
 
 Classes:
@@ -43,189 +43,27 @@ Usage:
     result = optimized_pipeline.run()
 """
 
-from dataclasses import dataclass
 import os
-from typing import List, Optional, Dict, Any, Union
+from typing import Any, Dict, Optional
 
 import yaml
+from rich import print
 
 from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
-
-from rich import print
-
-
-@dataclass
-class Dataset:
-    type: str
-    path: str
-
-
-@dataclass
-class BaseOp:
-    name: str
-    type: str
-
-
-@dataclass
-class MapOp(BaseOp):
-    output: Optional[Dict[str, Any]] = None
-    prompt: Optional[str] = None
-    model: Optional[str] = None
-    optimize: Optional[bool] = None
-    recursively_optimize: Optional[bool] = None
-    sample_size: Optional[int] = None
-    tools: Optional[List[Dict[str, Any]]] = None
-    validate: Optional[List[str]] = None
-    num_retries_on_validate_failure: Optional[int] = None
-    gleaning: Optional[Dict[str, Any]] = None
-    drop_keys: Optional[List[str]] = None
-    timeout: Optional[int] = None
-
-
-@dataclass
-class ResolveOp(BaseOp):
-    comparison_prompt: str
-    resolution_prompt: str
-    output: Optional[Dict[str, Any]] = None
-    embedding_model: Optional[str] = None
-    resolution_model: Optional[str] = None
-    comparison_model: Optional[str] = None
-    blocking_keys: Optional[List[str]] = None
-    blocking_threshold: Optional[float] = None
-    blocking_conditions: Optional[List[str]] = None
-    input: Optional[Dict[str, Any]] = None
-    embedding_batch_size: Optional[int] = None
-    compare_batch_size: Optional[int] = None
-    limit_comparisons: Optional[int] = None
-    optimize: Optional[bool] = None
-    timeout: Optional[int] = None
-
-
-@dataclass
-class ReduceOp(BaseOp):
-    reduce_key: Union[str, List[str]]
-    output: Optional[Dict[str, Any]] = None
-    prompt: Optional[str] = None
-    optimize: Optional[bool] = None
-    synthesize_resolve: Optional[bool] = None
-    model: Optional[str] = None
-    input: Optional[Dict[str, Any]] = None
-    pass_through: Optional[bool] = None
-    associative: Optional[bool] = None
-    fold_prompt: Optional[str] = None
-    fold_batch_size: Optional[int] = None
-    value_sampling: Optional[Dict[str, Any]] = None
-    verbose: Optional[bool] = None
-    timeout: Optional[int] = None
-
-
-@dataclass
-class ParallelMapOp(BaseOp):
-    prompts: List[Dict[str, Any]]
-    output: Optional[Dict[str, Any]] = None
-    model: Optional[str] = None
-    optimize: Optional[bool] = None
-    recursively_optimize: Optional[bool] = None
-    sample_size: Optional[int] = None
-    drop_keys: Optional[List[str]] = None
-    timeout: Optional[int] = None
-
-
-@dataclass
-class FilterOp(BaseOp):
-    output: Optional[Dict[str, Any]] = None
-    prompt: Optional[str] = None
-    model: Optional[str] = None
-    optimize: Optional[bool] = None
-    recursively_optimize: Optional[bool] = None
-    sample_size: Optional[int] = None
-    validate: Optional[List[str]] = None
-    num_retries_on_validate_failure: Optional[int] = None
-    timeout: Optional[int] = None
-
-
-@dataclass
-class EquijoinOp(BaseOp):
-    left: str
-    right: str
-    comparison_prompt: str
-    output: Optional[Dict[str, Any]] = None
-    blocking_threshold: Optional[float] = None
-    blocking_conditions: Optional[Dict[str, List[str]]] = None
-    limits: Optional[Dict[str, int]] = None
-    comparison_model: Optional[str] = None
-    optimize: Optional[bool] = None
-    embedding_model: Optional[str] = None
-    embedding_batch_size: Optional[int] = None
-    compare_batch_size: Optional[int] = None
-    limit_comparisons: Optional[int] = None
-    blocking_keys: Optional[Dict[str, List[str]]] = None
-    timeout: Optional[int] = None
-
-
-@dataclass
-class SplitOp(BaseOp):
-    split_key: str
-    method: str
-    method_kwargs: Dict[str, Any]
-    model: Optional[str] = None
-
-
-@dataclass
-class GatherOp(BaseOp):
-    content_key: str
-    doc_id_key: str
-    order_key: str
-    peripheral_chunks: Dict[str, Any]
-    doc_header_key: Optional[str] = None
-
-
-@dataclass
-class UnnestOp(BaseOp):
-    unnest_key: str
-    keep_empty: Optional[bool] = None
-    expand_fields: Optional[List[str]] = None
-    recursive: Optional[bool] = None
-    depth: Optional[int] = None
-
-
-OpType = Union[
-    MapOp,
-    ResolveOp,
+from docetl.schemas import Dataset, EquijoinOp, FilterOp, GatherOp, MapOp, ParallelMapOp
+from docetl.schemas import Pipeline as PipelineModel
+from docetl.schemas import (
+    PipelineOutput,
+    PipelineStep,
     ReduceOp,
-    ParallelMapOp,
-    FilterOp,
-    EquijoinOp,
+    ResolveOp,
     SplitOp,
-    GatherOp,
     UnnestOp,
-]
+)
 
 
-@dataclass
-class PipelineStep:
-    name: str
-    operations: List[Union[Dict[str, Any], str]]
-    input: Optional[str] = None
-
-
-@dataclass
-class PipelineOutput:
-    type: str
-    path: str
-    intermediate_dir: Optional[str] = None
-
-
-@dataclass
-class Pipeline:
-    name: str
-    datasets: Dict[str, Dataset]
-    operations: List[OpType]
-    steps: List[PipelineStep]
-    output: PipelineOutput
-    default_model: Optional[str] = None
-
+class Pipeline(PipelineModel):
     def optimize(
         self,
         max_threads: Optional[int] = None,
@@ -309,18 +147,18 @@ class Pipeline:
         """
         return {
             "datasets": {
-                name: dataset.__dict__ for name, dataset in self.datasets.items()
+                name: dataset.dict() for name, dataset in self.datasets.items()
             },
             "operations": [
-                {k: v for k, v in op.__dict__.items() if v is not None}
+                {k: v for k, v in op.dict().items() if v is not None}
                 for op in self.operations
             ],
             "pipeline": {
                 "steps": [
-                    {k: v for k, v in step.__dict__.items() if v is not None}
+                    {k: v for k, v in step.dict().items() if v is not None}
                     for step in self.steps
                 ],
-                "output": self.output.__dict__,
+                "output": self.output.dict(),
             },
             "default_model": self.default_model,
         }

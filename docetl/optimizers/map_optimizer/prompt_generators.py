@@ -2,12 +2,12 @@ import json
 import random
 from typing import Any, Dict, List, Tuple
 
-from rich.console import Console
 from litellm import model_cost
+from rich.console import Console
 
 from docetl.optimizers.map_optimizer.utils import generate_and_validate_prompt
-from docetl.optimizers.utils import LLMClient, extract_jinja_variables
-from docetl.utils import count_tokens, truncate_sample_data
+from docetl.optimizers.utils import LLMClient
+from docetl.utils import count_tokens, extract_jinja_variables, truncate_sample_data
 
 
 class PromptGenerator:

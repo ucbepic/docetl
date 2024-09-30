@@ -119,7 +119,7 @@ output:
 
     And then use a separate operation to further process the supporting actions if needed.
 
-Read more about schemas in the [schemas](../concepts/schemas.md) section.
+    Read more about schemas in the [schemas](../concepts/schemas.md) section.
 
 ## Validation
 

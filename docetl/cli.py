@@ -4,8 +4,8 @@ from typing import Optional
 import typer
 
 from docetl.builder import Optimizer
-from docetl.runner import DSLRunner
 from docetl.operations.utils import clear_cache as cc
+from docetl.runner import DSLRunner
 
 app = typer.Typer()
 

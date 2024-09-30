@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict, List, Tuple
 
 from docetl.operations.base import BaseOperation
 
@@ -97,7 +97,7 @@ class GatherOperation(BaseOperation):
             grouped_chunks[doc_id].append(item)
 
         # Process each group of chunks
-        for doc_id, chunks in grouped_chunks.items():
+        for chunks in grouped_chunks.values():
             # Sort chunks by their order within the document
             chunks.sort(key=lambda x: x[order_key])
 
@@ -147,10 +147,8 @@ class GatherOperation(BaseOperation):
         Returns:
             str: Renderted chunk with context and headers.
         """
-        combined_parts = []
+        combined_parts = ["--- Previous Context ---"]
 
-        # Process previous chunks
-        combined_parts.append("--- Previous Context ---")
         combined_parts.extend(
             self.process_peripheral_chunks(
                 chunks[:current_index],
@@ -163,17 +161,18 @@ class GatherOperation(BaseOperation):
 
         # Process main chunk
         main_chunk = chunks[current_index]
-        headers = self.render_hierarchy_headers(
+        if headers := self.render_hierarchy_headers(
             main_chunk, chunks[: current_index + 1], doc_header_key
-        )
-        if headers:
+        ):
             combined_parts.append(headers)
-        combined_parts.append(f"{main_chunk_start}")
-        combined_parts.append(f"{main_chunk[content_key]}")
-        combined_parts.append(f"{main_chunk_end}")
-
-        # Process next chunks
-        combined_parts.append("\n--- Next Context ---")
+        combined_parts.extend(
+            (
+                f"{main_chunk_start}",
+                f"{main_chunk[content_key]}",
+                f"{main_chunk_end}",
+                "\n--- Next Context ---",
+            )
+        )
         combined_parts.extend(
             self.process_peripheral_chunks(
                 chunks[current_index + 1 :],
@@ -254,8 +253,7 @@ class GatherOperation(BaseOperation):
             summary_suffix = " (Summary)" if is_summary else ""
 
             chunk_prefix = f"[Chunk {chunk[order_key]}{summary_suffix}]"
-            processed_parts.append(chunk_prefix)
-            processed_parts.append(f"{chunk[section_content_key]}")
+            processed_parts.extend((chunk_prefix, f"{chunk[section_content_key]}"))
             included_chunks.append(chunk)
 
         if in_skip:
@@ -282,7 +280,6 @@ class GatherOperation(BaseOperation):
         Returns:
             str: Renderted headers in the current chunk's hierarchy.
         """
-        rendered_headers = []
         current_hierarchy = {}
 
         if doc_header_key is None:
@@ -311,10 +308,10 @@ class GatherOperation(BaseOperation):
                         if lower_level in current_hierarchy:
                             current_hierarchy[lower_level] = None
 
-        # Render the headers in the current hierarchy, everything above the highest level in the current chunk (if the highest level in the current chunk is None, render everything)
-        for level, header in sorted(current_hierarchy.items()):
-            if header is not None and (highest_level is None or level < highest_level):
-                rendered_headers.append(f"{'#' * level} {header}")
-
+        rendered_headers = [
+            f"{'#' * level} {header}"
+            for level, header in sorted(current_hierarchy.items())
+            if header is not None and (highest_level is None or level < highest_level)
+        ]
         rendered_headers = " > ".join(rendered_headers)
         return f"_Current Section:_ {rendered_headers}" if rendered_headers else ""

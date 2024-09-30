@@ -17,18 +17,21 @@ from typing import Dict, List, Optional, Tuple
 import jinja2
 import numpy as np
 from jinja2 import Template
-from docetl.utils import completion_cost
-from litellm import embedding
 
 from docetl.operations.base import BaseOperation
+from docetl.operations.clustering_utils import (
+    cluster_documents,
+    get_embeddings_for_clustering,
+)
 from docetl.operations.utils import (
     call_llm,
     call_llm_with_gleaning,
+    gen_embedding,
     parse_llm_response,
     rich_as_completed,
     validate_output,
-    gen_embedding,
 )
+from docetl.utils import completion_cost
 
 
 class ReduceOperation(BaseOperation):
@@ -366,48 +369,38 @@ class ReduceOperation(BaseOperation):
 
         return results, total_cost
 
-    def _get_embeddings(
-        self, items: List[Dict], value_sampling: Dict
-    ) -> Tuple[List[List[float]], float]:
-        embedding_model = value_sampling["embedding_model"]
-        embedding_keys = value_sampling["embedding_keys"]
-        if not embedding_keys:
-            embedding_keys = list(items[0].keys())
-        embeddings = []
-        cost = 0
-        batch_size = 1000
-
-        for i in range(0, len(items), batch_size):
-            batch = items[i : i + batch_size]
-            texts = [
-                " ".join(str(item[key]) for key in embedding_keys if key in item)[
-                    :10000
-                ]
-                for item in batch
-            ]
-            response = gen_embedding(embedding_model, texts)
-            embeddings.extend([data["embedding"] for data in response["data"]])
-            cost += completion_cost(response)
-
-        return embeddings, cost
-
     def _cluster_based_sampling(
         self, group_list: List[Dict], value_sampling: Dict, sample_size: int
     ) -> Tuple[List[Dict], float]:
-        embeddings, cost = self._get_embeddings(group_list, value_sampling)
+        if sample_size >= len(group_list):
+            return group_list, 0
 
-        from sklearn.cluster import KMeans
-
-        kmeans = KMeans(n_clusters=sample_size, random_state=42)
-        cluster_labels = kmeans.fit_predict(embeddings)
+        clusters, cost = cluster_documents(group_list, value_sampling, sample_size)
 
         sampled_items = []
+        idx_added_already = set()
+        num_clusters = len(clusters)
         for i in range(sample_size):
-            cluster_items = [
-                item for item, label in zip(group_list, cluster_labels) if label == i
-            ]
-            if cluster_items:
-                sampled_items.append(random.choice(cluster_items))
+            # Add a random item from the cluster
+            idx = i % num_clusters
+
+            # Skip if there are no items in the cluster
+            if len(clusters[idx]) == 0:
+                continue
+
+            if len(clusters[idx]) == 1:
+                # If there's only one item in the cluster, add it directly if we haven't already
+                if idx not in idx_added_already:
+                    sampled_items.append(clusters[idx][0])
+                continue
+
+            random_choice_idx = random.randint(0, len(clusters[idx]) - 1)
+            max_attempts = 10
+            while random_choice_idx in idx_added_already and max_attempts > 0:
+                random_choice_idx = random.randint(0, len(clusters[idx]) - 1)
+                max_attempts -= 1
+            idx_added_already.add(random_choice_idx)
+            sampled_items.append(clusters[idx][random_choice_idx])
 
         return sampled_items, cost
 
@@ -420,7 +413,7 @@ class ReduceOperation(BaseOperation):
             reduce_key=dict(zip(self.config["reduce_key"], key))
         )
 
-        embeddings, cost = self._get_embeddings(group_list, value_sampling)
+        embeddings, cost = get_embeddings_for_clustering(group_list, value_sampling)
 
         query_response = gen_embedding(embedding_model, [query_text])
         query_embedding = query_response["data"][0]["embedding"]

@@ -5,8 +5,8 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
-from jinja2 import Template
-from docetl.utils import completion_cost
+from jinja2 import Environment, Template
+from tqdm import tqdm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
@@ -17,83 +17,93 @@ from docetl.operations.utils import (
     parse_llm_response,
     validate_output,
 )
+from docetl.schemas import MapOp, Tool, ToolFunction
+from docetl.utils import completion_cost
+
+
+def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
+    """
+    Render a Jinja2 template with the given data, ensuring protection against template injection vulnerabilities.
+    If the data is empty, return an empty string.
+    """
+    if not data:
+        return ""
+
+    env = Environment(autoescape=True)
+    template = env.from_string(template_string)
+    return template.render(input=data)
 
 
 class MapOperation(BaseOperation):
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.max_batch_size: int = self.config.get(
+            "max_batch_size", kwargs.get("max_batch_size", float("inf"))
+        )
+        self.clustering_method = "random"
+
     def syntax_check(self) -> None:
         """
-        Checks the configuration of the MapOperation for required keys and valid structure.
+            Checks the configuration of the MapOperation for required keys and valid structure.
 
         Raises:
             ValueError: If required keys are missing or invalid in the configuration.
             TypeError: If configuration values have incorrect types.
         """
-        if "drop_keys" in self.config:
-            if not isinstance(self.config["drop_keys"], list):
-                raise TypeError(
-                    "'drop_keys' in configuration must be a list of strings"
-                )
-            for key in self.config["drop_keys"]:
-                if not isinstance(key, str):
-                    raise TypeError("All items in 'drop_keys' must be strings")
-        else:
-            if "prompt" not in self.config or "output" not in self.config:
-                raise ValueError(
-                    "If 'drop_keys' is not specified, both 'prompt' and 'output' must be present in the configuration"
-                )
+        config = MapOp(**self.config)
 
-        if "prompt" in self.config or "output" in self.config:
-            required_keys = ["prompt", "output"]
-            for key in required_keys:
-                if key not in self.config:
+        if config.drop_keys:
+            if any(not isinstance(key, str) for key in config.drop_keys):
+                raise TypeError("All items in 'drop_keys' must be strings")
+        elif not (config.prompt and config.output):
+            raise ValueError(
+                "If 'drop_keys' is not specified, both 'prompt' and 'output' must be present in the configuration"
+            )
+
+        if config.prompt or config.output:
+            for key in ["prompt", "output"]:
+                if not getattr(config, key):
                     raise ValueError(
                         f"Missing required key '{key}' in MapOperation configuration"
                     )
 
-            if "schema" not in self.config["output"]:
+            if config.output and not config.output["schema"]:
                 raise ValueError("Missing 'schema' in 'output' configuration")
 
-            if not isinstance(self.config["output"]["schema"], dict):
-                raise TypeError(
-                    "'schema' in 'output' configuration must be a dictionary"
-                )
+            if config.prompt:
+                try:
+                    Template(config.prompt)
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'prompt': {str(e)}"
+                    ) from e
 
-            if not self.config["output"]["schema"]:
-                raise ValueError("'schema' in 'output' configuration cannot be empty")
-
-            # Check if the prompt is a valid Jinja2 template
-            try:
-                Template(self.config["prompt"])
-            except Exception as e:
-                raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}")
-
-            # Check if the model is specified (optional)
-            if "model" in self.config and not isinstance(self.config["model"], str):
+            if config.model and not isinstance(config.model, str):
                 raise TypeError("'model' in configuration must be a string")
 
-            # Check if tools are specified and validate their structure
-            if "tools" in self.config:
-                if not isinstance(self.config["tools"], list):
-                    raise TypeError("'tools' in configuration must be a list")
+            if config.tools:
+                for tool in config.tools:
+                    try:
+                        tool_obj = Tool(**tool)
+                    except Exception as e:
+                        raise TypeError("Tool must be a dictionary")
 
-                for i, tool in enumerate(self.config["tools"]):
-                    if not isinstance(tool, dict):
-                        raise TypeError(f"Tool {i} in 'tools' must be a dictionary")
-
-                    if "code" not in tool or "function" not in tool:
+                    if not (tool_obj.code and tool_obj.function):
                         raise ValueError(
-                            f"Tool {i} is missing required 'code' or 'function' key"
+                            "Tool is missing required 'code' or 'function' key"
                         )
 
-                    function = tool.get("function", {})
-                    if not isinstance(function, dict):
-                        raise TypeError(f"'function' in tool {i} must be a dictionary")
+                    if not isinstance(tool_obj.function, ToolFunction):
+                        raise TypeError("'function' in tool must be a dictionary")
 
-                    required_function_keys = ["name", "description", "parameters"]
-                    for key in required_function_keys:
-                        if key not in function:
+                    for key in ["name", "description", "parameters"]:
+                        if not getattr(tool_obj.function, key):
                             raise ValueError(
-                                f"Tool {i} is missing required '{key}' in 'function'"
+                                f"Tool is missing required '{key}' in 'function'"
                             )
 
             self.gleaning_check()
@@ -196,7 +206,7 @@ class MapOperation(BaseOperation):
 
             return None, cost
 
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+        with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
             futures = [executor.submit(_process_map_item, item) for item in input_data]
             results = []
             total_cost = 0
@@ -223,25 +233,15 @@ class MapOperation(BaseOperation):
 
         return results, total_cost
 
-    def validate_output(self, output: Dict) -> bool:
-        """
-        Validates the output of a single map operation against the specified schema.
-
-        Args:
-            output (Dict): The output to validate.
-
-        Returns:
-            bool: True if the output is valid, False otherwise.
-        """
-        schema = self.config["output"]["schema"]
-        for key in schema:
-            if key not in output:
-                self.console.log(f"[red]Error: Missing key '{key}' in output[/red]")
-                return False
-        return True
-
 
 class ParallelMapOperation(BaseOperation):
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
     def syntax_check(self) -> None:
         """
         Checks the configuration of the ParallelMapOperation for required keys and valid structure.
@@ -258,11 +258,10 @@ class ParallelMapOperation(BaseOperation):
             for key in self.config["drop_keys"]:
                 if not isinstance(key, str):
                     raise TypeError("All items in 'drop_keys' must be strings")
-        else:
-            if "prompts" not in self.config:
-                raise ValueError(
-                    "If 'drop_keys' is not specified, 'prompts' must be present in the configuration"
-                )
+        elif "prompts" not in self.config:
+            raise ValueError(
+                "If 'drop_keys' is not specified, 'prompts' must be present in the configuration"
+            )
 
         if "prompts" in self.config:
             if not isinstance(self.config["prompts"], list):
@@ -304,7 +303,7 @@ class ParallelMapOperation(BaseOperation):
                 except Exception as e:
                     raise ValueError(
                         f"Invalid Jinja2 template in prompt configuration {i}: {str(e)}"
-                    )
+                    ) from e
 
                 # Check if the model is specified (optional)
                 if "model" in prompt_config and not isinstance(
@@ -362,12 +361,12 @@ class ParallelMapOperation(BaseOperation):
             self.status.stop()
 
         def process_prompt(item, prompt_config):
-            prompt_template = Template(prompt_config["prompt"])
-            prompt = prompt_template.render(input=item)
+            prompt = render_jinja_template(prompt_config["prompt"], item)
             local_output_schema = {
                 key: output_schema[key] for key in prompt_config["output_keys"]
             }
 
+            # Start of Selection
             # If there are tools, we need to pass in the tools
             response = call_llm(
                 prompt_config.get("model", self.default_model),
@@ -397,12 +396,10 @@ class ParallelMapOperation(BaseOperation):
                 ]
 
                 # Process results in order
-                pbar = RichLoopBar(
+                for i in tqdm(
                     range(len(all_futures)),
-                    desc=f"Processing {self.config['name']} (parallel map) on all documents",
-                    console=self.console,
-                )
-                for i in pbar:
+                    desc="Processing parallel map items",
+                ):
                     future = all_futures[i]
                     output, cost = future.result()
                     total_cost += cost
@@ -422,7 +419,6 @@ class ParallelMapOperation(BaseOperation):
                     # Update the item_result with the output
                     item_result.update(output)
 
-                    pbar.update(i)
             else:
                 results = {i: item.copy() for i, item in enumerate(input_data)}
 

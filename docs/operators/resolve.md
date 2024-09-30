@@ -1,6 +1,6 @@
 # Resolve Operation
 
-The Resolve operation in DocETL identifies and merges duplicate entities in your data. It's particularly useful when dealing with inconsistencies that can arise from LLM-generated content or data from multiple sources.
+The Resolve operation in DocETL identifies and canonicalizes duplicate entities in your data. It's particularly useful when dealing with inconsistencies that can arise from LLM-generated content, or data from multiple sources.
 
 ## Motivation
 
@@ -72,14 +72,19 @@ Here's an example of a Resolve operation with blocking:
     - date_of_birth
   blocking_threshold: 0.8
   blocking_conditions:
-    - "len(left['last_name']) > 0 and len(right['last_name']) > 0"
+    - "left['last_name'][:2].lower() == right['last_name'][:2].lower()"
+    - "left['first_name'][:2].lower() == right['first_name'][:2].lower()"
     - "left['date_of_birth'] == right['date_of_birth']"
+    - "left['ssn'][-4:] == right['ssn'][-4:]"
 ```
 
 In this example, pairs will be considered for comparison if:
 
 - The embedding similarity of their `last_name` and `date_of_birth` fields is above 0.8, OR
-- Both entries have non-empty `last_name` fields AND their `date_of_birth` fields match exactly.
+- The `last_name` fields start with the same two characters, OR
+- The `first_name` fields start with the same two characters, OR
+- The `date_of_birth` fields match exactly, OR
+- The last four digits of the `ssn` fields match.
 
 ## How the Comparison Algorithm Works
 

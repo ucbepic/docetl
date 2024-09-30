@@ -825,7 +825,7 @@ def parse_llm_response(
                     output_dict = json.loads(tool_call.function.arguments)
                     if "ollama" in response.model:
                         for key, value in output_dict.items():
-                            if isinstance(value, str):
+                            if not isinstance(value, str):
                                 continue
                             try:
                                 output_dict[key] = ast.literal_eval(value)

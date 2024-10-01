@@ -220,27 +220,34 @@ DocETL provides several built-in parsing tools to handle common file formats and
 
 ::: docetl.parsing_tools.xlsx_to_string
     options:
+        show_root_heading: true
         heading_level: 3
 
 ::: docetl.parsing_tools.txt_to_string
     options:
+        show_root_heading: true
         heading_level: 3
 
 ::: docetl.parsing_tools.docx_to_string
     options:
+        show_root_heading: true
         heading_level: 3
 
 ::: docetl.parsing_tools.whisper_speech_to_text
     options:
+        show_root_heading: true
         heading_level: 3
 
 ::: docetl.parsing_tools.pptx_to_string
     options:
+        show_root_heading: true
         heading_level: 3
+        
 
 ::: docetl.parsing_tools.azure_di_read
     options:
         heading_level: 3
+        show_root_heading: true
 
 ### Using Function Arguments with Parsing Tools
 

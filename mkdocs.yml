@@ -17,6 +17,7 @@ nav:
       - Getting started:
           - Installation: installation.md
           - Tutorial: tutorial.md
+          - Best Practices: best-practices.md
       - Core Concepts:
           - Operators & Validation: concepts/operators.md
           - Output Schemas: concepts/schemas.md
@@ -33,12 +34,10 @@ nav:
           - Split: operators/split.md
           - Gather: operators/gather.md
           - Unnest: operators/unnest.md
-      - Execution:
-          - Running Pipelines: execution/running-pipelines.md
-          - Best Practices: execution/best-practices.md
       - Optimization:
           - Overview: optimization/overview.md
           - Example: optimization/example.md
+          - Python API Example: optimization/python-api.md
           - Configuration: optimization/configuration.md
       - Python API: python-api.md
       # - Advanced Usage:

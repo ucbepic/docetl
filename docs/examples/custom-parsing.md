@@ -238,6 +238,10 @@ DocETL provides several built-in parsing tools to handle common file formats and
     options:
         heading_level: 3
 
+::: docetl.parsing_tools.azure_di_read
+    options:
+        heading_level: 3
+
 ### Using Function Arguments with Parsing Tools
 
 When using parsing tools in your DocETL configuration, you can pass additional arguments to the parsing functions using the function_kwargs field. This allows you to customize the behavior of the parsing tools without modifying their implementation.

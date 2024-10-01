@@ -14,9 +14,16 @@ class Tool(BaseModel):
     function: ToolFunction
 
 
+class ParsingTool(BaseModel):
+    name: str
+    function_code: str
+
+
 class Dataset(BaseModel):
     type: str
+    source: str
     path: str
+    parsing_tools: Optional[List[Dict[str, str]]] = None
 
 
 class BaseOp(BaseModel):
@@ -194,4 +201,5 @@ class Pipeline(BaseModel):
     operations: List[OpType]
     steps: List[PipelineStep]
     output: PipelineOutput
+    parsing_tools: List[ParsingTool] = []
     default_model: Optional[str] = None

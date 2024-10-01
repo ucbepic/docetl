@@ -5,7 +5,7 @@ It includes Pydantic models for various operation types, pipeline steps, and the
 The module provides a high-level API for defining, optimizing, and running document processing pipelines.
 
 Classes:
-    Dataset: Represents a dataset with a type and path.
+    Dataset: Represents a dataset with a type, path, and optional parsing tools.
     BaseOp: Base class for all operation types.
     MapOp: Represents a map operation in the pipeline.
     ResolveOp: Represents a resolve operation for entity resolution.
@@ -27,7 +27,13 @@ Usage:
     from docetl.api import Pipeline, Dataset, MapOp, ReduceOp
 
     pipeline = Pipeline(
-        datasets={"input": Dataset(type="file", path="input.json")},
+        datasets={
+            "input": Dataset(
+                type="file",
+                path="input.json",
+                parsing_tools=[{"name": "txt_to_string", "input_key": "text", "output_key": "content"}]
+            )
+        },
         operations=[
             MapOp(name="process", type="map", prompt="Process the document"),
             ReduceOp(name="summarize", type="reduce", reduce_key="content")
@@ -44,7 +50,7 @@ Usage:
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 from rich import print
@@ -60,6 +66,7 @@ from docetl.schemas import (
     ResolveOp,
     SplitOp,
     UnnestOp,
+    ParsingTool,
 )
 
 
@@ -103,6 +110,7 @@ class Pipeline(PipelineModel):
             steps=self.steps,
             output=self.output,
             default_model=self.default_model,
+            parsing_tools=self.parsing_tools,
         )
         updated_pipeline._update_from_dict(optimized_config)
         return updated_pipeline
@@ -161,6 +169,11 @@ class Pipeline(PipelineModel):
                 "output": self.output.dict(),
             },
             "default_model": self.default_model,
+            "parsing_tools": (
+                [tool.dict() for tool in self.parsing_tools]
+                if self.parsing_tools
+                else None
+            ),
         }
 
     def _update_from_dict(self, config: Dict[str, Any]):
@@ -197,3 +210,8 @@ class Pipeline(PipelineModel):
         self.steps = [PipelineStep(**step) for step in config["pipeline"]["steps"]]
         self.output = PipelineOutput(**config["pipeline"]["output"])
         self.default_model = config.get("default_model")
+        self.parsing_tools = (
+            [ParsingTool(**tool) for tool in config.get("parsing_tools", [])]
+            if config.get("parsing_tools")
+            else []
+        )

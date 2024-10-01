@@ -72,19 +72,24 @@ def xlsx_to_string(
 
     def process_sheet(sheet):
         if col_order:
-            headers = col_order
+            headers = [
+                col for col in col_order if col in sheet.iter_cols(1, sheet.max_column)
+            ]
         else:
             headers = [cell.value for cell in sheet[1]]
 
         result = []
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            row_dict = dict(zip(headers, row))
-            if orientation == "col":
-                result.extend(
-                    [f"{header}: {value}" for header, value in row_dict.items()]
-                )
-                result.append("")  # Empty line between rows
-            else:  # row
+        if orientation == "col":
+            for col_idx, header in enumerate(headers, start=1):
+                column = sheet.cell(1, col_idx).column_letter
+                column_values = [cell.value for cell in sheet[column][1:]]
+                result.append(f"{header}: " + "\n".join(map(str, column_values)))
+                result.append("")  # Empty line between columns
+        else:  # row
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                row_dict = {
+                    header: value for header, value in zip(headers, row) if header
+                }
                 result.append(
                     " | ".join(
                         [f"{header}: {value}" for header, value in row_dict.items()]
@@ -129,10 +134,48 @@ def docx_to_string(filename: str) -> List[str]:
     return ["\n".join([paragraph.text for paragraph in doc.paragraphs])]
 
 
+def pptx_to_string(filename: str, slide_per_document: bool = False) -> List[str]:
+    """
+    Extract text from a PowerPoint presentation.
+
+    Args:
+        filename (str): Path to the pptx file.
+        slide_per_document (bool): If True, return each slide as a separate
+            document. If False, return the entire presentation as one document.
+
+    Returns:
+        List[str]: Extracted text from the presentation. If slide_per_document
+            is True, each string in the list represents a single slide.
+            Otherwise, the list contains a single string with all slides'
+            content.
+    """
+    from pptx import Presentation
+
+    prs = Presentation(filename)
+    result = []
+
+    for slide in prs.slides:
+        slide_content = []
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                slide_content.append(shape.text)
+
+        if slide_per_document:
+            result.append("\n".join(slide_content))
+        else:
+            result.extend(slide_content)
+
+    if not slide_per_document:
+        result = ["\n".join(result)]
+
+    return result
+
+
 # Define a dictionary mapping function names to their corresponding functions
 PARSING_TOOLS = {
     "whisper_speech_to_text": whisper_speech_to_text,
     "xlsx_to_string": xlsx_to_string,
     "txt_to_string": txt_to_string,
     "docx_to_string": docx_to_string,
+    "pptx_to_string": pptx_to_string,
 }

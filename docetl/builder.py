@@ -968,8 +968,8 @@ class Optimizer:
                 )
             dataset = Dataset(
                 type=dataset_config["type"],
-                source=dataset_config["source"],
                 path_or_data=dataset_config["path"],
+                source=dataset_config["source"],
                 parsing=dataset_config.get("parsing", []),
                 user_defined_parsing_tool_map=self.parsing_tool_map,
             )

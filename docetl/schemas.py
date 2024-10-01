@@ -21,8 +21,8 @@ class ParsingTool(BaseModel):
 
 class Dataset(BaseModel):
     type: str
-    source: str
     path: str
+    source: str = "local"
     parsing: Optional[List[Dict[str, str]]] = None
 
 

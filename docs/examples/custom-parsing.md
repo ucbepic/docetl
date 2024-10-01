@@ -58,7 +58,7 @@ datasets:
     type: file
     source: local
     path: "sales_data/sales_paths.json"
-    parsing_tools:
+    parsing:
       - input_key: excel_path
         function: xlsx_to_string
         output_key: sales_data
@@ -69,7 +69,7 @@ datasets:
     type: file
     source: local
     path: "receipts/receipt_paths.json"
-    parsing_tools:
+    parsing:
       - input_key: pdf_path
         function: ocr_parser
         output_key: receipt_text

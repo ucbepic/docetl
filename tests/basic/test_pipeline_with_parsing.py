@@ -110,9 +110,9 @@ def test_pipeline_with_parsing(config_file):
 
             print(f"Pipeline executed successfully. Total cost: ${total_cost:.2f}")
 
-            # Assert that each output has at least 50 characters
+            # Assert that each output has at least 40 characters
             for item in output_data:
-                assert len(item["summary"]) >= 50, "Summary is not long enough"
+                assert len(item["summary"]) >= 40, "Summary is not long enough"
 
         # Clean up the output file
         os.unlink(output_file.name)

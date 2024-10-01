@@ -1,6 +1,5 @@
 from typing import List, Dict, Union, Optional, Any, Callable
 import os
-from pydantic import BaseModel
 
 from docetl.parsing_tools import PARSING_TOOLS
 from docetl.schemas import ParsingTool

@@ -6,10 +6,10 @@ from typing import Dict, List, Optional, Tuple
 from dotenv import load_dotenv
 from rich.console import Console
 
+from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
 from docetl.utils import load_config
-from docetl.dataset import Dataset, create_parsing_tool_map
 
 load_dotenv()
 

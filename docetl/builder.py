@@ -8,11 +8,11 @@ from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
-from docetl.dataset import Dataset, create_parsing_tool_map
 from rich.console import Console
 from rich.status import Status
 from rich.traceback import install
 
+from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import flush_cache

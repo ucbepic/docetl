@@ -1,6 +1,7 @@
-import os
-from typing import Optional, List
 import io
+import os
+from typing import List, Optional
+
 from litellm import transcription
 
 
@@ -223,10 +224,11 @@ def azure_di_read(
     Raises:
         ValueError: If DOCUMENTINTELLIGENCE_API_KEY or DOCUMENTINTELLIGENCE_ENDPOINT environment variables are not set.
     """
-    from azure.core.credentials import AzureKeyCredential
+    import os
+
     from azure.ai.documentintelligence import DocumentIntelligenceClient
     from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
-    import os
+    from azure.core.credentials import AzureKeyCredential
 
     key = os.getenv("DOCUMENTINTELLIGENCE_API_KEY")
     endpoint = os.getenv("DOCUMENTINTELLIGENCE_ENDPOINT")

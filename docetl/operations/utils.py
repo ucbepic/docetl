@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
 from litellm import completion, embedding, model_cost
-from pydantic import create_model
 from rich import print as rprint
 from rich.console import Console
 from rich.prompt import Prompt

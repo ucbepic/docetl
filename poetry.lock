@@ -218,6 +218,41 @@ tests = ["cloudpickle", "hypothesis", "mypy (>=1.11.1)", "pympler", "pytest (>=4
 tests-mypy = ["mypy (>=1.11.1)", "pytest-mypy-plugins"]
 
 [[package]]
+name = "azure-ai-documentintelligence"
+version = "1.0.0b4"
+description = "Microsoft Azure AI Document Intelligence Client Library for Python"
+optional = true
+python-versions = ">=3.8"
+files = [
+    {file = "azure_ai_documentintelligence-1.0.0b4-py3-none-any.whl", hash = "sha256:c3a90560b4029e232dbab1334ac2f3dda4cae7c1f60dad277fe21a876dd6bb9f"},
+    {file = "azure_ai_documentintelligence-1.0.0b4.tar.gz", hash = "sha256:1aa36f0617b0c129fdc82b039b7084fd5b69af08e8e0cb500108b9f6efd61b36"},
+]
+
+[package.dependencies]
+azure-core = ">=1.30.0"
+isodate = ">=0.6.1"
+typing-extensions = ">=4.6.0"
+
+[[package]]
+name = "azure-core"
+version = "1.31.0"
+description = "Microsoft Azure Core Library for Python"
+optional = true
+python-versions = ">=3.8"
+files = [
+    {file = "azure_core-1.31.0-py3-none-any.whl", hash = "sha256:22954de3777e0250029360ef31d80448ef1be13b80a459bff80ba7073379e2cd"},
+    {file = "azure_core-1.31.0.tar.gz", hash = "sha256:656a0dd61e1869b1506b7c6a3b31d62f15984b1a573d6326f6aa2f3e4123284b"},
+]
+
+[package.dependencies]
+requests = ">=2.21.0"
+six = ">=1.11.0"
+typing-extensions = ">=4.6.0"
+
+[package.extras]
+aio = ["aiohttp (>=3.0)"]
+
+[[package]]
 name = "babel"
 version = "2.16.0"
 description = "Internationalization utilities"
@@ -856,6 +891,20 @@ files = [
     {file = "iniconfig-2.0.0-py3-none-any.whl", hash = "sha256:b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374"},
     {file = "iniconfig-2.0.0.tar.gz", hash = "sha256:2d91e135bf72d31a410b17c16da610a82cb55f6b0477d1a902134b24a455b8b3"},
 ]
+
+[[package]]
+name = "isodate"
+version = "0.6.1"
+description = "An ISO 8601 date/time/duration parser and formatter"
+optional = true
+python-versions = "*"
+files = [
+    {file = "isodate-0.6.1-py2.py3-none-any.whl", hash = "sha256:0751eece944162659049d35f4f549ed815792b38793f07cf73381c1c87cbed96"},
+    {file = "isodate-0.6.1.tar.gz", hash = "sha256:48c5881de7e8b0a0d648cb024c8062dc84e7b840ed81e864c7614fd3c127bde9"},
+]
+
+[package.dependencies]
+six = "*"
 
 [[package]]
 name = "jinja2"
@@ -3208,9 +3257,9 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 type = ["pytest-mypy"]
 
 [extras]
-parsing = ["openpyxl", "pydub", "python-docx", "python-pptx"]
+parsing = ["azure-ai-documentintelligence", "openpyxl", "pydub", "python-docx", "python-pptx"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "8a6c32c6ced43a22fb24cc0449bee9bf1079c703dc0467d655a99ea53f60f00c"
+content-hash = "71b11942f4d91ce82d420a95adf3e0e5ec1ee7cbdf626c257171d174b203ccf9"

@@ -1,13 +1,6 @@
 # Python API
 
-::: docetl.schemas.Dataset
-    options:
-        show_root_heading: true
-        heading_level: 3
-        show_if_no_docstring: false
-        docstring_options:
-            ignore_init_summary: false
-            trim_doctest_flags: true
+## Operations
 
 ::: docetl.schemas.BaseOp
     options:
@@ -98,6 +91,27 @@
         docstring_options:
             ignore_init_summary: false
             trim_doctest_flags: true
+
+## Dataset and Pipeline
+
+::: docetl.schemas.Dataset
+    options:
+        show_root_heading: true
+        heading_level: 3
+        show_if_no_docstring: false
+        docstring_options:
+            ignore_init_summary: false
+            trim_doctest_flags: true
+
+::: docetl.schemas.ParsingTool
+    options:
+        show_root_heading: true
+        heading_level: 3
+        show_if_no_docstring: false
+        docstring_options:
+            ignore_init_summary: false
+            trim_doctest_flags: true
+
 
 ::: docetl.schemas.PipelineStep
     options:

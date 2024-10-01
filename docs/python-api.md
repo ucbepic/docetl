@@ -21,29 +21,32 @@ from docetl.api import Pipeline, Dataset, MapOp, ReduceOp, PipelineStep, Pipelin
 
 # Define datasets
 datasets = {
-    "input": Dataset(type="file", path="input.json")
+    "my_dataset": Dataset(type="file", path="input.json", parsing=[{"input_key": "file_path", "function": "txt_to_string", "output_key": "content"}]),
 }
+
+# Note that the parsing is applied to the `file_path` key in each item of the dataset,
+# and the result is stored in the `content` key.
 
 # Define operations
 operations = [
     MapOp(
         name="process",
         type="map",
-        prompt="Process the document",
-        output={"schema": {"processed_content": "string"}}
+        prompt="Determine what type of document this is: {{ input.content }}",
+        output={"schema": {"document_type": "string"}}
     ),
     ReduceOp(
         name="summarize",
         type="reduce",
-        reduce_key="processed_content",
-        prompt="Summarize the processed content",
+        reduce_key="document_type",
+        prompt="Summarize the processed contents: {% for item in inputs %}{{ item.content }} {% endfor %}",
         output={"schema": {"summary": "string"}}
     )
 ]
 
 # Define pipeline steps
 steps = [
-    PipelineStep(name="process_step", input="input", operations=["process"]),
+    PipelineStep(name="process_step", input="my_dataset", operations=["process"]),
     PipelineStep(name="summarize_step", input="process_step", operations=["summarize"])
 ]
 

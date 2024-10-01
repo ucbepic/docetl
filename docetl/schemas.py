@@ -23,7 +23,7 @@ class Dataset(BaseModel):
     type: str
     source: str
     path: str
-    parsing_tools: Optional[List[Dict[str, str]]] = None
+    parsing: Optional[List[Dict[str, str]]] = None
 
 
 class BaseOp(BaseModel):

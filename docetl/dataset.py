@@ -21,13 +21,13 @@ class Dataset:
         type: str,
         source: str,
         path_or_data: Union[str, List[Dict]],
-        parsing_tools: List[Dict[str, str]] = None,
+        parsing: List[Dict[str, str]] = None,
         user_defined_parsing_tool_map: Dict[str, ParsingTool] = {},
     ):
         self.type = self._validate_type(type)
         self.source = self._validate_source(source)
         self.path_or_data = self._validate_path_or_data(path_or_data)
-        self.parsing_tools = self._validate_parsing_tools(parsing_tools)
+        self.parsing = self._validate_parsing(parsing)
         self.user_defined_parsing_tool_map = user_defined_parsing_tool_map
 
     def _validate_type(self, type: str) -> str:
@@ -56,7 +56,7 @@ class Dataset:
                 )
         return path_or_data
 
-    def _validate_parsing_tools(
+    def _validate_parsing(
         self, parsing_tools: Union[List[Dict[str, str]], None]
     ) -> List[Dict[str, str]]:
         if parsing_tools is None:
@@ -88,7 +88,7 @@ class Dataset:
         return parsing_tools
 
     def __repr__(self):
-        return f"Dataset(type='{self.type}', source='{self.source}', path_or_data='{self.path_or_data}', parsing_tools={self.parsing_tools})"
+        return f"Dataset(type='{self.type}', source='{self.source}', path_or_data='{self.path_or_data}', parsing={self.parsing})"
 
     def load(self) -> List[Dict]:
         """
@@ -128,7 +128,7 @@ class Dataset:
         Returns:
             List[Dict]: The data with parsing tools applied.
         """
-        for tool in self.parsing_tools:
+        for tool in self.parsing:
             input_key = tool["input_key"]
             if tool["function"] in PARSING_TOOLS:
                 func = PARSING_TOOLS[tool["function"]]
@@ -146,11 +146,21 @@ class Dataset:
 
             output_key = tool["output_key"]
             function_kwargs = tool.get("function_kwargs", {})
+            new_data = []
             for item in data:
                 if input_key in item:
-                    item[output_key] = func(item[input_key], **function_kwargs)
+                    result = func(item[input_key], **function_kwargs)
+                    if isinstance(result, list):
+                        for res in result:
+                            new_item = item.copy()
+                            new_item[output_key] = res
+                            new_data.append(new_item)
+                    else:
+                        item[output_key] = result
+                        new_data.append(item)
                 else:
                     raise ValueError(f"Input key {input_key} not found in item: {item}")
+            data = new_data
 
         return data
 

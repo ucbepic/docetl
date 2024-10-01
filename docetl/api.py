@@ -31,7 +31,7 @@ Usage:
             "input": Dataset(
                 type="file",
                 path="input.json",
-                parsing_tools=[{"name": "txt_to_string", "input_key": "text", "output_key": "content"}]
+                parsing=[{"name": "txt_to_string", "input_key": "text", "output_key": "content"}]
             )
         },
         operations=[
@@ -184,7 +184,13 @@ class Pipeline(PipelineModel):
             config (Dict[str, Any]): Dictionary representation of the Pipeline.
         """
         self.datasets = {
-            name: Dataset(**dataset) for name, dataset in config["datasets"].items()
+            name: Dataset(
+                type=dataset["type"],
+                source=dataset["source"],
+                path=dataset["path"],
+                parsing=dataset.get("parsing"),
+            )
+            for name, dataset in config["datasets"].items()
         }
         self.operations = []
         for op in config["operations"]:

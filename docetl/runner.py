@@ -166,7 +166,7 @@ class DSLRunner:
                     "file",
                     "local",
                     dataset_config["path"],
-                    parsing_tools=dataset_config.get("parsing_tools", []),
+                    parsing=dataset_config.get("parsing", []),
                     user_defined_parsing_tool_map=self.parsing_tool_map,
                 )
                 self.console.print(f"Loaded dataset: [bold]{name}[/bold]")

@@ -30,14 +30,14 @@ operations = [
         blocking_keys=["medication"],
         optimize=True,  # This operation will be optimized
         comparison_prompt="Compare medications:\n1: {{ input1.medication }}\n2: {{ input2.medication }}\nAre these the same or closely related?",
-        resolution_prompt="Standardize the name for:\n{% for entry in matched_entries %}\n- {{ entry.medication }}\n{% endfor %}"
+        resolution_prompt="Standardize the name for:\n{% for entry in inputs %}\n- {{ entry.medication }}\n{% endfor %}"
     ),
     ReduceOp(
         name="summarize_prescriptions",
         type="reduce",
         reduce_key=["medication"],
         output={"schema": {"side_effects": "str", "uses": "str"}},
-        prompt="Summarize side effects and uses of {{ reduce_key }} from:\n{% for value in values %}\nTranscript {{ loop.index }}: {{ value.src }}\n{% endfor %}",
+        prompt="Summarize side effects and uses of {{ reduce_key }} from:\n{% for value in inputs %}\nTranscript {{ loop.index }}: {{ value.src }}\n{% endfor %}",
         optimize=True,  # This operation will be optimized
     )
 ]

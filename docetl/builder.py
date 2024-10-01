@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
+from docetl.dataset import Dataset, create_parsing_tool_map
 from rich.console import Console
 from rich.status import Status
 from rich.traceback import install
@@ -138,6 +139,11 @@ class Optimizer:
         self.selectivities = defaultdict(dict)
         self.samples_taken = defaultdict(dict)
         self.resume = resume
+
+        # create parsing tool map
+        self.parsing_tool_map = create_parsing_tool_map(
+            self.config.get("parsing_tools", None)
+        )
 
         home_dir = os.path.expanduser("~")
         cache_dir = os.path.join(home_dir, f".docetl/cache/{yaml_file_suffix}")
@@ -955,16 +961,19 @@ class Optimizer:
         if name_hash and name_hash in self.datasets:
             data = self.datasets[name_hash]
         else:
-            dataset = self.config["datasets"].get(dataset_name)
-            if dataset is None:
+            dataset_config = self.config["datasets"].get(dataset_name)
+            if dataset_config is None:
                 raise ValueError(
                     f"Dataset '{dataset_name}' not found in config or previous steps."
                 )
-            if dataset["type"] == "file":
-                with open(dataset["path"], "r") as f:
-                    data = json.load(f)
-            else:
-                raise ValueError(f"Unsupported dataset type: {dataset['type']}")
+            dataset = Dataset(
+                type=dataset_config["type"],
+                source=dataset_config["source"],
+                path_or_data=dataset_config["path"],
+                parsing_tools=dataset_config.get("parsing_tools", []),
+                user_defined_parsing_tool_map=self.parsing_tool_map,
+            )
+            data = dataset.load()
 
         if sample_size == float("inf"):
             return data

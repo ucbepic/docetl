@@ -505,15 +505,15 @@ def call_llm_with_cache(
             {
                 "type": "function",
                 "function": {
-                    "name": "write_output",
-                    "description": "Write processing output to a database",
+                    "name": "send_output",
+                    "description": "Send structured output back to the user",
                     "strict": True,
                     "parameters": parameters,
                     "additionalProperties": False,
                 },
             }
         ]
-        tool_choice = {"type": "function", "function": {"name": "write_output"}}
+        tool_choice = {"type": "function", "function": {"name": "send_output"}}
         response_format = None
 
     else:
@@ -524,7 +524,7 @@ def call_llm_with_cache(
         tools = [{"type": "function", "function": tool["function"]} for tool in tools]
         response_format = None
 
-    system_prompt = f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation. You will perform the specified task on the provided data."
+    system_prompt = f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation. You will perform the specified task on the provided data. The result should be a structured output that you will send back to the user."
     if scratchpad:
         system_prompt += f"""
 
@@ -762,15 +762,15 @@ Please improve your previous response. Ensure that the output adheres to the req
                 {
                     "type": "function",
                     "function": {
-                        "name": "write_output",
-                        "description": "Write processing output to a database",
+                        "name": "send_output",
+                        "description": "Send structured output back to the user",
                         "strict": True,
                         "parameters": parameters,
                         "additionalProperties": False,
                     },
                 }
             ],
-            tool_choice={"type": "function", "function": {"name": "write_output"}},
+            tool_choice={"type": "function", "function": {"name": "send_output"}},
         )
 
         # Update messages with the new response
@@ -820,7 +820,7 @@ def parse_llm_response_helper(
     Parse the response from a language model.
 
     This function extracts the tool calls from the LLM response and returns the arguments
-    of any 'write_output' function calls as a list of dictionaries.
+    of any 'send_output' function calls as a list of dictionaries.
 
     Args:
         response (Any): The response object from the language model.

@@ -1,10 +1,26 @@
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Union, Optional, Any, Callable
 import os
 from pydantic import BaseModel
 
 from docetl.parsing_tools import PARSING_TOOLS
 from docetl.schemas import ParsingTool
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def process_item(
+    item: Dict[str, Any],
+    input_key: str,
+    output_key: str,
+    func: Callable,
+    **function_kwargs: Dict[str, Any],
+):
+    if input_key not in item:
+        raise ValueError(f"Input key {input_key} not found in item: {item}")
+    result = func(item[input_key], **function_kwargs)
+    if isinstance(result, list):
+        return [item.copy() | {output_key: res} for res in result]
+    else:
+        return [item | {output_key: result}]
 
 
 def create_parsing_tool_map(
@@ -239,18 +255,18 @@ class Dataset:
             function_kwargs = tool.get("function_kwargs", {})
             new_data = []
 
-            def process_item(item):
-                if input_key not in item:
-                    raise ValueError(f"Input key {input_key} not found in item: {item}")
-                result = func(item[input_key], **function_kwargs)
-                if isinstance(result, list):
-                    return [item.copy() | {output_key: res} for res in result]
-                else:
-                    return [item | {output_key: result}]
-
             with ThreadPoolExecutor() as executor:
-                futures = [executor.submit(process_item, item) for item in data]
-                new_data = []
+                futures = [
+                    executor.submit(
+                        process_item,
+                        item,
+                        input_key,
+                        output_key,
+                        func,
+                        **function_kwargs,
+                    )
+                    for item in data
+                ]
                 for future in as_completed(futures):
                     new_data.extend(future.result())
 

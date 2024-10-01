@@ -104,7 +104,7 @@ Create a file named `pipeline.yaml` with the following structure:
             medication: str
         resolution_prompt: |
           Given the following matched medication entries:
-          {% for entry in matched_entries %}
+          {% for entry in inputs %}
           Entry {{ loop.index }}: {{ entry.medication }}
           {% endfor %}
           Determine the best resolved medication name for this group of entries. The resolved
@@ -155,6 +155,23 @@ Create a file named `pipeline.yaml` with the following structure:
     ```
 
 ## Running the Pipeline
+
+!!! info "Pipeline Performance"
+
+    When running this pipeline on a sample dataset, we observed the following performance metrics using `gpt-4o-mini` as defined in the pipeline:
+
+    - Total cost: $0.10
+    - Total execution time: 49.13 seconds
+
+    If you want to run it on a smaller sample, set the `sample` parameter for the map operation. For example, `sample: 10` will run the pipeline on a random sample of 10 transcripts:
+
+    ```yaml
+    operations:
+      - name: extract_medications
+        type: map
+        sample: 10
+        ...
+    ```
 
 To execute the pipeline, run the following command in your terminal:
 

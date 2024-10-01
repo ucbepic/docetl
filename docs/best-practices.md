@@ -69,7 +69,7 @@ This guide outlines best practices for using DocETL effectively, focusing on the
    prompt: |
      Here are some transcripts of conversations between a doctor and a patient:
 
-     {% for value in values %}
+     {% for value in inputs %}
      Transcript {{ loop.index }}:
      {{ value.src }}
      {% endfor %}

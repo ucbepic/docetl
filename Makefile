@@ -5,6 +5,7 @@ tests:
 
 tests-basic:
 	poetry run pytest tests/basic
+	poetry run pytest tests/test_api.py
 
 lint:
 	poetry run ruff check docetl/* --fix

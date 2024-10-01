@@ -182,9 +182,30 @@ def azure_di_read(
     doc_per_page: bool = False,
 ) -> List[str]:
     """
-    Extract text from a document using Azure Form Recognizer.
+    Note to developers: We used this documentation: https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/use-sdk-rest-api?view=doc-intel-4.0.0&tabs=windows&pivots=programming-language-python
 
-    Used this documentation: https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/use-sdk-rest-api?view=doc-intel-4.0.0&tabs=windows&pivots=programming-language-python
+    This function uses Azure Document Intelligence to extract text from documents.
+    To use this function, you need to set up an Azure Document Intelligence resource:
+
+    1. Create an Azure account if you don't have one: https://azure.microsoft.com/
+    2. Set up a Document Intelligence resource in the Azure portal:
+       https://portal.azure.com/#create/Microsoft.CognitiveServicesFormRecognizer
+    3. Once created, find the resource's endpoint and key in the Azure portal
+    4. Set these as environment variables:
+       - DOCUMENTINTELLIGENCE_API_KEY: Your Azure Document Intelligence API key
+       - DOCUMENTINTELLIGENCE_ENDPOINT: Your Azure Document Intelligence endpoint URL
+
+    The function will use these credentials to authenticate with the Azure service.
+    If the environment variables are not set, the function will raise a ValueError.
+
+    The Azure Document Intelligence client is then initialized with these credentials.
+    It sends the document (either as a file or URL) to Azure for analysis.
+    The service processes the document and returns structured information about its content.
+
+    This function then extracts the text content from the returned data,
+    applying any specified formatting options (like including line numbers or font styles).
+    The extracted text is returned as a list of strings, with each string
+    representing either a page (if doc_per_page is True) or the entire document.
 
     Args:
         filename (str): Path to the file to be analyzed or URL of the document if use_url is True.

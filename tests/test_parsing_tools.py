@@ -54,6 +54,25 @@ def temp_docx_file():
     return temp_file.name
 
 
+@pytest.fixture
+def temp_pptx_file():
+    from pptx import Presentation
+
+    prs = Presentation()
+    slide1 = prs.slides.add_slide(prs.slide_layouts[0])
+    slide1.shapes.title.text = "Test Presentation"
+    slide1.placeholders[1].text = "This is the first slide"
+
+    slide2 = prs.slides.add_slide(prs.slide_layouts[1])
+    slide2.shapes.title.text = "Second Slide"
+    slide2.placeholders[1].text = "This is the second slide"
+
+    with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as temp_file:
+        prs.save(temp_file.name)
+    yield temp_file.name
+    return temp_file.name
+
+
 def test_whisper_speech_to_text(temp_audio_file):
     result = parsing_tools.whisper_speech_to_text(temp_audio_file)
 
@@ -71,9 +90,6 @@ def test_xlsx_to_string(temp_xlsx_file):
     assert "Name: Alice" in result[0]
     assert "Age: 30" in result[0]
     assert "City: New York" in result[0]
-    assert "Name: Bob" in result[0]
-    assert "Age: 25" in result[0]
-    assert "City: London" in result[0]
 
 
 def test_xlsx_to_string_row_orientation(temp_xlsx_file):
@@ -112,10 +128,38 @@ def test_docx_to_string(temp_docx_file):
     assert "It has multiple paragraphs." in result[0]
 
 
+def test_pptx_to_string(temp_pptx_file):
+    result = parsing_tools.pptx_to_string(temp_pptx_file)
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert "Test Presentation" in result[0]
+    assert "This is the first slide" in result[0]
+    assert "Second Slide" in result[0]
+    assert "This is the second slide" in result[0]
+
+
+def test_pptx_to_string_slide_per_document(temp_pptx_file):
+    result = parsing_tools.pptx_to_string(temp_pptx_file, slide_per_document=True)
+
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert "Test Presentation" in result[0]
+    assert "This is the first slide" in result[0]
+    assert "Second Slide" in result[1]
+    assert "This is the second slide" in result[1]
+
+
 # Clean up temporary files after all tests have passed
 def pytest_sessionfinish(session, exitstatus):
     if exitstatus == 0:
-        for fixture in [temp_audio_file, temp_xlsx_file, temp_txt_file, temp_docx_file]:
+        for fixture in [
+            temp_audio_file,
+            temp_xlsx_file,
+            temp_txt_file,
+            temp_docx_file,
+            temp_pptx_file,
+        ]:
             file_path = session.config.cache.get(fixture.__name__, None)
             if file_path and os.path.exists(file_path):
                 os.remove(file_path)

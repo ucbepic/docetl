@@ -132,7 +132,7 @@ class DSLRunner:
                 self.datasets[step["input"]].load() if "input" in step else None
             )
             output_data, step_cost = self.execute_step(step, input_data)
-            self.datasets[step_name] = Dataset("memory", "local", output_data)
+            self.datasets[step_name] = Dataset("memory", output_data)
             flush_cache(self.console)
             total_cost += step_cost
             self.console.log(
@@ -164,8 +164,8 @@ class DSLRunner:
             if dataset_config["type"] == "file":
                 self.datasets[name] = Dataset(
                     "file",
-                    "local",
                     dataset_config["path"],
+                    source="local",
                     parsing=dataset_config.get("parsing", []),
                     user_defined_parsing_tool_map=self.parsing_tool_map,
                 )
@@ -281,7 +281,7 @@ class DSLRunner:
         if os.path.exists(checkpoint_path):
             if f"{step_name}_{operation_name}" not in self.datasets:
                 self.datasets[f"{step_name}_{operation_name}"] = Dataset(
-                    "file", "local", checkpoint_path
+                    "file", checkpoint_path, "local"
                 )
             return self.datasets[f"{step_name}_{operation_name}"].load()
         return None

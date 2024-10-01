@@ -40,8 +40,8 @@ class Dataset:
     def __init__(
         self,
         type: str,
-        source: str,
         path_or_data: Union[str, List[Dict]],
+        source: str = "local",
         parsing: List[Dict[str, str]] = None,
         user_defined_parsing_tool_map: Dict[str, ParsingTool] = {},
     ):

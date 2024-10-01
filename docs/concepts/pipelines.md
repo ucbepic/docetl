@@ -21,7 +21,7 @@ default_model: gpt-4o-mini
 
 ### Datasets
 
-Datasets define the input data for your pipeline. They are collections of documents, where each document is an object in a JSON list. Datasets are typically specified in the YAML configuration file, indicating the type and path of the data source. For example:
+Datasets define the input data for your pipeline. They are collections of documents, where each document is an object in a JSON list (or row in a CSV file). Datasets are typically specified in the YAML configuration file, indicating the type and path of the data source. For example:
 
 ```yaml
 datasets:
@@ -30,9 +30,35 @@ datasets:
     path: "user_logs.json"
 ```
 
+#### Dynamic Data Loading
+
+DocETL supports dynamic data loading, allowing you to process various file types by specifying a key that points to a path or using a custom parsing function. This feature is particularly useful for handling diverse data sources, such as audio files, PDFs, or any other non-standard format.
+
+To implement dynamic data loading, you can use parsing tools in your dataset configuration. Here's an example:
+
+```yaml
+datasets:
+  audio_transcripts:
+    type: file
+    source: local
+    path: "audio_files/audio_paths.json"
+    parsing_tools:
+      - input_key: audio_path
+        function: whisper_speech_to_text
+        output_key: transcript
+```
+
+In this example, the dataset configuration specifies a JSON file (audio_paths.json) that contains paths to audio files. The parsing_tools section defines how to process these files:
+
+- `input_key`: Specifies which key in the JSON contains the path to the audio file. In this example, each object in the dataset should have a "audio_path" key, that represents a path to an audio file or mp3.
+- `function`: Names the parsing function to use (in this case, the built-in whisper_speech_to_text function for audio transcription).
+- `output_key`: Defines the key where the processed data (transcript) will be stored. You can access this in the pipeline in any prompts with the `{{ input.transcipt }}` syntax.
+
+This approach allows DocETL to dynamically load and process various file types, extending its capabilities beyond standard JSON or CSV inputs. You can use built-in parsing tools or define custom ones to handle specific file formats or data processing needs. See the [Custom Parsing](../examples/custom-parsing.md) documentation for more details.
+
 !!! note
 
-    Currently, DocETL only supports JSON files as input datasets. If you're interested in support for other data types or cloud-based datasets, please reach out to us or join our open-source community and contribute! We welcome new ideas and contributions to expand the capabilities of DocETL.
+    Currently, DocETL only supports JSON files or CSV files as input datasets. If you're interested in support for other data types or cloud-based datasets, please reach out to us or join our open-source community and contribute! We welcome new ideas and contributions to expand the capabilities of DocETL.
 
 ### Operators
 

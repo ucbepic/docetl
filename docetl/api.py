@@ -50,14 +50,22 @@ Usage:
 """
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import yaml
 from rich import print
 
 from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
-from docetl.schemas import Dataset, EquijoinOp, FilterOp, GatherOp, MapOp, ParallelMapOp
+from docetl.schemas import (
+    Dataset,
+    EquijoinOp,
+    FilterOp,
+    GatherOp,
+    MapOp,
+    ParallelMapOp,
+    ParsingTool,
+)
 from docetl.schemas import Pipeline as PipelineModel
 from docetl.schemas import (
     PipelineOutput,
@@ -66,7 +74,6 @@ from docetl.schemas import (
     ResolveOp,
     SplitOp,
     UnnestOp,
-    ParsingTool,
 )
 
 

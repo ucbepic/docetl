@@ -1,9 +1,9 @@
-from typing import List, Dict, Union, Optional, Any, Callable
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from docetl.parsing_tools import PARSING_TOOLS
 from docetl.schemas import ParsingTool
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def process_item(

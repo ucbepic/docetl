@@ -14,6 +14,12 @@ Before installing DocETL, ensure you have Python 3.10 or later installed on your
 pip install docetl
 ```
 
+If you want to use the parsing tools, you need to install the `parsing` extra:
+
+```bash
+pip install docetl[parsing]
+```
+
 This command will install DocETL along with its dependencies as specified in the pyproject.toml file. To verify that DocETL has been installed correctly, you can run the following command in your terminal:
 
 ```bash

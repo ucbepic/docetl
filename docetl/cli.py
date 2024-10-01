@@ -1,11 +1,14 @@
 from pathlib import Path
 from typing import Optional
 
+import os
 import typer
 
 from docetl.builder import Optimizer
 from docetl.operations.utils import clear_cache as cc
 from docetl.runner import DSLRunner
+
+from dotenv import load_dotenv
 
 app = typer.Typer()
 
@@ -36,6 +39,14 @@ def build(
         resume (bool): Whether to resume optimization from a previous run. Defaults to False.
         timeout (int): Timeout for optimization operations in seconds. Defaults to 60.
     """
+    # Get the current working directory (where the user called the command)
+    cwd = os.getcwd()
+
+    # Load .env file from the current working directory
+    env_file = os.path.join(cwd, ".env")
+    if os.path.exists(env_file):
+        load_dotenv(env_file)
+
     optimizer = Optimizer.from_yaml(
         str(yaml_file),
         max_threads=max_threads,
@@ -63,6 +74,14 @@ def run(
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
         max_threads (Optional[int]): Maximum number of threads to use for running operations.
     """
+    # Get the current working directory (where the user called the command)
+    cwd = os.getcwd()
+
+    # Load .env file from the current working directory
+    env_file = os.path.join(cwd, ".env")
+    if os.path.exists(env_file):
+        load_dotenv(env_file)
+
     runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
     runner.run()
 

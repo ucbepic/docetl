@@ -372,3 +372,19 @@ class Pipeline(BaseModel):
     output: PipelineOutput
     parsing_tools: List[ParsingTool] = []
     default_model: Optional[str] = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._load_env()
+
+    def _load_env(self):
+        from dotenv import load_dotenv
+        import os
+
+        # Get the current working directory
+        cwd = os.getcwd()
+
+        # Load .env file from the current working directory if it exists
+        env_file = os.path.join(cwd, ".env")
+        if os.path.exists(env_file):
+            load_dotenv(env_file)

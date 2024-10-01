@@ -1,5 +1,6 @@
 import os
 from typing import Optional, List
+import io
 from litellm import transcription
 
 
@@ -30,15 +31,15 @@ def whisper_speech_to_text(filename: str) -> List[str]:
             chunks.append(chunk)
 
         transcriptions = []
+
         for i, chunk in enumerate(chunks):
-            temp_filename = f"temp_chunk_{i}_{os.path.basename(filename)}"
-            chunk.export(temp_filename, format="mp3")
+            buffer = io.BytesIO()
+            buffer.name = f"temp_chunk_{i}_{os.path.basename(filename)}"
+            chunk.export(buffer, format="mp3")
+            buffer.seek(0)  # Reset buffer position to the beginning
 
-            with open(temp_filename, "rb") as audio_file:
-                response = transcription(model="whisper-1", file=audio_file)
+            response = transcription(model="whisper-1", file=buffer)
             transcriptions.append(response.text)
-
-            os.remove(temp_filename)
 
         return transcriptions
     else:

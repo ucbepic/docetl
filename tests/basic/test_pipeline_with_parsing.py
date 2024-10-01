@@ -25,7 +25,7 @@ datasets:
     type: file
     source: local
     path: "tests/sample_data.json"
-    parsing_tools:
+    parsing:
       - input_key: text_file_path
         function: txt_to_string
         output_key: content

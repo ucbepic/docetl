@@ -139,8 +139,8 @@ def test_pptx_to_string(temp_pptx_file):
     assert "This is the second slide" in result[0]
 
 
-def test_pptx_to_string_slide_per_document(temp_pptx_file):
-    result = parsing_tools.pptx_to_string(temp_pptx_file, slide_per_document=True)
+def test_pptx_to_string_doc_per_slide(temp_pptx_file):
+    result = parsing_tools.pptx_to_string(temp_pptx_file, doc_per_slide=True)
 
     assert isinstance(result, list)
     assert len(result) == 2
@@ -148,6 +148,45 @@ def test_pptx_to_string_slide_per_document(temp_pptx_file):
     assert "This is the first slide" in result[0]
     assert "Second Slide" in result[1]
     assert "This is the second slide" in result[1]
+
+
+@pytest.fixture
+def pdf_url():
+    return "https://raw.githubusercontent.com/Azure-Samples/cognitive-services-REST-api-samples/master/curl/form-recognizer/rest-api/read.png"
+
+
+def test_azure_di_read(pdf_url):
+    # Test with default parameters
+    result = parsing_tools.azure_di_read(pdf_url, use_url=True)
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    content = result[0]
+
+    # Check for expected content in the extracted text
+    assert "While healthcare is still in the early stages of its" in content
+    assert "seeing pharmaceutical and other life sciences organizations" in content
+    assert "Enhancing the patient" in content
+
+    # Test with include_line_numbers=True
+    result_line_numbers = parsing_tools.azure_di_read(
+        pdf_url, use_url=True, include_line_numbers=True
+    )
+    assert isinstance(result_line_numbers, list)
+    assert len(result_line_numbers) == 1
+    assert any("Line #" in line for line in result_line_numbers[0].split("\n"))
+
+
+def test_azure_di_read_invoice():
+    invoice_url = "https://raw.githubusercontent.com/Azure-Samples/cognitive-services-REST-api-samples/master/curl/form-recognizer/sample-invoice.pdf"
+    result = parsing_tools.azure_di_read(invoice_url, use_url=True)
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    content = result[0]
+
+    # Check for expected content in the extracted text
+    assert "Contoso" in content
 
 
 # Clean up temporary files after all tests have passed

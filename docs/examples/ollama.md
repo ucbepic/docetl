@@ -18,10 +18,6 @@ export OLLAMA_API_BASE=http://localhost:11434/
 
     For more information on the Ollama REST API, refer to the [Ollama documentation](https://github.com/ollama/ollama?tab=readme-ov-file#rest-api).
 
-!!! tip "Use Ollama Chat Models for Structured Outputs"
-
-    Use [ollama-chat](https://github.com/BerriAI/litellm/issues/5048) instead of regular Ollama models to improve structured output performance. Llama 3.1 models support tool calling (which is how we get structured outputs).
-
 ## Pipeline Configuration
 
 Let's create a pipeline that classifies medical documents into categories such as "Cardiology", "Neurology", "Oncology", etc.

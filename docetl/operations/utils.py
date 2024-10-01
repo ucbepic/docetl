@@ -156,49 +156,6 @@ def clear_cache(console: Console = Console()):
         console.log(f"[bold red]Error clearing cache: {str(e)}[/bold red]")
 
 
-def create_dynamic_model(schema: Dict[str, Any], model_name: str = "DynamicModel"):
-    fields = {}
-
-    def process_schema(s: Dict[str, Any], prefix: str = "") -> None:
-        for key, value in s.items():
-            field_name = f"{prefix}__{key}" if prefix else key
-            if isinstance(value, dict):
-                process_schema(value, field_name)
-            else:
-                fields[field_name] = parse_type(value, field_name)
-
-    def parse_type(type_str: str, field_name: str) -> tuple:
-        type_str = type_str.strip().lower()
-        if type_str in ["str", "text", "string", "varchar"]:
-            return (str, ...)
-        elif type_str in ["int", "integer"]:
-            return (int, ...)
-        elif type_str in ["float", "decimal", "number"]:
-            return (float, ...)
-        elif type_str in ["bool", "boolean"]:
-            return (bool, ...)
-        elif type_str.startswith("list["):
-            inner_type = type_str[5:-1].strip()
-            item_type = parse_type(inner_type, f"{field_name}_item")[0]
-            return (List[item_type], ...)
-        elif type_str == "list":
-            return (List[Any], ...)
-        elif type_str.startswith("{") and type_str.endswith("}"):
-            subfields = {}
-            for item in type_str[1:-1].split(","):
-                sub_key, sub_type = item.strip().split(":")
-                subfields[sub_key.strip()] = parse_type(
-                    sub_type.strip(), f"{field_name}_{sub_key}"
-                )
-            SubModel = create_model(f"{model_name}_{field_name}", **subfields)
-            return (SubModel, ...)
-        else:
-            return (Any, ...)
-
-    process_schema(schema)
-    return create_model(model_name, **fields)
-
-
 def convert_val(value: Any) -> Dict[str, Any]:
     """
     Convert a string representation of a type to a dictionary representation.
@@ -432,11 +389,6 @@ def call_llm(
     Raises:
         TimeoutError: If the call times out after retrying.
     """
-    if not litellm.supports_function_calling(model):
-        raise ValueError(
-            f"Model {model} does not support function calling (which we use for structured outputs). Please use a different model."
-        )
-
     key = cache_key(model, op_type, messages, output_schema, scratchpad)
 
     max_retries = max_retries_per_timeout

@@ -30,7 +30,7 @@ DocETL uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, which 
 
     If you choose to use a different provider, be aware that you may encounter unexpected behavior or reduced functionality, especially with operations that depend on structured outputs. We use tool calling to extract structured outputs from the LLM's response, so make sure your provider supports tool calling.
 
-    If using Ollama (e.g., llama 3.1), make sure your output schemas are not too complex, since these models are not as good as OpenAI for structured outputs! Use [parallel map operations](operators/parallel-map.md) to reduce the number of output attributes per prompt. Also, use [ollama-chat](https://github.com/BerriAI/litellm/issues/5048) instead of regular Ollama models to improve structured output performance.
+    If using Ollama (e.g., llama 3.1), make sure your output schemas are not too complex, since these models are not as good as OpenAI for structured outputs! Use [parallel map operations](operators/parallel-map.md) to reduce the number of output attributes per prompt.
 
 ## Preparing the Data
 

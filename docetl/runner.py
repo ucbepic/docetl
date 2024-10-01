@@ -9,6 +9,7 @@ from rich.console import Console
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
 from docetl.utils import load_config
+from docetl.dataset import Dataset, create_parsing_tool_map
 
 load_dotenv()
 
@@ -45,6 +46,11 @@ class DSLRunner:
 
         self.intermediate_dir = self.config["pipeline"]["output"].get(
             "intermediate_dir"
+        )
+
+        # Create parsing tool map
+        self.parsing_tool_map = create_parsing_tool_map(
+            self.config.get("parsing_tools", None)
         )
 
         # Check if output path is correctly formatted as JSON
@@ -122,16 +128,20 @@ class DSLRunner:
         total_cost = 0
         for step in self.config["pipeline"]["steps"]:
             step_name = step["name"]
-            input_data = self.datasets[step["input"]] if "input" in step else None
+            input_data = (
+                self.datasets[step["input"]].load() if "input" in step else None
+            )
             output_data, step_cost = self.execute_step(step, input_data)
-            self.datasets[step_name] = output_data
+            self.datasets[step_name] = Dataset("memory", output_data)
             flush_cache(self.console)
             total_cost += step_cost
             self.console.log(
                 f"Step [cyan]{step_name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]"
             )
 
-        self.save_output(self.datasets[self.config["pipeline"]["steps"][-1]["name"]])
+        self.save_output(
+            self.datasets[self.config["pipeline"]["steps"][-1]["name"]].load()
+        )
         self.console.rule("[bold green]Execution Summary[/bold green]")
         self.console.print(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")
         self.console.print(
@@ -144,7 +154,7 @@ class DSLRunner:
         """
         Load all datasets defined in the configuration.
 
-        This method reads datasets from files and stores them in the `datasets` attribute.
+        This method creates Dataset objects for each dataset in the configuration.
 
         Raises:
             ValueError: If an unsupported dataset type is encountered.
@@ -152,9 +162,13 @@ class DSLRunner:
         self.console.rule("[cyan]Loading Datasets[/cyan]")
         for name, dataset_config in self.config["datasets"].items():
             if dataset_config["type"] == "file":
-                with open(dataset_config["path"], "r") as file:
-                    self.datasets[name] = json.load(file)
-                    self.datasets[name] = self.datasets[name]
+                self.datasets[name] = Dataset(
+                    "file",
+                    dataset_config["path"],
+                    source="local",
+                    parsing=dataset_config.get("parsing", []),
+                    user_defined_parsing_tool_map=self.parsing_tool_map,
+                )
                 self.console.print(f"Loaded dataset: [bold]{name}[/bold]")
             else:
                 raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
@@ -222,7 +236,7 @@ class DSLRunner:
 
             # If sample is set, sample the input data
             if op_object.get("sample"):
-                input_data = input_data[: op_object["sample"]]
+                input_data = self.datasets[step["input"]].sample(op_object["sample"])
 
             with self.console.status("[bold]Running Operation:[/bold]") as status:
                 status.update(f"Type: [cyan]{op_object['type']}[/cyan]")
@@ -238,8 +252,8 @@ class DSLRunner:
                     self.status,
                 )
                 if op_object["type"] == "equijoin":
-                    left_data = self.datasets[op_object["left"]]
-                    right_data = self.datasets[op_object["right"]]
+                    left_data = self.datasets[op_object["left"]].load()
+                    right_data = self.datasets[op_object["right"]].load()
                     input_data, cost = operation_instance.execute(left_data, right_data)
                 else:
                     input_data, cost = operation_instance.execute(input_data)
@@ -257,13 +271,19 @@ class DSLRunner:
     def _load_from_checkpoint_if_exists(
         self, step_name: str, operation_name: str
     ) -> Optional[List[Dict]]:
+        if self.intermediate_dir is None:
+            return None
+
         checkpoint_path = os.path.join(
             self.intermediate_dir, step_name, f"{operation_name}.json"
         )
         # check if checkpoint exists
         if os.path.exists(checkpoint_path):
-            with open(checkpoint_path, "r") as f:
-                return json.load(f)
+            if f"{step_name}_{operation_name}" not in self.datasets:
+                self.datasets[f"{step_name}_{operation_name}"] = Dataset(
+                    "file", checkpoint_path, "local"
+                )
+            return self.datasets[f"{step_name}_{operation_name}"].load()
         return None
 
     def _save_checkpoint(self, step_name: str, operation_name: str, data: List[Dict]):

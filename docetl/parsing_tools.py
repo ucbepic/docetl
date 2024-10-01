@@ -183,14 +183,13 @@ def azure_di_read(
     doc_per_page: bool = False,
 ) -> List[str]:
     """
-    Note to developers: We used this documentation: https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/use-sdk-rest-api?view=doc-intel-4.0.0&tabs=windows&pivots=programming-language-python
+    > Note to developers: We used [this documentation](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/use-sdk-rest-api?view=doc-intel-4.0.0&tabs=windows&pivots=programming-language-python) as a reference.
 
     This function uses Azure Document Intelligence to extract text from documents.
     To use this function, you need to set up an Azure Document Intelligence resource:
 
-    1. Create an Azure account if you don't have one: https://azure.microsoft.com/
-    2. Set up a Document Intelligence resource in the Azure portal:
-       https://portal.azure.com/#create/Microsoft.CognitiveServicesFormRecognizer
+    1. [Create an Azure account](https://azure.microsoft.com/) if you don't have one
+    2. Set up a Document Intelligence resource in the [Azure portal](https://portal.azure.com/#create/Microsoft.CognitiveServicesFormRecognizer)
     3. Once created, find the resource's endpoint and key in the Azure portal
     4. Set these as environment variables:
        - DOCUMENTINTELLIGENCE_API_KEY: Your Azure Document Intelligence API key

@@ -1,17 +1,16 @@
-# Custom Dataset Parsing in DocETL
+# Pointing to External Data and Custom Parsing
 
-In DocETL, you have full control over your dataset JSONs. These JSONs typically contain objects with key-value pairs, where you can specify paths or references to external files that you want to process in your pipeline. But what if these external files are in formats that need special handling before they can be used in your main pipeline? This is where custom parsing in DocETL becomes useful.
-
+In DocETL, you have full control over your dataset JSONs. These JSONs typically contain objects with key-value pairs, where you can reference external files that you want to process in your pipeline. This referencing mechanism, which we call "pointing", allows DocETL to locate and process external files that require special handling before they can be used in your main pipeline.
 
 !!! info "Why Use Custom Parsing?"
 
-    Consider these scenarios:
+    Consider these scenarios where custom parsing of referenced files is beneficial:
 
-    - Your dataset JSON contains paths to Excel spreadsheets with sales data.
-    - You have references to scanned receipts in PDF format that need OCR processing.
-    - You want to extract text from Word documents or PowerPoint presentations.
+    - Your dataset JSON references Excel spreadsheets containing sales data.
+    - You have entries pointing to scanned receipts in PDF format that need OCR processing.
+    - You want to extract text from Word documents or PowerPoint presentations by referencing their file locations.
 
-    In these cases, custom parsing enables you to transform your raw external data into a format that DocETL can process effectively within your pipeline.
+    In these cases, custom parsing enables you to transform your raw external data into a format that DocETL can process effectively within your pipeline. The pointing mechanism allows DocETL to locate these external files and apply custom parsing seamlessly. _(Pointing in DocETL refers to the practice of including references or paths to external files within your dataset JSON. Instead of embedding the entire content of these files, you simply "point" to their locations, allowing DocETL to access and process them as needed during the pipeline execution.)_
 
 ## Dataset JSON Example
 
@@ -20,7 +19,7 @@ Let's look at a typical dataset JSON file that you might create:
 ```json
 [
   { "id": 1, "excel_path": "sales_data/january_sales.xlsx" },
-  { "id": 2, "excel_path": "sales_data/february_sales.xlsx" },
+  { "id": 2, "excel_path": "sales_data/february_sales.xlsx" }
 ]
 ```
 
@@ -55,7 +54,7 @@ datasets:
         function: xlsx_to_string
         output_key: sales_data
         function_kwargs:
-            orientation: "col"
+          orientation: "col"
 
   receipts:
     type: file
@@ -68,6 +67,7 @@ datasets:
 ```
 
 In this configuration:
+
 - We define a custom `ocr_parser` for PDF files.
 - We use the built-in `xlsx_to_string` parser for Excel files.
 - We apply these parsing tools to the external files referenced in the respective datasets.
@@ -132,8 +132,7 @@ In this example, we used two parsing tools:
 
 1. **xlsx_to_string**: A built-in parsing tool provided by DocETL. It reads Excel files and converts them to a string representation.
 
-2. **ocr_parser**: A custom parsing tool we defined for OCR processing of PDF files. *Note that it returns a list containing a single string, which is the format expected by DocETL for parsing tools.*
-
+2. **ocr_parser**: A custom parsing tool we defined for OCR processing of PDF files. _Note that it returns a list containing a single string, which is the format expected by DocETL for parsing tools._
 
 ## How Data Gets Parsed and Formatted
 
@@ -215,8 +214,6 @@ When you run this command:
 4. Any operations you've specified (like `summarize_sales` or `extract_receipt_info`) are applied to the parsed data.
 5. The results are saved according to your output configuration.
 
-
-
 ## Built-in Parsing Tools
 
 DocETL provides several built-in parsing tools to handle common file formats and data processing tasks. These tools can be used directly in your configuration by specifying their names in the `function` field of your parsing tools configuration. Here's an overview of the available built-in parsing tools:
@@ -240,8 +237,6 @@ DocETL provides several built-in parsing tools to handle common file formats and
 ::: docetl.parsing_tools.pptx_to_string
     options:
         heading_level: 3
-
-
 
 ### Using Function Arguments with Parsing Tools
 
@@ -283,4 +278,3 @@ While DocETL provides several built-in parsing tools, the community can always b
     - Include comprehensive docstrings explaining the function's purpose, parameters, and return value. The return value should be a list of strings.
     - Handle potential errors gracefully and provide informative error messages.
     - If your parser requires additional dependencies, make sure to mention them in the pull request.
-

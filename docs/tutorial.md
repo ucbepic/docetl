@@ -1,6 +1,6 @@
-# Tutorial: Mining User Behavior Data with DocETL
+# Tutorial: Analyzing Medical Transcripts with DocETL
 
-This tutorial will guide you through the process of using DocETL to analyze user behavior data from UI logs. We'll create a simple pipeline that extracts key insights and supporting actions from user logs, then summarizes them by country.
+This tutorial will guide you through the process of using DocETL to analyze medical transcripts and extract medication information. We'll create a pipeline that identifies medications, resolves similar names, and generates summaries of side effects and therapeutic uses.
 
 ## Installation
 
@@ -30,176 +30,128 @@ DocETL uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, which 
 
     If you choose to use a different provider, be aware that you may encounter unexpected behavior or reduced functionality, especially with operations that depend on structured outputs. We use tool calling to extract structured outputs from the LLM's response, so make sure your provider supports tool calling.
 
-    If using Ollama (e.g., llama 3.1), make sure your output schemas are not too complex, since these models are not as good as OpenAI for structured outputs! Use [parallel map operations](operators/parallel-map.md) to reduce the number of output attributes per prompt.
+    If using Ollama (e.g., llama 3.2), make sure your output schemas are not too complex, since these models are not as good as OpenAI for structured outputs! For example, use [parallel map operations](operators/parallel-map.md) to reduce the number of output attributes per prompt.
 
 ## Preparing the Data
 
-Organize your user behavior data in a JSON file as a list of objects. Each object should have the following keys: "user_id", "country", and "log". The "log" field contains the user interaction logs.
+Organize your medical transcript data in a JSON file as a list of objects. Each object should have a "src" key containing the transcript text. You can download the example dataset [here](../assets/medical_transcripts.json).
 
 !!! example "Sample Data Structure"
 
     ```json
     [
         {
-            "user_id": "user123",
-            "country": "USA",
-            "log": "[2023-06-15 09:15:23] User opened app\n[2023-06-15 09:16:05] User clicked on 'Products' tab\n[2023-06-15 09:16:30] User viewed product 'Laptop X'\n[2023-06-15 09:18:45] User added 'Laptop X' to cart\n[2023-06-15 09:19:10] User proceeded to checkout\n[2023-06-15 09:25:37] User completed purchase\n42333 more tokens..."
+            "src": "Doctor: Hello, Mrs. Johnson. How have you been feeling since starting the new medication, Lisinopril?\nPatient: Well, doctor, I've noticed my blood pressure has improved, but I've been experiencing some dry cough...",
         },
         {
-            "user_id": "user456",
-            "country": "Canada",
-            "log": "[2023-06-15 14:30:12] User launched app\n[2023-06-15 14:31:03] User searched for 'wireless headphones'\n[2023-06-15 14:32:18] User applied price filter\n[2023-06-15 14:33:00] User viewed product 'Headphone Y'\n[2023-06-15 14:38:22] User exited app without purchase\n13238 more tokens..."
+            "src": "Doctor: Good morning, Mr. Smith. I see you're here for a follow-up on your Metformin prescription.\nPatient: Yes, doctor. I've been taking it regularly, but I'm concerned about some side effects I've been experiencing...",
         }
     ]
     ```
 
-Save this file as `user_logs.json` in your project directory.
+Save this file as `medical_transcripts.json` in your project directory.
 
 ## Creating the Pipeline
 
-Now, let's create a DocETL pipeline to analyze this data. We'll use a map-reduce-like approach:
+Now, let's create a DocETL pipeline to analyze this data. We'll use a series of operations to extract and process the medication information:
 
-1. Map each user log to key insights and supporting actions
-2. Unnest the insights
-3. Reduce by country to summarize insights and identify common patterns
+1. **Medication Extraction**: Analyze each transcript to identify and list all mentioned medications.
+2. **Unnesting**: The extracted medication list is flattened, such that each medication (and associated data) is a separate document. This operator is akin to the pandas `explode` operation.
+3. **Medication Resolution**: Similar medication names are resolved to standardize the entries. This step helps in consolidating different variations or brand names of the same medication. For example, step 1 might extract "Ibuprofen" and "Motrin 800mg" as separate medications, and step 3 might resolve them to a single "Ibuprofen" entry.
+4. **Summary Generation**: For each unique medication, generate a summary of side effects and therapeutic uses based on information from all relevant transcripts.
 
 Create a file named `pipeline.yaml` with the following structure:
 
 !!! abstract "Pipeline Structure"
 
-    1.  **Define the dataset**
-        ```yaml
-        datasets:
-            user_logs:
-            type: file
-            path: "user_logs.json"
-        ```
-
-    2. **Extract insights** (map operation)
-        ```yaml
-        - name: extract_insights
-            type: map
-            prompt: |
-            Analyze the following user interaction log:
-            {{ input.log }}
-
-            Extract 2-3 main insights from this log, each being 1-2 words, to help inform future product development. Consider any difficulties or pain points the user may have had. Also provide 1-2 supporting actions for each insight.
-            Return the results as a list of dictionaries, each containing 'insight' and 'supporting_actions' keys.
-            output:
-            schema:
-                insights: "list[{insight: string, supporting_actions: string}]"
-        ```
-
-    3. **Unnest insights** (unnest operation)
-        ```yaml
-        - name: unnest_insights
-            type: unnest
-            unnest_key: insights
-            recursive: true
-        ```
-
-    4. **Summarize by country** (reduce operation)
-        ```yaml
-        - name: summarize_by_country
-            type: reduce
-            reduce_key: country
-            prompt: |
-            Summarize the user behavior insights for the country: {{ inputs[0].country }}
-
-            Insights and supporting actions:
-            {% for item in inputs %}
-            - Insight: {{ item.insight }}
-                Supporting actions:
-                {% for action in item.supporting_actions %}
-                - {{ action }}
-                {% endfor %}
-            {% endfor %}
-
-            Provide a summary of common insights and notable behaviors of users from this country.
-            output:
-            schema:
-                detailed_summary: string
-        ```
-
-    5. **Define the pipeline steps**
-        ```yaml
-        pipeline:
-            steps:
-            - name: analyze_user_logs
-                input: user_logs
-                operations:
-                - extract_insights
-                - unnest_insights
-                - summarize_by_country
-        ```
-
-    6. **Specify the output**
-        ```yaml
-        output:
-            type: file
-            path: "country_summaries.json"
-        ```
-
-??? example "Full Pipeline Configuration"
-
     ```yaml
+    datasets:
+      transcripts:
+        path: medical_transcripts.json
+        type: file
+
     default_model: gpt-4o-mini
 
-    datasets:
-      user_logs:
-        type: file
-        path: "user_logs.json"
-
     operations:
-      - name: extract_insights
+      - name: extract_medications
         type: map
-        prompt: |
-          Analyze the following user interaction log:
-          {{ input.log }}
-
-          Extract 2-3 main insights from this log, each being 1-2 words, to help inform future product development. Consider any difficulties or pain points the user may have had. Also provide 1-2 supporting actions for each insight.
-          Return the results as a list of dictionaries, each containing 'insight' and 'supporting_actions' keys.
         output:
           schema:
-            insights: "list[{insight: string, supporting_actions: string}]"
-
-      - name: unnest_insights
-        type: unnest
-        unnest_key: insights
-        recursive: true
-
-      - name: summarize_by_country
-        type: reduce
-        reduce_key: country
+            medication: list[str]
         prompt: |
-          Summarize the user behavior insights for the country: {{ inputs[0].country }}
+          Analyze the following transcript of a conversation between a doctor and a patient:
+          {{ input.src }}
+          Extract and list all medications mentioned in the transcript.
+          If no medications are mentioned, return an empty list.
 
-          Insights and supporting actions:
-          {% for item in inputs %}
-          - Insight: {{ item.insight }}
-            Supporting actions:
-            {% for action in item.supporting_actions %}
-            - {{ action }}
-            {% endfor %}
+      - name: unnest_medications
+        type: unnest
+        unnest_key: medication
+
+      - name: resolve_medications
+        type: resolve
+        blocking_keys:
+          - medication
+        blocking_threshold: 0.6162
+        comparison_prompt: |
+          Compare the following two medication entries:
+          Entry 1: {{ input1.medication }}
+          Entry 2: {{ input2.medication }}
+          Are these medications likely to be the same or closely related?
+        embedding_model: text-embedding-3-small
+        output:
+          schema:
+            medication: str
+        resolution_prompt: |
+          Given the following matched medication entries:
+          {% for entry in matched_entries %}
+          Entry {{ loop.index }}: {{ entry.medication }}
+          {% endfor %}
+          Determine the best resolved medication name for this group of entries. The resolved
+          name should be a standardized, widely recognized medication name that best represents
+          all matched entries.
+
+      - name: summarize_prescriptions
+        type: reduce
+        reduce_key:
+          - medication
+        output:
+          schema:
+            side_effects: str
+            uses: str
+        prompt: |
+          Here are some transcripts of conversations between a doctor and a patient:
+
+          {% for value in values %}
+          Transcript {{ loop.index }}:
+          {{ value.src }}
           {% endfor %}
 
-          Provide a summary of common insights and notable behaviors of users from this country.
-        output:
-          schema:
-            detailed_summary: string
+          For the medication {{ reduce_key }}, please provide the following information based on all the transcripts above:
+
+          1. Side Effects: Summarize all mentioned side effects of {{ reduce_key }}.
+          2. Therapeutic Uses: Explain the medical conditions or symptoms for which {{ reduce_key }} was prescribed or recommended.
+
+          Ensure your summary:
+          - Is based solely on information from the provided transcripts
+          - Focuses only on {{ reduce_key }}, not other medications
+          - Includes relevant details from all transcripts
+          - Is clear and concise
+          - Includes quotes from the transcripts
 
     pipeline:
       steps:
-        - name: analyze_user_logs
-          input: user_logs
+        - name: medical_info_extraction
+          input: transcripts
           operations:
-            - extract_insights
-            - unnest_insights
-            - summarize_by_country
-
+            - extract_medications
+            - unnest_medications
+            - resolve_medications
+            - summarize_prescriptions
       output:
         type: file
-        path: "country_summaries.json"
+        path: medication_summaries.json
+        intermediate_dir: intermediate_results
     ```
 
 ## Running the Pipeline
@@ -210,14 +162,20 @@ To execute the pipeline, run the following command in your terminal:
 docetl run pipeline.yaml
 ```
 
-This will process the user logs, extract key insights and supporting actions, and generate summaries for each country, saving the results in `country_summaries.json`.
+This will process the medical transcripts, extract medication information, resolve similar medication names, and generate summaries of side effects and therapeutic uses for each medication. The results will be saved in `medication_summaries.json`.
 
 ## Further Questions
 
-??? question "What if I want to reduce by insights or an LLM-generated field?"
+??? question "What if I want to focus on a specific type of medication or medical condition?"
 
-    You can modify the reduce operation to use any field as the reduce key, including LLM-generated fields from prior operations. Simply change the `reduce_key` in the `summarize_by_country` operation to the desired field. Note that we may need to perform entity resolution on the LLM-generated fields, which DocETL can do for you in the optimization process (to be discussed later).
+    You can modify the prompts in the `extract_medications` and `summarize_prescriptions` operations to focus on specific types of medications or medical conditions. For example, you could update the `extract_medications` prompt to only list medications related to cardiovascular diseases.
 
-??? question "How do I know what pipeline configuration to write? Can't I do this all in one map operation?"
+??? question "How can I improve the accuracy of medication name resolution?"
 
-    While it's possible to perform complex operations in a single map step, breaking down the process into multiple steps often leads to more maintainable and flexible pipelines. To learn more about optimizing your pipeline configuration, read on to discover DocETL's optimizer, which can be invoked using `DocETL build` instead of `docetl run`.
+    The `resolve_medications` operation uses a blocking threshold and comparison prompt to identify similar medication names. Learn more about how to configure this operation in the [resolve operation documentation](operators/resolve.md). To automatically find the optimal blocking threshold for your data, you can invoke the optimizer, as described in the [optimization documentation](optimization/overview.md).
+
+??? question "Can I process other types of medical documents with this pipeline?"
+
+    Yes, you can adapt this pipeline to process other types of medical documents by modifying the input data format and adjusting the prompts in each operation. For example, you could use it to analyze discharge summaries, clinical notes, or research papers by updating the extraction and summarization prompts accordingly.
+
+If you're unsure about the optimal configuration for your specific use case, you can use DocETL's optimizer, which can be invoked using `docetl build` instead of `docetl run`. Learn more about the optimizer in the [optimization documentation](optimization/overview.md).

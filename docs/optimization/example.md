@@ -2,7 +2,11 @@
 
 !!! note "Optimizer Stability"
 
-    The optimization process can be unstable, as well as resource-intensive (we've seen it take up to 10 minutes to optimize a single operation, spending up to ~$50 in API costs for end-to-end pipelines). We recommend optimizing one operation at a time and retrying if necessary, as results may vary between runs. This approach also allows you to confidently verify that each optimized operation is performing as expected before moving on to the next. See the [API](#optimizer-api) for more details on how to resume the optimizer from a failed run, by rerunning `docetl build pipeline.yaml --resume` (with the `--resume` flag).
+    The optimization process can be unstable, as well as resource-intensive (we've seen it take up to 10 minutes to optimize a single operation, spending up to ~$50 in API costs for end-to-end pipelines). We recommend optimizing one operation at a time and retrying if necessary, as results may vary between runs. This approach also allows you to confidently verify that each optimized operation is performing as expected before moving on to the next. 
+    
+    See the [API](#optimizer-api) for more details on how to resume the optimizer from a failed run, by rerunning `docetl build pipeline.yaml --resume` (with the `--resume` flag). 
+    
+    Also, you can use gpt-4o-mini for cheaper optimizations (rather than the default gpt-4o), which you can do via `docetl build pipeline.yaml --model=gpt-4o-mini`.
 
 To optimize your pipeline, start with your initial configuration and follow these steps:
 

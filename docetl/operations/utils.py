@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
 from litellm import completion, embedding, model_cost
+from openai import Client
 from rich import print as rprint
 from rich.console import Console
 from rich.prompt import Prompt
@@ -72,7 +73,9 @@ def freezeargs(func):
 
 
 @freezeargs
-def gen_embedding(model: str, input: List[str]) -> List[float]:
+def gen_embedding(
+    model: str, input: List[str], client: Optional[Client] = None
+) -> List[float]:
     """
     A cached wrapper around litellm.embedding function.
 
@@ -104,7 +107,10 @@ def gen_embedding(model: str, input: List[str]) -> List[float]:
 
         input = [item if item else "None" for item in input]
 
-        result = embedding(model=model, input=input)
+        if client is None:
+            result = embedding(model=model, input=input)
+        else:
+            result = client.embeddings.create(model=model, input=input)
         # Cache the result
         cache.set(key, result)
 
@@ -245,6 +251,7 @@ def cached_call_llm(
     output_schema: Dict[str, str],
     tools: Optional[str] = None,
     scratchpad: Optional[str] = None,
+    client: Optional[Client] = None,
 ) -> str:
     """
     Cached version of the call_llm function.
@@ -267,7 +274,7 @@ def cached_call_llm(
     result = cache.get(cache_key)
     if result is None:
         result = call_llm_with_cache(
-            model, op_type, messages, output_schema, tools, scratchpad
+            model, op_type, messages, output_schema, tools, scratchpad, client
         )
         cache.set(cache_key, result)
     return result
@@ -366,6 +373,7 @@ def call_llm(
     console: Console = Console(),
     timeout_seconds: int = 120,
     max_retries_per_timeout: int = 2,
+    client = None,
 ) -> Any:
     """
     Wrapper function that uses caching for LLM calls.
@@ -401,6 +409,7 @@ def call_llm(
                 output_schema,
                 json.dumps(tools) if tools else None,
                 scratchpad,
+                client,
             )
         except TimeoutError:
             if attempt == max_retries - 1:
@@ -461,6 +470,7 @@ def call_llm_with_cache(
     output_schema: Dict[str, str],
     tools: Optional[str] = None,
     scratchpad: Optional[str] = None,
+    client: Optional[Client] = None,
 ) -> str:
     """
     Make an LLM call with caching.
@@ -550,8 +560,10 @@ Remember: The scratchpad should contain information necessary for processing fut
     # Truncate messages if they exceed the model's context length
     messages = truncate_messages(messages, model)
 
+    completion_func = completion if client is None else client.completions.create
+
     if response_format is None:
-        response = completion(
+        response = completion_func(
             model=model,
             messages=[
                 {
@@ -564,7 +576,7 @@ Remember: The scratchpad should contain information necessary for processing fut
             tool_choice=tool_choice,
         )
     else:
-        response = completion(
+        response = completion_func(
             model=model,
             messages=[
                 {
@@ -633,6 +645,7 @@ def call_llm_with_gleaning(
     console: Console = Console(),
     timeout_seconds: int = 120,
     max_retries_per_timeout: int = 2,
+    client=None,
 ) -> Tuple[str, float]:
     """
     Call LLM with a gleaning process, including validation and improvement rounds.
@@ -671,6 +684,7 @@ def call_llm_with_gleaning(
         console=console,
         timeout_seconds=timeout_seconds,
         max_retries_per_timeout=max_retries_per_timeout,
+        client=client,
     )
 
     cost = 0.0

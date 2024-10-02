@@ -3,6 +3,7 @@ The BaseOperation class is an abstract base class for all operations in the doce
 """
 
 from abc import ABC, abstractmethod
+from openai import Client
 from typing import Dict, List, Optional, Tuple
 
 from rich.console import Console
@@ -17,6 +18,7 @@ class BaseOperation(ABC):
         max_threads: int,
         console: Optional[Console] = None,
         status: Optional[Status] = None,
+        client: Optional[Client] = None,
         **kwargs,
     ):
         """
@@ -36,6 +38,7 @@ class BaseOperation(ABC):
         self.console = console or Console()
         self.manually_fix_errors = self.config.get("manually_fix_errors", False)
         self.status = status
+        self.client = client
         self.num_retries_on_validate_failure = self.config.get(
             "num_retries_on_validate_failure", 0
         )

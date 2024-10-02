@@ -4,6 +4,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
+from openai import Client
 from rich.console import Console
 
 from docetl.dataset import Dataset, create_parsing_tool_map
@@ -64,6 +65,13 @@ class DSLRunner:
             raise ValueError(
                 "No output path specified in the configuration. Please provide an output path ending with '.json' in the configuration."
             )
+        
+        proxy_url = self.config.get("proxy_url")
+        self.client = (
+            Client(base_url=proxy_url, api_key=os.getenv("DOCETL_PROXY_API_KEY"))
+            if self.proxy_url
+            else None
+        )
 
         self.syntax_check()
 
@@ -250,6 +258,7 @@ class DSLRunner:
                     self.max_threads,
                     self.console,
                     self.status,
+                    self.client,
                 )
                 if op_object["type"] == "equijoin":
                     left_data = self.datasets[op_object["left"]].load()

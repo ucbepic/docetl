@@ -122,7 +122,7 @@ Create a file named `pipeline.yaml` with the following structure:
         prompt: |
           Here are some transcripts of conversations between a doctor and a patient:
 
-          {% for value in values %}
+          {% for value in inputs %}
           Transcript {{ loop.index }}:
           {{ value.src }}
           {% endfor %}

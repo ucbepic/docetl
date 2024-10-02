@@ -2967,7 +2967,7 @@ extra = ["pygments (>=2.12)"]
 name = "pymupdf"
 version = "1.24.10"
 description = "A high performance Python library for data extraction, analysis, conversion & manipulation of PDF (and other) documents."
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "PyMuPDF-1.24.10-cp310-none-macosx_10_9_x86_64.whl", hash = "sha256:a320d44a96f0cc69364c4d7384205fdae57a511edb07e68627108546cfd3ca7d"},
@@ -3015,7 +3015,7 @@ PyMuPDFb = "1.24.10"
 name = "pymupdfb"
 version = "1.24.10"
 description = "MuPDF shared libraries for PyMuPDF."
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "PyMuPDFb-1.24.10-py3-none-macosx_10_9_x86_64.whl", hash = "sha256:cd6b24630d90dce9ab3e59d06c5e616686f8d7ec626be1311721fcb062aa0078"},
@@ -4399,9 +4399,9 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 type = ["pytest-mypy"]
 
 [extras]
-parsing = ["azure-ai-documentintelligence", "openpyxl", "paddleocr", "paddlepaddle", "pydub", "python-docx", "python-pptx"]
+parsing = ["azure-ai-documentintelligence", "openpyxl", "paddleocr", "paddlepaddle", "pydub", "pymupdf", "python-docx", "python-pptx"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "9abd6b035c52228c74d6dac68b87788d0da6e66f4194b904b09048f336c5cdd2"
+content-hash = "e4bfeb00f95deb98e5c313266c57e361d7090d2591bfa3d6aa004988243dab19"

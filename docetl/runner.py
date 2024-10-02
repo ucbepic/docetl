@@ -65,11 +65,11 @@ class DSLRunner:
             raise ValueError(
                 "No output path specified in the configuration. Please provide an output path ending with '.json' in the configuration."
             )
-        
+
         proxy_url = self.config.get("proxy_url")
         self.client = (
             Client(base_url=proxy_url, api_key=os.getenv("DOCETL_PROXY_API_KEY"))
-            if self.proxy_url
+            if proxy_url
             else None
         )
 

@@ -517,9 +517,9 @@ def call_llm_with_cache(
                 "function": {
                     "name": "send_output",
                     "description": "Send structured output back to the user",
-                    "strict": True,
+                    # "strict": True,
                     "parameters": parameters,
-                    "additionalProperties": False,
+                    # "additionalProperties": False,
                 },
             }
         ]
@@ -560,7 +560,7 @@ Remember: The scratchpad should contain information necessary for processing fut
     # Truncate messages if they exceed the model's context length
     messages = truncate_messages(messages, model)
 
-    completion_func = completion if client is None else client.completions.create
+    completion_func = completion if client is None else client.chat.completions.create
 
     if response_format is None:
         response = completion_func(

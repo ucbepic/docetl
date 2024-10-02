@@ -312,6 +312,71 @@ def azure_di_read(
         ]
 
 
+def paddleocr_pdf_to_string(
+    input_path: str,
+    doc_per_page: bool = False,
+    ocr_enabled: bool = True,
+    lang: str = "en",
+) -> List[str]:
+    """
+    Extract text and image information from a PDF file using PaddleOCR for image-based PDFs.
+
+    **Note: this is very slow!!**
+
+    Args:
+        input_path (str): Path to the input PDF file.
+        doc_per_page (bool): If True, return a list of strings, one per page.
+            If False, return a single string.
+        ocr_enabled (bool): Whether to enable OCR for image-based PDFs.
+        lang (str): Language of the PDF file.
+
+    Returns:
+        List[str]: Extracted content as a list of formatted strings.
+    """
+    from paddleocr import PaddleOCR
+    import fitz
+    import numpy as np
+
+    ocr = PaddleOCR(use_angle_cls=True, lang=lang)
+
+    pdf_content = []
+
+    with fitz.open(input_path) as pdf:
+        for page_num in range(len(pdf)):
+            page = pdf[page_num]
+            text = page.get_text()
+            images = []
+
+            # Extract image information
+            for img_index, img in enumerate(page.get_images(full=True)):
+                rect = page.get_image_bbox(img)
+                images.append(f"Image {img_index + 1}: bbox {rect}")
+
+            page_content = f"Page {page_num + 1}:\n"
+            page_content += f"Text:\n{text}\n"
+            page_content += "Images:\n" + "\n".join(images) + "\n"
+
+            if not text and ocr_enabled:
+                mat = fitz.Matrix(2, 2)
+                pix = page.get_pixmap(matrix=mat)
+                img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+                    pix.height, pix.width, 3
+                )
+
+                ocr_result = ocr.ocr(img, cls=True)
+                page_content += "OCR Results:\n"
+                for line in ocr_result[0]:
+                    bbox, (text, _) = line
+                    page_content += f"{bbox}, {text}\n"
+
+            pdf_content.append(page_content)
+
+    if not doc_per_page:
+        return ["\n\n".join(pdf_content)]
+
+    return pdf_content
+
+
 # Define a dictionary mapping function names to their corresponding functions
 PARSING_TOOLS = {
     "whisper_speech_to_text": whisper_speech_to_text,
@@ -320,4 +385,5 @@ PARSING_TOOLS = {
     "docx_to_string": docx_to_string,
     "pptx_to_string": pptx_to_string,
     "azure_di_read": azure_di_read,
+    "paddleocr_pdf_to_string": paddleocr_pdf_to_string,
 }

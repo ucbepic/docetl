@@ -32,6 +32,7 @@ DOCETL_HOME_DIR = os.path.expanduser("~/.docetl")
 CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "cache")
 LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm_cache")
 cache = Cache(LLM_CACHE_DIR)
+cache.close()
 
 
 def freezeargs(func):
@@ -95,18 +96,19 @@ def gen_embedding(model: str, input: List[str]) -> List[float]:
     key = hashlib.md5(f"{model}_{input}".encode()).hexdigest()
     input = json.loads(input)
 
-    # Try to get the result from cache
-    result = cache.get(key)
-    if result is None:
-        # If not in cache, compute the embedding
-        if not isinstance(input[0], str):
-            input = [json.dumps(item) for item in input]
+    with cache as c:
+        # Try to get the result from cache
+        result = c.get(key)
+        if result is None:
+            # If not in cache, compute the embedding
+            if not isinstance(input[0], str):
+                input = [json.dumps(item) for item in input]
 
-        input = [item if item else "None" for item in input]
+            input = [item if item else "None" for item in input]
 
-        result = embedding(model=model, input=input)
-        # Cache the result
-        cache.set(key, result)
+            result = embedding(model=model, input=input)
+            # Cache the result
+            c.set(key, result)
 
     return result
 
@@ -133,8 +135,8 @@ def clear_cache(console: Console = Console()):
     """
     console.log("[bold yellow]Clearing LLM cache...[/bold yellow]")
     try:
-        cache.clear()
-        cache.close()
+        with cache as c:
+            c.clear()
         # Remove all files in the cache directory
         cache_dir = CACHE_DIR
         if not os.path.exists(cache_dir):
@@ -264,12 +266,13 @@ def cached_call_llm(
     Returns:
         str: The result from call_llm_with_cache.
     """
-    result = cache.get(cache_key)
-    if result is None:
-        result = call_llm_with_cache(
-            model, op_type, messages, output_schema, tools, scratchpad
-        )
-        cache.set(cache_key, result)
+    with cache as c:
+        result = c.get(cache_key)
+        if result is None:
+            result = call_llm_with_cache(
+                model, op_type, messages, output_schema, tools, scratchpad
+            )
+            c.set(cache_key, result)
     return result
 
 

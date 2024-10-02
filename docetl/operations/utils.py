@@ -35,6 +35,7 @@ LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm_cache")
 cache = Cache(LLM_CACHE_DIR)
 cache.close()
 
+
 def freezeargs(func):
     """
     Decorator to convert mutable dictionary arguments into immutable.
@@ -135,8 +136,8 @@ def clear_cache(console: Console = Console()):
     """
     console.log("[bold yellow]Clearing LLM cache...[/bold yellow]")
     try:
-        cache.clear()
-        cache.close()
+        with cache as c:
+            c.clear()
         # Remove all files in the cache directory
         cache_dir = CACHE_DIR
         if not os.path.exists(cache_dir):
@@ -413,6 +414,7 @@ def call_llm(
                 # TODO: HITL
                 return {}
 
+
 class InvalidOutputError(Exception):
     """
     Custom exception raised when the LLM output is invalid or cannot be parsed.
@@ -454,6 +456,7 @@ def timeout(seconds):
         return wrapper
 
     return decorator
+
 
 def call_llm_with_cache(
     model: str,

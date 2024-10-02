@@ -174,6 +174,7 @@ class MapOperation(BaseOperation):
                         max_retries_per_timeout=self.config.get(
                             "max_retries_per_timeout", 2
                         ),
+                        client=self.client,
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
@@ -194,6 +195,7 @@ class MapOperation(BaseOperation):
                         max_retries_per_timeout=self.config.get(
                             "max_retries_per_timeout", 2
                         ),
+                        client=self.client,
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),
@@ -377,6 +379,7 @@ class ParallelMapOperation(BaseOperation):
                 console=self.console,
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                client=self.client,
             )
             output = parse_llm_response(
                 response,

@@ -375,7 +375,9 @@ class ReduceOperation(BaseOperation):
         if sample_size >= len(group_list):
             return group_list, 0
 
-        clusters, cost = cluster_documents(group_list, value_sampling, sample_size)
+        clusters, cost = cluster_documents(
+            group_list, value_sampling, sample_size, self.client
+        )
 
         sampled_items = []
         idx_added_already = set()
@@ -413,9 +415,13 @@ class ReduceOperation(BaseOperation):
             reduce_key=dict(zip(self.config["reduce_key"], key))
         )
 
-        embeddings, cost = get_embeddings_for_clustering(group_list, value_sampling)
+        embeddings, cost = get_embeddings_for_clustering(
+            group_list, value_sampling, client=self.client
+        )
 
-        query_response = gen_embedding(embedding_model, [query_text])
+        query_response = gen_embedding(
+            embedding_model, [query_text], client=self.client
+        )
         query_embedding = query_response["data"][0]["embedding"]
         cost += completion_cost(query_response)
 
@@ -692,6 +698,7 @@ class ReduceOperation(BaseOperation):
             console=self.console,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+            client=self.client,
         )
         folded_output = parse_llm_response(
             response,
@@ -737,6 +744,7 @@ class ReduceOperation(BaseOperation):
             console=self.console,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+            client=self.client,
         )
         merged_output = parse_llm_response(response, self.config["output"]["schema"])[0]
         merged_output.update(dict(zip(self.config["reduce_key"], key)))
@@ -831,6 +839,7 @@ class ReduceOperation(BaseOperation):
                 console=self.console,
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                client=self.client,
             )
             item_cost += gleaning_cost
         else:
@@ -843,6 +852,7 @@ class ReduceOperation(BaseOperation):
                 scratchpad=scratchpad,
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                client=self.client,
             )
 
         item_cost += completion_cost(response)

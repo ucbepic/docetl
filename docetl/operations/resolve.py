@@ -4,10 +4,11 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 from jinja2 import Template
+from openai import Client
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
@@ -30,6 +31,7 @@ def compare_pair(
     blocking_keys: List[str] = [],
     timeout_seconds: int = 120,
     max_retries_per_timeout: int = 2,
+    client: Optional[Client] = None,
 ) -> Tuple[bool, float]:
     """
     Compares two items using an LLM model to determine if they match.
@@ -59,6 +61,7 @@ def compare_pair(
         {"is_match": "bool"},
         timeout_seconds=timeout_seconds,
         max_retries_per_timeout=max_retries_per_timeout,
+        client=client,
     )
     output = parse_llm_response(
         response,
@@ -237,7 +240,7 @@ class ResolveOperation(BaseOperation):
                     " ".join(str(item[key]) for key in blocking_keys if key in item)
                     for item in items
                 ]
-                response = gen_embedding(model=embedding_model, input=texts)
+                response = gen_embedding(model=embedding_model, input=texts, client=self.client)
                 return [
                     (data["embedding"], completion_cost(response))
                     for data in response["data"]
@@ -409,6 +412,7 @@ class ResolveOperation(BaseOperation):
                     max_retries_per_timeout=self.config.get(
                         "max_retries_per_timeout", 2
                     ),
+                    client=self.client,
                 )
                 reduction_output = parse_llm_response(
                     reduction_response,

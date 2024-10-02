@@ -146,6 +146,7 @@ class FilterOperation(BaseOperation):
                     max_retries_per_timeout=self.config.get(
                         "max_retries_per_timeout", 2
                     ),
+                    client=self.client,
                 ),
                 validation_fn=validation_fn,
                 val_rule=self.config.get("validate", []),

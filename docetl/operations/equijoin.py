@@ -7,11 +7,12 @@ import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, cpu_count
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from jinja2 import Template
 from litellm import model_cost
+from openai import Client
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
@@ -59,6 +60,7 @@ def compare_pair(
     item2: Dict,
     timeout_seconds: int = 120,
     max_retries_per_timeout: int = 2,
+    client: Optional[Client] = None,
 ) -> Tuple[bool, float]:
     """
     Compares two items using an LLM model to determine if they match.
@@ -84,6 +86,7 @@ def compare_pair(
         {"is_match": "bool"},
         timeout_seconds=timeout_seconds,
         max_retries_per_timeout=max_retries_per_timeout,
+        client=client
     )
     output = parse_llm_response(response, {"is_match": "bool"})[0]
     return output["is_match"], completion_cost(response)
@@ -274,6 +277,7 @@ class EquijoinOperation(BaseOperation):
                     response = gen_embedding(
                         model=embedding_model,
                         input=batch,
+                        client=self.client,
                     )
                     embeddings.extend([data["embedding"] for data in response["data"]])
                     total_cost += completion_cost(response)
@@ -397,6 +401,7 @@ class EquijoinOperation(BaseOperation):
                     right,
                     self.config.get("timeout", 120),
                     self.config.get("max_retries_per_timeout", 2),
+                    self.client,
                 ): (left, right)
                 for left, right in blocked_pairs
             }

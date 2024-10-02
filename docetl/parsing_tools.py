@@ -312,12 +312,11 @@ def azure_di_read(
         ]
 
 
-# Define a dictionary mapping function names to their corresponding functions
-PARSING_TOOLS = {
-    "whisper_speech_to_text": whisper_speech_to_text,
-    "xlsx_to_string": xlsx_to_string,
-    "txt_to_string": txt_to_string,
-    "docx_to_string": docx_to_string,
-    "pptx_to_string": pptx_to_string,
-    "azure_di_read": azure_di_read,
-}
+def get_parser(name: str):
+    try:
+        entrypoint = importlib.metadata.entry_points(
+            group="docetl.parser"
+        )[operation_type]
+    except KeyError as e:
+        raise KeyError(f"Unrecognized parser {name}")
+    return entrypoint.load()

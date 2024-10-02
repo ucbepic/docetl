@@ -2,7 +2,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from docetl.parsing_tools import PARSING_TOOLS
+from docetl.parsing_tools import get_parser
 from docetl.schemas import ParsingTool
 
 
@@ -236,19 +236,18 @@ class Dataset:
         """
         for tool in self.parsing:
             input_key = tool["input_key"]
-            if tool["function"] in PARSING_TOOLS:
-                func = PARSING_TOOLS[tool["function"]]
-            elif (
-                self.user_defined_parsing_tool_map
-                and tool["function"] in self.user_defined_parsing_tool_map
-            ):
-                func = eval(
-                    self.user_defined_parsing_tool_map[tool["function"]].function_code
-                )
-            else:
-                raise ValueError(
-                    f"Parsing tool {tool['function']} not found. Please define it or use one of our existing parsing tools: {PARSING_TOOLS.keys()}"
-                )
+            try:
+                func = get_parser(tool["function"])
+            except KeyError:
+                if (self.user_defined_parsing_tool_map
+                    and tool["function"] in self.user_defined_parsing_tool_ma):
+                    func = eval(
+                        self.user_defined_parsing_tool_map[tool["function"]].function_code
+                    )
+                else:
+                    raise ValueError(
+                        f"Parsing tool {tool['function']} not found. Please define it or use one of our existing parsing tools: {PARSING_TOOLS.keys()}"
+                    )
 
             output_key = tool["output_key"]
             function_kwargs = tool.get("function_kwargs", {})

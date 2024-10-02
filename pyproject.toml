@@ -74,3 +74,14 @@ show_error_codes = true
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."docetl.operation"]
+map = "docetl.operations.map:MapOperation"
+parallel_map = "docetl.operations.map:ParallelMapOperation"
+filter = "docetl.operations.filter:FilterOperation"
+unnest = "docetl.operations.unnest:UnnestOperation"
+equijoin = "docetl.operations.equijoin:EquijoinOperation"
+split = "docetl.operations.split:SplitOperation"
+reduce = "docetl.operations.reduce:ReduceOperation"
+resolve = "docetl.operations.resolve:ResolveOperation"
+gather = "docetl.operations.gather:GatherOperation"

@@ -29,9 +29,12 @@ python-docx = { version = "^1.1.2", optional = true }
 pydub = { version = "^0.25.1", optional = true }
 python-pptx = { version = "^1.0.2", optional = true }
 azure-ai-documentintelligence = { version = "^1.0.0b4", optional = true }
+paddlepaddle = { version = "^2.6.2", optional = true }
+paddleocr = { version = "^2.8.1", optional = true }
+pymupdf = { version = "^1.24.10", optional = true }
 
 [tool.poetry.extras]
-parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence"]
+parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "paddleocr", "pymupdf"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"

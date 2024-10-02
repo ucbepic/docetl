@@ -33,16 +33,35 @@ To use custom parsing, you need to define parsing tools in your DocETL configura
 
 ```yaml
 parsing_tools:
-  - name: ocr_parser
+  - name: top_products_report
     function_code: |
-      import pytesseract
-      from pdf2image import convert_from_path
-      def ocr_parser(filename: str) -> List[str]:
-          images = convert_from_path(filename)
-          text = ""
-          for image in images:
-              text += pytesseract.image_to_string(image)
-          return [text]
+      def top_products_report(filename: str) -> List[str]:
+          import pandas as pd
+          
+          # Read the Excel file
+          df = pd.read_excel(filename)
+          
+          # Calculate total sales
+          total_sales = df['Sales'].sum()
+          
+          # Find top 500 products by sales
+          top_products = df.groupby('Product')['Sales'].sum().nlargest(500)
+          
+          # Calculate month-over-month growth
+          df['Date'] = pd.to_datetime(df['Date'])
+          monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
+          mom_growth = monthly_sales.pct_change().fillna(0)
+          
+          # Prepare the analysis report
+          report = [
+              f"Total Sales: ${total_sales:,.2f}",
+              "\nTop 500 Products by Sales:",
+              top_products.to_string(),
+              "\nMonth-over-Month Growth:",
+              mom_growth.to_string()
+          ]
+          
+          return ["\n".join(report)]
 
 datasets:
   sales_reports:
@@ -51,10 +70,8 @@ datasets:
     path: "sales_data/sales_paths.json"
     parsing:
       - input_key: excel_path
-        function: xlsx_to_string
-        output_key: sales_data
-        function_kwargs:
-          orientation: "col"
+        function: top_products_report
+        output_key: sales_analysis
 
   receipts:
     type: file
@@ -62,14 +79,17 @@ datasets:
     path: "receipts/receipt_paths.json"
     parsing:
       - input_key: pdf_path
-        function: ocr_parser
+        function: paddleocr_pdf_to_string
         output_key: receipt_text
+        function_kwargs:
+          ocr_enabled: true
+          lang: "en"
 ```
 
 In this configuration:
 
-- We define a custom `ocr_parser` for PDF files.
-- We use the built-in `xlsx_to_string` parser for Excel files.
+- We define a custom `top_products_report` function for Excel files.
+- We use the built-in `paddleocr_pdf_to_string` parser for PDF files.
 - We apply these parsing tools to the external files referenced in the respective datasets.
 
 ### 2. Pipeline Integration
@@ -145,48 +165,55 @@ When you run your DocETL pipeline, the parsing tools you've specified in your co
 
 Let's look at how this works for our earlier examples:
 
-### Excel Files (using xlsx_to_string)
+### Excel Files (using top_products_report)
 
 For an Excel file like "sales_data/january_sales.xlsx":
 
-1. The `xlsx_to_string` function reads the Excel file.
-2. It converts the data to a string representation.
-3. The output might look like this:
+- The top_products_report function reads the Excel file.
+- It processes the sales data and generates a report of top-selling products.
+- The output might look like this:
 
-```
-Date:
-2023-01-01
-2023-01-02
-...
+```markdown
+Top Products Report - January 2023
 
-Product:
-Widget A
-Widget B
-...
+1. Widget A - 1500 units sold
+2. Gadget B - 1200 units sold
+3. Gizmo C - 950 units sold
+4. Doohickey D - 800 units sold
+5. Thingamajig E - 650 units sold
+   ...
 
-Amount:
-100
-150
-...
+Total Revenue: $245,000
+Best Selling Category: Electronics
 ```
 
-### PDF Files (using ocr_parser)
+### PDF Files (using paddleocr_pdf_to_string)
 
 For a PDF file like "receipts/receipt001.pdf":
 
-1. The `ocr_parser` function converts each page of the PDF to an image.
-2. It applies OCR to each image.
-3. The function combines the text from all pages.
-4. The output might look like this:
+- The paddleocr_pdf_to_string function reads the PDF file.
+- It uses PaddleOCR to perform optical character recognition on each page.
+- The function combines the extracted text from all pages into a single string.
+  The output might look like this:
 
-```
+```markdown
 RECEIPT
 Store: Example Store
 Date: 2023-05-15
 Items:
+
 1. Product A - $10.99
 2. Product B - $15.50
-Total: $26.49
+3. Product C - $7.25
+4. Product D - $22.00
+   Subtotal: $55.74
+   Tax (8%): $4.46
+   Total: $60.20
+
+Payment Method: Credit Card
+Card Number: \***\* \*\*** \*\*\*\* 1234
+
+Thank you for your purchase!
 ```
 
 This parsed and formatted data is then passed to the respective operations in your pipeline for further processing.
@@ -242,9 +269,13 @@ DocETL provides several built-in parsing tools to handle common file formats and
     options:
         show_root_heading: true
         heading_level: 3
-        
 
 ::: docetl.parsing_tools.azure_di_read
+    options:
+        heading_level: 3
+        show_root_heading: true
+
+::: docetl.parsing_tools.paddleocr_pdf_to_string
     options:
         heading_level: 3
         show_root_heading: true

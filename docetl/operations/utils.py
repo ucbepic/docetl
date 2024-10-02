@@ -15,13 +15,14 @@ from diskcache import Cache
 from dotenv import load_dotenv
 from frozendict import frozendict
 from jinja2 import Template
-from litellm import completion, embedding, model_cost
+from litellm import completion, embedding, model_cost, RateLimitError
 from rich import print as rprint
 from rich.console import Console
 from rich.prompt import Prompt
 from tqdm import tqdm
 
 from docetl.utils import completion_cost, count_tokens
+import time
 
 aeval = Interpreter()
 
@@ -405,6 +406,14 @@ def call_llm(
                 json.dumps(tools) if tools else None,
                 scratchpad,
             )
+        except RateLimitError:
+            if attempt == max_retries - 1:
+                console.log(
+                    f"[bold red]LLM call timed out after {max_retries} retries[/bold red]"
+                )
+                # TODO: HITL
+                return {}
+            time.sleep(0.1)
         except TimeoutError:
             if attempt == max_retries - 1:
                 console.log(

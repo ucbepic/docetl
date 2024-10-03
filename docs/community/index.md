@@ -10,7 +10,7 @@ While we don't have a formal code of conduct page, we expect all community membe
 
 We welcome contributions from everyone who is interested in improving DocETL. Here's how you can get involved:
 
-1. **Report Issues**: If you encounter a bug or have a feature request, open an issue on our [GitHub repository](https://github.com/shreyashankar/docetl/issues).
+1. **Report Issues**: If you encounter a bug or have a feature request, open an issue on our [GitHub repository](https://github.com/ucbepic/docetl/issues).
 
 2. **Join Discussions**: Have a question or want to discuss ideas? Post on our [Discord server](https://discord.gg/fHp7B2X3xx).
 
@@ -27,7 +27,7 @@ To contribute code:
 
 ## Connect with Us
 
-- **GitHub Repository**: Contribute to the project or report issues on our [GitHub repo](https://github.com/shreyashankar/docetl).
+- **GitHub Repository**: Contribute to the project or report issues on our [GitHub repo](https://github.com/ucbepic/docetl).
 - **Discord Community**: Join our [Discord server](https://discord.gg/fHp7B2X3xx); we're looking to build a vibrant community of people interested in intelligent document processing.
 - **Lab Webpages**: We are affiliated with the EPIC Lab at UC Berkeley. Visit our [Lab Page](https://epic.berkeley.edu) for a description of our research. We are also affiliated with the Data Systems and Foundations group at UC Berkeley--visit our [DSF Page](https://dsf.berkeley.edu) for more information.
 

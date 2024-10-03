@@ -9,7 +9,7 @@ Our goal is to build a pipeline that will:
 1. Extract key themes and viewpoints from presidential debate transcripts
 2. Analyze how these themes have evolved over time, with references to specific debates and quotes
 
-You can take a look at the raw data [here](https://github.com/shreyashankar/docetl/tree/main/example_data/debates/data.json).
+You can take a look at the raw data [here](https://github.com/ucbepic/docetl/tree/main/example_data/debates/data.json).
 
 Let's examine the pipeline structure and its operations:
 
@@ -319,7 +319,7 @@ This output shows the progress of our pipeline execution, including the differen
 
 ## Initial Results
 
-Our pipeline generated reports on various themes discussed in the presidential debates. We've put the results up [here](https://github.com/shreyashankar/docetl/tree/main/example_data/debates/theme_evolution_analysis_baseline.json). However, upon inspection, we found that these reports were lacking in depth and recency. Let's look at a few examples:
+Our pipeline generated reports on various themes discussed in the presidential debates. We've put the results up [here](https://github.com/ucbepic/docetl/tree/main/example_data/debates/theme_evolution_analysis_baseline.json). However, upon inspection, we found that these reports were lacking in depth and recency. Let's look at a few examples:
 
 !!! example "Example Reports Lacking in Recent Quotes"
 
@@ -509,7 +509,7 @@ Validator improvements (gleaning round 1):
 3. **Structure and Flow**: Overall, the output is fairly well-structured and maintains a logical flow, using headings appropriately to signal key sections. However, it may benefit from clearer subsections under each party's overview to delineate specific key points, such as 'Tax Policy', 'Job Creation', and 'Response to Economic Crises'. This would enhance readability and assist the reader in navigating the shifts in viewpoints. For example, adding bullet points or more vivid transitions between historical periods could clarify the evolution timeline. Moreover, resolving any redundancy (such as multiple mentions of similar themes across years) would streamline the narrative.
 ```
 
-Check out the new output [here](https://github.com/shreyashankar/docetl/tree/main/example_data/debates/theme_evolution_analysis_reduce_gleaning.json) to see the improvements made by the optimized pipeline! Of course, we can probably optimize the initial map operation too, do prompt engineering, and more to further enhance the pipeline.
+Check out the new output [here](https://github.com/ucbepic/docetl/tree/main/example_data/debates/theme_evolution_analysis_reduce_gleaning.json) to see the improvements made by the optimized pipeline! Of course, we can probably optimize the initial map operation too, do prompt engineering, and more to further enhance the pipeline.
 
 !!! note "Interactive Pipeline Creation"
 

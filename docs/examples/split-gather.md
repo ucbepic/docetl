@@ -271,7 +271,7 @@ datasets:
   legal_doc: # (1)!
     path: /path/to/dataset.json
     type: file
-    parsing:
+    parsing: # (2)!
       - input_key: pdf_url
         function: azure_di_read
         output_key: extracted_text
@@ -306,5 +306,6 @@ pipeline:
 ```
 
 1. This is an example parsing function, as explained in the [Parsing](../examples/custom-parsing.md) docs. You can define your own parsing function to extract the text you want to split, or just have the text be directly in the json file. If you want the text directly in the json file, you can have your json be a list of objects with a single field "extracted_text".
+2. You can remove this parsing section if you don't need to parse the document (i.e., if the text is already in the json file in the "extracted_text" field in the object).
 
 In the pipeline above, we don't have any split or gather operations. Running `docetl build pipeline.yaml [--model=gpt-4o-mini]` will output a new pipeline_opt.yaml file with the split and gather operations highlighted--like we had defined in the previous example. Note that this cost us $20 to compile, since we tried a bunch of different plans...

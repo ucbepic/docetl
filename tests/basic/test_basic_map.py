@@ -22,6 +22,7 @@ def test_map_operation(
     map_sample_data,
 ):
     results, cost = test_map_operation_instance.execute(map_sample_data)
+    print(results)
 
     assert len(results) == len(map_sample_data)
     assert all("sentiment" in result for result in results)

@@ -49,6 +49,12 @@ pip install poetry
 poetry install
 ```
 
+If you want to use the parsing tools, you need to install the `parsing` extra:
+
+```bash
+poetry install --extras "parsing"
+```
+
 This will create a virtual environment and install all the required dependencies.
 
 4. Set up your OpenAI API key:

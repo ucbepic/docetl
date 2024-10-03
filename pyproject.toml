@@ -74,3 +74,23 @@ show_error_codes = true
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."docetl.operation"]
+map = "docetl.operations.map:MapOperation"
+parallel_map = "docetl.operations.map:ParallelMapOperation"
+filter = "docetl.operations.filter:FilterOperation"
+unnest = "docetl.operations.unnest:UnnestOperation"
+equijoin = "docetl.operations.equijoin:EquijoinOperation"
+split = "docetl.operations.split:SplitOperation"
+reduce = "docetl.operations.reduce:ReduceOperation"
+resolve = "docetl.operations.resolve:ResolveOperation"
+gather = "docetl.operations.gather:GatherOperation"
+
+[tool.poetry.plugins."docetl.parser"]
+whisper_speech_to_text = "docetl.parsing_tools:whisper_speech_to_text"
+xlsx_to_string = "docetl.parsing_tools:xlsx_to_string"
+txt_to_string = "docetl.parsing_tools:txt_to_string"
+docx_to_string = "docetl.parsing_tools:docx_to_string"
+pptx_to_string = "docetl.parsing_tools:pptx_to_string"
+azure_di_read = "docetl.parsing_tools:azure_di_read"
+paddleocr_pdf_to_string = "docetl.parsing_tools:paddleocr_pdf_to_string"

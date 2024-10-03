@@ -162,6 +162,9 @@ class MapOperation(BaseOperation):
             if "gleaning" in self.config:
                 output, cost, success = call_llm_with_validation(
                     [{"role": "user", "content": prompt}],
+                    model=self.config.get("model", self.default_model),
+                    operation_type="map",
+                    schema=self.config["output"]["schema"],
                     llm_call_fn=lambda messages: call_llm_with_gleaning(
                         self.config.get("model", self.default_model),
                         "map",
@@ -183,6 +186,9 @@ class MapOperation(BaseOperation):
             else:
                 output, cost, success = call_llm_with_validation(
                     [{"role": "user", "content": prompt}],
+                    model=self.config.get("model", self.default_model),
+                    operation_type="map",
+                    schema=self.config["output"]["schema"],
                     llm_call_fn=lambda messages: call_llm(
                         self.config.get("model", self.default_model),
                         "map",

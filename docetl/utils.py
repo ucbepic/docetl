@@ -78,8 +78,9 @@ def count_tokens(text: str, model: str) -> int:
     """
     Count the number of tokens in a string using the specified model.
     """
+    model_name = model.replace("azure/", "")
     try:
-        encoder = tiktoken.encoding_for_model(model)
+        encoder = tiktoken.encoding_for_model(model_name)
         return len(encoder.encode(text))
     except Exception:
         # Use gpt-4o-mini to count tokens for other models

@@ -449,16 +449,34 @@ class InvalidOutputError(Exception):
     Attributes:
         message (str): Explanation of the error.
         output (str): The invalid output that caused the exception.
+        expected_schema (Dict[str, Any]): The expected schema for the output.
+        messages (List[Dict[str, str]]): The messages sent to the LLM.
+        tools (Optional[List[Dict[str, str]]]): The tools passed to the LLM.
     """
 
-    def __init__(self, message: str, output: str, expected_schema: Dict[str, Any]):
+    def __init__(
+        self,
+        message: str,
+        output: str,
+        expected_schema: Dict[str, Any],
+        messages: List[Dict[str, str]],
+        tools: Optional[List[Dict[str, str]]] = None,
+    ):
         self.message = message
         self.output = output
         self.expected_schema = expected_schema
+        self.messages = messages
+        self.tools = tools
         super().__init__(self.message)
 
     def __str__(self):
-        return f"{self.message}\nInvalid output: {self.output}\nExpected schema: {self.expected_schema}"
+        return (
+            f"{self.message}\n"
+            f"Invalid output: {self.output}\n"
+            f"Expected schema: {self.expected_schema}\n"
+            f"Messages sent to LLM: {self.messages}\n"
+            f"Tools passed to LLM: {self.tools}"
+        )
 
 
 def timeout(seconds):
@@ -707,7 +725,7 @@ def call_llm_with_gleaning(
     cost = 0.0
 
     # Parse the response
-    parsed_response = parse_llm_response(response, output_schema)
+    parsed_response = parse_llm_response(response, output_schema, messages=messages)
     output = parsed_response[0]
 
     messages = (
@@ -865,7 +883,7 @@ def parse_llm_response_helper(
         InvalidOutputError: If the response is not valid.
     """
     if not response:
-        raise InvalidOutputError("No response from LLM", [{}], schema)
+        raise InvalidOutputError("No response from LLM", [{}], schema, [], [])
 
     # Parse the response based on the provided tools
     if tools:
@@ -894,7 +912,9 @@ def parse_llm_response_helper(
             tool_calls = response.choices[0].message.tool_calls
 
             if not tool_calls:
-                raise InvalidOutputError("No tool calls in LLM response", [{}], schema)
+                raise InvalidOutputError(
+                    "No tool calls in LLM response", [{}], schema, response.choices, []
+                )
 
             outputs = []
             for tool_call in tool_calls:
@@ -920,12 +940,16 @@ def parse_llm_response_helper(
                         "Could not decode LLM JSON response",
                         [tool_call.function.arguments],
                         schema,
+                        response.choices,
+                        tools,
                     )
                 except Exception as e:
                     raise InvalidOutputError(
                         f"Error parsing LLM response: {e}",
                         [tool_call.function.arguments],
                         schema,
+                        response.choices,
+                        tools,
                     )
             return outputs
 

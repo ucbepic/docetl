@@ -534,7 +534,7 @@ def call_llm_with_cache(
         len(props) == 1
         and list(props.values())[0].get("type") == "string"
         and scratchpad is None
-        and "gpt" not in model
+        and "ollama" in model
     ):
         use_tools = False
 
@@ -634,9 +634,6 @@ def truncate_messages(
     """
     Truncate the messages to fit the model's context length.
     """
-    if "gpt" not in model:
-        model = "gpt-4o"
-
     model_input_context_length = model_cost.get(model, {}).get("max_input_tokens", 8192)
     total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
 

@@ -527,28 +527,27 @@ def call_llm_with_cache(
     Returns:
         str: The response from the LLM.
     """
-    if tools is None:
-        props = {key: convert_val(value) for key, value in output_schema.items()}
+    props = {key: convert_val(value) for key, value in output_schema.items()}
+    use_tools = True
+
+    if (
+        len(props) == 1
+        and list(props.values())[0].get("type") == "string"
+        and scratchpad is None
+        and "ollama" in model
+    ):
+        use_tools = False
+
+    if tools is None and use_tools:
         if scratchpad is not None:
             props["updated_scratchpad"] = {"type": "string"}
 
         parameters = {"type": "object", "properties": props}
         parameters["required"] = list(props.keys())
-        parameters["additionalProperties"] = False
 
-        # response_format = {
-        #     "type": "json_schema",
-        #     "json_schema": {
-        #         "name": "write_output",
-        #         "description": "Write task output to a database",
-        #         "strict": True,
-        #         "schema": parameters,
-        #         # "additionalProperties": False,
-        #     },
-        # }
-
-        # tools = []
-        # tool_choice = "auto"
+        # TODO: this is a hack to get around the fact that gemini doesn't support additionalProperties
+        if "gemini" not in model:
+            parameters["additionalProperties"] = False
 
         tools = [
             {
@@ -563,15 +562,17 @@ def call_llm_with_cache(
             }
         ]
         tool_choice = {"type": "function", "function": {"name": "send_output"}}
-        response_format = None
 
-    else:
+    elif tools is not None:
         tools = json.loads(tools)
         tool_choice = (
             "required" if any(tool.get("required", False) for tool in tools) else "auto"
         )
         tools = [{"type": "function", "function": tool["function"]} for tool in tools]
-        response_format = None
+
+    else:
+        tools = None
+        tool_choice = None
 
     system_prompt = f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation. You will perform the specified task on the provided data. The result should be a structured output that you will send back to the user."
     if scratchpad:
@@ -599,7 +600,7 @@ Remember: The scratchpad should contain information necessary for processing fut
     # Truncate messages if they exceed the model's context length
     messages = truncate_messages(messages, model)
 
-    if response_format is None:
+    if tools is not None:
         response = completion(
             model=model,
             messages=[
@@ -622,7 +623,6 @@ Remember: The scratchpad should contain information necessary for processing fut
                 },
             ]
             + messages,
-            response_format=response_format,
         )
 
     return response
@@ -634,9 +634,6 @@ def truncate_messages(
     """
     Truncate the messages to fit the model's context length.
     """
-    if "gpt" not in model:
-        model = "gpt-4o"
-
     model_input_context_length = model_cost.get(model, {}).get("max_input_tokens", 8192)
     total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
 
@@ -882,8 +879,20 @@ def parse_llm_response_helper(
     Raises:
         InvalidOutputError: If the response is not valid.
     """
+
     if not response:
         raise InvalidOutputError("No response from LLM", [{}], schema, [], [])
+
+    tool_calls = (
+        response.choices[0].message.tool_calls
+        if "tool_calls" in dir(response.choices[0].message)
+        else []
+    )
+
+    # Check if there are no tools and the schema has a single key-value pair
+    if not tools and len(schema) == 1 and not tool_calls:
+        key = next(iter(schema))
+        return [{key: response.choices[0].message.content}]
 
     # Parse the response based on the provided tools
     if tools:
@@ -907,54 +916,48 @@ def parse_llm_response_helper(
                     results.append(function_args)
         return results
     else:
-        if "tool_calls" in dir(response.choices[0].message):
-            # Default behavior for write_output function
-            tool_calls = response.choices[0].message.tool_calls
+        if not tool_calls:
+            raise InvalidOutputError(
+                "No tool calls in LLM response", [{}], schema, response.choices, []
+            )
 
-            if not tool_calls:
+        outputs = []
+        for tool_call in tool_calls:
+            try:
+                output_dict = json.loads(tool_call.function.arguments)
+                if "ollama" in response.model:
+                    for key, value in output_dict.items():
+                        if not isinstance(value, str):
+                            continue
+                        try:
+                            output_dict[key] = ast.literal_eval(value)
+                        except:
+                            try:
+                                if value.startswith("["):
+                                    output_dict[key] = ast.literal_eval(value + "]")
+                                else:
+                                    output_dict[key] = value
+                            except:
+                                pass
+                outputs.append(output_dict)
+            except json.JSONDecodeError:
                 raise InvalidOutputError(
-                    "No tool calls in LLM response", [{}], schema, response.choices, []
+                    "Could not decode LLM JSON response",
+                    [tool_call.function.arguments],
+                    schema,
+                    response.choices,
+                    tools,
+                )
+            except Exception as e:
+                raise InvalidOutputError(
+                    f"Error parsing LLM response: {e}",
+                    [tool_call.function.arguments],
+                    schema,
+                    response.choices,
+                    tools,
                 )
 
-            outputs = []
-            for tool_call in tool_calls:
-                try:
-                    output_dict = json.loads(tool_call.function.arguments)
-                    if "ollama" in response.model:
-                        for key, value in output_dict.items():
-                            if not isinstance(value, str):
-                                continue
-                            try:
-                                output_dict[key] = ast.literal_eval(value)
-                            except:
-                                try:
-                                    if value.startswith("["):
-                                        output_dict[key] = ast.literal_eval(value + "]")
-                                    else:
-                                        output_dict[key] = value
-                                except:
-                                    pass
-                    outputs.append(output_dict)
-                except json.JSONDecodeError:
-                    raise InvalidOutputError(
-                        "Could not decode LLM JSON response",
-                        [tool_call.function.arguments],
-                        schema,
-                        response.choices,
-                        tools,
-                    )
-                except Exception as e:
-                    raise InvalidOutputError(
-                        f"Error parsing LLM response: {e}",
-                        [tool_call.function.arguments],
-                        schema,
-                        response.choices,
-                        tools,
-                    )
-            return outputs
-
-        else:
-            return [json.loads(response.choices[0].message.content)]
+        return outputs
 
     # message = response.choices[0].message
     # return [json.loads(message.content)]

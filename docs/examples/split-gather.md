@@ -25,7 +25,7 @@ When dealing with long documents, it's often necessary to break them down into s
     5. Analyze each chunk to identify people and their involvements in the case
     6. Reduce the results to compile a comprehensive list of people and their roles
 
-## Example Pipeline
+## Example Pipeline and Output
 
 Here's a breakdown of the pipeline defined in trump-immunity_opt.yaml:
 
@@ -58,10 +58,10 @@ Here's a breakdown of the pipeline defined in trump-immunity_opt.yaml:
     ```yaml
     - name: gather_extracted_text_find_people_and_involvements
       type: gather
-      content_key: extracted_text_chunk
-      doc_header_key: headers
-      doc_id_key: split_find_people_and_involvements_id
-      order_key: split_find_people_and_involvements_chunk_num
+      content_key: extracted_text_chunk # (1)!
+      doc_header_key: headers # (2)!
+      doc_id_key: split_find_people_and_involvements_id # (3)!
+      order_key: split_find_people_and_involvements_chunk_num # (4)!
       peripheral_chunks:
         next:
           head:
@@ -71,12 +71,12 @@ Here's a breakdown of the pipeline defined in trump-immunity_opt.yaml:
             count: 1
     ```
 
+    1. The field containing the chunk content; the split_key with "\_chunk" appended. Automatically exists as a result of the split operation. **This is required.**
+    2. The field containing the extracted headers for each chunk. Only exists if you have a header extraction map operation. **This can be omitted if you don't have headers extracted for each chunk.**
+    3. The unique identifier for each document; the split operation name with "\_id" appended. Automatically exists as a result of the split operation. **This is required.**
+    4. The field indicating the order of chunks; the split operation name with "\_chunk_num" appended. Automatically exists as a result of the split operation. **This is required.**
+
     This operation gathers context for each chunk, including the previous chunk, the current chunk, and the next chunk. We also render the headers populated by the previous operation.
-
-    Note that `content_key` should be `_chunk` appended to the name of the field containing the text you are splitting. `doc_id_key` and `order_key` should be the `_id` and `_chunk_num` fields appended to the name of the prior split operation.
-    !!! note
-
-        You can define a gather operation without including headers. To do this, simply omit the `doc_header_key` from your gather operation configuration. This is useful when you don't need or haven't extracted hierarchical header information from your document chunks.
 
 6.  **Chunk Analysis**:
     We define a map operation to analyze each chunk.
@@ -218,6 +218,47 @@ Here is the full pipeline configuration, with the split and gather operations hi
     1. This is an example parsing function, as explained in the [Parsing](../examples/custom-parsing.md) docs. You can define your own parsing function to extract the text you want to split, or just have the text be directly in the json file.
 
 Running the pipeline with `docetl run pipeline.yaml` will execute the pipeline and save the output to the path specified in the output section. It cost $0.05 and took 23.8 seconds with gpt-4o-mini.
+
+Here's a table with one column listing all the people mentioned in the case and their involvements:
+
+??? tip "Final Output"
+
+    | People Involved in the Case and Their Involvements |
+    |---------------------------------------------------|
+    | DONALD J. TRUMP: Defendant accused of orchestrating a criminal scheme to overturn the 2020 presidential election results through deceit and collaboration with private co-conspirators; charged with leading conspiracies to overturn the 2020 presidential election; made numerous claims of election fraud and pressured officials to find votes to overturn the election results; incited a crowd to march to the Capitol; communicated with various officials regarding election outcomes; exerted political pressure on Vice President Pence; publicly attacked fellow party members for not supporting his claims; involved in spreading false claims about the election, including through Twitter; pressured state legislatures to take unlawful actions regarding electors; influenced campaign decisions and narrative regarding the election results; called for action to overturn the certified results and demanded compliance from officials; worked with co-conspirators on efforts to promote fraudulent elector plans and led actions that culminated in the Capitol riot. |
+    | MICHAEL R. PENCE: Vice President at the time, pressured by Trump to obstruct Congress's certification of the election; informed Trump there was no evidence of significant fraud; encouraged Trump to accept election results; involved in discussions with Trump regarding election challenges and strategies; publicly asserted his constitutional limitations in the face of Trump's pressure; became the target of attacks from Trump and the Capitol rioters; sought to distance himself from Trump's efforts to overturn the election. |
+    | CC1: Private attorney who Trump enlisted to falsely claim victory and perpetuate fraud allegations; participated in efforts to influence political actions in targeted states; suggested the defendant declare victory despite ongoing counting; actively involved in making false fraud claims regarding the election; pressured state officials; spread false claims about election irregularities and raised threats against election workers; coordinated fraudulent elector meetings and misrepresented legal bases. |
+    | CC2: Mentioned as a private co-conspirator involved in the efforts to invalidate election results; proposed illegal strategies to influence the election certification; urged others to decertify legitimate electors; involved in discussions influencing state officials; pressured Mike Pence to act against certification; experienced disappointment with Pence's rejection of proposed strategies; presented unlawful plans to key figures. |
+    | CC3: Another private co-conspirator involved in scheming to undermine legitimate vote counts; promoted false claims during public hearings and made remarks inciting fraud allegations; encouraged fraudulent election lawsuits and made claims about voting machines; pressured other officials regarding claims of election fraud. |
+    | CC5: Private political operative who collaborated in the conspiracy; worked on coordinating actions related to the fraudulent elector plan; engaged in text discussions regarding the electors and strategized about the fraud claims. |
+    | CC6: Private political advisor providing strategic guidance to Trump's re-election efforts; involved in communications with campaign staff regarding the electoral vote processes. |
+    | P1: Private political advisor who assisted with Trump's re-election campaign; advocated declaring victory before final counts; maintained a podcast spreading false claims about the election. |
+    | P2: Trump's Campaign Manager, providing campaign direction during the election aftermath; informed the defendant regarding false claims related to state actions. |
+    | P3: Deputy Campaign Manager, involved in assessing election outcomes; coordinated with team members discussing legal strategies post-election; marked by frequent contact with Trump regarding campaign operations. |
+    | P4: Senior Campaign Advisor, part of the team advising Trump on election outcome communication; expressed skepticism about allegations of fraud; contradicted Trump's claims about deceased voters in Georgia. |
+    | P5: Campaign operative and co-conspirator, instructed to create chaos during vote counting and incited unrest at polling places; engaged in discussions about the elector plan. |
+    | P6: Private citizen campaign advisor who provided early warnings regarding the election outcome; engaged in discussions about the validity of allegations. |
+    | P7: White House staffer and campaign volunteer who advised Trump on potential election challenges and outcomes; acted as a conduit between Trump and various officials; communicated political advice relevant to the election. |
+    | P8: Staff member of Pence, who communicated about the electoral process and advised against Trump's unlawful plans; was involved in discussions of political strategy surrounding election results. |
+    | P9: White House staffer who became a link between Trump and campaign efforts regarding fraud claims; provided truthful assessments of the situation; facilitated communications during post-election fraud discussions. |
+    | P12: Attended non-official legislative hearings; involved in spreading disinformation about election irregularities. |
+    | P15: Assistant to the President who overheard Trump's private comments about fighting to remain in power after the 2020 election; involved in discussions about various election-related strategies. |
+    | P16: Governor of Arizona; received calls from Trump regarding election fraud claims and the count in Arizona. |
+    | P18: Speaker of the Arizona State House contacted as part of efforts to challenge election outcomes; also expressed reservations about Trump's strategies. |
+    | P21: Chief of Staff who exchanged communications about the fraudulent allegations; facilitated discussions and logistics during meetings. |
+    | P22: Campaign attorney who verified that claims about deceased voters were false; participated in discussions around the integrity of the election results. |
+    | P26: Georgia Attorney General contacted regarding fraud claims; openly stated there was no substantive evidence to support fraud allegations; discussed Texas v. Pennsylvania lawsuit with Trump. |
+    | P33: Georgia Secretary of State; defended election integrity publicly; stated rumors of election fraud were false; involved in discussions about the impact of fraudulent elector claims in Georgia. |
+    | P39: RNC Chairwoman; advised against lobbying with state legislators; coordinated with Trump on fraudulent elector efforts; refused to promote inaccurate reports regarding election fraud. |
+    | P47: Philadelphia City Commissioner; stated there was no evidence of widespread fraud; targeted by Trump for criticism after his public statements. |
+    | P52: Attorney General who publicly stated that there was no evidence of fraud that would affect election results; faced pressure from Trump's narrative. |
+    | P50: CISA Director; publicly declared the election secure; faced backlash after contradicting Trump's claims about election fraud. |
+    | P53: Various Republican U.S. Senators participated in rallies organized by Trump; linked to his campaign efforts regarding the election process. |
+    | P54: Campaign staff member involved in strategizing about elector votes; discussed procedures and expectations surrounding election tasks and claims. |
+    | P57: Former U.S. Representative who opted out of the fraudulent elector plan in Pennsylvania; cited legal concerns about the actions being proposed. |
+    | P58: A staff member of Pence involved in communications directing Pence regarding official duties, managing conversations surrounding election processes. |
+    | P59: Community organizers who were engaged in discussions relating to Trump's electoral undertakings. |
+    | P60: Individual responses to Trump's directives aimed at influencing ongoing election outcomes and legislative actions. |
 
 ## Optional: Compiling a Pipeline into a Split-Gather Pipeline
 

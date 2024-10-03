@@ -31,7 +31,7 @@ python --version
 1. Clone the DocETL repository:
 
 ```bash
-git clone https://github.com/shreyashankar/docetl.git
+git clone https://github.com/ucbepic/docetl.git
 cd docetl
 ```
 

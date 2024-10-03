@@ -634,7 +634,9 @@ def truncate_messages(
     """
     Truncate the messages to fit the model's context length.
     """
-    model_input_context_length = model_cost.get(model, {}).get("max_input_tokens", 8192)
+    model_input_context_length = model_cost.get(model.split("/")[-1], {}).get(
+        "max_input_tokens", 8192
+    )
     total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
 
     if total_tokens <= model_input_context_length - 100:
@@ -645,7 +647,10 @@ def truncate_messages(
     content = longest_message["content"]
     excess_tokens = total_tokens - model_input_context_length + 200  # 200 token buffer
 
-    encoder = tiktoken.encoding_for_model(model)
+    try:
+        encoder = tiktoken.encoding_for_model(model.split("/")[-1])
+    except Exception:
+        encoder = tiktoken.encoding_for_model("gpt-4o")
     encoded_content = encoder.encode(content)
     tokens_to_remove = min(len(encoded_content), excess_tokens)
     mid_point = len(encoded_content) // 2

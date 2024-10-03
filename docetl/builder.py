@@ -80,6 +80,12 @@ class DatasetOnDisk(dict):
 class Optimizer:
     @classmethod
     def from_yaml(cls, yaml_file: str, **kwargs):
+        # check that file ends with .yaml or .yml
+        if not yaml_file.endswith(".yaml") and not yaml_file.endswith(".yml"):
+            raise ValueError(
+                "Invalid file type. Please provide a YAML file ending with '.yaml' or '.yml'."
+            )
+
         base_name = yaml_file.rsplit(".", 1)[0]
         suffix = yaml_file.split("/")[-1].split(".")[0]
         config = load_config(yaml_file)

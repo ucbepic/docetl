@@ -1,3 +1,4 @@
+import importlib
 import io
 import os
 from typing import List, Optional
@@ -378,12 +379,15 @@ def paddleocr_pdf_to_string(
 
 
 # Define a dictionary mapping function names to their corresponding functions
-PARSING_TOOLS = {
-    "whisper_speech_to_text": whisper_speech_to_text,
-    "xlsx_to_string": xlsx_to_string,
-    "txt_to_string": txt_to_string,
-    "docx_to_string": docx_to_string,
-    "pptx_to_string": pptx_to_string,
-    "azure_di_read": azure_di_read,
-    "paddleocr_pdf_to_string": paddleocr_pdf_to_string,
-}
+
+
+def get_parser(name: str):
+    try:
+        entrypoint = importlib.metadata.entry_points(group="docetl.parser")[name]
+    except KeyError as e:
+        raise KeyError(f"Unrecognized parser {name}")
+    return entrypoint.load()
+
+
+def get_parsing_tools():
+    return [ep.name for ep in importlib.metadata.entry_points(group="docetl.parser")]

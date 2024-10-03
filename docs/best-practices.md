@@ -2,6 +2,25 @@
 
 This guide outlines best practices for using DocETL effectively, focusing on the most important aspects of pipeline creation, execution, and optimization.
 
+!!! info "Supported Models"
+
+    DocETL supports many models through LiteLLM:
+
+    - OpenAI models (e.g., GPT-4, GPT-3.5-turbo)
+    - Anthropic models (e.g., Claude 2, Claude Instant)
+    - Google VertexAI models (e.g., chat-bison, text-bison)
+    - Cohere models
+    - Replicate models
+    - Azure OpenAI models
+    - Hugging Face models
+    - AWS Bedrock models (e.g., Claude, AI21, Cohere)
+    - Gemini models (e.g., gemini-1.5-pro)
+    - Ollama models (e.g., llama2)
+
+    For a complete and up-to-date list of supported models, please refer to the [LiteLLM documentation](https://docs.litellm.ai/docs/providers). You can use the model name just like the litellm documentation (e.g., `openai/gpt-4o-mini` or `gemini/gemini-1.5-flash-002`).
+
+    While DocETL supports various models, it has been primarily tested with OpenAI's language models. Using OpenAI is currently recommended for the best experience and most reliable results, especially for operations that depend on structured outputs. We have also tried gemini-1.5-flash-002 and found it to be pretty good for a much cheaper price.
+
 ## Pipeline Design
 
 1. **Start Simple**: Begin with a basic pipeline and gradually add complexity as needed.

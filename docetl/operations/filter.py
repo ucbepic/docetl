@@ -136,6 +136,9 @@ class FilterOperation(BaseOperation):
 
             output, cost, is_valid = call_llm_with_validation(
                 [{"role": "user", "content": prompt}],
+                model=self.config.get("model", self.default_model),
+                operation_type="filter",
+                schema=self.config["output"]["schema"],
                 llm_call_fn=lambda messages: call_llm(
                     self.config.get("model", self.default_model),
                     "filter",

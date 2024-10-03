@@ -19,7 +19,7 @@ from docetl.operations.utils import (
     rich_as_completed,
     validate_output,
 )
-from docetl.utils import completion_cost
+from docetl.utils import completion_cost, extract_jinja_variables
 
 
 def compare_pair(
@@ -433,7 +433,43 @@ class ResolveOperation(BaseOperation):
                     )
                 return [], reduction_cost
             else:
-                return [input_data[list(cluster)[0]]], 0
+                # Set the output schema to be the keys found in the compare_prompt
+                compare_prompt_keys = extract_jinja_variables(
+                    self.config["comparison_prompt"]
+                )
+                # Get the set of keys in the compare_prompt
+                compare_prompt_keys = set(
+                    [
+                        k.replace("input1.", "")
+                        for k in compare_prompt_keys
+                        if "input1" in k
+                    ]
+                )
+
+                # For each key in the output schema, find the most similar key in the compare_prompt
+                output_keys = set(self.config["output"]["schema"].keys())
+                key_mapping = {}
+                for output_key in output_keys:
+                    best_match = None
+                    best_score = 0
+                    for compare_key in compare_prompt_keys:
+                        score = sum(
+                            c1 == c2 for c1, c2 in zip(output_key, compare_key)
+                        ) / max(len(output_key), len(compare_key))
+                        if score > best_score:
+                            best_score = score
+                            best_match = compare_key
+                    key_mapping[output_key] = best_match
+
+                # Create the result dictionary using the key mapping
+                result = input_data[list(cluster)[0]].copy()
+                for output_key, compare_key in key_mapping.items():
+                    if compare_key in input_data[list(cluster)[0]]:
+                        result[output_key] = input_data[list(cluster)[0]][compare_key]
+                    else:
+                        result[output_key] = None  # or some default value
+
+                return [result], 0
 
         # Calculate the number of records before and clusters after
         num_records_before = len(input_data)

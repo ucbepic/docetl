@@ -69,6 +69,12 @@ class DSLRunner:
 
     @classmethod
     def from_yaml(cls, yaml_file: str, **kwargs):
+        # check that file ends with .yaml or .yml
+        if not yaml_file.endswith(".yaml") and not yaml_file.endswith(".yml"):
+            raise ValueError(
+                "Invalid file type. Please provide a YAML file ending with '.yaml' or '.yml'."
+            )
+
         config = load_config(yaml_file)
         return cls(config, **kwargs)
 

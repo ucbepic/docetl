@@ -273,20 +273,34 @@ def cached_call_llm(
             result = call_llm_with_cache(
                 model, op_type, messages, output_schema, tools, scratchpad
             )
-            c.set(cache_key, result)
+            # Only set the cache if the result tool calls or output is not empty
+            if (
+                result
+                and "tool_calls" in dir(result.choices[0].message)
+                and result.choices[0].message.tool_calls
+            ):
+                c.set(cache_key, result)
+
     return result
 
 
 def call_llm_with_validation(
     messages: List[str],
+    model: str,
+    operation_type: str,
+    schema: Dict[str, str],
     llm_call_fn: Callable,
     validation_fn: Callable,
     val_rule: str,
     num_retries: int,
     console: Console,
+    scratchpad: Optional[str] = None,
 ) -> Tuple[Any, float, bool]:
     num_tries = num_retries + 1
     cost = 0.0
+
+    key = cache_key(model, operation_type, messages, schema, scratchpad)
+
     for i in range(num_tries):
         response = llm_call_fn(messages)
         if isinstance(response, tuple):
@@ -299,6 +313,11 @@ def call_llm_with_validation(
 
         if result:
             return parsed_output, cost, True
+
+        # Remove from cache
+        with cache as c:
+            c.delete(key)
+
         # Append the validation result to messages
         messages.append(
             {

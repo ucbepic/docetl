@@ -27,7 +27,7 @@ In this example, you've specified paths to Excel files. DocETL will use these pa
 
 ## Custom Parsing in Action
 
-### 1. Configuration
+#### 1. Configuration
 
 To use custom parsing, you need to define parsing tools in your DocETL configuration file. Here's an example:
 
@@ -92,7 +92,7 @@ In this configuration:
 - We use the built-in `paddleocr_pdf_to_string` parser for PDF files.
 - We apply these parsing tools to the external files referenced in the respective datasets.
 
-### 2. Pipeline Integration
+#### 2. Pipeline Integration
 
 Once you've defined your parsing tools and datasets, you can use the processed data in your pipeline:
 
@@ -113,7 +113,7 @@ This pipeline will use the parsed data from both Excel files and PDFs for furthe
 
 
 
-## How Data Gets Parsed and Formatted
+### How Data Gets Parsed and Formatted
 
 When you run your DocETL pipeline, the parsing tools you've specified in your configuration file are applied to the external files referenced in your dataset JSONs. Here's what happens:
 
@@ -124,7 +124,7 @@ When you run your DocETL pipeline, the parsing tools you've specified in your co
 
 Let's look at how this works for our earlier examples:
 
-### Excel Files (using top_products_report)
+#### Excel Files (using top_products_report)
 
 For an Excel file like "sales_data/january_sales.xlsx":
 
@@ -146,7 +146,7 @@ Total Revenue: $245,000
 Best Selling Category: Electronics
 ```
 
-### PDF Files (using paddleocr_pdf_to_string)
+#### PDF Files (using paddleocr_pdf_to_string)
 
 For a PDF file like "receipts/receipt001.pdf":
 
@@ -177,7 +177,7 @@ Thank you for your purchase!
 
 This parsed and formatted data is then passed to the respective operations in your pipeline for further processing.
 
-## Running the Pipeline
+### Running the Pipeline
 
 Once you've set up your pipeline configuration file with the appropriate parsing tools and dataset definitions, you can run your DocETL pipeline. Here's how:
 

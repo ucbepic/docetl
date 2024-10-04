@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-# @pytest.fixture
+@pytest.fixture
 def simple_map_config():
     return {
         "name": "simple_sentiment_analysis",
@@ -18,11 +18,11 @@ def simple_map_config():
     }
 
 
-# @pytest.fixture
+@pytest.fixture
 def sample_documents():
     sentiments = ["positive", "negative", "neutral"]
     documents = []
-    for _ in range(15):
+    for _ in range(8):
         sentiment = random.choice(sentiments)
         if sentiment == "positive":
             text = f"I absolutely love this product! It's amazing and works perfectly."
@@ -34,17 +34,14 @@ def sample_documents():
     return documents
 
 
-def test_map_operation_over_15_documents():
+def test_map_operation_over_15_documents(simple_map_config, sample_documents):
     # Set environment variables specific to this test
     os.environ["AZURE_API_BASE"] = os.getenv("LOW_RES_AZURE_API_BASE")
     os.environ["AZURE_API_VERSION"] = os.getenv("LOW_RES_AZURE_API_VERSION")
     os.environ["AZURE_API_KEY"] = os.getenv("LOW_RES_AZURE_API_KEY")
 
-    smc = simple_map_config()
-    sd = sample_documents()
-
-    operation = MapOperation(smc, "azure/gpt-4o", 4)
-    results, cost = operation.execute(sd)
+    operation = MapOperation(simple_map_config, "azure/gpt-4o", 4)
+    results, cost = operation.execute(sample_documents)
 
     assert len(results) == 15
     assert all("sentiment" in result for result in results)
@@ -52,7 +49,3 @@ def test_map_operation_over_15_documents():
         result["sentiment"] in ["positive", "negative", "neutral"] for result in results
     )
     assert cost > 0
-
-
-if __name__ == "__main__":
-    test_map_operation_over_15_documents()

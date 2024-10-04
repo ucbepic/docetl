@@ -34,6 +34,7 @@ class BaseOperation(ABC):
         self.runner = runner
         self.api = self.runner.api # FIXME: Maybe remove this
         assert "type" in config, "Operation must have a type"
+        self.runner = runner
         self.config = config
         self.default_model = default_model
         self.max_threads = max_threads

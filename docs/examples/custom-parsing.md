@@ -111,48 +111,7 @@ pipeline:
 
 This pipeline will use the parsed data from both Excel files and PDFs for further processing.
 
-## Built-in Parsing Tools
 
-DocETL provides several built-in parsing tools to handle common file formats and data processing tasks. These can be used directly in your configuration by specifying their names in the `function` field of your parsing configuration.
-
-[Insert the existing documentation for built-in parsing tools here]
-
-## Creating Custom Parsing Tools
-
-If the built-in tools don't meet your needs, you can create your own custom parsing tools. Here's how:
-
-1. Define your parsing function in the `parsing_tools` section of your configuration.
-2. Ensure your function takes a filename as input and returns a list of strings.
-3. Use your custom parser in the `parsing` section of your dataset configuration.
-
-For example:
-
-```yaml
-parsing_tools:
-  - name: my_custom_parser
-    function_code: |
-      def my_custom_parser(filename: str) -> List[str]:
-          # Your custom parsing logic here
-          return [processed_data]
-
-datasets:
-  my_dataset:
-    type: file
-    source: local
-    path: "data/paths.json"
-    parsing:
-      - input_key: file_path
-        function: my_custom_parser
-        output_key: processed_data
-```
-
-### Understanding the Parsing Tools
-
-In this example, we used two parsing tools:
-
-1. **xlsx_to_string**: A built-in parsing tool provided by DocETL. It reads Excel files and converts them to a string representation.
-
-2. **ocr_parser**: A custom parsing tool we defined for OCR processing of PDF files. _Note that it returns a list containing a single string, which is the format expected by DocETL for parsing tools._
 
 ## How Data Gets Parsed and Formatted
 
@@ -320,3 +279,32 @@ While DocETL provides several built-in parsing tools, the community can always b
     - Include comprehensive docstrings explaining the function's purpose, parameters, and return value. The return value should be a list of strings.
     - Handle potential errors gracefully and provide informative error messages.
     - If your parser requires additional dependencies, make sure to mention them in the pull request.
+
+## Creating Custom Parsing Tools
+
+If the built-in tools don't meet your needs, you can create your own custom parsing tools. Here's how:
+
+1. Define your parsing function in the `parsing_tools` section of your configuration.
+2. Ensure your function takes a filename as input and returns a list of strings.
+3. Use your custom parser in the `parsing` section of your dataset configuration.
+
+For example:
+
+```yaml
+parsing_tools:
+  - name: my_custom_parser
+    function_code: |
+      def my_custom_parser(filename: str) -> List[str]:
+          # Your custom parsing logic here
+          return [processed_data]
+
+datasets:
+  my_dataset:
+    type: file
+    source: local
+    path: "data/paths.json"
+    parsing:
+      - input_key: file_path
+        function: my_custom_parser
+        output_key: processed_data
+```

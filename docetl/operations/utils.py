@@ -414,7 +414,9 @@ def call_llm(
     key = cache_key(model, op_type, messages, output_schema, scratchpad)
 
     max_retries = max_retries_per_timeout
-    for attempt in range(max_retries + 1):
+    attempt = 0
+    rate_limited_attempt = 0
+    while attempt <= max_retries:
         try:
             return timeout(timeout_seconds)(cached_call_llm)(
                 key,
@@ -426,20 +428,24 @@ def call_llm(
                 scratchpad,
             )
         except RateLimitError:
-            if attempt == max_retries - 1:
-                console.log(
-                    f"[bold red]LLM call timed out after {max_retries} retries[/bold red]"
-                )
-                # TODO: HITL
-                return {}
-            time.sleep(0.1)
+            # TODO: this is a really hacky way to handle rate limits
+            # we should implement a more robust retry mechanism
+            backoff_time = 4 * (2**rate_limited_attempt)  # Exponential backoff
+            max_backoff = 120  # Maximum backoff time of 60 seconds
+            sleep_time = min(backoff_time, max_backoff)
+            console.log(
+                f"[yellow]Rate limit hit. Retrying in {sleep_time:.2f} seconds...[/yellow]"
+            )
+            time.sleep(sleep_time)
+            rate_limited_attempt += 1
         except TimeoutError:
-            if attempt == max_retries - 1:
+            if attempt == max_retries:
                 console.log(
-                    f"[bold red]LLM call timed out after {max_retries} retries[/bold red]"
+                    f"[bold red]LLM call timed out after {max_retries + 1} attempts[/bold red]"
                 )
                 # TODO: HITL
                 return {}
+            attempt += 1
 
 
 class InvalidOutputError(Exception):

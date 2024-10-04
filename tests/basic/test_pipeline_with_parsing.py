@@ -1,3 +1,4 @@
+from typing import List
 import pytest
 import json
 import os
@@ -5,6 +6,13 @@ import tempfile
 from docetl.runner import DSLRunner
 from docetl.utils import load_config
 import yaml
+from docetl.api import (
+    Pipeline,
+    Dataset,
+    MapOp,
+    PipelineOutput,
+    PipelineStep,
+)
 
 # Sample configuration for the test
 SAMPLE_CONFIG = """
@@ -119,3 +127,82 @@ def test_pipeline_with_parsing(config_file):
 
     # Clean up the sample data file
     os.remove(sample_data_file.name)
+
+
+def custom_exploder(text: str) -> List[str]:
+
+    return [t for t in text]
+
+
+def test_pipeline_with_custom_parsing():
+    # Create a temporary input file
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".json"
+    ) as tmp_input:
+        json.dump(
+            [
+                {"text": "This is a test sentence.", "label": "test"},
+                {"text": "Another test sentence.", "label": "test"},
+            ],
+            tmp_input,
+        )
+
+    # Create a temporary output file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp_output:
+        pass
+
+    # Define the pipeline
+    pipeline = Pipeline(
+        name="test_parsing_pipeline",
+        datasets={
+            "input_data": Dataset(
+                type="file",
+                path=tmp_input.name,
+                parsing=[
+                    {
+                        "input_key": "text",
+                        "function": "custom_exploder",
+                        "output_key": "parsed_content",
+                    }
+                ],
+            )
+        },
+        operations=[
+            MapOp(
+                name="summarize",
+                type="map",
+                prompt="Summarize the following text: {{ input.text }}",
+                output={"schema": {"summary": "string"}},
+            )
+        ],
+        steps=[
+            PipelineStep(
+                name="summarize_step", input="input_data", operations=["summarize"]
+            )
+        ],
+        output=PipelineOutput(type="file", path=tmp_output.name),
+        parsing_tools=[custom_exploder],
+        default_model="gpt-4o-mini",
+    )
+
+    # Run the pipeline
+    cost = pipeline.run(max_threads=4)
+
+    # Verify the output
+    with open(tmp_output.name, "r") as f:
+        output_data = json.load(f)
+
+    assert len(output_data) == 46, "Expected 10 output items"
+    for item in output_data:
+        assert "summary" in item, "Summary was not generated"
+        assert isinstance(item["summary"], str), "Summary is not a string"
+        assert len(item["summary"]) > 0, "Summary is empty"
+
+    # Clean up
+    os.unlink(tmp_input.name)
+    os.unlink(tmp_output.name)
+
+    assert cost > 0, "Total cost was not calculated or is 0"
+    print(
+        f"Pipeline with custom parsing executed successfully. Total cost: ${cost:.2f}"
+    )

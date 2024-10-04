@@ -94,6 +94,7 @@ class DSLRunner:
             try:
                 operation_class = get_operation(operation_type)
                 operation_class(
+                    self,
                     operation_config,
                     self.default_model,
                     self.max_threads,
@@ -245,6 +246,7 @@ class DSLRunner:
 
                 operation_class = get_operation(op_object["type"])
                 operation_instance = operation_class(
+                    self,
                     op_object,
                     self.default_model,
                     self.max_threads,
@@ -312,8 +314,8 @@ class DSLRunner:
         self.console.print(
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )
-
-
+        
+        
 if __name__ == "__main__":
     runner = DSLRunner("workloads/medical/map_opt.yaml")
     runner.run()

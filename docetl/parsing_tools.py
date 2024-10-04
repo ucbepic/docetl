@@ -26,7 +26,7 @@ def llama_index_wikipedia_reader(filename: str) -> List[str]:
     return [doc.text for doc in documents]
 
 
-def whisper_speech_to_text(filename: str) -> List[str]:
+def whisper_speech_to_text(runner, filename: str) -> List[str]:
     """
     Transcribe speech from an audio file to text using Whisper model via litellm.
     If the file is larger than 25 MB, it's split into 10-minute chunks with 30-second overlap.

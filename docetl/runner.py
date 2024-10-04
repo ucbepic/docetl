@@ -166,11 +166,13 @@ class DSLRunner:
             self.datasets[self.config["pipeline"]["steps"][-1]["name"]].load()
         )
 
-        # Save the self.step_op_hashes to a file
-        with open(
-            os.path.join(self.intermediate_dir, ".docetl_intermediate_config.json"), "w"
-        ) as f:
-            json.dump(self.step_op_hashes, f)
+        # Save the self.step_op_hashes to a file if self.intermediate_dir exists
+        if self.intermediate_dir:
+            with open(
+                os.path.join(self.intermediate_dir, ".docetl_intermediate_config.json"),
+                "w",
+            ) as f:
+                json.dump(self.step_op_hashes, f)
 
         self.console.rule("[bold green]Execution Summary[/bold green]")
         self.console.print(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")

@@ -159,6 +159,7 @@ class MapOperation(BaseOperation):
                     return output, True
                 return output, False
 
+            self.runner.rate_limiter.try_acquire("call", weight=1)
             if "gleaning" in self.config:
                 output, cost, success = call_llm_with_validation(
                     [{"role": "user", "content": prompt}],

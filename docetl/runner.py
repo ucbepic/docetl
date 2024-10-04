@@ -1,9 +1,11 @@
+from collections import defaultdict
 import json
 import os
 import time
 from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
+import hashlib
 from rich.console import Console
 
 from docetl.dataset import Dataset, create_parsing_tool_map
@@ -66,6 +68,21 @@ class DSLRunner:
             )
 
         self.syntax_check()
+
+        op_map = {op["name"]: op for op in self.config["operations"]}
+
+        # Hash each pipeline step/operation
+        # for each step op, hash the code of each op up until and (including that op)
+        self.step_op_hashes = defaultdict(dict)
+        for step in self.config["pipeline"]["steps"]:
+            for idx, op in enumerate(step["operations"]):
+                all_ops_until_and_including_current = [
+                    op_map[prev_op] for prev_op in step["operations"][:idx]
+                ] + [op_map[op]]
+                all_ops_str = json.dumps(all_ops_until_and_including_current)
+                self.step_op_hashes[step["name"]][op] = hashlib.sha256(
+                    all_ops_str.encode()
+                ).hexdigest()
 
     @classmethod
     def from_yaml(cls, yaml_file: str, **kwargs):
@@ -148,6 +165,13 @@ class DSLRunner:
         self.save_output(
             self.datasets[self.config["pipeline"]["steps"][-1]["name"]].load()
         )
+
+        # Save the self.step_op_hashes to a file
+        with open(
+            os.path.join(self.intermediate_dir, ".docetl_intermediate_config.json"), "w"
+        ) as f:
+            json.dump(self.step_op_hashes, f)
+
         self.console.rule("[bold green]Execution Summary[/bold green]")
         self.console.print(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")
         self.console.print(
@@ -280,6 +304,22 @@ class DSLRunner:
         if self.intermediate_dir is None:
             return None
 
+        intermediate_config_path = os.path.join(
+            self.intermediate_dir, ".docetl_intermediate_config.json"
+        )
+        if not os.path.exists(intermediate_config_path):
+            return None
+
+        # See if the checkpoint config is the same as the current step op hash
+        with open(intermediate_config_path, "r") as f:
+            intermediate_config = json.load(f)
+
+        if (
+            intermediate_config.get(step_name, {}).get(operation_name, "")
+            != self.step_op_hashes[step_name][operation_name]
+        ):
+            return None
+
         checkpoint_path = os.path.join(
             self.intermediate_dir, step_name, f"{operation_name}.json"
         )
@@ -315,6 +355,7 @@ class DSLRunner:
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         with open(checkpoint_path, "w") as f:
             json.dump(data, f)
+
         self.console.print(
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )

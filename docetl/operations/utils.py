@@ -430,8 +430,8 @@ def call_llm(
         except RateLimitError:
             # TODO: this is a really hacky way to handle rate limits
             # we should implement a more robust retry mechanism
-            backoff_time = 0.1 * (2**rate_limited_attempt)  # Exponential backoff
-            max_backoff = 60  # Maximum backoff time of 60 seconds
+            backoff_time = 4 * (2**rate_limited_attempt)  # Exponential backoff
+            max_backoff = 120  # Maximum backoff time of 60 seconds
             sleep_time = min(backoff_time, max_backoff)
             console.log(
                 f"[yellow]Rate limit hit. Retrying in {sleep_time:.2f} seconds...[/yellow]"

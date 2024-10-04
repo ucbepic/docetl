@@ -76,11 +76,13 @@ class DSLRunner:
         self.step_op_hashes = defaultdict(dict)
         for step in self.config["pipeline"]["steps"]:
             for idx, op in enumerate(step["operations"]):
+                op_name = op if isinstance(op, str) else list(op.keys())[0]
+
                 all_ops_until_and_including_current = [
                     op_map[prev_op] for prev_op in step["operations"][:idx]
-                ] + [op_map[op]]
+                ] + [op_map[op_name]]
                 all_ops_str = json.dumps(all_ops_until_and_including_current)
-                self.step_op_hashes[step["name"]][op] = hashlib.sha256(
+                self.step_op_hashes[step["name"]][op_name] = hashlib.sha256(
                     all_ops_str.encode()
                 ).hexdigest()
 

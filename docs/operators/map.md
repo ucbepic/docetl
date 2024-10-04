@@ -144,10 +144,9 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `drop_keys`                       | List of keys to drop from the input before processing                                           | None                          |
 | `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
 | `max_retries_per_timeout`         | Maximum number of retries per timeout                                                           | 2                             |
+| `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
-
-| `timeout` | Timeout for each LLM call in seconds | 120 |
 
 !!! info "Validation and Gleaning"
 
@@ -206,6 +205,18 @@ To enable batching in your map operations, you need to specify the `max_batch_si
 ```
 
 In the above config, there will be no more than 5 API calls to the LLM at a time (i.e., 5 documents processed at a time, one per API call).
+
+### Dropping Keys
+
+You can use a map operation to act as an LLM no-op, and just drop any key-value pairs you don't want to save to the output file. To do this, you can use the `drop_keys` parameter.
+
+```yaml
+- name: drop_keys_example
+  type: map
+  drop_keys:
+    - "keyname1"
+    - "keyname2"
+```
 
 ## Best Practices
 

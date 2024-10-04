@@ -14,7 +14,8 @@ from docetl.operations.utils import flush_cache
 from .pipeline import Pipeline
 
 load_dotenv()
-    
+
+
 class DSLRunner(Pipeline):
     """
     A class for executing Domain-Specific Language (DSL) configurations.
@@ -63,7 +64,7 @@ class DSLRunner(Pipeline):
             )
 
         self.syntax_check()
-                
+
         op_map = {op["name"]: op for op in self.config["operations"]}
 
         # Hash each pipeline step/operation
@@ -350,8 +351,8 @@ class DSLRunner(Pipeline):
         self.console.print(
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )
-        
-        
+
+
 if __name__ == "__main__":
     runner = DSLRunner("workloads/medical/map_opt.yaml")
     runner.run()

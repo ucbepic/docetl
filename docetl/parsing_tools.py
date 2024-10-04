@@ -6,7 +6,7 @@ from typing import List, Optional
 from litellm import transcription
 
 
-def whisper_speech_to_text(filename: str) -> List[str]:
+def whisper_speech_to_text(runner, filename: str) -> List[str]:
     """
     Transcribe speech from an audio file to text using Whisper model via litellm.
     If the file is larger than 25 MB, it's split into 10-minute chunks with 30-second overlap.
@@ -52,6 +52,7 @@ def whisper_speech_to_text(filename: str) -> List[str]:
 
 
 def xlsx_to_string(
+    runner,
     filename: str,
     orientation: str = "col",
     col_order: Optional[List[str]] = None,
@@ -107,7 +108,7 @@ def xlsx_to_string(
         return [process_sheet(wb.active)]
 
 
-def txt_to_string(filename: str) -> List[str]:
+def txt_to_string(runner, filename: str) -> List[str]:
     """
     Read the content of a text file and return it as a list of strings (only one element).
 
@@ -121,7 +122,7 @@ def txt_to_string(filename: str) -> List[str]:
         return [file.read()]
 
 
-def docx_to_string(filename: str) -> List[str]:
+def docx_to_string(runner, filename: str) -> List[str]:
     """
     Extract text from a Word document.
 
@@ -137,7 +138,7 @@ def docx_to_string(filename: str) -> List[str]:
     return ["\n".join([paragraph.text for paragraph in doc.paragraphs])]
 
 
-def pptx_to_string(filename: str, doc_per_slide: bool = False) -> List[str]:
+def pptx_to_string(runner, filename: str, doc_per_slide: bool = False) -> List[str]:
     """
     Extract text from a PowerPoint presentation.
 
@@ -175,6 +176,7 @@ def pptx_to_string(filename: str, doc_per_slide: bool = False) -> List[str]:
 
 
 def azure_di_read(
+    runner,
     filename: str,
     use_url: bool = False,
     include_line_numbers: bool = False,
@@ -314,6 +316,7 @@ def azure_di_read(
 
 
 def paddleocr_pdf_to_string(
+    runner,
     input_path: str,
     doc_per_page: bool = False,
     ocr_enabled: bool = True,

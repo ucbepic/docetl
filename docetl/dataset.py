@@ -6,22 +6,6 @@ from docetl.parsing_tools import get_parser, get_parsing_tools
 from docetl.schemas import ParsingTool
 
 
-def process_item(
-    item: Dict[str, Any],
-    input_key: str,
-    output_key: str,
-    func: Callable,
-    **function_kwargs: Dict[str, Any],
-):
-    if input_key not in item:
-        raise ValueError(f"Input key {input_key} not found in item: {item}")
-    result = func(item[input_key], **function_kwargs)
-    if isinstance(result, list):
-        return [item.copy() | {output_key: res} for res in result]
-    else:
-        return [item | {output_key: result}]
-
-
 def create_parsing_tool_map(
     parsing_tools: Optional[List[ParsingTool]],
 ) -> Dict[str, ParsingTool]:
@@ -54,6 +38,7 @@ class Dataset:
 
     def __init__(
         self,
+        runner,
         type: str,
         path_or_data: Union[str, List[Dict]],
         source: str = "local",
@@ -70,6 +55,7 @@ class Dataset:
             parsing (List[Dict[str, str]], optional): A list of parsing tools to apply to the data.
             user_defined_parsing_tool_map (Dict[str, ParsingTool], optional): A map of user-defined parsing tools.
         """
+        self.runner = runner
         self.type = self._validate_type(type)
         self.source = self._validate_source(source)
         self.path_or_data = self._validate_path_or_data(path_or_data)
@@ -221,6 +207,22 @@ class Dataset:
 
         return self._apply_parsing_tools(data)
 
+    def _process_item(
+        self,
+        item: Dict[str, Any],
+        input_key: str,
+        output_key: str,
+        func: Callable,
+        **function_kwargs: Dict[str, Any],
+    ):
+        if input_key not in item:
+            raise ValueError(f"Input key {input_key} not found in item: {item}")
+        result = func(self.runner, item[input_key], **function_kwargs)
+        if isinstance(result, list):
+            return [item.copy() | {output_key: res} for res in result]
+        else:
+            return [item | {output_key: result}]
+          
     def _apply_parsing_tools(self, data: List[Dict]) -> List[Dict]:
         """
         Apply parsing tools to the data.
@@ -260,7 +262,7 @@ class Dataset:
             with ThreadPoolExecutor() as executor:
                 futures = [
                     executor.submit(
-                        process_item,
+                        self._process_item,
                         item,
                         input_key,
                         output_key,

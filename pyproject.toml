@@ -8,6 +8,7 @@ readme = "README.md"
 packages = [
     { include = "docetl" }
 ]
+exclude = ["website/**/*"]
 [tool.poetry.scripts]
 docetl = "docetl.cli:app"
 

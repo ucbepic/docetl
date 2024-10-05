@@ -310,7 +310,6 @@ def truncate_messages(
     model_input_context_length = model_cost.get(model.split("/")[-1], {}).get(
         "max_input_tokens", 8192
     )
-
     total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
 
     if total_tokens <= model_input_context_length - 100:
@@ -346,33 +345,6 @@ def truncate_messages(
     longest_message["content"] = truncated_content
 
     return truncated_messages
-
-
-def validate_output(operation: Dict, output: Dict, console: Console) -> bool:
-    """
-    Validate the output against the specified validation rules in the operation.
-
-    Args:
-        operation (Dict): The operation dictionary containing validation rules.
-        output (Dict): The output to be validated.
-        console (Console): The console object for logging.
-
-    Returns:
-        bool: True if all validations pass, False otherwise.
-    """
-    if "validate" not in operation:
-        return True
-    for validation in operation["validate"]:
-        try:
-            if not safe_eval(validation, output):
-                console.log(f"[bold red]Validation failed:[/bold red] {validation}")
-                console.log(f"[yellow]Output:[/yellow] {output}")
-                return False
-        except Exception as e:
-            console.log(f"[bold red]Validation error:[/bold red] {str(e)}")
-            console.log(f"[yellow]Output:[/yellow] {output}")
-            return False
-    return True
 
 
 def safe_eval(expression: str, output: Dict) -> bool:
@@ -605,6 +577,7 @@ class APIWrapper(object):
                     )
                     # TODO: HITL
                     return {}
+                attempt += 1
 
     def call_llm_with_cache(
         self,
@@ -653,16 +626,18 @@ class APIWrapper(object):
             if "gemini" not in model:
                 parameters["additionalProperties"] = False
 
-            function_spec = {
-                "name": "send_output",
-                "description": "Send structured output back to the user",
-                "strict": True,
-                "parameters": parameters,
-            }
-            if "gemini" not in model:
-                function_spec["additionalProperties"] = False
-
-            tools = [{"type": "function", "function": function_spec}]
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "send_output",
+                        "description": "Send structured output back to the user",
+                        "strict": True,
+                        "parameters": parameters,
+                        "additionalProperties": False,
+                    },
+                }
+            ]
             tool_choice = {"type": "function", "function": {"name": "send_output"}}
 
         elif tools is not None:
@@ -684,28 +659,29 @@ class APIWrapper(object):
         if scratchpad:
             system_prompt += f"""
 
-    You are incrementally processing data across multiple batches. Maintain intermediate state between batches to accomplish this task effectively.
+You are incrementally processing data across multiple batches. Maintain intermediate state between batches to accomplish this task effectively.
 
-    Current scratchpad: {scratchpad}
+Current scratchpad: {scratchpad}
 
-    As you process each batch:
-    1. Update the scratchpad with crucial information for subsequent batches.
-    2. This may include partial results, counters, or data that doesn't fit into {list(output_schema.keys())}.
-    3. Example: For counting elements that appear more than twice, track all occurrences in the scratchpad until an item exceeds the threshold.
+As you process each batch:
+1. Update the scratchpad with crucial information for subsequent batches.
+2. This may include partial results, counters, or data that doesn't fit into {list(output_schema.keys())}.
+3. Example: For counting elements that appear more than twice, track all occurrences in the scratchpad until an item exceeds the threshold.
 
-    Keep the scratchpad concise (~500 chars) and easily parsable. Use clear structures like:
-    - Bullet points
-    - Key-value pairs
-    - JSON-like format
+Keep the scratchpad concise (~500 chars) and easily parsable. Use clear structures like:
+- Bullet points
+- Key-value pairs
+- JSON-like format
 
-    Update the 'updated_scratchpad' field in your output with the new scratchpad content.
+Update the 'updated_scratchpad' field in your output with the new scratchpad content.
 
-    Remember: The scratchpad should contain information necessary for processing future batches, not the final result."""
+Remember: The scratchpad should contain information necessary for processing future batches, not the final result."""
         messages = json.loads(messages)
 
         # Truncate messages if they exceed the model's context length
         messages = truncate_messages(messages, model)
 
+        self.runner.rate_limiter.try_acquire("llm_call", weight=1)
         if tools is not None:
             response = completion(
                 model=model,

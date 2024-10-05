@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 from rich.console import Console
 from rich.status import Status
 
+from .utils import APIWrapper
 
 class BaseOperation(ABC):
     def __init__(
@@ -35,6 +36,7 @@ class BaseOperation(ABC):
         self.api = self.runner.api # FIXME: Maybe remove this
         assert "type" in config, "Operation must have a type"
         self.runner = runner
+        self.api = APIWrapper(self.runner)
         self.config = config
         self.default_model = default_model
         self.max_threads = max_threads

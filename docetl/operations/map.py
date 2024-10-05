@@ -10,12 +10,7 @@ from tqdm import tqdm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
-    RichLoopBar,
-    call_llm,
-    call_llm_with_gleaning,
-    call_llm_with_validation,
-    parse_llm_response,
-    validate_output,
+    RichLoopBar
 )
 from docetl.schemas import MapOp, Tool, ToolFunction
 from docetl.utils import completion_cost
@@ -146,7 +141,7 @@ class MapOperation(BaseOperation):
             prompt = prompt_template.render(input=item)
 
             def validation_fn(response: Dict[str, Any]):
-                output = parse_llm_response(
+                output = self.api.parse_llm_response(
                     response,
                     schema=self.config["output"]["schema"],
                     tools=self.config.get("tools", None),
@@ -155,18 +150,18 @@ class MapOperation(BaseOperation):
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value
-                if validate_output(self.config, output, self.console):
+                if self.api.validate_output(self.config, output, self.console):
                     return output, True
                 return output, False
 
             self.runner.rate_limiter.try_acquire("call", weight=1)
             if "gleaning" in self.config:
-                output, cost, success = call_llm_with_validation(
+                output, cost, success = self.api.call_llm_with_validation(
                     [{"role": "user", "content": prompt}],
                     model=self.config.get("model", self.default_model),
                     operation_type="map",
                     schema=self.config["output"]["schema"],
-                    llm_call_fn=lambda messages: call_llm_with_gleaning(
+                    llm_call_fn=lambda messages: self.api.call_llm_with_gleaning(
                         self.config.get("model", self.default_model),
                         "map",
                         messages,
@@ -185,12 +180,12 @@ class MapOperation(BaseOperation):
                     console=self.console,
                 )
             else:
-                output, cost, success = call_llm_with_validation(
+                output, cost, success = self.api.call_llm_with_validation(
                     [{"role": "user", "content": prompt}],
                     model=self.config.get("model", self.default_model),
                     operation_type="map",
                     schema=self.config["output"]["schema"],
-                    llm_call_fn=lambda messages: call_llm(
+                    llm_call_fn=lambda messages: self.api.call_llm(
                         self.config.get("model", self.default_model),
                         "map",
                         messages,
@@ -375,7 +370,7 @@ class ParallelMapOperation(BaseOperation):
 
             # Start of Selection
             # If there are tools, we need to pass in the tools
-            response = call_llm(
+            response = self.api.call_llm(
                 prompt_config.get("model", self.default_model),
                 "parallel_map",
                 [{"role": "user", "content": prompt}],
@@ -385,7 +380,7 @@ class ParallelMapOperation(BaseOperation):
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
             )
-            output = parse_llm_response(
+            output = self.api.parse_llm_response(
                 response,
                 schema=local_output_schema,
                 tools=prompt_config.get("tools", None),

@@ -555,18 +555,16 @@ def call_llm_with_cache(
         if "gemini" not in model:
             parameters["additionalProperties"] = False
 
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "send_output",
-                    "description": "Send structured output back to the user",
-                    "strict": True,
-                    "parameters": parameters,
-                    "additionalProperties": False,
-                },
-            }
-        ]
+        function_spec = {
+            "name": "send_output",
+            "description": "Send structured output back to the user",
+            "strict": True,
+            "parameters": parameters,
+        }
+        if "gemini" not in model:
+            function_spec["additionalProperties"] = False
+
+        tools = [{"type": "function", "function": function_spec}]
         tool_choice = {"type": "function", "function": {"name": "send_output"}}
 
     elif tools is not None:

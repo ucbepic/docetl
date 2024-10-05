@@ -553,7 +553,7 @@ class APIWrapper(object):
         rate_limited_attempt = 0
         while attempt <= max_retries:
             try:
-                return timeout(timeout_seconds)(cached_call_llm)(
+                return timeout(timeout_seconds)(self.cached_call_llm)(
                     key,
                     model,
                     op_type,

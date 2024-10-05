@@ -733,7 +733,7 @@ def call_llm_with_gleaning(
     cost = 0.0
 
     # Parse the response
-    parsed_response = parse_llm_response(response, output_schema, messages=messages)
+    parsed_response = parse_llm_response(response, output_schema)
     output = parsed_response[0]
 
     messages = (

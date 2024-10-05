@@ -521,4 +521,4 @@ Upon further analysis, 1421 themes is still a lot! I realized that my resolve op
 
 Something else we could have done is included a list of themes we care about in the original map operation, e.g., graphics. Since our map prompt was very open-ended, the LLM could have generated themes that we didn't care about, leading to a large number of themes in the output.
 
-Anyways, we've filtered the 1421 reports down to 65 themes/reports that contain quotes from 3 or more different games. You can check out the output [here](https://github.com/shreyashankar/docetl/blob/main/example_data/steamgames/frequent_polarizing_themes.json).
+Anyways, we've filtered the 1421 reports down to 65 themes/reports that contain quotes from 3 or more different games. You can check out the output [here](https://github.com/ucbepic/docetl/blob/main/example_data/steamgames/frequent_polarizing_themes.json).

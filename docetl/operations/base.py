@@ -33,6 +33,7 @@ class BaseOperation(ABC):
         assert "name" in config, "Operation must have a name"
         self.runner = runner
         self.api = self.runner.api # FIXME: Maybe remove this
+        assert "type" in config, "Operation must have a type"
         self.config = config
         self.default_model = default_model
         self.max_threads = max_threads

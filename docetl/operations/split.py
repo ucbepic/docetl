@@ -52,7 +52,7 @@ class SplitOperation(BaseOperation):
         method = self.config["method"]
         method_kwargs = self.config["method_kwargs"]
         encoder = tiktoken.encoding_for_model(
-            self.config["method_kwargs"].get("model", self.default_model)
+            self.config["method_kwargs"].get("model", self.default_model).split("/")[-1]
         )
         results = []
         cost = 0.0

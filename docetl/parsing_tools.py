@@ -1,10 +1,8 @@
 import importlib
 import io
 import os
-from gptpdf import parse_pdf
-from typing import List, Optional
+from typing import Dict, List, Optional
 
-from litellm import transcription
 
 def llama_index_simple_directory_reader(filename: str) -> List[str]:
     from llama_index.core import SimpleDirectoryReader
@@ -12,6 +10,7 @@ def llama_index_simple_directory_reader(filename: str) -> List[str]:
     documents = SimpleDirectoryReader(filename).load_data()
     # FIXME: What about doc.metadata? Would be good to include that too...
     return [doc.text for doc in documents]
+
 
 def llama_index_wikipedia_reader(filename: str) -> List[str]:
     from llama_index.readers.wikipedia import WikipediaReader
@@ -22,9 +21,10 @@ def llama_index_wikipedia_reader(filename: str) -> List[str]:
     # The wikipedia reader does not include the page url in the metadata, which is impractical...
     for name, doc in zip(pages, documents):
         doc.metadata["source"] = "https://en.wikipedia.org/wiki/" + name
-    
+
     # FIXME: What about doc.metadata? Would be good to include that too...
     return [doc.text for doc in documents]
+
 
 def whisper_speech_to_text(filename: str) -> List[str]:
     """
@@ -38,6 +38,7 @@ def whisper_speech_to_text(filename: str) -> List[str]:
         List[str]: Transcribed text.
     """
     import os
+    from litellm import transcription
 
     file_size = os.path.getsize(filename)
     if file_size > 25 * 1024 * 1024:  # 25 MB in bytes
@@ -400,12 +401,11 @@ def paddleocr_pdf_to_string(
 
 def gptpdf_to_string(
     input_path: str,
-    output_path: str,
-    doc_per_page: bool,
     gpt_model: str,
     api_key: str,
     base_url: str,
-    verbose: bool,
+    verbose: bool = False,
+    custom_prompt: Optional[Dict[str, str]] = None,
 ) -> str:
     """
     Parse PDF using GPT to convert the content of a PDF to a markdown format and write it to an output file.
@@ -414,40 +414,37 @@ def gptpdf_to_string(
 
     Args:
         input_path (str): Path to the input PDF file.
-        output_path (str): Path where the extracted text will be written.
-        doc_per_page (bool): If True, return a list of strings, one per page. If False, return a single string.
         gpt_model (str): GPT model to be used for parsing.
         api_key (str): API key for GPT service.
         base_url (str): Base URL for the GPT service.
         verbose (bool): If True, will print additional information during parsing.
-    
+        custom_prompt (Optional[Dict[str, str]]): Custom prompt for the GPT model. See https://github.com/CosmosShadow/gptpdf for more information.
+
     Returns:
         str: Extracted content as a string.
     """
-    
-    parsed_content, parsed_pages = parse_pdf(
-        pdf_path=input_path,
-        output_dir="./",
-        api_key=api_key,
-        base_url=base_url,
-        model=gpt_model,
-        verbose=verbose
-    )
+    from gptpdf import parse_pdf
 
-    if doc_per_page:
-        content = "\n\n".join(parsed_pages)  
-    else:
-        content = parsed_content  
-    
-    if verbose:
-        print(f"Parsed {len(parsed_pages)} pages from {input_path}")
+    import tempfile
 
-    with open(output_path, "w", encoding="utf-8") as output_file:
-        output_file.write(content)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        kwargs = {
+            "pdf_path": input_path,
+            "output_dir": temp_dir,
+            "api_key": api_key,
+            "base_url": base_url,
+            "model": gpt_model,
+            "verbose": verbose,
+        }
+        if custom_prompt:
+            kwargs["prompt"] = custom_prompt
 
-    print(f"Extracted content has been written to {output_path}")
-    
-    return content 
+        parsed_content, _ = parse_pdf(
+            **kwargs
+        )  # The second element is a list of image paths, which we don't need.
+
+        return [parsed_content]
+
 
 # Define a dictionary mapping function names to their corresponding functions
 

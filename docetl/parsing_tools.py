@@ -1,6 +1,7 @@
 import importlib
 import io
 import os
+from gptpdf import parse_pdf
 from typing import List, Optional
 
 from litellm import transcription
@@ -399,6 +400,58 @@ def paddleocr_pdf_to_string(
 
     return pdf_content
 
+
+def gptpdf_to_string(
+    input_path: str,
+    output_path: str,
+    doc_per_page: bool,
+    gpt_model: str,
+    api_key: str,
+    base_url: str,
+    verbose: bool,
+) -> str:
+    """
+    Parse PDF using GPT to convert the content of a PDF to a markdown format and write it to an output file.
+
+    **Note: pip install gptpdf required**
+
+    Args:
+        input_path (str): Path to the input PDF file.
+        output_path (str): Path where the extracted text will be written.
+        doc_per_page (bool): If True, return a list of strings, one per page. If False, return a single string.
+        gpt_model (str): GPT model to be used for parsing.
+        api_key (str): API key for GPT service.
+        base_url (str): Base URL for the GPT service.
+        verbose (bool): If True, will print additional information during parsing.
+    
+    Returns:
+        str: Extracted content as a string.
+    """
+    from gptpdf import parse_pdf
+
+    parsed_content, parsed_pages = parse_pdf(
+        pdf_path=input_path,
+        output_dir="./",
+        api_key=api_key,
+        base_url=base_url,
+        model=gpt_model,
+        verbose=verbose
+    )
+
+    if doc_per_page:
+        content = "\n\n".join(parsed_pages)  
+    else:
+        content = parsed_content  
+    
+    if verbose:
+        print(f"Parsed {len(parsed_pages)} pages from {input_path}")
+
+    with open(output_path, "w", encoding="utf-8") as output_file:
+        output_file.write(content)
+
+    print(f"Extracted content has been written to {output_path}")
+    
+    return content 
 
 # Define a dictionary mapping function names to their corresponding functions
 

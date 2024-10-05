@@ -60,11 +60,7 @@ class DSLRunner(Pipeline):
         Args:
             max_threads (int, optional): Maximum number of threads to use. Defaults to None.
         """
-        Pipeline.__init__(self, config)
-        self.default_model = self.config.get("default_model", "gpt-4o-mini")
-        self.max_threads = max_threads or (os.cpu_count() or 1) * 4
-        self.console = Console()
-        self.status = None
+        Pipeline.__init__(self, config, max_threads)
         self.datasets = {}
 
         self.intermediate_dir = self.config["pipeline"]["output"].get(

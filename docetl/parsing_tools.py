@@ -424,8 +424,7 @@ def gptpdf_to_string(
     Returns:
         str: Extracted content as a string.
     """
-    from gptpdf import parse_pdf
-
+    
     parsed_content, parsed_pages = parse_pdf(
         pdf_path=input_path,
         output_dir="./",

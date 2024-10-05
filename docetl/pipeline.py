@@ -30,7 +30,7 @@ class BucketCollection(pyrate_limiter.BucketFactory):
         return self.buckets[item.name]
 
 
-class Pipeline(object):
+class ConfigWrapper(object):
     @classmethod
     def from_yaml(cls, yaml_file: str, **kwargs):
         config = load_config(yaml_file)

@@ -158,7 +158,7 @@ def clear_cache(console: Console = Console()):
         console.log(f"[bold red]Error clearing cache: {str(e)}[/bold red]")
 
 
-def convert_val(value: Any) -> Dict[str, Any]:
+def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
     """
     Convert a string representation of a type to a dictionary representation.
 
@@ -167,6 +167,7 @@ def convert_val(value: Any) -> Dict[str, Any]:
 
     Args:
         value (Any): A string representing a data type.
+        model (str): The model being used. Defaults to "gpt-4o-mini".
 
     Returns:
         Dict[str, Any]: A dictionary representing the type in JSON schema format.
@@ -185,7 +186,7 @@ def convert_val(value: Any) -> Dict[str, Any]:
         return {"type": "boolean"}
     elif value.startswith("list["):
         inner_type = value[5:-1].strip()
-        return {"type": "array", "items": convert_val(inner_type)}
+        return {"type": "array", "items": convert_val(inner_type, model)}
     elif value == "list":
         raise ValueError("List type must specify its elements, e.g., 'list[str]'")
     elif value.startswith("{") and value.endswith("}"):
@@ -193,13 +194,16 @@ def convert_val(value: Any) -> Dict[str, Any]:
         properties = {}
         for item in value[1:-1].split(","):
             key, val = item.strip().split(":")
-            properties[key.strip()] = convert_val(val.strip())
-        return {
+            properties[key.strip()] = convert_val(val.strip(), model)
+        result = {
             "type": "object",
             "properties": properties,
-            "additionalProperties": False,
             "required": list(properties.keys()),
         }
+        # TODO: this is a hack to get around the fact that gemini doesn't support additionalProperties
+        if "gemini" not in model:
+            result["additionalProperties"] = False
+        return result
     else:
         raise ValueError(f"Unsupported value type: {value}")
 
@@ -533,7 +537,7 @@ def call_llm_with_cache(
     Returns:
         str: The response from the LLM.
     """
-    props = {key: convert_val(value) for key, value in output_schema.items()}
+    props = {key: convert_val(value, model) for key, value in output_schema.items()}
     use_tools = True
 
     if (
@@ -555,18 +559,16 @@ def call_llm_with_cache(
         if "gemini" not in model:
             parameters["additionalProperties"] = False
 
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "send_output",
-                    "description": "Send structured output back to the user",
-                    "strict": True,
-                    "parameters": parameters,
-                    "additionalProperties": False,
-                },
-            }
-        ]
+        function_spec = {
+            "name": "send_output",
+            "description": "Send structured output back to the user",
+            "strict": True,
+            "parameters": parameters,
+        }
+        if "gemini" not in model:
+            function_spec["additionalProperties"] = False
+
+        tools = [{"type": "function", "function": function_spec}]
         tool_choice = {"type": "function", "function": {"name": "send_output"}}
 
     elif tools is not None:
@@ -713,11 +715,14 @@ def call_llm_with_gleaning(
             f"Model {model} does not support function calling (which we use for structured outputs). Please use a different model."
         )
 
-    props = {key: convert_val(value) for key, value in output_schema.items()}
+    props = {key: convert_val(value, model) for key, value in output_schema.items()}
 
     parameters = {"type": "object", "properties": props}
     parameters["required"] = list(props.keys())
-    parameters["additionalProperties"] = False
+
+    # TODO: this is a hack to get around the fact that gemini doesn't support additionalProperties
+    if "gemini" not in model:
+        parameters["additionalProperties"] = False
 
     # Initial LLM call
     response = call_llm(

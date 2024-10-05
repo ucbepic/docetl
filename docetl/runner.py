@@ -68,11 +68,10 @@ class DSLRunner:
 
         proxy_url = self.config.get("proxy_url")
         self.client = (
-            Client(base_url=proxy_url, api_key=os.getenv("DOCETL_PROXY_API_KEY"))
+            Client(base_url=proxy_url, api_key=os.getenv("DOCETL_PROXY_API_KEY", "EMPTY"))
             if proxy_url
             else None
         )
-
         self.syntax_check()
 
     @classmethod

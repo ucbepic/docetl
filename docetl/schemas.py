@@ -372,6 +372,7 @@ class Pipeline(BaseModel):
     output: PipelineOutput
     parsing_tools: List[ParsingTool] = []
     default_model: Optional[str] = None
+    proxy_url: Optional[str] = None
 
     def __init__(self, **data):
         super().__init__(**data)

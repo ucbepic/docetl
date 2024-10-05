@@ -117,6 +117,7 @@ class Pipeline(PipelineModel):
             steps=self.steps,
             output=self.output,
             default_model=self.default_model,
+            proxy_url=self.proxy_url,
             parsing_tools=self.parsing_tools,
         )
         updated_pipeline._update_from_dict(optimized_config)
@@ -176,6 +177,7 @@ class Pipeline(PipelineModel):
                 "output": self.output.dict(),
             },
             "default_model": self.default_model,
+            "proxy_url": self.proxy_url,
             "parsing_tools": (
                 [tool.dict() for tool in self.parsing_tools]
                 if self.parsing_tools

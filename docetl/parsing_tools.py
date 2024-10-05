@@ -5,6 +5,25 @@ from typing import List, Optional
 
 from litellm import transcription
 
+def llama_index_simple_directory_reader(filename: str) -> List[str]:
+    from llama_index.core import SimpleDirectoryReader
+
+    documents = SimpleDirectoryReader(filename).load_data()
+    # FIXME: What about doc.metadata? Would be good to include that too...
+    return [doc.text for doc in documents]
+
+def llama_index_wikipedia_reader(filename: str) -> List[str]:
+    from llama_index.readers.wikipedia import WikipediaReader
+
+    loader = WikipediaReader()
+    pages = [filename]
+    documents = loader.load_data(pages=pages, auto_suggest=False)
+    # The wikipedia reader does not include the page url in the metadata, which is impractical...
+    for name, doc in zip(pages, documents):
+        doc.metadata["source"] = "https://en.wikipedia.org/wiki/" + name
+    
+    # FIXME: What about doc.metadata? Would be good to include that too...
+    return [doc.text for doc in documents]
 
 def whisper_speech_to_text(runner, filename: str) -> List[str]:
     """

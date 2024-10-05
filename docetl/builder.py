@@ -20,7 +20,7 @@ from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.map_optimizer import MapOptimizer
 from docetl.optimizers.reduce_optimizer import ReduceOptimizer
 from docetl.optimizers.utils import LLMClient
-from docetl.utils import load_config
+from .pipeline import Pipeline
 
 install(show_locals=True)
 
@@ -77,13 +77,16 @@ class DatasetOnDisk(dict):
         return [(key, self[key]) for key in self.keys()]
 
 
-class Optimizer:
+class Optimizer(Pipeline):
     @classmethod
     def from_yaml(cls, yaml_file: str, **kwargs):
         base_name = yaml_file.rsplit(".", 1)[0]
         suffix = yaml_file.split("/")[-1].split(".")[0]
-        config = load_config(yaml_file)
-        return cls(config, base_name, suffix, **kwargs)
+        return Pipeline.from_yaml(
+            yaml_file,
+            base_name=base_name,
+            yaml_file_suffix=suffix,
+            **kwargs)
 
     def __init__(
         self,
@@ -128,8 +131,8 @@ class Optimizer:
             datasets (Dict): Stores loaded datasets.
 
         The method also calls print_optimizer_config() to display the initial configuration.
-        """
-        self.config = config
+        """ 
+        Pipeline.__init__(self, config)
         self.console = Console()
         self.optimized_config = copy.deepcopy(self.config)
         self.llm_client = LLMClient(model)

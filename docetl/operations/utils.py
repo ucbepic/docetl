@@ -72,6 +72,7 @@ def freezeargs(func):
 
     return wrapped
 
+
 def flush_cache(console: Console = Console()):
     """
     Flush the cache to disk.
@@ -195,6 +196,7 @@ def cache_key(
     }
     return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest()
 
+
 def get_user_input_for_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     """
     Prompt the user for input for each key in the schema using Rich,
@@ -232,7 +234,6 @@ def get_user_input_for_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
             return get_user_input_for_schema(schema)  # Recursive call to retry
 
     return user_input
-
 
 
 class InvalidOutputError(Exception):
@@ -343,7 +344,6 @@ def truncate_messages(
     return truncated_messages
 
 
-
 def safe_eval(expression: str, output: Dict) -> bool:
     """
     Safely evaluate an expression with a given output dictionary.
@@ -405,8 +405,6 @@ class APIWrapper(object):
 
         return result
 
-
-
     # TODO: optimize this
     @freezeargs
     def cached_call_llm(
@@ -452,7 +450,6 @@ class APIWrapper(object):
                     c.set(cache_key, result)
 
         return result
-
 
     def call_llm_with_validation(
         self,
@@ -509,9 +506,6 @@ class APIWrapper(object):
             )
 
         return parsed_output, cost, False
-
-
-
 
     def call_llm(
         self,
@@ -581,8 +575,6 @@ class APIWrapper(object):
                     # TODO: HITL
                     return {}
 
-
-
     def call_llm_with_cache(
         self,
         model: str,
@@ -630,26 +622,28 @@ class APIWrapper(object):
             if "gemini" not in model:
                 parameters["additionalProperties"] = False
 
-            tools = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "send_output",
-                        "description": "Send structured output back to the user",
-                        "strict": True,
-                        "parameters": parameters,
-                        "additionalProperties": False,
-                    },
-                }
-            ]
+            function_spec = {
+                "name": "send_output",
+                "description": "Send structured output back to the user",
+                "strict": True,
+                "parameters": parameters,
+            }
+            if "gemini" not in model:
+                function_spec["additionalProperties"] = False
+
+            tools = [{"type": "function", "function": function_spec}]
             tool_choice = {"type": "function", "function": {"name": "send_output"}}
 
         elif tools is not None:
             tools = json.loads(tools)
             tool_choice = (
-                "required" if any(tool.get("required", False) for tool in tools) else "auto"
+                "required"
+                if any(tool.get("required", False) for tool in tools)
+                else "auto"
             )
-            tools = [{"type": "function", "function": tool["function"]} for tool in tools]
+            tools = [
+                {"type": "function", "function": tool["function"]} for tool in tools
+            ]
 
         else:
             tools = None
@@ -659,29 +653,28 @@ class APIWrapper(object):
         if scratchpad:
             system_prompt += f"""
 
-You are incrementally processing data across multiple batches. Maintain intermediate state between batches to accomplish this task effectively.
+    You are incrementally processing data across multiple batches. Maintain intermediate state between batches to accomplish this task effectively.
 
-Current scratchpad: {scratchpad}
+    Current scratchpad: {scratchpad}
 
-As you process each batch:
-1. Update the scratchpad with crucial information for subsequent batches.
-2. This may include partial results, counters, or data that doesn't fit into {list(output_schema.keys())}.
-3. Example: For counting elements that appear more than twice, track all occurrences in the scratchpad until an item exceeds the threshold.
+    As you process each batch:
+    1. Update the scratchpad with crucial information for subsequent batches.
+    2. This may include partial results, counters, or data that doesn't fit into {list(output_schema.keys())}.
+    3. Example: For counting elements that appear more than twice, track all occurrences in the scratchpad until an item exceeds the threshold.
 
-Keep the scratchpad concise (~500 chars) and easily parsable. Use clear structures like:
-- Bullet points
-- Key-value pairs
-- JSON-like format
+    Keep the scratchpad concise (~500 chars) and easily parsable. Use clear structures like:
+    - Bullet points
+    - Key-value pairs
+    - JSON-like format
 
-Update the 'updated_scratchpad' field in your output with the new scratchpad content.
+    Update the 'updated_scratchpad' field in your output with the new scratchpad content.
 
-Remember: The scratchpad should contain information necessary for processing future batches, not the final result."""
+    Remember: The scratchpad should contain information necessary for processing future batches, not the final result."""
         messages = json.loads(messages)
 
         # Truncate messages if they exceed the model's context length
         messages = truncate_messages(messages, model)
 
-        self.runner.rate_limiter.try_acquire("llm_call", weight=1)
         if tools is not None:
             response = completion(
                 model=model,
@@ -708,8 +701,6 @@ Remember: The scratchpad should contain information necessary for processing fut
             )
 
         return response
-
-
 
     def call_llm_with_gleaning(
         self,
@@ -868,12 +859,13 @@ Remember: The scratchpad should contain information necessary for processing fut
             messages.append(
                 {
                     "role": "assistant",
-                    "content": json.dumps(self.parse_llm_response(response, output_schema)[0]),
+                    "content": json.dumps(
+                        self.parse_llm_response(response, output_schema)[0]
+                    ),
                 }
             )
 
         return response, cost
-
 
     def parse_llm_response(
         self,
@@ -895,13 +887,14 @@ Remember: The scratchpad should contain information necessary for processing fut
                     f"\tExpected Schema: {e.expected_schema}\n"
                     f"\tPlease manually set this output."
                 )
-                rprint(f"\n[bold yellow]LLM-Generated Response:[/bold yellow]\n{response}")
+                rprint(
+                    f"\n[bold yellow]LLM-Generated Response:[/bold yellow]\n{response}"
+                )
                 output = get_user_input_for_schema(schema)
 
                 return [output]
             else:
                 raise e
-
 
     def parse_llm_response_helper(
         self,
@@ -1009,7 +1002,6 @@ Remember: The scratchpad should contain information necessary for processing fut
         # message = response.choices[0].message
         # return [json.loads(message.content)]
 
-
     def validate_output(self, operation: Dict, output: Dict, console: Console) -> bool:
         """
         Validate the output against the specified validation rules in the operation.
@@ -1035,6 +1027,7 @@ Remember: The scratchpad should contain information necessary for processing fut
                 console.log(f"[yellow]Output:[/yellow] {output}")
                 return False
         return True
+
 
 class RichLoopBar:
     """

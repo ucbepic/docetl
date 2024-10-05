@@ -13,11 +13,7 @@ from rich.prompt import Confirm
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
     RichLoopBar,
-    call_llm,
-    gen_embedding,
-    parse_llm_response,
-    rich_as_completed,
-    validate_output,
+    rich_as_completed
 )
 from docetl.utils import completion_cost, extract_jinja_variables
 
@@ -52,7 +48,7 @@ def compare_pair(
 
     prompt_template = Template(comparison_prompt)
     prompt = prompt_template.render(input1=item1, input2=item2)
-    response = call_llm(
+    response = self.api.call_llm(
         model,
         "compare",
         [{"role": "user", "content": prompt}],
@@ -60,7 +56,7 @@ def compare_pair(
         timeout_seconds=timeout_seconds,
         max_retries_per_timeout=max_retries_per_timeout,
     )
-    output = parse_llm_response(
+    output = self.api.parse_llm_response(
         response,
         {"is_match": "bool"},
     )[0]
@@ -237,7 +233,7 @@ class ResolveOperation(BaseOperation):
                     " ".join(str(item[key]) for key in blocking_keys if key in item)
                     for item in items
                 ]
-                response = gen_embedding(model=embedding_model, input=texts)
+                response = self.api.gen_embedding(model=embedding_model, input=texts)
                 return [
                     (data["embedding"], completion_cost(response))
                     for data in response["data"]
@@ -399,7 +395,7 @@ class ResolveOperation(BaseOperation):
                     ]
 
                 resolution_prompt = reduction_template.render(inputs=cluster_items)
-                reduction_response = call_llm(
+                reduction_response = self.api.call_llm(
                     self.config.get("resolution_model", self.default_model),
                     "reduce",
                     [{"role": "user", "content": resolution_prompt}],
@@ -410,7 +406,7 @@ class ResolveOperation(BaseOperation):
                         "max_retries_per_timeout", 2
                     ),
                 )
-                reduction_output = parse_llm_response(
+                reduction_output = self.api.parse_llm_response(
                     reduction_response,
                     self.config["output"]["schema"],
                     manually_fix_errors=self.manually_fix_errors,

@@ -82,7 +82,7 @@ class Optimizer(Pipeline):
     def from_yaml(cls, yaml_file: str, **kwargs):
         base_name = yaml_file.rsplit(".", 1)[0]
         suffix = yaml_file.split("/")[-1].split(".")[0]
-        return Pipeline.from_yaml(
+        return super(Optimizer, cls).from_yaml(
             yaml_file,
             base_name=base_name,
             yaml_file_suffix=suffix,
@@ -190,6 +190,7 @@ class Optimizer(Pipeline):
             try:
                 operation_class = get_operation(operation_type)
                 operation_class(
+                    self,
                     operation_config,
                     self.config.get("default_model", "gpt-4o-mini"),
                     self.max_threads,
@@ -970,6 +971,7 @@ class Optimizer(Pipeline):
                     f"Dataset '{dataset_name}' not found in config or previous steps."
                 )
             dataset = Dataset(
+                runner=self,
                 type=dataset_config["type"],
                 path_or_data=dataset_config["path"],
                 parsing=dataset_config.get("parsing", []),
@@ -1112,6 +1114,7 @@ class Optimizer(Pipeline):
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         reduce_optimizer = ReduceOptimizer(
+            self, 
             self.config,
             self.console,
             self.llm_client,
@@ -1154,6 +1157,7 @@ class Optimizer(Pipeline):
         new_right_name = right_name
         for _ in range(max_iterations):
             join_optimizer = JoinOptimizer(
+                self, 
                 self.config,
                 op_config,
                 self.console,
@@ -1275,6 +1279,7 @@ class Optimizer(Pipeline):
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         map_optimizer = MapOptimizer(
+            self, 
             self.config,
             self.console,
             self.llm_client,
@@ -1304,6 +1309,7 @@ class Optimizer(Pipeline):
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         optimized_config, cost = JoinOptimizer(
+            self, 
             self.config,
             op_config,
             self.console,
@@ -1351,6 +1357,7 @@ class Optimizer(Pipeline):
         operation_class = get_operation(op_config["type"])
 
         oc_kwargs = {
+            "runner": self,
             "config": op_config,
             "default_model": self.config["default_model"],
             "max_threads": self.max_threads,

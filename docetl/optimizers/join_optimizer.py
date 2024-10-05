@@ -18,6 +18,7 @@ from docetl.utils import completion_cost, extract_jinja_variables
 class JoinOptimizer:
     def __init__(
         self,
+        runner,
         config: Dict[str, Any],
         op_config: Dict[str, Any],
         console: Console,
@@ -30,6 +31,7 @@ class JoinOptimizer:
         estimated_selectivity: float = None,
         status: Status = None,
     ):
+        self.runner = runner
         self.config = config
         self.op_config = op_config
         self.llm_client = llm_client

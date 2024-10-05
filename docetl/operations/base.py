@@ -30,6 +30,7 @@ class BaseOperation(ABC):
             status (Optional[Status]): Rich status for displaying progress. Defaults to None.
         """
         assert "name" in config, "Operation must have a name"
+        assert "type" in config, "Operation must have a type"
         self.config = config
         self.default_model = default_model
         self.max_threads = max_threads

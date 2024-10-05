@@ -517,9 +517,9 @@ def call_llm_with_cache(
                 "function": {
                     "name": "send_output",
                     "description": "Send structured output back to the user",
-                    # "strict": True,
+                    "strict": True,
                     "parameters": parameters,
-                    # "additionalProperties": False,
+                    "additionalProperties": False,
                 },
             }
         ]

@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - staging
+  pull_request:
+    types:
+      - closed
+    branches:
+      - staging
 
 jobs:
   create-or-update-pr:

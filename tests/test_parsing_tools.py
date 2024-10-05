@@ -213,3 +213,21 @@ def test_paddleocr_pdf_to_string():
     assert len(result) == 1
 
     assert "have received the new bottles, please discard" in result[0]
+
+
+# test function todo
+
+
+def test_gptpdf_to_string():
+    input_pdf = "tests/data/PublicWaterMassMailing.pdf"
+
+    result = parsing_tools.gptpdf_to_string(
+        input_path=input_pdf,
+        gpt_model="gpt-4o-mini",
+        api_key=os.environ["OPENAI_API_KEY"],
+        base_url="https://api.openai.com/v1",
+        verbose=False,
+    )
+
+    assert len(result) > 0, "The extracted content should not be empty."
+    assert len(result[0]) > 0, "The extracted content should not be empty."

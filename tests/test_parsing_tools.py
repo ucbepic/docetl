@@ -217,29 +217,17 @@ def test_paddleocr_pdf_to_string():
 
 # test function todo
 
-'''def test_gptpdf_to_string():
-    input_pdf = "tests/data/sample_test.pdf"
-    output_txt = "tests/output/sample_output.txt"
+
+def test_gptpdf_to_string():
+    input_pdf = "tests/data/PublicWaterMassMailing.pdf"
 
     result = parsing_tools.gptpdf_to_string(
         input_path=input_pdf,
-        output_path=output_txt,
-        doc_per_page=True,
-        gpt_model="gpt-4o",
-        api_key="your_openai_api_key",
+        gpt_model="gpt-4o-mini",
+        api_key=os.environ["OPENAI_API_KEY"],
         base_url="https://api.openai.com/v1",
-        verbose=True
+        verbose=False,
     )
 
-    assert isinstance(result, str), "The result should be a string."
-    assert os.path.exists(output_txt), "The output file should be created."
-
-    with open(output_txt, "r", encoding="utf-8") as f:
-        file_content = f.read()
-
-    assert file_content == result, "The content in the output file should match the returned string."
     assert len(result) > 0, "The extracted content should not be empty."
-
-    print("All assertions passed!")
-
-test_gptpdf_to_string()'''
+    assert len(result[0]) > 0, "The extracted content should not be empty."

@@ -172,3 +172,34 @@ def test_map_operation_with_timeout(simple_map_config, simple_sample_data):
     # Execute the operation and expect empty results
     with pytest.raises(docetl.operations.utils.InvalidOutputError):
         operation.execute(simple_sample_data)
+
+
+def test_map_operation_with_gleaning(simple_map_config, map_sample_data):
+    # Add gleaning configuration to the map configuration
+    map_config_with_gleaning = {
+        **simple_map_config,
+        "gleaning": {
+            "num_rounds": 1,
+            "validation_prompt": "Review the sentiment analysis. Is it accurate? If not, suggest improvements.",
+        },
+    }
+
+    operation = MapOperation(map_config_with_gleaning, "gpt-4o-mini", 4)
+
+    # Execute the operation
+    results, cost = operation.execute(map_sample_data)
+
+    # Assert that we have results for all input items
+    assert len(results) == len(map_sample_data)
+
+    # Check that all results have a sentiment
+    assert all("sentiment" in result for result in results)
+
+    # Verify that all sentiments are valid
+    valid_sentiments = ["positive", "negative", "neutral"]
+    assert all(
+        any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
+    )
+
+    # Assert that the operation had a cost
+    assert cost > 0

@@ -89,10 +89,8 @@ class Optimizer(Pipeline):
         base_name = yaml_file.rsplit(".", 1)[0]
         suffix = yaml_file.split("/")[-1].split(".")[0]
         return super(Optimizer, cls).from_yaml(
-            yaml_file,
-            base_name=base_name,
-            yaml_file_suffix=suffix,
-            **kwargs)
+            yaml_file, base_name=base_name, yaml_file_suffix=suffix, **kwargs
+        )
 
     def __init__(
         self,
@@ -137,7 +135,7 @@ class Optimizer(Pipeline):
             datasets (Dict): Stores loaded datasets.
 
         The method also calls print_optimizer_config() to display the initial configuration.
-        """ 
+        """
         Pipeline.__init__(self, config, max_threads)
         self.optimized_config = copy.deepcopy(self.config)
         self.llm_client = LLMClient(model)
@@ -1117,7 +1115,7 @@ class Optimizer(Pipeline):
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         reduce_optimizer = ReduceOptimizer(
-            self, 
+            self,
             self.config,
             self.console,
             self.llm_client,
@@ -1160,7 +1158,7 @@ class Optimizer(Pipeline):
         new_right_name = right_name
         for _ in range(max_iterations):
             join_optimizer = JoinOptimizer(
-                self, 
+                self,
                 self.config,
                 op_config,
                 self.console,
@@ -1282,7 +1280,7 @@ class Optimizer(Pipeline):
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         map_optimizer = MapOptimizer(
-            self, 
+            self,
             self.config,
             self.console,
             self.llm_client,
@@ -1312,7 +1310,7 @@ class Optimizer(Pipeline):
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         optimized_config, cost = JoinOptimizer(
-            self, 
+            self,
             self.config,
             op_config,
             self.console,

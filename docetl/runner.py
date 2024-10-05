@@ -11,6 +11,9 @@ from rich.console import Console
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
+import pyrate_limiter
+import math
+from inspect import isawaitable
 from .pipeline import Pipeline
 
 load_dotenv()

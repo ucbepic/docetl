@@ -18,8 +18,11 @@ def create_parsing_tool_map(
     Returns:
         Dict[str, ParsingTool]: A dictionary mapping tool names to ParsingTool objects.
     """
-    if parsing_tools is None:
+    if not parsing_tools:
         return {}
+
+    if not isinstance(parsing_tools[0], ParsingTool):
+        parsing_tools = [ParsingTool(**tool) for tool in parsing_tools]
 
     return {tool.name: tool for tool in parsing_tools}
 
@@ -245,11 +248,14 @@ class Dataset:
                     self.user_defined_parsing_tool_map
                     and tool["function"] in self.user_defined_parsing_tool_map
                 ):
-                    func = eval(
+                    # Define the custom function in the current scope
+                    exec(
                         self.user_defined_parsing_tool_map[
                             tool["function"]
                         ].function_code
                     )
+                    # Get the function object
+                    func = locals()[tool["function"]]
                 else:
                     raise ValueError(
                         f"Parsing tool {tool['function']} not found. Please define it or use one of our existing parsing tools: {get_parsing_tools()}"

@@ -33,7 +33,7 @@ To install DocETL from source, follow these steps:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/shreyashankar/docetl.git
+git clone https://github.com/ucbepic/docetl.git
 cd docetl
 ```
 

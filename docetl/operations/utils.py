@@ -302,7 +302,10 @@ def truncate_messages(
     """
     Truncate the messages to fit the model's context length.
     """
-    model_input_context_length = model_cost.get(model, {}).get("max_input_tokens", 8192)
+    model_input_context_length = model_cost.get(model.split("/")[-1], {}).get(
+        "max_input_tokens", 8192
+    )
+
     total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
 
     if total_tokens <= model_input_context_length - 100:
@@ -313,7 +316,10 @@ def truncate_messages(
     content = longest_message["content"]
     excess_tokens = total_tokens - model_input_context_length + 200  # 200 token buffer
 
-    encoder = tiktoken.encoding_for_model(model)
+    try:
+        encoder = tiktoken.encoding_for_model(model.split("/")[-1])
+    except Exception:
+        encoder = tiktoken.encoding_for_model("gpt-4o")
     encoded_content = encoder.encode(content)
     tokens_to_remove = min(len(encoded_content), excess_tokens)
     mid_point = len(encoded_content) // 2
@@ -543,7 +549,9 @@ class APIWrapper(object):
         key = cache_key(model, op_type, messages, output_schema, scratchpad)
 
         max_retries = max_retries_per_timeout
-        for attempt in range(max_retries + 1):
+        attempt = 0
+        rate_limited_attempt = 0
+        while attempt <= max_retries:
             try:
                 return timeout(timeout_seconds)(cached_call_llm)(
                     key,
@@ -555,17 +563,20 @@ class APIWrapper(object):
                     scratchpad,
                 )
             except RateLimitError:
-                if attempt == max_retries - 1:
-                    console.log(
-                        f"[bold red]LLM call timed out after {max_retries} retries[/bold red]"
-                    )
-                    # TODO: HITL
-                    return {}
-                time.sleep(0.1)
+                # TODO: this is a really hacky way to handle rate limits
+                # we should implement a more robust retry mechanism
+                backoff_time = 4 * (2**rate_limited_attempt)  # Exponential backoff
+                max_backoff = 120  # Maximum backoff time of 60 seconds
+                sleep_time = min(backoff_time, max_backoff)
+                console.log(
+                    f"[yellow]Rate limit hit. Retrying in {sleep_time:.2f} seconds...[/yellow]"
+                )
+                time.sleep(sleep_time)
+                rate_limited_attempt += 1
             except TimeoutError:
-                if attempt == max_retries - 1:
+                if attempt == max_retries:
                     console.log(
-                        f"[bold red]LLM call timed out after {max_retries} retries[/bold red]"
+                        f"[bold red]LLM call timed out after {max_retries + 1} attempts[/bold red]"
                     )
                     # TODO: HITL
                     return {}
@@ -754,7 +765,7 @@ Remember: The scratchpad should contain information necessary for processing fut
         cost = 0.0
 
         # Parse the response
-        parsed_response = self.parse_llm_response(response, output_schema, messages=messages)
+        parsed_response = self.parse_llm_response(response, output_schema)
         output = parsed_response[0]
 
         messages = (

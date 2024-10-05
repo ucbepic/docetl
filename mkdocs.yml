@@ -48,6 +48,7 @@ nav:
       - Reporting on Themes from Presidential Debates: examples/presidential-debate-themes.md
       - Mining Product Reviews for Polarizing Features: examples/mining-product-reviews.md
       - Medical Document Classification with Ollama: examples/ollama.md
+      - Split and Gather for Legal Document Analysis: examples/split-gather.md
       - Datasets With Custom Parsing: examples/custom-parsing.md
       # - Annotating Legal Documents: examples/annotating-legal-documents.md
       # - Characterizing Troll Behavior on Wikipedia: examples/characterizing-troll-behavior.md

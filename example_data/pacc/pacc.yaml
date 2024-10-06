@@ -1,0 +1,72 @@
+datasets:
+  pacc_data:
+    type: file
+    path: "example_data/pacc/output.json"
+
+default_model: gpt-4o-mini
+
+operations:
+  - name: extract_issues_and_votes
+    type: map
+    timeout: 20000
+    optimize: False
+    max_batch_size: 1
+    output:
+      schema:
+        # categories: "list[ {category: str, issue: str, votes: list[str]} ]"
+        issues: "list[{issue: str, category: str, outcome: str, rationale: str, votes: list[str]}]"
+    prompt: |
+      Analyze the following city council meeting minutes for {{ input.url }} on {{ input.date }}:
+
+      Meeting Minutes:
+      {{ input.content }}
+
+      Extract the main issues alongwith their category discussed in this meeting and the outcome, votes and councilmember's give rationale on why they cast thier vote that way with their name on these issues.
+      Return a list of issues, it's category and corresponding votes in the following format:
+      [
+        {
+          "issue": "Descripton of the issue",
+          "category": "Category of the issue",
+          "outcome": "Outcome of the votes",
+          "rationale": "Rationale for why councilmembers voted that way",
+          "votes": list["name: vote", "name: vote"]
+        },
+        {
+          "issue": "Descripton of the issue",
+          "category": "Category of the issue",
+          "outcome": "Outcome of the votes",
+          "rationale": "Rationale for why councilmembers voted that way",
+          "votes": list["name: vote", "name: vote"]
+        },
+        ...
+      ]
+
+      1. Ensure that every councilmember's vote is included in the list of votes for each issue. If the councilmember did not vote on an issue, include their name with a placeholder value like "-". Only include votes of councilmembers and not other attendees. Use their names and not the titles (like mayor or councilmembers) to identify them and ensure that they are not duplicated.
+      2. Use from the following categories - "Housing", "Education", "Transportation", "Economy", "Public Safety". Categories are optional and may not be present for all issues. If a category is not present, use a placeholder value like "Uncategorized". 
+      3. Rationale can be summarized and does not need to be verbatim, but it should explain why a particular vote was cast. If the rationale is not present, use a placeholder value like "-".
+      4. Outcomes should be either "passed, "failed" or "other". If the outcome is not present, use a placeholder value like "-".
+  - name: unnest_votes
+    type: unnest
+    unnest_key: issues
+    recursive: false
+
+
+pipeline:
+  steps:
+    - name: pacc_analysis
+      input: pacc_data
+      operations:
+        - extract_issues_and_votes
+
+# pipeline:
+#   steps:
+#     - name: pacc_analysis
+#       input: pacc_data
+#       operations:
+#         - extract_issues_and_votes
+#         - unnest_votes
+
+  output:
+    type: file
+    path: "example_data/pacc/pacc_analysis.json"
+    intermediate_dir: "checkpoints"

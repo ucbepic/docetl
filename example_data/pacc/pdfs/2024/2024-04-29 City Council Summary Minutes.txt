@@ -1,0 +1,684 @@
+CITY COUNCIL 
+SUMMARY MINUTES 
+ 
+Page 1 of 15 
+ Special Meeting 
+Transportation Workshop 
+ 
+April 29, 2024 
+The City Council of the City of Palo Alto met on this date in the Council 
+Chambers and by virtual teleconference at 5:30 P.M. 
+Present In Person:  
+Burt, Kou, Lauing, Lythcott-Haims, Stone, Tanaka, 
+Veenker 
+Present Remotely:  
+Absent: 
+ 
+Call to Order 
+Mayor Stone called the meeting to order, and roll was taken.  
+ 
+Agenda Changes, Additions and Deletions 
+Ed Shikada, City Manager, stated there were no agenda changes. He also 
+noted this was a Special Meeting of the Council specifically on transportation, 
+with no City Manager comments and no public comments.  
+ 
+TRANSPORTATION WORKSHOP: STUDY SESSIONS 
+1. 
+Bicycle and Pedestrian Transportation Plan (BPTP) Update: Review and 
+discuss the vision statement, objectives, performance measures, and 
+share and obtain feedback on the existing conditions technical 
+analysis. 
+Amanda Leahy, Kittelson & Associates, Consultant, reviewed the meeting 
+purpose and agenda. She discussed findings of the analysis. Bicycle Level of 
+Traffic Stress (LTS) is a rating indicating the stress a road signal or crossing 
+imposes on bicyclists with level 1 indicating a low-stress facility and 4 
+indicating a high-stress facility. Lower-stress facilities are separated or off-
+road paths that are often wider. She presented a map showing the level of 
+stress on city streets, with 68% of streets in Palo Alto determined to be LTS 
+1 or 2 but often disconnected by the higher-stress roadways and 
+SUMMARY MINUTES 
+ 
+ 
+Page 2 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+intersections. Analysis of major barriers examined freeways, creeks, rail 
+lines, and areas that need transit. The results of this analysis inform the 
+locations and types of treatments needed to create more direct connections. 
+For example, the lack of crossing opportunities at US 101 results in trips that 
+are almost 4 times longer than the straight line crossing. She presented a 
+graph of the 10-year collision history, showing a decreasing number of 
+pedestrian and bicycle collisions, with further detail on the 5-year collision 
+history, with a concentration in downtown and near higher-activity centers, 
+including schools. She presented a map showing concentrations of fatal and 
+severe-injury collisions and discussed the demographics of walking and 
+biking activity.  
+Ms. Leahy described the community engagement thus far and showed the 
+revised draft vision statement as well as the draft objectives. The draft 
+objectives are grouped into five topics: safe and inclusive, connected and 
+accessible, comfortable and enjoyable, community-led, and integrated and 
+collaborative. Draft performance measures will be used to help identify and 
+select projects as well as track the impact of investments over time to 
+evaluate how the City is meeting goals related to biking and walking. The 
+selection of these measures is a key step in the development of the plan and 
+network recommendations. She reviewed the next steps and recommended 
+action.  
+Council Member Burt noted the draft objectives were different from the prior 
+objectives. He was surprised that GHGs and atmospheric pollutants as well 
+as community health were not included. He did not see references to the 
+benefits of parking demand reduction and traffic reduction in the objectives. 
+He felt the attention spent on bikes and peds also benefits drivers who then 
+have to park and that it should be framed that way. He asked if there was 
+an opportunity for the council members to sit down with the consultants for 
+further discussion.  
+Ozzy Arce, Senior Transportation Planner, explained that Reduce Emissions 
+was one of the draft performance measures and that the City's existing 
+S/CAP addresses GHG emissions.  
+Council Member Veenker felt it would be helpful to connect collision 
+information on whether the incidents occurred at night/in the dark. She was 
+interested in more specifically including climate and GHG goals in the 
+objectives and vision statement, for example using wording that encourages 
+walking and biking. She also felt education was missing from the objectives. 
+She questioned where a road with bollards would fit into the Level of Traffic 
+Stress analysis.  
+SUMMARY MINUTES 
+ 
+ 
+Page 3 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+Ms. Leahy responded that bollards reduce the level of stress and a separated 
+bike lane would generally be an LTS 1 facility.  
+Vice Mayor Lauing asked if the data that darkness was causing collisions 
+suggested the City should be more significantly investing in lighting and 
+whether that was a bigger cost element than expected. He was interested in 
+more current studies on bike user behavior as E-bikes are becoming more 
+common. He noted the map data did not seem to include anything west of 
+280 and wondered if that area was included in the injury rates.  
+Ms. Leahy answered that the need for lighting was very important and 
+agreed that it was a bigger cost element. She stated rider count information 
+will be collected and incorporated into the plan, including the types of bikes 
+people are using as a data point. She explained the analysis included all of 
+the street network within the city limits.  
+Council Member Lythcott-Haims echoed the importance of everyone 
+embracing the objectives and commitments, not just the fervent cyclists and 
+pedestrians. This is in everyone's interest in the move toward combatting 
+climate change and being a healthier community. She felt it was time to 
+make the issue mainstream. She questioned the process of assessing the 
+LTS, whether it was plugging in numbers and determining a score or if 
+counters were set up to really understand the actual traffic. She suggested 
+discussing with neighborhood associations which streets residents avoid due 
+to school traffic as a meaningful way to understand local issues.  
+Ms. Leahy responded that the map shows the quantitative data analysis 
+using roadway characteristics and average daily traffic volumes that obscure 
+higher-stress peak periods and Staff are working to supplement that with 
+community input.  
+Council Member Kou agreed with involving neighborhood leaders who know 
+the streets to provide important information. She felt in addition to more 
+light, there needed to be education to inform people to wear reflective vests 
+and have lights on bicycles. She questioned if the collision information was 
+available on how the collision happened to understand the behaviors and 
+help with education. Regarding the draft objectives of "comfortable and 
+enjoyable," she believed it was not enjoyable for pedestrians to have cyclists 
+come up behind them yelling to move. She stated the speed limit needed to 
+be reconsidered.  
+Ms. Leahy noted the collision data was somewhat limited as it was taken 
+through police reports and what the officer reporting on the scene observed 
+or understood.  
+SUMMARY MINUTES 
+ 
+ 
+Page 4 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+Council Member Tanaka believed the biggest thing keeping people from 
+biking was safety. He described an initiative in Cambridge, Massachusetts, 
+that every street has a protected bike lane by default unless it cannot and 
+would love to see something like that in Palo Alto. He also suggested having 
+fixed dollar amount subsidies for more affordable E-bikes rather than only 
+very expensive ones, in order to be more conscious of socioeconomic 
+differences of people in the City. He asked why bike shares have not 
+happened even after a unanimous Council approval. He also questioned how 
+El Camino fits into this.  
+Philip Kamhi, Chief Transportation Official, responded that there is a position 
+available for someone to manage the bike share program that Staff is trying 
+to hire for. There was a previous attempt to hire for that position, which was 
+unsuccessful. He also noted that the El Camino work is under the Caltrans El 
+Camino Ad Hoc and is not waiting for the bike plan. 
+Mayor Stone was also interested in the bike sharing program. He questioned 
+if there was adequate bike parking available. On the collision data, he asked 
+what is considered a severe injury. He also questioned if the decrease in 
+collisions was a trend across other cities.  
+Chief Transportation Official Kamhi stated that in downtown, there seemed 
+to be adequate bike parking facilities currently, and there will be more 
+analysis to see if there are areas that could use additional bike parking. He 
+believed the decrease in collisions was due to a confluence infrastructure 
+improvements, decrease in traffic during COVID, and various other factors.  
+Ms. Leahy answered that the injury classifications were from the police 
+reports and a severe injury was something that might result in a hospital 
+visit.  
+Council Member Lythcott-Haims related her son's experience in which a 
+driver opened a car door and her son biked into it and tumbled over. Since 
+he was not injured, there was nothing reported. She believed the data was 
+only the tip of the iceberg and that there must be many more incidents like 
+that. She wondered if there was a way to notify someone of the data without 
+an official report.  
+Council Member Kou was interested in what type of measures, such as 
+helmets, might be implemented for more safety. She questioned if the notes 
+from meetings with the Parks and Rec Commission and Planning and 
+Transportation Commission were available, with more comments and detail 
+than just the common themes.  
+SUMMARY MINUTES 
+ 
+ 
+Page 5 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+Chief Transportation Official Kamhi responded that the review of comments 
+and feedback from the Pedestrian and Bicycle Advisory Committee will be 
+included in the report. He believed the Planning and Transportation 
+Commission did meeting minutes.  
+PUBLIC COMMENT: 
+1. 
+Lucy L. wanted the City to rethink and engage with the school district. 
+She felt making Churchill an underpass and forcing students to travel 
+five blocks to get back to the school would increase bike traffic on 
+Embarcadero Road where there is no bike path or protected bike lane. 
+She suggested Churchill should be fully open to pedestrians and cars 
+the way Charleston and East Meadow are. 
+2. 
+Elizabeth A. explained that making streets safe for people to walk and 
+bike actually makes them safe for people to drive as well. She 
+suggested looking at specific origin-destination pairs to evaluate the 
+travel times currently and how it would change if the network was 
+changed in some way, also adding in the concept of the 15-minute 
+city. 
+3. 
+Liz G. (Zoom) spoke about the recent deadly accident of a bicyclist 
+traveling west on California to cross El Camino Real and asked to 
+include this intersection in these talks. She stated the report had a 
+lack of perspective of pedestrians and cyclists dealing with truck 
+traffic, noting the lack of oversight toward trucks traveling on roads 
+that do not allow trucks.  
+4. 
+Mark S. (Zoom) would like to see the next phase of the plan focus on 
+how the City will promote more biking and walking. He thought the 
+reports finding that accidents are going down was a reporting problem 
+and not reality. He noted the ride from Santa Clara to Palo Alto was 18 
+miles on existing bike paths but only 8 miles back on El Camino and 
+those distances matter to daily commuters. He wanted to see more 
+attention paid to E-bikes and infrastructure in the plan and felt the 
+intersection at North California and Alma next to the pedestrian bike 
+tunnel needed to be looked at from a safety perspective.  
+5. 
+Aram J. (Zoom) requested information on the cost to the City of this 
+consulting firm. He also wanted information on the cost of all lawsuits 
+filed against the City of Palo Alto over the past five years for bicycle-
+pedestrian accidents, including accidents in the park lands.  
+SUMMARY MINUTES 
+ 
+ 
+Page 6 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+6. 
+Eric N. (Zoom) suggested to consider, when prioritizing projects, how 
+much improvement the project provides because the amount of money 
+is almost always limited.  
+7. 
+William C. suggested putting in speed bumps on Georgia Avenue 
+adjacent to where the bicycle path meets the road in both directions as 
+a simple way to slow cars down and reduce accidents. He stated he 
+sees kids getting hit by cars on their bikes nearly every week and the 
+incidents are almost never reported.  
+8. 
+Penny E. felt the collision data would be more useful if it included trip 
+counts or collision rates rather than collision counts given there were 
+no school trips on the road during the pandemic. She noted an error in 
+the report, stating that Wilke Bridge was not a walkway but a bicycle-
+pedestrian bridge carrying hundreds of bicycles every day. She spoke 
+about the difficulty of biking on San Antonio Road.  
+NO ACTION 
+The Council took a five-minute break.  
+ 
+2. 
+Review of Rail Grade Separation Alternatives for the advancement of 
+the alternatives into the preliminary engineering and environmental 
+documentation phase; CEQA status – statutorily exempt under CEQA 
+section 15262 (feasibility and planning study). 
+Philip Kamhi, Chief Transportation Official, explained that the purpose of this 
+Item was to review and discuss the efforts that have been completed to date 
+concerning grade separation alternatives for Churchill, Meadow, and 
+Charleston. The input will inform the Rail Committee and Council's 
+consideration and decision on advancing specific alternatives into the 
+preliminary engineering and environmental documentation phase.  
+Ripon Bhatia, Senior Engineer, described that for the Churchill Avenue 
+crossing, a partial underpass was already selected as the local preferred 
+alternative and for Meadow/Charleston, Council has narrowed down the 
+alternatives to three options. He discussed engagement with Caltrain and 
+evaluation of four-tracking segments. Caltrain has selected California Avenue 
+Station for the four-tracking between Churchill Avenue and Meadow Drive. 
+Caltrain provided additional technical review and reviewed all conceptual 
+alternatives for these three grade crossings, identifying their concerns. Staff 
+has worked with Caltrain to accommodate and address those elements in the 
+alternatives. The partial underpass alternatives were refined to incorporate 
+SUMMARY MINUTES 
+ 
+ 
+Page 7 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+feedback from stakeholders. Council had directed Staff to review the merits 
+of Kellogg and Seale Avenue crossings as part of the partial underpass at 
+Churchill Avenue. The analysis found that a bicycle and pedestrian crossing 
+at Seale Avenue would fill a longer gap between alternative locations and 
+would increase connectivity; however, it would also involve the use of park 
+land at Peers Park. There are right-of-way constraints on the west side of 
+the railroad tracks and potential impacts to the Palo Alto Unified School 
+District stadium for the Kellogg Avenue location, and a drawback of the 
+location is several turns cyclists and pedestrians need to make to traverse 
+the crossing.  
+Robert Barnard, Caltrain Chief, Rail Design and Construction, explained 
+Caltrain seeks to balance the needs of an operating railroad with the 
+community. The team hoped to provide additional information to support 
+effective decision-making to advance this project to the next level. Caltrain's 
+focused review was on the right of way in the categories of safety, 
+engineering, maintenance and operations, and policy and agreements. The 
+team developed draft solutions based on the available planning level 
+information. Mr. Barnard provided a high-level summary of the team's 
+findings. For Churchill, it was found that a partial underpass at Kellogg was 
+viable, with some refinements; the closure option with mitigations was 
+moderately viable with modest encroachment and a ramp impacting Alma 
+Street; and closure option 2 with mitigations was viable with no concerns.  
+Chief Transportation Official Kamhi discussed that the Rail Committee 
+recommendations were to select Seale as the preferred bicycle and 
+pedestrian crossing location and reconfirm the preference for a partial 
+underpass for Churchill Avenue.  
+Council Member Burt shared that the Rail Committee had a lot of discussion 
+on Churchill versus Seale and felt the Kellogg location was not viable. He 
+explained the reasons for this, including the Kellogg location's impacts to 
+PAUSD. The landing for the Seale option comes up in Peers Park and opens 
+up the park for bike and ped access.  
+ 
+Council Member Veenker noted she supported the selection of Seale for the 
+reasons Council Member Burt stated.  
+Mayor Stone wanted to clarify that no park land was required to be 
+undedicated for this option. He asked how many trips are made daily to Paly 
+using the current Churchill crossing. He stated he supported both of the 
+plans.  
+SUMMARY MINUTES 
+ 
+ 
+Page 8 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+Molly Stump, City Attorney, explained that traditionally bike and ped paths 
+within parks have been approved through a park improvement ordinance as 
+they are park features that improve access. She did not believe there was an 
+undedication requirement but that would be revisited further as an actual 
+project is identified.  
+Chief Transportation Official Kamhi later noted that bike and ped trip counts 
+April 2023 showed 500 to 600 bicyclists and 870 or so pedestrians on 
+Churchill daily, total, in both directions.  
+Council Member Burt discussed technologies available to show origin and 
+destination information. He noted that Seale is the only street that goes all 
+the way from Alma to Newell, creating a potentially valuable bike route out 
+to Newell. As Caltrain came back with feedback on the initial 5% designs, 
+there were a number of surprises on Caltrain's feedback that made the 
+grade crossings more problematic and expensive than expected. A number 
+of those have been resolved and some will be worked through in the next 
+phase up to 15% engineering, such as improving bike and ped circulation 
+and minimizing property impacts.  
+Vice Mayor Lauing pointed out there were a lot of meetings with Staff, 
+Caltrain, and consultants to work out these issues, and he was pleased with 
+where things were compared to where it started.  
+PUBLIC COMMENT: Study Session – Item 2: Churchill Avenue & Kellogg Vs 
+Seale Avenue  
+1. 
+Lucy L. strongly suggested, instead of building a wall, stopping all 
+traffic from going across Alma. She requested the use of engineering 
+skills to come up with a way to have the full underpass with the 
+pedestrian and bicycle crossing at Churchill instead of spending more 
+money to build a new tunnel at Seale that would not get used 
+anywhere near as much.  
+2. 
+Kat J-M (Zoom) asked that removing the 10-foot landscaping strip be 
+reconsidered as it will create a safety issue for residents backing out 
+of driveways onto Alma.  
+3. 
+Liz G. (Zoom) was happy to see the alternative being narrowed down 
+to a decision. She was grateful for Mr. Barnard's presentation. She 
+was on the fence about the Churchill partial underpass and did not 
+think blocking direct access to pedestrians and bicyclists would solve 
+many problems and may create more challenges.  
+SUMMARY MINUTES 
+ 
+ 
+Page 9 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+4. 
+Eric N. (Zoom) felt that if low-stress crossing options during 
+construction were not available for students and commuters, many 
+bicyclists 
+and 
+pedestrians 
+may 
+choose 
+to 
+drive, 
+worsening 
+congestion. He stated it was important to build new bike-ped 
+crossings before the existing crossings become construction zones.  
+5. 
+Penny E. hoped Staff would help organize all of the information with 
+a matrix. She also thought the cost estimates looked extremely out 
+of date and wanted to understand the effects on the budget.  
+6. 
+Deborah G. (Zoom) stated she did not see any crossings in South 
+Palo Alto. She noted the crossing at Seale would destroy the dog 
+park at Peers Park and there would be a need for another centrally 
+located dog park. She felt it was optimistic that students would go 
+through Seale and that they needed the Kellogg undercrossing.  
+7. 
+Cedric (Zoom) echoed Penny's comment that the information was 
+hard to find, in particular the information on property impacts of each 
+option. He also supported building the bike-ped crossings before 
+turning the existing crossings into construction zones.  
+Council Member Burt explained the partial underpass design for Churchill 
+itself has not changed considerably from five years ago but previously when 
+a full undercrossing was being considered, there were far more property 
+impacts on Churchill and Alma. The minimal impact on properties was one of 
+the reasons the partial underpass was selected along with the traffic studies 
+showing the primary turning movements of cars being met with this option. 
+The Rail Committee fully embraces bike and ped crossings being created 
+prior to the vehicular ones, with a particular emphasis on the proposed 
+crossing in the vicinity of Loma Verde.  
+Chief Transportation Official Kamhi presented maps showing the property 
+impacts for the Kellogg and Seale alternatives, with the crossing at Kellogg 
+requiring more partial acquisitions.  
+Council Member Lythcott-Haims asked if there was a slide showing the 
+comparative property acquisitions for the full underpass alternative. 
+Chief Transportation Official Kamhi noted there was no slide available for the 
+full underpass but there was high-level work done on that.  
+Nadia Naik explained that the property impacts would have been incredibly 
+significant with the full underpass, cutting off not just the access to the 
+homes along the road but the set back homes as well. Additionally, the 
+traffic studies showed the main use of Alma at the Churchill intersection was 
+SUMMARY MINUTES 
+ 
+ 
+Page 10 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+cars turning north and south onto Alma. She gave more detail on the bike-
+pedestrian patterns.  
+Council Member Kou asked where the bicyclists and pedestrians cross on the 
+north side of Churchill. She also asked for confirmation on the removal of 
+the 10-foot planting strip mentioned in public comment.  
+Chief Transportation Official Kamhi responded that bikes and pedestrians 
+would either cross at Embarcadero or, if selected as the preferred location, 
+Seale. He also noted that a vehicular cyclist could actually navigate through 
+the underpass, which would be a high level of stress.  
+Senior Engineer Ripon Bhatia responded that Rail Committee proposed a 
+buffer zone of 5 feet for landscaping and another 5 feet for the sidewalk, 
+providing 10 feet of buffer between the curb and driveway, but that requires 
+a partial acquisition from all those properties.  
+The discussion continued on to Meadow and Charleston. 
+Senior Engineer Ripon Bhatia explained that feedback was taken from 
+various stakeholders and incorporated into the refined partial underpass 
+designs for Meadow and Charleston. There were community requests to 
+review the viaduct alternative. Caltrain reviewed the viaduct and shared 
+their results and recommendations on improvements that would be needed. 
+The Rail Committee preferred the hybrid and underpass alternatives, and 
+viaduct was no longer in consideration by the Rail Committee.  
+Mr. Barnard explained there is a jog in the right-of-way at Meadow Drive 
+that is material to where the tracks are and influences where other things 
+are located. Caltrain found the hybrid solution was viable with some 
+refinements. The temporary shoofly would impact Alma and take about a 12-
+foot travel lane during construction but still leave 4 travel lanes available. 
+The viaduct option would push out into Alma Street, taking about two travel 
+lanes for not only the viaduct but also the viaduct approach structures, 
+which would be permanently in Alma Street. The underpass was found to be 
+viable with modest accommodations.  
+Chief Transportation Official Kamhi presented the property impacts for the 
+Meadow Drive underpass alternative and the Charleston Road underpass 
+alternative on the east and west sides, which include some tentative full 
+property acquisitions. He reviewed the Rail Committee recommendation, a 
+2-to-1 vote for the underpass alternative and hybrid alternative at Meadow 
+Drive and Charleston Road as the preferred options to be advanced to the 
+City Council for preliminary engineering review. The Rail Committee also 
+recommended seeking ways to reduce property impacts; to optimize the 
+SUMMARY MINUTES 
+ 
+ 
+Page 11 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+bike and pedestrian crossings and, where feasible, improve connection to 
+bike infrastructure beyond the study to improve the network; to further 
+refine the traffic circle on Charleston Road to reduce property impacts; and 
+to refine construction impacts to better understand mutations needed during 
+the lengthy construction process.  
+Council Member Burt explained that based on big transportation projects in 
+the region, it was assumed the costs would be at least 50% higher, but that 
+will not be known until the next phase of engineering. Previously the 
+consultants did not have an indication that jack box construction, which 
+greatly reduces the time of construction and potentially has significant cost 
+decreases, would be permitted, but Caltrain's Corridor Crossing Strategy 
+now embraces jack box construction where applicable. Regarding the need 
+for grade separations, he noted that even with commuter trips reduced and 
+gate downtimes not as much as expected, increasing housing means there 
+will likely be a lot more people in the community embracing transit and 
+biking. Safety and security of the tracks is a big issue in the community, and 
+grade separations can do a great deal for that. He also asked Staff to review 
+the reason this item is at a decision point at this meeting. 
+Chief Transportation Official Kamhi explained the City has been awarded 2 
+grants for close to $8M per location and needs to enter a funding agreement 
+for the next phase, which requires the preferred alternatives to be selected.  
+Council Member Burt added for context that future funding is also in 
+jeopardy if the preferred alternatives are not chosen by June.  
+Council Member Kou, regarding the trench option being cost prohibitive, felt 
+this was an investment that would last many years. She thought High-Speed 
+Rail should make a determination now about whether it will come through 
+here and believed money from High-Speed Rail should be invested into this 
+project. She was against any option that required full property acquisitions. 
+Council Member Tanaka agreed with Council Member Kou that the trench 
+deserved a closer look. He also felt there would be litigation involved with 
+property acquisitions that would be very expensive and take a lot of time, so 
+factoring that in, he wanted to look at the trench as a viable option.  
+Council Member Lythcott-Haims asked Staff to explain how the turning 
+movements would change with the roundabout in the Charleston Road 
+underpass alternative and the U-turn at Alma Village on the Meadow 
+alternative, which would require a traffic light and would potentially back up 
+Alma. She asked about the impact at commute time.  
+SUMMARY MINUTES 
+ 
+ 
+Page 12 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+Chief Transportation Official Kamhi explained that because Charleston is 
+depressed in an underpass going under the rail, the turning movements 
+would not be available for somebody to make a left turn onto Charleston. To 
+make that movement, one would need to go the right on Charleston and use 
+the traffic circle.  
+Senior Engineer Bhatia added that the three movements affected by this 
+underpass were southbound right, northbound left, and eastbound left 
+because of the bike and ped path on the north side on a different elevation 
+than the roadway. Since the movements cannot be made at the intersection, 
+one will have to go through the roundabout. He explained a similar issue on 
+Meadow. The south side is utilized for bike and ped pathway to minimize 
+impact to the residential driveways. The difference in grades does not allow 
+any movements that go toward the south side on Alma Street at that 
+location. The northbound right would have to use Alma Village to make a U-
+turn and then go onto the off ramp in the southbound direction to go onto 
+Meadow Drive. Eastbound Meadow Drive traffic will not be able to access 
+northbound Alma and would have to use a different street to get to Alma 
+Street. He noted the traffic study took those turning movements and signal 
+timing into account, and off ramps were looked at to allow for the additional 
+turning movements.  
+Council Member Lythcott-Haims noted she was the Rail Committee member 
+who voted against this. She believed most members of the community did 
+not know this would be a lengthy construction project with a lot of backups 
+and delays, fundamentally altering traffic patterns. She was interested in 
+making the least impact on private property and the character of the City. 
+She accepted none of the options would please everybody but hoped to end 
+up with an option that felt visionary and in service to what is right decades 
+out, not just today.  
+Council Member Veenker stated there were no perfect solutions and this was 
+very hard. She noted there was a lot to like about the hybrid option and 
+asked if it was possible to ballpark the cost of having it built on stanchions 
+like a viaduct.  
+Chief Transportation Official Kamhi stated the option for stanchions could be 
+evaluated further if the hybrid option was selected.  
+Vice Mayor Lauing noted the one thing worse than all the alternatives was no 
+project. He explained that the Rail Committee had listed for further 
+consideration 
+to 
+reduce 
+property 
+impacts, 
+optimize 
+bike-pedestrian 
+crossings, and further refine the traffic circle on Charleston, hoping there are 
+solutions to these with further engineering. He discussed the reconsideration 
+SUMMARY MINUTES 
+ 
+ 
+Page 13 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+of the viaduct by the Rail Committee and the costs of the trench option, 
+originally estimated at $800M to $950M and currently estimated to be 50% 
+more. He did not want to open the trench as an option relative to funding 
+and the other alternatives.  
+Council Member Kou felt there should be a line item included for the cost of 
+property acquisitions and potential related lawsuits.  
+Chief Transportation Official Kamhi clarified that the line item for right-of-
+way and utilities was meant to capture those costs.  
+Council Member Burt added some context to the discussion regarding the 
+trench option. For a viaduct or underpass, it did not impact the cost that 
+someday Caltrain may need to put four tracks there. However, it is not 
+possible to build a two-track trench and come back and do a four-track 
+trench. Allowing for the four-track would cause costs to go up by 50% or 
+more, plus significant increased cost from a design standpoint, meaning the 
+trench would unlikely be less than $1.5B. The funding sources will not pay 
+for the difference in cost between that and other alternatives. It is not 
+possible to come up with another $1B. There is an impact to community 
+quality of life in not doing anything or continuing to look for an ideal solution 
+regardless of price when the dollars are not available. He noted it was 
+possible to choose an option and a backup, though there would be additional 
+cost involved. He also discussed how the traffic is impacted by all of the 
+options. The traffic studies show that the hybrid, viaduct, or even trench had 
+traffic signals at Alma backed up and the only option that significantly 
+improves the traffic is the underpass.  
+Council Member Burt added that one of the main reasons people were 
+advocates for the viaduct was the idea of a having a linear park, but 
+unfortunately Caltrain must retain the surface rail even with the viaduct and 
+there is no option for a linear park. He discussed that this type of 
+transportation project almost invariably has property impacts. He felt there 
+should be a presentation about those impacts to the full Council prior to 
+coming back with this in June.  
+Mayor Stone asked why the viaduct is so much more expensive than the 
+hybrid option. He then stated he agreed with the Rail Committee 
+recommendations to advance the two preferred alternatives.  
+Peter DeStefano, Senior Transportation Engineer at AECOM, responded that 
+most of the cost is coming from the structure itself. A lot of the cost is below 
+ground in the columns and foundations.  
+SUMMARY MINUTES 
+ 
+ 
+Page 14 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+PUBLIC COMMENT: Study Session – Item 2: Meadow Drive & Charleston 
+Road  
+1. 
+Steve E. believed this project was a big deal and worth spending the 
+time to get it right. He noted his preferred option was the viaduct but 
+asked to at least make the hybrid have no dirt berms.  
+2. 
+Elizabeth A. stated she was the person who brought forth the 
+underpass and was willing to spend time explaining why they work. 
+She explained that the necessity of every requirement must be 
+questioned and that the definition of the project is critical. She also 
+felt the process needed to include more than just engineers.  
+3. 
+Ron P. felt that in addition to the negative impacts to properties, the 
+underpass was still a flawed solution with convoluted traffic patterns. 
+He stated there was a lot of discussion about the underpass but not 
+much about the hybrid and hoped that did not reflect the thinking.  
+4. 
+Aram J. (Zoom) wanted to know the cost of all consultants hired by 
+the City to give information on the grade separations.  
+5. 
+Michael 
+W. 
+(Zoom) 
+was 
+concerned 
+around 
+the 
+Charleston 
+roundabout. He suggested moving bike and ped traffic exclusively to 
+East Meadow if the current plan prevents certain Charleston/Alma 
+turn patterns. He felt the inconvenience of homeowners of other 
+residential roads could not supersede the impacts to the residents on 
+Charleston by the traffic circle.  
+6. 
+Linda (Zoom), owner of a property on Charleston Road, asked the 
+City to consider any other options that will not take away residents' 
+properties.  
+7. 
+David N. (Zoom) agreed with Linda and shared the story of his 
+mother who is a resident of Charleston Road and does not want to 
+lose her home. 
+8. 
+Eric N. (Zoom) asked the Council to consider the hybrid plan as it has 
+minimal acquisitions of property and is four times cheaper than the 
+trench.  
+9. 
+Patrice B. (Zoom), a resident of Charleston, felt that property 
+acquisition was a robbery and not a negotiation. She listed the 
+Council's priorities, including belonging, stating those residents wish 
+to belong and not be forced out. She urged the Council to figure out 
+how to move the traffic and keep the families.  
+SUMMARY MINUTES 
+ 
+ 
+Page 15 of 15 
+Sp. City Council Meeting 
+Summary Minutes: 04/29/2024 
+10. Liz G. (Zoom) supported this decision and urged the Council to go 
+forward and take advantage of the grant money available.  
+11. Michael B. (Zoom) believed this should go into a public vote and not 
+be decided by City Council. He stated people will not be using cars 
+the same way in 30 years from now and felt that people living in Palo 
+Alto should come first.  
+12. Bryan C. (Zoom) encouraged looking at alternatives that mitigate the 
+noise and vibrations caused by the trains, which will directly improve 
+everyone's daily life.  
+13. Lu L. (Zoom), a resident of Charleston, asked the City to look at the 
+viaduct option again considering it takes the shortest amount of time, 
+was not nearly as expensive as other options, and had less property 
+effects.  
+14. Cedric (Zoom) hoped the trench would not be further considered and 
+felt the viaduct was the best option for cyclists and people with 
+mobility issues, also having the least vibrational impact. He noted the 
+underpass had many issues for all modes plus the property takings. 
+He did not believe residents on Park would support the hybrid over 
+the viaduct because of design concerns.  
+15. Penny E. thought there needed to be a package with renderings and 
+further engineering to help the community understand the projects.  
+Chief Transportation Official Kamhi reviewed the next steps, including 
+returning to Council on June 10 for consideration of selecting preferred 
+alternatives.  
+Council Member Burt supported renderings to help the public visualize the 
+options. He also felt it would help to have not just numbers of properties 
+impacted but percentages by the underpass and hybrid and added that the 
+engineering design going forward would further optimize that.  
+NO ACTION 
+ 
+ADJOURNMENT: The meeting was adjourned at 9:40 P.M. 
+ 

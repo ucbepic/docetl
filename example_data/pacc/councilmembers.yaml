@@ -1,0 +1,104 @@
+datasets:
+  pacc_data:
+    type: file
+    path: "example_data/pacc/data.json"
+
+default_model: gpt-4o-mini
+
+operations:
+  - name: extract_councilmembers_and_votes
+    type: map
+    output:
+      schema:
+        themes: "list[{councilmember: str, {issue: str, vote: str}}]"
+    prompt: |
+      Analyze the following city council meeting minutes, which contains the votes of each councilmember on various issues alongwith discussion of the issues:
+
+      {{ input.content }}
+
+      Extract the following information:
+      1. Councilmember
+    	2. Issue that was discussed and councilmember's vote
+      3. Rationale for the councilmember's vote
+
+      Return a list in the following format:
+      [
+        {
+          "councilmember": "Councilmember A",
+          "issues": [
+            {
+              "issue": "Descripton of the issue",
+              "vote": "Councilmember A's vote and..."
+              "rationale": "Councilmember A's rationale..."
+            },
+            {
+              "issue": "Descripton of the issue",
+              "vote": "Councilmember A's vote..."
+              "rationale": "Councilmember A's rationale..."
+            },
+            ...
+          ]
+        },
+        {
+          "councilmember": "Councilmember B",
+          "issues": [
+            {
+              "issue": "Descripton of the issue",
+              "vote": "Councilmember B's vote..."
+              "rationale": "Councilmember N's rationale..."
+            },
+            {
+              "issue": "Descripton of the issue",
+              "vote": "Councilmember B's vote..."
+              "rationale": "Councilmember B's rationale..."
+            },
+            ...
+          ]
+        },
+        ...
+      ]
+
+  - name: unnest_themes
+    type: unnest
+    unnest_key: themes
+    recursive: true
+
+  - name: summarize_theme_issues
+    type: reduce
+    reduce_key: theme
+    output:
+      schema:
+        theme: str
+        report: str
+    prompt: |
+      Analyze the following issues on the theme "{{ inputs[0].theme }}" from various meetings over time:
+
+      {% for item in inputs %}
+      Date: {{ item.date }}
+      Issues: {{ item.issue }}
+      Issues: {{ item.votes }}
+
+      {% endfor %}
+
+      Generate a comprehensive summary of how each councilmember votes on the issues. 
+
+      Your summary should:
+      1. Identify all major themes and issues discussed
+      2. Identify the issues under each theme
+      3. List who voted for and against the issues
+
+      Format your response as a well-structured report.
+
+pipeline:
+  steps:
+    - name: pacc_analysis
+      input: pacc_data
+      operations:
+        - extract_themes_and_issues
+        - unnest_themes
+
+
+  output:
+    type: file
+    path: "example_data/pacc/analysis.json"
+    intermediate_dir: "checkpoints"

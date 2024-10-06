@@ -1,0 +1,810 @@
+CITY OF PALO ALTO CITY COUNCIL 
+FINAL MINUTES 
+ 
+Page 1 of 21 
+Special Meeting 
+May 18, 2020 
+The City Council of the City of Palo Alto met on this date by virtual 
+teleconference at 5:03 P.M. 
+Participating Remotely: Cormack, DuBois, Filseth, Fine, Kniss, Kou, Tanaka 
+Absent: 
+ 
+Closed Session 
+A. 
+CONFERENCE WITH LABOR NEGOTIATORS 
+City Designated Representatives: City Manager and his Designees 
+Pursuant to Merit System Rules and Regulations (Ed Shikada, Rumi 
+Portillo, Molly Stump, Monique LeConge Ziesenhenne, Nick Raisch,  
+Kiely Nose, Gina Roccanova) 
+Employee Organizations: Utilities Management and Professional 
+Association of Palo Alto (UMPAPA); Service Employees International 
+Union, (SEIU) Local 521; Service Employees International Union, 
+(SEIU) Local 521, Hourly Unit; Palo Alto Police Officers Association 
+(PAPOA); Palo Alto Fire Chiefs’ Association (FCA) and Employee 
+Organization: International Association of Fire Fighters (IAFF), Local 
+1319; Palo Alto Police Manager’s Association (PAPMA) 
+Authority: Government Code Section 54957.6(a) 
+MOTION:  Council Member Kniss moved, seconded by Council Member 
+Cormack to go into Closed Session. 
+MOTION PASSED:  7-0 
+Jeremy Erman hoped the negotiators would consider the big picture and 
+work together to make the City the best it could be.   
+Council went into Closed Session at 5:07 P.M. 
+Council returned from Closed Session at 7:32 P.M. 
+Mayor Fine announced no reportable Action. 
+FINAL MINUTES 
+ 
+ 
+Page 2 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Study Session 
+1. 
+Update to the City's Transportation Analysis Methodology to Comply 
+with Senate Bill 743, Including use of Vehicle Miles Traveled (VMT) for 
+California Environmental Quality Act (CEQA) Review and Level of 
+Service (LOS) Standard for Local Transportation Analysis (Continued 
+from May 4, 2020). 
+Sylvia Star-Lack, Transportation Planning Manager reported Senate Bill (SB) 
+743 required cities to utilize Vehicle Miles Traveled (VMT) in determining 
+significant transportation impacts under the California Environmental Quality 
+Act (CEQA).  Cities were no longer able to utilize Level of Service (LOS) for 
+an environmental document to be considered valid.  Cities had to adopt new 
+impact thresholds using VMT by July 1, 2020.  Staff proposed adoption of 
+the Governor's Office of Planning and Research's (OPR) guidance and VMT 
+thresholds as the City's initial framework beginning July 1, 2020.  Once the 
+Sustainability and Climate Action Plan (S/CAP) was updated, the Council was 
+able to update the initial VMT thresholds to align with the S/CAP's 
+Greenhouse Gas (GHG) reduction goals.  Cities were able to utilize LOS to 
+determine whether projects were consistent with local plans.  Per 
+Comprehensive Plan Policy 2.3, the City was going to retain LOS to assess 
+local transportation impacts.   
+Bob Grandy, Fehr & Peers advised that the intent of SB 743 was to ensure 
+the environmental impacts of traffic were addressed and mitigated through 
+CEQA.  In December 2018, the California Natural Resources Agency adopted 
+a CEQA Guidelines update package that included a section implementing SB 
+743.  Lead agencies had to develop their own VMT thresholds of significance 
+to determine when projects had significant environmental traffic impacts.  
+The first step in applying the new VMT process was to determine if a project 
+met one of several screening criteria.  If a project met one of the criteria, it 
+was to be presumed to have a less than significant VMT impact, and no 
+mitigation was required.  If a project did not meet one of the screening 
+criteria, a quantitative VMT analysis was required to assess whether a 
+project exceeded a defined VMT threshold and resulted in an impact.  If a 
+significant VMT impact was identified, mitigations were required.  Most 
+projects were classified as residential, office or retail uses, and OPR 
+recommended a different threshold for each use.  Based on baseline VMTs, 
+housing projects in Palo Alto were much less likely to cause significant VMT 
+impacts than office projects.  For residential projects that were not screened, 
+the Project VMT per capita needed to be 15 percent less than either the 
+regional or the Citywide average.  To encourage development of new 
+housing in Palo Alto, Staff proposed basing the residential threshold on the 
+regional average.  For office projects, the VMT per capita had to be 15 
+FINAL MINUTES 
+ 
+ 
+Page 3 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+percent less than the regional average to have a less than significant impact.  
+OPR recommended estimating total change in VMT as the best way to 
+analyze a retail project's transportation impacts.  This was done by 
+comparing forecasts of total VMT for an area between no project and a plus 
+project scenario.  If the project scenario with the Retail Project caused an 
+increase in area VMT over the no project scenario without a Retail Project, a 
+significant VMT impact was to occur.   
+Ms. Star-Lack indicated next steps included adoption of screening criteria, 
+VMT thresholds, and a LOS policy in June, 2020, including development of a 
+Transportation Demand Management (TDM) Ordinance update.   
+Kathy Jordan inquired whether the VMT calculations differed based on non-
+emitting vehicles versus emitting vehicles.  Prior to the health emergency, 
+ridership on mass transit was declining.   
+Council Member Filseth asked if the criterion was total VMT or average VMT 
+across the region. 
+Mr. Grandy related that total VMT was applied to retail projects.   
+Vice Mayor DuBois asked how the Santa Clara Valley Transportation 
+Authority's (VTA) tool accounted for local traffic conditions on local streets, 
+requested the source of data used in the tool, and inquired whether there 
+was a certain level of street it was able to model. 
+Mr. Grandy clarified that the VTA tool would assist the City with the 
+screening process for VMT.  City Staff or a project applicant was then to 
+enter data specific to the project into VTA's tool to determine whether the 
+project could be screened for VMT purposes.  The tool was not going to 
+address local traffic.   
+Vice Mayor DuBois asked if a determination of impact or no impact could be 
+appealed.   
+Philip Kamhi, Chief Transportation Official stated Staff could include an 
+appeal process. 
+Mr. Shikada believed the threshold leading to a more-detailed analysis and 
+the definition of significant impact could be addressed through the policy 
+that Staff would develop. 
+Vice Mayor DuBois generally agreed with the initial VMT thresholds.  He 
+inquired whether any bus routes with 15-minute headways existed in the 
+City.   
+FINAL MINUTES 
+ 
+ 
+Page 4 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Mr. Star-Lack replied yes, along El Camino Real. 
+Vice Mayor DuBois inquired whether SB 743 prevented an increase in vehicle 
+capacity on a street. 
+Mr. Grandy explained that SB 743 directed one to evaluate a capacity-
+increasing project and identify the level of impact and whether the impact 
+could be mitigated.   
+Vice Mayor DuBois wished to discuss LOS and VMT thresholds and how the 
+two could work together.  He inquired whether a regional shopping 
+destination like Stanford Shopping Center would score poorly under VMT and 
+perhaps require a CEQA analysis. 
+Mr. Grandy suggested the impact depended upon the type of retail being 
+added.   
+Vice Mayor DuBois requested potential mitigations for a project that added a 
+destination retail use.   
+Mr. 
+Grandy 
+explained 
+that 
+near-term 
+mitigations 
+could 
+be 
+active 
+transportation improvements that offset the increase in VMT.  He said long-
+term mitigations could be VMT exchanges and mitigation banks.  A number 
+of agencies were basing their impact fee programs on VMT generation rather 
+than vehicle trips.   
+Council Member Tanaka inquired about the effect of GHG-emitting vehicles 
+and non-GHG emitting vehicles on VMT. 
+Mr. Grandy advised that VMT calculations considered the fleet mix and mode 
+share.  The fleet mix would likely have more of an impact on GHG than 
+vehicle trips. 
+Council Member Tanaka asked if the fleet mix and mode share would change 
+over time. 
+Mr. Grandy indicated the near-term assessment of VMT would compare land 
+use projects and the baseline.  Some projects included the cumulative 
+condition for fleet mix and mode share.   
+Council Member Tanaka inquired whether telecommuting could be factored 
+into VMT.   
+Mr. Grandy related that conditions prior to the health emergency and the 
+potential effects of increased telecommuting and reduced transit share would 
+be factors. 
+FINAL MINUTES 
+ 
+ 
+Page 5 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Council Member Kou inquired whether VMT could calculate and measure 
+when a vehicle was idling on the freeway. 
+Mr. Grandy clarified that VMT could estimate the total amount of traffic and 
+speeds on the network.  That information was able to be included in an 
+analysis of GHG emissions based on vehicle fleet mix and other 
+characteristics to produce the GHG output.   
+Council Member Kou asked if a new baseline for air quality had been 
+established. 
+Mr. Grandy was not aware of any new studies regarding adjustments to VMT 
+or GHG reduction targets based on COVID.   
+Council Member Kou asked if a destination retail use would limit the type of 
+businesses on University Avenue. 
+Mr. Grandy advised that the type of business was a policy decision for the 
+Council.   
+Council Member Kou asked if a VMT analysis addressed a change in use for a 
+building. 
+Mr. Kamhi indicated a change in use would be a planning and zoning 
+decision. 
+Council Member Kou asked if the Planning and Transportation Commission 
+(PTC) would review VMT thresholds and framework. 
+Mr. Kamhi clarified that Staff would return to the Council on June 15, 2020 
+to adopt VMT thresholds for screening criteria.  The PTC was able to review 
+VMT at a later time. 
+Council Member Cormack requested the rationale for selecting OPR guidance 
+rather than guidance from the California Air Resources Board (CARB). 
+Mr. Grandy indicated most jurisdictions were adopting the OPR guidance 
+because of its documentation and substantial evidence.   
+Mr. Kamhi added that Staff could evolve the model and methods as needed.   
+Council Member Cormack inquired about the definition of a low VMT area. 
+Mr. Grandy stated it was 15 percent below the average. 
+Council Member Cormack asked if retail included services. 
+FINAL MINUTES 
+ 
+ 
+Page 6 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Mr. Grandy indicated there were two different thresholds for office and retail 
+uses. 
+Mayor Fine felt the retail threshold needed additional detail and encouraged 
+the Council to adopt the OPR guidance.  VMT analysis encouraged transit use 
+and low-impact projects.   
+Council Member Kou inquired whether a VMT analysis considered cars 
+traveling through Palo Alto to reach their destination. 
+Mr. Grandy indicated a VMT analysis would be conducted for projects within 
+the City of Palo Alto.   
+Council Member Kou remarked that LOS addressed local issues, and VMT 
+addressed regional issues.   
+NO ACTION TAKEN 
+Agenda Changes, Additions and Deletions 
+Ed Shikada, City Manager noted Agenda Item Numbers 3 and 4 had been 
+removed from the Agenda. 
+Oral Communications 
+Phoebe Berghout urged the Council to consider the impacts of the Children's 
+Theater and the Teen Arts Council on teens and youth in the community 
+when making Budget cuts. 
+Kathy Jordan noted the number of management employees earning more 
+than $150,000, $200,000, and $300,000 annually and inquired about the 
+cost of consultants. 
+Maya Mazor-Hoofien shared the many benefits of the Teen Arts Council.   
+Aanika asked the Council to continue to fund the Teen Arts Council. 
+Michael Ekwall requested the Council consider allowing restaurants to open 
+outdoor seating with alcohol service so that restaurants could survive the 
+next phase of the Shelter-In-Place Order. 
+Gil Wiessman advised that creative expression through art was highly 
+conducive to students' wellbeing and mental health and urged the Council to 
+continue to fund and value the Children's Theatre and the Teen Arts Council. 
+FINAL MINUTES 
+ 
+ 
+Page 7 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Max Rosenblum shared his experiences and the value of the Teen Arts 
+Council. 
+Terry Holzemer hoped the Council preserved and maintained community and 
+public services over capital projects in the upcoming Budget.   
+Swati Goel related her valuable experiences with Children's Theatre.   
+Leo Marburg supported continued funding for the Teen Arts Council.   
+Maddie Lee hoped the Council would continue to support the Teen Arts 
+Council and its many positive impacts on youth. 
+Suzanne Keehn supported continued funding for community services. 
+Jeremy Erman related the history of the Children's Theatre and requested 
+the Council continue to fund it and Children's Library. 
+Jonathan Erman expressed concern that the Council did not plan to 
+renegotiate the lease for Cubberley Community Center and fund children's 
+programming.   
+Consent Calendar 
+Keith Bennett, addressing Agenda Item Number 5 requested removal of the 
+Agenda Item from the Consent Calendar and the addition of sufficient 
+conditions to reduce the risk of death or damage to the 300-year-old 
+heritage oak tree.  Dewatering at the site needed to be expressly prohibited.   
+Jack Morton, addressing Agenda Item Number 5 believed the Council had a 
+responsibility to ensure the tree was cared for.   
+Council Member Cormack disclosed communications with the appellant in 
+Agenda Item Number 5. 
+Vice Mayor DuBois had nothing to disclose. 
+Council Member Filseth disclosed a site visit and a conversation with the 
+appellant. 
+Mayor Fine disclosed a conversation with the appellant. 
+Council Member Kniss disclosed a conversation with Mr. Morton, a site visit, 
+and the location of the project site approximately two blocks from her home. 
+Council Member Kou had nothing to disclose. 
+FINAL MINUTES 
+ 
+ 
+Page 8 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Council Member Tanaka disclosed a conversation with Mr. Morton. 
+MOTION:  Vice Mayor DuBois moved, seconded by Council Member Kou, 
+third by Council Member Kniss to remove Agenda Item Number 5 to be 
+heard after Council’s summer recess. 
+Council Member Tanaka registered a no vote on Agenda Item Number 2. 
+MOTION:  Council Member Kniss moved, seconded by Council Member 
+Filseth to approve Agenda Item Number 2. 
+2. 
+Adoption of an Ordinance Amending Title 12 of the Palo Alto Municipal 
+Code to set a 120-day Statute of Limitations for Challenges to the 
+City’s Water Service Rates, Wastewater Collection and Disposal Rates, 
+Refuse Rates, Storm Water Management Fees, and Fiber Licensing 
+Service Rates. 
+3. 
+Approval and Authorization for the City Manager or Designee to 
+Execute a Professional Services Agreement with Magellan Advisors, 
+LLC in a Not-to-Exceed Amount of $214,236 for Phase 1 of the Fiber 
+Network Expansion Plan (This Item has been removed). 
+4. 
+Approval and Authorization for the City Manager or Designee to 
+Execute the Following Marketing and Graphics Contracts in a Combined 
+Not-to-Exceed Amount of $290,000 Annually and a Combined Not-to-
+Exceed Amount of $1,450,000 Over a Five-year Term:  A) Eric 
+Goldsberry Art Direction, Contract Number C20176172A; B) Marketing 
+for Change, Contract Number C20176172B; and C) Underground 
+Advertising, Contract Number C20176172C; Finding of California 
+Environmental Quality Act (CEQA) Exemption (This Item has been 
+removed). 
+5. 
+QUASI-JUDICIAL. 2353 Webster Street [18PLN-00339]: Appeal of 
+Director’s Approval of an Individual Review Application to Demolish an 
+Existing One-story 1,593 Square Foot Home and Construct a Two-
+story Home (Approximately 3,133 Square Feet) With a Basement and 
+Attached Garage; Approved by the Director of Planning and  
+Development Services on March 17, 2020. Zoning District: Single-
+family Residential (R-1). 
+MOTION PASSED:  6-1 Tanaka no 
+Council Member Tanaka noted increases in gas rates over the past few 
+years, high gas rates for commercial customers and the difficult economic 
+times for restaurants.  A statute of limitations did not support transparency. 
+FINAL MINUTES 
+ 
+ 
+Page 9 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Ed Shikada, City Manager advised that Staff would work with the applicant 
+and the appellant in Agenda Item Number 5 to set a hearing date.  The 
+statute of limitations in Agenda Item Number 2 would not apply to the rate 
+changes currently under consideration. 
+City Manager Comments 
+Ed Shikada, City Manager shared modifications of the Shelter-In-Place Order 
+and the reopening of City facilities.  Additional information regarding the 
+City's Small Business Grant Program was going to be available in the next 
+few days.  Palo Alto businesses were invited to share their needs and 
+requests for assistance with the City.  Professional and Management Staff 
+were able to contribute to a 15 percent compensation giveback to the City.   
+Council Member Kniss reported there was no immediate plan to reopen the 
+Dish. 
+Council Member Kou asked how the phased reopening affected the Shelter-
+In-Place Order. 
+Mr. Shikada advised that the new term was "additional businesses and 
+additional activities," and it represented the reopening of retail businesses 
+for curbside service on Friday.  Shelter In Place remained in effect. 
+Molly Stump, City Attorney noted workers could be returning to work in 
+retail businesses. 
+Council Member Tanaka asked if the City would close streets so that 
+restaurant customers could follow social distancing practices. 
+Ms. Stump stated outdoor seating for restaurants was not allowed in Santa 
+Clara County or in any other Bay Area county at the current time. 
+Council Member Tanaka asked if the City would subscribe to the United 
+States Tennis Association's guidelines for tennis play. 
+Mr. Shikada indicated the City would follow the County of Santa Clara's 
+public health order, which allowed members of the same household to play 
+tennis together. 
+Mayor Fine inquired regarding dog parks. 
+Ms. Stump did not believe there had been any modifications for dog parks. 
+Council took at break at 9:23 P.M. and returned at 9:33 P.M. 
+FINAL MINUTES 
+ 
+ 
+Page 10 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+6. 
+Adoption of Amendments to the City of Palo Alto Tobacco Retail 
+Ordinance (PAMC Chapter 4.64) to Further Restrict Electronic Cigarette 
+Products and Flavored Tobacco Products, Direct Staff to Discuss 
+Amending the Tobacco Retail Permit (TRP) Agreement With the County 
+of Santa Clara, and Updates to Council's Previous Questions on 
+Reducing Youth Tobacco use (Continued From May 18, 2020). 
+Brad Eggleston, Public Works Director reviewed the Council's direction to 
+Staff on December 9, 2019, and the City's efforts to reduce community 
+exposure to second-hand smoke and to address tobacco sales in Palo Alto.   
+Julie Weiss, Public Works Project Manager reported Staff had drafted an 
+update to the Tobacco Retail Permit Ordinance.  A State law became 
+effective January 1, 2020 and required an adult to sign for online purchases 
+of tobacco products and required the package be labeled as a tobacco 
+product.  The Food and Drug Administration (FDA) banned the sale and 
+distribution of flavored pods for e-cigarettes.  Senate Bill (SB) 793 banned 
+flavored tobacco products across the State.  She said SB 464 could ban the 
+sale of single-use electronic cigarettes.  In January 2020, all adult-only 
+stores required proof of age during the Police Department's undercover 
+checks; however, three of the remaining tobacco retailers did not require 
+proof of age.  The ThinkFund was to receive funding for youth-led initiatives 
+to reduce tobacco use.  The Public Works Department was able to distribute 
+free no-smoking signs to businesses.  Public education for electronic 
+cigarette disposal was planned for 2020.  Twenty-two licensed tobacco 
+retailers were located in Palo Alto, and Staff had discussed proposed 
+Ordinance changes with them.  Three vape/tobacco stores, Hookah Nites, 
+and Mac's Smoke Shop indicated they would likely close if they were not 
+exempt from the proposed changes.  The proposed Ordinance prohibited the 
+sale of electronic cigarette devices, exempted the existing adult-only stores, 
+and added restrictions for the five existing adult-only stores.  Ms. Weiss 
+summarized public comments and responses to public comments.   
+Phil Bobel, Assistant Director of Public Works advised that the proposed 
+Ordinance would prohibit 15 tobacco retailers from selling flavored tobacco 
+and e-cigarette products; impose additional requirements on adult-only 
+stores; and prevent the opening of additional adult-only stores.  The Council 
+was able to consider additional measures to further strengthen the proposed 
+Ordinance and reduce teen vaping in the future.  The Council was able to 
+direct Staff to explore additional restrictions for adult-only stores, an 
+alternative exemption structure for retailers, and additional measures to 
+reduce the number of adult-only stores or direct Staff to modify the 
+proposed Ordinance to eliminate the exemption for adult-only stores and 
+FINAL MINUTES 
+ 
+ 
+Page 11 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+introduce a future effective compliance date for the existing adult-only 
+stores.   
+Council Member Tanaka asked if adult-only stores could sell flavored tobacco 
+products. 
+Mr. Bobel clarified that the proposed Ordinance would prohibit tobacco 
+retailers that allowed youth in the store from selling flavored tobacco and 
+vaping products.   
+Council Member Tanaka inquired about enforcement for adults who 
+purchased tobacco products for youth.   
+Mr. Bobel indicated the Police Department investigated reports of youth 
+loitering near tobacco retailers.  Enforcement was not possible when an adult 
+and a youth worked together for the adult to purchase tobacco products in 
+person or online for the youth.   
+Council Member Filseth inquired whether the second option before the 
+Council would allow Hookah Nites to continue operating.  
+Mr. Bobel related that the second option would eliminate all adult-only 
+stores, including Hookah Nites.  The Council was able to direct Staff to 
+modify the proposed Ordinance to allow Hookah Nites, Mac's, or both to 
+remain open.  The existing cigar stores were not able to choose not to sell 
+vaping products.   
+Vice Mayor DuBois asked if Staff considered distinguishing flavored pipe 
+tobacco from flavored vaping pods.   
+Mr. Bobel stated the definition of flavored products was taken from the 
+County of Santa Clara's (County) model Ordinance.   
+Amaya Wooding, Proudly Against Tobacco advocated for removing the 
+exemption for adult-only stores. 
+Carol Baker, American Cancer Society and Tobacco Free Coalition of Santa 
+Clara County supported a complete prohibition of flavored tobacco products. 
+Lama Rimawi urged the Council to eliminate the exemption for adult-only 
+stores.   
+Erwin Morton recommended the Council remove the exemption for adult-
+only stores, phase out the sale or transfer of vape shop licenses, and protect 
+children. 
+FINAL MINUTES 
+ 
+ 
+Page 12 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Bob Gordon, Tobacco Free Coalition of Santa Clara County indicated hookah 
+smoking was as dangerous as cigarette smoking and urged elimination of 
+the exemption for adult-only stores.   
+Annie Tegen, Tobacco Free Kids hoped the Council would eliminate the 
+exemption for adult-only stores. 
+Lori Khoury, Mac's Smoke Shop related that the pandemic and elimination of 
+the exemption would force the shop to close.  Mac's Smoke Shop supported 
+a more restrictive Ordinance and had implemented measures beyond those 
+required and proposed.   
+Jen Gran-Lejano, American Cancer Society urged the Council to remove the 
+proposed exemption for adult-only stores, including Hookah Nites.   
+Arian Lundberg urged the Council to adopt an Ordinance that mirrored the 
+County's Ordinance.   
+Tricia Barr asked the Council to adopt the County's Ordinance without an 
+exemption and read Congresswoman Eshoo's message opposing an 
+exemption for adult-only stores.   
+Sally-Ann Rudd advised that her 16-year-old daughter had recently 
+purchased vaping products from Mac's Smoke Shop and requested the 
+Council eliminate the exemption. 
+Jade Chao, Palo Alto PTA Council President indicated she had distributed 
+photos to the Council of teens purchasing vape products in Palo Alto.  She 
+urged the Council to protect children from a highly addictive product. 
+Rachel Gratz-Lazarus advocated for removal of the exemption for adult-only 
+stores. 
+Grace Mah remarked that banning all e-cigarettes in all stores would 
+demonstrate Palo Alto's leadership in saving youth from the vaping epidemic 
+and a lifetime of addiction. 
+Eileen Kim urged the Council to adopt a strong Ordinance that mirrored the 
+County's Ordinance without any exemption. 
+Blythe Young, American Heart Association supported a comprehensive 
+Ordinance without an exemption for adult-only retailers or hookah lounges.   
+Raw Smoke Shop commented that 21-year-old adults would purchase 
+products online or in stores in nearby cities, thus reducing potential revenue 
+FINAL MINUTES 
+ 
+ 
+Page 13 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+for the City.  Vaping products provided 80 percent of his revenue.  He 
+concurred with additional restrictions for adult-only stores.   
+Amar Johal, tobacco retailer remarked that the proposed Ordinance would 
+divert sales from 15 tobacco retailers to five adult-only stores.  He supported 
+the prohibition on flavored products as long as the exemption for adult-only 
+stores was removed. 
+Tanya Payyappilly, Breathe California urged the Council to remove the 
+exemption and to restrict youth access to vape products. 
+Vanessa Marvin, Tobacco Free Coalition asked the Council to follow the 
+County's Ordinance. 
+David Zoumut, Hookah Lounge was not averse to additional restrictions.  He 
+did not sell any vape products, cigarettes or cigars.   
+Council Member Kou did not believe enforcement of the proposed Ordinance 
+would occur soon enough.  She inquired whether she could move to direct 
+Staff to prepare an Ordinance that mirrored the County's Ordinance. 
+Molly Stump, City Attorney replied yes. 
+Council Member Kou asked when a Draft Ordinance could be presented to 
+the Council for a first reading. 
+Tim Shimizu, City Attorney Office's indicated a Draft Ordinance could be 
+presented as soon as Brown Act requirements allowed. 
+Ms. Stump suggested an Ordinance could be presented to the Council as 
+soon as June 1, 2020. 
+Council Member Kou asked if it would be presented as an Action Item. 
+Ms. Stump advised that it could be placed on the Council's Consent Calendar 
+for a first reading on June 1, 2020.   
+MOTION:  Council Member Kou moved, seconded by Council Member Filseth 
+to direct Staff to bring to the City Council a proposed tobacco Ordinance that 
+mirrors the Santa Clara County Ordinance.  
+Council Member Filseth read Ms. Rudd's correspondence to the Council.  
+Mac's Smoke Shop was covered with signage about selling tobacco products 
+to minors.  He believed Ms. Rudd's claim that her daughter purchased vape 
+products at Mac's Smoke Shop and Mac's Smoke Shop was attempting to 
+FINAL MINUTES 
+ 
+ 
+Page 14 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+prevent the sale of tobacco products to minors.  He requested the difference 
+between the second option before the Council and the Motion. 
+Brad Eggleston, Public Works Director explained that the second option 
+would eliminate the exemption for adult-only stores that sold tobacco 
+products for off-site use.  In other words, Hookah Nites was probably able to 
+continue to operate.   
+Council Member Filseth proposed amending the Motion to exempt stores that 
+did not sell products for off-site use. 
+Council Member Kou understood the second option would direct Staff to 
+return to the Council at a future date with a proposed Ordinance. 
+Mr. Bobel added that the second option would allow Hookah Nights to 
+continue to operate and set a compliance date beyond the standard 30 days 
+following a second reading of the Ordinance.   
+Council Member Kou did not agree to amend the Motion.   
+Council Member Tanaka noted the proposed Ordinance would not provide 
+the same number of compliance checks as the County Ordinance.   
+Mr. Bobel clarified that the County did not provide undercover age checks 
+and believed undercover work fell under the Police Department's purview.   
+Council Member Tanaka asked if the Motion would prohibit the sale of 
+flavored tobacco and vaping products in all tobacco retailers. 
+Mr. Bobel answered yes. 
+Council Member Filseth asked if non-flavored vaping products would be 
+prohibited as well. 
+Mr. Bobel replied yes. 
+Council Member Tanaka shared the Palo Alto Youth Council's (PAYC) 
+suggestion to ban the advertising of all vaping products in Palo Alto and 
+inquired whether the City could do that. 
+Ms. Stump indicated advertising restrictions could have First Amendment 
+implications, and additional study was needed.   
+Council Member Tanaka reported the PAYC had also suggested a contest for 
+teens to develop anti-vaping campaigns.  He requested Council Members 
+comment regarding a ban on vaping in all public spaces.   
+FINAL MINUTES 
+ 
+ 
+Page 15 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Council Member Cormack stated Staff had prepared an Ordinance that 
+complied with the Council's direction to Staff.  Vaping was a public health 
+issue.  She inquired about the age requirement for admittance to Hookah 
+Nites. 
+Mr. Bobel answered 21 years of age. 
+Council Member Kniss did not support the Motion because it would 
+negatively impact small businesses.   
+Mayor Fine did not support the Motion because adults and youth understood 
+the danger of tobacco products.  The City was able to take reasonable steps 
+to protect youth while allowing adults to purchase tobacco products.  The 
+Motion closed five small businesses.   
+Vice Mayor DuBois asked if some restaurants had cigar rooms and sold 
+cigars. 
+Council Member Kniss responded yes. 
+Mr. Eggleston clarified that two of the seven adult-only stores focused on the 
+sale of cigars.   
+Vice Mayor DuBois expressed concern that the Motion would prevent adults 
+of legal age from buying tobacco products.  Some of the adult-only stores 
+had been in the community for a long time and were responsible tobacco 
+sellers.  He opposed the Motion.  An outright ban of tobacco products would 
+be government overreach and exceed the measures needed to protect kids. 
+Council Member Kou asked if the County would not handle enforcement if 
+the City's Ordinance did not mirror the County's Ordinance. 
+Mr. Eggleston reported the County had stated that.  If the Council approved 
+Staff's recommended Ordinance, Staff was then going to address 
+enforcement with the County.   
+Council Member Kou did not believe City Staff would have resources to 
+enforce the Ordinance. 
+Mr. Bobel explained that Staff would continue the enforcement discussion 
+with the County no matter what the Council decided.  The City was the only 
+County partner that allowed adult-only stores.  City Staff visited the stores 
+to check compliance with other City Ordinances and checking compliance 
+with the Tobacco Ordinance was not burdening Staff.  The cost of Staff time 
+was offset by permit fees.  The County did not and would not conduct 
+undercover checks.   
+FINAL MINUTES 
+ 
+ 
+Page 16 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Council Member Kou understood Council Members' opposition to the Motion; 
+however, children's health was at issue.   
+SUBSTITUTE MOTION: Mayor Fine moved, seconded by Council Member 
+Kniss to adopt the proposed Ordinance and direct Staff to explore the 
+following and return to Council at a later date: 
+A. 
+Investigate further restrictions for adult-only stores (e.g., card 
+readers, purchase log, additional fees to support youth programs, 
+etc.); 
+B. 
+Consider alternative exemption structure for retailers, e.g., exempt 
+lounges where no product leaves the store; and 
+C. 
+Consider additional measures over time to reduce the number of  
+adult-only stores. 
+SUBSTITUTE MOTION FAILED:  3-4 Cormack, Filseth, Kou, Tanaka no 
+SUBSTITUTE MOTION:  Mayor Fine moved, seconded by Vice Mayor 
+DuBois to direct Staff to modify the proposed Ordinance and return to 
+Council at a future date, eliminating the current exemption for those adult 
+stores where the subject products leave the store, introduce a future 
+effective compliance date that would allow the other four impacted adult-
+only stores time to sell/remove their current inventory, and modify their 
+business model to address the exemption elimination. 
+Mayor Fine preferred to craft a unique Ordinance for the City.   
+Vice Mayor DuBois asked if Staff would present a Draft Ordinance to the 
+Council in June, 2020. 
+Mayor Fine understood a first reading could occur in June, 2020. 
+Vice Mayor DuBois wanted to provide the adult-only stores with time to 
+adapt.   
+Council Member Cormack did not interpret the Substitute Motion as a first 
+reading occurring in June, 2020. 
+Mr. Eggleston reported, if the Council approved the Substitute Motion, Staff 
+would engage the adult-only stores, develop a recommendation to phase out 
+products, and present the Council with a proposed Ordinance.  The Council 
+was able to direct Staff to return within a specific timeframe. 
+FINAL MINUTES 
+ 
+ 
+Page 17 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Vice Mayor DuBois thought the Substitute Motion was to pass the first option 
+and to direct Staff to return with a proposed Ordinance for the second 
+option. 
+Council Member Cormack asked if the Substitute Motion would eliminate the 
+exemption for adult-only stores and set a compliance date.  She preferred 
+the compliance date occur within six months.  She inquired about the 
+Substitute Motion's effect on Hookah Nites. 
+Mr. Bobel explained that Hookah Nites would not be affected by the 
+Substitute Motion because tobacco products did not leave the store. 
+Council Member Kniss requested the meaning of a future effective 
+compliance date. 
+Mr. Bobel advised that Staff engage the adult-only stores in setting a 
+compliance date by which they would have to sell or remove their inventory. 
+Council Member Kniss did not know whether the businesses would have an 
+opportunity to alter their business models in such a way that they could 
+continue to operate.   
+Mr. Bobel clarified that the businesses would have time to obtain other 
+products to sell and continue to operate.  The County's Ordinance required 
+compliance by July 1, 2020.   
+Council Member Kou agreed to allowing onsite consumption of tobacco 
+products but not Staff returning at a later date with an Ordinance.  The 
+County was to implement, permit and enforce the Ordinance.   
+Council Member Filseth suggested incorporating a timeframe for businesses 
+to modify their business models into the Substitute Motion.  Businesses were 
+probably not able to adapt before the July 1, 2020 deadline set by the 
+County. 
+Mayor Fine asked if three or six months was a reasonable timeframe. 
+Vice Mayor DuBois agreed to six months. 
+Council Member Filseth indicated six months was generous. 
+Council Member Cormack felt six months could be the outer bound. 
+Ms. Stump advised that under the Substitute Motion the Council would not 
+adopt an Ordinance at the current time or before the Council break.   
+FINAL MINUTES 
+ 
+ 
+Page 18 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Council Member Cormack asked if Staff could present a Draft Ordinance in 
+August, 2020 such that it would become effective in September, 2020. 
+Ms. Stump related the timeframe for developing policy, preparing a Staff 
+Report, and adoption of an Ordinance was probably not feasible by August, 
+2020.   
+Council Member Filseth asked if the Substitute Motion was proposing to 
+incorporate a grace period and an exemption for onsite tobacco use into the 
+County Ordinance. 
+Mr. Bobel replied yes.   
+Mayor Fine asked if three months would be feasible. 
+Mr. Bobel understood the Council was proposing six months for businesses 
+to comply with the Ordinance and three months for Staff to return with a 
+Draft Ordinance. 
+Ms. Stump related that Staff could return with a Draft Ordinance after the 
+Council break, and the Council could set a compliance date at that time. 
+Council Member Filseth asked if the compliance date could be September 1, 
+2020. 
+Ms. Stump responded no. 
+Mr. Eggleston indicated the earliest compliance date would be early October, 
+2020. 
+Mayor Fine suggested a compliance date of as soon as possible. 
+Council Member Filseth did not understand why Staff could not return with a 
+Draft Ordinance prior to the Council break. 
+Ms. Stump reported Staff could return prior to the Council break if the 
+direction to Staff was to incorporate an exception for products that did not 
+leave the store and a compliance date into the County Ordinance.  Any other 
+direction to Staff delayed Staff's return to the Council. 
+Council Member Tanaka asked if the second option allowed the right to run 
+with the store. 
+Mr. Eggleston answered that is correct. 
+Council Member Tanaka proposed the right end with the current owner. 
+FINAL MINUTES 
+ 
+ 
+Page 19 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Mayor Fine believed that would be the first option.   
+Council Member Tanaka inquired whether the Substitute Motion would 
+exempt only Hookah Nites. 
+Mr. Bobel replied yes.  The Council was able to direct Staff to draft an 
+Ordinance that did not allow the sale or transfer of Hookah Nites' permit.   
+Mayor Fine did not agree with preventing the sale or transfer of Hookah 
+Nites' permit. 
+Council Member Tanaka asked if Hookah Nites could continue to sell flavored 
+tobacco and vape products for onsite use only. 
+Mr. Bobel responded yes. 
+Council Member Tanaka questioned whether Hookah Nites needed to sell 
+flavored products. 
+Mr. Bobel advised that the owner of Hookah Nites explained that his 
+customers wanted flavored products. 
+Council 
+Member Tanaka questioned whether children with 
+a fake 
+identification could enter Hookah Nites. 
+Mr. Bobel indicated a card reader was able to determine whether an 
+identification was fake.   
+Mayor Fine reiterated the three choices before the Council. 
+Council Member Tanaka supported requiring a card reader, not allowing 
+Hookah Nites to transfer their license and setting the compliance date for 
+three months. 
+Ms. Stump asked if the Draft Ordinance should be presented as an Action 
+Item so that the Council could determine the compliance date. 
+Mayor Fine proposed a compliance date of September 1, 2020. 
+Ms. Stump related that the date was feasible.   
+INCORPORATED INTO THE SUBSTITUTE MOTION WITH CONSENT OF 
+THE MAKER AND SECONDER to add a compliance date of September 1, 
+2020.  
+FINAL MINUTES 
+ 
+ 
+Page 20 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Council Member Kou asked if, under the Motion, the Council was going to 
+approve a Draft Ordinance that would become effective prior to the Council 
+break. 
+Ms. Stump indicated a first reading of the proposed Ordinance under the 
+Motion was able to occur on June 1, 2020, but the effective date was not 
+July 1, 2020, the County's compliance date. 
+Council Member Kou noted an Ordinance was not going to be implemented 
+quickly and enforcement was going to be an issue under the Substitute 
+Motion.   
+Council Member Kniss asked if four stores would be forced to close. 
+Mr. Bobel answered yes. 
+Council Member Cormack asked if the four businesses would cease 
+operations under the Substitute Motion. 
+Mr. Bobel anticipated that would occur. 
+Council Member Cormack believed the Substitute Motion would prolong the 
+pain for the businesses.   
+Mr. Eggleston added that the Substitute Motion would allow Hookah Nites to 
+continue in business. 
+INCORPORATED INTO THE SUBSTITUTE MOTION WITH CONSENT OF 
+THE MAKER AND SECONDER to return to Council prior to the summer 
+recess.  
+SUBSTITUTE MOTION RESTATED: Mayor Fine moved, seconded by Vice 
+Mayor DuBois to direct Staff to modify the proposed Ordinance and return to 
+Council prior to the summer recess, eliminating the current exemption for 
+those adult stores where the subject products leave the store, introduce a 
+future effective compliance date of September 1, 2020 that would allow the 
+other four impacted adult-only stores time to sell/remove their current 
+inventory, and modify their business model to address the exemption 
+elimination. 
+SUBSTITUTE MOTION FAILED:  3-4 Cormack, Kniss, Kou, Tanaka no  
+MOTION PASSED:  4-3 DuBois, Fine, Kniss no 
+FINAL MINUTES 
+ 
+ 
+Page 21 of 21 
+Sp. City Council Meeting 
+Final Minutes:  05/18/2020 
+Council Member Questions, Comments and Announcements 
+Council Member Filseth reported the receipt of six proposals to provide 
+auditor services.  The proposals were to be evaluated the following week. 
+Council Member Kou asked the Mayor to look into the proposal to eliminate 
+community-based adult services effective January 1, 2021 and to prepare a 
+letter if appropriate.   
+Mayor Fine requested Staff provide an update. 
+Adjournment:  The meeting was adjourned at 11:58 P.M. 

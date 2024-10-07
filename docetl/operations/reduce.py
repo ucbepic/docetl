@@ -23,9 +23,7 @@ from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
 )
-from docetl.operations.utils import (
-    rich_as_completed
-)
+from docetl.operations.utils import rich_as_completed
 from docetl.utils import completion_cost
 
 
@@ -400,7 +398,9 @@ class ReduceOperation(BaseOperation):
         if sample_size >= len(group_list):
             return group_list, 0
 
-        clusters, cost = cluster_documents(group_list, value_sampling, sample_size)
+        clusters, cost = cluster_documents(
+            group_list, value_sampling, sample_size, self.api
+        )
 
         sampled_items = []
         idx_added_already = set()
@@ -438,7 +438,9 @@ class ReduceOperation(BaseOperation):
             reduce_key=dict(zip(self.config["reduce_key"], key))
         )
 
-        embeddings, cost = get_embeddings_for_clustering(group_list, value_sampling)
+        embeddings, cost = get_embeddings_for_clustering(
+            group_list, value_sampling, self.api
+        )
 
         query_response = self.api.gen_embedding(embedding_model, [query_text])
         query_embedding = query_response["data"][0]["embedding"]
@@ -763,7 +765,9 @@ class ReduceOperation(BaseOperation):
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
         )
-        merged_output = self.api.parse_llm_response(response, self.config["output"]["schema"])[0]
+        merged_output = self.api.parse_llm_response(
+            response, self.config["output"]["schema"]
+        )[0]
         merged_output.update(dict(zip(self.config["reduce_key"], key)))
         merge_cost = completion_cost(response)
         end_time = time.time()

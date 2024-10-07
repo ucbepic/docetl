@@ -48,8 +48,6 @@ def process_left_item(
     ]
 
 
-
-
 class EquijoinOperation(BaseOperation):
     def compare_pair(
         self,
@@ -87,7 +85,7 @@ class EquijoinOperation(BaseOperation):
         )
         output = self.api.parse_llm_response(response, {"is_match": "bool"})[0]
         return output["is_match"], completion_cost(response)
-    
+
     def syntax_check(self) -> None:
         """
         Checks the configuration of the EquijoinOperation for required keys and valid structure.

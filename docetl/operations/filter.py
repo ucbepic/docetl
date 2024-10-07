@@ -126,7 +126,7 @@ class FilterOperation(BaseOperation):
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value
-                if validate_output(self.config, output, self.console):
+                if self.api.validate_output(self.config, output, self.console):
                     return output, True
                 return output, False
 

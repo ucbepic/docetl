@@ -171,6 +171,7 @@ class MapOperation(BaseOperation):
                         max_retries_per_timeout=self.config.get(
                             "max_retries_per_timeout", 2
                         ),
+                        verbose=self.config.get("verbose", False),
                     ),
                     validation_fn=validation_fn,
                     val_rule=self.config.get("validate", []),

@@ -50,8 +50,7 @@ nav:
       - Medical Document Classification with Ollama: examples/ollama.md
       - Split and Gather for Legal Document Analysis: examples/split-gather.md
       - Datasets With Custom Parsing: examples/custom-parsing.md
-      # - Annotating Legal Documents: examples/annotating-legal-documents.md
-      # - Characterizing Troll Behavior on Wikipedia: examples/characterizing-troll-behavior.md
+      - Adding Rate Limiting: examples/rate-limiting.md
   - API Reference:
       - docetl: api-reference/docetl.md
       - docetl.cli: api-reference/cli.md

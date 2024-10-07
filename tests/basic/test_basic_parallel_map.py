@@ -9,6 +9,7 @@ from tests.conftest import (
     parallel_map_sample_data as parallel_map_sample_data,
     default_model as default_model,
     max_threads as max_threads,
+    api_wrapper as api_wrapper,
 )
 
 load_dotenv()
@@ -19,8 +20,11 @@ def test_parallel_map_operation(
     default_model,
     max_threads,
     parallel_map_sample_data,
+    api_wrapper,
 ):
-    operation = ParallelMapOperation(parallel_map_config, default_model, max_threads)
+    operation = ParallelMapOperation(
+        api_wrapper, parallel_map_config, default_model, max_threads
+    )
     results, cost = operation.execute(parallel_map_sample_data)
 
     assert len(results) == len(parallel_map_sample_data)
@@ -34,9 +38,11 @@ def test_parallel_map_operation(
 
 
 def test_parallel_map_operation_empty_input(
-    parallel_map_config, default_model, max_threads
+    parallel_map_config, default_model, max_threads, api_wrapper
 ):
-    operation = ParallelMapOperation(parallel_map_config, default_model, max_threads)
+    operation = ParallelMapOperation(
+        api_wrapper, parallel_map_config, default_model, max_threads
+    )
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -44,9 +50,11 @@ def test_parallel_map_operation_empty_input(
 
 
 def test_parallel_map_operation_with_empty_input(
-    parallel_map_config, default_model, max_threads
+    parallel_map_config, default_model, max_threads, api_wrapper
 ):
-    operation = ParallelMapOperation(parallel_map_config, default_model, max_threads)
+    operation = ParallelMapOperation(
+        api_wrapper, parallel_map_config, default_model, max_threads
+    )
     results, cost = operation.execute([])
 
     assert len(results) == 0

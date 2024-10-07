@@ -11,12 +11,12 @@ from rich.console import Console
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
-from docetl.utils import load_config
+from docetl.config_wrapper import ConfigWrapper
 
 load_dotenv()
 
 
-class DSLRunner:
+class DSLRunner(ConfigWrapper):
     """
     A class for executing Domain-Specific Language (DSL) configurations.
 
@@ -39,15 +39,11 @@ class DSLRunner:
         Args:
             max_threads (int, optional): Maximum number of threads to use. Defaults to None.
         """
-        self.config = config
-        self.default_model = self.config.get("default_model", "gpt-4o-mini")
-        self.max_threads = max_threads or (os.cpu_count() or 1) * 4
-        self.console = Console()
-        self.status = None
+        ConfigWrapper.__init__(self, config, max_threads)
         self.datasets = {}
 
-        self.intermediate_dir = self.config["pipeline"]["output"].get(
-            "intermediate_dir"
+        self.intermediate_dir = (
+            self.config.get("pipeline", {}).get("output", {}).get("intermediate_dir")
         )
 
         # Create parsing tool map
@@ -86,17 +82,6 @@ class DSLRunner:
                     all_ops_str.encode()
                 ).hexdigest()
 
-    @classmethod
-    def from_yaml(cls, yaml_file: str, **kwargs):
-        # check that file ends with .yaml or .yml
-        if not yaml_file.endswith(".yaml") and not yaml_file.endswith(".yml"):
-            raise ValueError(
-                "Invalid file type. Please provide a YAML file ending with '.yaml' or '.yml'."
-            )
-
-        config = load_config(yaml_file)
-        return cls(config, **kwargs)
-
     def syntax_check(self):
         """
         Perform a syntax check on all operations defined in the configuration.
@@ -119,6 +104,7 @@ class DSLRunner:
             try:
                 operation_class = get_operation(operation_type)
                 operation_class(
+                    self,
                     operation_config,
                     self.default_model,
                     self.max_threads,
@@ -157,7 +143,7 @@ class DSLRunner:
                 self.datasets[step["input"]].load() if "input" in step else None
             )
             output_data, step_cost = self.execute_step(step, input_data)
-            self.datasets[step_name] = Dataset("memory", output_data)
+            self.datasets[step_name] = Dataset(self, "memory", output_data)
             flush_cache(self.console)
             total_cost += step_cost
             self.console.log(
@@ -197,6 +183,7 @@ class DSLRunner:
         for name, dataset_config in self.config["datasets"].items():
             if dataset_config["type"] == "file":
                 self.datasets[name] = Dataset(
+                    self,
                     "file",
                     dataset_config["path"],
                     source="local",
@@ -279,6 +266,7 @@ class DSLRunner:
 
                 operation_class = get_operation(op_object["type"])
                 operation_instance = operation_class(
+                    self,
                     op_object,
                     self.default_model,
                     self.max_threads,
@@ -331,7 +319,7 @@ class DSLRunner:
         if os.path.exists(checkpoint_path):
             if f"{step_name}_{operation_name}" not in self.datasets:
                 self.datasets[f"{step_name}_{operation_name}"] = Dataset(
-                    "file", checkpoint_path, "local"
+                    self, "file", checkpoint_path, "local"
                 )
             return self.datasets[f"{step_name}_{operation_name}"].load()
         return None

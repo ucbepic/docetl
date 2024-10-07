@@ -2,6 +2,7 @@
 import pytest
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
+from tests.conftest import api_wrapper
 
 
 @pytest.fixture
@@ -39,9 +40,9 @@ def reduce_sample_data_with_list_key():
 
 
 def test_reduce_operation(
-    reduce_config, default_model, max_threads, reduce_sample_data
+    reduce_config, default_model, max_threads, reduce_sample_data, api_wrapper
 ):
-    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 3  # 3 unique groups
@@ -53,10 +54,10 @@ def test_reduce_operation(
 
 
 def test_reduce_operation_with_all_key(
-    reduce_config, default_model, max_threads, reduce_sample_data
+    reduce_config, default_model, max_threads, reduce_sample_data, api_wrapper
 ):
     reduce_config["reduce_key"] = "_all"
-    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 1
@@ -64,11 +65,15 @@ def test_reduce_operation_with_all_key(
 
 
 def test_reduce_operation_with_list_key(
-    reduce_config, default_model, max_threads, reduce_sample_data_with_list_key
+    reduce_config,
+    default_model,
+    max_threads,
+    reduce_sample_data_with_list_key,
+    api_wrapper,
 ):
     reduce_config["reduce_key"] = ["group", "category"]
 
-    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data_with_list_key)
 
     assert len(results) == 3  # 3 unique groups
@@ -82,8 +87,10 @@ def test_reduce_operation_with_list_key(
     assert cost > 0
 
 
-def test_reduce_operation_empty_input(reduce_config, default_model, max_threads):
-    operation = ReduceOperation(reduce_config, default_model, max_threads)
+def test_reduce_operation_empty_input(
+    reduce_config, default_model, max_threads, api_wrapper
+):
+    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -117,8 +124,12 @@ def resolve_sample_data():
     ]
 
 
-def test_resolve_operation(resolve_config, max_threads, resolve_sample_data):
-    operation = ResolveOperation(resolve_config, "text-embedding-3-small", max_threads)
+def test_resolve_operation(
+    resolve_config, max_threads, resolve_sample_data, api_wrapper
+):
+    operation = ResolveOperation(
+        api_wrapper, resolve_config, "text-embedding-3-small", max_threads
+    )
     results, cost = operation.execute(resolve_sample_data)
 
     distinct_names = set(result["name"] for result in results)
@@ -126,8 +137,10 @@ def test_resolve_operation(resolve_config, max_threads, resolve_sample_data):
     assert cost > 0
 
 
-def test_resolve_operation_empty_input(resolve_config, max_threads):
-    operation = ResolveOperation(resolve_config, "text-embedding-3-small", max_threads)
+def test_resolve_operation_empty_input(resolve_config, max_threads, api_wrapper):
+    operation = ResolveOperation(
+        api_wrapper, resolve_config, "text-embedding-3-small", max_threads
+    )
     results, cost = operation.execute([])
 
     assert len(results) == 0

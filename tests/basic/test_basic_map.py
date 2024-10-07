@@ -2,6 +2,7 @@
 
 from docetl.operations.map import MapOperation
 from tests.conftest import (
+    api_wrapper as api_wrapper,
     map_config_with_batching as map_config_with_batching,
     default_model as default_model,
     max_threads as max_threads,
@@ -32,8 +33,8 @@ def test_map_operation(
     assert cost > 0
 
 
-def test_map_operation_empty_input(map_config, default_model, max_threads):
-    operation = MapOperation(map_config, default_model, max_threads)
+def test_map_operation_empty_input(map_config, default_model, max_threads, api_wrapper):
+    operation = MapOperation(api_wrapper, map_config, default_model, max_threads)
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -45,8 +46,11 @@ def test_map_operation_with_drop_keys(
     default_model,
     max_threads,
     map_sample_data_with_extra_keys,
+    api_wrapper,
 ):
-    operation = MapOperation(map_config_with_drop_keys, default_model, max_threads)
+    operation = MapOperation(
+        api_wrapper, map_config_with_drop_keys, default_model, max_threads
+    )
     results, cost = operation.execute(map_sample_data_with_extra_keys)
 
     assert len(results) == len(map_sample_data_with_extra_keys)
@@ -64,9 +68,10 @@ def test_map_operation_with_drop_keys_no_prompt(
     default_model,
     max_threads,
     map_sample_data_with_extra_keys,
+    api_wrapper,
 ):
     operation = MapOperation(
-        map_config_with_drop_keys_no_prompt, default_model, max_threads
+        api_wrapper, map_config_with_drop_keys_no_prompt, default_model, max_threads
     )
     results, cost = operation.execute(map_sample_data_with_extra_keys)
 
@@ -82,8 +87,11 @@ def test_map_operation_with_batching(
     default_model,
     max_threads,
     map_sample_data,
+    api_wrapper,
 ):
-    operation = MapOperation(map_config_with_batching, default_model, max_threads)
+    operation = MapOperation(
+        api_wrapper, map_config_with_batching, default_model, max_threads
+    )
     results, cost = operation.execute(map_sample_data)
 
     assert len(results) == len(map_sample_data)
@@ -95,9 +103,11 @@ def test_map_operation_with_batching(
 
 
 def test_map_operation_with_empty_input(
-    map_config_with_batching, default_model, max_threads
+    map_config_with_batching, default_model, max_threads, api_wrapper
 ):
-    operation = MapOperation(map_config_with_batching, default_model, max_threads)
+    operation = MapOperation(
+        api_wrapper, map_config_with_batching, default_model, max_threads
+    )
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -109,17 +119,22 @@ def test_map_operation_with_large_max_batch_size(
     default_model,
     max_threads,
     map_sample_data,
+    api_wrapper,
 ):
     map_config_with_batching["max_batch_size"] = 5  # Set batch size larger than data
-    operation = MapOperation(map_config_with_batching, default_model, max_threads)
+    operation = MapOperation(
+        api_wrapper, map_config_with_batching, default_model, max_threads
+    )
     results, cost = operation.execute(map_sample_data)
 
     assert len(results) == len(map_sample_data)
     assert cost > 0
 
 
-def test_map_operation_with_word_count_tool(map_config_with_tools, synthetic_data):
-    operation = MapOperation(map_config_with_tools, "gpt-4o-mini", 4)
+def test_map_operation_with_word_count_tool(
+    map_config_with_tools, synthetic_data, api_wrapper
+):
+    operation = MapOperation(api_wrapper, map_config_with_tools, "gpt-4o-mini", 4)
     results, cost = operation.execute(synthetic_data)
 
     assert len(results) == len(synthetic_data)
@@ -159,7 +174,7 @@ def simple_sample_data():
     ]
 
 
-def test_map_operation_with_timeout(simple_map_config, simple_sample_data):
+def test_map_operation_with_timeout(simple_map_config, simple_sample_data, api_wrapper):
     # Add timeout to the map configuration
     map_config_with_timeout = {
         **simple_map_config,
@@ -167,14 +182,14 @@ def test_map_operation_with_timeout(simple_map_config, simple_sample_data):
         "max_retries_per_timeout": 0,
     }
 
-    operation = MapOperation(map_config_with_timeout, "gpt-4o-mini", 4)
+    operation = MapOperation(api_wrapper, map_config_with_timeout, "gpt-4o-mini", 4)
 
     # Execute the operation and expect empty results
     with pytest.raises(docetl.operations.utils.InvalidOutputError):
         operation.execute(simple_sample_data)
 
 
-def test_map_operation_with_gleaning(simple_map_config, map_sample_data):
+def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wrapper):
     # Add gleaning configuration to the map configuration
     map_config_with_gleaning = {
         **simple_map_config,
@@ -184,7 +199,7 @@ def test_map_operation_with_gleaning(simple_map_config, map_sample_data):
         },
     }
 
-    operation = MapOperation(map_config_with_gleaning, "gpt-4o-mini", 4)
+    operation = MapOperation(api_wrapper, map_config_with_gleaning, "gpt-4o-mini", 4)
 
     # Execute the operation
     results, cost = operation.execute(map_sample_data)

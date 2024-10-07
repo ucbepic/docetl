@@ -1,6 +1,7 @@
 import pytest
 from docetl.operations.reduce import ReduceOperation
 from dotenv import load_dotenv
+from tests.conftest import api_wrapper
 import random
 
 load_dotenv()
@@ -83,9 +84,9 @@ def reduce_sample_data():
 
 
 def test_reduce_operation(
-    reduce_config, default_model, max_threads, reduce_sample_data
+    api_wrapper, reduce_config, default_model, max_threads, reduce_sample_data
 ):
-    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 3, "Should have results for 3 unique categories"
@@ -104,10 +105,10 @@ def test_reduce_operation(
 
 
 def test_reduce_operation_pass_through(
-    reduce_config, default_model, max_threads, reduce_sample_data
+    api_wrapper, reduce_config, default_model, max_threads, reduce_sample_data
 ):
     reduce_config["pass_through"] = True
-    operation = ReduceOperation(reduce_config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 3, "Should have results for 3 unique categories"
@@ -131,7 +132,9 @@ def test_reduce_operation_pass_through(
         ], "Pass-through 'item' should be from the correct category"
 
 
-def test_reduce_operation_error_handling(reduce_config, default_model, max_threads):
+def test_reduce_operation_error_handling(
+    api_wrapper, reduce_config, default_model, max_threads
+):
 
     # Test with missing fold_prompt when merge_prompt is present
     invalid_config = reduce_config.copy()
@@ -143,10 +146,10 @@ def test_reduce_operation_error_handling(reduce_config, default_model, max_threa
         ValueError,
         match="'fold_prompt' is required when 'merge_prompt' is specified",
     ):
-        ReduceOperation(invalid_config, default_model, max_threads)
+        ReduceOperation(api_wrapper, invalid_config, default_model, max_threads)
 
 
-def test_reduce_operation_non_associative(default_model, max_threads):
+def test_reduce_operation_non_associative(api_wrapper, default_model, max_threads):
     # Define a new non-associative reduce config
     non_associative_config = {
         "name": "non_associative_reduce",
@@ -167,7 +170,9 @@ def test_reduce_operation_non_associative(default_model, max_threads):
         {"sequence": "story", "value": "and lived happily ever after."},
     ]
 
-    operation = ReduceOperation(non_associative_config, default_model, max_threads)
+    operation = ReduceOperation(
+        api_wrapper, non_associative_config, default_model, max_threads
+    )
     results, cost = operation.execute(sample_data)
 
     assert len(results) == 1, "Should have one result for the 'story' sequence"
@@ -196,7 +201,9 @@ def test_reduce_operation_non_associative(default_model, max_threads):
     ), "Princess should be mentioned before the dragon in the story"
 
 
-def test_reduce_operation_persist_intermediates(default_model, max_threads):
+def test_reduce_operation_persist_intermediates(
+    api_wrapper, default_model, max_threads
+):
     # Define a config with persist_intermediates enabled
     persist_intermediates_config = {
         "name": "persist_intermediates_reduce",
@@ -219,7 +226,7 @@ def test_reduce_operation_persist_intermediates(default_model, max_threads):
     ]
 
     operation = ReduceOperation(
-        persist_intermediates_config, default_model, max_threads
+        api_wrapper, persist_intermediates_config, default_model, max_threads
     )
     results, cost = operation.execute(sample_data)
 

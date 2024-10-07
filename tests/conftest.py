@@ -1,5 +1,7 @@
 import pytest
 from docetl.operations.map import MapOperation
+from docetl.config_wrapper import ConfigWrapper
+from docetl.runner import DSLRunner
 
 
 @pytest.fixture
@@ -52,14 +54,32 @@ def map_config_with_batching():
 
 
 @pytest.fixture
-def test_map_operation_instance(map_config_with_batching, default_model, max_threads):
-    return MapOperation(map_config_with_batching, default_model, max_threads)
+def api_wrapper():
+    return DSLRunner(
+        {
+            "default_model": "gpt-4o-mini",
+            "operations": [],
+            "pipeline": {"steps": [], "output": {"path": "/tmp/testingdocetl.json"}},
+        },
+        max_threads=64,
+    )
+
+
+@pytest.fixture
+def test_map_operation_instance(
+    map_config_with_batching, default_model, max_threads, api_wrapper
+):
+    return MapOperation(
+        api_wrapper, map_config_with_batching, default_model, max_threads
+    )
 
 
 def test_map_operation_with_batching(
-    map_config_with_batching, default_model, max_threads
+    map_config_with_batching, default_model, max_threads, api_wrapper
 ):
-    operation = MapOperation(map_config_with_batching, default_model, max_threads)
+    operation = MapOperation(
+        api_wrapper, map_config_with_batching, default_model, max_threads
+    )
 
     # Sample data for testing
     map_sample_data = [

@@ -1,31 +1,49 @@
 import importlib
 import io
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
+def with_input_output_key(fn):
+    """Decorator that wraps a parser function that takes a single
+    string parameter and return list of strings and makes it a full
+    parser function that takes an item as a dictionary and return a
+    list of dictionaries."""
+    def wrapper(item, input_key="text", output_key="text", **kw):
+        if input_key not in item:
+            raise ValueError(f"Input key {input_key} not found in item: {item}")
+        result = fn(item[input_key], **kw)
+        if not isinstance(result, list):
+            result = [result]
+        return [{output_key: res} for res in result]
+    return wrapper
 
-def llama_index_simple_directory_reader(filename: str) -> List[str]:
+def llama_index_simple_directory_reader(item: dict[str, Any], input_key: str ="path") -> List[dict[str, Any]]:
     from llama_index.core import SimpleDirectoryReader
 
-    documents = SimpleDirectoryReader(filename).load_data()
-    # FIXME: What about doc.metadata? Would be good to include that too...
-    return [doc.text for doc in documents]
+    documents = SimpleDirectoryReader(item[input_key]).load_data()
+    return [{"text": doc.text,
+             "metadata": doc.metadata}
+            for doc in documents]
 
 
-def llama_index_wikipedia_reader(filename: str) -> List[str]:
+def llama_index_wikipedia_reader(item: dict[str, Any], input_key: str = "pages") -> List[dict[str, Any]]:
     from llama_index.readers.wikipedia import WikipediaReader
 
     loader = WikipediaReader()
-    pages = [filename]
+    pages = item[input_key]
+    if not isinstance(pages, list):
+        pages = [pages]
     documents = loader.load_data(pages=pages, auto_suggest=False)
     # The wikipedia reader does not include the page url in the metadata, which is impractical...
     for name, doc in zip(pages, documents):
         doc.metadata["source"] = "https://en.wikipedia.org/wiki/" + name
 
-    # FIXME: What about doc.metadata? Would be good to include that too...
-    return [doc.text for doc in documents]
+    return [{"text": doc.text,
+             "metadata": doc.metadata}
+            for doc in documents]
 
 
+@with_input_output_key
 def whisper_speech_to_text(filename: str) -> List[str]:
     """
     Transcribe speech from an audio file to text using Whisper model via litellm.
@@ -72,6 +90,7 @@ def whisper_speech_to_text(filename: str) -> List[str]:
         return [response.text]
 
 
+@with_input_output_key
 def xlsx_to_string(
     filename: str,
     orientation: str = "col",
@@ -128,6 +147,7 @@ def xlsx_to_string(
         return [process_sheet(wb.active)]
 
 
+@with_input_output_key
 def txt_to_string(filename: str) -> List[str]:
     """
     Read the content of a text file and return it as a list of strings (only one element).
@@ -142,6 +162,7 @@ def txt_to_string(filename: str) -> List[str]:
         return [file.read()]
 
 
+@with_input_output_key
 def docx_to_string(filename: str) -> List[str]:
     """
     Extract text from a Word document.
@@ -158,6 +179,7 @@ def docx_to_string(filename: str) -> List[str]:
     return ["\n".join([paragraph.text for paragraph in doc.paragraphs])]
 
 
+@with_input_output_key
 def pptx_to_string(filename: str, doc_per_slide: bool = False) -> List[str]:
     """
     Extract text from a PowerPoint presentation.
@@ -195,6 +217,7 @@ def pptx_to_string(filename: str, doc_per_slide: bool = False) -> List[str]:
     return result
 
 
+@with_input_output_key
 def azure_di_read(
     filename: str,
     use_url: bool = False,
@@ -334,6 +357,7 @@ def azure_di_read(
         ]
 
 
+@with_input_output_key
 def paddleocr_pdf_to_string(
     input_path: str,
     doc_per_page: bool = False,
@@ -399,6 +423,7 @@ def paddleocr_pdf_to_string(
     return pdf_content
 
 
+@with_input_output_key
 def gptpdf_to_string(
     input_path: str,
     gpt_model: str,

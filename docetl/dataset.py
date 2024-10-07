@@ -220,12 +220,12 @@ class Dataset:
     ):
         if input_key not in item:
             raise ValueError(f"Input key {input_key} not found in item: {item}")
-        result = func(self.runner, item[input_key], **function_kwargs)
+        result = func(item[input_key], **function_kwargs)
         if isinstance(result, list):
             return [item.copy() | {output_key: res} for res in result]
         else:
             return [item | {output_key: result}]
-          
+
     def _apply_parsing_tools(self, data: List[Dict]) -> List[Dict]:
         """
         Apply parsing tools to the data.

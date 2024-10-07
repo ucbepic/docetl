@@ -11,12 +11,12 @@ from rich.console import Console
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
-from .pipeline import Pipeline
+from docetl.config_wrapper import ConfigWrapper
 
 load_dotenv()
 
 
-class DSLRunner(Pipeline):
+class DSLRunner(ConfigWrapper):
     """
     A class for executing Domain-Specific Language (DSL) configurations.
 
@@ -39,7 +39,7 @@ class DSLRunner(Pipeline):
         Args:
             max_threads (int, optional): Maximum number of threads to use. Defaults to None.
         """
-        Pipeline.__init__(self, config, max_threads)
+        ConfigWrapper.__init__(self, config, max_threads)
         self.datasets = {}
 
         self.intermediate_dir = self.config["pipeline"]["output"].get(
@@ -104,7 +104,7 @@ class DSLRunner(Pipeline):
             try:
                 operation_class = get_operation(operation_type)
                 operation_class(
-                    self,
+                    self.api,
                     operation_config,
                     self.default_model,
                     self.max_threads,
@@ -266,7 +266,7 @@ class DSLRunner(Pipeline):
 
                 operation_class = get_operation(op_object["type"])
                 operation_instance = operation_class(
-                    self,
+                    self.api,
                     op_object,
                     self.default_model,
                     self.max_threads,

@@ -1,6 +1,7 @@
 import pytest
 import random
 from docetl.operations.reduce import ReduceOperation
+from tests.conftest import api_wrapper
 
 
 @pytest.fixture
@@ -31,7 +32,7 @@ def large_sample_data():
     return data
 
 
-def test_random_sampling(default_model, max_threads, large_sample_data):
+def test_random_sampling(api_wrapper, default_model, max_threads, large_sample_data):
     config = {
         "name": "reduce_value_sampling",
         "type": "reduce",
@@ -41,7 +42,7 @@ def test_random_sampling(default_model, max_threads, large_sample_data):
         "output": {"schema": {"summary": "string"}},
     }
 
-    operation = ReduceOperation(config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
     results, cost = operation.execute(large_sample_data)
 
     assert len(results) == 3, "Should have results for all three groups A, B, and C"
@@ -50,7 +51,7 @@ def test_random_sampling(default_model, max_threads, large_sample_data):
         assert len(result["summary"]) > 0, "Summary should not be empty"
 
 
-def test_first_n_sampling(default_model, max_threads, large_sample_data):
+def test_first_n_sampling(api_wrapper, default_model, max_threads, large_sample_data):
     config = {
         "name": "reduce_value_sampling",
         "type": "reduce",
@@ -60,7 +61,7 @@ def test_first_n_sampling(default_model, max_threads, large_sample_data):
         "output": {"schema": {"summary": "string"}},
     }
 
-    operation = ReduceOperation(config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
     results, cost = operation.execute(large_sample_data)
 
     assert len(results) == 3, "Should have results for all three groups A, B, and C"
@@ -69,7 +70,7 @@ def test_first_n_sampling(default_model, max_threads, large_sample_data):
         assert len(result["summary"]) > 0, "Summary should not be empty"
 
 
-def test_cluster_sampling(default_model, max_threads, large_sample_data):
+def test_cluster_sampling(api_wrapper, default_model, max_threads, large_sample_data):
     config = {
         "name": "reduce_value_sampling",
         "type": "reduce",
@@ -85,7 +86,7 @@ def test_cluster_sampling(default_model, max_threads, large_sample_data):
         "output": {"schema": {"summary": "string"}},
     }
 
-    operation = ReduceOperation(config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
     results, cost = operation.execute(large_sample_data)
 
     assert len(results) == 3, "Should have results for all three groups A, B, and C"
@@ -94,7 +95,9 @@ def test_cluster_sampling(default_model, max_threads, large_sample_data):
         assert len(result["summary"]) > 0, "Summary should not be empty"
 
 
-def test_semantic_similarity_sampling(default_model, max_threads, large_sample_data):
+def test_semantic_similarity_sampling(
+    api_wrapper, default_model, max_threads, large_sample_data
+):
     config = {
         "name": "reduce_value_sampling",
         "type": "reduce",
@@ -111,7 +114,7 @@ def test_semantic_similarity_sampling(default_model, max_threads, large_sample_d
         "output": {"schema": {"summary": "string"}},
     }
 
-    operation = ReduceOperation(config, default_model, max_threads)
+    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
     results, cost = operation.execute(large_sample_data)
 
     assert len(results) == 3, "Should have results for all three groups A, B, and C"
@@ -126,7 +129,9 @@ def test_semantic_similarity_sampling(default_model, max_threads, large_sample_d
         assert "culture" not in result["summary"]
 
 
-def test_invalid_sampling_method(default_model, max_threads, large_sample_data):
+def test_invalid_sampling_method(
+    api_wrapper, default_model, max_threads, large_sample_data
+):
     config = {
         "name": "reduce_value_sampling",
         "type": "reduce",
@@ -141,4 +146,4 @@ def test_invalid_sampling_method(default_model, max_threads, large_sample_data):
     }
 
     with pytest.raises(ValueError, match="Invalid 'method'"):
-        ReduceOperation(config, default_model, max_threads)
+        ReduceOperation(api_wrapper, config, default_model, max_threads)

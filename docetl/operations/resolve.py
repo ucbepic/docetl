@@ -11,59 +11,58 @@ from jinja2 import Template
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import (
-    RichLoopBar,
-    rich_as_completed
-)
+from docetl.operations.utils import RichLoopBar, rich_as_completed
 from docetl.utils import completion_cost, extract_jinja_variables
 
 
-def compare_pair(
-    comparison_prompt: str,
-    model: str,
-    item1: Dict,
-    item2: Dict,
-    blocking_keys: List[str] = [],
-    timeout_seconds: int = 120,
-    max_retries_per_timeout: int = 2,
-) -> Tuple[bool, float]:
-    """
-    Compares two items using an LLM model to determine if they match.
-
-    Args:
-        comparison_prompt (str): The prompt template for comparison.
-        model (str): The LLM model to use for comparison.
-        item1 (Dict): The first item to compare.
-        item2 (Dict): The second item to compare.
-
-    Returns:
-        Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
-    """
-    if blocking_keys:
-        if all(
-            key in item1 and key in item2 and item1[key].lower() == item2[key].lower()
-            for key in blocking_keys
-        ):
-            return True, 0
-
-    prompt_template = Template(comparison_prompt)
-    prompt = prompt_template.render(input1=item1, input2=item2)
-    response = self.api.call_llm(
-        model,
-        "compare",
-        [{"role": "user", "content": prompt}],
-        {"is_match": "bool"},
-        timeout_seconds=timeout_seconds,
-        max_retries_per_timeout=max_retries_per_timeout,
-    )
-    output = self.api.parse_llm_response(
-        response,
-        {"is_match": "bool"},
-    )[0]
-    return output["is_match"], completion_cost(response)
-
-
 class ResolveOperation(BaseOperation):
+    def compare_pair(
+        self,
+        comparison_prompt: str,
+        model: str,
+        item1: Dict,
+        item2: Dict,
+        blocking_keys: List[str] = [],
+        timeout_seconds: int = 120,
+        max_retries_per_timeout: int = 2,
+    ) -> Tuple[bool, float]:
+        """
+        Compares two items using an LLM model to determine if they match.
+
+        Args:
+            comparison_prompt (str): The prompt template for comparison.
+            model (str): The LLM model to use for comparison.
+            item1 (Dict): The first item to compare.
+            item2 (Dict): The second item to compare.
+
+        Returns:
+            Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
+        """
+        if blocking_keys:
+            if all(
+                key in item1
+                and key in item2
+                and item1[key].lower() == item2[key].lower()
+                for key in blocking_keys
+            ):
+                return True, 0
+
+        prompt_template = Template(comparison_prompt)
+        prompt = prompt_template.render(input1=item1, input2=item2)
+        response = self.api.call_llm(
+            model,
+            "compare",
+            [{"role": "user", "content": prompt}],
+            {"is_match": "bool"},
+            timeout_seconds=timeout_seconds,
+            max_retries_per_timeout=max_retries_per_timeout,
+        )
+        output = self.api.parse_llm_response(
+            response,
+            {"is_match": "bool"},
+        )[0]
+        return output["is_match"], completion_cost(response)
+
     def syntax_check(self) -> None:
         """
         Checks the configuration of the ResolveOperation for required keys and valid structure.
@@ -353,7 +352,7 @@ class ResolveOperation(BaseOperation):
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 future_to_pair = {
                     executor.submit(
-                        compare_pair,
+                        self.compare_pair,
                         self.config["comparison_prompt"],
                         self.config.get("comparison_model", self.default_model),
                         input_data[pair[0]],
@@ -413,7 +412,9 @@ class ResolveOperation(BaseOperation):
                 )[0]
                 reduction_cost = completion_cost(reduction_response)
 
-                if validate_output(self.config, reduction_output, self.console):
+                if self.api.validate_output(
+                    self.config, reduction_output, self.console
+                ):
                     return (
                         [
                             {

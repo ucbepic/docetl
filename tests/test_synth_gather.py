@@ -4,7 +4,10 @@ import tempfile
 import os
 from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
-from docetl.operations import SplitOperation, MapOperation, GatherOperation
+from docetl.operations.split import SplitOperation
+from docetl.operations.map import MapOperation
+from docetl.operations.gather import GatherOperation
+from tests.conftest import api_wrapper
 
 
 def generate_random_content(length):
@@ -170,7 +173,7 @@ def test_synth_gather(config_yaml):
 #     test_synth_gather(config)
 
 
-def test_split_map_gather(sample_data):
+def test_split_map_gather(sample_data, api_wrapper):
     default_model = "gpt-4o-mini"
     # Define split operation
     split_config = {
@@ -218,9 +221,11 @@ def test_split_map_gather(sample_data):
     }
 
     # Initialize operations
-    split_op = SplitOperation(split_config, default_model, max_threads=64)
-    map_op = MapOperation(map_config, default_model, max_threads=64)
-    gather_op = GatherOperation(gather_config, default_model, max_threads=64)
+    split_op = SplitOperation(api_wrapper, split_config, default_model, max_threads=64)
+    map_op = MapOperation(api_wrapper, map_config, default_model, max_threads=64)
+    gather_op = GatherOperation(
+        api_wrapper, gather_config, default_model, max_threads=64
+    )
 
     # Execute operations
     split_results, split_cost = split_op.execute(sample_data)

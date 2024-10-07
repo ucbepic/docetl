@@ -3,6 +3,7 @@ from docetl.operations.map import MapOperation
 from docetl.operations.unnest import UnnestOperation
 from docetl.operations.resolve import ResolveOperation
 from docetl.operations.reduce import ReduceOperation
+from tests.conftest import api_wrapper
 
 
 @pytest.fixture
@@ -144,9 +145,12 @@ def test_database_survey_pipeline(
     summarize_themes_config,
     default_model,
     max_threads,
+    api_wrapper,
 ):
     # Extract themes
-    extract_op = MapOperation(extract_themes_config, default_model, max_threads)
+    extract_op = MapOperation(
+        api_wrapper, extract_themes_config, default_model, max_threads
+    )
     extracted_results, extract_cost = extract_op.execute(synthetic_data)
 
     assert len(extracted_results) == len(synthetic_data)
@@ -154,21 +158,27 @@ def test_database_survey_pipeline(
     assert all(len(result["theme"]) >= 2 for result in extracted_results)
 
     # Unnest themes
-    unnest_op = UnnestOperation(unnest_themes_config, default_model, max_threads)
+    unnest_op = UnnestOperation(
+        api_wrapper, unnest_themes_config, default_model, max_threads
+    )
     unnested_results, unnest_cost = unnest_op.execute(extracted_results)
 
     assert len(unnested_results) > len(extracted_results)
     assert all("theme" in result for result in unnested_results)
 
     # Resolve themes
-    resolve_op = ResolveOperation(resolve_themes_config, default_model, max_threads)
+    resolve_op = ResolveOperation(
+        api_wrapper, resolve_themes_config, default_model, max_threads
+    )
     resolved_results, resolve_cost = resolve_op.execute(unnested_results)
 
     assert len(resolved_results) <= len(unnested_results)
     assert all("theme" in result for result in resolved_results)
 
     # Summarize themes
-    summarize_op = ReduceOperation(summarize_themes_config, default_model, max_threads)
+    summarize_op = ReduceOperation(
+        api_wrapper, summarize_themes_config, default_model, max_threads
+    )
     summarized_results, summarize_cost = summarize_op.execute(resolved_results)
 
     assert len(summarized_results) <= len(resolved_results)

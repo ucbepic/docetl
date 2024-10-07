@@ -25,6 +25,7 @@ pydantic = "^2.9.2"
 asteval = "^1.0.4"
 scikit-learn = "^1.5.2"
 numpy = "^1.26.4"
+pyrate-limiter = "^3.7.0"
 openpyxl = { version = "^3.1.5", optional = true }
 python-docx = { version = "^1.1.2", optional = true }
 pydub = { version = "^0.25.1", optional = true }

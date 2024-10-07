@@ -2,6 +2,7 @@ import pytest
 from docetl.operations.split import SplitOperation
 from docetl.operations.map import MapOperation
 from docetl.operations.gather import GatherOperation
+from tests.conftest import api_wrapper
 
 
 @pytest.fixture
@@ -105,11 +106,17 @@ def input_data():
 
 
 def test_split_map_gather_operations(
-    split_config, map_config, gather_config, input_data, default_model, max_threads
+    api_wrapper,
+    split_config,
+    map_config,
+    gather_config,
+    input_data,
+    default_model,
+    max_threads,
 ):
-    split_op = SplitOperation(split_config, default_model, max_threads)
-    map_op = MapOperation(map_config, default_model, max_threads)
-    gather_op = GatherOperation(gather_config, default_model, max_threads)
+    split_op = SplitOperation(api_wrapper, split_config, default_model, max_threads)
+    map_op = MapOperation(api_wrapper, map_config, default_model, max_threads)
+    gather_op = GatherOperation(api_wrapper, gather_config, default_model, max_threads)
 
     # Execute split operation
     split_results, split_cost = split_op.execute(input_data)
@@ -183,11 +190,11 @@ def test_split_map_gather_operations(
 
 
 def test_split_map_gather_empty_input(
-    split_config, map_config, gather_config, default_model, max_threads
+    api_wrapper, split_config, map_config, gather_config, default_model, max_threads
 ):
-    split_op = SplitOperation(split_config, default_model, max_threads)
-    map_op = MapOperation(map_config, default_model, max_threads)
-    gather_op = GatherOperation(gather_config, default_model, max_threads)
+    split_op = SplitOperation(api_wrapper, split_config, default_model, max_threads)
+    map_op = MapOperation(api_wrapper, map_config, default_model, max_threads)
+    gather_op = GatherOperation(api_wrapper, gather_config, default_model, max_threads)
 
     split_results, split_cost = split_op.execute([])
     assert len(split_results) == 0
@@ -203,14 +210,16 @@ def test_split_map_gather_empty_input(
 
 
 def test_split_delimiter_no_summarization(
-    split_config_delimiter, default_model, max_threads
+    api_wrapper, split_config_delimiter, default_model, max_threads
 ):
     input_data = [
         {"id": "1", "content": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6"},
         {"id": "2", "content": "Paragraph 1\n\nParagraph 2\n\nParagraph 3"},
     ]
 
-    split_op = SplitOperation(split_config_delimiter, default_model, max_threads)
+    split_op = SplitOperation(
+        api_wrapper, split_config_delimiter, default_model, max_threads, api_wrapper
+    )
     results, cost = split_op.execute(input_data)
 
     assert len(results) == 5  # 3 chunks for first item, 2 for second

@@ -39,6 +39,7 @@ class MapOptimizer:
 
     def __init__(
         self,
+        runner,
         config: Dict[str, Any],
         console: Console,
         llm_client: LLMClient,
@@ -59,6 +60,7 @@ class MapOptimizer:
             timeout (int, optional): The timeout in seconds for operation execution. Defaults to 10.
             is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
         """
+        self.runner = runner
         self.config = config
         self.console = console
         self.llm_client = llm_client

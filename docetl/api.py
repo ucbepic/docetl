@@ -144,6 +144,7 @@ class Pipeline:
         output: PipelineOutput,
         parsing_tools: List[Union[ParsingTool, Callable]] = [],
         default_model: Optional[str] = None,
+        rate_limits: Optional[Dict[str, int]] = None,
     ):
         self.name = name
         self.datasets = datasets
@@ -161,6 +162,7 @@ class Pipeline:
             for tool in parsing_tools
         ]
         self.default_model = default_model
+        self.rate_limits = rate_limits
         self._load_env()
 
     def _load_env(self):
@@ -257,7 +259,7 @@ class Pipeline:
         Returns:
             Dict[str, Any]: Dictionary representation of the Pipeline.
         """
-        return {
+        d = {
             "datasets": {
                 name: dataset.dict() for name, dataset in self.datasets.items()
             },
@@ -279,223 +281,9 @@ class Pipeline:
                 else None
             ),
         }
-
-    def _update_from_dict(self, config: Dict[str, Any]):
-        """
-        Update the Pipeline object from a dictionary representation.
-
-        Args:
-            config (Dict[str, Any]): Dictionary representation of the Pipeline.
-        """
-        self.datasets = {
-            name: Dataset(
-                type=dataset["type"],
-                source=dataset["source"],
-                path=dataset["path"],
-                parsing=dataset.get("parsing"),
-            )
-            for name, dataset in config["datasets"].items()
-        }
-        self.operations = []
-        for op in config["operations"]:
-            op_type = op.pop("type")
-            if op_type == "map":
-                self.operations.append(MapOp(**op, type=op_type))
-            elif op_type == "resolve":
-                self.operations.append(ResolveOp(**op, type=op_type))
-            elif op_type == "reduce":
-                self.operations.append(ReduceOp(**op, type=op_type))
-            elif op_type == "parallel_map":
-                self.operations.append(ParallelMapOp(**op, type=op_type))
-            elif op_type == "filter":
-                self.operations.append(FilterOp(**op, type=op_type))
-            elif op_type == "equijoin":
-                self.operations.append(EquijoinOp(**op, type=op_type))
-            elif op_type == "split":
-                self.operations.append(SplitOp(**op, type=op_type))
-            elif op_type == "gather":
-                self.operations.append(GatherOp(**op, type=op_type))
-            elif op_type == "unnest":
-                self.operations.append(UnnestOp(**op, type=op_type))
-        self.steps = [PipelineStep(**step) for step in config["pipeline"]["steps"]]
-        self.output = PipelineOutput(**config["pipeline"]["output"])
-        self.default_model = config.get("default_model")
-        self.parsing_tools = (
-            [ParsingTool(**tool) for tool in config.get("parsing_tools", [])]
-            if config.get("parsing_tools")
-            else []
-        )
-
-        updated_pipeline._update_from_dict(optimized_config)
-        return updated_pipeline
-
-    def run(self, max_threads: Optional[int] = None) -> float:
-        """
-        Run the pipeline using the DSLRunner.
-
-        Args:
-            max_threads (Optional[int]): Maximum number of threads to use for execution.
-
-        Returns:
-            float: The total cost of running the pipeline.
-        """
-        config = self._to_dict()
-        runner = DSLRunner(config, max_threads=max_threads)
-        result = runner.run()
-        return result
-
-    def to_yaml(self, path: str) -> None:
-        """
-        Convert the Pipeline object to a YAML string and save it to a file.
-
-        Args:
-            path (str): Path to save the YAML file.
-
-        Returns:
-            None
-        """
-        config = self._to_dict()
-        with open(path, "w") as f:
-            yaml.safe_dump(config, f)
-
-        print(f"[green]Pipeline saved to {path}[/green]")
-
-    def _to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the Pipeline object to a dictionary representation.
-
-        Returns:
-            Dict[str, Any]: Dictionary representation of the Pipeline.
-        """
-        return {
-            "datasets": {
-                name: dataset.dict() for name, dataset in self.datasets.items()
-            },
-            "operations": [
-                {k: v for k, v in op.dict().items() if v is not None}
-                for op in self.operations
-            ],
-            "pipeline": {
-                "steps": [
-                    {k: v for k, v in step.dict().items() if v is not None}
-                    for step in self.steps
-                ],
-                "output": self.output.dict(),
-            },
-            "default_model": self.default_model,
-            "parsing_tools": (
-                [tool.dict() for tool in self.parsing_tools]
-                if self.parsing_tools
-                else None
-            ),
-        }
-
-    def _update_from_dict(self, config: Dict[str, Any]):
-        """
-        Update the Pipeline object from a dictionary representation.
-
-        Args:
-            config (Dict[str, Any]): Dictionary representation of the Pipeline.
-        """
-        self.datasets = {
-            name: Dataset(
-                type=dataset["type"],
-                source=dataset["source"],
-                path=dataset["path"],
-                parsing=dataset.get("parsing"),
-            )
-            for name, dataset in config["datasets"].items()
-        }
-        self.operations = []
-        for op in config["operations"]:
-            op_type = op.pop("type")
-            if op_type == "map":
-                self.operations.append(MapOp(**op, type=op_type))
-            elif op_type == "resolve":
-                self.operations.append(ResolveOp(**op, type=op_type))
-            elif op_type == "reduce":
-                self.operations.append(ReduceOp(**op, type=op_type))
-            elif op_type == "parallel_map":
-                self.operations.append(ParallelMapOp(**op, type=op_type))
-            elif op_type == "filter":
-                self.operations.append(FilterOp(**op, type=op_type))
-            elif op_type == "equijoin":
-                self.operations.append(EquijoinOp(**op, type=op_type))
-            elif op_type == "split":
-                self.operations.append(SplitOp(**op, type=op_type))
-            elif op_type == "gather":
-                self.operations.append(GatherOp(**op, type=op_type))
-            elif op_type == "unnest":
-                self.operations.append(UnnestOp(**op, type=op_type))
-        self.steps = [PipelineStep(**step) for step in config["pipeline"]["steps"]]
-        self.output = PipelineOutput(**config["pipeline"]["output"])
-        self.default_model = config.get("default_model")
-        self.parsing_tools = (
-            [ParsingTool(**tool) for tool in config.get("parsing_tools", [])]
-            if config.get("parsing_tools")
-            else []
-        )
-
-    def run(self, max_threads: Optional[int] = None) -> float:
-        """
-        Run the pipeline using the DSLRunner.
-
-        Args:
-            max_threads (Optional[int]): Maximum number of threads to use for execution.
-
-        Returns:
-            float: The total cost of running the pipeline.
-        """
-        config = self._to_dict()
-        runner = DSLRunner(config, max_threads=max_threads)
-        result = runner.run()
-        return result
-
-    def to_yaml(self, path: str) -> None:
-        """
-        Convert the Pipeline object to a YAML string and save it to a file.
-
-        Args:
-            path (str): Path to save the YAML file.
-
-        Returns:
-            None
-        """
-        config = self._to_dict()
-        with open(path, "w") as f:
-            yaml.safe_dump(config, f)
-
-        print(f"[green]Pipeline saved to {path}[/green]")
-
-    def _to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the Pipeline object to a dictionary representation.
-
-        Returns:
-            Dict[str, Any]: Dictionary representation of the Pipeline.
-        """
-        return {
-            "datasets": {
-                name: dataset.dict() for name, dataset in self.datasets.items()
-            },
-            "operations": [
-                {k: v for k, v in op.dict().items() if v is not None}
-                for op in self.operations
-            ],
-            "pipeline": {
-                "steps": [
-                    {k: v for k, v in step.dict().items() if v is not None}
-                    for step in self.steps
-                ],
-                "output": self.output.dict(),
-            },
-            "default_model": self.default_model,
-            "parsing_tools": (
-                [tool.dict() for tool in self.parsing_tools]
-                if self.parsing_tools
-                else None
-            ),
-        }
+        if self.rate_limits:
+            d["rate_limits"] = self.rate_limits
+        return d
 
     def _update_from_dict(self, config: Dict[str, Any]):
         """

@@ -3,6 +3,7 @@ from docetl.operations.map import MapOperation
 import random
 import os
 from dotenv import load_dotenv
+from tests.conftest import api_wrapper
 
 load_dotenv()
 
@@ -40,7 +41,7 @@ def test_map_operation_over_15_documents(simple_map_config, sample_documents):
     os.environ["AZURE_API_VERSION"] = os.getenv("LOW_RES_AZURE_API_VERSION")
     os.environ["AZURE_API_KEY"] = os.getenv("LOW_RES_AZURE_API_KEY")
 
-    operation = MapOperation(simple_map_config, "azure/gpt-4o", 4)
+    operation = MapOperation(api_wrapper, simple_map_config, "azure/gpt-4o", 4)
     results, cost = operation.execute(sample_documents)
 
     assert len(results) == 15

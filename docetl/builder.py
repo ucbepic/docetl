@@ -20,7 +20,7 @@ from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.map_optimizer import MapOptimizer
 from docetl.optimizers.reduce_optimizer import ReduceOptimizer
 from docetl.optimizers.utils import LLMClient
-from docetl.utils import load_config
+from docetl.config_wrapper import ConfigWrapper
 
 install(show_locals=True)
 
@@ -77,7 +77,7 @@ class DatasetOnDisk(dict):
         return [(key, self[key]) for key in self.keys()]
 
 
-class Optimizer:
+class Optimizer(ConfigWrapper):
     @classmethod
     def from_yaml(cls, yaml_file: str, **kwargs):
         # check that file ends with .yaml or .yml
@@ -88,8 +88,9 @@ class Optimizer:
 
         base_name = yaml_file.rsplit(".", 1)[0]
         suffix = yaml_file.split("/")[-1].split(".")[0]
-        config = load_config(yaml_file)
-        return cls(config, base_name, suffix, **kwargs)
+        return super(Optimizer, cls).from_yaml(
+            yaml_file, base_name=base_name, yaml_file_suffix=suffix, **kwargs
+        )
 
     def __init__(
         self,
@@ -135,11 +136,9 @@ class Optimizer:
 
         The method also calls print_optimizer_config() to display the initial configuration.
         """
-        self.config = config
-        self.console = Console()
+        ConfigWrapper.__init__(self, config, max_threads)
         self.optimized_config = copy.deepcopy(self.config)
         self.llm_client = LLMClient(model)
-        self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.operations_cost = 0
         self.timeout = timeout
         self.selectivities = defaultdict(dict)
@@ -163,7 +162,6 @@ class Optimizer:
         if self.config.get("optimizer_config", {}).get("sample_sizes", {}):
             self.sample_size_map.update(self.config["optimizer_config"]["sample_sizes"])
 
-        self.status = None
         self.step_op_to_optimized_ops = {}
 
         self.print_optimizer_config()
@@ -193,6 +191,7 @@ class Optimizer:
             try:
                 operation_class = get_operation(operation_type)
                 operation_class(
+                    self,
                     operation_config,
                     self.config.get("default_model", "gpt-4o-mini"),
                     self.max_threads,
@@ -973,6 +972,7 @@ class Optimizer:
                     f"Dataset '{dataset_name}' not found in config or previous steps."
                 )
             dataset = Dataset(
+                runner=self,
                 type=dataset_config["type"],
                 path_or_data=dataset_config["path"],
                 parsing=dataset_config.get("parsing", []),
@@ -1115,6 +1115,7 @@ class Optimizer:
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         reduce_optimizer = ReduceOptimizer(
+            self,
             self.config,
             self.console,
             self.llm_client,
@@ -1157,6 +1158,7 @@ class Optimizer:
         new_right_name = right_name
         for _ in range(max_iterations):
             join_optimizer = JoinOptimizer(
+                self,
                 self.config,
                 op_config,
                 self.console,
@@ -1278,6 +1280,7 @@ class Optimizer:
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         map_optimizer = MapOptimizer(
+            self,
             self.config,
             self.console,
             self.llm_client,
@@ -1307,6 +1310,7 @@ class Optimizer:
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         optimized_config, cost = JoinOptimizer(
+            self,
             self.config,
             op_config,
             self.console,
@@ -1354,6 +1358,7 @@ class Optimizer:
         operation_class = get_operation(op_config["type"])
 
         oc_kwargs = {
+            "runner": self,
             "config": op_config,
             "default_model": self.config["default_model"],
             "max_threads": self.max_threads,

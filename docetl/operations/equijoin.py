@@ -16,11 +16,7 @@ from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
-    call_llm,
-    gen_embedding,
-    parse_llm_response,
     rich_as_completed,
-    validate_output,
 )
 from docetl.utils import completion_cost
 
@@ -52,44 +48,44 @@ def process_left_item(
     ]
 
 
-def compare_pair(
-    comparison_prompt: str,
-    model: str,
-    item1: Dict,
-    item2: Dict,
-    timeout_seconds: int = 120,
-    max_retries_per_timeout: int = 2,
-) -> Tuple[bool, float]:
-    """
-    Compares two items using an LLM model to determine if they match.
-
-    Args:
-        comparison_prompt (str): The prompt template for comparison.
-        model (str): The LLM model to use for comparison.
-        item1 (Dict): The first item to compare.
-        item2 (Dict): The second item to compare.
-        timeout_seconds (int): The timeout for the LLM call in seconds.
-        max_retries_per_timeout (int): The maximum number of retries per timeout.
-
-    Returns:
-        Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
-    """
-
-    prompt_template = Template(comparison_prompt)
-    prompt = prompt_template.render(left=item1, right=item2)
-    response = call_llm(
-        model,
-        "compare",
-        [{"role": "user", "content": prompt}],
-        {"is_match": "bool"},
-        timeout_seconds=timeout_seconds,
-        max_retries_per_timeout=max_retries_per_timeout,
-    )
-    output = parse_llm_response(response, {"is_match": "bool"})[0]
-    return output["is_match"], completion_cost(response)
-
-
 class EquijoinOperation(BaseOperation):
+    def compare_pair(
+        self,
+        comparison_prompt: str,
+        model: str,
+        item1: Dict,
+        item2: Dict,
+        timeout_seconds: int = 120,
+        max_retries_per_timeout: int = 2,
+    ) -> Tuple[bool, float]:
+        """
+        Compares two items using an LLM model to determine if they match.
+
+        Args:
+            comparison_prompt (str): The prompt template for comparison.
+            model (str): The LLM model to use for comparison.
+            item1 (Dict): The first item to compare.
+            item2 (Dict): The second item to compare.
+            timeout_seconds (int): The timeout for the LLM call in seconds.
+            max_retries_per_timeout (int): The maximum number of retries per timeout.
+
+        Returns:
+            Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
+        """
+
+        prompt_template = Template(comparison_prompt)
+        prompt = prompt_template.render(left=item1, right=item2)
+        response = self.runner.api.call_llm(
+            model,
+            "compare",
+            [{"role": "user", "content": prompt}],
+            {"is_match": "bool"},
+            timeout_seconds=timeout_seconds,
+            max_retries_per_timeout=max_retries_per_timeout,
+        )
+        output = self.runner.api.parse_llm_response(response, {"is_match": "bool"})[0]
+        return output["is_match"], completion_cost(response)
+
     def syntax_check(self) -> None:
         """
         Checks the configuration of the EquijoinOperation for required keys and valid structure.
@@ -271,7 +267,7 @@ class EquijoinOperation(BaseOperation):
                     self.console.log(
                         f"On iteration {i} for creating embeddings for {name} data"
                     )
-                    response = gen_embedding(
+                    response = self.runner.api.gen_embedding(
                         model=embedding_model,
                         input=batch,
                     )
@@ -390,7 +386,7 @@ class EquijoinOperation(BaseOperation):
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             future_to_pair = {
                 executor.submit(
-                    compare_pair,
+                    self.compare_pair,
                     self.config["comparison_prompt"],
                     self.config.get("comparison_model", self.default_model),
                     left,
@@ -426,7 +422,9 @@ class EquijoinOperation(BaseOperation):
                         joined_item[f"{key}_left" if key in right_item else key] = value
                     for key, value in right_item.items():
                         joined_item[f"{key}_right" if key in left_item else key] = value
-                    if validate_output(self.config, joined_item, self.console):
+                    if self.runner.api.validate_output(
+                        self.config, joined_item, self.console
+                    ):
                         results.append(joined_item)
                         left_match_counts[left_key_hash] += 1
                         right_match_counts[right_key_hash] += 1

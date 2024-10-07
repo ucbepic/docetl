@@ -75,7 +75,7 @@ class EquijoinOperation(BaseOperation):
 
         prompt_template = Template(comparison_prompt)
         prompt = prompt_template.render(left=item1, right=item2)
-        response = self.api.call_llm(
+        response = self.runner.api.call_llm(
             model,
             "compare",
             [{"role": "user", "content": prompt}],
@@ -83,7 +83,7 @@ class EquijoinOperation(BaseOperation):
             timeout_seconds=timeout_seconds,
             max_retries_per_timeout=max_retries_per_timeout,
         )
-        output = self.api.parse_llm_response(response, {"is_match": "bool"})[0]
+        output = self.runner.api.parse_llm_response(response, {"is_match": "bool"})[0]
         return output["is_match"], completion_cost(response)
 
     def syntax_check(self) -> None:
@@ -267,7 +267,7 @@ class EquijoinOperation(BaseOperation):
                     self.console.log(
                         f"On iteration {i} for creating embeddings for {name} data"
                     )
-                    response = self.api.gen_embedding(
+                    response = self.runner.api.gen_embedding(
                         model=embedding_model,
                         input=batch,
                     )
@@ -422,7 +422,9 @@ class EquijoinOperation(BaseOperation):
                         joined_item[f"{key}_left" if key in right_item else key] = value
                     for key, value in right_item.items():
                         joined_item[f"{key}_right" if key in left_item else key] = value
-                    if self.api.validate_output(self.config, joined_item, self.console):
+                    if self.runner.api.validate_output(
+                        self.config, joined_item, self.console
+                    ):
                         results.append(joined_item)
                         left_match_counts[left_key_hash] += 1
                         right_match_counts[right_key_hash] += 1

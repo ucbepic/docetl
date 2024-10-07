@@ -13,7 +13,7 @@ from rich.status import Status
 class BaseOperation(ABC):
     def __init__(
         self,
-        api_wrapper: APIWrapper,
+        runner: "ConfigWrapper",
         config: Dict,
         default_model: str,
         max_threads: int,
@@ -32,9 +32,8 @@ class BaseOperation(ABC):
             status (Optional[Status]): Rich status for displaying progress. Defaults to None.
         """
         assert "name" in config, "Operation must have a name"
-        self.api = self.runner.api  # FIXME: Maybe remove this
         assert "type" in config, "Operation must have a type"
-        self.api = api_wrapper
+        self.runner = runner
         self.config = config
         self.default_model = default_model
         self.max_threads = max_threads

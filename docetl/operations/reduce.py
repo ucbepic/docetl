@@ -442,7 +442,7 @@ class ReduceOperation(BaseOperation):
             group_list, value_sampling, self.api
         )
 
-        query_response = self.api.gen_embedding(embedding_model, [query_text])
+        query_response = self.runner.api.gen_embedding(embedding_model, [query_text])
         query_embedding = query_response["data"][0]["embedding"]
         cost += completion_cost(query_response)
 
@@ -710,7 +710,7 @@ class ReduceOperation(BaseOperation):
             output=current_output,
             reduce_key=dict(zip(self.config["reduce_key"], key)),
         )
-        response = self.api.call_llm(
+        response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
             "reduce",
             [{"role": "user", "content": fold_prompt}],
@@ -720,7 +720,7 @@ class ReduceOperation(BaseOperation):
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
         )
-        folded_output = self.api.parse_llm_response(
+        folded_output = self.runner.api.parse_llm_response(
             response,
             self.config["output"]["schema"],
             manually_fix_errors=self.manually_fix_errors,
@@ -731,7 +731,7 @@ class ReduceOperation(BaseOperation):
         end_time = time.time()
         self._update_fold_time(end_time - start_time)
 
-        if self.api.validate_output(self.config, folded_output, self.console):
+        if self.runner.api.validate_output(self.config, folded_output, self.console):
             return folded_output, fold_cost
         return None, fold_cost
 
@@ -756,7 +756,7 @@ class ReduceOperation(BaseOperation):
         merge_prompt = merge_prompt_template.render(
             outputs=outputs, reduce_key=dict(zip(self.config["reduce_key"], key))
         )
-        response = self.api.call_llm(
+        response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
             "merge",
             [{"role": "user", "content": merge_prompt}],
@@ -765,7 +765,7 @@ class ReduceOperation(BaseOperation):
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
         )
-        merged_output = self.api.parse_llm_response(
+        merged_output = self.runner.api.parse_llm_response(
             response, self.config["output"]["schema"]
         )[0]
         merged_output.update(dict(zip(self.config["reduce_key"], key)))
@@ -773,7 +773,7 @@ class ReduceOperation(BaseOperation):
         end_time = time.time()
         self._update_merge_time(end_time - start_time)
 
-        if self.api.validate_output(self.config, merged_output, self.console):
+        if self.runner.api.validate_output(self.config, merged_output, self.console):
             return merged_output, merge_cost
         return None, merge_cost
 
@@ -850,7 +850,7 @@ class ReduceOperation(BaseOperation):
         item_cost = 0
 
         if "gleaning" in self.config:
-            response, gleaning_cost = self.api.call_llm_with_gleaning(
+            response, gleaning_cost = self.runner.api.call_llm_with_gleaning(
                 self.config.get("model", self.default_model),
                 "reduce",
                 [{"role": "user", "content": prompt}],
@@ -863,7 +863,7 @@ class ReduceOperation(BaseOperation):
             )
             item_cost += gleaning_cost
         else:
-            response = self.api.call_llm(
+            response = self.runner.api.call_llm(
                 self.config.get("model", self.default_model),
                 "reduce",
                 [{"role": "user", "content": prompt}],
@@ -876,13 +876,13 @@ class ReduceOperation(BaseOperation):
 
         item_cost += completion_cost(response)
 
-        output = self.api.parse_llm_response(
+        output = self.runner.api.parse_llm_response(
             response,
             self.config["output"]["schema"],
             manually_fix_errors=self.manually_fix_errors,
         )[0]
         output.update(dict(zip(self.config["reduce_key"], key)))
 
-        if self.api.validate_output(self.config, output, self.console):
+        if self.runner.api.validate_output(self.config, output, self.console):
             return output, item_cost
         return None, item_cost

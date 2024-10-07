@@ -42,8 +42,8 @@ class DSLRunner(ConfigWrapper):
         ConfigWrapper.__init__(self, config, max_threads)
         self.datasets = {}
 
-        self.intermediate_dir = self.config["pipeline"]["output"].get(
-            "intermediate_dir"
+        self.intermediate_dir = (
+            self.config.get("pipeline", {}).get("output", {}).get("intermediate_dir")
         )
 
         # Create parsing tool map
@@ -104,7 +104,7 @@ class DSLRunner(ConfigWrapper):
             try:
                 operation_class = get_operation(operation_type)
                 operation_class(
-                    self.api,
+                    self,
                     operation_config,
                     self.default_model,
                     self.max_threads,
@@ -266,7 +266,7 @@ class DSLRunner(ConfigWrapper):
 
                 operation_class = get_operation(op_object["type"])
                 operation_instance = operation_class(
-                    self.api,
+                    self,
                     op_object,
                     self.default_model,
                     self.max_threads,

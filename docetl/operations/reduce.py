@@ -273,6 +273,11 @@ class ReduceOperation(BaseOperation):
         Returns:
             Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
         """
+        if self.config.get("gleaning", {}).get("validation_prompt", None):
+            self.console.log(
+                f"Using gleaning with validation prompt: {self.config.get('gleaning', {}).get('validation_prompt', '')}"
+            )
+
         reduce_keys = self.config["reduce_key"]
         if isinstance(reduce_keys, str):
             reduce_keys = [reduce_keys]
@@ -860,6 +865,7 @@ class ReduceOperation(BaseOperation):
                 console=self.console,
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                verbose=self.config.get("verbose", False),
             )
             item_cost += gleaning_cost
         else:

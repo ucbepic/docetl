@@ -1,0 +1,69 @@
+name: Create or Update PR from staging to main
+
+on:
+  push:
+    branches:
+      - staging
+  pull_request:
+    types:
+      - closed
+    branches:
+      - staging
+
+jobs:
+  create-or-update-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Check for existing PR
+        id: check_pr
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const { data: pullRequests } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: 'staging',
+              base: 'main'
+            });
+            return pullRequests.length > 0 ? 'true' : 'false';
+
+      - name: Create Pull Request
+        if: steps.check_pr.outputs.result == 'false'
+        uses: repo-sync/pull-request@v2
+        with:
+          source_branch: "staging"
+          destination_branch: "main"
+          pr_title: "Merge staging into main"
+          pr_body: "This PR was automatically created to merge changes from staging into main."
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Pull Request
+        if: steps.check_pr.outputs.result == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const { data: pullRequests } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: 'staging',
+              base: 'main'
+            });
+
+            if (pullRequests.length > 0) {
+              const prNumber = pullRequests[0].number;
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                body: 'This PR has been automatically updated with the latest changes from staging.'
+              });
+              console.log(`Updated PR #${prNumber}`);
+            }

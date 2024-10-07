@@ -8,10 +8,6 @@ from jinja2 import Template
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
     RichLoopBar,
-    call_llm,
-    call_llm_with_validation,
-    parse_llm_response,
-    validate_output,
 )
 
 
@@ -122,7 +118,7 @@ class FilterOperation(BaseOperation):
             prompt = prompt_template.render(input=item)
 
             def validation_fn(response: Dict[str, Any]):
-                output = parse_llm_response(
+                output = self.runner.api.parse_llm_response(
                     response,
                     self.config["output"]["schema"],
                     manually_fix_errors=self.manually_fix_errors,
@@ -130,16 +126,16 @@ class FilterOperation(BaseOperation):
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value
-                if validate_output(self.config, output, self.console):
+                if self.runner.api.validate_output(self.config, output, self.console):
                     return output, True
                 return output, False
 
-            output, cost, is_valid = call_llm_with_validation(
+            output, cost, is_valid = self.runner.api.call_llm_with_validation(
                 [{"role": "user", "content": prompt}],
                 model=self.config.get("model", self.default_model),
                 operation_type="filter",
                 schema=self.config["output"]["schema"],
-                llm_call_fn=lambda messages: call_llm(
+                llm_call_fn=lambda messages: self.runner.api.call_llm(
                     self.config.get("model", self.default_model),
                     "filter",
                     messages,

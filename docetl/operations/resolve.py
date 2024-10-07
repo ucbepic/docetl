@@ -49,7 +49,7 @@ class ResolveOperation(BaseOperation):
 
         prompt_template = Template(comparison_prompt)
         prompt = prompt_template.render(input1=item1, input2=item2)
-        response = self.api.call_llm(
+        response = self.runner.api.call_llm(
             model,
             "compare",
             [{"role": "user", "content": prompt}],
@@ -57,7 +57,7 @@ class ResolveOperation(BaseOperation):
             timeout_seconds=timeout_seconds,
             max_retries_per_timeout=max_retries_per_timeout,
         )
-        output = self.api.parse_llm_response(
+        output = self.runner.api.parse_llm_response(
             response,
             {"is_match": "bool"},
         )[0]
@@ -232,7 +232,9 @@ class ResolveOperation(BaseOperation):
                     " ".join(str(item[key]) for key in blocking_keys if key in item)
                     for item in items
                 ]
-                response = self.api.gen_embedding(model=embedding_model, input=texts)
+                response = self.runner.api.gen_embedding(
+                    model=embedding_model, input=texts
+                )
                 return [
                     (data["embedding"], completion_cost(response))
                     for data in response["data"]
@@ -394,7 +396,7 @@ class ResolveOperation(BaseOperation):
                     ]
 
                 resolution_prompt = reduction_template.render(inputs=cluster_items)
-                reduction_response = self.api.call_llm(
+                reduction_response = self.runner.api.call_llm(
                     self.config.get("resolution_model", self.default_model),
                     "reduce",
                     [{"role": "user", "content": resolution_prompt}],
@@ -405,14 +407,14 @@ class ResolveOperation(BaseOperation):
                         "max_retries_per_timeout", 2
                     ),
                 )
-                reduction_output = self.api.parse_llm_response(
+                reduction_output = self.runner.api.parse_llm_response(
                     reduction_response,
                     self.config["output"]["schema"],
                     manually_fix_errors=self.manually_fix_errors,
                 )[0]
                 reduction_cost = completion_cost(reduction_response)
 
-                if self.api.validate_output(
+                if self.runner.api.validate_output(
                     self.config, reduction_output, self.console
                 ):
                     return (

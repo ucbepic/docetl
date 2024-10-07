@@ -7,13 +7,10 @@ from docetl.operations.gather import GatherOperation
 from docetl.operations.utils import APIWrapper
 from docetl.config_wrapper import ConfigWrapper
 from dotenv import load_dotenv
+from tests.conftest import api_wrapper
+
 
 load_dotenv()
-
-
-@pytest.fixture
-def api_wrapper():
-    return APIWrapper(ConfigWrapper({"default_model": "gpt-4o-mini"}, max_threads=64))
 
 
 # Filter Operation Tests

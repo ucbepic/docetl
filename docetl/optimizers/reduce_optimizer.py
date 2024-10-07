@@ -1305,7 +1305,7 @@ class ReduceOptimizer:
         reduce_key = op_config["reduce_key"]
         input_schema = op_config.get("input", {}).get("schema", {})
         output_schema = op_config["output"]["schema"]
-        model = op_config.get("model", "gpt-4o")
+        model = op_config.get("model", "gpt-4o-mini")
 
         compression_ratios = {}
 

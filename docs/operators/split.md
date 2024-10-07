@@ -42,7 +42,7 @@ Note that chunks will not overlap in content.
 - `method`: The method to use for splitting. Options are "delimiter" and "token_count".
 - `method_kwargs`: A dictionary of keyword arguments for the splitting method.
   - For "delimiter" method: `delimiter` (string) to use for splitting.
-  - For "token_count" method: `token_count` (integer) specifying the maximum number of tokens per chunk.
+  - For "token_count" method: `num_tokens` (integer) specifying the maximum number of tokens per chunk.
 
 ### Optional Parameters in `method_kwargs
 
@@ -107,8 +107,8 @@ Let's walk through a complete example of using Split, Map, and Reduce operations
   split_key: transcript
   method: token_count
   method_kwargs:
-    token_count: 500
-  model: gpt-4o-mini
+    num_tokens: 500
+    model: gpt-4o-mini
 ```
 
 ### Step 2: Map Operation (Identify Frustration Indicators)

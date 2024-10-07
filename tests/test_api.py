@@ -227,7 +227,9 @@ def test_pipeline_optimization(
         default_model="gpt-4o-mini",
     )
 
-    optimized_pipeline = pipeline.optimize(max_threads=4, model="gpt-4o", timeout=10)
+    optimized_pipeline = pipeline.optimize(
+        max_threads=4, model="gpt-4o-mini", timeout=10
+    )
 
     assert isinstance(optimized_pipeline, Pipeline)
     assert len(optimized_pipeline.operations) == len(pipeline.operations)

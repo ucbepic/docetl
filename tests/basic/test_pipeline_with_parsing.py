@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List
 import pytest
 import json
 import os
@@ -129,9 +129,9 @@ def test_pipeline_with_parsing(config_file):
     os.remove(sample_data_file.name)
 
 
-def custom_exploder(text: str) -> List[str]:
-
-    return [t for t in text]
+def custom_exploder(doc: Dict) -> List[Dict]:
+    text = doc["text"]
+    return [{"text": t} for t in text]
 
 
 def test_pipeline_with_custom_parsing():
@@ -160,9 +160,7 @@ def test_pipeline_with_custom_parsing():
                 path=tmp_input.name,
                 parsing=[
                     {
-                        "input_key": "text",
                         "function": "custom_exploder",
-                        "output_key": "parsed_content",
                     }
                 ],
             )

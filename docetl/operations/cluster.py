@@ -136,7 +136,7 @@ class ClusterOperation(BaseOperation):
             item = dict(tree)
             item.pop("children")
             for child in tree["children"]:
-                self.annotate_leaves(child, path=path+(item,))
+                self.annotate_leaves(child, path=(item,) + path)
         else:
             tree[self.config.get("output_key", "clusters")] = path
         

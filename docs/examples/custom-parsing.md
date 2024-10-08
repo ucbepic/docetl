@@ -35,10 +35,11 @@ To use custom parsing, you need to define parsing tools in your DocETL configura
 parsing_tools:
   - name: top_products_report
     function_code: |
-      def top_products_report(filename: str) -> List[str]:
+      def top_products_report(document: Dict) -> List[Dict]:
           import pandas as pd
           
           # Read the Excel file
+          filename = document["excel_path"]
           df = pd.read_excel(filename)
           
           # Calculate total sales
@@ -61,7 +62,10 @@ parsing_tools:
               mom_growth.to_string()
           ]
           
-          return ["\n".join(report)]
+          # Return a list of dicts representing the output
+          # The input document will be merged into each output doc,
+          # so we can access all original fields from the input doc.
+          return [{"sales_analysis": "\n".join(report)}]
 
 datasets:
   sales_reports:
@@ -69,9 +73,7 @@ datasets:
     source: local
     path: "sales_data/sales_paths.json"
     parsing:
-      - input_key: excel_path
-        function: top_products_report
-        output_key: sales_analysis
+      - function: top_products_report
 
   receipts:
     type: file
@@ -81,9 +83,8 @@ datasets:
       - input_key: pdf_path
         function: paddleocr_pdf_to_string
         output_key: receipt_text
-        function_kwargs:
-          ocr_enabled: true
-          lang: "en"
+        ocr_enabled: true
+        lang: "en"
 ```
 
 In this configuration:
@@ -110,8 +111,6 @@ pipeline:
 ```
 
 This pipeline will use the parsed data from both Excel files and PDFs for further processing.
-
-
 
 ### How Data Gets Parsed and Formatted
 
@@ -205,45 +204,45 @@ When you run this command:
 DocETL provides several built-in parsing tools to handle common file formats and data processing tasks. These tools can be used directly in your configuration by specifying their names in the `function` field of your parsing tools configuration. Here's an overview of the available built-in parsing tools:
 
 ::: docetl.parsing_tools.xlsx_to_string
-    options:
-        show_root_heading: true
-        heading_level: 3
+  options:
+    show_root_heading: true
+    heading_level: 3
 
 ::: docetl.parsing_tools.txt_to_string
-    options:
-        show_root_heading: true
-        heading_level: 3
+  options:
+    show_root_heading: true
+    heading_level: 3
 
 ::: docetl.parsing_tools.docx_to_string
-    options:
-        show_root_heading: true
-        heading_level: 3
+  options:
+    show_root_heading: true
+    heading_level: 3
 
 ::: docetl.parsing_tools.whisper_speech_to_text
-    options:
-        show_root_heading: true
-        heading_level: 3
+  options:
+    show_root_heading: true
+    heading_level: 3
 
 ::: docetl.parsing_tools.pptx_to_string
-    options:
-        show_root_heading: true
-        heading_level: 3
+  options:
+    show_root_heading: true
+    heading_level: 3
 
 ::: docetl.parsing_tools.azure_di_read
-    options:
-        heading_level: 3
-        show_root_heading: true
+  options:
+    heading_level: 3
+    show_root_heading: true
 
 ::: docetl.parsing_tools.paddleocr_pdf_to_string
-    options:
-        heading_level: 3
-        show_root_heading: true
+  options:
+    heading_level: 3
+    show_root_heading: true
 
 ### Using Function Arguments with Parsing Tools
 
-When using parsing tools in your DocETL configuration, you can pass additional arguments to the parsing functions using the function_kwargs field. This allows you to customize the behavior of the parsing tools without modifying their implementation.
+When using parsing tools in your DocETL configuration, you can pass additional arguments to the parsing functions.
 
-For example, when using the xlsx_to_string parsing tool, you can specify options like the orientation of the data, the order of columns, or whether to process each sheet separately. Here's an example of how to use function_kwargs in your configuration:
+For example, when using the xlsx_to_string parsing tool, you can specify options like the orientation of the data, the order of columns, or whether to process each sheet separately. Here's an example of how to use such kwargs in your configuration:
 
 ```yaml
 datasets:
@@ -254,10 +253,9 @@ datasets:
     parsing_tools:
       - name: excel_parser
         function: xlsx_to_string
-        function_kwargs:
-          orientation: row
-          col_order: ["Date", "Product", "Quantity", "Price"]
-          doc_per_sheet: true
+        orientation: row
+        col_order: ["Date", "Product", "Quantity", "Price"]
+        doc_per_sheet: true
 ```
 
 ## Contributing Built-in Parsing Tools
@@ -285,7 +283,7 @@ While DocETL provides several built-in parsing tools, the community can always b
 If the built-in tools don't meet your needs, you can create your own custom parsing tools. Here's how:
 
 1. Define your parsing function in the `parsing_tools` section of your configuration.
-2. Ensure your function takes a filename as input and returns a list of strings.
+2. Ensure your function takes a document (dict) as input and returns a list of documents (dicts).
 3. Use your custom parser in the `parsing` section of your dataset configuration.
 
 For example:
@@ -294,7 +292,7 @@ For example:
 parsing_tools:
   - name: my_custom_parser
     function_code: |
-      def my_custom_parser(filename: str) -> List[str]:
+      def my_custom_parser(document: Dict) -> List[Dict]:
           # Your custom parsing logic here
           return [processed_data]
 
@@ -304,7 +302,5 @@ datasets:
     source: local
     path: "data/paths.json"
     parsing:
-      - input_key: file_path
-        function: my_custom_parser
-        output_key: processed_data
+      - function: my_custom_parser
 ```

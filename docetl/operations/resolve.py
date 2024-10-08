@@ -544,10 +544,21 @@ class ResolveOperation(BaseOperation):
                         self.config["output"]["schema"],
                         manually_fix_errors=self.manually_fix_errors,
                     )[0]
+
+                    # If the output is overwriting an existing key, we want to save the kv pairs
+                    keys_in_output = [
+                        k
+                        for k in set(reduction_output.keys())
+                        if k in cluster_items[0].keys()
+                    ]
+
                     return (
                         [
                             {
                                 **item,
+                                f"_kv_pairs_preresolve_{self.config['name']}": {
+                                    k: item[k] for k in keys_in_output
+                                },
                                 **{
                                     k: reduction_output[k]
                                     for k in self.config["output"]["schema"]
@@ -589,6 +600,9 @@ class ResolveOperation(BaseOperation):
 
                 # Create the result dictionary using the key mapping
                 result = input_data[list(cluster)[0]].copy()
+                result[f"_kv_pairs_preresolve_{self.config['name']}"] = {
+                    ok: result[ck] for ok, ck in key_mapping.items() if ck in result
+                }
                 for output_key, compare_key in key_mapping.items():
                     if compare_key in input_data[list(cluster)[0]]:
                         result[output_key] = input_data[list(cluster)[0]][compare_key]

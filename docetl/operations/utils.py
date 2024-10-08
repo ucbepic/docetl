@@ -359,7 +359,11 @@ def safe_eval(expression: str, output: Dict) -> bool:
         # Safely evaluate the expression
         return bool(aeval(expression))
     except Exception:
-        return False
+        # try to evaluate with python eval
+        try:
+            return bool(eval(expression, locals={"output": output}))
+        except Exception:
+            return False
 
 
 class APIWrapper(object):

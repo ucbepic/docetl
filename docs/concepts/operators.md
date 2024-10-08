@@ -135,7 +135,7 @@ validate:
   - all(len(insight["supporting_actions"]) >= 1 for insight in output["insights"])
 ```
 
-Access variables using dictionary syntax: `input["field"]` or `output["field"]`.
+Access variables using dictionary syntax: `output["field"]`. Note that you can't access `input` docs in validation, but the output docs should have all the fields from the input docs (for non-reduce operations), since fields pass through unchanged.
 
 The `num_retries_on_validate_failure` attribute specifies how many times to retry the LLM if any validation statements fail.
 

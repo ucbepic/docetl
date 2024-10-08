@@ -359,7 +359,11 @@ def safe_eval(expression: str, output: Dict) -> bool:
         # Safely evaluate the expression
         return bool(aeval(expression))
     except Exception:
-        return False
+        # try to evaluate with python eval
+        try:
+            return bool(eval(expression, locals={"output": output}))
+        except Exception:
+            return False
 
 
 class APIWrapper(object):
@@ -720,6 +724,7 @@ Remember: The scratchpad should contain information necessary for processing fut
         console: Console = Console(),
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
+        verbose: bool = False,
     ) -> Tuple[str, float]:
         """
         Call LLM with a gleaning process, including validation and improvement rounds.
@@ -789,7 +794,7 @@ Remember: The scratchpad should contain information necessary for processing fut
             # Call LLM for validation
             self.runner.rate_limiter.try_acquire("llm_call", weight=1)
             validator_response = completion(
-                model="gpt-4o-mini",
+                model=model,
                 messages=truncate_messages(
                     messages + [{"role": "user", "content": validator_prompt}], model
                 ),
@@ -817,9 +822,10 @@ Remember: The scratchpad should contain information necessary for processing fut
             if not suggestion["should_refine"]:
                 break
 
-            # console.log(
-            #     f"Validator improvements (gleaning round {rnd + 1}): {suggestion['improvements']}"
-            # )
+            if verbose:
+                console.log(
+                    f"Validator improvements (gleaning round {rnd + 1}): {suggestion['improvements']}"
+                )
 
             # Prompt for improvement
             improvement_prompt = f"""Based on the validation feedback:

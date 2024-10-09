@@ -136,7 +136,7 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `model`                           | The language model to use                                                                       | Falls back to `default_model` |
 | `optimize`                        | Flag to enable operation optimization                                                           | `True`                        |
 | `recursively_optimize`            | Flag to enable recursive optimization of operators synthesized as part of rewrite rules         | `false`                       |
-| `sample_size`                     | Number of samples to use for the operation                                                      | Processes all data            |
+| `sample`                     | Number of samples to use for the operation                                                      | Processes all data            |
 | `tools`                           | List of tool definitions for LLM use                                                            | None                          |
 | `validate`                        | List of Python expressions to validate the output                                               | None                          |
 | `num_retries_on_validate_failure` | Number of retry attempts on validation failure                                                  | 0                             |
@@ -223,5 +223,5 @@ You can use a map operation to act as an LLM no-op, and just drop any key-value 
 1. **Clear Prompts**: Write clear, specific prompts that guide the LLM to produce the desired output.
 2. **Robust Validation**: Use validation to ensure output quality and consistency.
 3. **Appropriate Model Selection**: Choose the right model for your task, balancing performance and cost.
-4. **Optimize for Scale**: For large datasets, consider using `sample_size` to test your operation before running on the full dataset.
+4. **Optimize for Scale**: For large datasets, consider using `sample` to test your operation before running on the full dataset.
 5. **Use Tools Wisely**: Leverage tools for complex calculations or operations that the LLM might struggle with. You can write any Python code in the tools, so you can even use tools to call other APIs or search the internet.

@@ -30,6 +30,7 @@ nav:
           - Parallel Map: operators/parallel-map.md
           - Filter: operators/filter.md
           - Equijoin: operators/equijoin.md
+          - Cluster: operators/cluster.md
       - Auxiliary Operators:
           - Split: operators/split.md
           - Gather: operators/gather.md

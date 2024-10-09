@@ -10,7 +10,7 @@ def cluster_config():
         "type": "cluster",
         "embedding_keys": ["concept", "description"],
         "output_key": "categories",
-        "output_schema": {"concept": "string", "description": "string"},
+        "summary_schema": {"concept": "string", "description": "string"},
         "summary_prompt": """
         The following describes two related concepts. What concept
         encompasses both? Try not to be too broad; it might be that one of

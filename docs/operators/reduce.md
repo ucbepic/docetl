@@ -51,6 +51,7 @@ This Reduce operation processes customer feedback grouped by department:
 
 | Parameter                 | Description                                                                                            | Default                     |
 | ------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------- |
+| `sample`                  | Number of samples to use for the operation                                                      | None                        |
 | `synthesize_resolve`      | If false, won't synthesize a resolve operation between map and reduce                                  | true                        |
 | `model`                   | The language model to use                                                                              | Falls back to default_model |
 | `input`                   | Specifies the schema or keys to subselect from each item                                               | All keys from input items   |

@@ -22,18 +22,10 @@ class ClusterOperation(BaseOperation):
         Checks the configuration of the ClusterOperation for required keys and valid structure.
 
         Raises:
-            ValueError: If required keys are missing
-        """
-
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the ClusterOperation for required keys and valid structure.
-
-        Raises:
             ValueError: If required keys are missing or invalid in the configuration.
             TypeError: If configuration values have incorrect types.
         """
-        required_keys = ["embedding_keys", "output_schema", "summary_prompt"]
+        required_keys = ["embedding_keys", "summary_schema", "summary_prompt"]
         for key in required_keys:
             if key not in self.config:
                 raise ValueError(
@@ -47,8 +39,8 @@ class ClusterOperation(BaseOperation):
             if not isinstance(self.config["output_key"], str):
                 raise TypeError("'output_key' must be a string")
 
-        if not isinstance(self.config["output_schema"], dict):
-            raise TypeError("'output_schema' must be a dictionary")
+        if not isinstance(self.config["summary_schema"], dict):
+            raise TypeError("'summary_schema' must be a dictionary")
 
         if not isinstance(self.config["summary_prompt"], str):
             raise TypeError("'prompt' must be a string")
@@ -168,7 +160,7 @@ class ClusterOperation(BaseOperation):
             def validation_fn(response: Dict[str, Any]):
                 output = self.runner.api.parse_llm_response(
                     response,
-                    schema=self.config["output_schema"],
+                    schema=self.config["summary_schema"],
                     manually_fix_errors=self.manually_fix_errors,
                 )[0]
                 if self.runner.api.validate_output(self.config, output, self.console):
@@ -179,12 +171,13 @@ class ClusterOperation(BaseOperation):
                 [{"role": "user", "content": prompt}],
                 model=self.config.get("model", self.default_model),
                 operation_type="cluster",
-                schema=self.config["output_schema"],
+                schema=self.config["summary_schema"],
                 llm_call_fn=lambda messages: self.runner.api.call_llm(
                     self.config.get("model", self.default_model),
                     "cluster",
                     messages,
-                    self.config["output_schema"],
+                    self.config["summary_schema"],
+                    tools=self.config.get("tools", None),
                     console=self.console,
                     timeout_seconds=self.config.get("timeout", 120),
                     max_retries_per_timeout=self.config.get(

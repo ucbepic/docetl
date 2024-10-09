@@ -1,4 +1,4 @@
-# Clkuster operation
+# Cluster operation
 
 The Cluster operation in DocETL groups all items into a binary tree
 using [agglomerative
@@ -20,7 +20,7 @@ of its children as inputs (or for the leaf nodes, the actual items).
   embedding_keys:
     - concept
     - description
-  output_key: categories
+  output_key: categories # This is optional, and defaults to "clusters"
   summary_schema:
     concept: str
     description: str
@@ -176,12 +176,12 @@ and a description, and groups them into a tree of categories.
 
 ## Optional Parameters
 
-| Parameter                         | Description                                                                                     | Default                       |
-| --------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------- |
-| `output_key`                      | The name of the output key where the cluster path will be inserted in the items.                | "clusters"                          |
-| `model`                           | The language model to use                                                                       | Falls back to `default_model` |
-| `embedding_model`                 | The embedding model to use                                                                      | "text-embedding-3-small" |
-| `tools`                           | List of tool definitions for LLM use                                                            | None                          |
-| `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
-| `max_retries_per_timeout`         | Maximum number of retries per timeout                                                           | 2                             |
-| `validate`                        | List of Python expressions to validate the output                                               | None                          |
+| Parameter                 | Description                                                                      | Default                       |
+| ------------------------- | -------------------------------------------------------------------------------- | ----------------------------- |
+| `output_key`              | The name of the output key where the cluster path will be inserted in the items. | "clusters"                    |
+| `model`                   | The language model to use                                                        | Falls back to `default_model` |
+| `embedding_model`         | The embedding model to use                                                       | "text-embedding-3-small"      |
+| `tools`                   | List of tool definitions for LLM use                                             | None                          |
+| `timeout`                 | Timeout for each LLM call in seconds                                             | 120                           |
+| `max_retries_per_timeout` | Maximum number of retries per timeout                                            | 2                             |
+| `validate`                | List of Python expressions to validate the output                                | None                          |

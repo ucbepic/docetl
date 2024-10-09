@@ -50,6 +50,7 @@ Note that chunks will not overlap in content.
 | --------------------- | ------------------------------------------------------------------------------- | ----------------------------- |
 | `model`               | The language model's tokenizer to use                                           | Falls back to `default_model` |
 | `num_splits_to_group` | Number of splits to group together into one chunk (only for "delimiter" method) | 1                             |
+| `sample`              | Number of samples to use for the operation                                                      | None                        |
 
 ### Splitting Methods
 

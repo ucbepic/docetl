@@ -38,6 +38,7 @@ The Unnest operation is valuable in scenarios where you need to:
 | expand_fields | A list of fields to expand from the nested dictionary into the parent dictionary, if unnesting a dict | []      |
 | recursive     | If true, the unnest operation will be applied recursively to nested arrays                            | false   |
 | depth         | The maximum depth for recursive unnesting (only applicable if recursive is true)                      | inf     |
+| sample        | Number of samples to use for the operation                                                            | None    |
 
 ## Output
 

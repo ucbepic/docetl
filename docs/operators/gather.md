@@ -170,6 +170,7 @@ The Gather operation includes several key components:
 - `content_key`: Indicates the field containing the chunk content
 - `peripheral_chunks`: Specifies how to include context from surrounding chunks
 - `doc_header_key` (optional): Denotes a field representing extracted headers for each chunk
+- `sample` (optional): Number of samples to use for the operation
 
 ### Peripheral Chunks Configuration
 

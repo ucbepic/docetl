@@ -615,7 +615,7 @@ class APIWrapper(object):
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and "ollama" in model
+            and ("ollama" in model or "azure/gpt-4o-mini" in model)
         ):
             use_tools = False
 
@@ -635,7 +635,7 @@ class APIWrapper(object):
                     "type": "function",
                     "function": {
                         "name": "send_output",
-                        "description": "Send structured output back to the user",
+                        "description": "Send output back to the user",
                         "strict": True,
                         "parameters": parameters,
                         "additionalProperties": False,
@@ -858,7 +858,7 @@ Remember: The scratchpad should contain information necessary for processing fut
                         "type": "function",
                         "function": {
                             "name": "send_output",
-                            "description": "Send structured output back to the user",
+                            "description": "Send output back to the user",
                             "strict": True,
                             "parameters": parameters,
                             "additionalProperties": False,

@@ -88,7 +88,6 @@ reduce = "docetl.operations.reduce:ReduceOperation"
 resolve = "docetl.operations.resolve:ResolveOperation"
 gather = "docetl.operations.gather:GatherOperation"
 cluster = "docetl.operations.cluster:ClusterOperation"
-outliers = "docetl.operations.outliers:OutliersOperation"
 sample = "docetl.operations.sample:SampleOperation"
 
 [tool.poetry.plugins."docetl.parser"]

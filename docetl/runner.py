@@ -54,13 +54,16 @@ class DSLRunner(ConfigWrapper):
         # Check if output path is correctly formatted as JSON
         output_path = self.config.get("pipeline", {}).get("output", {}).get("path")
         if output_path:
-            if not output_path.lower().endswith(".json"):
+            if not (
+                output_path.lower().endswith(".json")
+                or output_path.lower().endswith(".csv")
+            ):
                 raise ValueError(
-                    f"Output path '{output_path}' is not a JSON file. Please provide a path ending with '.json'."
+                    f"Output path '{output_path}' is not a JSON or CSV file. Please provide a path ending with '.json' or '.csv'."
                 )
         else:
             raise ValueError(
-                "No output path specified in the configuration. Please provide an output path ending with '.json' in the configuration."
+                "No output path specified in the configuration. Please provide an output path ending with '.json' or '.csv' in the configuration."
             )
 
         self.syntax_check()
@@ -77,6 +80,11 @@ class DSLRunner(ConfigWrapper):
                 all_ops_until_and_including_current = [
                     op_map[prev_op] for prev_op in step["operations"][:idx]
                 ] + [op_map[op_name]]
+                # If there's no model in the op, add the default model
+                for op in all_ops_until_and_including_current:
+                    if "model" not in op:
+                        op["model"] = self.default_model
+
                 all_ops_str = json.dumps(all_ops_until_and_including_current)
                 self.step_op_hashes[step["name"]][op_name] = hashlib.sha256(
                     all_ops_str.encode()
@@ -207,8 +215,16 @@ class DSLRunner(ConfigWrapper):
         self.console.rule("[cyan]Saving Output[/cyan]")
         output_config = self.config["pipeline"]["output"]
         if output_config["type"] == "file":
-            with open(output_config["path"], "w") as file:
-                json.dump(data, file, indent=2)
+            if output_config["path"].lower().endswith(".json"):
+                with open(output_config["path"], "w") as file:
+                    json.dump(data, file, indent=2)
+            else:  # CSV
+                import csv
+
+                with open(output_config["path"], "w", newline="") as file:
+                    writer = csv.DictWriter(file, fieldnames=data[0].keys())
+                    writer.writeheader()
+                    writer.writerows(data)
             self.console.print(
                 f"[green italic]💾 Output saved to {output_config['path']}[/green italic]"
             )

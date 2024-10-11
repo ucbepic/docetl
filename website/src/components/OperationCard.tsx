@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { debounce } from 'lodash';
 import { Guardrails, OutputSchema, PromptInput } from './operations/args';
 import createOperationComponent from './operations/components';
+import { useWebSocket } from '@/contexts/WebSocketContext';
 
 // Separate components
 const OperationHeader: React.FC<{
@@ -260,10 +261,43 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
   const [state, dispatch] = useReducer(operationReducer, initialState);
   const { operation, isEditing, isSchemaExpanded, isGuardrailsExpanded, isSettingsOpen } = state;
 
-  const { setOutput, isLoadingOutputs, setIsLoadingOutputs, numOpRun, setNumOpRun, currentFile, operations, setOperations, pipelineName, sampleSize, setCost, defaultModel } = usePipelineContext();
+  const { setOutput, isLoadingOutputs, setIsLoadingOutputs, numOpRun, setNumOpRun, currentFile, operations, setOperations, pipelineName, sampleSize, setCost, defaultModel, setTerminalOutput } = usePipelineContext();
   const { toast } = useToast();
 
   const operationRef = useRef(operation);
+  const { connect, sendMessage, lastMessage, readyState, disconnect } = useWebSocket();
+
+  useEffect(() => {
+    if (lastMessage) {
+      if (lastMessage.type === 'output') {
+        setTerminalOutput(lastMessage.data);
+      } else if (lastMessage.type === 'result') {
+        const runCost = lastMessage.data.cost || 0;
+        setCost(prevCost => prevCost + runCost);
+        toast({
+          title: "Operation Complete",
+          description: `The operation cost $${runCost.toFixed(4)}`,
+          duration: 3000,
+        });
+        
+        // Close the WebSocket connection
+        disconnect();
+
+        setIsLoadingOutputs(false);
+      } else if (lastMessage.type === 'error') {
+        toast({
+          title: "Error",
+          description: lastMessage.data,
+          variant: "destructive",
+        });
+
+        // Close the WebSocket connection
+        disconnect();
+
+        setIsLoadingOutputs(false);
+      }
+    }
+  }, [lastMessage, setCost, setIsLoadingOutputs, setTerminalOutput]);
 
   useEffect(() => {
     operationRef.current = operation;
@@ -279,9 +313,6 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
 
   }, [operations, index]);
 
-  const schemaItems = useMemo(() => {
-    return operation?.output?.schema || [];
-  }, [operation?.output?.schema]);
 
   const debouncedUpdate = useCallback(
     debounce(() => {
@@ -298,11 +329,6 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     debouncedUpdate();
   }, [debouncedUpdate]);
 
-  const handlePromptChange = useCallback((value: string) => {
-    dispatch({ type: 'UPDATE_PROMPT', payload: value });
-    debouncedUpdate();
-  }, [debouncedUpdate]);
-
   const handleRunOperation = useCallback(async () => {
     if (!operation) return;
     setIsLoadingOutputs(true);
@@ -311,52 +337,56 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       dispatch({ type: 'SET_RUN_INDEX', payload: newNum });
       return newNum;
     });
+
+    setTerminalOutput('');
+
     try {
-      const response = await fetch('/api/runPipeline', {
+      const response = await fetch('/api/writePipelineConfig', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           default_model: defaultModel,
-          data: currentFile,
-          operations: operations,
+          data: { path: currentFile?.path || '' },
+          operations,
           operation_id: operation.id,
-          name: `${pipelineName}.yaml`,
+          name: pipelineName,
           sample_size: sampleSize
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Failed to run pipeline: ${errorData.error || response.statusText}`);
+        throw new Error('Failed to write pipeline config');
       }
 
-      const { apiResponse, outputPath, inputPath } = await response.json();
-      const runCost = apiResponse.cost || 0;
-      setCost(prevCost => prevCost + runCost);
-
-      toast({
-        title: "Operation Cost",
-        description: `The operation cost $${runCost.toFixed(4)}`,
-        duration: 3000,
-      });
+      const { filePath, inputPath, outputPath } = await response.json();
 
       setOutput({
-        path: outputPath,
         operationId: operation.id,
+        path: outputPath,
         inputPath: inputPath
       });
+
+      // Ensure the WebSocket is connected before sending the message
+      await connect();
+
+      sendMessage({
+        yaml_config: filePath
+      });
     } catch (error) {
+      console.error('Error writing pipeline config:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : String(error),
+        description: "Failed to write pipeline configuration",
         variant: "destructive",
       });
-    } finally {
+      // Close the WebSocket connection
+      disconnect();
       setIsLoadingOutputs(false);
     }
-  }, [operation, currentFile, operations, setOutput, setIsLoadingOutputs, setNumOpRun, toast]);
+  }, [operation, currentFile, operations, setIsLoadingOutputs, setNumOpRun, sendMessage, readyState, defaultModel, pipelineName, sampleSize]);
+
 
   const handleSettingsSave = useCallback((newSettings: Record<string, string>) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: newSettings });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { DropResult } from 'react-beautiful-dnd';
 import { Operation, File } from '@/app/types';
 import { Droppable, DragDropContext } from 'react-beautiful-dnd';
@@ -13,78 +13,116 @@ import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useWebSocket } from '@/contexts/WebSocketContext';
 
 const PipelineGUI: React.FC<{ 
   onDragEnd: (result: DropResult) => void;
 }> = ({ onDragEnd }) => {
-  const { operations, setOperations, pipelineName, setPipelineName, sampleSize, setSampleSize, numOpRun, setNumOpRun, currentFile, setCurrentFile, output, setOutput, isLoadingOutputs, setIsLoadingOutputs, files, setCost, defaultModel, setDefaultModel } = usePipelineContext();
+  const { operations, setOperations, pipelineName, setPipelineName, sampleSize, setSampleSize, numOpRun, setNumOpRun, currentFile, setCurrentFile, output, setOutput, isLoadingOutputs, setIsLoadingOutputs, files, setCost, defaultModel, setDefaultModel, setTerminalOutput } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempSampleSize, setTempSampleSize] = useState(sampleSize?.toString() || '');
   const [tempCurrentFile, setTempCurrentFile] = useState<File | null>(currentFile);
   const [tempDefaultModel, setTempDefaultModel] = useState(defaultModel);
   const { toast } = useToast();
+  const { connect, sendMessage, lastMessage, readyState, disconnect } = useWebSocket();
 
-  const onRunAll = async () => {
+  const onRunAll = useCallback(async () => {
     const lastOpIndex = operations.length - 1;
     if (lastOpIndex < 0) return;
 
     const lastOperation = operations[lastOpIndex];
     setIsLoadingOutputs(true);
-
-    try {
+    setNumOpRun(prevNum => {
+      const newNum = prevNum + operations.length;
       const updatedOperations = operations.map((op, index) => ({
         ...op,
-        runIndex: numOpRun + index + 1
+        runIndex: prevNum + index + 1
       }));
+      setOperations(updatedOperations);
+      return newNum;
+    });
 
-      const response = await fetch('/api/runPipeline', {
+    setTerminalOutput('');
+
+    try {
+      const response = await fetch('/api/writePipelineConfig', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           default_model: defaultModel,
-          data: currentFile,
-          operations: updatedOperations,
+          data: { path: currentFile?.path || '' },
+          operations,
           operation_id: lastOperation.id,
-          name: `${pipelineName}.yaml`,
+          name: pipelineName,
           sample_size: sampleSize
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Failed to run pipeline: ${errorData.error || response.statusText}`);
+        throw new Error('Failed to write pipeline config');
       }
 
-      const { apiResponse, outputPath, inputPath } = await response.json();
-      const runCost = apiResponse.cost || 0;
-      setCost(prevCost => prevCost + runCost);
-      toast({
-        title: "Pipeline Run Complete",
-        description: `The pipeline run cost $${runCost.toFixed(4)}`,
-        duration: 3000,
-      });
+      const { filePath, inputPath, outputPath } = await response.json();
 
       setOutput({
-        path: outputPath,
         operationId: lastOperation.id,
+        path: outputPath,
         inputPath: inputPath
       });
 
-      setNumOpRun(prevNum => prevNum + operations.length);
-      setOperations(updatedOperations);
+      // Ensure the WebSocket is connected before sending the message
+      await connect();
+
+      sendMessage({
+        yaml_config: filePath
+      });
     } catch (error) {
+      console.error('Error writing pipeline config:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : String(error),
+        description: "Failed to write pipeline configuration",
         variant: "destructive",
       });
-    } finally {
+      // Close the WebSocket connection
+      disconnect();
       setIsLoadingOutputs(false);
     }
-  }
+  }, [operations, currentFile, setIsLoadingOutputs, setNumOpRun, sendMessage, readyState, defaultModel, pipelineName, sampleSize]);
+
+  useEffect(() => {
+    if (lastMessage) {
+      if (lastMessage.type === 'output') {
+        setTerminalOutput(lastMessage.data);
+      } else if (lastMessage.type === 'result') {
+        const runCost = lastMessage.data.cost || 0;
+        setCost(prevCost => prevCost + runCost);
+        toast({
+          title: "Pipeline Run Complete",
+          description: `The pipeline run cost $${runCost.toFixed(4)}`,
+          duration: 3000,
+        });
+        
+        // Close the WebSocket connection
+        disconnect();
+
+        setIsLoadingOutputs(false);
+      } else if (lastMessage.type === 'error') {
+        toast({
+          title: "Error",
+          description: lastMessage.data,
+          variant: "destructive",
+        });
+
+        // Close the WebSocket connection
+        disconnect();
+
+        setIsLoadingOutputs(false);
+      }
+    }
+  }, [lastMessage, setCost, setIsLoadingOutputs, setTerminalOutput]);
 
   const handleAddOperation = (llmType: 'LLM' | 'non-LLM', type: string, name: string) => {
     const newOperation: Operation = {

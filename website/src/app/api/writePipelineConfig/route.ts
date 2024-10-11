@@ -128,27 +128,9 @@ export async function POST(request: Request) {
     const filePath = path.join(pipelineDir, `${name}.yaml`);
     await fs.writeFile(filePath, yamlString, 'utf8');
 
-    // Submit the YAML config to the FastAPI endpoint
-    const response = await axios.post('http://localhost:8000/run_pipeline', {
-      yaml_config: filePath
-    });
-
-    return NextResponse.json({ 
-      message: 'Pipeline YAML created and submitted successfully', 
-      filePath,
-      apiResponse: response.data,
-      outputPath: pipelineConfig.pipeline.output.path,
-      inputPath: inputPath
-    });
+    return NextResponse.json({ filePath, inputPath, outputPath: pipelineConfig.pipeline.output.path });
   } catch (error) {
-    let errorMessage;
-    if (error instanceof axios.AxiosError && error.response && error.response.data) {
-      errorMessage = error.response.data.detail || String(error);
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
-    } else {
-      errorMessage = String(error);
-    }
-    return NextResponse.json({ error: `Failed to run pipeline YAML: ${errorMessage}` }, { status: 500 });
+    console.error(error);
+    return NextResponse.json({ error: 'Failed to create pipeline config' }, { status: 500 });
   }
 }

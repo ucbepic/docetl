@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ColumnType } from '@/components/ResizableDataTable';
 import ResizableDataTable from '@/components/ResizableDataTable';
 import { usePipelineContext } from '@/contexts/PipelineContext';
@@ -14,6 +14,25 @@ import { Operation, OutputRow } from '@/app/types';
 import { Parser } from 'json2csv';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Input } from './ui/input';
+import { useWebSocket } from '@/contexts/WebSocketContext';
+import AnsiRenderer from './AnsiRenderer'
+import { useToast } from '@/hooks/use-toast';
+
+export const ConsoleContent: React.FC = () => {
+  const { terminalOutput, setTerminalOutput } = usePipelineContext();
+  const { readyState } = useWebSocket();
+
+  return (
+    <div className="flex flex-col h-full w-full bg-black text-white font-mono rounded-lg overflow-hidden">
+      <AnsiRenderer 
+        text={terminalOutput || ""} 
+        readyState={readyState} 
+        setTerminalOutput={setTerminalOutput} 
+      />
+    </div>
+  );
+};
 
 export const Output: React.FC = () => {
   const { output, isLoadingOutputs, operations } = usePipelineContext();
@@ -24,6 +43,17 @@ export const Output: React.FC = () => {
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [opName, setOpName] = useState<string | undefined>(undefined);
   const [isResolveOrReduce, setIsResolveOrReduce] = useState<boolean>(false);
+
+  const [defaultTab, setDefaultTab] = useState<string>("table");
+
+  useEffect(() => {
+    if (!isLoadingOutputs) {
+      setDefaultTab("table");
+    }
+    else {
+      setDefaultTab("console");
+    }
+  }, [isLoadingOutputs]);
 
   useEffect(() => {
     const foundOperation = operations.find((op: Operation) => op.id === output?.operationId);
@@ -154,6 +184,7 @@ export const Output: React.FC = () => {
         : null;
     }, [outputs, opName, operation]);
 
+
     if (!visualizationColumn || !operation) {
       return <p className="text-center text-muted-foreground">No visualization data available.</p>;
     }
@@ -239,13 +270,6 @@ export const Output: React.FC = () => {
     }
   };
 
-  const ConsoleContent = () => (
-    <div className="flex-grow overflow-y-auto bg-black text-white p-4 font-mono rounded-lg">
-      <p className="mb-2">Console output will be displayed here.</p>
-      {/* Add actual console output logic here */}
-    </div>
-  );
-
   const downloadCSV = () => {
     if (outputs.length === 0) return;
 
@@ -299,10 +323,10 @@ export const Output: React.FC = () => {
           </Dialog> */}
         </div>
       </div>
-      <Tabs defaultValue="table" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList>
+        <TabsTrigger value="console">Console</TabsTrigger>
           <TabsTrigger value="table">Table</TabsTrigger>
-          <TabsTrigger value="console">Console</TabsTrigger>
           <TabsTrigger value="visualize" disabled={!isResolveOrReduce}>Visualize Input Distribution</TabsTrigger>
         </TabsList>
         <TabsContent value="table">

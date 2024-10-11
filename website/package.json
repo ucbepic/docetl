@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@agbishop/react-ansi-18": "^4.0.6",
     "@hookform/resolvers": "^3.9.0",
     "@next/third-parties": "^14.2.11",
     "@radix-ui/react-accordion": "^1.2.0",
@@ -28,6 +29,8 @@
     "@radix-ui/react-toast": "^1.2.1",
     "@radix-ui/react-tooltip": "^1.1.2",
     "@tanstack/react-table": "^8.20.5",
+    "@tanstack/react-virtual": "^3.10.8",
+    "ansi-to-html": "^0.7.2",
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

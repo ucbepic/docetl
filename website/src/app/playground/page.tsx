@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Upload, Scroll } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -22,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useWebSocket, WebSocketProvider } from '@/contexts/WebSocketContext';
 
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
@@ -80,7 +81,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
-
+  
   const { operations, currentFile, setOperations, setCurrentFile, cost } = usePipelineContext();
   const { files, handleFileClick, handleFileUpload, handleFileDelete } = useFileExplorer();
 
@@ -225,10 +226,13 @@ const CodeEditorPipelineApp: React.FC = () => {
   );
 };
 
+
 const WrappedCodeEditorPipelineApp: React.FC = () => (
+  <WebSocketProvider>
   <PipelineProvider>
     <CodeEditorPipelineApp />
   </PipelineProvider>
+  </WebSocketProvider>
 );
 
 export default WrappedCodeEditorPipelineApp;

@@ -13,6 +13,7 @@ export type Operation = {
     validate?: string[];
     otherKwargs?: Record<string, any>;
     runIndex?: number;
+    sample?: number;
 };
 
 export type OutputRow = Record<string, string>;

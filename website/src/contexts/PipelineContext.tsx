@@ -23,6 +23,8 @@ interface PipelineContextType {
   setCost: React.Dispatch<React.SetStateAction<number>>;
   defaultModel: string;
   setDefaultModel: React.Dispatch<React.SetStateAction<string>>;
+  terminalOutput: string;
+  setTerminalOutput: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(undefined);
@@ -31,6 +33,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [operations, setOperations] = useState<Operation[]>(initialOperations);
   const [currentFile, setCurrentFile] = useState<File | null>(mockFiles[0]);
   const [output, setOutput] = useState<OutputType | null>(null);
+  const [terminalOutput, setTerminalOutput] = useState<string>('');
   const [isLoadingOutputs, setIsLoadingOutputs] = useState<boolean>(false);
   const [numOpRun, setNumOpRun] = useState<number>(0);
   const [pipelineName, setPipelineName] = useState<string>(mockPipelineName);
@@ -60,6 +63,8 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setCost,
       defaultModel,
       setDefaultModel,
+      terminalOutput,
+      setTerminalOutput,
     }}>
       {children}
     </PipelineContext.Provider>

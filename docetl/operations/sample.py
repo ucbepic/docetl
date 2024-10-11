@@ -1,3 +1,4 @@
+import sklearn.model_selection
 from typing import Any, Dict, List, Optional, Tuple
 from .base import BaseOperation
 
@@ -49,4 +50,4 @@ class SampleOperation(BaseOperation):
                 train_size = samples,
                 random_state = self.config.get("random_state", None),
                 stratify = stratify)
-        return output_data
+        return output_data, 0

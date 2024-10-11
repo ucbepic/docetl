@@ -6,6 +6,7 @@ from abc import ABC, ABCMeta, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
 from docetl.operations.utils import APIWrapper
+from docetl.console import DOCETL_CONSOLE
 from rich.console import Console
 from rich.status import Status
 import jsonschema
@@ -55,7 +56,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         self.config = config
         self.default_model = default_model
         self.max_threads = max_threads
-        self.console = console or Console()
+        self.console = console or DOCETL_CONSOLE
         self.manually_fix_errors = self.config.get("manually_fix_errors", False)
         self.status = status
         self.num_retries_on_validate_failure = self.config.get(

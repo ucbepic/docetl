@@ -48,9 +48,16 @@ class OutliersOperation(BaseOperation):
         embeddings, cost = get_embeddings_for_clustering(
             input_data, self.config, self.runner.api
         )
-
         embeddings = np.array(embeddings)
-        center = embeddings.mean(axis=0)
+
+        if self.config.get("center", None) is not None:
+            center_embeddings, cost2 = get_embeddings_for_clustering(
+                [self.config["center"]], self.config, self.runner.api
+            )
+            cost += cost2
+            center = np.array(center_embeddings[0])
+        else:
+            center = embeddings.mean(axis=0)
         
         distances = np.sqrt(((embeddings - center)**2).sum(axis=1))
 
@@ -62,9 +69,12 @@ class OutliersOperation(BaseOperation):
             cutoff = distance_distribution[samples]
         elif "std" in self.config:
             cutoff = np.sqrt((embeddings.std(axis=0)**2).sum()) * self.config["std"]
-        
-        include = distances <= cutoff
-            
+
+        if not self.config.get("keep", False):
+            include = distances <= cutoff
+        else:
+            include = distances > cutoff
+
         return [
             item
             for idx, item in enumerate(input_data)

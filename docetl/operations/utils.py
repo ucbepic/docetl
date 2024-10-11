@@ -22,6 +22,7 @@ from rich.prompt import Prompt
 from tqdm import tqdm
 from pydantic import BaseModel
 
+from docetl.console import DOCETL_CONSOLE
 from docetl.utils import completion_cost, count_tokens
 import time
 
@@ -80,7 +81,7 @@ def freezeargs(func):
     return wrapped
 
 
-def flush_cache(console: Console = Console()):
+def flush_cache(console: Console = DOCETL_CONSOLE):
     """
     Flush the cache to disk.
     """
@@ -89,7 +90,7 @@ def flush_cache(console: Console = Console()):
     console.log("[bold green]Cache flushed to disk.[/bold green]")
 
 
-def clear_cache(console: Console = Console()):
+def clear_cache(console: Console = DOCETL_CONSOLE):
     """
     Clear the LLM cache stored on disk.
 

@@ -1,8 +1,8 @@
 import os
+from docetl.console import get_console
 from docetl.utils import load_config
 from typing import Any, Dict, List, Optional, Tuple, Union
 from docetl.operations.utils import APIWrapper
-from rich.console import Console
 import pyrate_limiter
 from inspect import isawaitable
 import math
@@ -39,7 +39,12 @@ class ConfigWrapper(object):
     def __init__(self, config: Dict, max_threads: int = None):
         self.config = config
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
-        self.console = Console()
+
+        # Reset the DOCETL_CONSOLE
+        global DOCETL_CONSOLE
+        DOCETL_CONSOLE = get_console()
+
+        self.console = DOCETL_CONSOLE
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.status = None
 

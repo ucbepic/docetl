@@ -26,6 +26,25 @@ embedding models will yield a very "sparse" distribution, where the
 absolute majority of points lie on the surface of a hyperssphere,
 meaning that this operation will not work very well!
 
+### Using it as a poor-mans-RAG
+```yaml
+- name: remove-worst-10
+  type: outliers
+  samples: 0.01
+  embedding_keys:
+   - concept
+   - description
+  center:
+    concept: Horse
+    description: A horse is a large steppe roaming and grazing animal. Humans have utilized horses for transport throughout historical times
+```
+
+If center is provided, it must have the same keys as those listed
+under embedding_keys, and their values will be used to calculate the
+"center" embedding, instead of using the average of all embeddings of
+the input items. This will effectively turn this into a search
+operation for items similar to the center provided.
+
 ## Required Parameters
 
 - `name`: A unique name for the operation.

@@ -1,12 +1,13 @@
 import datetime
 import os
+from docetl.console import get_console
 from docetl.utils import load_config
 from typing import Any, Dict, List, Optional, Tuple, Union
 from docetl.operations.utils import APIWrapper
-from rich.console import Console
 import pyrate_limiter
 from inspect import isawaitable
 import math
+from rich.console import Console
 
 
 class BucketCollection(pyrate_limiter.BucketFactory):
@@ -52,7 +53,7 @@ class ConfigWrapper(object):
         base_name: Optional[str] = None,
         yaml_file_suffix: Optional[str] = None,
         max_threads: int = None,
-        console: Console = Console(),
+        console: Optional[Console] = None,
     ):
         self.config = config
         self.base_name = base_name
@@ -60,7 +61,14 @@ class ConfigWrapper(object):
             "%Y%m%d_%H%M%S"
         )
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
-        self.console = console
+        if console:
+            self.console = console
+        else:
+            # Reset the DOCETL_CONSOLE
+            global DOCETL_CONSOLE
+            DOCETL_CONSOLE = get_console()
+
+            self.console = DOCETL_CONSOLE
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.status = None
 

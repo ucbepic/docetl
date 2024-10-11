@@ -54,9 +54,12 @@ class OutliersOperation(BaseOperation):
         
         distances = np.sqrt(((embeddings - center)**2).sum(axis=1))
 
-        if "percentile" in self.config:
+        if "samples" in self.config:
             distance_distribution = np.sort(distances)
-            cutoff = distance_distribution[int(self.config["percentile"] / 100. * (len(distance_distribution)-1))]
+            samples = self.config["samples"]
+            if isinstance(samples, float):
+                samples = int(samples * (len(distance_distribution)-1))
+            cutoff = distance_distribution[samples]
         elif "std" in self.config:
             cutoff = np.sqrt((embeddings.std(axis=0)**2).sum()) * self.config["std"]
         

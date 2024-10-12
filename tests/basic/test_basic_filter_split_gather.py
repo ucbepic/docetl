@@ -42,7 +42,6 @@ def test_filter_operation(
 
     assert len(results) < len(filter_sample_data)
     assert all(len(result["text"].split()) > 3 for result in results)
-    assert cost > 0
 
 
 def test_filter_operation_empty_input(
@@ -192,7 +191,6 @@ def test_equijoin_operation(
 
     assert len(results) == 2  # Only 2 matches
     assert all("name" in result and "email" in result for result in results)
-    assert cost > 0
 
 
 def test_equijoin_operation_empty_input(

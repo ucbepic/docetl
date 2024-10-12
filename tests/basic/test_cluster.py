@@ -17,11 +17,10 @@ def cluster_config():
         these two concepts already encompasses the other; in that case,
         you should just use that concept.
 
-        {{left.concept}}:
-        {{left.description}}
-
-        {{right.concept}}:
-        {{right.description}}
+        {% for input in inputs %}
+        {{input.concept}}:
+        {{input.description}}
+        {% endfor %}
 
         Provide the title of the super-concept, and a description.
         """,
@@ -70,6 +69,7 @@ def sample_data():
 def test_cluster_operation(
     cluster_config, sample_data, api_wrapper, default_model, max_threads
 ):
+    cluster_config["bypass_cache"] = True
     operation = ClusterOperation(
         api_wrapper, cluster_config, default_model, max_threads
     )

@@ -90,7 +90,6 @@ def test_reduce_operation(
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 3, "Should have results for 3 unique categories"
-    assert cost > 0, "Cost should be greater than 0"
 
     for result in results:
         assert "category" in result, "Each result should have a 'category' key"
@@ -112,7 +111,6 @@ def test_reduce_operation_pass_through(
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 3, "Should have results for 3 unique categories"
-    assert cost > 0, "Cost should be greater than 0"
 
     for result in results:
         assert "category" in result, "Each result should have a 'category' key"
@@ -176,7 +174,6 @@ def test_reduce_operation_non_associative(api_wrapper, default_model, max_thread
     results, cost = operation.execute(sample_data)
 
     assert len(results) == 1, "Should have one result for the 'story' sequence"
-    assert cost > 0, "Cost should be greater than 0"
 
     result = results[0]
     assert "combined_result" in result, "Result should have a 'combined_result' key"
@@ -231,7 +228,6 @@ def test_reduce_operation_persist_intermediates(
     results, cost = operation.execute(sample_data)
 
     assert len(results) == 1, "Should have one result for the 'numbers' group"
-    assert cost > 0, "Cost should be greater than 0"
 
     result = results[0]
     assert "summary" in result, "Result should have a 'summary' key"

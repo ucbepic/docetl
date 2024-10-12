@@ -1,3 +1,4 @@
+import numpy as np
 from jinja2 import Environment, Template
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
@@ -99,6 +100,9 @@ class ClusterOperation(BaseOperation):
         )
 
         tree = self.agglomerative_cluster_of_embeddings(input_data, embeddings)
+        
+        if "collapse" in self.config:
+            tree = self.collapse_tree(tree, collapse = self.config["collapse"])
 
         self.prompt_template = Template(self.config["summary_prompt"])
         cost += self.annotate_clustering_tree(tree)
@@ -122,7 +126,7 @@ class ClusterOperation(BaseOperation):
                 #                res["embedding"] = list(embeddings[i])
                 return res
             return {
-                "children": [
+                 "children": [
                     build_tree(cl.children_[i - nsamples, 0]),
                     build_tree(cl.children_[i - nsamples, 1]),
                 ],
@@ -131,6 +135,40 @@ class ClusterOperation(BaseOperation):
 
         return build_tree(nsamples + len(cl.children_) - 1)
 
+    def get_tree_distances(self, t):
+        res = set()
+        if "distance" in t:
+            res.update(set([t["distance"] - child["distance"] for child in t["children"] if "distance" in child]))
+        if "children" in t:
+            for child in t["children"]:
+                res.update(self.get_tree_distances(child))
+        return res
+    
+    def _collapse_tree(self, t, parent_dist = None, collapse = None):
+        if "children" in t:
+            if (    "distance" in t
+                and parent_dist is not None
+                and collapse is not None
+                and parent_dist - t["distance"] < collapse):
+                return [grandchild
+                        for child in t["children"]
+                        for grandchild in self._collapse_tree(child, parent_dist=parent_dist, collapse=collapse)]
+            else:
+                res = dict(t)
+                res["children"] = [grandchild
+                                   for idx, child in enumerate(t["children"])
+                                   for grandchild in self._collapse_tree(child, parent_dist=t["distance"], collapse=collapse)]
+                return [res]
+        else:
+            return [t]
+        
+    def collapse_tree(self, tree, collapse = None):
+        if collapse is not None:
+            tree_distances = np.array(sorted(self.get_tree_distances(tree)))
+            collapse = tree_distances[int(len(tree_distances) * collapse)]
+        return self._collapse_tree(tree, collapse=collapse)[0]
+
+    
     def annotate_clustering_tree(self, t):
         if "children" in t:
             with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
@@ -149,12 +187,8 @@ class ClusterOperation(BaseOperation):
                     total_cost += futures[i].result()
                     pbar.update(i)
 
-            assert len(t["children"]) == 2, (
-                "Agglomerative clustering is supposed to generate clusters with 2 children each, but this cluster has %s"
-                % len(t["children"])
-            )
             prompt = self.prompt_template.render(
-                left=t["children"][0], right=t["children"][1]
+                inputs=t["children"]
             )
 
             def validation_fn(response: Dict[str, Any]):
@@ -167,31 +201,33 @@ class ClusterOperation(BaseOperation):
                     return output, True
                 return output, False
 
-            output, cost, success = self.runner.api.call_llm_with_validation(
-                [{"role": "user", "content": prompt}],
+            response = self.runner.api.call_llm(
                 model=self.config.get("model", self.default_model),
-                operation_type="cluster",
-                schema=self.config["summary_schema"],
-                llm_call_fn=lambda messages: self.runner.api.call_llm(
-                    self.config.get("model", self.default_model),
-                    "cluster",
-                    messages,
-                    self.config["summary_schema"],
-                    tools=self.config.get("tools", None),
-                    console=self.console,
-                    timeout_seconds=self.config.get("timeout", 120),
-                    max_retries_per_timeout=self.config.get(
-                        "max_retries_per_timeout", 2
-                    ),
+                op_type="cluster",
+                messages=[{"role": "user", "content": prompt}],
+                output_schema=self.config["summary_schema"],
+                timeout_seconds=self.config.get("timeout", 120),
+                bypass_cache=self.config.get("bypass_cache", False),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                validation_config=(
+                    {
+                        "num_retries": self.num_retries_on_validate_failure,
+                        "val_rule": self.config.get("validate", []),
+                        "validation_fn": validation_fn,
+                    }
+                    if self.config.get("validate", None)
+                    else None
                 ),
-                validation_fn=validation_fn,
-                val_rule=self.config.get("validate", []),
-                num_retries=self.num_retries_on_validate_failure,
-                console=self.console,
+                verbose=self.config.get("verbose", False),
             )
-            total_cost += cost
-
-            t.update(output)
+            total_cost += response.total_cost
+            if response.validated:
+                output = self.runner.api.parse_llm_response(
+                    response.response,
+                    schema=self.config["summary_schema"],
+                    manually_fix_errors=self.manually_fix_errors,
+                )[0]
+                t.update(output)
 
             return total_cost
         return 0

@@ -31,6 +31,7 @@ def sample_data():
 def test_map_operation_with_validation(
     map_config_with_validation, sample_data, api_wrapper, default_model, max_threads
 ):
+    map_config_with_validation["bypass_cache"] = True
     operation = MapOperation(
         api_wrapper, map_config_with_validation, default_model, max_threads
     )

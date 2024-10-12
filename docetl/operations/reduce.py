@@ -404,7 +404,7 @@ class ReduceOperation(BaseOperation):
             return group_list, 0
 
         clusters, cost = cluster_documents(
-            group_list, value_sampling, sample_size, self.api
+            group_list, value_sampling, sample_size, self.runner.api
         )
 
         sampled_items = []
@@ -444,7 +444,7 @@ class ReduceOperation(BaseOperation):
         )
 
         embeddings, cost = get_embeddings_for_clustering(
-            group_list, value_sampling, self.api
+            group_list, value_sampling, self.runner.api
         )
 
         query_response = self.runner.api.gen_embedding(embedding_model, [query_text])

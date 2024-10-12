@@ -17,11 +17,10 @@ def cluster_config():
         these two concepts already encompasses the other; in that case,
         you should just use that concept.
 
-        {{left.concept}}:
-        {{left.description}}
-
-        {{right.concept}}:
-        {{right.description}}
+        {% for input in inputs %}
+        {{input.concept}}:
+        {{input.description}}
+        {% endfor %}
 
         Provide the title of the super-concept, and a description.
         """,

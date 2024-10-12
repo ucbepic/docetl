@@ -82,9 +82,12 @@ class EquijoinOperation(BaseOperation):
             {"is_match": "bool"},
             timeout_seconds=timeout_seconds,
             max_retries_per_timeout=max_retries_per_timeout,
+            bypass_cache=self.config.get("bypass_cache", False),
         )
-        output = self.runner.api.parse_llm_response(response, {"is_match": "bool"})[0]
-        return output["is_match"], completion_cost(response)
+        output = self.runner.api.parse_llm_response(
+            response.response, {"is_match": "bool"}
+        )[0]
+        return output["is_match"], response.total_cost
 
     def syntax_check(self) -> None:
         """

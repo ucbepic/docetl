@@ -153,59 +153,42 @@ class MapOperation(BaseOperation):
                 return output, False
 
             self.runner.rate_limiter.try_acquire("call", weight=1)
-            if "gleaning" in self.config:
-                output, cost, success = self.runner.api.call_llm_with_validation(
-                    [{"role": "user", "content": prompt}],
-                    model=self.config.get("model", self.default_model),
-                    operation_type="map",
-                    schema=self.config["output"]["schema"],
-                    llm_call_fn=lambda messages: self.runner.api.call_llm_with_gleaning(
-                        self.config.get("model", self.default_model),
-                        "map",
-                        messages,
-                        self.config["output"]["schema"],
-                        self.config["gleaning"]["validation_prompt"],
-                        self.config["gleaning"]["num_rounds"],
-                        self.console,
-                        timeout_seconds=self.config.get("timeout", 120),
-                        max_retries_per_timeout=self.config.get(
-                            "max_retries_per_timeout", 2
-                        ),
-                        verbose=self.config.get("verbose", False),
-                    ),
-                    validation_fn=validation_fn,
-                    val_rule=self.config.get("validate", []),
-                    num_retries=self.num_retries_on_validate_failure,
-                    console=self.console,
-                )
-            else:
-                output, cost, success = self.runner.api.call_llm_with_validation(
-                    [{"role": "user", "content": prompt}],
-                    model=self.config.get("model", self.default_model),
-                    operation_type="map",
-                    schema=self.config["output"]["schema"],
-                    llm_call_fn=lambda messages: self.runner.api.call_llm(
-                        self.config.get("model", self.default_model),
-                        "map",
-                        messages,
-                        self.config["output"]["schema"],
-                        tools=self.config.get("tools", None),
-                        console=self.console,
-                        timeout_seconds=self.config.get("timeout", 120),
-                        max_retries_per_timeout=self.config.get(
-                            "max_retries_per_timeout", 2
-                        ),
-                    ),
-                    validation_fn=validation_fn,
-                    val_rule=self.config.get("validate", []),
-                    num_retries=self.num_retries_on_validate_failure,
-                    console=self.console,
-                )
+            llm_result = self.runner.api.call_llm(
+                self.config.get("model", self.default_model),
+                "map",
+                [{"role": "user", "content": prompt}],
+                self.config["output"]["schema"],
+                tools=self.config.get("tools", None),
+                scratchpad=None,
+                timeout_seconds=self.config.get("timeout", 120),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                validation_config=(
+                    {
+                        "num_retries": self.num_retries_on_validate_failure,
+                        "val_rule": self.config.get("validate", []),
+                        "validation_fn": validation_fn,
+                    }
+                    if self.config.get("validate", None)
+                    else None
+                ),
+                gleaning_config=self.config.get("gleaning", None),
+                verbose=self.config.get("verbose", False),
+                bypass_cache=self.config.get("bypass_cache", False),
+            )
 
-            if success:
-                return output, cost
+            if llm_result.validated:
+                # Parse the response
+                output = self.runner.api.parse_llm_response(
+                    llm_result.response,
+                    schema=self.config["output"]["schema"],
+                    tools=self.config.get("tools", None),
+                    manually_fix_errors=self.manually_fix_errors,
+                )[0]
+                # Augment the output with the original item
+                output = {**item, **output}
+                return output, llm_result.total_cost
 
-            return None, cost
+            return None, llm_result.total_cost
 
         with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
             futures = [executor.submit(_process_map_item, item) for item in input_data]
@@ -375,17 +358,17 @@ class ParallelMapOperation(BaseOperation):
                 [{"role": "user", "content": prompt}],
                 local_output_schema,
                 tools=prompt_config.get("tools", None),
-                console=self.console,
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                bypass_cache=self.config.get("bypass_cache", False),
             )
             output = self.runner.api.parse_llm_response(
-                response,
+                response.response,
                 schema=local_output_schema,
                 tools=prompt_config.get("tools", None),
                 manually_fix_errors=self.manually_fix_errors,
             )[0]
-            return output, completion_cost(response)
+            return output, response.total_cost
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             if "prompts" in self.config:

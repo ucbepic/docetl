@@ -143,3 +143,24 @@ def test_resolve_operation_empty_input(resolve_config, max_threads, api_wrapper)
 
     assert len(results) == 0
     assert cost == 0
+
+
+def test_reduce_operation_with_lineage(
+    reduce_config, max_threads, reduce_sample_data, api_wrapper
+):
+    # Add lineage configuration to reduce_config
+    reduce_config["output"]["lineage"] = ["name", "email"]
+
+    operation = ReduceOperation(
+        api_wrapper, reduce_config, "text-embedding-3-small", max_threads
+    )
+    results, cost = operation.execute(reduce_sample_data)
+
+    # Check if lineage information is present in the results
+    assert all(f"{reduce_config['name']}_lineage" in result for result in results)
+
+    # Check if lineage contains the specified keys
+    for result in results:
+        lineage = result[f"{reduce_config['name']}_lineage"]
+        assert all(isinstance(item, dict) for item in lineage)
+        assert all("name" in item and "email" in item for item in lineage)

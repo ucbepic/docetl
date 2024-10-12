@@ -199,7 +199,7 @@ def map_config_with_drop_keys():
         "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
         "output": {"schema": {"sentiment": "string"}},
         "model": "gpt-4o-mini",
-        "drop_keys": ["original_sentiment"],
+        "drop_keys": ["to_be_dropped"],
     }
 
 

@@ -55,6 +55,7 @@ class ReduceOperation(BaseOperation):
             else self.config["reduce_key"]
         )
         self.intermediates = {}
+        self.lineage_keys = self.config.get("output", {}).get("lineage", [])
 
     def syntax_check(self) -> None:
         """
@@ -258,6 +259,19 @@ class ReduceOperation(BaseOperation):
                             f"'embedding_keys' is required when using embedding-based sampling in {self.config['name']}"
                         )
 
+        # Check if lineage is a list of strings
+        if "lineage" in self.config.get("output", {}):
+            if not isinstance(self.config["output"]["lineage"], list):
+                raise TypeError(
+                    f"'lineage' in {self.config['name']} 'output' configuration must be a list"
+                )
+            if not all(
+                isinstance(key, str) for key in self.config["output"]["lineage"]
+            ):
+                raise TypeError(
+                    f"All elements in 'lineage' list in {self.config['name']} 'output' configuration must be strings"
+                )
+
         self.gleaning_check()
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
@@ -362,6 +376,17 @@ class ReduceOperation(BaseOperation):
                 for k, v in group_elems[0].items():
                     if k not in self.config["output"]["schema"] and k not in result:
                         result[k] = v
+
+            # Add lineage information
+            if result is not None and self.lineage_keys:
+                lineage = []
+                for item in group_elems:
+                    lineage_item = {
+                        k: item.get(k) for k in self.lineage_keys if k in item
+                    }
+                    if lineage_item:
+                        lineage.append(lineage_item)
+                result[f"{self.config['name']}_lineage"] = lineage
 
             return result, total_cost
 

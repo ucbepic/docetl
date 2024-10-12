@@ -1,6 +1,5 @@
-import sklearn.model_selection
 from typing import Any, Dict, List, Optional, Tuple
-from .base import BaseOperation
+from docetl.operations.base import BaseOperation
 
 
 class SampleOperation(BaseOperation):
@@ -20,7 +19,7 @@ class SampleOperation(BaseOperation):
             TypeError: If configuration values have incorrect types.
         """
         pass
-        
+
     def execute(
         self, input_data: List[Dict], is_build: bool = False
     ) -> Tuple[List[Dict], float]:
@@ -39,15 +38,23 @@ class SampleOperation(BaseOperation):
 
         samples = self.config["samples"]
         if isinstance(samples, list):
-            output_data = [input_data[sample]
-                           for sample in samples]
+            keys = list(samples[0].keys())
+            key_to_doc = {tuple([doc[key] for key in keys]): doc for doc in input_data}
+
+            output_data = [
+                key_to_doc[tuple([sample[key] for key in keys])] for sample in samples
+            ]
         else:
-            stratify=None
+            stratify = None
             if "stratify" in self.config:
                 stratify = [data[self.config["stratify"]] for data in input_data]
+
+            import sklearn.model_selection
+
             output_data, dummy = sklearn.model_selection.train_test_split(
                 input_data,
-                train_size = samples,
-                random_state = self.config.get("random_state", None),
-                stratify = stratify)
+                train_size=samples,
+                random_state=self.config.get("random_state", None),
+                stratify=stratify,
+            )
         return output_data, 0

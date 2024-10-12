@@ -51,7 +51,7 @@ This Reduce operation processes customer feedback grouped by department:
 
 | Parameter                 | Description                                                                                            | Default                     |
 | ------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------- |
-| `sample`                  | Number of samples to use for the operation                                                      | None                        |
+| `sample`                  | Number of samples to use for the operation                                                             | None                        |
 | `synthesize_resolve`      | If false, won't synthesize a resolve operation between map and reduce                                  | true                        |
 | `model`                   | The language model to use                                                                              | Falls back to default_model |
 | `input`                   | Specifies the schema or keys to subselect from each item                                               | All keys from input items   |
@@ -195,6 +195,28 @@ For semantic similarity sampling, you can use a query to select the most relevan
     ```
 
     In this example, the Reduce operation will use semantic similarity to select the 30 reviews most relevant to battery life and performance for each product_id. This allows you to focus the summarization on specific aspects of the product reviews.
+
+### Lineage
+
+The Reduce operation supports lineage, which allows you to track the original input data for each output. This can be useful for debugging and auditing. To enable lineage, add a `lineage` configuration to your reduce operation, specifying the keys to include in the lineage. For example:
+
+```yaml
+- name: summarize_reviews_by_category
+  type: reduce
+  reduce_key: category
+  prompt: |
+    Summarize the reviews for category {{ inputs[0].category }}:
+    {% for item in inputs %}
+    Review {{ loop.index }}: {{ item.review }}
+    {% endfor %}
+  output:
+    schema:
+      summary: string
+    lineage:
+      - product_id
+```
+
+This output will include a list of all product_ids for each category in the lineage, saved under the key `summarize_reviews_by_category_lineage`.
 
 ## Best Practices
 

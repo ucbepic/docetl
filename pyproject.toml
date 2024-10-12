@@ -89,6 +89,7 @@ resolve = "docetl.operations.resolve:ResolveOperation"
 gather = "docetl.operations.gather:GatherOperation"
 cluster = "docetl.operations.cluster:ClusterOperation"
 outliers = "docetl.operations.outliers:OutliersOperation"
+sample = "docetl.operations.sample:SampleOperation"
 
 [tool.poetry.plugins."docetl.parser"]
 llama_index_simple_directory_reader = "docetl.parsing_tools:llama_index_simple_directory_reader"

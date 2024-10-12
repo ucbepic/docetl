@@ -23,14 +23,12 @@ def test_map_operation(
     map_sample_data,
 ):
     results, cost = test_map_operation_instance.execute(map_sample_data)
-    print(results)
 
     assert len(results) == len(map_sample_data)
     assert all("sentiment" in result for result in results)
     assert all(
         result["sentiment"] in ["positive", "negative", "neutral"] for result in results
     )
-    assert cost > 0
 
 
 def test_map_operation_empty_input(map_config, default_model, max_threads, api_wrapper):
@@ -48,6 +46,7 @@ def test_map_operation_with_drop_keys(
     map_sample_data_with_extra_keys,
     api_wrapper,
 ):
+    map_config_with_drop_keys["bypass_cache"] = True
     operation = MapOperation(
         api_wrapper, map_config_with_drop_keys, default_model, max_threads
     )
@@ -55,11 +54,12 @@ def test_map_operation_with_drop_keys(
 
     assert len(results) == len(map_sample_data_with_extra_keys)
     assert all("sentiment" in result for result in results)
-    assert all("original_sentiment" not in result for result in results)
-    assert all("to_be_dropped" in result for result in results)
+    assert all("original_sentiment" in result for result in results)
+    assert all("to_be_dropped" not in result for result in results)
     assert all(
         result["sentiment"] in ["positive", "negative", "neutral"] for result in results
     )
+
     assert cost > 0
 
 
@@ -95,7 +95,6 @@ def test_map_operation_with_batching(
     results, cost = operation.execute(map_sample_data)
 
     assert len(results) == len(map_sample_data)
-    assert cost > 0
     assert all("sentiment" in result for result in results)
     assert all(
         result["sentiment"] in ["positive", "negative", "neutral"] for result in results
@@ -128,7 +127,6 @@ def test_map_operation_with_large_max_batch_size(
     results, cost = operation.execute(map_sample_data)
 
     assert len(results) == len(map_sample_data)
-    assert cost > 0
 
 
 def test_map_operation_with_word_count_tool(
@@ -140,7 +138,6 @@ def test_map_operation_with_word_count_tool(
     assert len(results) == len(synthetic_data)
     assert all("word_count" in result for result in results)
     assert [result["word_count"] for result in results] == [5, 6, 5, 1]
-    assert cost > 0  # Ensure there was some cost associated with the operation
 
 
 @pytest.fixture
@@ -185,8 +182,8 @@ def test_map_operation_with_timeout(simple_map_config, simple_sample_data, api_w
     operation = MapOperation(api_wrapper, map_config_with_timeout, "gpt-4o-mini", 4)
 
     # Execute the operation and expect empty results
-    with pytest.raises(docetl.operations.utils.InvalidOutputError):
-        operation.execute(simple_sample_data)
+    results, cost = operation.execute(simple_sample_data)
+    assert len(results) == 0
 
 
 def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wrapper):
@@ -215,6 +212,3 @@ def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wra
     assert all(
         any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
-
-    # Assert that the operation had a cost
-    assert cost > 0

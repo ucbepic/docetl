@@ -20,6 +20,7 @@ from rich import print as rprint
 from rich.console import Console
 from rich.prompt import Prompt
 from tqdm import tqdm
+from pydantic import BaseModel
 
 from docetl.utils import completion_cost, count_tokens
 import time
@@ -34,6 +35,12 @@ CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "cache")
 LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm_cache")
 cache = Cache(LLM_CACHE_DIR)
 cache.close()
+
+
+class LLMResult(BaseModel):
+    response: Any
+    total_cost: float
+    validated: bool
 
 
 def freezeargs(func):
@@ -412,9 +419,7 @@ class APIWrapper(object):
 
         return result
 
-    # TODO: optimize this
-    @freezeargs
-    def cached_call_llm(
+    def _cached_call_llm(
         self,
         cache_key: str,
         model: str,
@@ -423,11 +428,15 @@ class APIWrapper(object):
         output_schema: Dict[str, str],
         tools: Optional[str] = None,
         scratchpad: Optional[str] = None,
-    ) -> str:
+        validation_config: Optional[Dict[str, Any]] = None,
+        gleaning_config: Optional[Dict[str, Any]] = None,
+        verbose: bool = False,
+        bypass_cache: bool = False,
+    ) -> LLMResult:
         """
         Cached version of the call_llm function.
 
-        This function serves as a cached wrapper around call_llm_with_cache. It uses
+        This function serves as a cached wrapper around _call_llm_with_cache. It uses
         the @freezeargs decorator to ensure immutable arguments and @functools.lru_cache
         for caching results.
 
@@ -439,80 +448,170 @@ class APIWrapper(object):
             output_schema (Dict[str, str]): The output schema dictionary.
             tools (Optional[str]): The tools to pass to the LLM.
             scratchpad (Optional[str]): The scratchpad to use for the operation.
+            validation_config (Optional[Dict[str, Any]]): The validation configuration.
+            gleaning_config (Optional[Dict[str, Any]]): The gleaning configuration.
+            verbose (bool): Whether to print verbose output.
+            bypass_cache (bool): Whether to bypass the cache.
         Returns:
-            str: The result from call_llm_with_cache.
+            LLMResult: The response from _call_llm_with_cache.
         """
+        total_cost = 0.0
+        validated = False
         with cache as c:
-            result = c.get(cache_key)
-            if result is None:
-                result = self.call_llm_with_cache(
+            response = c.get(cache_key)
+            if response is not None and not bypass_cache:
+                validated = True
+            else:
+                response = self._call_llm_with_cache(
                     model, op_type, messages, output_schema, tools, scratchpad
                 )
+                total_cost += completion_cost(response)
+
+                if gleaning_config:
+                    # Retry gleaning prompt + regular LLM
+                    num_gleaning_rounds = gleaning_config.get("num_rounds", 2)
+                    validator_prompt_template = Template(gleaning_config["prompt"])
+
+                    parsed_output = self.parse_llm_response(
+                        response, output_schema, tools
+                    )[0]
+
+                    validator_messages = (
+                        [
+                            {
+                                "role": "system",
+                                "content": f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation.",
+                            }
+                        ]
+                        + messages
+                        + [
+                            {"role": "assistant", "content": json.dumps(parsed_output)},
+                        ]
+                    )
+
+                    for rnd in range(num_gleaning_rounds):
+                        # Prepare validator prompt
+                        validator_prompt = validator_prompt_template.render(
+                            output=parsed_output
+                        )
+                        self.runner.rate_limiter.try_acquire("llm_call", weight=1)
+
+                        validator_response = completion(
+                            model=gleaning_config.get("model", model),
+                            messages=truncate_messages(
+                                validator_messages
+                                + [{"role": "user", "content": validator_prompt}],
+                                model,
+                            ),
+                            response_format={
+                                "type": "json_schema",
+                                "json_schema": {
+                                    "name": "response",
+                                    "strict": True,
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "should_refine": {"type": "boolean"},
+                                            "improvements": {"type": "string"},
+                                        },
+                                        "required": ["should_refine", "improvements"],
+                                        "additionalProperties": False,
+                                    },
+                                },
+                            },
+                        )
+                        total_cost += completion_cost(validator_response)
+
+                        # Parse the validator response
+                        suggestion = json.loads(
+                            validator_response.choices[0].message.content
+                        )
+                        if not suggestion["should_refine"]:
+                            break
+
+                        if verbose:
+                            self.runner.console.log(
+                                f"Validator improvements (gleaning round {rnd + 1}): {suggestion['improvements']}"
+                            )
+
+                        # Prompt for improvement
+                        improvement_prompt = f"""Based on the validation feedback:
+
+                        ```
+                        {suggestion['improvements']}
+                        ```
+
+                        Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""
+                        messages.append({"role": "user", "content": improvement_prompt})
+
+                        # Call LLM again
+                        response = self._call_llm_with_cache(
+                            model, op_type, messages, output_schema, tools, scratchpad
+                        )
+                        parsed_output = self.parse_llm_response(
+                            response, output_schema, tools
+                        )[0]
+                        validator_messages[-1] = [
+                            {"role": "assistant", "content": json.dumps(parsed_output)},
+                        ]
+
+                        total_cost += completion_cost(response)
+
+                    validated = True
+
+                # If there's validation, handle it here
+                elif validation_config:
+                    num_tries = validation_config.get("num_retries", 2)
+                    validation_fn = validation_config.get("validation_fn")
+                    val_rule = validation_config.get("val_rule")
+
+                    # Try validation
+                    i = 0
+                    validation_result = False
+                    while not validation_result and i < num_tries:
+                        parsed_output, validation_result = validation_fn(response)
+                        if validation_result:
+                            validated = True
+                            break
+
+                        # Append the validation result to messages
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": json.dumps(parsed_output),
+                            }
+                        )
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": f"Your output {parsed_output} failed my validation rule: {str(val_rule)}\n\nPlease try again.",
+                            }
+                        )
+                        self.runner.console.log(
+                            f"[bold red]Validation failed:[/bold red] {val_rule}\n"
+                            f"\t[yellow]Output:[/yellow] {parsed_output}\n"
+                            f"\t({i + 1}/{num_tries})"
+                        )
+                        i += 1
+
+                        response = self._call_llm_with_cache(
+                            model, op_type, messages, output_schema, tools, scratchpad
+                        )
+                        total_cost += completion_cost(response)
+
+                else:
+                    # No validation, so we assume the result is valid
+                    validated = True
+
                 # Only set the cache if the result tool calls or output is not empty
                 if (
-                    result
-                    and "tool_calls" in dir(result.choices[0].message)
-                    and result.choices[0].message.tool_calls
+                    response
+                    and "tool_calls" in dir(response.choices[0].message)
+                    and response.choices[0].message.tool_calls
                 ):
-                    c.set(cache_key, result)
+                    c.set(cache_key, response)
 
-        return result
-
-    def call_llm_with_validation(
-        self,
-        messages: List[str],
-        model: str,
-        operation_type: str,
-        schema: Dict[str, str],
-        llm_call_fn: Callable,
-        validation_fn: Callable,
-        val_rule: str,
-        num_retries: int,
-        console: Console,
-        scratchpad: Optional[str] = None,
-    ) -> Tuple[Any, float, bool]:
-        num_tries = num_retries + 1
-        cost = 0.0
-
-        key = cache_key(model, operation_type, messages, schema, scratchpad)
-
-        for i in range(num_tries):
-            response = llm_call_fn(messages)
-            if isinstance(response, tuple):
-                response, curr_cost = response
-                cost += curr_cost
-
-            cost += completion_cost(response)
-
-            parsed_output, result = validation_fn(response)
-
-            if result:
-                return parsed_output, cost, True
-
-            # Remove from cache
-            with cache as c:
-                c.delete(key)
-
-            # Append the validation result to messages
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": json.dumps(parsed_output),
-                }
-            )
-            messages.append(
-                {
-                    "role": "user",
-                    "content": f"Your output {parsed_output} failed my validation rule: {str(val_rule)}\n\nPlease try again.",
-                }
-            )
-            console.log(
-                f"[bold red]Validation failed:[/bold red] {val_rule}\n"
-                f"\t[yellow]Output:[/yellow] {parsed_output}\n"
-                f"\tTrying again... ({i + 1}/{num_tries})"
-            )
-
-        return parsed_output, cost, False
+        return LLMResult(response=response, total_cost=total_cost, validated=validated)
 
     def call_llm(
         self,
@@ -522,10 +621,13 @@ class APIWrapper(object):
         output_schema: Dict[str, str],
         tools: Optional[List[Dict[str, str]]] = None,
         scratchpad: Optional[str] = None,
-        console: Console = Console(),
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
-    ) -> Any:
+        validation_config: Optional[Dict[str, Any]] = None,
+        gleaning_config: Optional[Dict[str, Any]] = None,
+        verbose: bool = False,
+        bypass_cache: bool = False,
+    ) -> LLMResult:
         """
         Wrapper function that uses caching for LLM calls.
 
@@ -541,8 +643,9 @@ class APIWrapper(object):
             scratchpad (Optional[str]): The scratchpad to use for the operation.
             timeout_seconds (int): The timeout for the LLM call.
             max_retries_per_timeout (int): The maximum number of retries per timeout.
+            bypass_cache (bool): Whether to bypass the cache.
         Returns:
-            str: The result from the cached LLM call.
+            LLMResult: The result from the cached LLM call.
 
         Raises:
             TimeoutError: If the call times out after retrying.
@@ -554,7 +657,7 @@ class APIWrapper(object):
         rate_limited_attempt = 0
         while attempt <= max_retries:
             try:
-                return timeout(timeout_seconds)(self.cached_call_llm)(
+                return timeout(timeout_seconds)(self._cached_call_llm)(
                     key,
                     model,
                     op_type,
@@ -562,6 +665,10 @@ class APIWrapper(object):
                     output_schema,
                     json.dumps(tools) if tools else None,
                     scratchpad,
+                    validation_config=validation_config,
+                    gleaning_config=gleaning_config,
+                    verbose=verbose,
+                    bypass_cache=bypass_cache,
                 )
             except RateLimitError:
                 # TODO: this is a really hacky way to handle rate limits
@@ -569,21 +676,21 @@ class APIWrapper(object):
                 backoff_time = 4 * (2**rate_limited_attempt)  # Exponential backoff
                 max_backoff = 120  # Maximum backoff time of 60 seconds
                 sleep_time = min(backoff_time, max_backoff)
-                console.log(
+                self.runner.console.log(
                     f"[yellow]Rate limit hit. Retrying in {sleep_time:.2f} seconds...[/yellow]"
                 )
                 time.sleep(sleep_time)
                 rate_limited_attempt += 1
             except TimeoutError:
                 if attempt == max_retries:
-                    console.log(
+                    self.runner.console.log(
                         f"[bold red]LLM call timed out after {max_retries + 1} attempts[/bold red]"
                     )
                     # TODO: HITL
-                    return {}
+                    return LLMResult(response=None, total_cost=0.0, validated=False)
                 attempt += 1
 
-    def call_llm_with_cache(
+    def _call_llm_with_cache(
         self,
         model: str,
         op_type: str,
@@ -591,7 +698,7 @@ class APIWrapper(object):
         output_schema: Dict[str, str],
         tools: Optional[str] = None,
         scratchpad: Optional[str] = None,
-    ) -> str:
+    ) -> Any:
         """
         Make an LLM call with caching.
 
@@ -680,7 +787,6 @@ Keep the scratchpad concise (~500 chars) and easily parsable. Use clear structur
 Update the 'updated_scratchpad' field in your output with the new scratchpad content.
 
 Remember: The scratchpad should contain information necessary for processing future batches, not the final result."""
-        messages = json.loads(messages)
 
         # Truncate messages if they exceed the model's context length
         messages = truncate_messages(messages, model)
@@ -713,173 +819,6 @@ Remember: The scratchpad should contain information necessary for processing fut
 
         return response
 
-    def call_llm_with_gleaning(
-        self,
-        model: str,
-        op_type: str,
-        messages: List[Dict[str, str]],
-        output_schema: Dict[str, str],
-        validator_prompt_template: str,
-        num_gleaning_rounds: int,
-        console: Console = Console(),
-        timeout_seconds: int = 120,
-        max_retries_per_timeout: int = 2,
-        verbose: bool = False,
-    ) -> Tuple[str, float]:
-        """
-        Call LLM with a gleaning process, including validation and improvement rounds.
-
-        This function performs an initial LLM call, followed by multiple rounds of
-        validation and improvement based on the validator prompt template.
-
-        Args:
-            model (str): The model name.
-            op_type (str): The operation type.
-            messages (List[Dict[str, str]]): The messages to send to the LLM.
-            output_schema (Dict[str, str]): The output schema dictionary.
-            validator_prompt_template (str): Template for the validator prompt.
-            num_gleaning_rounds (int): Number of gleaning rounds to perform.
-            timeout_seconds (int): The timeout for the LLM call.
-        Returns:
-            Tuple[str, float]: A tuple containing the final LLM response and the total cost.
-        """
-        if not litellm.supports_function_calling(model):
-            raise ValueError(
-                f"Model {model} does not support function calling (which we use for structured outputs). Please use a different model."
-            )
-
-        props = {key: convert_val(value) for key, value in output_schema.items()}
-
-        parameters = {"type": "object", "properties": props}
-        parameters["required"] = list(props.keys())
-        parameters["additionalProperties"] = False
-
-        # Initial LLM call
-        response = self.call_llm(
-            model,
-            op_type,
-            messages,
-            output_schema,
-            console=console,
-            timeout_seconds=timeout_seconds,
-            max_retries_per_timeout=max_retries_per_timeout,
-        )
-
-        cost = 0.0
-
-        # Parse the response
-        parsed_response = self.parse_llm_response(response, output_schema)
-        output = parsed_response[0]
-
-        messages = (
-            [
-                {
-                    "role": "system",
-                    "content": f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation.",
-                }
-            ]
-            + messages
-            + [
-                {"role": "assistant", "content": json.dumps(output)},
-            ]
-        )
-
-        for rnd in range(num_gleaning_rounds):
-            cost += completion_cost(response)
-
-            # Prepare validator prompt
-            validator_template = Template(validator_prompt_template)
-            validator_prompt = validator_template.render(output=output)
-
-            # Call LLM for validation
-            self.runner.rate_limiter.try_acquire("llm_call", weight=1)
-            validator_response = completion(
-                model=model,
-                messages=truncate_messages(
-                    messages + [{"role": "user", "content": validator_prompt}], model
-                ),
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "response",
-                        "strict": True,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "should_refine": {"type": "boolean"},
-                                "improvements": {"type": "string"},
-                            },
-                            "required": ["should_refine", "improvements"],
-                            "additionalProperties": False,
-                        },
-                    },
-                },
-            )
-            cost += completion_cost(validator_response)
-
-            # Parse the validator response
-            suggestion = json.loads(validator_response.choices[0].message.content)
-            if not suggestion["should_refine"]:
-                break
-
-            if verbose:
-                console.log(
-                    f"Validator improvements (gleaning round {rnd + 1}): {suggestion['improvements']}"
-                )
-
-            # Prompt for improvement
-            improvement_prompt = f"""Based on the validation feedback:
-
-    ```
-    {suggestion['improvements']}
-    ```
-
-    Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""
-            messages.append({"role": "user", "content": improvement_prompt})
-
-            # Call LLM for improvement
-            # TODO: support gleaning and tools
-            self.runner.rate_limiter.try_acquire("llm_call", weight=1)
-            response = completion(
-                model=model,
-                messages=truncate_messages(messages, model),
-                # response_format={
-                #     "type": "json_schema",
-                #     "json_schema": {
-                #         "name": "write_output",
-                #         "description": "Write processing output to a database",
-                #         "strict": True,
-                #         "schema": parameters,
-                #         # "additionalProperties": False,
-                #     },
-                # },
-                tools=[
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "send_output",
-                            "description": "Send output back to the user",
-                            "strict": True,
-                            "parameters": parameters,
-                            "additionalProperties": False,
-                        },
-                    }
-                ],
-                tool_choice={"type": "function", "function": {"name": "send_output"}},
-            )
-
-            # Update messages with the new response
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": json.dumps(
-                        self.parse_llm_response(response, output_schema)[0]
-                    ),
-                }
-            )
-
-        return response, cost
-
     def parse_llm_response(
         self,
         response: Any,
@@ -892,7 +831,7 @@ Remember: The scratchpad should contain information necessary for processing fut
         This function extracts the tool calls from the LLM response and returns the arguments
         """
         try:
-            return self.parse_llm_response_helper(response, schema, tools)
+            return self._parse_llm_response_helper(response, schema, tools)
         except InvalidOutputError as e:
             if manually_fix_errors:
                 rprint(
@@ -909,7 +848,7 @@ Remember: The scratchpad should contain information necessary for processing fut
             else:
                 raise e
 
-    def parse_llm_response_helper(
+    def _parse_llm_response_helper(
         self,
         response: Any,
         schema: Dict[str, Any] = {},

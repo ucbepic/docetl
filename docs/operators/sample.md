@@ -10,9 +10,7 @@ comfortably debug its prompt. Once it seems to be working, you can
 remove the sample operation. You can then repeat this for each
 operation you add while developing your pipeline!
 
-
-
-## 🚀 Example: 
+## 🚀 Example:
 
 ```yaml
 - name: cluster_concepts
@@ -33,11 +31,11 @@ sample each value of the `category` key equally.
 
 - `name`: A unique name for the operation.
 - `type`: Must be set to "sample".
-- `samples`: Either a list of sample indices to just return those samples, an integer count of samples, or a float fraction of samples.
+- `samples`: Either a list of key-value pairs representing document ids and values, an integer count of samples, or a float fraction of samples.
 
 ## Optional Parameters
 
-| Parameter                 | Description                                                                      | Default                       |
-| ------------------------- | -------------------------------------------------------------------------------- | ----------------------------- |
-| `random_state             | An integer to seed the random generator with | Use the (numpy) global random state
-| `stratify`                | The key to stratify by             |  |
+| Parameter     | Description                                  | Default                             |
+| ------------- | -------------------------------------------- | ----------------------------------- |
+| `random_state | An integer to seed the random generator with | Use the (numpy) global random state |
+| `stratify`    | The key to stratify by                       |                                     |

@@ -548,6 +548,13 @@ class APIWrapper(object):
                         response = self._call_llm_with_cache(
                             model, op_type, messages, output_schema, tools, scratchpad
                         )
+                        parsed_output = self.parse_llm_response(
+                            response, output_schema, tools
+                        )[0]
+                        validator_messages[-1] = [
+                            {"role": "assistant", "content": json.dumps(parsed_output)},
+                        ]
+
                         total_cost += completion_cost(response)
 
                     validated = True

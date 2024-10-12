@@ -1,5 +1,6 @@
 import pytest
 from docetl.operations.cluster import ClusterOperation
+from docetl.operations.sample import SampleOperation
 from tests.conftest import api_wrapper, default_model, max_threads
 
 
@@ -32,36 +33,52 @@ def cluster_config():
 def sample_data():
     return [
         {
+            "id": 1,
             "concept": "Shed",
             "description": "A simple, single-story roofed structure, often used for storage or as a workshop.",
+            "group": "A",
         },
         {
+            "id": 2,
             "concept": "Barn",
             "description": "A large agricultural building used for storing farm products and sheltering livestock.",
+            "group": "B",
         },
         {
+            "id": 3,
             "concept": "Tree house",
             "description": "A small house built among the branches of a tree for children to play in.",
+            "group": "A",
         },
         {
+            "id": 4,
             "concept": "Skyscraper",
             "description": "A very tall building of many stories, typically found in urban areas.",
+            "group": "B",
         },
         {
+            "id": 5,
             "concept": "Castle",
             "description": "A large fortified building or set of buildings from the medieval period.",
+            "group": "A",
         },
         {
+            "id": 6,
             "concept": "Igloo",
             "description": "A dome-shaped dwelling made of blocks of solid snow, traditionally built by Inuit people.",
+            "group": "B",
         },
         {
+            "id": 7,
             "concept": "Lighthouse",
             "description": "A tower with a bright light at the top, used to warn or guide ships at sea.",
+            "group": "A",
         },
         {
+            "id": 8,
             "concept": "Windmill",
             "description": "A building with sails or vanes that turn in the wind and generate power to grind grain into flour.",
+            "group": "B",
         },
     ]
 
@@ -115,3 +132,90 @@ def test_cluster_operation_single_item(
     assert cost == 0
     assert "categories" in results[0]
     assert isinstance(results[0]["categories"], tuple)
+
+
+@pytest.fixture
+def sample_config():
+    return {
+        "name": "sample_operation",
+        "type": "sample",
+        "random_state": 42,  # For reproducibility
+    }
+
+
+def test_sample_operation_with_count(
+    sample_config, sample_data, api_wrapper, default_model, max_threads
+):
+    sample_config["samples"] = 5
+    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == 5
+    assert cost == 0
+    assert all(item in sample_data for item in results)
+
+
+def test_sample_operation_with_fraction(
+    sample_config, sample_data, api_wrapper, default_model, max_threads
+):
+    sample_config["samples"] = 0.5
+    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == len(sample_data) // 2
+    assert cost == 0
+    assert all(item in sample_data for item in results)
+
+
+def test_sample_operation_with_list(
+    sample_config, sample_data, api_wrapper, default_model, max_threads
+):
+    sample_list = [{"id": 1}, {"id": 3}, {"id": 5}]
+    sample_config["samples"] = sample_list
+    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == len(sample_list)
+    assert cost == 0
+    assert all(item["id"] in [1, 3, 5] for item in results)
+
+
+def test_sample_operation_with_stratify(
+    sample_config, sample_data, api_wrapper, default_model, max_threads
+):
+    sample_config["samples"] = 5
+    sample_config["stratify"] = "group"
+    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == 5
+    assert cost == 0
+    assert all(item in sample_data for item in results)
+    assert len(set(item["group"] for item in results)) > 1
+
+
+def test_sample_operation_with_outliers(
+    sample_config, sample_data, api_wrapper, default_model, max_threads
+):
+    sample_config["outliers"] = {
+        "std": 2,
+        "embedding_keys": ["concept", "description"],
+        "keep": True,
+    }
+    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) < len(sample_data)
+    assert cost > 0
+    assert all(item in sample_data for item in results)
+
+
+def test_sample_operation_empty_input(
+    sample_config, api_wrapper, default_model, max_threads
+):
+    sample_config["samples"] = 3
+    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    results, cost = operation.execute([])
+
+    assert len(results) == 0
+    assert cost == 0

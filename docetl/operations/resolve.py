@@ -56,12 +56,13 @@ class ResolveOperation(BaseOperation):
             {"is_match": "bool"},
             timeout_seconds=timeout_seconds,
             max_retries_per_timeout=max_retries_per_timeout,
+            bypass_cache=self.config.get("bypass_cache", False),
         )
         output = self.runner.api.parse_llm_response(
-            response,
+            response.response,
             {"is_match": "bool"},
         )[0]
-        return output["is_match"], completion_cost(response)
+        return output["is_match"], response.total_cost
 
     def syntax_check(self) -> None:
         """
@@ -168,6 +169,15 @@ class ResolveOperation(BaseOperation):
                 raise TypeError("'limit_comparisons' must be an integer")
             if self.config["limit_comparisons"] <= 0:
                 raise ValueError("'limit_comparisons' must be a positive integer")
+
+    def validation_fn(self, response: Dict[str, Any]):
+        output = self.runner.api.parse_llm_response(
+            response,
+            schema=self.config["output"]["schema"],
+        )[0]
+        if self.runner.api.validate_output(self.config, output, self.console):
+            return output, True
+        return output, False
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
@@ -401,22 +411,28 @@ class ResolveOperation(BaseOperation):
                     "reduce",
                     [{"role": "user", "content": resolution_prompt}],
                     self.config["output"]["schema"],
-                    console=self.console,
                     timeout_seconds=self.config.get("timeout", 120),
                     max_retries_per_timeout=self.config.get(
                         "max_retries_per_timeout", 2
                     ),
+                    bypass_cache=self.config.get("bypass_cache", False),
+                    validation_config=(
+                        {
+                            "val_rule": self.config.get("validate", []),
+                            "validation_fn": self.validation_fn,
+                        }
+                        if self.config.get("validate", None)
+                        else None
+                    ),
                 )
-                reduction_output = self.runner.api.parse_llm_response(
-                    reduction_response,
-                    self.config["output"]["schema"],
-                    manually_fix_errors=self.manually_fix_errors,
-                )[0]
-                reduction_cost = completion_cost(reduction_response)
+                reduction_cost = reduction_response.total_cost
 
-                if self.runner.api.validate_output(
-                    self.config, reduction_output, self.console
-                ):
+                if reduction_response.validated:
+                    reduction_output = self.runner.api.parse_llm_response(
+                        reduction_response.response,
+                        self.config["output"]["schema"],
+                        manually_fix_errors=self.manually_fix_errors,
+                    )[0]
                     return (
                         [
                             {

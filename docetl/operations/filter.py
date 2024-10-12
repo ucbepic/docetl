@@ -5,13 +5,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from jinja2 import Template
 
-from docetl.operations.base import BaseOperation
+from docetl.operations.map import MapOperation
 from docetl.operations.utils import (
     RichLoopBar,
 )
 
 
-class FilterOperation(BaseOperation):
+class FilterOperation(MapOperation):
     def syntax_check(self) -> None:
         """
         Checks the configuration of the FilterOperation for required keys and valid structure.
@@ -110,77 +110,9 @@ class FilterOperation(BaseOperation):
             )
         )
 
-        if self.status:
-            self.status.start()
+        results, total_cost = super().execute(input_data)
 
-        def _process_filter_item(item: Dict) -> Tuple[Optional[Dict], float]:
-            prompt_template = Template(self.config["prompt"])
-            prompt = prompt_template.render(input=item)
-
-            def validation_fn(response: Dict[str, Any]):
-                output = self.runner.api.parse_llm_response(
-                    response,
-                    self.config["output"]["schema"],
-                    manually_fix_errors=self.manually_fix_errors,
-                )[0]
-                for key, value in item.items():
-                    if key not in self.config["output"]["schema"]:
-                        output[key] = value
-                if self.runner.api.validate_output(self.config, output, self.console):
-                    return output, True
-                return output, False
-
-            output, cost, is_valid = self.runner.api.call_llm_with_validation(
-                [{"role": "user", "content": prompt}],
-                model=self.config.get("model", self.default_model),
-                operation_type="filter",
-                schema=self.config["output"]["schema"],
-                llm_call_fn=lambda messages: self.runner.api.call_llm(
-                    self.config.get("model", self.default_model),
-                    "filter",
-                    messages,
-                    self.config["output"]["schema"],
-                    console=self.console,
-                    timeout_seconds=self.config.get("timeout", 120),
-                    max_retries_per_timeout=self.config.get(
-                        "max_retries_per_timeout", 2
-                    ),
-                ),
-                validation_fn=validation_fn,
-                val_rule=self.config.get("validate", []),
-                num_retries=self.num_retries_on_validate_failure,
-                console=self.console,
-            )
-
-            if is_valid:
-                return output, cost
-
-            return None, cost
-
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = [
-                executor.submit(_process_filter_item, item) for item in input_data
-            ]
-            results = []
-            total_cost = 0
-            pbar = RichLoopBar(
-                range(len(futures)),
-                desc=f"Processing {self.config['name']} (filter) on all documents",
-                console=self.console,
-            )
-            for i in pbar:
-                future = futures[i]
-                result, item_cost = future.result()
-                total_cost += item_cost
-                if result is not None:
-                    if is_build:
-                        results.append(result)
-                    else:
-                        if result.get(filter_key, False):
-                            results.append(result)
-                pbar.update(1)
-
-        if self.status:
-            self.status.start()
+        # Drop records with filter_key values that are False
+        results = [result for result in results if result[filter_key]]
 
         return results, total_cost

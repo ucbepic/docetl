@@ -22,6 +22,7 @@ def test_parallel_map_operation(
     parallel_map_sample_data,
     api_wrapper,
 ):
+    parallel_map_config["bypass_cache"] = True
     operation = ParallelMapOperation(
         api_wrapper, parallel_map_config, default_model, max_threads
     )

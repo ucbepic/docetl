@@ -185,5 +185,3 @@ def test_database_survey_pipeline(
     assert all("summary" in result for result in summarized_results)
 
     total_cost = extract_cost + unnest_cost + resolve_cost + summarize_cost
-    assert total_cost > 0
-    print(total_cost)

@@ -42,6 +42,7 @@ def reduce_sample_data_with_list_key():
 def test_reduce_operation(
     reduce_config, default_model, max_threads, reduce_sample_data, api_wrapper
 ):
+    reduce_config["bypass_cache"] = True
     operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data)
 
@@ -61,7 +62,6 @@ def test_reduce_operation_with_all_key(
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 1
-    assert cost > 0
 
 
 def test_reduce_operation_with_list_key(
@@ -84,7 +84,6 @@ def test_reduce_operation_with_list_key(
         and "avg" in result
         for result in results
     )
-    assert cost > 0
 
 
 def test_reduce_operation_empty_input(
@@ -134,7 +133,6 @@ def test_resolve_operation(
 
     distinct_names = set(result["name"] for result in results)
     assert len(distinct_names) < len(results)
-    assert cost > 0
 
 
 def test_resolve_operation_empty_input(resolve_config, max_threads, api_wrapper):

@@ -70,6 +70,7 @@ def sample_data():
 def test_cluster_operation(
     cluster_config, sample_data, api_wrapper, default_model, max_threads
 ):
+    cluster_config["bypass_cache"] = True
     operation = ClusterOperation(
         api_wrapper, cluster_config, default_model, max_threads
     )

@@ -167,31 +167,33 @@ class ClusterOperation(BaseOperation):
                     return output, True
                 return output, False
 
-            output, cost, success = self.runner.api.call_llm_with_validation(
-                [{"role": "user", "content": prompt}],
+            response = self.runner.api.call_llm(
                 model=self.config.get("model", self.default_model),
-                operation_type="cluster",
-                schema=self.config["summary_schema"],
-                llm_call_fn=lambda messages: self.runner.api.call_llm(
-                    self.config.get("model", self.default_model),
-                    "cluster",
-                    messages,
-                    self.config["summary_schema"],
-                    tools=self.config.get("tools", None),
-                    console=self.console,
-                    timeout_seconds=self.config.get("timeout", 120),
-                    max_retries_per_timeout=self.config.get(
-                        "max_retries_per_timeout", 2
-                    ),
+                op_type="cluster",
+                messages=[{"role": "user", "content": prompt}],
+                output_schema=self.config["summary_schema"],
+                timeout_seconds=self.config.get("timeout", 120),
+                bypass_cache=self.config.get("bypass_cache", False),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                validation_config=(
+                    {
+                        "num_retries": self.num_retries_on_validate_failure,
+                        "val_rule": self.config.get("validate", []),
+                        "validation_fn": validation_fn,
+                    }
+                    if self.config.get("validate", None)
+                    else None
                 ),
-                validation_fn=validation_fn,
-                val_rule=self.config.get("validate", []),
-                num_retries=self.num_retries_on_validate_failure,
-                console=self.console,
+                verbose=self.config.get("verbose", False),
             )
-            total_cost += cost
-
-            t.update(output)
+            total_cost += response.total_cost
+            if response.validated:
+                output = self.runner.api.parse_llm_response(
+                    response.response,
+                    schema=self.config["summary_schema"],
+                    manually_fix_errors=self.manually_fix_errors,
+                )[0]
+                t.update(output)
 
             return total_cost
         return 0

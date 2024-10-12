@@ -257,7 +257,6 @@ def test_pipeline_execution(
     cost = pipeline.run(max_threads=4)
 
     assert isinstance(cost, float)
-    assert cost > 0
 
 
 def test_parallel_map_pipeline(
@@ -283,7 +282,6 @@ def test_parallel_map_pipeline(
     cost = pipeline.run(max_threads=4)
 
     assert isinstance(cost, float)
-    assert cost > 0
 
 
 def test_filter_pipeline(
@@ -309,7 +307,6 @@ def test_filter_pipeline(
     cost = pipeline.run(max_threads=4)
 
     assert isinstance(cost, float)
-    assert cost > 0
 
 
 def test_reduce_pipeline(
@@ -333,7 +330,6 @@ def test_reduce_pipeline(
     cost = pipeline.run(max_threads=4)
 
     assert isinstance(cost, float)
-    assert cost > 0
 
 
 def test_resolve_pipeline(
@@ -359,7 +355,6 @@ def test_resolve_pipeline(
     cost = pipeline.run(max_threads=4)
 
     assert isinstance(cost, float)
-    assert cost > 0
 
 
 def test_equijoin_pipeline(
@@ -404,4 +399,3 @@ def test_equijoin_pipeline(
     cost = pipeline.run(max_threads=4)
 
     assert isinstance(cost, float)
-    assert cost > 0

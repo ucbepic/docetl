@@ -12,7 +12,7 @@ import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 import numpy as np
@@ -684,6 +684,15 @@ class ReduceOperation(BaseOperation):
 
         return current_output, total_cost
 
+    def validation_fn(self, response: Dict[str, Any]):
+        output = self.runner.api.parse_llm_response(
+            response,
+            schema=self.config["output"]["schema"],
+        )[0]
+        if self.runner.api.validate_output(self.config, output, self.console):
+            return output, True
+        return output, False
+
     def _increment_fold(
         self,
         key: Tuple,
@@ -715,29 +724,43 @@ class ReduceOperation(BaseOperation):
             output=current_output,
             reduce_key=dict(zip(self.config["reduce_key"], key)),
         )
+
         response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
             "reduce",
             [{"role": "user", "content": fold_prompt}],
             self.config["output"]["schema"],
             scratchpad=scratchpad,
-            console=self.console,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+            validation_config=(
+                {
+                    "num_retries": self.num_retries_on_validate_failure,
+                    "val_rule": self.config.get("validate", []),
+                    "validation_fn": self.validation_fn,
+                }
+                if self.config.get("validate", None)
+                else None
+            ),
+            bypass_cache=self.config.get("bypass_cache", False),
+            verbose=self.config.get("verbose", False),
         )
-        folded_output = self.runner.api.parse_llm_response(
-            response,
-            self.config["output"]["schema"],
-            manually_fix_errors=self.manually_fix_errors,
-        )[0]
 
-        folded_output.update(dict(zip(self.config["reduce_key"], key)))
-        fold_cost = completion_cost(response)
         end_time = time.time()
         self._update_fold_time(end_time - start_time)
 
-        if self.runner.api.validate_output(self.config, folded_output, self.console):
+        if response.validated:
+            folded_output = self.runner.api.parse_llm_response(
+                response.response,
+                schema=self.config["output"]["schema"],
+                manually_fix_errors=self.manually_fix_errors,
+            )[0]
+
+            folded_output.update(dict(zip(self.config["reduce_key"], key)))
+            fold_cost = response.total_cost
+
             return folded_output, fold_cost
+
         return None, fold_cost
 
     def _merge_results(
@@ -766,20 +789,34 @@ class ReduceOperation(BaseOperation):
             "merge",
             [{"role": "user", "content": merge_prompt}],
             self.config["output"]["schema"],
-            console=self.console,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+            validation_config=(
+                {
+                    "num_retries": self.num_retries_on_validate_failure,
+                    "val_rule": self.config.get("validate", []),
+                    "validation_fn": self.validation_fn,
+                }
+                if self.config.get("validate", None)
+                else None
+            ),
+            bypass_cache=self.config.get("bypass_cache", False),
+            verbose=self.config.get("verbose", False),
         )
-        merged_output = self.runner.api.parse_llm_response(
-            response, self.config["output"]["schema"]
-        )[0]
-        merged_output.update(dict(zip(self.config["reduce_key"], key)))
-        merge_cost = completion_cost(response)
+
         end_time = time.time()
         self._update_merge_time(end_time - start_time)
 
-        if self.runner.api.validate_output(self.config, merged_output, self.console):
+        if response.validated:
+            merged_output = self.runner.api.parse_llm_response(
+                response.response,
+                schema=self.config["output"]["schema"],
+                manually_fix_errors=self.manually_fix_errors,
+            )[0]
+            merged_output.update(dict(zip(self.config["reduce_key"], key)))
+            merge_cost = response.total_cost
             return merged_output, merge_cost
+
         return None, merge_cost
 
     def get_fold_time(self) -> Tuple[float, bool]:
@@ -854,41 +891,37 @@ class ReduceOperation(BaseOperation):
         )
         item_cost = 0
 
-        if "gleaning" in self.config:
-            response, gleaning_cost = self.runner.api.call_llm_with_gleaning(
-                self.config.get("model", self.default_model),
-                "reduce",
-                [{"role": "user", "content": prompt}],
-                self.config["output"]["schema"],
-                self.config["gleaning"]["validation_prompt"],
-                self.config["gleaning"]["num_rounds"],
-                console=self.console,
-                timeout_seconds=self.config.get("timeout", 120),
-                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-                verbose=self.config.get("verbose", False),
-            )
-            item_cost += gleaning_cost
-        else:
-            response = self.runner.api.call_llm(
-                self.config.get("model", self.default_model),
-                "reduce",
-                [{"role": "user", "content": prompt}],
-                self.config["output"]["schema"],
-                console=self.console,
-                scratchpad=scratchpad,
-                timeout_seconds=self.config.get("timeout", 120),
-                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-            )
-
-        item_cost += completion_cost(response)
-
-        output = self.runner.api.parse_llm_response(
-            response,
+        response = self.runner.api.call_llm(
+            self.config.get("model", self.default_model),
+            "reduce",
+            [{"role": "user", "content": prompt}],
             self.config["output"]["schema"],
-            manually_fix_errors=self.manually_fix_errors,
-        )[0]
-        output.update(dict(zip(self.config["reduce_key"], key)))
+            scratchpad=scratchpad,
+            timeout_seconds=self.config.get("timeout", 120),
+            max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+            bypass_cache=self.config.get("bypass_cache", False),
+            validation_config=(
+                {
+                    "num_retries": self.num_retries_on_validate_failure,
+                    "val_rule": self.config.get("validate", []),
+                    "validation_fn": self.validation_fn,
+                }
+                if self.config.get("validate", None)
+                else None
+            ),
+            gleaning_config=self.config.get("gleaning", None),
+            verbose=self.config.get("verbose", False),
+        )
 
-        if self.runner.api.validate_output(self.config, output, self.console):
+        item_cost += response.total_cost
+
+        if response.validated:
+            output = self.runner.api.parse_llm_response(
+                response.response,
+                schema=self.config["output"]["schema"],
+                manually_fix_errors=self.manually_fix_errors,
+            )[0]
+            output.update(dict(zip(self.config["reduce_key"], key)))
+
             return output, item_cost
         return None, item_cost

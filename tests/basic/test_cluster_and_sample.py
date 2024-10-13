@@ -225,3 +225,24 @@ def test_sample_operation_empty_input(
 
     assert len(results) == 0
     assert cost == 0
+
+
+def test_sample_operation_with_outliers_and_center(
+    sample_config, sample_data, api_wrapper, default_model, max_threads
+):
+    sample_config["method"] = "outliers"
+    sample_config["method_kwargs"] = {
+        "std": 2,
+        "embedding_keys": ["concept", "description"],
+        "keep": True,
+        "center": {
+            "concept": "Tree house",
+            "description": "A small house built among the branches of a tree for children to play in.",
+        },
+    }
+    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) < len(sample_data)
+    assert cost > 0
+    assert all(item in sample_data for item in results)

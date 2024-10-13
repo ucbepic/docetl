@@ -1,6 +1,6 @@
 # Pipelines
 
-Pipelines in DocETL are the core structures that define the flow of data processing. They orchestrate the application of operators to datasets, creating a seamless workflow for complex document processing tasks.
+Pipelines in DocETL are the core structures that define the flow of data processing. They orchestrate the application of operators to datasets, creating a seamless workflow for complex chunk processing tasks.
 
 ## Components of a Pipeline
 
@@ -21,7 +21,7 @@ default_model: gpt-4o-mini
 
 ### Datasets
 
-Datasets define the input data for your pipeline. They are collections of documents, where each document is an object in a JSON list (or row in a CSV file). Datasets are typically specified in the YAML configuration file, indicating the type and path of the data source. For example:
+Datasets define the input data for your pipeline. They are collections of items/chunks, where each item/chunk is an object in a JSON list (or row in a CSV file). Datasets are typically specified in the YAML configuration file, indicating the type and path of the data source. For example:
 
 ```yaml
 datasets:

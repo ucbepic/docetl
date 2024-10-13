@@ -486,9 +486,7 @@ class APIWrapper(object):
                             }
                         ]
                         + messages
-                        + [
-                            {"role": "assistant", "content": json.dumps(parsed_output)},
-                        ]
+                        + [{"role": "assistant", "content": json.dumps(parsed_output)}]
                     )
 
                     for rnd in range(num_gleaning_rounds):
@@ -553,9 +551,10 @@ class APIWrapper(object):
                         parsed_output = self.parse_llm_response(
                             response, output_schema, tools
                         )[0]
-                        validator_messages[-1] = [
-                            {"role": "assistant", "content": json.dumps(parsed_output)},
-                        ]
+                        validator_messages[-1] = {
+                            "role": "assistant",
+                            "content": json.dumps(parsed_output),
+                        }
 
                         total_cost += completion_cost(response)
 

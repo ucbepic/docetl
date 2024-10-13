@@ -470,7 +470,9 @@ class APIWrapper(object):
                 if gleaning_config:
                     # Retry gleaning prompt + regular LLM
                     num_gleaning_rounds = gleaning_config.get("num_rounds", 2)
-                    validator_prompt_template = Template(gleaning_config["prompt"])
+                    validator_prompt_template = Template(
+                        gleaning_config["validation_prompt"]
+                    )
 
                     parsed_output = self.parse_llm_response(
                         response, output_schema, tools

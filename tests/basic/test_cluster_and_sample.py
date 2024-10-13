@@ -147,6 +147,7 @@ def test_sample_operation_with_count(
     sample_config, sample_data, api_wrapper, default_model, max_threads
 ):
     sample_config["samples"] = 5
+    sample_config["method"] = "uniform"
     operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
@@ -159,6 +160,7 @@ def test_sample_operation_with_fraction(
     sample_config, sample_data, api_wrapper, default_model, max_threads
 ):
     sample_config["samples"] = 0.5
+    sample_config["method"] = "uniform"
     operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
@@ -172,6 +174,7 @@ def test_sample_operation_with_list(
 ):
     sample_list = [{"id": 1}, {"id": 3}, {"id": 5}]
     sample_config["samples"] = sample_list
+    sample_config["method"] = "custom"
     operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
@@ -184,7 +187,8 @@ def test_sample_operation_with_stratify(
     sample_config, sample_data, api_wrapper, default_model, max_threads
 ):
     sample_config["samples"] = 5
-    sample_config["stratify"] = "group"
+    sample_config["method"] = "stratify"
+    sample_config["method_kwargs"] = {"stratify_key": "group"}
     operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
@@ -197,7 +201,8 @@ def test_sample_operation_with_stratify(
 def test_sample_operation_with_outliers(
     sample_config, sample_data, api_wrapper, default_model, max_threads
 ):
-    sample_config["outliers"] = {
+    sample_config["method"] = "outliers"
+    sample_config["method_kwargs"] = {
         "std": 2,
         "embedding_keys": ["concept", "description"],
         "keep": True,
@@ -214,6 +219,7 @@ def test_sample_operation_empty_input(
     sample_config, api_wrapper, default_model, max_threads
 ):
     sample_config["samples"] = 3
+    sample_config["method"] = "uniform"
     operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
     results, cost = operation.execute([])
 

@@ -146,17 +146,12 @@ class Dataset:
             return []
 
         for tool in parsing_tools:
-            if (
-                not isinstance(tool, dict)
-                or "function" not in tool
-            ):
+            if not isinstance(tool, dict) or "function" not in tool:
                 raise ValueError(
                     "Each parsing tool must be a dictionary with a 'function' key and any arguments required by that function"
                 )
             if not isinstance(tool["function"], str):
-                raise ValueError(
-                    "'function' in parsing tools must be a string"
-                )
+                raise ValueError("'function' in parsing tools must be a string")
             if "function_kwargs" in tool and not isinstance(
                 tool["function_kwargs"], dict
             ):
@@ -212,7 +207,7 @@ class Dataset:
     ):
         result = func(item, **function_kwargs)
         return [item.copy() | res for res in result]
-        
+
     def _apply_parsing_tools(self, data: List[Dict]) -> List[Dict]:
         """
         Apply parsing tools to the data.
@@ -233,7 +228,7 @@ class Dataset:
             # with the existing yaml format...
             if "function_kwargs" in function_kwargs:
                 function_kwargs.update(function_kwargs.pop("function_kwargs"))
-            
+
             try:
                 func = get_parser(tool["function"])
             except KeyError:
@@ -243,7 +238,8 @@ class Dataset:
                 ):
                     # Define the custom function in the current scope
                     exec(
-                        self.user_defined_parsing_tool_map[
+                        "from typing import List, Dict\n"
+                        + self.user_defined_parsing_tool_map[
                             tool["function"]
                         ].function_code
                     )

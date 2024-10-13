@@ -191,9 +191,10 @@ def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wra
     map_config_with_gleaning = {
         **simple_map_config,
         "gleaning": {
-            "num_rounds": 1,
+            "num_rounds": 2,
             "validation_prompt": "Review the sentiment analysis. Is it accurate? If not, suggest improvements.",
         },
+        "bypass_cache": True,
     }
 
     operation = MapOperation(api_wrapper, map_config_with_gleaning, "gpt-4o-mini", 4)

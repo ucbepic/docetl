@@ -99,11 +99,6 @@ class SampleOperation(BaseOperation):
         if "center" in self.config.get("method_kwargs", {}):
             if not isinstance(self.config.get("method_kwargs", {})["center"], dict):
                 raise TypeError("'center' must be a dictionary")
-            for key, value in self.config.get("method_kwargs", {})["center"].items():
-                if not isinstance(value, (int, float)):
-                    raise TypeError(
-                        f"Values in 'center' must be numbers, got {type(value)} for key '{key}'"
-                    )
 
     def execute(
         self, input_data: List[Dict], is_build: bool = False
@@ -133,13 +128,13 @@ class SampleOperation(BaseOperation):
             cost += embedding_cost
             embeddings = np.array(embeddings)
 
-            if "center" in self.config:
-                center = np.array(
-                    [
-                        outliers_config["center"][key]
-                        for key in outliers_config["embedding_keys"]
-                    ]
+            if "center" in outliers_config:
+                center_embeddings, cost2 = get_embeddings_for_clustering(
+                    [outliers_config["center"]], outliers_config, self.runner.api
                 )
+                cost += cost2
+                center = np.array(center_embeddings[0])
+
             else:
                 center = embeddings.mean(axis=0)
 

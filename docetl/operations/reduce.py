@@ -20,7 +20,7 @@ from jinja2 import Template
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.clustering_utils import (
-    cluster_items,
+    cluster_documents,
     get_embeddings_for_clustering,
 )
 from docetl.operations.utils import rich_as_completed
@@ -428,7 +428,7 @@ class ReduceOperation(BaseOperation):
         if sample_size >= len(group_list):
             return group_list, 0
 
-        clusters, cost = cluster_items(
+        clusters, cost = cluster_documents(
             group_list, value_sampling, sample_size, self.runner.api
         )
 

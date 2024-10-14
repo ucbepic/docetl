@@ -4,7 +4,7 @@ Operators in DocETL are designed for semantically processing unstructured data. 
 
 ## Overview
 
-- Datasets contain documents, where a document is an object in the JSON list, with fields and values.
+- Datasets contain items, where a item is an object in the JSON list, with fields and values. An item here could be simple text chunk or a document reference.
 - DocETL provides several operators, each tailored for specific unstructured data processing tasks.
 - By default, operations are parallelized on your data using multithreading for improved performance.
 

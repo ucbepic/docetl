@@ -139,7 +139,7 @@ export const OutputSchema: React.FC<{
               isExpanded ? 'transform rotate-180' : ''
             }`}
           />
-          <h4 className="text-sm font-semibold">Output Types</h4>
+          <h4 className="text-sm font-semibold">Output Schema</h4>
         </Button>
         {isExpanded && (
           <SchemaForm schema={schema} onUpdate={onUpdate} />

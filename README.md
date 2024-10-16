@@ -16,6 +16,11 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
 - You have validation criteria and want tasks to automatically retry when the validation fails
 
+## Cool Things People Are Doing with DocETL
+
+- [Conversation Generator](https://github.com/redhog/docetl-conversation)
+- [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
+
 ## Installation
 
 See the documentation for installing from PyPI.

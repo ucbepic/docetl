@@ -258,7 +258,7 @@ class JoinOptimizer:
     Are these [entities] likely referring to the same [entity type]? Consider [list relevant attributes or characteristics to compare]. Respond with "True" if they are likely the same [entity type], or "False" if they are likely different [entity types].
     ```
 
-    Please generate the comparison prompt:
+    Please generate the comparison prompt, which should be a Jinja2 template:
     """,
             }
         ]
@@ -1078,12 +1078,13 @@ class JoinOptimizer:
     ) -> Tuple[List[Tuple[int, int, bool]], float]:
         comparisons, total_cost = [], 0
         op = ResolveOperation(
-            self,
+            self.runner,
             self.op_config,
             self.runner.default_model,
             self.max_threads,
             self.console,
-            self.status)
+            self.status,
+        )
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
                 executor.submit(
@@ -1115,12 +1116,13 @@ class JoinOptimizer:
     ) -> Tuple[List[Tuple[int, int, bool]], float]:
         comparisons, total_cost = [], 0
         op = EquijoinOperation(
-            self,
+            self.runner,
             self.op_config,
             self.runner.default_model,
             self.max_threads,
             self.console,
-            self.status)
+            self.status,
+        )
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
                 executor.submit(

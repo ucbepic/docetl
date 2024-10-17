@@ -83,7 +83,7 @@ def run(
         load_dotenv(env_file)
 
     runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
-    runner.run()
+    runner.load_run_save()
 
 
 @app.command()

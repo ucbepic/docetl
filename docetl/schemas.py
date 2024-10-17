@@ -78,7 +78,7 @@ class Dataset(BaseModel):
     parsing: Optional[List[Dict[str, str]]] = None
 
 
-class BaseOp(BaseModel):
+class BaseOp(BaseModel, extra="allow"):
     name: str
     type: str
 
@@ -222,6 +222,22 @@ class UnnestOp(BaseOp):
     depth: Optional[int] = None
 
 
+class ClusterOp(BaseOp):
+    type: str = "cluster"
+    embedding_keys: List[str]
+    summary_prompt: str
+    summary_schema: Dict[str, Any]
+    output_key: Optional[str] = "clusters"
+
+
+class SampleOp(BaseOp):
+    type: str = "sample"
+    method: str
+    samples: Union[int, float, List[Dict[str, Any]]]
+    method_kwargs: Optional[Dict[str, Any]] = None
+    random_state: Optional[int] = None
+
+
 OpType = Union[
     MapOp,
     ResolveOp,
@@ -232,6 +248,8 @@ OpType = Union[
     SplitOp,
     GatherOp,
     UnnestOp,
+    ClusterOp,
+    SampleOp,
 ]
 
 

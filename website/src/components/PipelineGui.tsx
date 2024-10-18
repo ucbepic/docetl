@@ -1,24 +1,27 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { DropResult } from 'react-beautiful-dnd';
-import { Operation, File } from '@/app/types';
+import yaml from 'js-yaml';
+import { Operation, File, SchemaType, SchemaItem } from '@/app/types';
 import { Droppable, DragDropContext } from 'react-beautiful-dnd';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { OperationCard } from '@/components/OperationCard';
 import { Button } from '@/components/ui/button';
-import { Plus, ChevronDown, Play, Settings, PieChart, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, ChevronDown, Play, Settings, PieChart, Trash2, RefreshCw, Download, Upload } from 'lucide-react';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { Input } from "@/components/ui/input"
+import path from 'path';
 
 const PipelineGUI: React.FC<{ 
   onDragEnd: (result: DropResult) => void;
 }> = ({ onDragEnd }) => {
-  const { operations, setOperations, pipelineName, setPipelineName, sampleSize, setSampleSize, numOpRun, setNumOpRun, currentFile, setCurrentFile, output, setOutput, isLoadingOutputs, setIsLoadingOutputs, files, setCost, defaultModel, setDefaultModel, setTerminalOutput } = usePipelineContext();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { operations, setOperations, pipelineName, setPipelineName, sampleSize, setSampleSize, numOpRun, setNumOpRun, currentFile, setCurrentFile, output, setFiles, setOutput, isLoadingOutputs, setIsLoadingOutputs, files, setCost, defaultModel, setDefaultModel, setTerminalOutput } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempSampleSize, setTempSampleSize] = useState(sampleSize?.toString() || '');
@@ -26,6 +29,151 @@ const PipelineGUI: React.FC<{
   const [tempDefaultModel, setTempDefaultModel] = useState(defaultModel);
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } = useWebSocket();
+
+  const schemaDictToItemSet = (schema: Record<string, string>): SchemaItem[] => {
+    return Object.entries(schema).map(([key, type]): SchemaItem => {
+      if (typeof type === 'string') {
+        if (type.startsWith('list[')) {
+          const subType = type.slice(5, -1);
+          return { 
+            key, 
+            type: 'list', 
+            subType: { key: "0", type: subType as SchemaType }
+          };
+        } else if (type.startsWith('{') && type.endsWith('}')) {
+          try {
+            const subSchema = JSON.parse(type);
+            return { 
+              key, 
+              type: 'dict', 
+              subType: schemaDictToItemSet(subSchema)
+            };
+          } catch (error) {
+            console.error(`Error parsing dict schema for ${key}:`, error);
+            return { key, type: 'string' };
+          }
+        } else {
+          return { key, type: type as SchemaType };
+        }
+      } else {
+        return { key, type: 'string' };
+      }
+    });
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const content = e.target?.result;
+        if (typeof content === 'string') {
+          try {
+            const yamlFileName = file.name.split('/').pop()?.split('.')[0];
+            const yamlContent = yaml.load(content);
+            // Update PipelineContext with the loaded YAML data
+            setOperations((yamlContent.operations || []).map((op: any) => {
+              const { id, llmType, type, name, prompt, output, validate, sample, ...otherKwargs } = op;
+              return {
+                id: id || String(Date.now()),
+                llmType: type === 'map' || type === 'reduce' || type === 'resolve' || type === 'filter' || type === 'parallel_map' ? 'LLM' : 'non-LLM',
+                type: type as Operation['type'],
+                name: name || 'Untitled Operation',
+                prompt,
+                output: output ? {
+                  schema: schemaDictToItemSet(output.schema)
+                } : undefined,
+                validate,
+                sample,
+                otherKwargs
+              } as Operation;
+            }));
+            setPipelineName(yamlFileName || 'Untitled Pipeline');
+            setSampleSize(yamlContent.operations?.[0]?.sample || null);
+            setDefaultModel(yamlContent.default_model || 'gpt-4o-mini');
+            
+            // Set current file if it exists in the YAML
+            if (yamlContent.datasets && yamlContent.datasets.input && yamlContent.datasets.input.path) {
+              let newCurrentFile = files.find(file => file.path === yamlContent.datasets.input.path);
+              if (!newCurrentFile) {
+                // If the file is not in files, add it
+                newCurrentFile = {
+                  name: path.basename(yamlContent.datasets.input.path),
+                  path: yamlContent.datasets.input.path,
+                };
+                setFiles((prevFiles: File[]) => [...prevFiles, newCurrentFile as File]);
+              }
+              setCurrentFile(newCurrentFile);
+            }
+  
+            toast({
+              title: 'Pipeline Loaded',
+              description: 'Your pipeline configuration has been loaded successfully.',
+              duration: 3000,
+            });
+          } catch (error) {
+            console.error('Error parsing YAML:', error);
+            toast({
+              title: 'Error',
+              description: 'Failed to parse the uploaded YAML file.',
+              variant: 'destructive',
+            });
+          }
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const response = await fetch('/api/getPipelineConfig', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          default_model: defaultModel,
+          data: { path: currentFile?.path || '' },
+          operations,
+          operation_id: operations[operations.length - 1].id,
+          name: pipelineName,
+          sample_size: sampleSize
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export pipeline configuration');
+      }
+
+      const { pipelineConfig } = await response.json();
+
+      const blob = new Blob([pipelineConfig], { type: 'text/yaml' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${pipelineName}.yaml`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: 'Pipeline Exported',
+        description: `Your pipeline configuration has been exported successfully to ${pipelineName}.yaml.`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error exporting pipeline configuration:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to export pipeline configuration',
+        variant: 'destructive',
+      });
+    }
+  };
+
 
   const onRunAll = useCallback(async (clear_intermediate: boolean) => {
     const lastOpIndex = operations.length - 1;
@@ -167,9 +315,48 @@ const PipelineGUI: React.FC<{
             )}
           </div>
           <div className="flex space-x-2">
-            <Button size="sm" variant="ghost" onClick={() => setIsSettingsOpen(true)}>
+            <Button size="icon" variant="ghost" onClick={() => setIsSettingsOpen(true)}>
               <Settings size={16} />
             </Button>
+            <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload size={16} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Upload Pipeline YAML</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+<Input
+  type="file"
+  ref={fileInputRef}
+  onChange={handleFileUpload}
+  accept=".yaml,.yml"
+  className="hidden"
+/>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleExport()}
+                  >
+                    <Download size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Export Pipeline YAML</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="rounded-sm">
@@ -191,6 +378,14 @@ const PipelineGUI: React.FC<{
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex space-x-2">
+            <Button
+                size="sm"
+                className="rounded-sm"
+                disabled={isLoadingOutputs}
+                onClick={() => onRunAll(true)}
+              >
+                <RefreshCw size={16} className="mr-2" /> Clear and Run
+              </Button>
               <Button
                 size="sm"
                 className="rounded-sm"
@@ -198,14 +393,6 @@ const PipelineGUI: React.FC<{
                 onClick={() => onRunAll(false)}
               >
                 <Play size={16} className="mr-2" /> Run
-              </Button>
-              <Button
-                size="sm"
-                className="rounded-sm"
-                disabled={isLoadingOutputs}
-                onClick={() => onRunAll(true)}
-              >
-                <RefreshCw size={16} className="mr-2" /> Clear and Run
               </Button>
             </div>
           </div>

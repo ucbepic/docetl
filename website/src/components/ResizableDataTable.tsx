@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -50,7 +50,7 @@ interface ResizableRow<T extends DataType> extends Row<T> {
   setSize: (size: number) => void;
 }
 
-const RowResizer = <T extends DataType>({ row }: { row: ResizableRow<T> }) => {
+const RowResizer = <T extends DataType>({ row, saveSettings }: { row: ResizableRow<T>, saveSettings: () => void }) => {
   return (
     <tr>
       <td colSpan={100}>
@@ -84,6 +84,8 @@ const RowResizer = <T extends DataType>({ row }: { row: ResizableRow<T> }) => {
   );
 };
 
+const TABLE_SETTINGS_KEY = 'resizable-data-table-settings';
+
 interface ResizableDataTableProps<T extends DataType> {
     data: T[];
     columns: ColumnType<T>[];
@@ -96,6 +98,11 @@ interface ResizableDataTableProps<T extends DataType> {
     startingRowHeight = 60  // Default starting height
   }: ResizableDataTableProps<T>) {
     const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
+      const savedSettings = localStorage.getItem(TABLE_SETTINGS_KEY);
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        return parsedSettings.columnSizing || {};
+      }
       const initialSizing: ColumnSizingState = {};
       columns.forEach(column => {
         if (column.initialWidth) {
@@ -103,9 +110,20 @@ interface ResizableDataTableProps<T extends DataType> {
         }
       });
       return initialSizing;
-    })
-    const [rowSizing, setRowSizing] = useState<Record<string, number>>({})
+    });
+    const [rowSizing, setRowSizing] = useState<Record<string, number>>(() => {
+      const savedSettings = localStorage.getItem(TABLE_SETTINGS_KEY);
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        return parsedSettings.rowSizing || {};
+      }
+      return {};
+    });
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+
+    const saveSettings = useCallback(() => {
+      localStorage.setItem(TABLE_SETTINGS_KEY, JSON.stringify({ columnSizing, rowSizing }));
+    }, [columnSizing, rowSizing]);
   
     useEffect(() => {
       // Initialize row heights when data changes
@@ -129,7 +147,10 @@ interface ResizableDataTableProps<T extends DataType> {
       columnResizeMode: 'onChange' as ColumnResizeMode,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
-      onColumnSizingChange: setColumnSizing,
+      onColumnSizingChange: (newColumnSizing) => {
+        setColumnSizing(newColumnSizing);
+        saveSettings();
+      },
       onColumnVisibilityChange: setColumnVisibility,
       state: {
         columnSizing,
@@ -227,11 +248,20 @@ interface ResizableDataTableProps<T extends DataType> {
                     </TableCell>
                   ))}
                 </TableRow>
-                <RowResizer row={{
-                  ...row,
-                  getSize: () => rowSizing[index] || startingRowHeight,
-                  setSize: (size: number) => setRowSizing(prev => ({ ...prev, [index]: size }))
-                }} />
+                <RowResizer 
+                  row={{
+                    ...row,
+                    getSize: () => rowSizing[index] || startingRowHeight,
+                    setSize: (size: number) => {
+                      setRowSizing(prev => {
+                        const newRowSizing = { ...prev, [index]: size };
+                        saveSettings();
+                        return newRowSizing;
+                      });
+                    }
+                  }} 
+                  saveSettings={saveSettings}
+                />
               </React.Fragment>
             ))}
           </TableBody>

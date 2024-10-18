@@ -25,6 +25,9 @@ async def websocket_run_pipeline(websocket: WebSocket):
         config = await websocket.receive_json()
         runner = DSLRunner.from_yaml(config["yaml_config"])
 
+        if config.get("clear_intermediate", False):
+            runner.clear_intermediate()
+
         async def run_pipeline():
             return await asyncio.to_thread(runner.run)
 

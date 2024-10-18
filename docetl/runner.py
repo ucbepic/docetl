@@ -1,6 +1,7 @@
 from collections import defaultdict
 import json
 import os
+import shutil
 import time
 import functools
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -408,6 +409,7 @@ class DSLRunner(ConfigWrapper):
         intermediate_config_path = os.path.join(
             self.intermediate_dir, ".docetl_intermediate_config.json"
         )
+
         if not os.path.exists(intermediate_config_path):
             return None
 
@@ -432,6 +434,17 @@ class DSLRunner(ConfigWrapper):
                 )
             return self.datasets[f"{step_name}_{operation_name}"].load()
         return None
+
+    def clear_intermediate(self) -> None:
+        """
+        Clear the intermediate directory.
+        """
+        # Remove the intermediate directory
+        if self.intermediate_dir:
+            shutil.rmtree(self.intermediate_dir)
+            return
+
+        raise ValueError("Intermediate directory not set. Cannot clear intermediate.")
 
     def _save_checkpoint(self, step_name: str, operation_name: str, data: List[Dict]):
         """

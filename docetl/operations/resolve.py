@@ -4,7 +4,7 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import jinja2
 from jinja2 import Template
@@ -16,6 +16,24 @@ from docetl.utils import completion_cost, extract_jinja_variables
 
 
 class ResolveOperation(BaseOperation):
+    class schema(BaseOperation.schema):
+        type: str = "resolve"
+        comparison_prompt: str
+        resolution_prompt: str
+        output: Optional[Dict[str, Any]] = None
+        embedding_model: Optional[str] = None
+        resolution_model: Optional[str] = None
+        comparison_model: Optional[str] = None
+        blocking_keys: Optional[List[str]] = None
+        blocking_threshold: Optional[float] = None
+        blocking_conditions: Optional[List[str]] = None
+        input: Optional[Dict[str, Any]] = None
+        embedding_batch_size: Optional[int] = None
+        compare_batch_size: Optional[int] = None
+        limit_comparisons: Optional[int] = None
+        optimize: Optional[bool] = None
+        timeout: Optional[int] = None
+        
     def compare_pair(
         self,
         comparison_prompt: str,

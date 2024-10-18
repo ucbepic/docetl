@@ -12,8 +12,6 @@ from .operations import split
 from .operations import unnest
 
 MapOp = map.MapOperation.schema
-
-MapOp = map.MapOperation.schema
 ResolveOp = resolve.ResolveOperation.schema
 ReduceOp = reduce.ReduceOperation.schema
 ParallelMapOp = map.ParallelMapOperation.schema

@@ -2,7 +2,7 @@
 The BaseOperation class is an abstract base class for all operations in the docetl framework. It provides a common structure and interface for various data processing operations.
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
 from docetl.operations.utils import APIWrapper
@@ -18,7 +18,13 @@ class classproperty(object):
     def __get__(self, obj, owner):
         return self.f(owner)
 
-class BaseOperation(ABC):
+class BaseOperationMeta(ABCMeta):
+    def __new__(cls, *arg, **kw):
+        self = ABCMeta.__new__(cls, *arg, **kw)
+        self.schema.__name__ = self.__name__
+        return self
+    
+class BaseOperation(ABC, metaclass=BaseOperationMeta):
     def __init__(
         self,
         runner: "ConfigWrapper",
@@ -57,7 +63,7 @@ class BaseOperation(ABC):
     class schema(BaseModel):
         name: str
         type: str
-
+    
     @classproperty
     def json_schema(cls):
         assert hasattr(cls.schema, "model_json_schema"), "Programming error: %s.schema must be a pydantic object but is a %s" % (cls, type(cls.schema))

@@ -37,6 +37,8 @@ export function generatePipelineConfig(
     }
     delete newOp.runIndex;
     delete newOp.otherKwargs;
+    delete newOp.id;
+    delete newOp.llmType;
 
     if (!op.output || !op.output.schema) return newOp;
     
@@ -47,15 +49,16 @@ export function generatePipelineConfig(
         }
         const subType = typeof item.subType === 'string' ? item.subType : processSchemaItem(item.subType as SchemaItem);
         return `list[${subType}]`;
-      } else if (item.type === 'dict' ) {
+      } else if (item.type === 'dict') {
+        console.log(item);
         if (!item.subType) {
           throw new Error(`Dict/Object type must specify its structure for field: ${item.key}`);
         }
-        const subSchema = Object.entries(item.subType).reduce((acc, [key, value]) => {
-          acc[key] = processSchemaItem(value as SchemaItem);
+        const subSchema = Object.entries(item.subType).reduce((acc, [_, value]) => {
+          acc[value.key] = processSchemaItem(value as SchemaItem);
           return acc;
         }, {} as Record<string, string>);
-        return JSON.stringify(subSchema);
+        return `dict{${Object.entries(subSchema).map(([k, v]) => `${k}: ${v}`).join(', ')}}`;
       } else {
         return item.type;
       }

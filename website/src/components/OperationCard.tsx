@@ -15,18 +15,21 @@ import { debounce } from 'lodash';
 import { Guardrails, OutputSchema, PromptInput } from './operations/args';
 import createOperationComponent from './operations/components';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { Badge } from './ui/badge';
 
 // Separate components
 const OperationHeader: React.FC<{
   name: string;
   type: string;
+  llmType: string;
   disabled: boolean;
+  currOp: boolean;
   onEdit: (name: string) => void;
   onDelete: () => void;
   onRunOperation: () => void;
   onToggleSettings: () => void;
   onShowOutput: () => void;
-}> = React.memo(({ name, type, disabled, onEdit, onDelete, onRunOperation, onToggleSettings, onShowOutput }) => {
+}> = React.memo(({ name, type, llmType, disabled, currOp, onEdit, onDelete, onRunOperation, onToggleSettings, onShowOutput }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
 
@@ -44,6 +47,7 @@ const OperationHeader: React.FC<{
     <div className="relative flex items-center justify-between py-3 px-4">
       {/* Left side buttons */}
       <div className="flex space-x-1 absolute left-1">
+        <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
         <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" onClick={onToggleSettings}>
           <Settings size={14} className="text-gray-500" />
         </Button>
@@ -54,7 +58,7 @@ const OperationHeader: React.FC<{
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" disabled={disabled} onClick={onShowOutput}>
-                <ListCollapse size={14} className="text-blue-500" />
+                <ListCollapse size={14} className="text-primary" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -81,10 +85,10 @@ const OperationHeader: React.FC<{
           />
         ) : (
           <span 
-            className={`text-sm font-medium cursor-pointer ${type === 'LLM' ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text' : ''}`}
+            className={`text-sm font-medium cursor-pointer ${llmType === 'LLM' ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text' : ''}`}
             onClick={handleEditClick}
           >
-            {name} ({type})
+            {name}
           </span>
         )}
       </div>
@@ -470,7 +474,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
         <Card 
           ref={provided.innerRef} 
           {...provided.draggableProps} 
-          className={`mb-2 relative rounded-sm shadow-sm w-full ${pipelineOutput?.operationId === operation.id ? 'bg-blue-50 border-blue-500 border-2' : 'bg-white'}`}
+          className={`mb-2 relative rounded-sm shadow-sm w-full ${pipelineOutput?.operationId === operation.id ? 'bg-white border-blue-500 border-2' : 'bg-white'}`}
         >
           <div {...provided.dragHandleProps} className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center cursor-move hover:bg-gray-100">
             <GripVertical size={14} />
@@ -479,7 +483,9 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           <OperationHeader
             name={operation.name}
             type={operation.type}
+            llmType={operation.llmType}
             disabled={isLoadingOutputs || pipelineOutput === undefined}
+            currOp={operation.id === pipelineOutput?.operationId}
             onEdit={(name) => {
               dispatch({ type: 'UPDATE_NAME', payload: name });
               debouncedUpdate();

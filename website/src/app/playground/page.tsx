@@ -76,7 +76,6 @@ const RightPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   </svg>
 );
 
-
 const CodeEditorPipelineApp: React.FC = () => {
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [showOutput, setShowOutput] = useState(true);

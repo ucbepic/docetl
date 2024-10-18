@@ -14,5 +14,5 @@ def get_operation(operation_type: str):
 def get_operations():
     """Load all available operations and return them as a dictionary"""
     return {
-        name: op.load()
-        for name, op in importlib.metadata.entry_points(group="docetl.operation").items()}
+        op.name: op.load()
+        for op in importlib.metadata.entry_points(group="docetl.operation")}

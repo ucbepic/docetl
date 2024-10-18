@@ -2,7 +2,7 @@ from collections import defaultdict
 import json
 import os
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel
 
 from dotenv import load_dotenv
@@ -10,7 +10,7 @@ import hashlib
 from rich.console import Console
 
 from docetl.dataset import Dataset, create_parsing_tool_map
-from docetl.operations import get_operation
+from docetl.operations import get_operation, get_operations
 from docetl.operations.utils import flush_cache
 from docetl.config_wrapper import ConfigWrapper
 from . import schemas
@@ -35,11 +35,21 @@ class DSLRunner(ConfigWrapper):
         datasets (Dict): Storage for loaded datasets.
     """
 
-    class schema(BaseModel):
-        datasets: dict[str, schemas.Dataset]
-        operations: list[schemas.OpType]
-        pipeline: schemas.PipelineSpec
-
+    @classproperty
+    def schema(cls):
+        # Accessing the schema loads all operations, so only do this
+        # when we actually need it...
+        # Yes, this means DSLRunner.schema isn't really accessible to
+        # static type checkers. But it /is/ available for dynamic
+        # checking, and for generating json schema.        
+        OpType = Union[*[op.schema for op in get_operations().values()]]
+        
+        class schema(BaseModel):
+            datasets: dict[str, schemas.Dataset]
+            operations: list[OpType]
+            pipeline: schemas.PipelineSpec
+        return schema
+            
     @classproperty
     def json_schema(cls):
         return cls.schema.model_json_schema()

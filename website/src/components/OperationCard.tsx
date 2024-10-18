@@ -1,18 +1,12 @@
 import React, { useReducer, useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Draggable } from 'react-beautiful-dnd';
-import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Edit2, Settings } from 'lucide-react';
+import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Edit2, Settings, Eye } from 'lucide-react';
 import { Operation, SchemaItem, SchemaType } from '@/app/types';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import { useToast } from "@/hooks/use-toast"
@@ -26,11 +20,13 @@ import { useWebSocket } from '@/contexts/WebSocketContext';
 const OperationHeader: React.FC<{
   name: string;
   type: string;
+  disabled: boolean;
   onEdit: (name: string) => void;
   onDelete: () => void;
   onRunOperation: () => void;
   onToggleSettings: () => void;
-}> = React.memo(({ name, type, onEdit, onDelete, onRunOperation, onToggleSettings }) => {
+  onShowOutput: () => void;
+}> = React.memo(({ name, type, disabled, onEdit, onDelete, onRunOperation, onToggleSettings, onShowOutput }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
 
@@ -54,9 +50,22 @@ const OperationHeader: React.FC<{
         <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" disabled={true}>
           <Zap size={14} className="text-yellow-500" />
         </Button>
-        <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" onClick={onRunOperation}>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" disabled={disabled} onClick={onShowOutput}>
+                <Eye size={14} className="text-blue-500" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Show outputs</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        {/* <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" onClick={onRunOperation}>
           <Play size={14} className="text-green-500" />
-        </Button>
+        </Button> */}
       </div>
 
       {/* Centered title */}
@@ -261,7 +270,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
   const [state, dispatch] = useReducer(operationReducer, initialState);
   const { operation, isEditing, isSchemaExpanded, isGuardrailsExpanded, isSettingsOpen } = state;
 
-  const { setOutput, isLoadingOutputs, setIsLoadingOutputs, numOpRun, setNumOpRun, currentFile, operations, setOperations, pipelineName, sampleSize, setCost, defaultModel, setTerminalOutput } = usePipelineContext();
+  const { output: pipelineOutput, setOutput, isLoadingOutputs, setIsLoadingOutputs, numOpRun, setNumOpRun, currentFile, operations, setOperations, pipelineName, sampleSize, setCost, defaultModel, setTerminalOutput } = usePipelineContext();
   const { toast } = useToast();
 
   const operationRef = useRef(operation);
@@ -401,6 +410,46 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     debouncedUpdate();
   };
 
+  const onShowOutput = useCallback(async () => {
+    if (!operation) return;
+
+    try {
+      const response = await fetch('/api/getInputOutput', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          default_model: defaultModel,
+          data: { path: currentFile?.path || '' },
+          operations,
+          operation_id: operation.id,
+          name: pipelineName,
+          sample_size: sampleSize
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get input and output paths');
+      }
+
+      const { inputPath, outputPath } = await response.json();
+
+      setOutput({
+        operationId: operation.id,
+        path: outputPath,
+        inputPath: inputPath
+      });
+    } catch (error) {
+      console.error('Error fetching input and output paths:', error);
+      toast({
+        title: "Error",
+        description: "Failed to get input and output paths",
+        variant: "destructive",
+      });
+    }
+  }, [operation, defaultModel, currentFile, operations, pipelineName, sampleSize, setOutput, toast]);
+
   if (!operation) {
     return <SkeletonCard />;
   }
@@ -426,6 +475,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           <OperationHeader
             name={operation.name}
             type={operation.type}
+            disabled={isLoadingOutputs || pipelineOutput === undefined}
             onEdit={(name) => {
               dispatch({ type: 'UPDATE_NAME', payload: name });
               debouncedUpdate();
@@ -433,6 +483,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
             onDelete={() => setOperations(prev => prev.filter(op => op.id !== operation.id))}
             onRunOperation={handleRunOperation}
             onToggleSettings={() => dispatch({ type: 'TOGGLE_SETTINGS' })}
+            onShowOutput={onShowOutput}
           />
             <CardContent className="py-2 px-3">
               {createOperationComponent(operation, handleOperationUpdate,isSchemaExpanded, () => dispatch({ type: 'TOGGLE_SCHEMA' }))}

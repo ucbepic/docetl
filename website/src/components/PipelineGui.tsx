@@ -5,7 +5,7 @@ import { Droppable, DragDropContext } from 'react-beautiful-dnd';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { OperationCard } from '@/components/OperationCard';
 import { Button } from '@/components/ui/button';
-import { Plus, ChevronDown, Play, Settings, PieChart } from 'lucide-react';
+import { Plus, ChevronDown, Play, Settings, PieChart, Trash2, RefreshCw } from 'lucide-react';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,7 @@ const PipelineGUI: React.FC<{
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } = useWebSocket();
 
-  const onRunAll = useCallback(async () => {
+  const onRunAll = useCallback(async (clear_intermediate: boolean) => {
     const lastOpIndex = operations.length - 1;
     if (lastOpIndex < 0) return;
 
@@ -77,7 +77,7 @@ const PipelineGUI: React.FC<{
       await connect();
 
       sendMessage({
-        yaml_config: filePath
+        yaml_config: filePath, clear_intermediate: clear_intermediate
       });
     } catch (error) {
       console.error('Error writing pipeline config:', error);
@@ -190,9 +190,24 @@ const PipelineGUI: React.FC<{
                 <DropdownMenuItem onClick={() => handleAddOperation('non-LLM', 'gather', 'Untitled Gather')}>Gather</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button onClick={onRunAll} size="sm" className="rounded-sm" disabled={isLoadingOutputs}>
-              <Play size={16} className="mr-2" /> Run All
-            </Button>
+            <div className="flex space-x-2">
+              <Button
+                size="sm"
+                className="rounded-sm"
+                disabled={isLoadingOutputs}
+                onClick={() => onRunAll(false)}
+              >
+                <Play size={16} className="mr-2" /> Run
+              </Button>
+              <Button
+                size="sm"
+                className="rounded-sm"
+                disabled={isLoadingOutputs}
+                onClick={() => onRunAll(true)}
+              >
+                <RefreshCw size={16} className="mr-2" /> Clear and Run
+              </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Draggable } from 'react-beautiful-dnd';
-import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Edit2, Settings, Eye } from 'lucide-react';
+import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Edit2, Settings, ListCollapse } from 'lucide-react';
 import { Operation, SchemaItem, SchemaType } from '@/app/types';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import { useToast } from "@/hooks/use-toast"
@@ -54,7 +54,7 @@ const OperationHeader: React.FC<{
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" disabled={disabled} onClick={onShowOutput}>
-                <Eye size={14} className="text-blue-500" />
+                <ListCollapse size={14} className="text-blue-500" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -467,7 +467,11 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       </div>
     <Draggable draggableId={operation.id} index={index}>
       {(provided) => (
-        <Card ref={provided.innerRef} {...provided.draggableProps} className="mb-2 relative rounded-sm bg-white shadow-sm w-full">
+        <Card 
+          ref={provided.innerRef} 
+          {...provided.draggableProps} 
+          className={`mb-2 relative rounded-sm shadow-sm w-full ${pipelineOutput?.operationId === operation.id ? 'bg-blue-50 border-blue-500 border-2' : 'bg-white'}`}
+        >
           <div {...provided.dragHandleProps} className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center cursor-move hover:bg-gray-100">
             <GripVertical size={14} />
           </div>
@@ -487,21 +491,6 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           />
             <CardContent className="py-2 px-3">
               {createOperationComponent(operation, handleOperationUpdate,isSchemaExpanded, () => dispatch({ type: 'TOGGLE_SCHEMA' }))}
-{/*               
-              {operation.llmType === 'LLM' && (
-                <>
-                  <PromptInput
-                    prompt={operation.prompt || ''}
-                    onChange={handlePromptChange}
-                />
-                  <OutputSchema
-                    schema={schemaItems}
-                    onUpdate={handleSchemaUpdate}
-                    isExpanded={isSchemaExpanded}
-                    onToggle={() => dispatch({ type: 'TOGGLE_SCHEMA' })}
-                  />
-                </>
-              )} */}
             </CardContent>
             {operation.llmType === 'LLM' && (
               <Guardrails

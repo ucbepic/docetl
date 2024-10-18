@@ -130,8 +130,7 @@ class PipelineStep(BaseModel):
     name: str
     operations: List[Union[Dict[str, Any], str]]
     input: Optional[str] = None
-
-
+    
 class PipelineOutput(BaseModel):
     """
     Represents the output configuration for a pipeline.
@@ -156,3 +155,8 @@ class PipelineOutput(BaseModel):
     type: str
     path: str
     intermediate_dir: Optional[str] = None
+
+
+class PipelineSpec(BaseModel):
+    steps: list[PipelineStep]
+    output: PipelineOutput

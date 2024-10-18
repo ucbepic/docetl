@@ -152,3 +152,11 @@ def truncate_sample_data(
                     return truncated_data
 
     return truncated_data
+
+
+
+class classproperty(object):
+    def __init__(self, f):
+        self.f = f
+    def __get__(self, obj, owner):
+        return self.f(owner)

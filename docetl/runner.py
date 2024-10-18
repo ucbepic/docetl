@@ -3,6 +3,7 @@ import json
 import os
 import time
 from typing import Dict, List, Optional, Tuple
+from pydantic import BaseModel
 
 from dotenv import load_dotenv
 import hashlib
@@ -12,6 +13,8 @@ from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
 from docetl.config_wrapper import ConfigWrapper
+from . import schemas
+from .utils import classproperty
 
 load_dotenv()
 
@@ -32,6 +35,15 @@ class DSLRunner(ConfigWrapper):
         datasets (Dict): Storage for loaded datasets.
     """
 
+    class schema(BaseModel):
+        datasets: dict[str, schemas.Dataset]
+        operations: list[schemas.OpType]
+        pipeline: schemas.PipelineSpec
+
+    @classproperty
+    def json_schema(cls):
+        return cls.schema.model_json_schema()
+        
     def __init__(self, config: Dict, max_threads: int = None):
         """
         Initialize the DSLRunner with a YAML configuration file.

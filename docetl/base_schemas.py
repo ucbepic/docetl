@@ -45,40 +45,6 @@ class ParsingTool(BaseModel):
     function_code: str
 
 
-class Dataset(BaseModel):
-    """
-    Represents a dataset configuration in the pipeline.
-
-    Attributes:
-        type (str): The type of the dataset. Must be either 'file' or 'memory'.
-        path (str): The path to the dataset file or the in-memory data, depending on the type.
-        source (str): The source of the dataset. Currently, only 'local' is supported. Defaults to 'local'.
-        parsing (Optional[List[Dict[str, str]]]): A list of parsing tools to apply to the data. Each parsing tool
-                                                  is represented by a dictionary with 'input_key', 'function', and
-                                                  'output_key' keys. Defaults to None.
-
-    Example:
-        ```yaml
-        datasets:
-          my_dataset:
-            type: file
-            path: input.json
-            parsing:
-              - input_key: file_path
-                function: txt_to_string
-                output_key: content
-        ```
-
-    Note:
-        The parsing tools are applied in the order they are listed. Each parsing tool takes the output
-        of the previous tool as its input, allowing for chained processing of the data.
-    """
-
-    type: str
-    path: str
-    source: str = "local"
-    parsing: Optional[List[Dict[str, str]]] = None
-
 class PipelineStep(BaseModel):
     """
     Represents a step in the pipeline.

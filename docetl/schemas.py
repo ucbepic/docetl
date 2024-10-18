@@ -11,6 +11,8 @@ from .operations import sample
 from .operations import split
 from .operations import unnest
 
+from . import dataset
+
 MapOp = map.MapOperation.schema
 ResolveOp = resolve.ResolveOperation.schema
 ReduceOp = reduce.ReduceOperation.schema
@@ -32,3 +34,5 @@ OpType = Union[
     GatherOp,
     UnnestOp,
 ]
+
+Dataset = dataset.Dataset.schema

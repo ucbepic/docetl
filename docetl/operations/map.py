@@ -10,9 +10,9 @@ from tqdm import tqdm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar
-from docetl.schemas import MapOp, Tool, ToolFunction
+from docetl.base_schemas import Tool, ToolFunction
 from docetl.utils import completion_cost
-
+from pydantic import Field, field_validator
 
 def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
     """
@@ -25,9 +25,31 @@ def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
     env = Environment(autoescape=True)
     template = env.from_string(template_string)
     return template.render(input=data)
-
-
+        
 class MapOperation(BaseOperation):
+    class schema(BaseOperation.schema):
+        type: str = "map"
+        output: Optional[Dict[str, Any]] = None
+        prompt: Optional[str] = None
+        model: Optional[str] = None
+        optimize: Optional[bool] = None
+        recursively_optimize: Optional[bool] = None
+        sample_size: Optional[int] = None
+        tools: Optional[List[Dict[str, Any]]] = None # FIXME: Why isn't this using the Tool data class so validation works automatically?
+        validation_rules: Optional[List[str]] = Field(None, alias="validate")
+        num_retries_on_validate_failure: Optional[int] = None
+        gleaning: Optional[Dict[str, Any]] = None
+        drop_keys: Optional[List[str]] = None
+        timeout: Optional[int] = None
+        batch_size: Optional[int] = None
+        clustering_method: Optional[str] = None
+
+        @field_validator("drop_keys")
+        def validate_drop_keys(cls, v):
+            if isinstance(v, str):
+                return [v]
+            return v
+
     def __init__(
         self,
         *args,
@@ -38,7 +60,7 @@ class MapOperation(BaseOperation):
             "max_batch_size", kwargs.get("max_batch_size", float("inf"))
         )
         self.clustering_method = "random"
-
+    
     def syntax_check(self) -> None:
         """
             Checks the configuration of the MapOperation for required keys and valid structure.
@@ -47,7 +69,7 @@ class MapOperation(BaseOperation):
             ValueError: If required keys are missing or invalid in the configuration.
             TypeError: If configuration values have incorrect types.
         """
-        config = MapOp(**self.config)
+        config = self.schema(**self.config)
 
         if config.drop_keys:
             if any(not isinstance(key, str) for key in config.drop_keys):

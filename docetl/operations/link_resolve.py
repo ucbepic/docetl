@@ -177,7 +177,6 @@ class LinkResolveOperation(BaseOperation):
             ),
             verbose=self.config.get("verbose", False),
         )
-        total_cost += response.total_cost
         if response.validated:
             output = self.runner.api.parse_llm_response(
                 response.response,
@@ -187,7 +186,7 @@ class LinkResolveOperation(BaseOperation):
             if output["is_same"]:
                 self.replacements[link_value] = id_value
 
-        return total_cost
+        return response.total_cost
 
         
         

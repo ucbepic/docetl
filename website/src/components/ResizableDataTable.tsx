@@ -162,10 +162,15 @@ interface ResizableDataTableProps<T extends DataType> {
         size: 150,
         maxSize: Number.MAX_SAFE_INTEGER,
       },
+      initialState: {
+        pagination: {
+          pageSize: 5,
+        },
+      },
     })
   
     return (
-      <div className="w-full overflow-auto">
+      <div className="w-full overflow-auto h-[50vh]">
         <div className="mb-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

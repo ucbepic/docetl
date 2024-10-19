@@ -36,11 +36,20 @@ async def websocket_run_pipeline(websocket: WebSocket):
         while not pipeline_task.done():
             console_output = runner.console.file.getvalue()
             await websocket.send_json({"type": "output", "data": console_output})
+
+            # Check for incoming messages from the user
+            try:
+                user_message = await asyncio.wait_for(
+                    websocket.receive_json(), timeout=0.1
+                )
+                # Process the user message and send it to the runner
+                runner.console.post_input(user_message)
+            except asyncio.TimeoutError:
+                pass  # No message received, continue with the loop
+
             await asyncio.sleep(0.5)
 
         # Final check to send any remaining output
-        # Sleep for a short duration to ensure all output is captured
-
         cost = await pipeline_task
 
         console_output = runner.console.file.getvalue()
@@ -62,4 +71,8 @@ async def websocket_run_pipeline(websocket: WebSocket):
     except WebSocketDisconnect:
         print("Client disconnected")
     except Exception as e:
+        import traceback
+
+        error_traceback = traceback.format_exc()
+        print(f"Error occurred:\n{error_traceback}")
         await websocket.send_json({"type": "error", "data": str(e)})

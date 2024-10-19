@@ -184,23 +184,127 @@ export const ResolveOperationComponent: React.FC<OperationComponentProps> = ({ o
 
   return (
     <>
-      <div className="mb-4">
-        <label htmlFor="comparison-prompt" className="block text-sm font-medium text-gray-700">
-          Comparison Prompt
-        </label>
-        <PromptInput
-          prompt={operation.otherKwargs?.comparison_prompt || ''}
-          onChange={handleComparisonPromptChange}
-        />
+      <div className="flex mb-4 space-x-4">
+        <div className="flex-1">
+          <label htmlFor="comparison-prompt" className="block text-sm font-medium text-gray-700">
+            Comparison Prompt
+          </label>
+          <PromptInput
+            prompt={operation.otherKwargs?.comparison_prompt || ''}
+            onChange={handleComparisonPromptChange}
+          />
+        </div>
+        <div className="flex-1">
+          <label htmlFor="resolution-prompt" className="block text-sm font-medium text-gray-700">
+            Resolution Prompt
+          </label>
+          <PromptInput
+            prompt={operation.otherKwargs?.resolution_prompt || ''}
+            onChange={handleResolutionPromptChange}
+          />
+        </div>
+      </div>
+      <div className="mb-4 flex items-end space-x-4">
+        <div className="w-1/3">
+          <div className="flex items-center">
+            <label htmlFor="blocking-threshold" className="block text-sm font-medium text-gray-700">
+              Blocking Threshold
+            </label>
+            <TooltipProvider>
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <div className="ml-2">
+                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="w-64 p-2 text-xs">
+                  Unsure of what value to set here? Click the lightning button to optimize this operation, which will automatically determine the blocking threshold.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <Input
+            type="number"
+            id="blocking-threshold"
+            value={operation.otherKwargs?.blocking_threshold}
+            onChange={(e) => {
+              const value = parseFloat(e.target.value);
+              if (!isNaN(value) && value >= 0 && value <= 1) {
+                onUpdate({
+                  ...operation,
+                  otherKwargs: {
+                    ...operation.otherKwargs,
+                    blocking_threshold: value
+                  }
+                });
+              }
+            }}
+            step="0.01"
+            min="0"
+            max="1"
+            className="mt-1"
+          />
+        </div>
       </div>
       <div className="mb-4">
-        <label htmlFor="resolution-prompt" className="block text-sm font-medium text-gray-700">
-          Resolution Prompt
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Blocking Keys
         </label>
-        <PromptInput
-          prompt={operation.otherKwargs?.resolution_prompt || ''}
-          onChange={handleResolutionPromptChange}
-        />
+        <div className="flex flex-wrap gap-2">
+          {(operation.otherKwargs?.blocking_keys || []).map((key, index) => (
+            <div key={index} className="flex items-center">
+              <Input
+                value={key}
+                onChange={(e) => {
+                  const newKeys = [...(operation.otherKwargs?.blocking_keys || [])];
+                  newKeys[index] = e.target.value;
+                  onUpdate({
+                    ...operation,
+                    otherKwargs: {
+                      ...operation.otherKwargs,
+                      blocking_keys: newKeys
+                    }
+                  });
+                }}
+                placeholder="Enter blocking key"
+                className="w-40"
+              />
+              <Button
+                onClick={() => {
+                  const newKeys = [...(operation.otherKwargs?.blocking_keys || [])];
+                  newKeys.splice(index, 1);
+                  onUpdate({
+                    ...operation,
+                    otherKwargs: {
+                      ...operation.otherKwargs,
+                      blocking_keys: newKeys
+                    }
+                  });
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                <X size={12} />
+              </Button>
+            </div>
+          ))}
+          <Button
+            onClick={() => {
+              const newKeys = [...(operation.otherKwargs?.blocking_keys || []), ''];
+              onUpdate({
+                ...operation,
+                otherKwargs: {
+                  ...operation.otherKwargs,
+                  blocking_keys: newKeys
+                }
+              });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <Plus size={16} />
+          </Button>
+        </div>
       </div>
       <OutputSchema
         schema={schemaItems}

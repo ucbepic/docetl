@@ -36,6 +36,7 @@
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "cmdk": "^1.0.0",
     "css-loader": "^7.1.2",
     "framer-motion": "^11.5.4",
     "gray-matter": "^4.0.3",

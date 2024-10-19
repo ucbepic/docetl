@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Operation, File, OutputType } from '@/app/types';
 import { mockFiles, initialOperations, mockSampleSize, mockPipelineName } from '@/mocks/mockData';
 
@@ -29,18 +29,68 @@ interface PipelineContextType {
 
 const PipelineContext = createContext<PipelineContextType | undefined>(undefined);
 
+const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
+  const storedValue = localStorage.getItem(key);
+  return storedValue ? JSON.parse(storedValue) : defaultValue;
+};
+
 export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [operations, setOperations] = useState<Operation[]>(initialOperations);
-  const [currentFile, setCurrentFile] = useState<File | null>(mockFiles[0]);
-  const [output, setOutput] = useState<OutputType | null>(null);
-  const [terminalOutput, setTerminalOutput] = useState<string>('');
-  const [isLoadingOutputs, setIsLoadingOutputs] = useState<boolean>(false);
-  const [numOpRun, setNumOpRun] = useState<number>(0);
-  const [pipelineName, setPipelineName] = useState<string>(mockPipelineName);
-  const [sampleSize, setSampleSize] = useState<number | null>(mockSampleSize);
-  const [files, setFiles] = useState<File[]>(mockFiles);
-  const [cost, setCost] = useState<number>(0);
-  const [defaultModel, setDefaultModel] = useState<string>("gpt-4o-mini");
+  const [operations, setOperations] = useState<Operation[]>(() => loadFromLocalStorage('operations', initialOperations));
+  const [currentFile, setCurrentFile] = useState<File | null>(() => loadFromLocalStorage('currentFile', mockFiles[0]));
+  const [output, setOutput] = useState<OutputType | null>(() => loadFromLocalStorage('output', null));
+  const [terminalOutput, setTerminalOutput] = useState<string>(() => loadFromLocalStorage('terminalOutput', ''));
+  const [isLoadingOutputs, setIsLoadingOutputs] = useState<boolean>(() => loadFromLocalStorage('isLoadingOutputs', false));
+  const [numOpRun, setNumOpRun] = useState<number>(() => loadFromLocalStorage('numOpRun', 0));
+  const [pipelineName, setPipelineName] = useState<string>(() => loadFromLocalStorage('pipelineName', mockPipelineName));
+  const [sampleSize, setSampleSize] = useState<number | null>(() => loadFromLocalStorage('sampleSize', mockSampleSize));
+  const [files, setFiles] = useState<File[]>(() => loadFromLocalStorage('files', mockFiles));
+  const [cost, setCost] = useState<number>(() => loadFromLocalStorage('cost', 0));
+  const [defaultModel, setDefaultModel] = useState<string>(() => loadFromLocalStorage('defaultModel', "gpt-4o-mini"));
+
+  useEffect(() => {
+    localStorage.setItem('operations', JSON.stringify(operations));
+  }, [operations]);
+
+  useEffect(() => {
+    localStorage.setItem('currentFile', JSON.stringify(currentFile));
+  }, [currentFile]);
+
+  useEffect(() => {
+    localStorage.setItem('output', JSON.stringify(output));
+  }, [output]);
+
+  useEffect(() => {
+    localStorage.setItem('terminalOutput', JSON.stringify(terminalOutput));
+  }, [terminalOutput]);
+
+  useEffect(() => {
+    localStorage.setItem('isLoadingOutputs', JSON.stringify(isLoadingOutputs));
+  }, [isLoadingOutputs]);
+
+  useEffect(() => {
+    localStorage.setItem('numOpRun', JSON.stringify(numOpRun));
+  }, [numOpRun]);
+
+  useEffect(() => {
+    localStorage.setItem('pipelineName', JSON.stringify(pipelineName));
+  }, [pipelineName]);
+
+  useEffect(() => {
+    localStorage.setItem('sampleSize', JSON.stringify(sampleSize));
+  }, [sampleSize]);
+
+  useEffect(() => {
+    localStorage.setItem('files', JSON.stringify(files));
+  }, [files]);
+
+  useEffect(() => {
+    localStorage.setItem('cost', JSON.stringify(cost));
+  }, [cost]);
+
+  useEffect(() => {
+    localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+  }, [defaultModel]);
+
   return (
     <PipelineContext.Provider value={{
       operations,

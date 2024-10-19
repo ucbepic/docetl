@@ -11,6 +11,7 @@ from docetl.operations.utils import RichLoopBar, rich_as_completed
 from docetl.utils import completion_cost, extract_jinja_variables
 from .clustering_utils import get_embeddings_for_clustering
 from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 class LinkResolveOperation(BaseOperation):
     def syntax_check(self) -> None:
@@ -82,11 +83,9 @@ class LinkResolveOperation(BaseOperation):
         similarity_matrix = cosine_similarity(link_embeddings, id_embeddings)
 
         closest = np.argmin(similarity_matrix, axis=1)
-        acceptable = similarity_matrix.min(axis=1) < blocking_threshold
+        acceptable = similarity_matrix.min(axis=1) >= blocking_threshold
 
-        acceptable_idxs = np.nonzero(acceptable)
-        close_enough = np.zeros(len(acceptable_idxs))
-
+        acceptable_idxs = np.nonzero(acceptable)[0]
 
         total_possible_comparisons = len(acceptable)
         comparisons_saved = total_possible_comparisons - acceptable.sum()
@@ -97,14 +96,16 @@ class LinkResolveOperation(BaseOperation):
         )
         
         self.replacements = {}
-        
-        with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
+
+
+        batch_size = self.config.get("compare_batch_size", 100)
+        with ThreadPoolExecutor(max_workers=batch_size) as executor:
 
             futures = []
-            for link_idx in np.nonzero(acceptable):
+            for link_idx in acceptable_idxs:
                 id_idx = closest[link_idx]
-                link_value = to_resolve[id_idx]
                 id_value = id_values[id_idx]
+                link_value = to_resolve[link_idx]
                 item = item_by_id[id_value]
 
                 futures.append(
@@ -157,7 +158,7 @@ class LinkResolveOperation(BaseOperation):
             return output, False
 
         response = self.runner.api.call_llm(
-            model=self.config.get("model", self.default_model),
+            model=self.config.get("comparison_model", self.default_model),
             op_type="cluster",
             messages=[{"role": "user", "content": prompt}],
             output_schema=schema,

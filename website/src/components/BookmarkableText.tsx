@@ -86,8 +86,8 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
         form.setValue('editedText', text);
         const rect = range.getBoundingClientRect();
         setButtonPosition({
-          x: rect.right,
-          y: rect.top + (rect.height / 2),
+          x: rect.left + (rect.width / 2),
+          y: rect.top,
         });
         setShowButton(true);
       } else {
@@ -127,6 +127,7 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
         >
           <PopoverTrigger asChild>
             <Button
+              size="icon"
               ref={buttonRef}
               variant="default"
               aria-label="Bookmark"
@@ -135,14 +136,14 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
                 position: 'absolute',
                 left: `${buttonPosition.x}px`,
                 top: `${buttonPosition.y}px`,
-                transform: 'translate(0, -50%)',
+                transform: 'translate(-50%, -100%)',
               }}
               onClick={(e) => {
                 e.stopPropagation();
                 setIsPopoverOpen(true);
               }}
             >
-              <BookmarkPlus className="h-5 w-5" />
+              <BookmarkPlus />
             </Button>
           </PopoverTrigger>
           <PopoverContent 
@@ -153,6 +154,9 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
                 e.preventDefault();
               }
             }}
+            side="top"
+            align="start"
+            sideOffset={5}
           >
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center">

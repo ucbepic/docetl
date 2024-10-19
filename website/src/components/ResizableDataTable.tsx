@@ -170,8 +170,8 @@ interface ResizableDataTableProps<T extends DataType> {
     })
   
     return (
-      <div className="w-full overflow-auto h-[50vh]">
-        <div className="mb-4">
+      <div className="w-full overflow-auto">
+        <div className="mb-4 flex justify-between items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center">
@@ -193,6 +193,31 @@ interface ResizableDataTableProps<T extends DataType> {
               })}
             </DropdownMenuContent>
           </DropdownMenu>
+          <div className="flex items-center space-x-2">
+          {data.length > 0 && (
+          <div className="flex items-center justify-end space-x-2 py-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+            </Button>
+            <span className="text-sm text-gray-600">
+              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Next <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        )}
+          </div>
         </div>
         <Table style={{ width: 'max-content', minWidth: '100%' }}>
           <TableHeader>

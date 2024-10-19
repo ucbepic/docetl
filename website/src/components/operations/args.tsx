@@ -15,7 +15,7 @@ export const PromptInput: React.FC<{
     return (
       <Textarea 
         placeholder="Enter prompt" 
-        className="mb-3 rounded-sm text-sm font-mono" 
+        className="mb-1 rounded-sm text-sm font-mono" 
         rows={3} 
         value={prompt}
         onChange={(e) => onChange(e.target.value)}
@@ -50,7 +50,7 @@ export const SchemaForm: React.FC<{
     return (
       <div style={{ marginLeft: `${level * 20}px` }}>
         {schema.map((item, index) => (
-          <div key={index} className="flex flex-wrap items-center space-x-2 mb-2">
+          <div key={index} className="flex flex-wrap items-center space-x-2 mb-1">
             {!isList && (
               <Input
                 value={item.key}
@@ -89,7 +89,7 @@ export const SchemaForm: React.FC<{
               </Button>
             )}
             {item.type === 'list' && item.subType && (
-              <div className="w-full mt-2 ml-4 flex items-center">
+              <div className="w-full mt-1 ml-4 flex items-center">
                 <span className="mr-2 text-sm text-gray-500">List type:</span>
                 <SchemaForm
                   schema={[item.subType as SchemaItem]}
@@ -100,7 +100,7 @@ export const SchemaForm: React.FC<{
               </div>
             )}
             {item.type === 'dict' && item.subType && (
-              <div className="w-full mt-2 ml-4">
+              <div className="w-full mt-1 ml-4">
                 <SchemaForm
                   schema={item.subType as SchemaItem[]}
                   onUpdate={(newSubSchema) => updateItem(index, { ...item, subType: newSubSchema })}
@@ -111,7 +111,7 @@ export const SchemaForm: React.FC<{
           </div>
         ))}
         {!isList && (
-          <Button variant="outline" size="sm" onClick={addItem} className="mt-2">
+          <Button variant="outline" size="sm" onClick={addItem} className="mt-1">
             <Plus size={16} className="mr-2" /> Add Field
           </Button>
         )}
@@ -131,7 +131,7 @@ export const OutputSchema: React.FC<{
           variant="ghost"
           size="sm"
           onClick={onToggle}
-          className="mb-2 p-0"
+          className="p-0"
         >
           <ChevronDown
             size={16}
@@ -139,7 +139,7 @@ export const OutputSchema: React.FC<{
               isExpanded ? 'transform rotate-180' : ''
             }`}
           />
-          <h4 className="text-sm font-semibold">Output Schema</h4>
+          <h4 className="text-xs font-semibold">Output Schema</h4>
         </Button>
         {isExpanded && (
           <SchemaForm schema={schema} onUpdate={onUpdate} />
@@ -198,7 +198,7 @@ export const Guardrails: React.FC<{
           />
         </Button>
         {isExpanded && (
-          <div className="p-4 bg-orange-50">
+          <div className="bg-orange-50">
             {guardrails.map((guardrail, index) => (
               <div key={index} className="flex items-center mb-2">
                 <Input
@@ -221,7 +221,7 @@ export const Guardrails: React.FC<{
               variant="outline"
               size="sm"
               onClick={addGuardrail}
-              className="mt-2 text-orange-500 border-orange-500 hover:bg-orange-100"
+              className="mb-1 text-orange-500 border-orange-500 hover:bg-orange-100"
             >
               <Plus size={16} className="mr-2" /> Add Guardrail
             </Button>

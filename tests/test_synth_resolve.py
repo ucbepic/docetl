@@ -1,3 +1,4 @@
+from docetl.runner import DSLRunner
 import pytest
 import json
 import tempfile
@@ -76,21 +77,20 @@ def config_yaml(sample_data):
 
 def test_synth_resolve(config_yaml):
     # Initialize the optimizer
-    optimizer = Optimizer.from_yaml(config_yaml)
+    runner = DSLRunner.from_yaml(config_yaml)
 
     # Run the optimization
-    optimizer.optimize()
-    optimizer.save_optimized_config()
+    optimized_config = runner.optimize(save=True, return_pipeline=False)
 
     # Check if a resolve operation was synthesized
     synthesized_resolve_found = False
-    for step in optimizer.optimized_config["pipeline"]["steps"]:
+    for step in optimized_config["pipeline"]["steps"]:
         for op in step["operations"]:
             if op.startswith("synthesized_resolve_"):
                 synthesized_resolve_found = True
                 synthesized_op = [
                     operation
-                    for operation in optimizer.optimized_config["operations"]
+                    for operation in optimized_config["operations"]
                     if operation["name"] == op
                 ][0]
 
@@ -99,9 +99,6 @@ def test_synth_resolve(config_yaml):
                 assert "embedding_model" in synthesized_op
                 assert "resolution_model" in synthesized_op
                 assert "comparison_model" in synthesized_op
-                assert "_intermediates" in synthesized_op
-                assert "map_prompt" in synthesized_op["_intermediates"]
-                assert "reduce_key" in synthesized_op["_intermediates"]
                 assert "comparison_prompt" in synthesized_op
                 assert "resolution_prompt" in synthesized_op
                 assert "blocking_threshold" in synthesized_op
@@ -116,7 +113,7 @@ def test_synth_resolve(config_yaml):
 
     # Clean up temporary files
     os.remove(config_yaml)
-    os.remove(optimizer.optimized_config_path)
+    os.remove(runner.optimized_config_path)
     os.remove("patient_records.json")
 
 

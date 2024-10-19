@@ -22,6 +22,8 @@ EquijoinOp = equijoin.EquijoinOperation.schema
 SplitOp = split.SplitOperation.schema
 GatherOp = gather.GatherOperation.schema
 UnnestOp = unnest.UnnestOperation.schema
+ClusterOp = cluster.ClusterOperation.schema
+SampleOp = sample.SampleOperation.schema
 
 OpType = Union[
     MapOp,

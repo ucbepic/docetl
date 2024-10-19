@@ -63,9 +63,9 @@ class LinkResolveOperation(BaseOperation):
 
 
         id_embeddings, id_embedding_cost = get_embeddings_for_clustering(
-            [{"key": value} for value in id_values],,
+            [{"key": value} for value in id_values],
             {
-                "embedding_model": embedding_model
+                "embedding_model": embedding_model,
                 "embedding_keys": ["key"]
             },
             self.runner.api
@@ -73,7 +73,7 @@ class LinkResolveOperation(BaseOperation):
         link_embeddings, link_embedding_cost = get_embeddings_for_clustering(
             [{"key": value} for value in to_resolve],
             {
-                "embedding_model": embedding_model
+                "embedding_model": embedding_model,
                 "embedding_keys": ["key"]
             },
             self.runner.api

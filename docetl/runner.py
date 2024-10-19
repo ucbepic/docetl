@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 from dotenv import load_dotenv
 import hashlib
 from rich.console import Console
+from rich.prompt import Confirm
 
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation
@@ -142,6 +143,7 @@ class DSLRunner(ConfigWrapper):
         Returns:
             float: The total cost of executing the pipeline.
         """
+
         self.console.rule("[bold blue]Pipeline Execution[/bold blue]")
         start_time = time.time()
         self.load_datasets()

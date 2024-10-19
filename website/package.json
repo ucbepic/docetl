@@ -30,6 +30,7 @@
     "@radix-ui/react-tooltip": "^1.1.2",
     "@tanstack/react-table": "^8.20.5",
     "@tanstack/react-virtual": "^3.10.8",
+    "anser": "^2.3.0",
     "ansi-to-html": "^0.7.2",
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",

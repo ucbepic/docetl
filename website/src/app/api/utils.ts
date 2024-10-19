@@ -9,7 +9,8 @@ export function generatePipelineConfig(
   operations: Operation[],
   operation_id: string,
   name: string,
-  sample_size: number | null
+  sample_size: number | null,
+  optimize: boolean = false
 ) {
   const homeDir = os.homedir();
 
@@ -35,6 +36,11 @@ export function generatePipelineConfig(
       ...op,
       ...op.otherKwargs
     }
+
+    if (optimize && op.id === operation_id) {
+      newOp.optimize = true;
+    }
+
     delete newOp.runIndex;
     delete newOp.otherKwargs;
     delete newOp.id;

@@ -58,6 +58,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/json2csv": "^5.0.7",
     "@types/lodash": "^4.17.10",
     "@types/node": "^20",
     "@types/react": "^18",

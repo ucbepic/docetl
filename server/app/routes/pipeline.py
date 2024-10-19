@@ -1,3 +1,4 @@
+from docetl.builder import Optimizer
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from server.app.models import PipelineRequest
 from docetl.runner import DSLRunner
@@ -23,13 +24,24 @@ async def websocket_run_pipeline(websocket: WebSocket):
     await websocket.accept()
     try:
         config = await websocket.receive_json()
-        runner = DSLRunner.from_yaml(config["yaml_config"])
+        runner = (
+            DSLRunner.from_yaml(config["yaml_config"])
+            if not config.get("optimize", False)
+            else Optimizer.from_yaml(config["yaml_config"])
+        )
 
         if config.get("clear_intermediate", False):
             runner.clear_intermediate()
 
-        async def run_pipeline():
-            return await asyncio.to_thread(runner.run)
+        if config.get("optimize", False):
+
+            async def run_pipeline():
+                return await asyncio.to_thread(runner.optimize)
+
+        else:
+
+            async def run_pipeline():
+                return await asyncio.to_thread(runner.run)
 
         pipeline_task = asyncio.create_task(run_pipeline())
 
@@ -59,15 +71,41 @@ async def websocket_run_pipeline(websocket: WebSocket):
         # Sleep for a short duration to ensure all output is captured
         await asyncio.sleep(3)
 
-        await websocket.send_json(
-            {
-                "type": "result",
-                "data": {
-                    "message": "Pipeline executed successfully",
-                    "cost": cost,
-                },
-            }
-        )
+        # If optimize is true, send back the optimized operations
+        if config.get("optimize", False):
+            optimized_config = runner.clean_optimized_config()
+            # find the operation that has optimize = true
+            optimized_op = None
+            for op in optimized_config["operations"]:
+                if op.get("optimize", False):
+                    optimized_op = op
+                    break
+
+            if not optimized_op:
+                raise HTTPException(
+                    status_code=500, detail="No optimized operation found"
+                )
+
+            await websocket.send_json(
+                {
+                    "type": "result",
+                    "data": {
+                        "message": "Pipeline executed successfully",
+                        "cost": cost,
+                        "optimized_op": optimized_op,
+                    },
+                }
+            )
+        else:
+            await websocket.send_json(
+                {
+                    "type": "result",
+                    "data": {
+                        "message": "Pipeline executed successfully",
+                        "cost": cost,
+                    },
+                }
+            )
     except WebSocketDisconnect:
         print("Client disconnected")
     except Exception as e:

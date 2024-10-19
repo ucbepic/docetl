@@ -45,6 +45,7 @@ export const Output: React.FC = () => {
   const [isResolveOrReduce, setIsResolveOrReduce] = useState<boolean>(false);
 
   const [defaultTab, setDefaultTab] = useState<string>("table");
+  const { readyState } = useWebSocket();
 
   useEffect(() => {
     if (!isLoadingOutputs) {
@@ -192,7 +193,7 @@ export const Output: React.FC = () => {
     if (operation.type === 'reduce') {
       const reduceKeys = operation.otherKwargs?.reduce_key || [];
       return (
-        <div className="flex-grow overflow-y-auto">
+        <div className="flex-grow overflow-y-auto h-full">
           {outputs
             .sort((a, b) => Number(b[visualizationColumn.name]) - Number(a[visualizationColumn.name]))
             .map((row, index) => (
@@ -237,7 +238,7 @@ export const Output: React.FC = () => {
       }, [outputs, visualizationColumn.name]);
 
       return (
-        <div className="flex-grow overflow-y-auto">
+        <div className="flex-grow overflow-y-auto h-full">
           {Object.entries(groupedData)
             .sort(([, groupA], [, groupB]) => groupB.length - groupA.length)
             .map(([key, group]: [string, any[]]) => (
@@ -325,7 +326,14 @@ export const Output: React.FC = () => {
       </div>
       <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList>
-        <TabsTrigger value="console">Console</TabsTrigger>
+          <TabsTrigger value="console" className="flex items-center">
+            Console
+            {readyState === WebSocket.OPEN && (
+              <span className="ml-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="table">Table</TabsTrigger>
           <TabsTrigger value="visualize" disabled={!isResolveOrReduce}>Visualize Input Distribution</TabsTrigger>
         </TabsList>

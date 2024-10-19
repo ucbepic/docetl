@@ -2,7 +2,8 @@ from collections import defaultdict
 import json
 import os
 import time
-from typing import Dict, List, Optional, Tuple, Union
+import functools
+from typing import Dict, List, Optional, Tuple, Union, Any
 from pydantic import BaseModel
 
 from dotenv import load_dotenv
@@ -41,14 +42,19 @@ class DSLRunner(ConfigWrapper):
         # when we actually need it...
         # Yes, this means DSLRunner.schema isn't really accessible to
         # static type checkers. But it /is/ available for dynamic
-        # checking, and for generating json schema.        
-        OpType = Union[*[op.schema for op in get_operations().values()]]
+        # checking, and for generating json schema.
+
+        OpType = functools.reduce(lambda a, b: a | b, [op.schema for op in get_operations().values()])
+        # More pythonic implementation of the above, but only works in python 3.11:
+        # OpType = Union[*[op.schema for op in get_operations().values()]]
         
-        class schema(BaseModel):
+        class Pipeline(BaseModel):
+            config: Optional[dict[str, Any]]
+            parsing_tools: Optional[list[schemas.ParsingTool]]
             datasets: dict[str, schemas.Dataset]
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
-        return schema
+        return Pipeline
             
     @classproperty
     def json_schema(cls):

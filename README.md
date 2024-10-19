@@ -1,6 +1,6 @@
 # DocETL: Powering Complex Document Processing Pipelines
 
-[Website (Includes Demo)](https://docetl.com) | [Documentation](https://ucbepic.github.io/docetl) | [Discord](https://discord.gg/fHp7B2X3xx) | [NotebookLM Podcast](https://notebooklm.google.com/notebook/ef73248b-5a43-49cd-9976-432d20f9fa4f/audio?pli=1) (thanks Shabie from our Discord community!) | Paper (coming soon!)
+[Website (Includes Demo)](https://docetl.org) | [Documentation](https://ucbepic.github.io/docetl) | [Discord](https://discord.gg/fHp7B2X3xx) | [Paper](https://arxiv.org/abs/2410.12189)
 
 ![DocETL Figure](docs/assets/readmefig.png)
 
@@ -15,6 +15,11 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 - You're unsure how to best express your task to maximize LLM accuracy
 - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
 - You have validation criteria and want tasks to automatically retry when the validation fails
+
+## Cool Things People Are Doing with DocETL
+
+- [Conversation Generator](https://github.com/redhog/docetl-conversation)
+- [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
 
 ## Installation
 

@@ -3,7 +3,7 @@ import json
 import os
 import time
 import functools
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from docetl.builder import Optimizer
 from pydantic import BaseModel
 
@@ -42,7 +42,9 @@ class DSLRunner(ConfigWrapper):
         # static type checkers. But it /is/ available for dynamic
         # checking, and for generating json schema.
 
-        OpType = functools.reduce(lambda a, b: a | b, [op.schema for op in get_operations().values()])
+        OpType = functools.reduce(
+            lambda a, b: a | b, [op.schema for op in get_operations().values()]
+        )
         # More pythonic implementation of the above, but only works in python 3.11:
         # OpType = Union[*[op.schema for op in get_operations().values()]]
 
@@ -52,20 +54,27 @@ class DSLRunner(ConfigWrapper):
             datasets: Dict[str, schemas.Dataset]
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
+
         return Pipeline
-    
+
     @classproperty
     def json_schema(cls):
         return cls.schema.model_json_schema()
 
-    def __init__(self, config: Dict, max_threads: int = None):
+    def __init__(self, config: Dict, max_threads: int = None, **kwargs):
         """
         Initialize the DSLRunner with a YAML configuration file.
 
         Args:
             max_threads (int, optional): Maximum number of threads to use. Defaults to None.
         """
-        ConfigWrapper.__init__(self, config, max_threads)
+        super().__init__(
+            config,
+            base_name=kwargs.pop("base_name", None),
+            yaml_file_suffix=kwargs.pop("yaml_file_suffix", None),
+            max_threads=max_threads,
+            **kwargs,
+        )
         self.datasets = {}
 
         self.intermediate_dir = (
@@ -430,23 +439,22 @@ class DSLRunner(ConfigWrapper):
         )
 
     def optimize(
-        self, save: bool = False, return_pipeline: bool = False, **kwargs
-    ) -> Union[None, "DSLRunner"]:
+        self, save: bool = False, return_pipeline: bool = True, **kwargs
+    ) -> Union[Dict, "DSLRunner"]:
         builder = Optimizer(
-            self.config,
-            self.yaml_file_suffix,
-            console=self.console,
+            self,
             max_threads=self.max_threads,
             **kwargs,
         )
         builder.optimize()
         if save:
             builder.save_optimized_config(f"{self.base_name}_opt.yaml")
+            self.optimized_config_path = f"{self.base_name}_opt.yaml"
 
         if return_pipeline:
             return DSLRunner(builder.clean_optimized_config(), self.max_threads)
 
-        return None
+        return builder.clean_optimized_config()
 
 
 if __name__ == "__main__":

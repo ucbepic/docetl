@@ -77,13 +77,11 @@ class DatasetOnDisk(dict):
         return [(key, self[key]) for key in self.keys()]
 
 
-class Optimizer(ConfigWrapper):
+class Optimizer:
 
     def __init__(
         self,
-        config: Dict,
-        pipeline_name: str,
-        console: Console,
+        runner: "DSLRunner",
         max_threads: Optional[int] = None,
         model: str = "gpt-4o",
         resume: bool = False,
@@ -123,7 +121,16 @@ class Optimizer(ConfigWrapper):
 
         The method also calls print_optimizer_config() to display the initial configuration.
         """
-        ConfigWrapper.__init__(self, config, console=console, max_threads=max_threads)
+        self.config = runner.config
+        self.console = runner.console
+        self.max_threads = runner.max_threads
+
+        self.base_name = runner.base_name
+        self.yaml_file_suffix = runner.yaml_file_suffix
+        self.config = runner.config
+        self.runner = runner
+        self.status = runner.status
+
         self.optimized_config = copy.deepcopy(self.config)
         self.llm_client = LLMClient(model)
         self.operations_cost = 0
@@ -132,13 +139,8 @@ class Optimizer(ConfigWrapper):
         self.samples_taken = defaultdict(dict)
         self.resume = resume
 
-        # create parsing tool map
-        self.parsing_tool_map = create_parsing_tool_map(
-            self.config.get("parsing_tools", None)
-        )
-
         home_dir = os.path.expanduser("~")
-        cache_dir = os.path.join(home_dir, f".docetl/cache/{pipeline_name}")
+        cache_dir = os.path.join(home_dir, f".docetl/cache/{runner.yaml_file_suffix}")
         os.makedirs(cache_dir, exist_ok=True)
         self.datasets = DatasetOnDisk(dir=cache_dir, console=self.console)
         self.optimized_ops_path = f"{cache_dir}/optimized_ops"
@@ -177,7 +179,7 @@ class Optimizer(ConfigWrapper):
             try:
                 operation_class = get_operation(operation_type)
                 operation_class(
-                    self,
+                    self.runner,
                     operation_config,
                     self.config.get("default_model", "gpt-4o-mini"),
                     self.max_threads,
@@ -962,7 +964,7 @@ class Optimizer(ConfigWrapper):
                 type=dataset_config["type"],
                 path_or_data=dataset_config["path"],
                 parsing=dataset_config.get("parsing", []),
-                user_defined_parsing_tool_map=self.parsing_tool_map,
+                user_defined_parsing_tool_map=self.runner.parsing_tool_map,
             )
             data = dataset.load()
 
@@ -1101,7 +1103,7 @@ class Optimizer(ConfigWrapper):
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         reduce_optimizer = ReduceOptimizer(
-            self,
+            self.runner,
             self.config,
             self.console,
             self.llm_client,
@@ -1144,7 +1146,7 @@ class Optimizer(ConfigWrapper):
         new_right_name = right_name
         for _ in range(max_iterations):
             join_optimizer = JoinOptimizer(
-                self,
+                self.runner,
                 self.config,
                 op_config,
                 self.console,
@@ -1296,7 +1298,7 @@ class Optimizer(ConfigWrapper):
             List[Dict[str, Any]]: The optimized operation configuration.
         """
         optimized_config, cost = JoinOptimizer(
-            self,
+            self.runner,
             self.config,
             op_config,
             self.console,
@@ -1344,7 +1346,7 @@ class Optimizer(ConfigWrapper):
         operation_class = get_operation(op_config["type"])
 
         oc_kwargs = {
-            "runner": self,
+            "runner": self.runner,
             "config": op_config,
             "default_model": self.config["default_model"],
             "max_threads": self.max_threads,
@@ -1416,7 +1418,7 @@ class Optimizer(ConfigWrapper):
         with open(optimized_config_path, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False, width=80)
             self.console.log(
-                f"[green italic]💾 Optimized config saved to {self.optimized_config_path}[/green italic]"
+                f"[green italic]💾 Optimized config saved to {optimized_config_path}[/green italic]"
             )
 
 

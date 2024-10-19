@@ -1,3 +1,4 @@
+import datetime
 import os
 from docetl.utils import load_config
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -48,14 +49,16 @@ class ConfigWrapper(object):
     def __init__(
         self,
         config: Dict,
-        base_name: str,
-        yaml_file_suffix: str,
+        base_name: Optional[str] = None,
+        yaml_file_suffix: Optional[str] = None,
         max_threads: int = None,
         console: Console = Console(),
     ):
         self.config = config
         self.base_name = base_name
-        self.yaml_file_suffix = yaml_file_suffix
+        self.yaml_file_suffix = yaml_file_suffix or datetime.datetime.now().strftime(
+            "%Y%m%d_%H%M%S"
+        )
         self.default_model = self.config.get("default_model", "gpt-4o-mini")
         self.console = console
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4

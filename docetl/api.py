@@ -197,17 +197,13 @@ class Pipeline:
             Pipeline: An optimized version of the pipeline.
         """
         config = self._to_dict()
-        optimizer = Optimizer(
+        runner = DSLRunner(
             config,
             base_name=os.path.join(os.getcwd(), self.name),
             yaml_file_suffix=self.name,
             max_threads=max_threads,
-            model=model,
-            timeout=timeout,
-            resume=resume,
         )
-        optimizer.optimize()
-        optimized_config = optimizer.clean_optimized_config()
+        optimized_config = runner.optimize(return_pipeline=False)
 
         updated_pipeline = Pipeline(
             name=self.name,
@@ -232,8 +228,13 @@ class Pipeline:
             float: The total cost of running the pipeline.
         """
         config = self._to_dict()
-        runner = DSLRunner(config, max_threads=max_threads)
-        result = runner.run()
+        runner = DSLRunner(
+            config,
+            base_name=os.path.join(os.getcwd(), self.name),
+            yaml_file_suffix=self.name,
+            max_threads=max_threads,
+        )
+        result = runner.load_run_save()
         return result
 
     def to_yaml(self, path: str) -> None:

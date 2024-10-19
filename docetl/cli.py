@@ -47,7 +47,9 @@ def build(
         load_dotenv(env_file)
 
     runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
-    runner.optimize(save=True, model=model, resume=resume, timeout=timeout)
+    runner.optimize(
+        save=True, return_pipeline=False, model=model, resume=resume, timeout=timeout
+    )
 
 
 @app.command()

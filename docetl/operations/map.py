@@ -14,6 +14,7 @@ from docetl.base_schemas import Tool, ToolFunction
 from docetl.utils import completion_cost
 from pydantic import Field, field_validator
 
+
 def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
     """
     Render a Jinja2 template with the given data, ensuring protection against template injection vulnerabilities.
@@ -25,7 +26,8 @@ def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
     env = Environment(autoescape=True)
     template = env.from_string(template_string)
     return template.render(input=data)
-        
+
+
 class MapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "map"
@@ -35,7 +37,9 @@ class MapOperation(BaseOperation):
         optimize: Optional[bool] = None
         recursively_optimize: Optional[bool] = None
         sample_size: Optional[int] = None
-        tools: Optional[List[Dict[str, Any]]] = None # FIXME: Why isn't this using the Tool data class so validation works automatically?
+        tools: Optional[List[Dict[str, Any]]] = (
+            None  # FIXME: Why isn't this using the Tool data class so validation works automatically?
+        )
         validation_rules: Optional[List[str]] = Field(None, alias="validate")
         num_retries_on_validate_failure: Optional[int] = None
         gleaning: Optional[Dict[str, Any]] = None
@@ -60,7 +64,7 @@ class MapOperation(BaseOperation):
             "max_batch_size", kwargs.get("max_batch_size", float("inf"))
         )
         self.clustering_method = "random"
-    
+
     def syntax_check(self) -> None:
         """
             Checks the configuration of the MapOperation for required keys and valid structure.
@@ -241,6 +245,11 @@ class MapOperation(BaseOperation):
 
 
 class ParallelMapOperation(BaseOperation):
+    class schema(BaseOperation.schema):
+        type: str = "parallel_map"
+        prompts: List[Dict[str, Any]]
+        output: Dict[str, Any]
+
     def __init__(
         self,
         *args,

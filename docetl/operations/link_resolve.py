@@ -87,6 +87,15 @@ class LinkResolveOperation(BaseOperation):
         acceptable_idxs = np.nonzero(acceptable)
         close_enough = np.zeros(len(acceptable_idxs))
 
+
+        total_possible_comparisons = len(acceptable)
+        comparisons_saved = total_possible_comparisons - acceptable.sum()
+        
+        self.console.log(
+            f"[green]Comparisons saved by blocking: {comparisons_saved} "
+            f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
+        )
+        
         self.replacements = {}
         
         with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:

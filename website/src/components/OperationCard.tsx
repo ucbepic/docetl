@@ -16,6 +16,7 @@ import { Guardrails, OutputSchema, PromptInput } from './operations/args';
 import createOperationComponent from './operations/components';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { Badge } from './ui/badge';
+import { schemaDictToItemSet } from './utils';
 
 // Separate components
 const OperationHeader: React.FC<{
@@ -29,7 +30,8 @@ const OperationHeader: React.FC<{
   onRunOperation: () => void;
   onToggleSettings: () => void;
   onShowOutput: () => void;
-}> = React.memo(({ name, type, llmType, disabled, currOp, onEdit, onDelete, onRunOperation, onToggleSettings, onShowOutput }) => {
+  onOptimize: () => void;
+}> = React.memo(({ name, type, llmType, disabled, currOp, onEdit, onDelete, onRunOperation, onToggleSettings, onShowOutput, onOptimize }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
 
@@ -51,7 +53,7 @@ const OperationHeader: React.FC<{
         <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" onClick={onToggleSettings}>
           <Settings size={14} className="text-gray-500" />
         </Button>
-        <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" disabled={true}>
+        <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" disabled={type !== "resolve"} onClick={onOptimize}>
           <Zap size={14} className="text-yellow-500" />
         </Button>
         <TooltipProvider>
@@ -281,38 +283,6 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
   const { connect, sendMessage, lastMessage, readyState, disconnect } = useWebSocket();
 
   useEffect(() => {
-    if (lastMessage) {
-      if (lastMessage.type === 'output') {
-        setTerminalOutput(lastMessage.data);
-      } else if (lastMessage.type === 'result') {
-        const runCost = lastMessage.data.cost || 0;
-        setCost(prevCost => prevCost + runCost);
-        toast({
-          title: "Operation Complete",
-          description: `The operation cost $${runCost.toFixed(4)}`,
-          duration: 3000,
-        });
-        
-        // Close the WebSocket connection
-        disconnect();
-
-        setIsLoadingOutputs(false);
-      } else if (lastMessage.type === 'error') {
-        toast({
-          title: "Error",
-          description: lastMessage.data,
-          variant: "destructive",
-        });
-
-        // Close the WebSocket connection
-        disconnect();
-
-        setIsLoadingOutputs(false);
-      }
-    }
-  }, [lastMessage, setCost, setIsLoadingOutputs, setTerminalOutput]);
-
-  useEffect(() => {
     operationRef.current = operation;
   }, [operation]);
 
@@ -414,6 +384,61 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     debouncedUpdate();
   };
 
+  const onOptimize = useCallback(async () => {
+    if (!operation) return;
+    console.log("Optimizing operation", operation.id);
+
+    try {
+      // Clear the output
+      setTerminalOutput('');
+      setIsLoadingOutputs(true);
+
+      // Write pipeline config
+      const response = await fetch('/api/writePipelineConfig', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          default_model: defaultModel,
+          data: { path: currentFile?.path || '' },
+          operations,
+          operation_id: operation.id,
+          name: pipelineName,
+          sample_size: sampleSize,
+          optimize: true
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to write pipeline config');
+      }
+
+      const { filePath } = await response.json();
+
+
+      // Ensure WebSocket is connected
+      await connect();
+
+      // Send message to run the pipeline
+      sendMessage({
+        yaml_config: filePath,
+        optimize: true
+      });
+
+    } catch (error) {
+      console.error('Error optimizing operation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to optimize operation",
+        variant: "destructive",
+      });
+      // Close the WebSocket connection
+      disconnect();
+    } 
+
+  }, [operation]);
+
   const onShowOutput = useCallback(async () => {
     if (!operation) return;
 
@@ -494,6 +519,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
             onRunOperation={handleRunOperation}
             onToggleSettings={() => dispatch({ type: 'TOGGLE_SETTINGS' })}
             onShowOutput={onShowOutput}
+            onOptimize={onOptimize}
           />
             <CardContent className="py-2 px-3">
               {createOperationComponent(operation, handleOperationUpdate,isSchemaExpanded, () => dispatch({ type: 'TOGGLE_SCHEMA' }))}

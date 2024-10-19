@@ -251,7 +251,7 @@ export const ResolveOperationComponent: React.FC<OperationComponentProps> = ({ o
           Blocking Keys
         </label>
         <div className="flex flex-wrap gap-2">
-          {(operation.otherKwargs?.blocking_keys || []).map((key, index) => (
+          {(operation.otherKwargs?.blocking_keys || []).map((key: string, index: number) => (
             <div key={index} className="flex items-center">
               <Input
                 value={key}

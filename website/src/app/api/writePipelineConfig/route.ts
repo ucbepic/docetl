@@ -6,7 +6,7 @@ import { generatePipelineConfig } from '@/app/api/utils';
 
 export async function POST(request: Request) {
   try {
-    const { default_model, data, operations, operation_id, name, sample_size } = await request.json();
+    const { default_model, data, operations, operation_id, name, sample_size, optimize = false } = await request.json();
 
     if (!name) {
       return NextResponse.json({ error: 'Pipeline name is required' }, { status: 400 });
@@ -22,7 +22,8 @@ export async function POST(request: Request) {
       operations,
       operation_id,
       name,
-      sample_size
+      sample_size,
+      optimize
     );
 
     console.log(yamlString);

@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { Input } from "@/components/ui/input"
 import path from 'path';
-
+import { schemaDictToItemSet } from './utils';
 const PipelineGUI: React.FC<{ 
   onDragEnd: (result: DropResult) => void;
 }> = ({ onDragEnd }) => {
@@ -30,36 +30,59 @@ const PipelineGUI: React.FC<{
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } = useWebSocket();
 
-  const schemaDictToItemSet = (schema: Record<string, string>): SchemaItem[] => {
-    return Object.entries(schema).map(([key, type]): SchemaItem => {
-      if (typeof type === 'string') {
-        if (type.startsWith('list[')) {
-          const subType = type.slice(5, -1);
-          return { 
-            key, 
-            type: 'list', 
-            subType: { key: "0", type: subType as SchemaType }
+  useEffect(() => {
+    if (lastMessage) {
+      if (lastMessage.type === 'output') {
+        setTerminalOutput(lastMessage.data);
+      } else if (lastMessage.type === 'result') {
+        const runCost = lastMessage.data.cost || 0;
+
+        // See if there was an optimized operation
+        const optimizedOp = lastMessage.data.optimized_op;
+        if (optimizedOp) {
+          const { id, llmType, type, name, prompt, output, validate, sample, ...otherKwargs } = optimizedOp;
+          const convertedOp = {
+            id: id || String(Date.now()),
+            llmType: type === 'map' || type === 'reduce' || type === 'resolve' || type === 'filter' || type === 'parallel_map' ? 'LLM' : 'non-LLM',
+            type: type,
+            name: name || 'Untitled Operation',
+            prompt: prompt,
+            output: output ? {
+              schema: schemaDictToItemSet(output.schema)
+            } : undefined,
+            validate: validate,
+            sample: sample,
+            otherKwargs: otherKwargs || {}
           };
-        } else if (type.startsWith('{') && type.endsWith('}')) {
-          try {
-            const subSchema = JSON.parse(type);
-            return { 
-              key, 
-              type: 'dict', 
-              subType: schemaDictToItemSet(subSchema)
-            };
-          } catch (error) {
-            console.error(`Error parsing dict schema for ${key}:`, error);
-            return { key, type: 'string' };
-          }
-        } else {
-          return { key, type: type as SchemaType };
+          setOperations(prev => prev.map(op => op.name === optimizedOp.name ? convertedOp as Operation : op));
         }
-      } else {
-        return { key, type: 'string' };
+
+
+        setCost(prevCost => prevCost + runCost);
+        toast({
+          title: "Operation Complete",
+          description: `The operation cost $${runCost.toFixed(4)}`,
+          duration: 3000,
+        });
+        
+        // Close the WebSocket connection
+        disconnect();
+
+        setIsLoadingOutputs(false);
+      } else if (lastMessage.type === 'error') {
+        toast({
+          title: "Error",
+          description: lastMessage.data,
+          variant: "destructive",
+        });
+
+        // Close the WebSocket connection
+        disconnect();
+
+        setIsLoadingOutputs(false);
       }
-    });
-  };
+    }
+  }, [lastMessage, setCost, setIsLoadingOutputs, setTerminalOutput]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -70,7 +93,7 @@ const PipelineGUI: React.FC<{
         if (typeof content === 'string') {
           try {
             const yamlFileName = file.name.split('/').pop()?.split('.')[0];
-            const yamlContent = yaml.load(content);
+            const yamlContent = yaml.load(content) as any;
             // Update PipelineContext with the loaded YAML data
             setOperations((yamlContent.operations || []).map((op: any) => {
               const { id, llmType, type, name, prompt, output, validate, sample, ...otherKwargs } = op;

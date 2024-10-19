@@ -69,7 +69,7 @@ class ResolveOperation(BaseOperation):
             if all(
                 key in item1
                 and key in item2
-                and item1[key].lower() == item2[key].lower()
+                and str(item1[key]).lower() == str(item2[key]).lower()
                 for key in blocking_keys
             ):
                 return True, 0
@@ -241,7 +241,7 @@ class ResolveOperation(BaseOperation):
                 f"This may result in a large number of comparisons. "
                 f"We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
                 f"Do you want to continue without blocking?[/yellow]",
-                self.console,
+                console=self.runner.console,
             ):
                 raise ValueError("Operation cancelled by user.")
 
@@ -261,7 +261,9 @@ class ResolveOperation(BaseOperation):
         # Calculate embeddings if blocking_threshold is set
         embeddings = None
         if blocking_threshold is not None:
-            embedding_model = self.config.get("embedding_model", self.default_model)
+            embedding_model = self.config.get(
+                "embedding_model", "text-embedding-3-small"
+            )
 
             def get_embeddings_batch(
                 items: List[Dict[str, Any]]
@@ -414,6 +416,9 @@ class ResolveOperation(BaseOperation):
         self.console.log(
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
+        )
+        self.console.log(
+            f"[blue]Number of pairs to compare: {len(filtered_pairs)}[/blue]"
         )
 
         # Compute an auto-batch size based on the number of comparisons

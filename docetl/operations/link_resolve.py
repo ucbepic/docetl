@@ -126,6 +126,11 @@ class LinkResolveOperation(BaseOperation):
                 total_cost += futures[i].result()
                 pbar.update(i)
 
+
+        self.console.log(
+            f"[green]Number of replacements found: {len(self.replacements)}[/green]"
+        )
+                
         for item in input_data:
             item[link_key] = [self.replacements.get(value, value)
                               for value in item[link_key]]

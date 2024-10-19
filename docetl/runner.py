@@ -3,7 +3,8 @@ import json
 import os
 import time
 import functools
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, List, Optional, Tuple, Union
+from docetl.builder import Optimizer
 from pydantic import BaseModel
 
 from dotenv import load_dotenv
@@ -22,10 +23,7 @@ load_dotenv()
 
 class DSLRunner(ConfigWrapper):
     """
-    A class for executing Domain-Specific Language (DSL) configurations.
-
-    This class is responsible for loading, validating, and executing DSL configurations
-    defined in YAML files. It manages datasets, executes pipeline steps, and tracks
+    This class is responsible for running DocETL pipelines. It manages datasets, executes pipeline steps, and tracks
     the cost of operations.
 
     Attributes:
@@ -47,19 +45,19 @@ class DSLRunner(ConfigWrapper):
         OpType = functools.reduce(lambda a, b: a | b, [op.schema for op in get_operations().values()])
         # More pythonic implementation of the above, but only works in python 3.11:
         # OpType = Union[*[op.schema for op in get_operations().values()]]
-        
+
         class Pipeline(BaseModel):
             config: Optional[dict[str, Any]]
             parsing_tools: Optional[list[schemas.ParsingTool]]
-            datasets: dict[str, schemas.Dataset]
+            datasets: Dict[str, schemas.Dataset]
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
         return Pipeline
-            
+    
     @classproperty
     def json_schema(cls):
         return cls.schema.model_json_schema()
-        
+
     def __init__(self, config: Dict, max_threads: int = None):
         """
         Initialize the DSLRunner with a YAML configuration file.
@@ -103,7 +101,7 @@ class DSLRunner(ConfigWrapper):
                     all_ops_str.encode()
                 ).hexdigest()
 
-    def get_output_path(self, require = False):
+    def get_output_path(self, require=False):
         output_path = self.config.get("pipeline", {}).get("output", {}).get("path")
         if output_path:
             if not (
@@ -119,7 +117,7 @@ class DSLRunner(ConfigWrapper):
             )
 
         return output_path
-    
+
     def syntax_check(self):
         """
         Perform a syntax check on all operations defined in the configuration.
@@ -174,16 +172,16 @@ class DSLRunner(ConfigWrapper):
         Returns:
             float: The total cost of executing the pipeline.
         """
-        
+
         # Fail early if we can't save the output...
         self.get_output_path(require=True)
-        
+
         self.console.rule("[bold blue]Pipeline Execution[/bold blue]")
         start_time = time.time()
 
         output, total_cost = self.run(self.load())
         self.save(output)
-        
+
         self.console.rule("[bold green]Execution Summary[/bold green]")
         self.console.print(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")
         self.console.print(
@@ -198,13 +196,18 @@ class DSLRunner(ConfigWrapper):
 
         Args:
            datasets (dict[str, Dataset | List[Dict]]): input datasets to transform
-        
+
         Returns:
             (List[Dict], float): The transformed data and the total cost of execution.
         """
-        self.datasets = {name: (dataset if isinstance(dataset, Dataset)
-                                else Dataset(self, "memory", dataset))
-                         for name, dataset in datasets.items()}
+        self.datasets = {
+            name: (
+                dataset
+                if isinstance(dataset, Dataset)
+                else Dataset(self, "memory", dataset)
+            )
+            for name, dataset in datasets.items()
+        }
         total_cost = 0
         for step in self.config["pipeline"]["steps"]:
             step_name = step["name"]
@@ -227,7 +230,10 @@ class DSLRunner(ConfigWrapper):
             ) as f:
                 json.dump(self.step_op_hashes, f)
 
-        return self.datasets[self.config["pipeline"]["steps"][-1]["name"]].load(), total_cost
+        return (
+            self.datasets[self.config["pipeline"]["steps"][-1]["name"]].load(),
+            total_cost,
+        )
 
     def load(self):
         """
@@ -254,7 +260,7 @@ class DSLRunner(ConfigWrapper):
             else:
                 raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
         return datasets
-            
+
     def save(self, data: List[Dict]):
         """
         Save the final output of the pipeline.
@@ -266,7 +272,7 @@ class DSLRunner(ConfigWrapper):
             ValueError: If an unsupported output type is specified in the configuration.
         """
         self.get_output_path(require=True)
-        
+
         self.console.rule("[cyan]Saving Output[/cyan]")
         output_config = self.config["pipeline"]["output"]
         if output_config["type"] == "file":
@@ -422,6 +428,25 @@ class DSLRunner(ConfigWrapper):
         self.console.print(
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )
+
+    def optimize(
+        self, save: bool = False, return_pipeline: bool = False, **kwargs
+    ) -> Union[None, "DSLRunner"]:
+        builder = Optimizer(
+            self.config,
+            self.yaml_file_suffix,
+            console=self.console,
+            max_threads=self.max_threads,
+            **kwargs,
+        )
+        builder.optimize()
+        if save:
+            builder.save_optimized_config(f"{self.base_name}_opt.yaml")
+
+        if return_pipeline:
+            return DSLRunner(builder.clean_optimized_config(), self.max_threads)
+
+        return None
 
 
 if __name__ == "__main__":

@@ -3368,7 +3368,7 @@ pyyaml = "*"
 name = "rapidfuzz"
 version = "3.10.0"
 description = "rapid fuzzy string matching"
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "rapidfuzz-3.10.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:884453860de029380dded8f3c1918af2d8eb5adf8010261645c7e5c88c2b5428"},
@@ -4518,4 +4518,4 @@ parsing = ["azure-ai-documentintelligence", "openpyxl", "paddleocr", "paddlepadd
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "d31c822902e5bba42608323eb0ec787636268bfa35dae5d12daa2d70f2ef55fe"
+content-hash = "6cfc3498d69d4df1672e110994e4791b4d163615f146f36f041a90dced5846ea"

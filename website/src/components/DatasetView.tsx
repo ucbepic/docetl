@@ -6,6 +6,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+import BookmarkableText from '@/components/BookmarkableText';
 
 const CHUNK_SIZE = 100000; // This should match the CHUNK_SIZE in the API
 
@@ -175,6 +176,7 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
   if (isError) return <div>Error: {error.message}</div>;
 
   return (
+    <BookmarkableText source="dataset">
     <div className="h-full p-4 bg-white flex flex-col">
       <h2 className="text-lg font-bold mb-2">{file?.name}</h2>
       <div className="mb-4">
@@ -239,6 +241,7 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
         </div>
       </div>
     </div>
+    </BookmarkableText>
   );
 };
 

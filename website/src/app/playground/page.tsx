@@ -197,7 +197,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           {/* Pipeline GUI and Output */}
           <ResizablePanel defaultSize={60} minSize={30}>
             <ResizablePanelGroup direction="vertical">
-              <ResizablePanel defaultSize={70} minSize={30}>
+              <ResizablePanel defaultSize={70} minSize={5}>
                 <PipelineGUI 
                   onDragEnd={handleDragEnd}
                 />

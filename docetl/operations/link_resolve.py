@@ -38,7 +38,8 @@ class LinkResolveOperation(BaseOperation):
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
 
-        embedding_model = self.config.get("embedding_model", "text-embedding-3-small")
+        # Note: We don't want to use text-embedding-3-small as it has bad performance on short texts...
+        embedding_model = self.config.get("embedding_model", "text-embedding-ada-002")
 
         item_by_id = {item[id_key]: item
                       for item in input_data}

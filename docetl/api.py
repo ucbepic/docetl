@@ -64,17 +64,17 @@ from docetl.schemas import (
     FilterOp,
     GatherOp,
     MapOp,
-    OpType,
-    ParallelMapOp,
-    ParsingTool,
-)
-from docetl.schemas import (
-    PipelineOutput,
-    PipelineStep,
     ReduceOp,
     ResolveOp,
     SplitOp,
     UnnestOp,
+    ClusterOp,
+    SampleOp,
+    OpType,
+    ParallelMapOp,
+    ParsingTool,
+    PipelineOutput,
+    PipelineStep,
 )
 
 
@@ -322,6 +322,10 @@ class Pipeline:
                 self.operations.append(GatherOp(**op, type=op_type))
             elif op_type == "unnest":
                 self.operations.append(UnnestOp(**op, type=op_type))
+            elif op_type == "cluster":
+                self.operations.append(ClusterOp(**op, type=op_type))
+            elif op_type == "sample":
+                self.operations.append(SampleOp(**op, type=op_type))
         self.steps = [PipelineStep(**step) for step in config["pipeline"]["steps"]]
         self.output = PipelineOutput(**config["pipeline"]["output"])
         self.default_model = config.get("default_model")

@@ -4,7 +4,6 @@ from typing import Optional
 import os
 import typer
 
-from docetl.builder import Optimizer
 from docetl.operations.utils import clear_cache as cc
 from docetl.runner import DSLRunner
 
@@ -47,15 +46,8 @@ def build(
     if os.path.exists(env_file):
         load_dotenv(env_file)
 
-    optimizer = Optimizer.from_yaml(
-        str(yaml_file),
-        max_threads=max_threads,
-        model=model,
-        timeout=timeout,
-        resume=resume,
-    )
-    optimizer.optimize()
-    optimizer.save_optimized_config()
+    runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
+    runner.optimize(save=True, model=model, resume=resume, timeout=timeout)
 
 
 @app.command()

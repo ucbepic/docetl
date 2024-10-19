@@ -78,25 +78,12 @@ class DatasetOnDisk(dict):
 
 
 class Optimizer(ConfigWrapper):
-    @classmethod
-    def from_yaml(cls, yaml_file: str, **kwargs):
-        # check that file ends with .yaml or .yml
-        if not yaml_file.endswith(".yaml") and not yaml_file.endswith(".yml"):
-            raise ValueError(
-                "Invalid file type. Please provide a YAML file ending with '.yaml' or '.yml'."
-            )
-
-        base_name = yaml_file.rsplit(".", 1)[0]
-        suffix = yaml_file.split("/")[-1].split(".")[0]
-        return super(Optimizer, cls).from_yaml(
-            yaml_file, base_name=base_name, yaml_file_suffix=suffix, **kwargs
-        )
 
     def __init__(
         self,
         config: Dict,
-        base_name: str,
-        yaml_file_suffix: str,
+        pipeline_name: str,
+        console: Console,
         max_threads: Optional[int] = None,
         model: str = "gpt-4o",
         resume: bool = False,
@@ -136,7 +123,7 @@ class Optimizer(ConfigWrapper):
 
         The method also calls print_optimizer_config() to display the initial configuration.
         """
-        ConfigWrapper.__init__(self, config, max_threads)
+        ConfigWrapper.__init__(self, config, console=console, max_threads=max_threads)
         self.optimized_config = copy.deepcopy(self.config)
         self.llm_client = LLMClient(model)
         self.operations_cost = 0
@@ -151,11 +138,10 @@ class Optimizer(ConfigWrapper):
         )
 
         home_dir = os.path.expanduser("~")
-        cache_dir = os.path.join(home_dir, f".docetl/cache/{yaml_file_suffix}")
+        cache_dir = os.path.join(home_dir, f".docetl/cache/{pipeline_name}")
         os.makedirs(cache_dir, exist_ok=True)
         self.datasets = DatasetOnDisk(dir=cache_dir, console=self.console)
         self.optimized_ops_path = f"{cache_dir}/optimized_ops"
-        self.optimized_config_path = f"{base_name}_opt.yaml"
 
         # Update sample size map
         self.sample_size_map = SAMPLE_SIZE_MAP
@@ -1418,7 +1404,7 @@ class Optimizer(ConfigWrapper):
 
         return resolved_config
 
-    def save_optimized_config(self):
+    def save_optimized_config(self, optimized_config_path: str):
         """
         Save the optimized configuration to a YAML file.
 
@@ -1427,7 +1413,7 @@ class Optimizer(ConfigWrapper):
         """
         resolved_config = self.clean_optimized_config()
 
-        with open(self.optimized_config_path, "w") as f:
+        with open(optimized_config_path, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False, width=80)
             self.console.log(
                 f"[green italic]💾 Optimized config saved to {self.optimized_config_path}[/green italic]"

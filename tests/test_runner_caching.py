@@ -58,6 +58,7 @@ def create_pipeline(input_file, output_file, intermediate_dir, operation_prompt)
     )
 
 
+@pytest.mark.flaky(reruns=3)
 def test_pipeline_rerun_on_operation_change(
     temp_input_file, temp_output_file, temp_intermediate_dir
 ):

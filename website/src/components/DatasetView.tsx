@@ -46,24 +46,24 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
     error
   } = useInfiniteQuery<FileChunk, Error>({
     queryKey: ['fileContent', file?.path],
-    queryFn: fetchFileContent,
+    /* @ts-ignore */
+    queryFn: fetchFileContent, 
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.page + 1 : undefined,
     enabled: !!file?.path,
   });
 
   const lines = useMemo(() => {
+    /* @ts-ignore */
     const fullContent = data?.pages.map(page => page.content).join('') ?? '';
     return fullContent.split('\n');
   }, [data]);
-
-  const totalSize = data?.pages[0]?.totalSize ?? 0;
 
   const rowVirtualizer = useVirtualizer({
     count: lines.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 30,
     overscan: 5,
-    measureElement: useCallback((element) => {
+    measureElement: useCallback((element: any) => {
       return element?.getBoundingClientRect().height || 30;
     }, []),
   });

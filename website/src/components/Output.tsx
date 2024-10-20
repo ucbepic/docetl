@@ -254,9 +254,9 @@ export const Output: React.FC = () => {
                           variant="default"
                         />
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" align="center" className="max-w-[300px]">
+                      <TooltipContent side="bottom" align="center" className="max-w-[300px] overflow-auto">
                         <p className="text-xs">Document values before resolution:</p>
-                        <pre>{JSON.stringify(item.oldValues, null, 2)}</pre>
+                        <pre className="whitespace-pre-wrap break-words">{JSON.stringify(item.oldValues, null, 2)}</pre>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

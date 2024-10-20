@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react';
-import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Upload, Scroll } from 'lucide-react';
+import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Upload, Scroll, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { DropResult } from 'react-beautiful-dnd';
@@ -23,7 +23,19 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useWebSocket, WebSocketProvider } from '@/contexts/WebSocketContext';
-
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
@@ -77,6 +89,41 @@ const RightPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
 );
 
 const CodeEditorPipelineApp: React.FC = () => {
+  const [isLocalhost, setIsLocalhost] = useState(true);
+
+  useEffect(() => {
+    setIsLocalhost(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  }, []);
+
+  if (!isLocalhost) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-2xl p-6 bg-white rounded-lg shadow-md">
+          <h1 className="text-2xl font-bold text-primary mb-4">DocETL Playground</h1>
+          <p className="mb-4">
+            The DocETL playground is designed to run locally. To use it, please follow these steps:
+          </p>
+          <ol className="list-decimal list-inside mb-4">
+            <li>Clone the GitHub repo: <a href="https://github.com/ucbepic/docetl" className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">https://github.com/ucbepic/docetl</a></li>
+            <li>Set up the project by running:
+              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
+                make install
+                make install-ui
+              </pre>
+            </li>
+            <li>Start the application:
+              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
+                make run-ui-prod
+              </pre>
+            </li>
+            <li>Navigate to <a href="http://localhost:3000/playground" className="text-blue-500 hover:underline">http://localhost:3000/playground</a></li>
+          </ol>
+          <p>Once you've completed these steps, you'll be able to use the DocETL playground locally.</p>
+        </div>
+      </div>
+    );
+  }
+
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
@@ -106,7 +153,6 @@ const CodeEditorPipelineApp: React.FC = () => {
 
   return (
     <BookmarkProvider>
-    {/* <SpotlightOverlay> */}
     <div className="h-screen flex flex-col bg-gray-50">
       <div className="p-1 flex justify-between items-center border-b">
         <div className="flex-1"></div>
@@ -114,7 +160,33 @@ const CodeEditorPipelineApp: React.FC = () => {
           <Scroll className="mr-2 text-primary" size={20} />
           <h1 className="text-lg font-bold text-primary">DocETL</h1>
         </div>
-        <div className="flex-1 flex justify-end items-center space-x-2">
+        <div className="flex-1 flex justify-end items-center space-x-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                    >
+                      <Info size={20} />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80">
+                    <h3 className="font-semibold mb-2">About DocETL</h3>
+                    <p className="text-sm text-gray-600">
+                      This is a research project from the EPIC Data Lab at the University of California, Berkeley.
+                      To learn more, visit <a href="https://docetl.org" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">docetl.org</a>.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>About DocETL</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <span className="text-sm font-medium text-gray-600">Cost: ${cost.toFixed(2)}</span>
           <TooltipProvider>
             <Tooltip>
@@ -220,7 +292,6 @@ const CodeEditorPipelineApp: React.FC = () => {
           )}
         </ResizablePanelGroup>
       </div>
-    {/* </SpotlightOverlay> */}
     </BookmarkProvider>
   );
 };

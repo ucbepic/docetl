@@ -30,8 +30,11 @@ interface PipelineContextType {
 const PipelineContext = createContext<PipelineContextType | undefined>(undefined);
 
 const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
-  const storedValue = localStorage.getItem(key);
-  return storedValue ? JSON.parse(storedValue) : defaultValue;
+  if (typeof window !== "undefined") {
+    const storedValue = localStorage.getItem(`docetl_${key}`);
+    return storedValue ? JSON.parse(storedValue) : defaultValue;
+  }
+  return defaultValue;
 };
 
 export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -48,47 +51,47 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [defaultModel, setDefaultModel] = useState<string>(() => loadFromLocalStorage('defaultModel', "gpt-4o-mini"));
 
   useEffect(() => {
-    localStorage.setItem('operations', JSON.stringify(operations));
+    localStorage.setItem('docetl_operations', JSON.stringify(operations));
   }, [operations]);
 
   useEffect(() => {
-    localStorage.setItem('currentFile', JSON.stringify(currentFile));
+    localStorage.setItem('docetl_currentFile', JSON.stringify(currentFile));
   }, [currentFile]);
 
   useEffect(() => {
-    localStorage.setItem('output', JSON.stringify(output));
+    localStorage.setItem('docetl_output', JSON.stringify(output));
   }, [output]);
 
   useEffect(() => {
-    localStorage.setItem('terminalOutput', JSON.stringify(terminalOutput));
+    localStorage.setItem('docetl_terminalOutput', JSON.stringify(terminalOutput));
   }, [terminalOutput]);
 
   useEffect(() => {
-    localStorage.setItem('isLoadingOutputs', JSON.stringify(isLoadingOutputs));
+    localStorage.setItem('docetl_isLoadingOutputs', JSON.stringify(isLoadingOutputs));
   }, [isLoadingOutputs]);
 
   useEffect(() => {
-    localStorage.setItem('numOpRun', JSON.stringify(numOpRun));
+    localStorage.setItem('docetl_numOpRun', JSON.stringify(numOpRun));
   }, [numOpRun]);
 
   useEffect(() => {
-    localStorage.setItem('pipelineName', JSON.stringify(pipelineName));
+    localStorage.setItem('docetl_pipelineName', JSON.stringify(pipelineName));
   }, [pipelineName]);
 
   useEffect(() => {
-    localStorage.setItem('sampleSize', JSON.stringify(sampleSize));
+    localStorage.setItem('docetl_sampleSize', JSON.stringify(sampleSize));
   }, [sampleSize]);
 
   useEffect(() => {
-    localStorage.setItem('files', JSON.stringify(files));
+    localStorage.setItem('docetl_files', JSON.stringify(files));
   }, [files]);
 
   useEffect(() => {
-    localStorage.setItem('cost', JSON.stringify(cost));
+    localStorage.setItem('docetl_cost', JSON.stringify(cost));
   }, [cost]);
 
   useEffect(() => {
-    localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+    localStorage.setItem('docetl_defaultModel', JSON.stringify(defaultModel));
   }, [defaultModel]);
 
   return (

@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Bookmark, BookmarkContextType, UserNote } from '@/app/types';
+
 const BookmarkContext = createContext<BookmarkContextType | undefined>(undefined);
 
 export const useBookmarkContext = () => {
@@ -10,8 +11,20 @@ export const useBookmarkContext = () => {
   return context;
 };
 
+const BOOKMARKS_STORAGE_KEY = 'docetl_bookmarks';
+
 export const BookmarkProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
+    if (typeof window !== "undefined") {
+      const storedBookmarks = localStorage.getItem(BOOKMARKS_STORAGE_KEY);
+      return storedBookmarks ? JSON.parse(storedBookmarks) : [];
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(bookmarks));
+  }, [bookmarks]);
 
   const addBookmark = (text: string, source: string, color: string, notes: UserNote[]) => {
     const newBookmark: Bookmark = {
@@ -19,13 +32,13 @@ export const BookmarkProvider: React.FC<{ children: ReactNode }> = ({ children }
       text,
       source,
       color,
-      notes: [],
+      notes
     };
-    setBookmarks([...bookmarks, newBookmark]);
+    setBookmarks(prevBookmarks => [...prevBookmarks, newBookmark]);
   };
 
   const removeBookmark = (id: string) => {
-    setBookmarks(bookmarks.filter(bookmark => bookmark.id !== id));
+    setBookmarks(prevBookmarks => prevBookmarks.filter(bookmark => bookmark.id !== id));
   };
 
   return (

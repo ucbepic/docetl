@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { useBookmarkContext } from '@/contexts/BookmarkContext';
-import { Bookmark, ChevronDown, ChevronUp, Filter, Trash2 } from 'lucide-react';
+import { Bookmark, ChevronDown, ChevronUp, Filter, Trash2, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,12 +35,29 @@ const BookmarksPanel: React.FC = () => {
     }
   };
 
+  const handleClearAll = () => {
+    bookmarks.forEach(bookmark => removeBookmark(bookmark.id));
+    setSearchTerm('');
+    setSelectedColor('all');
+  };
+
   return (
     <div className="h-full p-4 flex flex-col">
-      <h2 className="text-sm font-bold mb-2 flex items-center uppercase">
-        <Bookmark className="mr-2" size={16} />
-        Notes
-      </h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-sm font-bold flex items-center uppercase">
+          <Bookmark className="mr-2" size={16} />
+          Notes
+        </h2>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleClearAll}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <X size={16} className="mr-1" />
+          Clear All
+        </Button>
+      </div>
       <div className="flex mb-2">
         <Input
           type="text"

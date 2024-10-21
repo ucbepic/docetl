@@ -1,124 +1,149 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useState, useCallback, createContext, useContext, useEffect, useRef } from 'react';
 import { Operation, File, OutputType } from '@/app/types';
 import { mockFiles, initialOperations, mockSampleSize, mockPipelineName } from '@/mocks/mockData';
+import * as localStorageKeys from '@/app/localStorageKeys';
 
-interface PipelineContextType {
+interface PipelineState {
   operations: Operation[];
   currentFile: File | null;
+  output: OutputType | null;
+  terminalOutput: string;
+  isLoadingOutputs: boolean;
+  numOpRun: number;
+  pipelineName: string;
+  sampleSize: number | null;
+  files: File[];
+  cost: number;
+  defaultModel: string;
+}
+
+interface PipelineContextType extends PipelineState {
   setOperations: React.Dispatch<React.SetStateAction<Operation[]>>;
   setCurrentFile: React.Dispatch<React.SetStateAction<File | null>>;
-  output: OutputType | null;
   setOutput: React.Dispatch<React.SetStateAction<OutputType | null>>;
-  isLoadingOutputs: boolean;
-  setIsLoadingOutputs: React.Dispatch<React.SetStateAction<boolean>>;
-  numOpRun: number;
-  setNumOpRun: React.Dispatch<React.SetStateAction<number>>;
-  pipelineName: string;
-  setPipelineName: React.Dispatch<React.SetStateAction<string>>;
-  sampleSize: number | null;
-  setSampleSize: React.Dispatch<React.SetStateAction<number | null>>;
-  files: File[];
-  setFiles: React.Dispatch<React.SetStateAction<File[]>>;
-  cost: number;
-  setCost: React.Dispatch<React.SetStateAction<number>>;
-  defaultModel: string;
-  setDefaultModel: React.Dispatch<React.SetStateAction<string>>;
-  terminalOutput: string;
   setTerminalOutput: React.Dispatch<React.SetStateAction<string>>;
+  setIsLoadingOutputs: React.Dispatch<React.SetStateAction<boolean>>;
+  setNumOpRun: React.Dispatch<React.SetStateAction<number>>;
+  setPipelineName: React.Dispatch<React.SetStateAction<string>>;
+  setSampleSize: React.Dispatch<React.SetStateAction<number | null>>;
+  setFiles: React.Dispatch<React.SetStateAction<File[]>>;
+  setCost: React.Dispatch<React.SetStateAction<number>>;
+  setDefaultModel: React.Dispatch<React.SetStateAction<string>>;
+  saveProgress: () => void;
+  unsavedChanges: boolean;
+  clearPipelineState: () => void;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(undefined);
 
 const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
   if (typeof window !== "undefined") {
-    const storedValue = localStorage.getItem(`docetl_${key}`);
+    const storedValue = localStorage.getItem(key);
     return storedValue ? JSON.parse(storedValue) : defaultValue;
   }
   return defaultValue;
 };
 
 export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [operations, setOperations] = useState<Operation[]>(() => loadFromLocalStorage('operations', initialOperations));
-  const [currentFile, setCurrentFile] = useState<File | null>(() => loadFromLocalStorage('currentFile', mockFiles[0]));
-  const [output, setOutput] = useState<OutputType | null>(() => loadFromLocalStorage('output', null));
-  const [terminalOutput, setTerminalOutput] = useState<string>(() => loadFromLocalStorage('terminalOutput', ''));
-  const [isLoadingOutputs, setIsLoadingOutputs] = useState<boolean>(() => loadFromLocalStorage('isLoadingOutputs', false));
-  const [numOpRun, setNumOpRun] = useState<number>(() => loadFromLocalStorage('numOpRun', 0));
-  const [pipelineName, setPipelineName] = useState<string>(() => loadFromLocalStorage('pipelineName', mockPipelineName));
-  const [sampleSize, setSampleSize] = useState<number | null>(() => loadFromLocalStorage('sampleSize', mockSampleSize));
-  const [files, setFiles] = useState<File[]>(() => loadFromLocalStorage('files', mockFiles));
-  const [cost, setCost] = useState<number>(() => loadFromLocalStorage('cost', 0));
-  const [defaultModel, setDefaultModel] = useState<string>(() => loadFromLocalStorage('defaultModel', "gpt-4o-mini"));
+  const [state, setState] = useState<PipelineState>(() => ({
+    operations: loadFromLocalStorage(localStorageKeys.OPERATIONS_KEY, initialOperations),
+    currentFile: loadFromLocalStorage(localStorageKeys.CURRENT_FILE_KEY, mockFiles[0]),
+    output: loadFromLocalStorage(localStorageKeys.OUTPUT_KEY, null),
+    terminalOutput: loadFromLocalStorage(localStorageKeys.TERMINAL_OUTPUT_KEY, ''),
+    isLoadingOutputs: loadFromLocalStorage(localStorageKeys.IS_LOADING_OUTPUTS_KEY, false),
+    numOpRun: loadFromLocalStorage(localStorageKeys.NUM_OP_RUN_KEY, 0),
+    pipelineName: loadFromLocalStorage(localStorageKeys.PIPELINE_NAME_KEY, mockPipelineName),
+    sampleSize: loadFromLocalStorage(localStorageKeys.SAMPLE_SIZE_KEY, mockSampleSize),
+    files: loadFromLocalStorage(localStorageKeys.FILES_KEY, mockFiles),
+    cost: loadFromLocalStorage(localStorageKeys.COST_KEY, 0),
+    defaultModel: loadFromLocalStorage(localStorageKeys.DEFAULT_MODEL_KEY, "gpt-4-mini"),
+  }));
+
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
+  const stateRef = useRef(state);
 
   useEffect(() => {
-    localStorage.setItem('docetl_operations', JSON.stringify(operations));
-  }, [operations]);
+    stateRef.current = state;
+  }, [state]);
+
+  const saveProgress = useCallback(() => {
+    Object.entries(stateRef.current).forEach(([key, value]) => {
+      localStorage.setItem(localStorageKeys[`${key.toUpperCase()}_KEY` as keyof typeof localStorageKeys], JSON.stringify(value));
+    });
+    setUnsavedChanges(false);
+    console.log('Progress saved!');
+  }, []);
+
+  const setStateAndUpdate = useCallback(<K extends keyof PipelineState>(
+    key: K,
+    value: PipelineState[K] | ((prevState: PipelineState[K]) => PipelineState[K])
+  ) => {
+    setState(prevState => {
+      const newValue = typeof value === 'function' ? (value as Function)(prevState[key]) : value;
+      if (newValue !== prevState[key]) {
+        setUnsavedChanges(true);
+        return { ...prevState, [key]: newValue };
+      }
+      return prevState;
+    });
+  }, []);
+
+  const clearPipelineState = useCallback(() => {
+    Object.values(localStorageKeys).forEach(key => {
+      localStorage.removeItem(key);
+    });
+    setState({
+      operations: initialOperations,
+      currentFile: mockFiles[0],
+      output: null,
+      terminalOutput: '',
+      isLoadingOutputs: false,
+      numOpRun: 0,
+      pipelineName: mockPipelineName,
+      sampleSize: mockSampleSize,
+      files: mockFiles,
+      cost: 0,
+      defaultModel: "gpt-4-mini",
+    });
+    setUnsavedChanges(false);
+    console.log('Pipeline state cleared!');
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('docetl_currentFile', JSON.stringify(currentFile));
-  }, [currentFile]);
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (unsavedChanges) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
 
-  useEffect(() => {
-    localStorage.setItem('docetl_output', JSON.stringify(output));
-  }, [output]);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
-  useEffect(() => {
-    localStorage.setItem('docetl_terminalOutput', JSON.stringify(terminalOutput));
-  }, [terminalOutput]);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [unsavedChanges]);
 
-  useEffect(() => {
-    localStorage.setItem('docetl_isLoadingOutputs', JSON.stringify(isLoadingOutputs));
-  }, [isLoadingOutputs]);
-
-  useEffect(() => {
-    localStorage.setItem('docetl_numOpRun', JSON.stringify(numOpRun));
-  }, [numOpRun]);
-
-  useEffect(() => {
-    localStorage.setItem('docetl_pipelineName', JSON.stringify(pipelineName));
-  }, [pipelineName]);
-
-  useEffect(() => {
-    localStorage.setItem('docetl_sampleSize', JSON.stringify(sampleSize));
-  }, [sampleSize]);
-
-  useEffect(() => {
-    localStorage.setItem('docetl_files', JSON.stringify(files));
-  }, [files]);
-
-  useEffect(() => {
-    localStorage.setItem('docetl_cost', JSON.stringify(cost));
-  }, [cost]);
-
-  useEffect(() => {
-    localStorage.setItem('docetl_defaultModel', JSON.stringify(defaultModel));
-  }, [defaultModel]);
+  const contextValue: PipelineContextType = {
+    ...state,
+    setOperations: useCallback((value) => setStateAndUpdate('operations', value), [setStateAndUpdate]),
+    setCurrentFile: useCallback((value) => setStateAndUpdate('currentFile', value), [setStateAndUpdate]),
+    setOutput: useCallback((value) => setStateAndUpdate('output', value), [setStateAndUpdate]),
+    setTerminalOutput: useCallback((value) => setStateAndUpdate('terminalOutput', value), [setStateAndUpdate]),
+    setIsLoadingOutputs: useCallback((value) => setStateAndUpdate('isLoadingOutputs', value), [setStateAndUpdate]),
+    setNumOpRun: useCallback((value) => setStateAndUpdate('numOpRun', value), [setStateAndUpdate]),
+    setPipelineName: useCallback((value) => setStateAndUpdate('pipelineName', value), [setStateAndUpdate]),
+    setSampleSize: useCallback((value) => setStateAndUpdate('sampleSize', value), [setStateAndUpdate]),
+    setFiles: useCallback((value) => setStateAndUpdate('files', value), [setStateAndUpdate]),
+    setCost: useCallback((value) => setStateAndUpdate('cost', value), [setStateAndUpdate]),
+    setDefaultModel: useCallback((value) => setStateAndUpdate('defaultModel', value), [setStateAndUpdate]),
+    saveProgress,
+    unsavedChanges,
+    clearPipelineState,
+  };
 
   return (
-    <PipelineContext.Provider value={{
-      operations,
-      currentFile,
-      setOperations,
-      setCurrentFile,
-      output,
-      setOutput,
-      isLoadingOutputs,
-      setIsLoadingOutputs,
-      numOpRun,
-      setNumOpRun,
-      pipelineName,
-      setPipelineName,
-      sampleSize,
-      setSampleSize,
-      files,
-      setFiles,
-      cost,
-      setCost,
-      defaultModel,
-      setDefaultModel,
-      terminalOutput,
-      setTerminalOutput,
-    }}>
+    <PipelineContext.Provider value={contextValue}>
       {children}
     </PipelineContext.Provider>
   );

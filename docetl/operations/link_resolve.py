@@ -128,7 +128,8 @@ class LinkResolveOperation(BaseOperation):
 
 
         self.console.log(
-            f"[green]Number of replacements found: {len(self.replacements)}[/green]"
+            f"[green]Number of replacements found: {len(self.replacements)} "
+            f"({(len(self.replacements) / total_possible_comparisons) * 100:.2f}% of all comparisons)[/green]"
         )
                 
         for item in input_data:

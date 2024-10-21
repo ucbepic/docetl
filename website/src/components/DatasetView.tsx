@@ -1,14 +1,11 @@
 import { File } from '@/app/types';
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, ChevronDown, Search } from 'lucide-react';
 import BookmarkableText from '@/components/BookmarkableText';
-
-const CHUNK_SIZE = 100000; // This should match the CHUNK_SIZE in the API
 
 interface FileChunk {
   content: string;
@@ -46,27 +43,16 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
     error
   } = useInfiniteQuery<FileChunk, Error>({
     queryKey: ['fileContent', file?.path],
-    /* @ts-ignore */
-    queryFn: fetchFileContent, 
+    // @ts-ignore
+    queryFn: fetchFileContent,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.page + 1 : undefined,
     enabled: !!file?.path,
   });
 
   const lines = useMemo(() => {
-    /* @ts-ignore */
-    const fullContent = data?.pages.map(page => page.content).join('') ?? '';
-    return fullContent.split('\n');
+    // @ts-ignore
+    return data?.pages.flatMap(page => page.content.split('\n')) ?? [];
   }, [data]);
-
-  const rowVirtualizer = useVirtualizer({
-    count: lines.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 30,
-    overscan: 5,
-    measureElement: useCallback((element: any) => {
-      return element?.getBoundingClientRect().height || 30;
-    }, []),
-  });
 
   // Extract keys from the first valid JSON object in the data
   useMemo(() => {
@@ -104,17 +90,9 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
     }
   }, [lines]);
 
-  // Load more data when approaching the end of the list
-  useEffect(() => {
-    const lastItem = rowVirtualizer.getVirtualItems().at(-1);
-    if (lastItem && lastItem.index >= lines.length - 1 && hasNextPage && !isFetching) {
-      fetchNextPage();
-    }
-  }, [rowVirtualizer.getVirtualItems(), hasNextPage, isFetching, fetchNextPage, lines.length]);
-
   // Perform search and update matches
   useEffect(() => {
-    if (searchTerm) {
+    if (searchTerm.length >= 5) {
       const newMatches: Match[] = [];
       const regex = new RegExp(searchTerm, 'gi');
       lines.forEach((line, lineIndex) => {
@@ -129,14 +107,11 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
       });
       setMatches(newMatches);
       setCurrentMatchIndex(0);
-      if (newMatches.length > 0) {
-        rowVirtualizer.scrollToIndex(newMatches[0].lineIndex);
-      }
     } else {
       setMatches([]);
       setCurrentMatchIndex(0);
     }
-  }, [searchTerm, lines, rowVirtualizer]);
+  }, [searchTerm, lines]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,19 +124,28 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
     if (newIndex < 0) newIndex = matches.length - 1;
     if (newIndex >= matches.length) newIndex = 0;
     setCurrentMatchIndex(newIndex);
-    rowVirtualizer.scrollToIndex(matches[newIndex].lineIndex);
+
+    // Scroll to the new match
+    const matchElement = document.getElementById(`match-${newIndex}`);
+    if (matchElement) {
+      matchElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   };
 
   const highlightMatches = (text: string, lineIndex: number) => {
-    if (!searchTerm) return text;
+    if (!searchTerm || searchTerm.length < 5) return text;
     const parts = [];
     let lastIndex = 0;
-    matches.filter(match => match.lineIndex === lineIndex).forEach(match => {
+    matches.filter(match => match.lineIndex === lineIndex).forEach((match, index) => {
       if (lastIndex < match.startIndex) {
         parts.push(text.slice(lastIndex, match.startIndex));
       }
       parts.push(
-        <mark key={match.startIndex} className="bg-yellow-200">
+        <mark
+          key={match.startIndex}
+          id={`match-${matches.findIndex(m => m.lineIndex === lineIndex && m.startIndex === match.startIndex)}`}
+          className={`bg-yellow-200 ${currentMatchIndex === matches.findIndex(m => m.lineIndex === lineIndex && m.startIndex === match.startIndex) ? 'ring-2 ring-blue-500' : ''}`}
+        >
           {text.slice(match.startIndex, match.endIndex)}
         </mark>
       );
@@ -173,10 +157,30 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
     return parts;
   };
 
+  // Keep fetching in the background
+  useEffect(() => {
+    const fetchNextPageIfNeeded = () => {
+      if (hasNextPage && !isFetching) {
+        fetchNextPage();
+      }
+    };
+
+    const intervalId = setInterval(fetchNextPageIfNeeded, 1000); // Check every second
+
+    return () => clearInterval(intervalId);
+  }, [fetchNextPage, hasNextPage, isFetching]);
+
+  useEffect(() => {
+    // Scroll to the current match when it changes
+    const currentMatchElement = document.getElementById(`match-${currentMatchIndex}`);
+    if (currentMatchElement) {
+      currentMatchElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [currentMatchIndex]);
+
   if (isError) return <div>Error: {error.message}</div>;
 
   return (
-    <BookmarkableText source="dataset">
     <div className="h-full p-4 bg-white flex flex-col">
       <h2 className="text-lg font-bold mb-2">{file?.name}</h2>
       <div className="mb-4">
@@ -188,12 +192,12 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
       <form onSubmit={handleSearch} className="flex items-center mb-4">
         <Input
           type="text"
-          placeholder="Search..."
+          placeholder="Search (min 5 characters)..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mr-1"
         />
-        <Button type="submit" variant="outline" size="icon"><Search className="h-4 w-4" /></Button>
+        <Button type="submit" variant="outline" size="icon" disabled={searchTerm.length < 5}><Search className="h-4 w-4" /></Button>
         <Button type="button" size="icon" variant="outline" onClick={() => navigateMatch('prev')} disabled={matches.length === 0} className="ml-1">
           <ChevronUp className="h-4 w-4" />
         </Button>
@@ -204,44 +208,24 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
           {matches.length > 0 ? `${currentMatchIndex + 1} of ${matches.length} matches` : 'No matches'}
         </span>
       </form>
-      <div ref={parentRef} className="flex-grow overflow-auto">
-        <div
-          style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const lineContent = lines[virtualRow.index];
-
-            return (
-              <div
-                key={virtualRow.index}
-                data-index={virtualRow.index}
-                ref={rowVirtualizer.measureElement}
-                className="absolute top-0 left-0 w-full"
-                style={{
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <div className="flex">
-                  <span className="inline-block w-12 flex-shrink-0 text-gray-500 select-none text-right pr-2 py-1">
-                    {virtualRow.index + 1}
-                  </span>
-                  <div className="flex-grow overflow-hidden py-1">
-                    <pre className="whitespace-pre-wrap break-words font-mono text-sm">
-                      {highlightMatches(lineContent, virtualRow.index)}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <BookmarkableText source="dataset">
+      <div ref={parentRef} className="flex-grow overflow-y-auto">
+        {lines.map((lineContent, index) => (
+          <div key={index} className="flex">
+            <span className="inline-block w-12 flex-shrink-0 text-gray-500 select-none text-right pr-2">
+              {index + 1}
+            </span>
+            <div className="flex-grow">
+              <pre className="whitespace-pre-wrap break-words font-mono text-sm">
+                {highlightMatches(lineContent, index)}
+              </pre>
+            </div>
+          </div>
+        ))}
+        {isFetching && <div className="text-center py-4">Loading more...</div>}
       </div>
+      </BookmarkableText>
     </div>
-    </BookmarkableText>
   );
 };
 

@@ -13,7 +13,6 @@ import { FileExplorer } from '@/components/FileExplorer';
 import { PipelineProvider, usePipelineContext } from '@/contexts/PipelineContext';
 import DatasetView from '@/components/DatasetView';
 import PipelineGUI from '@/components/PipelineGui';
-import { useFileExplorer } from '@/hooks/useFileExplorer';
 import { BookmarkProvider } from '@/contexts/BookmarkContext';
 import BookmarksPanel from '@/components/BookmarksPanel';
 import {
@@ -128,8 +127,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
   
-  const { operations, currentFile, setOperations, setCurrentFile, cost } = usePipelineContext();
-  const { files, handleFileClick, handleFileUpload, handleFileDelete } = useFileExplorer();
+  const { operations, currentFile, setOperations, setCurrentFile, cost, files, setFiles } = usePipelineContext();
 
   const handleAddOperation = (llmType: string, type: string, name: string) => {
     const newOperation: Operation = {
@@ -247,11 +245,12 @@ const CodeEditorPipelineApp: React.FC = () => {
                   <FileExplorer 
                     files={files} 
                     onFileClick={(file) => {
-                      handleFileClick(file);
                       setCurrentFile(file);
                     }} 
-                    onFileUpload={handleFileUpload}
-                    onFileDelete={handleFileDelete}
+                    onFileUpload={(file: File) => setFiles(prevFiles => [...prevFiles, file])}
+                    onFileDelete={(file: File) => {
+                      setFiles(prevFiles => prevFiles.filter(f => f.name !== file.name));
+                    }}
                     setCurrentFile={setCurrentFile}
                     setShowDatasetView={setShowDatasetView}
                     currentFile={currentFile}

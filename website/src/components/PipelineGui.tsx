@@ -6,7 +6,7 @@ import { Droppable, DragDropContext } from 'react-beautiful-dnd';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { OperationCard } from '@/components/OperationCard';
 import { Button } from '@/components/ui/button';
-import { Plus, ChevronDown, Play, Settings, PieChart, Trash2, RefreshCw, Download, Upload } from 'lucide-react';
+import { Plus, ChevronDown, Play, Settings, PieChart, Trash2, RefreshCw, Download, Upload, FileUp, Save } from 'lucide-react';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -17,11 +17,24 @@ import { useWebSocket } from '@/contexts/WebSocketContext';
 import { Input } from "@/components/ui/input"
 import path from 'path';
 import { schemaDictToItemSet } from './utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+
+
 const PipelineGUI: React.FC<{ 
   onDragEnd: (result: DropResult) => void;
 }> = ({ onDragEnd }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { operations, setOperations, pipelineName, setPipelineName, sampleSize, setSampleSize, numOpRun, setNumOpRun, currentFile, setCurrentFile, output, setFiles, setOutput, isLoadingOutputs, setIsLoadingOutputs, files, setCost, defaultModel, setDefaultModel, setTerminalOutput } = usePipelineContext();
+  const { operations, setOperations, pipelineName, setPipelineName, sampleSize, setSampleSize, numOpRun, setNumOpRun, currentFile, setCurrentFile, output, unsavedChanges, setFiles, setOutput, isLoadingOutputs, setIsLoadingOutputs, files, setCost, defaultModel, setDefaultModel, setTerminalOutput, saveProgress, clearPipelineState } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempSampleSize, setTempSampleSize] = useState(sampleSize?.toString() || '');
@@ -42,7 +55,7 @@ const PipelineGUI: React.FC<{
         if (optimizedOp) {
           const { id, llmType, type, name, prompt, output, validate, sample, ...otherKwargs } = optimizedOp;
           const convertedOp = {
-            id: id || String(Date.now()),
+            id: id || crypto.randomUUID(),
             llmType: type === 'map' || type === 'reduce' || type === 'resolve' || type === 'filter' || type === 'parallel_map' ? 'LLM' : 'non-LLM',
             type: type,
             name: name || 'Untitled Operation',
@@ -84,6 +97,24 @@ const PipelineGUI: React.FC<{
     }
   }, [lastMessage, setCost, setIsLoadingOutputs, setTerminalOutput]);
 
+  useEffect(() => {
+    if (pipelineName) {
+      setTempPipelineName(pipelineName);
+    }
+  }, [pipelineName]);
+
+  useEffect(() => {
+    if (defaultModel) {
+      setTempDefaultModel(defaultModel);
+    }
+  }, [defaultModel]);
+
+  useEffect(() => {
+    if (currentFile) {
+      setTempCurrentFile(currentFile);
+    }
+  }, [currentFile]);
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -94,11 +125,21 @@ const PipelineGUI: React.FC<{
           try {
             const yamlFileName = file.name.split('/').pop()?.split('.')[0];
             const yamlContent = yaml.load(content) as any;
+            setOperations([]);
+
             // Update PipelineContext with the loaded YAML data
             setOperations((yamlContent.operations || []).map((op: any) => {
               const { id, llmType, type, name, prompt, output, validate, sample, ...otherKwargs } = op;
+
+              // If the operation type is 'reduce', ensure reduce_key is a list
+              if (type === 'reduce' && otherKwargs.reduce_key) {
+                otherKwargs.reduce_key = Array.isArray(otherKwargs.reduce_key)
+                  ? otherKwargs.reduce_key
+                  : [otherKwargs.reduce_key];
+              }
+
               return {
-                id: id || String(Date.now()),
+                id: id || crypto.randomUUID(),
                 llmType: type === 'map' || type === 'reduce' || type === 'resolve' || type === 'filter' || type === 'parallel_map' ? 'LLM' : 'non-LLM',
                 type: type as Operation['type'],
                 name: name || 'Untitled Operation',
@@ -116,17 +157,28 @@ const PipelineGUI: React.FC<{
             setDefaultModel(yamlContent.default_model || 'gpt-4o-mini');
             
             // Set current file if it exists in the YAML
-            if (yamlContent.datasets && yamlContent.datasets.input && yamlContent.datasets.input.path) {
-              let newCurrentFile = files.find(file => file.path === yamlContent.datasets.input.path);
-              if (!newCurrentFile) {
-                // If the file is not in files, add it
-                newCurrentFile = {
-                  name: path.basename(yamlContent.datasets.input.path),
-                  path: yamlContent.datasets.input.path,
-                };
-                setFiles((prevFiles: File[]) => [...prevFiles, newCurrentFile as File]);
+            // Look for paths in all datasets
+            const datasetPaths = Object.values(yamlContent.datasets || {})
+              .filter((dataset: any) => dataset.type === 'file' && dataset.path)
+              .map((dataset: any) => dataset.path);
+
+            if (datasetPaths.length > 0) {
+              const newFiles = datasetPaths.map(filePath => ({
+                name: path.basename(filePath),
+                path: filePath,
+              }));
+
+              setFiles((prevFiles: File[]) => {
+                const uniqueNewFiles = newFiles.filter(newFile => 
+                  !prevFiles.some(prevFile => prevFile.path === newFile.path)
+                );
+                return [...prevFiles, ...uniqueNewFiles];
+              });
+
+              // Set the first file as current if no current file exists
+              if (!currentFile) {
+                setCurrentFile(newFiles[0]);
               }
-              setCurrentFile(newCurrentFile);
             }
   
             toast({
@@ -318,13 +370,13 @@ const PipelineGUI: React.FC<{
       <div className="sticky top-0 z-10 p-2 bg-white">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
-            <h2 className="text-sm font-bold uppercase">{pipelineName.toUpperCase()}.yaml</h2>
+            <h2 className="text-sm font-bold uppercase">{pipelineName.toUpperCase()}</h2>
             {sampleSize && (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger>
                     <div className="flex items-center">
-                      <PieChart size={16} className="text-primary mr-1" />
+                      <PieChart size={16} className="text-primary mr-2" />
                       <span className="text-xs text-primary">{sampleSize} samples</span>
                     </div>
                   </TooltipTrigger>
@@ -336,11 +388,34 @@ const PipelineGUI: React.FC<{
                 </Tooltip>
               </TooltipProvider>
             )}
-          </div>
-          <div className="flex space-x-2">
-            <Button size="icon" variant="ghost" onClick={() => setIsSettingsOpen(true)}>
-              <Settings size={16} />
-            </Button>
+            <div className="flex p-0 space-x-0">
+            <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              saveProgress();
+              toast({
+                title: "Progress Saved",
+                description: "Your pipeline progress has been saved.",
+                duration: 3000,
+              });
+            }}
+            className={`relative ${unsavedChanges ? 'border-orange-500' : ''}`}
+          >
+            <Save size={16} className={unsavedChanges ? "text-orange-500" : ""} />
+            {unsavedChanges && (
+              <span className="absolute top-0 right-0 w-2 h-2 bg-orange-500 rounded-full" />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {unsavedChanges ? "Save changes to avoid losing progress!" : "No unsaved changes"}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
             <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -349,11 +424,11 @@ const PipelineGUI: React.FC<{
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload size={16} />
+                <FileUp size={16} />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Upload Pipeline YAML</p>
+              <p>Initialize from config file</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -376,10 +451,48 @@ const PipelineGUI: React.FC<{
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Export Pipeline YAML</p>
+                  <p>Download pipeline YAML</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-100"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Clear Pipeline State</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to clear the pipeline state? This will take you to a default pipeline and clear all notes and outputs. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={clearPipelineState}>Clear</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Clear pipeline state</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Button size="icon" variant="ghost" onClick={() => setIsSettingsOpen(true)}>
+              <Settings size={16} />
+            </Button>
+            </div>
+          </div>
+          <div className="flex space-x-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="rounded-sm">

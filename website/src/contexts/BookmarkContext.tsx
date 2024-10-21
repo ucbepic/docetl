@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Bookmark, BookmarkContextType, UserNote } from '@/app/types';
+import { BOOKMARKS_STORAGE_KEY } from '@/app/localStorageKeys'
 
 const BookmarkContext = createContext<BookmarkContextType | undefined>(undefined);
 
@@ -10,8 +11,6 @@ export const useBookmarkContext = () => {
   }
   return context;
 };
-
-const BOOKMARKS_STORAGE_KEY = 'docetl_bookmarks';
 
 export const BookmarkProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {

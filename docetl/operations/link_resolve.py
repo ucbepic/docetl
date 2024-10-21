@@ -183,7 +183,6 @@ class LinkResolveOperation(BaseOperation):
                 schema=schema,
                 manually_fix_errors=self.manually_fix_errors,
             )[0]
-            self.console.log("NNNNNNNNNNNNNNNNNNN\n%s\n%s\n\n" % (output,prompt))
             if output["is_same"]:
                 self.replacements[link_value] = id_value
 

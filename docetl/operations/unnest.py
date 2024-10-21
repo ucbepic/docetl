@@ -1,5 +1,5 @@
 import copy
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 from docetl.operations.base import BaseOperation
 
@@ -56,6 +56,14 @@ class UnnestOperation(BaseOperation):
     ```
     """
 
+    class schema(BaseOperation.schema):
+        type: str = "unnest"
+        unnest_key: str
+        keep_empty: Optional[bool] = None
+        expand_fields: Optional[List[str]] = None
+        recursive: Optional[bool] = None
+        depth: Optional[int] = None
+        
     def syntax_check(self) -> None:
         """
         Checks if the required configuration key is present in the operation's config.

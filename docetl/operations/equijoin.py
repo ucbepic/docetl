@@ -7,7 +7,7 @@ import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, cpu_count
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import numpy as np
 from jinja2 import Template
@@ -49,6 +49,24 @@ def process_left_item(
 
 
 class EquijoinOperation(BaseOperation):
+    class schema(BaseOperation.schema):
+        type: str = "equijoin"
+        left: str
+        right: str
+        comparison_prompt: str
+        output: Optional[Dict[str, Any]] = None
+        blocking_threshold: Optional[float] = None
+        blocking_conditions: Optional[Dict[str, List[str]]] = None
+        limits: Optional[Dict[str, int]] = None
+        comparison_model: Optional[str] = None
+        optimize: Optional[bool] = None
+        embedding_model: Optional[str] = None
+        embedding_batch_size: Optional[int] = None
+        compare_batch_size: Optional[int] = None
+        limit_comparisons: Optional[int] = None
+        blocking_keys: Optional[Dict[str, List[str]]] = None
+        timeout: Optional[int] = None
+    
     def compare_pair(
         self,
         comparison_prompt: str,

@@ -97,7 +97,7 @@ def test_pipeline_with_parsing(config_file):
 
             # Create and run the DSLRunner
             runner = DSLRunner.from_yaml(config_file)
-            total_cost = runner.run()
+            total_cost = runner.load_run_save()
 
             # Check if the output file was created
             assert os.path.exists(output_file.name), "Output file was not created"

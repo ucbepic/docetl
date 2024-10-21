@@ -34,6 +34,8 @@ azure-ai-documentintelligence = { version = "^1.0.0b4", optional = true }
 paddlepaddle = { version = "^2.6.2", optional = true }
 paddleocr = { version = "^2.8.1", optional = true }
 pymupdf = { version = "^1.24.10", optional = true }
+jsonschema = "^4.23.0"
+rapidfuzz = "^3.10.0"
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "paddleocr", "pymupdf"]

@@ -2,15 +2,33 @@
 The BaseOperation class is an abstract base class for all operations in the docetl framework. It provides a common structure and interface for various data processing operations.
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
 from docetl.operations.utils import APIWrapper
 from rich.console import Console
 from rich.status import Status
+import jsonschema
+from pydantic import BaseModel
 
 
-class BaseOperation(ABC):
+# FIXME: This should probably live in some utils module?
+class classproperty(object):
+    def __init__(self, f):
+        self.f = f
+
+    def __get__(self, obj, owner):
+        return self.f(owner)
+
+
+class BaseOperationMeta(ABCMeta):
+    def __new__(cls, *arg, **kw):
+        self = ABCMeta.__new__(cls, *arg, **kw)
+        self.schema.__name__ = self.__name__
+        return self
+
+
+class BaseOperation(ABC, metaclass=BaseOperationMeta):
     def __init__(
         self,
         runner: "ConfigWrapper",
@@ -45,6 +63,21 @@ class BaseOperation(ABC):
         )
         self.syntax_check()
 
+    # This must be overridden in a subclass
+    class schema(BaseModel, extra="allow"):
+        name: str
+        type: str
+
+    @classproperty
+    def json_schema(cls):
+        assert hasattr(
+            cls.schema, "model_json_schema"
+        ), "Programming error: %s.schema must be a pydantic object but is a %s" % (
+            cls,
+            type(cls.schema),
+        )
+        return cls.schema.model_json_schema()
+
     @abstractmethod
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
@@ -73,7 +106,7 @@ class BaseOperation(ABC):
         Raises:
             ValueError: If the configuration is invalid.
         """
-        pass
+        jsonschema.validate(instance=self.config, schema=self.json_schema)
 
     def gleaning_check(self) -> None:
         """

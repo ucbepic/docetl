@@ -83,13 +83,10 @@ class LinkResolveOperation(BaseOperation):
 
         similarity_matrix = cosine_similarity(link_embeddings, id_embeddings)
 
-        closest = np.argmin(similarity_matrix, axis=1)
-        acceptable = similarity_matrix.min(axis=1) >= blocking_threshold
+        acceptable = similarity_matrix >= blocking_threshold
 
-        acceptable_idxs = np.nonzero(acceptable)[0]
-
-        total_possible_comparisons = len(acceptable)
-        comparisons_saved = total_possible_comparisons - acceptable.sum()
+        total_possible_comparisons = acceptable.shape[0] * acceptable.shape[1]
+        comparisons_saved = total_possible_comparisons - acceptable.sum().sum()
         
         self.console.log(
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
@@ -98,25 +95,26 @@ class LinkResolveOperation(BaseOperation):
         
         self.replacements = {}
 
-
         batch_size = self.config.get("compare_batch_size", 100)
         with ThreadPoolExecutor(max_workers=batch_size) as executor:
 
             futures = []
-            for link_idx in acceptable_idxs:
-                id_idx = closest[link_idx]
-                id_value = id_values[id_idx]
-                link_value = to_resolve[link_idx]
-                item = item_by_id[id_value]
+            for link_idx in range(acceptable.shape[0]):
+                for id_idx in range(acceptable.shape[1]):
+                    if not acceptable[link_idx, id_idx]: continue
 
-                futures.append(
-                    executor.submit(
-                        self.compare,
-                        link_idx = link_idx,
-                        id_idx = id_idx,
-                        link_value = link_value,
-                        id_value = id_value,
-                        item = item))
+                    id_value = id_values[id_idx]
+                    link_value = to_resolve[link_idx]
+                    item = item_by_id[id_value]
+
+                    futures.append(
+                        executor.submit(
+                            self.compare,
+                            link_idx = link_idx,
+                            id_idx = id_idx,
+                            link_value = link_value,
+                            id_value = id_value,
+                            item = item))
 
             total_cost = 0
             pbar = RichLoopBar(
@@ -177,12 +175,14 @@ class LinkResolveOperation(BaseOperation):
             ),
             verbose=self.config.get("verbose", False),
         )
+        
         if response.validated:
             output = self.runner.api.parse_llm_response(
                 response.response,
                 schema=schema,
                 manually_fix_errors=self.manually_fix_errors,
             )[0]
+            self.console.log("NNNNNNNNNNNNNNNNNNN\n%s\n%s\n\n" % (output,prompt))
             if output["is_same"]:
                 self.replacements[link_value] = id_value
 

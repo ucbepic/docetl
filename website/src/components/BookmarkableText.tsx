@@ -117,6 +117,7 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
       ref={textRef}
       onMouseUp={handleMultiElementSelection}
       onTouchEnd={handleMultiElementSelection}
+      className="overflow-y-auto"
     >
       {children}
       {showButton && (

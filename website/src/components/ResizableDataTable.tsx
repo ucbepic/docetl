@@ -27,6 +27,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { TABLE_SETTINGS_KEY } from '@/app/localStorageKeys'
 
 export type DataType = Record<string, any>
 export type ColumnType<T extends DataType> = ColumnDef<T> & { initialWidth?: number }
@@ -84,7 +85,6 @@ const RowResizer = <T extends DataType>({ row, saveSettings }: { row: ResizableR
   );
 };
 
-const TABLE_SETTINGS_KEY = 'resizable-data-table-settings';
 
 interface ResizableDataTableProps<T extends DataType> {
     data: T[];

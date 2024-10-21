@@ -19,6 +19,7 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 ## Cool Things People Are Doing with DocETL
 
 - [Conversation Generator](https://github.com/redhog/docetl-conversation)
+- [Text-to-speech](https://github.com/redhog/docetl-speaker)
 - [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
 
 ## Installation

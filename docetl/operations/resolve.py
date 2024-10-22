@@ -15,6 +15,13 @@ from docetl.operations.utils import RichLoopBar, rich_as_completed
 from docetl.utils import completion_cost, extract_jinja_variables
 
 
+def find_cluster(item, cluster_map):
+    while item != cluster_map[item]:
+        cluster_map[item] = cluster_map[cluster_map[item]]
+        item = cluster_map[item]
+    return item
+
+
 class ResolveOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "resolve"
@@ -33,7 +40,7 @@ class ResolveOperation(BaseOperation):
         limit_comparisons: Optional[int] = None
         optimize: Optional[bool] = None
         timeout: Optional[int] = None
-        
+
     def compare_pair(
         self,
         comparison_prompt: str,
@@ -285,32 +292,33 @@ class ResolveOperation(BaseOperation):
 
                 total_cost += sum(costs)
 
-        # Initialize clusters
-        clusters = [{i} for i in range(len(input_data))]
-        cluster_map = {i: i for i in range(len(input_data))}
+        # Generate all pairs to compare, ensuring no duplicate comparisons
+        def get_unique_comparison_pairs():
+            # Create a mapping of values to their indices
+            value_to_indices = {}
+            for i, item in enumerate(input_data):
+                # Create a hashable key from the blocking keys
+                key = tuple(str(item.get(k, "")) for k in blocking_keys)
+                if key not in value_to_indices:
+                    value_to_indices[key] = []
+                value_to_indices[key].append(i)
 
-        def find_cluster(item):
-            while item != cluster_map[item]:
-                cluster_map[item] = cluster_map[cluster_map[item]]
-                item = cluster_map[item]
-            return item
+            # Generate pairs for comparison, comparing each unique value combination only once
+            comparison_pairs = []
+            keys = list(value_to_indices.keys())
 
-        def merge_clusters(item1, item2):
-            root1, root2 = find_cluster(item1), find_cluster(item2)
-            if root1 != root2:
-                if len(clusters[root1]) < len(clusters[root2]):
-                    root1, root2 = root2, root1
-                clusters[root1] |= clusters[root2]
-                cluster_map[root2] = root1
-                clusters[root2] = set()
+            # First, handle comparisons between different values
+            for i in range(len(keys)):
+                for j in range(i + 1, len(keys)):
+                    # Only need one comparison between different values
+                    idx1 = value_to_indices[keys[i]][0]
+                    idx2 = value_to_indices[keys[j]][0]
+                    if idx1 < idx2:  # Maintain ordering to avoid duplicates
+                        comparison_pairs.append((idx1, idx2))
 
-        # Generate all pairs to compare
-        # TODO: virtualize this if possible
-        all_pairs = [
-            (i, j)
-            for i in range(len(input_data))
-            for j in range(i + 1, len(input_data))
-        ]
+            return comparison_pairs, value_to_indices
+
+        comparison_pairs, value_to_indices = get_unique_comparison_pairs()
 
         # Filter pairs based on blocking conditions
         def meets_blocking_conditions(pair):
@@ -319,7 +327,7 @@ class ResolveOperation(BaseOperation):
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
-        blocked_pairs = list(filter(meets_blocking_conditions, all_pairs))
+        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs))
 
         # Apply limit_comparisons to blocked pairs
         if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
@@ -327,6 +335,10 @@ class ResolveOperation(BaseOperation):
                 f"Randomly sampling {limit_comparisons} pairs out of {len(blocked_pairs)} blocked pairs."
             )
             blocked_pairs = random.sample(blocked_pairs, limit_comparisons)
+
+        # Initialize clusters with all indices
+        clusters = [{i} for i in range(len(input_data))]
+        cluster_map = {i: i for i in range(len(input_data))}
 
         # If there are remaining comparisons, fill with highest cosine similarities
         remaining_comparisons = (
@@ -341,8 +353,10 @@ class ResolveOperation(BaseOperation):
             similarity_matrix = cosine_similarity(embeddings)
 
             cosine_pairs = []
-            for i, j in all_pairs:
-                if (i, j) not in blocked_pairs and find_cluster(i) != find_cluster(j):
+            for i, j in comparison_pairs:
+                if (i, j) not in blocked_pairs and find_cluster(
+                    i, cluster_map
+                ) != find_cluster(j, cluster_map):
                     similarity = similarity_matrix[i, j]
                     if similarity >= blocking_threshold:
                         cosine_pairs.append((i, j, similarity))
@@ -356,11 +370,43 @@ class ResolveOperation(BaseOperation):
             else:
                 blocked_pairs.extend((i, j) for i, j, _ in cosine_pairs)
 
-        filtered_pairs = blocked_pairs
+        # Modified merge_clusters to handle all indices with the same value
+
+        def merge_clusters(item1, item2):
+            root1, root2 = find_cluster(item1, cluster_map), find_cluster(
+                item2, cluster_map
+            )
+            if root1 != root2:
+                if len(clusters[root1]) < len(clusters[root2]):
+                    root1, root2 = root2, root1
+                clusters[root1] |= clusters[root2]
+                cluster_map[root2] = root1
+                clusters[root2] = set()
+
+                # Also merge all other indices that share the same values
+                key1 = tuple(str(input_data[item1].get(k, "")) for k in blocking_keys)
+                key2 = tuple(str(input_data[item2].get(k, "")) for k in blocking_keys)
+
+                # Merge all indices with the same values
+                for idx in value_to_indices.get(key1, []):
+                    if idx != item1:
+                        root_idx = find_cluster(idx, cluster_map)
+                        if root_idx != root1:
+                            clusters[root1] |= clusters[root_idx]
+                            cluster_map[root_idx] = root1
+                            clusters[root_idx] = set()
+
+                for idx in value_to_indices.get(key2, []):
+                    if idx != item2:
+                        root_idx = find_cluster(idx, cluster_map)
+                        if root_idx != root1:
+                            clusters[root1] |= clusters[root_idx]
+                            cluster_map[root_idx] = root1
+                            clusters[root_idx] = set()
 
         # Calculate and print statistics
         total_possible_comparisons = len(input_data) * (len(input_data) - 1) // 2
-        comparisons_made = len(filtered_pairs)
+        comparisons_made = len(blocked_pairs)
         comparisons_saved = total_possible_comparisons - comparisons_made
         self.console.log(
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
@@ -372,12 +418,12 @@ class ResolveOperation(BaseOperation):
         pair_costs = 0
 
         pbar = RichLoopBar(
-            range(0, len(filtered_pairs), batch_size),
+            range(0, len(blocked_pairs), batch_size),
             desc=f"Processing batches of {batch_size} LLM comparisons",
             console=self.console,
         )
         for i in pbar:
-            batch = filtered_pairs[i : i + batch_size]
+            batch = blocked_pairs[i : i + batch_size]
 
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 future_to_pair = {

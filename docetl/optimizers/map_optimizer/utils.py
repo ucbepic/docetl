@@ -27,6 +27,7 @@ def generate_and_validate_prompt(
     config: Dict[str, Any],
     max_threads: int,
     console: Console,
+    inclusion_strings: List = [],
 ) -> Dict[str, Any]:
     max_retries = 3
     attempt = 0
@@ -42,6 +43,9 @@ def generate_and_validate_prompt(
                 parameters,
             )
             result = json.loads(response.choices[0].message.content)
+            for inclusion_string in inclusion_strings:
+                assert inclusion_string in str(result)
+
             chat_history += [
                 {"role": "assistant", "content": result},
             ]
@@ -78,6 +82,8 @@ def generate_and_validate_prompt(
 
         except jinja2.exceptions.TemplateError as e:
             error_message = f"Invalid Jinja2 template: {str(e)}"
+        except AssertionError:
+            error_message = f"Generated prompt does not include all required strings: {inclusion_strings}"
         except Exception as e:
             # We only care about jinja errors
             console.log(f"Error: {e}")

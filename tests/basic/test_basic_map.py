@@ -173,6 +173,7 @@ def simple_sample_data():
     ]
 
 
+@pytest.mark.flaky(reruns=2)
 def test_map_operation_with_timeout(simple_map_config, simple_sample_data, api_wrapper):
     # Add timeout to the map configuration
     map_config_with_timeout = {

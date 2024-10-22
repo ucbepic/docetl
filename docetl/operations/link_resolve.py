@@ -159,7 +159,7 @@ class LinkResolveOperation(BaseOperation):
 
         response = self.runner.api.call_llm(
             model=self.config.get("comparison_model", self.default_model),
-            op_type="cluster",
+            op_type="link_resolve",
             messages=[{"role": "user", "content": prompt}],
             output_schema=schema,
             timeout_seconds=self.config.get("timeout", 120),

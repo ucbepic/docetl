@@ -374,6 +374,27 @@ class DSLRunner(ConfigWrapper):
             if self.intermediate_dir:
                 self._save_checkpoint(step["name"], operation_name, input_data)
 
+                # Load existing step op hash, if exists, merge self.step_op_hashes[step["name"]][operation_name] into it
+                # Save the step op hash
+                intermediate_config_path = os.path.join(
+                    self.intermediate_dir, ".docetl_intermediate_config.json"
+                )
+                if os.path.exists(intermediate_config_path):
+                    with open(intermediate_config_path, "r") as f:
+                        existing_config = json.load(f)
+                else:
+                    existing_config = {}
+
+                if step["name"] not in existing_config:
+                    existing_config[step["name"]] = {}
+                existing_config[step["name"]][operation_name] = self.step_op_hashes[
+                    step["name"]
+                ][operation_name]
+
+                # Resave
+                with open(intermediate_config_path, "w") as f:
+                    json.dump(existing_config, f, indent=2)
+
         return input_data, total_cost
 
     def _load_from_checkpoint_if_exists(

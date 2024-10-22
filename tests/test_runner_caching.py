@@ -1,3 +1,4 @@
+import shutil
 import time
 import pytest
 import json
@@ -118,3 +119,75 @@ def test_pipeline_rerun_on_operation_change(
 
     # Check that the runtime is faster when not modifying
     assert unmodified_runtime < modified_runtime
+
+
+# Test with an incorrect later operation but correct earlier operation
+def test_partial_caching(temp_input_file, temp_output_file, temp_intermediate_dir):
+    # Create initial pipeline with two operations
+    initial_pipeline = Pipeline(
+        name="test_pipeline",
+        datasets={"test_input": Dataset(type="file", path=temp_input_file)},
+        operations=[
+            MapOp(
+                name="first_operation",
+                type="map",
+                prompt="Analyze the sentiment of the following text: '{{ input.text }}'",
+                output={"schema": {"sentiment": "string"}},
+                model="gpt-4o-mini",
+            ),
+            MapOp(
+                name="second_operation_bad",
+                type="map",
+                prompt="Summarize the following text: '{{ forororororo }}'",
+                output={"schema": {"summary": "1000"}},
+                model="gpt-4o-mini",
+            ),
+        ],
+        steps=[
+            PipelineStep(
+                name="first_step",
+                input="test_input",
+                operations=["first_operation", "second_operation_bad"],
+            ),
+        ],
+        output=PipelineOutput(
+            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
+        ),
+        default_model="gpt-4o-mini",
+    )
+
+    # Run the initial pipeline
+    # Run the initial pipeline with an expected error
+    with pytest.raises(Exception):
+        initial_cost = initial_pipeline.run()
+
+    new_pipeline_with_only_one_op = Pipeline(
+        name="test_pipeline",
+        datasets={"test_input": Dataset(type="file", path=temp_input_file)},
+        operations=[
+            MapOp(
+                name="first_operation",
+                type="map",
+                prompt="Analyze the sentiment of the following text: '{{ input.text }}'",
+                output={"schema": {"sentiment": "string"}},
+                model="gpt-4o-mini",
+            ),
+        ],
+        steps=[
+            PipelineStep(
+                name="first_step",
+                input="test_input",
+                operations=["first_operation"],
+            ),
+        ],
+        output=PipelineOutput(
+            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
+        ),
+        default_model="gpt-4o-mini",
+    )
+    rerun_cost = new_pipeline_with_only_one_op.run()
+
+    # Assert that the cost was 0 when rerunning the pipeline
+    assert (
+        rerun_cost == 0
+    ), "Expected zero cost when rerunning the pipeline without changes"

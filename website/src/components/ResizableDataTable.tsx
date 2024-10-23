@@ -89,12 +89,14 @@ const RowResizer = <T extends DataType>({ row, saveSettings }: { row: ResizableR
 interface ResizableDataTableProps<T extends DataType> {
     data: T[];
     columns: ColumnType<T>[];
+    boldedColumns: string[];
     startingRowHeight?: number;
   }
   
   function ResizableDataTable<T extends DataType>({ 
     data, 
     columns, 
+    boldedColumns,
     startingRowHeight = 60  // Default starting height
   }: ResizableDataTableProps<T>) {
     const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
@@ -141,9 +143,22 @@ interface ResizableDataTableProps<T extends DataType> {
       setColumnVisibility(initialColumnVisibility);
     }, [data, startingRowHeight, columns]);
   
+    // Add this before creating the table instance
+    const sortedColumns = [...columns].sort((a, b) => {
+      const aHeader = a.header as string;
+      const bHeader = b.header as string;
+      const aIsBold = boldedColumns.includes(aHeader);
+      const bIsBold = boldedColumns.includes(bHeader);
+      
+      if (aIsBold && !bIsBold) return -1;
+      if (!aIsBold && bIsBold) return 1;
+      return 0;
+    });
+
     const table = useReactTable({
       data,
-      columns,
+      // Replace columns with sortedColumns here
+      columns: sortedColumns,
       columnResizeMode: 'onChange' as ColumnResizeMode,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
@@ -232,6 +247,7 @@ interface ResizableDataTableProps<T extends DataType> {
                       position: 'relative',
                       minWidth: `${header.column.columnDef.minSize}px`,
                       maxWidth: `${header.column.columnDef.maxSize}px`,
+                      fontWeight: boldedColumns.includes(header.column.columnDef.header as string) ? 'bold' : 'normal',
                     }}
                   >
                     {header.isPlaceholder
@@ -271,6 +287,7 @@ interface ResizableDataTableProps<T extends DataType> {
                           height: '100%',
                           overflowY: 'auto',
                           padding: '0.5rem',
+                          fontWeight: 'normal',
                         }}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

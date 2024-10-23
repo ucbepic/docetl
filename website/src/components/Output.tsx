@@ -133,7 +133,7 @@ export const Output: React.FC = () => {
   }, [output, operation]);
 
   const columns: ColumnType<any>[] = React.useMemo(() => {
-    const importantColumns = operation?.output?.schema ? Object.keys(operation.output.schema) : [];
+    const importantColumns = operation?.output?.schema ? operation.output.schema.map(field => field.key) : [];
 
     return outputs.length > 0
       ? Object.keys(outputs[0]).map((key) => ({
@@ -163,6 +163,7 @@ export const Output: React.FC = () => {
         <ResizableDataTable
           data={outputs}
           columns={columns}
+          boldedColumns={operation?.output?.schema ? operation.output.schema.map(field => field.key) : []}
           startingRowHeight={180}
         />
         </BookmarkableText>

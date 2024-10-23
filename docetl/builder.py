@@ -474,7 +474,7 @@ class Optimizer:
         else:
             self.console.log("[yellow]No optimized operations found[/yellow]")
 
-    def optimize(self):
+    def optimize(self) -> float:
         """
         Optimize the entire pipeline defined in the configuration.
 
@@ -601,6 +601,8 @@ class Optimizer:
         self.console.log(
             f"[bold]Total cost: ${self.llm_client.total_cost + self.operations_cost:.2f}[/bold]"
         )
+
+        return self.llm_client.total_cost + self.operations_cost
 
     def _run_partial_step(
         self,

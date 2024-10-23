@@ -80,7 +80,7 @@ def test_synth_resolve(config_yaml):
     runner = DSLRunner.from_yaml(config_yaml)
 
     # Run the optimization
-    optimized_config = runner.optimize(save=True, return_pipeline=False)
+    optimized_config, _ = runner.optimize(save=True, return_pipeline=False)
 
     # Check if a resolve operation was synthesized
     synthesized_resolve_found = False

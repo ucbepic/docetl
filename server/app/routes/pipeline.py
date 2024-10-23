@@ -1,4 +1,3 @@
-from docetl.builder import Optimizer
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from server.app.models import PipelineRequest
 from docetl.runner import DSLRunner
@@ -12,7 +11,7 @@ router = APIRouter()
 def run_pipeline(request: PipelineRequest):
     try:
         runner = DSLRunner.from_yaml(request.yaml_config)
-        cost = runner.run()
+        cost = runner.load_run_save()
         return {"cost": cost, "message": "Pipeline executed successfully"}
     except Exception as e:
         print(e)
@@ -24,11 +23,7 @@ async def websocket_run_pipeline(websocket: WebSocket):
     await websocket.accept()
     try:
         config = await websocket.receive_json()
-        runner = (
-            DSLRunner.from_yaml(config["yaml_config"])
-            if not config.get("optimize", False)
-            else Optimizer.from_yaml(config["yaml_config"])
-        )
+        runner = DSLRunner.from_yaml(config["yaml_config"])
 
         if config.get("clear_intermediate", False):
             runner.clear_intermediate()
@@ -36,12 +31,12 @@ async def websocket_run_pipeline(websocket: WebSocket):
         if config.get("optimize", False):
 
             async def run_pipeline():
-                return await asyncio.to_thread(runner.optimize)
+                return await asyncio.to_thread(runner.optimize, return_pipeline=False)
 
         else:
 
             async def run_pipeline():
-                return await asyncio.to_thread(runner.run)
+                return await asyncio.to_thread(runner.load_run_save)
 
         pipeline_task = asyncio.create_task(run_pipeline())
 
@@ -62,7 +57,7 @@ async def websocket_run_pipeline(websocket: WebSocket):
             await asyncio.sleep(0.5)
 
         # Final check to send any remaining output
-        cost = await pipeline_task
+        result = await pipeline_task
 
         console_output = runner.console.file.getvalue()
         if console_output:
@@ -73,7 +68,7 @@ async def websocket_run_pipeline(websocket: WebSocket):
 
         # If optimize is true, send back the optimized operations
         if config.get("optimize", False):
-            optimized_config = runner.clean_optimized_config()
+            optimized_config, cost = result
             # find the operation that has optimize = true
             optimized_op = None
             for op in optimized_config["operations"]:
@@ -102,7 +97,7 @@ async def websocket_run_pipeline(websocket: WebSocket):
                     "type": "result",
                     "data": {
                         "message": "Pipeline executed successfully",
-                        "cost": cost,
+                        "cost": result,
                     },
                 }
             )

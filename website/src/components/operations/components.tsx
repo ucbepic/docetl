@@ -830,6 +830,141 @@ export const ParallelMapOperationComponent: React.FC<OperationComponentProps> = 
   );
 };
 
+export const SampleOperationComponent: React.FC<OperationComponentProps> = ({ operation, onUpdate, isSchemaExpanded, onToggleSchema }) => {
+  const handleChange = (field: string, value: any) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        [field]: value
+      }
+    });
+  };
+
+  const handleMethodKwargsChange = (field: string, value: any) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        method_kwargs: {
+          ...operation.otherKwargs?.method_kwargs,
+          [field]: value
+        }
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-4 mb-2">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="method">Method</Label>
+          <Select
+            value={operation.otherKwargs?.method || ''}
+            onValueChange={(value) => handleChange('method', value)}
+          >
+            <SelectTrigger id="method">
+              <SelectValue placeholder="Select a method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="uniform">Uniform</SelectItem>
+              <SelectItem value="stratify">Stratify</SelectItem>
+              <SelectItem value="outliers">Outliers</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="samples">Samples</Label>
+          {operation.otherKwargs?.method === 'custom' ? (
+            <Textarea
+              id="samples"
+              value={operation.otherKwargs?.samples || ''}
+              onChange={(e) => handleChange('samples', e.target.value)} 
+              placeholder="Enter JSON key-value pairs"
+              className={`font-mono ${(() => {
+                try {
+                  const value = operation.otherKwargs?.samples;
+                  if (!value) return '';
+                  const parsed = JSON.parse(value);
+                  if (!Array.isArray(parsed) || !parsed.every(item => typeof item === 'object')) {
+                    return 'border-red-500';
+                  }
+                  return '';
+                } catch {
+                  return 'border-red-500';
+                }
+              })()}`}
+            />
+          ) : (
+            <Input
+              id="samples"
+              type="text"
+              value={operation.otherKwargs?.samples || ''}
+              onChange={(e) => handleChange('samples', e.target.value)}
+              placeholder="Number or fraction of samples"
+            />
+          )}
+        </div>
+      </div>
+      {operation.otherKwargs?.method === 'stratify' && (
+        <div>
+          <Label htmlFor="stratify_key">Stratify Key</Label>
+          <Input
+            id="stratify_key"
+            type="text"
+            value={operation.otherKwargs?.method_kwargs?.stratify_key || ''}
+            onChange={(e) => handleMethodKwargsChange('stratify_key', e.target.value)}
+            placeholder="Key to stratify by"
+          />
+        </div>
+      )}
+      {operation.otherKwargs?.method === 'outliers' && (
+        <>
+          <div>
+            <Label htmlFor="embedding_keys">Embedding Keys</Label>
+            <Input
+              id="embedding_keys"
+              type="text"
+              value={operation.otherKwargs?.method_kwargs?.embedding_keys?.join(', ') || ''}
+              onChange={(e) => handleMethodKwargsChange('embedding_keys', e.target.value.split(', '))}
+              placeholder="Comma-separated list of keys"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="std">Standard Deviations</Label>
+              <Input
+                id="std"
+                type="number"
+                value={operation.otherKwargs?.method_kwargs?.std || ''}
+                onChange={(e) => handleMethodKwargsChange('std', parseFloat(e.target.value))}
+                placeholder="Number of standard deviations"
+              />
+            </div>
+            <div>
+              <Label htmlFor="keep">Keep Outliers</Label>
+              <Select
+                value={operation.otherKwargs?.method_kwargs?.keep?.toString() || ''}
+                onValueChange={(value) => handleMethodKwargsChange('keep', value === 'true')}
+              >
+                <SelectTrigger id="keep">
+                  <SelectValue placeholder="Select option" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Keep</SelectItem>
+                  <SelectItem value="false">Remove</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+
 
 export default function createOperationComponent(operation: Operation, onUpdate: (updatedOperation: Operation) => void, isSchemaExpanded: boolean, onToggleSchema: () => void) {
 
@@ -899,6 +1034,16 @@ export default function createOperationComponent(operation: Operation, onUpdate:
           onToggleSchema={onToggleSchema}
         />
       );
+    case 'sample':
+      return (
+        <SampleOperationComponent
+          operation={operation}
+          onUpdate={onUpdate}
+          isSchemaExpanded={isSchemaExpanded}
+          onToggleSchema={onToggleSchema}
+        />
+      );
+
 
     default:
       console.warn(`Unsupported operation type: ${operation.type}`);

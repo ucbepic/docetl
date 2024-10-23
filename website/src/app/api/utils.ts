@@ -70,6 +70,15 @@ export function generatePipelineConfig(
       }
     };
 
+    // If it's a sample operation with custom method, parse the samples as key-value pairs
+    if (op.type === 'sample' && op.otherKwargs?.method === 'custom') {
+      try {
+        newOp.samples = JSON.parse(op.otherKwargs.samples);
+      } catch (e) {
+        console.warn('Failed to parse custom samples as JSON, using raw value');
+      }
+    }
+
     return {
       ...newOp,
       output: {

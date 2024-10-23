@@ -494,7 +494,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           <>[ ]</>
         )}
       </div>
-    <Draggable draggableId={operation.id} index={index}>
+    <Draggable draggableId={operation.id} index={index} key={operation.id}>
       {(provided) => (
         <Card 
           ref={provided.innerRef} 

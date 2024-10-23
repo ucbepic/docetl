@@ -9,38 +9,38 @@ export const initialOperations: Operation[] = [
     id: '1',
     llmType: 'LLM',
     type: 'map',
-    name: 'extract_themes',
-    prompt: 'list the themes discussed in the debate. here is the transcript: \n {{ input.content }}',
+    name: 'extract_funny_quotes',
+    prompt: 'list the funniest quotes in this presidential debate, {{ input.date }}. here is the transcript: \n {{ input.content }}',
     output: {
       schema: [
-        { key: 'theme', type: 'list', subType: { key: 'theme', type: 'string' } }
+        { key: 'quote', type: 'list', subType: { key: 'quote', type: 'string' } }
       ]
     }
   },
-  {
-    id: '2',
-    llmType: 'non-LLM',
-    type: 'unnest',
-    name: 'unnest_themes',
-    otherKwargs: {
-      unnest_key: 'theme',
-    }
-  },
-  {
-    id: '3',
-    llmType: 'LLM',
-    type: 'resolve',
-    name: 'resolve_themes',
-    otherKwargs: {
-      comparison_prompt: 'Are {{ input1.theme }} and {{ input2.theme }} very related?',
-      resolution_prompt: 'What is a canonical name for the theme? Canonicalize the following themes: {% for input in inputs %} {{ input.theme }} {% endfor %}',
-    },
-    output: {
-      schema: [
-        { key: 'theme', type: 'string' }
-      ]
-    }
-  },
+  // {
+  //   id: '2',
+  //   llmType: 'non-LLM',
+  //   type: 'unnest',
+  //   name: 'unnest_themes',
+  //   otherKwargs: {
+  //     unnest_key: 'theme',
+  //   }
+  // },
+  // {
+  //   id: '3',
+  //   llmType: 'LLM',
+  //   type: 'resolve',
+  //   name: 'resolve_themes',
+  //   otherKwargs: {
+  //     comparison_prompt: 'Are {{ input1.theme }} and {{ input2.theme }} very related?',
+  //     resolution_prompt: 'What is a canonical name for the theme? Canonicalize the following themes: {% for input in inputs %} {{ input.theme }} {% endfor %}',
+  //   },
+  //   output: {
+  //     schema: [
+  //       { key: 'theme', type: 'string' }
+  //     ]
+  //   }
+  // },
   // {
   //   id: '4',
   //   llmType: 'LLM',

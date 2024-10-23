@@ -6,7 +6,7 @@ export type File = {
 export type Operation = {
     id: string;
     llmType: 'LLM' | 'non-LLM';
-    type: 'map' | 'reduce' | 'filter' | 'resolve' | 'parallel_map' | 'unnest' | 'split' | 'gather';
+    type: 'map' | 'reduce' | 'filter' | 'resolve' | 'parallel_map' | 'unnest' | 'split' | 'gather' | 'sample';
     name: string;
     prompt?: string;
     output?: {schema: SchemaItem[]};

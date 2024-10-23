@@ -35,6 +35,27 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarTrigger,
+} from "@/components/ui/menubar"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { saveToFile, loadFromFile, saveToFileClassic, loadFromFileClassic } from '@/utils/fileOperations';
+import * as localStorageKeys from '@/app/localStorageKeys';
+import { toast } from '@/hooks/use-toast';
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
@@ -130,23 +151,116 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
   
-  const { operations, currentFile, setOperations, setCurrentFile, cost, files, setFiles } = usePipelineContext();
+  const { operations, currentFile, setOperations, setCurrentFile, cost, files, setFiles, clearPipelineState, saveProgress } = usePipelineContext();
 
-  const handleAddOperation = (llmType: string, type: string, name: string) => {
-    const newOperation: Operation = {
-      id: String(Date.now()),
-      llmType: llmType as 'LLM' | 'non-LLM',
-      type: type as 'map' | 'reduce' | 'filter' | 'resolve' | 'parallel_map' | 'unnest' | 'split' | 'gather' ,
-      name: name,
-    };
-    setOperations([...operations, newOperation]);
+  const handleSaveAs = async () => {
+    try {
+      // Collect all localStorage data
+      const data: Record<string, any> = {};
+      Object.values(localStorageKeys).forEach(key => {
+        const value = localStorage.getItem(key);
+        if (value) {
+          data[key] = JSON.parse(value);
+        }
+      });
+
+      // Try modern API first, fall back to classic if not supported
+      try {
+        await saveToFile(data, 'pipeline.dtl');
+      } catch (err) {
+        if (err instanceof TypeError && err.message.includes('showSaveFilePicker')) {
+          // Fall back to classic method if File System Access API is not supported
+          await saveToFileClassic(data, 'pipeline.dtl');
+        } else {
+          throw err;
+        }
+      }
+    } catch (error) {
+      console.error('Error saving pipeline session:', error);
+      toast({
+        title: "Error Saving Pipeline Session",
+        description: "There was an error saving your pipeline session. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleOpen = async () => {
+    try {
+      let data;
+      try {
+        data = await loadFromFile();
+      } catch (err) {
+        if (err instanceof TypeError && err.message.includes('showOpenFilePicker')) {
+          // Fall back to classic method if File System Access API is not supported
+          data = await loadFromFileClassic();
+        } else {
+          throw err;
+        }
+      }
+
+      if (data) {
+        // Clear current state
+        clearPipelineState();
+        
+        // Restore all data to localStorage
+        Object.entries(data).forEach(([key, value]) => {
+          localStorage.setItem(key, JSON.stringify(value));
+        });
+        
+        // Reload the page to apply changes
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error loading pipeline:', error);
+      toast({
+        title: "Error Loading Pipeline",
+        description: "There was an error loading your pipeline. Please check the file and try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
     <BookmarkProvider>
     <div className="h-screen flex flex-col bg-gray-50">
       <div className="p-1 flex justify-between items-center border-b">
-        <div className="flex-1"></div>
+        <div className="flex-1">
+          <Menubar className="border-none bg-transparent shadow-none">
+            <MenubarMenu>
+              <MenubarTrigger>File</MenubarTrigger>
+              <MenubarContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <MenubarItem onSelect={(e) => e.preventDefault()}>New</MenubarItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear Pipeline State</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to clear the pipeline state? This will take you to a default pipeline and clear all notes and outputs. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={clearPipelineState}>
+                        Clear
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <MenubarItem onSelect={handleOpen}>Open</MenubarItem>
+                <MenubarItem onSelect={handleSaveAs}>Save As</MenubarItem>
+              </MenubarContent>
+            </MenubarMenu>
+            <MenubarMenu>
+              <MenubarTrigger className="opacity-50 cursor-not-allowed">Assistant</MenubarTrigger>
+              <MenubarContent>
+                <MenubarItem disabled>Open Assistant</MenubarItem>
+              </MenubarContent>
+            </MenubarMenu>
+          </Menubar>
+        </div>
         <div className="flex items-center">
           <Scroll className="mr-2 text-primary" size={20} />
           <h1 className="text-lg font-bold text-primary">DocETL</h1>

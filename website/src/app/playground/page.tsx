@@ -89,9 +89,12 @@ const RightPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
 
 const CodeEditorPipelineApp: React.FC = () => {
   const [isLocalhost, setIsLocalhost] = useState(true);
+  // Add client-side only rendering for the cost display
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsLocalhost(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    setIsMounted(true);
   }, []);
 
   if (!isLocalhost) {
@@ -133,20 +136,10 @@ const CodeEditorPipelineApp: React.FC = () => {
     const newOperation: Operation = {
       id: String(Date.now()),
       llmType: llmType as 'LLM' | 'non-LLM',
-      type: type as 'map' | 'reduce' | 'filter' | 'resolve' | 'parallel_map' | 'unnest' | 'split' | 'gather',
+      type: type as 'map' | 'reduce' | 'filter' | 'resolve' | 'parallel_map' | 'unnest' | 'split' | 'gather' ,
       name: name,
     };
     setOperations([...operations, newOperation]);
-  };
-
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-
-    const items = Array.from(operations);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    setOperations(items);
   };
 
   return (
@@ -185,7 +178,12 @@ const CodeEditorPipelineApp: React.FC = () => {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <span className="text-sm font-medium text-gray-600">Cost: ${cost.toFixed(2)}</span>
+          {/* Only render the cost when client-side */}
+          {isMounted && (
+            <span className="text-sm font-medium text-gray-600">
+              Cost: ${cost.toFixed(2)}
+            </span>
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -269,9 +267,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           <ResizablePanel defaultSize={60} minSize={30}>
             <ResizablePanelGroup direction="vertical">
               <ResizablePanel defaultSize={70} minSize={5}>
-                <PipelineGUI 
-                  onDragEnd={handleDragEnd}
-                />
+                <PipelineGUI />
               </ResizablePanel>
               {showOutput && <ResizableHandle withHandle className="h-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200" />}
               {showOutput && (

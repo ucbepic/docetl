@@ -501,28 +501,34 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           {...provided.draggableProps} 
           className={`mb-2 relative rounded-sm shadow-sm w-full ${pipelineOutput?.operationId === operation.id ? 'bg-white border-blue-500 border-2' : 'bg-white'}`}
         >
-          <div {...provided.dragHandleProps} className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center cursor-move hover:bg-gray-100">
-            <GripVertical size={14} />
+          {/* Move the drag handle div outside of the ml-5 container */}
+          <div 
+            {...provided.dragHandleProps} 
+            className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-move hover:bg-gray-100 border-r border-gray-100"
+          >
+            <GripVertical size={14} className="text-gray-400" />
           </div>
-          <div className="ml-5">
-          <OperationHeader
-            name={operation.name}
-            type={operation.type}
-            llmType={operation.llmType}
-            disabled={isLoadingOutputs || pipelineOutput === undefined}
-            currOp={operation.id === pipelineOutput?.operationId}
-            onEdit={(name) => {
-              dispatch({ type: 'UPDATE_NAME', payload: name });
-              debouncedUpdate();
-            }}
-            onDelete={() => setOperations(prev => prev.filter(op => op.id !== operation.id))}
-            onRunOperation={handleRunOperation}
-            onToggleSettings={() => dispatch({ type: 'TOGGLE_SETTINGS' })}
-            onShowOutput={onShowOutput}
-            onOptimize={onOptimize}
-          />
+          
+          {/* Adjust the left margin to accommodate the drag handle */}
+          <div className="ml-6">
+            <OperationHeader
+              name={operation.name}
+              type={operation.type}
+              llmType={operation.llmType}
+              disabled={isLoadingOutputs || pipelineOutput === undefined}
+              currOp={operation.id === pipelineOutput?.operationId}
+              onEdit={(name) => {
+                dispatch({ type: 'UPDATE_NAME', payload: name });
+                debouncedUpdate();
+              }}
+              onDelete={() => setOperations(prev => prev.filter(op => op.id !== operation.id))}
+              onRunOperation={handleRunOperation}
+              onToggleSettings={() => dispatch({ type: 'TOGGLE_SETTINGS' })}
+              onShowOutput={onShowOutput}
+              onOptimize={onOptimize}
+            />
             <CardContent className="py-2 px-3">
-              {createOperationComponent(operation, handleOperationUpdate,isSchemaExpanded, () => dispatch({ type: 'TOGGLE_SCHEMA' }))}
+              {createOperationComponent(operation, handleOperationUpdate, isSchemaExpanded, () => dispatch({ type: 'TOGGLE_SCHEMA' }))}
             </CardContent>
             {operation.llmType === 'LLM' && (
               <Guardrails

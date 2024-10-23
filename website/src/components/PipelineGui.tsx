@@ -30,9 +30,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 
-const PipelineGUI: React.FC<{ 
-  onDragEnd: (result: DropResult) => void;
-}> = ({ onDragEnd }) => {
+const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { operations, setOperations, pipelineName, setPipelineName, sampleSize, setSampleSize, numOpRun, setNumOpRun, currentFile, setCurrentFile, output, unsavedChanges, setFiles, setOutput, isLoadingOutputs, setIsLoadingOutputs, files, setCost, defaultModel, setDefaultModel, setTerminalOutput, saveProgress, clearPipelineState } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -365,6 +363,21 @@ const PipelineGUI: React.FC<{
     setIsSettingsOpen(false);
   };
 
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+
+    const { source, destination } = result;
+    
+    if (source.droppableId === 'operations' && destination.droppableId === 'operations') {
+      setOperations(prevOperations => {
+        const newOperations = Array.from(prevOperations);
+        const [removed] = newOperations.splice(source.index, 1);
+        newOperations.splice(destination.index, 0, removed);
+        return newOperations;
+      });
+    }
+  };
+
   return (
     <div className="h-full overflow-auto">
       <div className="sticky top-0 z-10 p-2 bg-white">
@@ -535,21 +548,25 @@ const PipelineGUI: React.FC<{
         </div>
       </div>
       <div className="p-2">
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Droppable droppableId="operations">
-          {(provided) => (
-            <div {...provided.droppableProps} ref={provided.innerRef}>
-              {operations.map((op, index) => (
-                <OperationCard 
-                  key={op.id} 
-                  index={index} 
-                />
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="operations" type="operation">
+            {(provided, snapshot) => (
+              <div
+                {...provided.droppableProps}
+                ref={provided.innerRef}
+                className={`space-y-2 ${snapshot.isDraggingOver ? 'bg-gray-50' : ''}`}
+              >
+                {operations.map((op, index) => (
+                  <OperationCard 
+                    key={op.id} 
+                    index={index} 
+                  />
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       </div>
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent>

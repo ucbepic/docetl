@@ -468,38 +468,7 @@ const PipelineGUI: React.FC = () => {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-100"
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Clear Pipeline State</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to clear the pipeline state? This will take you to a default pipeline and clear all notes and outputs. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={clearPipelineState}>Clear</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Clear pipeline state</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+           
             <Button size="icon" variant="ghost" onClick={() => setIsSettingsOpen(true)}>
               <Settings size={16} />
             </Button>
@@ -524,6 +493,7 @@ const PipelineGUI: React.FC = () => {
                 <DropdownMenuItem onClick={() => handleAddOperation('non-LLM', 'unnest', 'Untitled Unnest')}>Unnest</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleAddOperation('non-LLM', 'split', 'Untitled Split')}>Split</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleAddOperation('non-LLM', 'gather', 'Untitled Gather')}>Gather</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleAddOperation('non-LLM', 'sample', 'Untitled Sample')}>Sample</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex space-x-2">

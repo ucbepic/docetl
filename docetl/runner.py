@@ -476,22 +476,25 @@ class DSLRunner(ConfigWrapper):
         )
 
     def optimize(
-        self, save: bool = False, return_pipeline: bool = True, **kwargs
-    ) -> Union[Dict, "DSLRunner"]:
+        self,
+        save: bool = False,
+        return_pipeline: bool = True,
+        **kwargs,
+    ) -> Tuple[Union[Dict, "DSLRunner"], float]:
         builder = Optimizer(
             self,
             max_threads=self.max_threads,
             **kwargs,
         )
-        builder.optimize()
+        cost = builder.optimize()
         if save:
             builder.save_optimized_config(f"{self.base_name}_opt.yaml")
             self.optimized_config_path = f"{self.base_name}_opt.yaml"
 
         if return_pipeline:
-            return DSLRunner(builder.clean_optimized_config(), self.max_threads)
+            return DSLRunner(builder.clean_optimized_config(), self.max_threads), cost
 
-        return builder.clean_optimized_config()
+        return builder.clean_optimized_config(), cost
 
 
 if __name__ == "__main__":

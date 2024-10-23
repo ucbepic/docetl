@@ -56,7 +56,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     sampleSize: loadFromLocalStorage(localStorageKeys.SAMPLE_SIZE_KEY, mockSampleSize),
     files: loadFromLocalStorage(localStorageKeys.FILES_KEY, mockFiles),
     cost: loadFromLocalStorage(localStorageKeys.COST_KEY, 0),
-    defaultModel: loadFromLocalStorage(localStorageKeys.DEFAULT_MODEL_KEY, "gpt-4-mini"),
+    defaultModel: loadFromLocalStorage(localStorageKeys.DEFAULT_MODEL_KEY, "gpt-4o-mini"),
   }));
 
   const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -103,7 +103,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       sampleSize: mockSampleSize,
       files: mockFiles,
       cost: 0,
-      defaultModel: "gpt-4-mini",
+      defaultModel: "gpt-4o-mini",
     });
     setUnsavedChanges(false);
     console.log('Pipeline state cleared!');

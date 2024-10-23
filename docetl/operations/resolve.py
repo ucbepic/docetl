@@ -418,7 +418,7 @@ class ResolveOperation(BaseOperation):
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
         self.console.log(
-            f"[blue]Number of pairs to compare: {len(filtered_pairs)}[/blue]"
+            f"[blue]Number of pairs to compare: {len(blocked_pairs)}[/blue]"
         )
 
         # Compute an auto-batch size based on the number of comparisons

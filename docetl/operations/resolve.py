@@ -449,8 +449,6 @@ class ResolveOperation(BaseOperation):
                     if is_match_result:
                         merge_clusters(pair[0], pair[1])
 
-                    pbar.update(i)
-
         total_cost += pair_costs
 
         # Collect final clusters

@@ -236,7 +236,6 @@ class MapOperation(BaseOperation):
                         }
                     results.append(result)
                 total_cost += item_cost
-                pbar.update(i)
 
         if self.status:
             self.status.start()

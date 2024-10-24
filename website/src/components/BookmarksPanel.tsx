@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { useBookmarkContext } from '@/contexts/BookmarkContext';
-import { Bookmark, ChevronDown, ChevronUp, Filter, Trash2 } from 'lucide-react';
+import { Bookmark, ChevronDown, ChevronUp, Filter, Trash2, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,12 +35,29 @@ const BookmarksPanel: React.FC = () => {
     }
   };
 
+  const handleClearAll = () => {
+    bookmarks.forEach(bookmark => removeBookmark(bookmark.id));
+    setSearchTerm('');
+    setSelectedColor('all');
+  };
+
   return (
-    <div className="h-full p-4 bg-white flex flex-col">
-      <h2 className="text-sm font-bold mb-2 flex items-center uppercase">
-        <Bookmark className="mr-2" size={16} />
-        Bookmarks
-      </h2>
+    <div className="h-full p-4 flex flex-col">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-sm font-bold flex items-center uppercase">
+          <Bookmark className="mr-2" size={16} />
+          Notes
+        </h2>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleClearAll}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <X size={16} className="mr-1" />
+          Clear All
+        </Button>
+      </div>
       <div className="flex mb-2">
         <Input
           type="text"
@@ -86,31 +103,31 @@ const BookmarksPanel: React.FC = () => {
         {filteredBookmarks.map(bookmark => (
           <div key={bookmark.id} className="mb-2">
             <div 
-              className="flex items-center cursor-pointer"
+              className="flex items-start cursor-pointer"
               onClick={() => toggleBookmarkExpansion(bookmark.id)}
             >
               <div
-                className="w-3 h-3 rounded-full mr-2"
+                className="w-3 h-3 rounded-full mr-2 mt-1"
                 style={{ 
                   backgroundColor: bookmark.color,
                   minWidth: '0.75rem',
                   minHeight: '0.75rem'
                 }}
               />
-              <span className="whitespace-nowrap overflow-hidden text-ellipsis">
+              <span className={`flex-grow ${expandedBookmarkId === bookmark.id ? 'whitespace-normal' : 'whitespace-nowrap overflow-hidden text-ellipsis'}`}>
                 {bookmark.text}
               </span>
               {expandedBookmarkId === bookmark.id ? (
-                <ChevronUp className="ml-auto min-w-4 min-h-4" size={16} />
+                <ChevronUp className="ml-2 min-w-4 min-h-4 mt-1" size={16} />
               ) : (
-                <ChevronDown className="ml-auto min-w-4 min-h-4" size={16} />
+                <ChevronDown className="ml-2 min-w-4 min-h-4 mt-1" size={16} />
               )}
             </div>
             {expandedBookmarkId === bookmark.id && (
               <div className="mt-2 ml-5 text-sm text-gray-600">
-                <p className="whitespace-nowrap overflow-hidden text-ellipsis">Source: {bookmark.source}</p>
+                <p>Source: {bookmark.source}</p>
                 {bookmark.notes.map((note, index) => (
-                  <p key={index} className="whitespace-nowrap overflow-hidden text-ellipsis">Note {index + 1}: {note.note}</p>
+                  <p key={index}>Note {index + 1}: {note.note}</p>
                 ))}
                 <Button
                   variant="destructive"

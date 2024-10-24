@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react';
-import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Upload } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Upload, Scroll, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { DropResult } from 'react-beautiful-dnd';
@@ -13,7 +13,6 @@ import { FileExplorer } from '@/components/FileExplorer';
 import { PipelineProvider, usePipelineContext } from '@/contexts/PipelineContext';
 import DatasetView from '@/components/DatasetView';
 import PipelineGUI from '@/components/PipelineGui';
-import { useFileExplorer } from '@/hooks/useFileExplorer';
 import { BookmarkProvider } from '@/contexts/BookmarkContext';
 import BookmarksPanel from '@/components/BookmarksPanel';
 import {
@@ -22,7 +21,41 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-
+import { useWebSocket, WebSocketProvider } from '@/contexts/WebSocketContext';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarTrigger,
+} from "@/components/ui/menubar"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { saveToFile, loadFromFile, saveToFileClassic, loadFromFileClassic } from '@/utils/fileOperations';
+import * as localStorageKeys from '@/app/localStorageKeys';
+import { toast } from '@/hooks/use-toast';
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
@@ -75,54 +108,196 @@ const RightPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   </svg>
 );
 
-
 const CodeEditorPipelineApp: React.FC = () => {
+  const [isLocalhost, setIsLocalhost] = useState(true);
+  // Add client-side only rendering for the cost display
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsLocalhost(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    setIsMounted(true);
+  }, []);
+
+  if (!isLocalhost) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-2xl p-6 bg-white rounded-lg shadow-md">
+          <h1 className="text-2xl font-bold text-primary mb-4">DocETL Playground</h1>
+          <p className="mb-4">
+            The DocETL playground is designed to run locally. To use it, please follow these steps:
+          </p>
+          <ol className="list-decimal list-inside mb-4">
+            <li>Clone the GitHub repo: <a href="https://github.com/ucbepic/docetl" className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">https://github.com/ucbepic/docetl</a></li>
+            <li>Set up the project by running:
+              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
+                make install
+                make install-ui
+              </pre>
+            </li>
+            <li>Start the application:
+              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
+                make run-ui-prod
+              </pre>
+            </li>
+            <li>Navigate to <a href="http://localhost:3000/playground" className="text-blue-500 hover:underline">http://localhost:3000/playground</a></li>
+          </ol>
+          <p>Once you've completed these steps, you'll be able to use the DocETL playground locally.</p>
+        </div>
+      </div>
+    );
+  }
+
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
+  
+  const { operations, currentFile, setOperations, setCurrentFile, cost, files, setFiles, clearPipelineState, saveProgress } = usePipelineContext();
 
-  const { operations, currentFile, setOperations, setCurrentFile } = usePipelineContext();
-  const { files, handleFileClick, handleFileUpload, handleFilesUpdate } = useFileExplorer();
+  const handleSaveAs = async () => {
+    try {
+      // Collect all localStorage data
+      const data: Record<string, any> = {};
+      Object.values(localStorageKeys).forEach(key => {
+        const value = localStorage.getItem(key);
+        if (value) {
+          data[key] = JSON.parse(value);
+        }
+      });
 
-  const handleAddOperation = (llmType: string, type: string, name: string) => {
-    const newOperation: Operation = {
-      id: String(Date.now()),
-      llmType: llmType as 'LLM' | 'non-LLM',
-      type: type as 'map' | 'reduce' | 'filter' | 'equijoin' | 'resolve' | 'parallel-map' | 'unnest' | 'split' | 'gather',
-      name: name,
-    };
-    setOperations([...operations, newOperation]);
+      // Try modern API first, fall back to classic if not supported
+      try {
+        await saveToFile(data, 'pipeline.dtl');
+      } catch (err) {
+        if (err instanceof TypeError && err.message.includes('showSaveFilePicker')) {
+          // Fall back to classic method if File System Access API is not supported
+          await saveToFileClassic(data, 'pipeline.dtl');
+        } else {
+          throw err;
+        }
+      }
+    } catch (error) {
+      console.error('Error saving pipeline session:', error);
+      toast({
+        title: "Error Saving Pipeline Session",
+        description: "There was an error saving your pipeline session. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
+  const handleOpen = async () => {
+    try {
+      let data;
+      try {
+        data = await loadFromFile();
+      } catch (err) {
+        if (err instanceof TypeError && err.message.includes('showOpenFilePicker')) {
+          // Fall back to classic method if File System Access API is not supported
+          data = await loadFromFileClassic();
+        } else {
+          throw err;
+        }
+      }
 
-    const items = Array.from(operations);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    setOperations(items);
-  };
-
-  const handleRunAll = () => {
-    console.log("Running all operations");
-    // Implement the actual run all logic here
-  };
-
-  const handleDeleteOperation = (id: string) => {
-    setOperations(operations.filter(op => op.id !== id));
-  };
-
-  const handleUpdateOperation = (id: string, updatedOperation: Operation) => {
-    setOperations(operations.map(op => op.id === id ? updatedOperation : op));
+      if (data) {
+        // Clear current state
+        clearPipelineState();
+        
+        // Restore all data to localStorage
+        Object.entries(data).forEach(([key, value]) => {
+          localStorage.setItem(key, JSON.stringify(value));
+        });
+        
+        // Reload the page to apply changes
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error loading pipeline:', error);
+      toast({
+        title: "Error Loading Pipeline",
+        description: "There was an error loading your pipeline. Please check the file and try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
     <BookmarkProvider>
-    <SpotlightOverlay>
     <div className="h-screen flex flex-col bg-gray-50">
-      <div className="bg-white p-1 flex justify-end items-center border-b">
-        <div className="flex items-center space-x-1">
+      <div className="p-1 flex justify-between items-center border-b">
+        <div className="flex-1">
+          <Menubar className="border-none bg-transparent shadow-none">
+            <MenubarMenu>
+              <MenubarTrigger>File</MenubarTrigger>
+              <MenubarContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <MenubarItem onSelect={(e) => e.preventDefault()}>New</MenubarItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear Pipeline State</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to clear the pipeline state? This will take you to a default pipeline and clear all notes and outputs. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={clearPipelineState}>
+                        Clear
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <MenubarItem onSelect={handleOpen}>Open</MenubarItem>
+                <MenubarItem onSelect={handleSaveAs}>Save As</MenubarItem>
+              </MenubarContent>
+            </MenubarMenu>
+            <MenubarMenu>
+              <MenubarTrigger className="opacity-50 cursor-not-allowed">Assistant (Not Yet Available)</MenubarTrigger>
+              <MenubarContent>
+                <MenubarItem disabled>Open Assistant</MenubarItem>
+              </MenubarContent>
+            </MenubarMenu>
+          </Menubar>
+        </div>
+        <div className="flex items-center">
+          <Scroll className="mr-2 text-primary" size={20} />
+          <h1 className="text-lg font-bold text-primary">DocETL</h1>
+        </div>
+        <div className="flex-1 flex justify-end items-center space-x-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                    >
+                      <Info size={20} />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80">
+                    <h3 className="font-semibold mb-2">About DocETL</h3>
+                    <p className="text-sm text-gray-600">
+                      This is a research project from the EPIC Data Lab at the University of California, Berkeley.
+                      To learn more, visit <a href="https://docetl.org" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">docetl.org</a>.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>About DocETL</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          {/* Only render the cost when client-side */}
+          {isMounted && (
+            <span className="text-sm font-medium text-gray-600">
+              Cost: ${cost.toFixed(2)}
+            </span>
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -182,12 +357,15 @@ const CodeEditorPipelineApp: React.FC = () => {
                   <FileExplorer 
                     files={files} 
                     onFileClick={(file) => {
-                      handleFileClick(file);
                       setCurrentFile(file);
-                      setShowDatasetView(true);
                     }} 
-                    onFileUpload={handleFileUpload}
-                    onFilesUpdate={handleFilesUpdate}
+                    onFileUpload={(file: File) => setFiles(prevFiles => [...prevFiles, file])}
+                    onFileDelete={(file: File) => {
+                      setFiles(prevFiles => prevFiles.filter(f => f.name !== file.name));
+                    }}
+                    setCurrentFile={setCurrentFile}
+                    setShowDatasetView={setShowDatasetView}
+                    currentFile={currentFile}
                   />
                 </ResizablePanel>
                 <ResizableHandle withHandle className="h-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200" />
@@ -202,15 +380,8 @@ const CodeEditorPipelineApp: React.FC = () => {
           {/* Pipeline GUI and Output */}
           <ResizablePanel defaultSize={60} minSize={30}>
             <ResizablePanelGroup direction="vertical">
-              <ResizablePanel defaultSize={70} minSize={30}>
-                <PipelineGUI 
-                  operations={operations} 
-                  onAddOperation={handleAddOperation}
-                  onDragEnd={handleDragEnd}
-                  onRunAll={handleRunAll}
-                  onDeleteOperation={handleDeleteOperation}
-                  onUpdateOperation={handleUpdateOperation}
-                />
+              <ResizablePanel defaultSize={70} minSize={5}>
+                <PipelineGUI />
               </ResizablePanel>
               {showOutput && <ResizableHandle withHandle className="h-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200" />}
               {showOutput && (
@@ -230,15 +401,17 @@ const CodeEditorPipelineApp: React.FC = () => {
           )}
         </ResizablePanelGroup>
       </div>
-    </SpotlightOverlay>
     </BookmarkProvider>
   );
 };
 
+
 const WrappedCodeEditorPipelineApp: React.FC = () => (
+  <WebSocketProvider>
   <PipelineProvider>
     <CodeEditorPipelineApp />
   </PipelineProvider>
+  </WebSocketProvider>
 );
 
 export default WrappedCodeEditorPipelineApp;

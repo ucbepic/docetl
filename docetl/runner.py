@@ -1,6 +1,7 @@
 from collections import defaultdict
 import json
 import os
+import shutil
 import time
 import functools
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import hashlib
 from rich.console import Console
+from rich.prompt import Confirm
 
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation, get_operations
@@ -285,6 +287,8 @@ class DSLRunner(ConfigWrapper):
         self.console.rule("[cyan]Saving Output[/cyan]")
         output_config = self.config["pipeline"]["output"]
         if output_config["type"] == "file":
+            # Create the directory if it doesn't exist
+            os.makedirs(os.path.dirname(output_config["path"]), exist_ok=True)
             if output_config["path"].lower().endswith(".json"):
                 with open(output_config["path"], "w") as file:
                     json.dump(data, file, indent=2)
@@ -406,6 +410,7 @@ class DSLRunner(ConfigWrapper):
         intermediate_config_path = os.path.join(
             self.intermediate_dir, ".docetl_intermediate_config.json"
         )
+
         if not os.path.exists(intermediate_config_path):
             return None
 
@@ -430,6 +435,17 @@ class DSLRunner(ConfigWrapper):
                 )
             return self.datasets[f"{step_name}_{operation_name}"].load()
         return None
+
+    def clear_intermediate(self) -> None:
+        """
+        Clear the intermediate directory.
+        """
+        # Remove the intermediate directory
+        if self.intermediate_dir:
+            shutil.rmtree(self.intermediate_dir)
+            return
+
+        raise ValueError("Intermediate directory not set. Cannot clear intermediate.")
 
     def _save_checkpoint(self, step_name: str, operation_name: str, data: List[Dict]):
         """
@@ -460,22 +476,25 @@ class DSLRunner(ConfigWrapper):
         )
 
     def optimize(
-        self, save: bool = False, return_pipeline: bool = True, **kwargs
-    ) -> Union[Dict, "DSLRunner"]:
+        self,
+        save: bool = False,
+        return_pipeline: bool = True,
+        **kwargs,
+    ) -> Tuple[Union[Dict, "DSLRunner"], float]:
         builder = Optimizer(
             self,
             max_threads=self.max_threads,
             **kwargs,
         )
-        builder.optimize()
+        cost = builder.optimize()
         if save:
             builder.save_optimized_config(f"{self.base_name}_opt.yaml")
             self.optimized_config_path = f"{self.base_name}_opt.yaml"
 
         if return_pipeline:
-            return DSLRunner(builder.clean_optimized_config(), self.max_threads)
+            return DSLRunner(builder.clean_optimized_config(), self.max_threads), cost
 
-        return builder.clean_optimized_config()
+        return builder.clean_optimized_config(), cost
 
 
 if __name__ == "__main__":

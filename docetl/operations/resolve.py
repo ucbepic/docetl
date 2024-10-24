@@ -67,7 +67,7 @@ class ResolveOperation(BaseOperation):
             if all(
                 key in item1
                 and key in item2
-                and item1[key].lower() == item2[key].lower()
+                and str(item1[key]).lower() == str(item2[key]).lower()
                 for key in blocking_keys
             ):
                 return True, 0
@@ -239,6 +239,7 @@ class ResolveOperation(BaseOperation):
                 f"This may result in a large number of comparisons. "
                 f"We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
                 f"Do you want to continue without blocking?[/yellow]",
+                console=self.runner.console,
             ):
                 raise ValueError("Operation cancelled by user.")
 
@@ -258,7 +259,9 @@ class ResolveOperation(BaseOperation):
         # Calculate embeddings if blocking_threshold is set
         embeddings = None
         if blocking_threshold is not None:
-            embedding_model = self.config.get("embedding_model", self.default_model)
+            embedding_model = self.config.get(
+                "embedding_model", "text-embedding-3-small"
+            )
 
             def get_embeddings_batch(
                 items: List[Dict[str, Any]]
@@ -412,6 +415,9 @@ class ResolveOperation(BaseOperation):
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
+        self.console.log(
+            f"[blue]Number of pairs to compare: {len(blocked_pairs)}[/blue]"
+        )
 
         # Compare pairs and update clusters in real-time
         batch_size = self.config.get("compare_batch_size", 100)
@@ -497,10 +503,21 @@ class ResolveOperation(BaseOperation):
                         self.config["output"]["schema"],
                         manually_fix_errors=self.manually_fix_errors,
                     )[0]
+
+                    # If the output is overwriting an existing key, we want to save the kv pairs
+                    keys_in_output = [
+                        k
+                        for k in set(reduction_output.keys())
+                        if k in cluster_items[0].keys()
+                    ]
+
                     return (
                         [
                             {
                                 **item,
+                                f"_kv_pairs_preresolve_{self.config['name']}": {
+                                    k: item[k] for k in keys_in_output
+                                },
                                 **{
                                     k: reduction_output[k]
                                     for k in self.config["output"]["schema"]
@@ -542,6 +559,9 @@ class ResolveOperation(BaseOperation):
 
                 # Create the result dictionary using the key mapping
                 result = input_data[list(cluster)[0]].copy()
+                result[f"_kv_pairs_preresolve_{self.config['name']}"] = {
+                    ok: result[ck] for ok, ck in key_mapping.items() if ck in result
+                }
                 for output_key, compare_key in key_mapping.items():
                     if compare_key in input_data[list(cluster)[0]]:
                         result[output_key] = input_data[list(cluster)[0]][compare_key]

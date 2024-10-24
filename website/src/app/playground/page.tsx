@@ -254,7 +254,7 @@ const CodeEditorPipelineApp: React.FC = () => {
               </MenubarContent>
             </MenubarMenu>
             <MenubarMenu>
-              <MenubarTrigger className="opacity-50 cursor-not-allowed">Assistant</MenubarTrigger>
+              <MenubarTrigger className="opacity-50 cursor-not-allowed">Assistant (Not Yet Available)</MenubarTrigger>
               <MenubarContent>
                 <MenubarItem disabled>Open Assistant</MenubarItem>
               </MenubarContent>

@@ -22,6 +22,12 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 - [Text-to-speech](https://github.com/redhog/docetl-speaker)
 - [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
 
+## (Educational) Threads
+
+- [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
+- [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
+- [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)
+
 ## Installation
 
 See the documentation for installing from PyPI.

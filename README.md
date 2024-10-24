@@ -1,6 +1,9 @@
 # DocETL: Powering Complex Document Processing Pipelines
 
-[Website (Includes Demo)](https://docetl.org) | [Documentation](https://ucbepic.github.io/docetl) | [Discord](https://discord.gg/fHp7B2X3xx) | [Paper](https://arxiv.org/abs/2410.12189)
+[![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
+[![Documentation](https://img.shields.io/badge/Documentation-docs-green)](https://ucbepic.github.io/docetl)
+[Discord](https://discord.gg/fHp7B2X3xx)
+[![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
 
 ![DocETL Figure](docs/assets/readmefig.png)
 

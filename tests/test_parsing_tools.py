@@ -74,7 +74,7 @@ def temp_pptx_file():
 
 
 def test_whisper_speech_to_text(temp_audio_file):
-    result = parsing_tools.whisper_speech_to_text(temp_audio_file)
+    result = parsing_tools.whisper_speech_to_text.__wrapped__(temp_audio_file)
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -83,7 +83,7 @@ def test_whisper_speech_to_text(temp_audio_file):
 
 
 def test_xlsx_to_string(temp_xlsx_file):
-    result = parsing_tools.xlsx_to_string(temp_xlsx_file)
+    result = parsing_tools.xlsx_to_string.__wrapped__(temp_xlsx_file)
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -93,7 +93,7 @@ def test_xlsx_to_string(temp_xlsx_file):
 
 
 def test_xlsx_to_string_row_orientation(temp_xlsx_file):
-    result = parsing_tools.xlsx_to_string(temp_xlsx_file, orientation="row")
+    result = parsing_tools.xlsx_to_string.__wrapped__(temp_xlsx_file, orientation="row")
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -102,7 +102,9 @@ def test_xlsx_to_string_row_orientation(temp_xlsx_file):
 
 
 def test_xlsx_to_string_doc_per_sheet(temp_xlsx_file):
-    result = parsing_tools.xlsx_to_string(temp_xlsx_file, doc_per_sheet=True)
+    result = parsing_tools.xlsx_to_string.__wrapped__(
+        temp_xlsx_file, doc_per_sheet=True
+    )
 
     assert isinstance(result, list)
     assert len(result) == 1  # Only one sheet in our test file
@@ -112,7 +114,7 @@ def test_xlsx_to_string_doc_per_sheet(temp_xlsx_file):
 
 
 def test_txt_to_string(temp_txt_file):
-    result = parsing_tools.txt_to_string(temp_txt_file)
+    result = parsing_tools.txt_to_string.__wrapped__(temp_txt_file)
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -120,7 +122,7 @@ def test_txt_to_string(temp_txt_file):
 
 
 def test_docx_to_string(temp_docx_file):
-    result = parsing_tools.docx_to_string(temp_docx_file)
+    result = parsing_tools.docx_to_string.__wrapped__(temp_docx_file)
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -129,7 +131,7 @@ def test_docx_to_string(temp_docx_file):
 
 
 def test_pptx_to_string(temp_pptx_file):
-    result = parsing_tools.pptx_to_string(temp_pptx_file)
+    result = parsing_tools.pptx_to_string.__wrapped__(temp_pptx_file)
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -140,7 +142,9 @@ def test_pptx_to_string(temp_pptx_file):
 
 
 def test_pptx_to_string_doc_per_slide(temp_pptx_file):
-    result = parsing_tools.pptx_to_string(temp_pptx_file, doc_per_slide=True)
+    result = parsing_tools.pptx_to_string.__wrapped__(
+        temp_pptx_file, doc_per_slide=True
+    )
 
     assert isinstance(result, list)
     assert len(result) == 2
@@ -157,7 +161,7 @@ def pdf_url():
 
 def test_azure_di_read(pdf_url):
     # Test with default parameters
-    result = parsing_tools.azure_di_read(pdf_url, use_url=True)
+    result = parsing_tools.azure_di_read.__wrapped__(pdf_url, use_url=True)
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -169,7 +173,7 @@ def test_azure_di_read(pdf_url):
     assert "Enhancing the patient" in content
 
     # Test with include_line_numbers=True
-    result_line_numbers = parsing_tools.azure_di_read(
+    result_line_numbers = parsing_tools.azure_di_read.__wrapped__(
         pdf_url, use_url=True, include_line_numbers=True
     )
     assert isinstance(result_line_numbers, list)
@@ -179,7 +183,7 @@ def test_azure_di_read(pdf_url):
 
 def test_azure_di_read_invoice():
     invoice_url = "https://raw.githubusercontent.com/Azure-Samples/cognitive-services-REST-api-samples/master/curl/form-recognizer/sample-invoice.pdf"
-    result = parsing_tools.azure_di_read(invoice_url, use_url=True)
+    result = parsing_tools.azure_di_read.__wrapped__(invoice_url, use_url=True)
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -207,7 +211,7 @@ def pytest_sessionfinish(session, exitstatus):
 
 def test_paddleocr_pdf_to_string():
     pdf_path = "tests/data/PublicWaterMassMailing.pdf"
-    result = parsing_tools.paddleocr_pdf_to_string(pdf_path, lang="en")
+    result = parsing_tools.paddleocr_pdf_to_string.__wrapped__(pdf_path, lang="en")
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -221,7 +225,7 @@ def test_paddleocr_pdf_to_string():
 def test_gptpdf_to_string():
     input_pdf = "tests/data/PublicWaterMassMailing.pdf"
 
-    result = parsing_tools.gptpdf_to_string(
+    result = parsing_tools.gptpdf_to_string.__wrapped__(
         input_path=input_pdf,
         gpt_model="gpt-4o-mini",
         api_key=os.environ["OPENAI_API_KEY"],

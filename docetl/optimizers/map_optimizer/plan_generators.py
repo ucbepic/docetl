@@ -17,6 +17,7 @@ from docetl.utils import extract_jinja_variables
 class PlanGenerator:
     def __init__(
         self,
+        runner,
         llm_client: LLMClient,
         console: Console,
         config: Dict[str, Any],
@@ -34,7 +35,7 @@ class PlanGenerator:
         )
         self._run_operation = run_operation
         self.prompt_generator = PromptGenerator(
-            llm_client, console, config, max_threads, is_filter
+            runner, llm_client, console, config, max_threads, is_filter
         )
         self.max_threads = max_threads
         self.config = config

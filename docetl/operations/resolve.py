@@ -440,7 +440,6 @@ class ResolveOperation(BaseOperation):
         )
         last_processed = 0
         for i in pbar:
-
             batch_end = last_processed + batch_size
             batch = blocked_pairs[last_processed:batch_end]
             # Filter pairs for the initial batch
@@ -489,7 +488,6 @@ class ResolveOperation(BaseOperation):
                         merge_clusters(pair[0], pair[1])
 
                     pbar.update(last_processed//batch_size)
-
         total_cost += pair_costs
 
         # Collect final clusters

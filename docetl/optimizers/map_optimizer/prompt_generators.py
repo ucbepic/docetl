@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Tuple
 
 from litellm import model_cost
 from rich.console import Console
+from rich.prompt import Prompt
 
 from docetl.optimizers.map_optimizer.utils import generate_and_validate_prompt
 from docetl.optimizers.utils import LLMClient
@@ -13,6 +14,7 @@ from docetl.utils import count_tokens, extract_jinja_variables, truncate_sample_
 class PromptGenerator:
     def __init__(
         self,
+        runner: "DSLRunner",
         llm_client: LLMClient,
         console: Console,
         config: Dict[str, Any],
@@ -24,6 +26,7 @@ class PromptGenerator:
         self.config = config
         self.max_threads = max_threads
         self.is_filter = is_filter
+        self.runner = runner
 
     def _generate_validator_prompt(
         self,
@@ -330,7 +333,7 @@ class PromptGenerator:
         Modify the original prompt to be a prompt that will combine these chunk results to accomplish the original task.
 
         Guidelines for your prompt template:
-        - The only variable you are allowed to use is the inputs variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(schema_keys)}
+        - The only variable you are allowed to use is the `inputs` variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(schema_keys)}
         - Avoid using filters or complex logic, even though Jinja technically supports it
         - The prompt template must be a valid Jinja2 template
         - You must use the {{ inputs }} variable somehow (you can access specific schema keys if you'ld like)
@@ -353,8 +356,22 @@ class PromptGenerator:
             config=self.config,
             max_threads=self.max_threads,
             console=self.console,
+            inclusion_strings=["inputs"],
         )
         combine_prompt = result["combine_prompt"]
+
+        # Confirm with the user that this prompt is good & ask them to edit
+        if self.runner.status:
+            self.runner.status.stop()
+
+        combine_prompt = Prompt.ask(
+            f"Here is the prompt generated for the reduce operation:\n```\n{combine_prompt}\n```\n\nPress enter to confirm, or type in the prompt you would like to use instead.",
+            default=combine_prompt,
+            console=self.console,
+        )
+
+        if self.runner.status:
+            self.runner.status.start()
 
         # Determine if the combine operation is associative
         system_prompt_associative = (

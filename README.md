@@ -1,6 +1,9 @@
 # DocETL: Powering Complex Document Processing Pipelines
 
-[Website (Includes Demo)](https://docetl.com) | [Documentation](https://ucbepic.github.io/docetl) | [Discord](https://discord.gg/fHp7B2X3xx) | [NotebookLM Podcast](https://notebooklm.google.com/notebook/ef73248b-5a43-49cd-9976-432d20f9fa4f/audio?pli=1) (thanks Shabie from our Discord community!) | Paper (coming soon!)
+[![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
+[![Documentation](https://img.shields.io/badge/Documentation-docs-green)](https://ucbepic.github.io/docetl)
+[![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)
+[![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
 
 ![DocETL Figure](docs/assets/readmefig.png)
 
@@ -15,6 +18,18 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 - You're unsure how to best express your task to maximize LLM accuracy
 - You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
 - You have validation criteria and want tasks to automatically retry when the validation fails
+
+## Cool Things People Are Doing with DocETL
+
+- [Conversation Generator](https://github.com/redhog/docetl-conversation)
+- [Text-to-speech](https://github.com/redhog/docetl-speaker)
+- [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
+
+## (Educational) Threads
+
+- [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
+- [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
+- [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)
 
 ## Installation
 

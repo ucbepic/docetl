@@ -2,12 +2,16 @@ import importlib
 import io
 import os
 from typing import Dict, List, Optional, Any
+from functools import wraps
+
 
 def with_input_output_key(fn):
     """Decorator that wraps a parser function that takes a single
     string parameter and return list of strings and makes it a full
     parser function that takes an item as a dictionary and return a
     list of dictionaries."""
+
+    @wraps(fn)
     def wrapper(item, input_key="text", output_key="text", **kw):
         if input_key not in item:
             raise ValueError(f"Input key {input_key} not found in item: {item}")
@@ -15,18 +19,22 @@ def with_input_output_key(fn):
         if not isinstance(result, list):
             result = [result]
         return [{output_key: res} for res in result]
+
     return wrapper
 
-def llama_index_simple_directory_reader(item: dict[str, Any], input_key: str ="path") -> List[dict[str, Any]]:
+
+def llama_index_simple_directory_reader(
+    item: dict[str, Any], input_key: str = "path"
+) -> List[dict[str, Any]]:
     from llama_index.core import SimpleDirectoryReader
 
     documents = SimpleDirectoryReader(item[input_key]).load_data()
-    return [{"text": doc.text,
-             "metadata": doc.metadata}
-            for doc in documents]
+    return [{"text": doc.text, "metadata": doc.metadata} for doc in documents]
 
 
-def llama_index_wikipedia_reader(item: dict[str, Any], input_key: str = "pages") -> List[dict[str, Any]]:
+def llama_index_wikipedia_reader(
+    item: dict[str, Any], input_key: str = "pages"
+) -> List[dict[str, Any]]:
     from llama_index.readers.wikipedia import WikipediaReader
 
     loader = WikipediaReader()
@@ -38,9 +46,7 @@ def llama_index_wikipedia_reader(item: dict[str, Any], input_key: str = "pages")
     for name, doc in zip(pages, documents):
         doc.metadata["source"] = "https://en.wikipedia.org/wiki/" + name
 
-    return [{"text": doc.text,
-             "metadata": doc.metadata}
-            for doc in documents]
+    return [{"text": doc.text, "metadata": doc.metadata} for doc in documents]
 
 
 @with_input_output_key

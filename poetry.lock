@@ -4729,4 +4729,4 @@ server = ["fastapi", "uvicorn"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "afd66972eed23286cdd67c5de2044b2a58335313eebb77bd94d1780c616427a5"
+content-hash = "57da4da09121245d1195c97adb96682225962f9d40616c5bf5853c940614d723"

@@ -1,11 +1,7 @@
 import { File, Operation } from "@/app/types";
+import path from "path";
 
-export const mockFiles: File[] = [
-  {
-    name: "debate_transcripts.json",
-    path: "/Users/shreyashankar/Documents/hacking/motion-v3/website/public/debate_transcripts.json",
-  },
-];
+export const mockFiles = [];
 
 export const initialOperations: Operation[] = [
   {

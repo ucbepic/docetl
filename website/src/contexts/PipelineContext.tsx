@@ -47,7 +47,7 @@ interface PipelineContextType extends PipelineState {
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
-  undefined,
+  undefined
 );
 
 const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
@@ -64,35 +64,32 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
   const [state, setState] = useState<PipelineState>(() => ({
     operations: loadFromLocalStorage(
       localStorageKeys.OPERATIONS_KEY,
-      initialOperations,
+      initialOperations
     ),
-    currentFile: loadFromLocalStorage(
-      localStorageKeys.CURRENT_FILE_KEY,
-      mockFiles[0],
-    ),
+    currentFile: loadFromLocalStorage(localStorageKeys.CURRENT_FILE_KEY, null),
     output: loadFromLocalStorage(localStorageKeys.OUTPUT_KEY, null),
     terminalOutput: loadFromLocalStorage(
       localStorageKeys.TERMINAL_OUTPUT_KEY,
-      "",
+      ""
     ),
     isLoadingOutputs: loadFromLocalStorage(
       localStorageKeys.IS_LOADING_OUTPUTS_KEY,
-      false,
+      false
     ),
     numOpRun: loadFromLocalStorage(localStorageKeys.NUM_OP_RUN_KEY, 0),
     pipelineName: loadFromLocalStorage(
       localStorageKeys.PIPELINE_NAME_KEY,
-      mockPipelineName,
+      mockPipelineName
     ),
     sampleSize: loadFromLocalStorage(
       localStorageKeys.SAMPLE_SIZE_KEY,
-      mockSampleSize,
+      mockSampleSize
     ),
     files: loadFromLocalStorage(localStorageKeys.FILES_KEY, mockFiles),
     cost: loadFromLocalStorage(localStorageKeys.COST_KEY, 0),
     defaultModel: loadFromLocalStorage(
       localStorageKeys.DEFAULT_MODEL_KEY,
-      "gpt-4o-mini",
+      "gpt-4o-mini"
     ),
   }));
 
@@ -104,14 +101,50 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [state]);
 
   const saveProgress = useCallback(() => {
-    Object.entries(stateRef.current).forEach(([key, value]) => {
-      localStorage.setItem(
-        localStorageKeys[
-          `${key.toUpperCase()}_KEY` as keyof typeof localStorageKeys
-        ],
-        JSON.stringify(value),
-      );
-    });
+    localStorage.setItem(
+      localStorageKeys.OPERATIONS_KEY,
+      JSON.stringify(stateRef.current.operations)
+    );
+    localStorage.setItem(
+      localStorageKeys.CURRENT_FILE_KEY,
+      JSON.stringify(stateRef.current.currentFile)
+    );
+    localStorage.setItem(
+      localStorageKeys.OUTPUT_KEY,
+      JSON.stringify(stateRef.current.output)
+    );
+    localStorage.setItem(
+      localStorageKeys.TERMINAL_OUTPUT_KEY,
+      JSON.stringify(stateRef.current.terminalOutput)
+    );
+    localStorage.setItem(
+      localStorageKeys.IS_LOADING_OUTPUTS_KEY,
+      JSON.stringify(stateRef.current.isLoadingOutputs)
+    );
+    localStorage.setItem(
+      localStorageKeys.NUM_OP_RUN_KEY,
+      JSON.stringify(stateRef.current.numOpRun)
+    );
+    localStorage.setItem(
+      localStorageKeys.PIPELINE_NAME_KEY,
+      JSON.stringify(stateRef.current.pipelineName)
+    );
+    localStorage.setItem(
+      localStorageKeys.SAMPLE_SIZE_KEY,
+      JSON.stringify(stateRef.current.sampleSize)
+    );
+    localStorage.setItem(
+      localStorageKeys.FILES_KEY,
+      JSON.stringify(stateRef.current.files)
+    );
+    localStorage.setItem(
+      localStorageKeys.COST_KEY,
+      JSON.stringify(stateRef.current.cost)
+    );
+    localStorage.setItem(
+      localStorageKeys.DEFAULT_MODEL_KEY,
+      JSON.stringify(stateRef.current.defaultModel)
+    );
     setUnsavedChanges(false);
     console.log("Progress saved!");
   }, []);
@@ -121,7 +154,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       key: K,
       value:
         | PipelineState[K]
-        | ((prevState: PipelineState[K]) => PipelineState[K]),
+        | ((prevState: PipelineState[K]) => PipelineState[K])
     ) => {
       setState((prevState) => {
         const newValue =
@@ -135,7 +168,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
         return prevState;
       });
     },
-    [],
+    []
   );
 
   const clearPipelineState = useCallback(() => {
@@ -144,7 +177,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     });
     setState({
       operations: initialOperations,
-      currentFile: mockFiles[0],
+      currentFile: null,
       output: null,
       terminalOutput: "",
       isLoadingOutputs: false,
@@ -178,47 +211,47 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     ...state,
     setOperations: useCallback(
       (value) => setStateAndUpdate("operations", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setCurrentFile: useCallback(
       (value) => setStateAndUpdate("currentFile", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setOutput: useCallback(
       (value) => setStateAndUpdate("output", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setTerminalOutput: useCallback(
       (value) => setStateAndUpdate("terminalOutput", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setIsLoadingOutputs: useCallback(
       (value) => setStateAndUpdate("isLoadingOutputs", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setNumOpRun: useCallback(
       (value) => setStateAndUpdate("numOpRun", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setPipelineName: useCallback(
       (value) => setStateAndUpdate("pipelineName", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setSampleSize: useCallback(
       (value) => setStateAndUpdate("sampleSize", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setFiles: useCallback(
       (value) => setStateAndUpdate("files", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setCost: useCallback(
       (value) => setStateAndUpdate("cost", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     setDefaultModel: useCallback(
       (value) => setStateAndUpdate("defaultModel", value),
-      [setStateAndUpdate],
+      [setStateAndUpdate]
     ),
     saveProgress,
     unsavedChanges,
@@ -236,7 +269,7 @@ export const usePipelineContext = () => {
   const context = useContext(PipelineContext);
   if (context === undefined) {
     throw new Error(
-      "usePipelineContext must be used within a PipelineProvider",
+      "usePipelineContext must be used within a PipelineProvider"
     );
   }
   return context;

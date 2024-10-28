@@ -139,7 +139,11 @@ const OperationHeader: React.FC<{
             />
           ) : (
             <span
-              className={`text-sm font-medium cursor-pointer ${llmType === "LLM" ? "bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text" : ""}`}
+              className={`text-sm font-medium cursor-pointer ${
+                llmType === "LLM"
+                  ? "bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text"
+                  : ""
+              }`}
               onClick={handleEditClick}
             >
               {name}
@@ -158,7 +162,7 @@ const OperationHeader: React.FC<{
         </Button>
       </div>
     );
-  },
+  }
 );
 
 const SettingsModal: React.FC<{
@@ -177,7 +181,7 @@ const SettingsModal: React.FC<{
         id: index,
         key,
         value,
-      })),
+      }))
     );
 
     useEffect(() => {
@@ -186,21 +190,21 @@ const SettingsModal: React.FC<{
           id: index,
           key,
           value,
-        })),
+        }))
       );
     }, [otherKwargs]);
 
     const handleSettingsChange = (
       id: number,
       newKey: string,
-      newValue: string,
+      newValue: string
     ) => {
       setLocalSettings((prev) =>
         prev.map((setting) =>
           setting.id === id
             ? { ...setting, key: newKey, value: newValue }
-            : setting,
-        ),
+            : setting
+        )
       );
     };
 
@@ -216,15 +220,12 @@ const SettingsModal: React.FC<{
     };
 
     const handleSave = () => {
-      const newSettings = localSettings.reduce(
-        (acc, { key, value }) => {
-          if (key !== "" && value !== "") {
-            acc[key] = value;
-          }
-          return acc;
-        },
-        {} as Record<string, string>,
-      );
+      const newSettings = localSettings.reduce((acc, { key, value }) => {
+        if (key !== "" && value !== "") {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, string>);
       onSettingsSave(newSettings);
       onClose();
     };
@@ -289,7 +290,7 @@ const SettingsModal: React.FC<{
         </DialogContent>
       </Dialog>
     );
-  },
+  }
 );
 
 // Action types
@@ -440,12 +441,12 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
         const updatedOperation = { ...operationRef.current };
         setOperations((prev) =>
           prev.map((op) =>
-            op.id === updatedOperation.id ? updatedOperation : op,
-          ),
+            op.id === updatedOperation.id ? updatedOperation : op
+          )
         );
       }
     }, 500),
-    [setOperations],
+    [setOperations]
   );
 
   const handleOperationUpdate = useCallback(
@@ -453,7 +454,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       dispatch({ type: "SET_OPERATION", payload: updatedOperation });
       debouncedUpdate();
     },
-    [debouncedUpdate],
+    [debouncedUpdate]
   );
 
   const handleRunOperation = useCallback(async () => {
@@ -484,7 +485,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to write pipeline config");
+        throw new Error(await response.text());
       }
 
       const { filePath, inputPath, outputPath } = await response.json();
@@ -505,7 +506,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       console.error("Error writing pipeline config:", error);
       toast({
         title: "Error",
-        description: "Failed to write pipeline configuration",
+        description: error.message,
         variant: "destructive",
       });
       // Close the WebSocket connection
@@ -532,12 +533,12 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
         const updatedOperation = { ...operation, otherKwargs: newSettings };
         setOperations((prev) =>
           prev.map((op) =>
-            op.id === updatedOperation.id ? updatedOperation : op,
-          ),
+            op.id === updatedOperation.id ? updatedOperation : op
+          )
         );
       }
     },
-    [operation, setOperations],
+    [operation, setOperations]
   );
 
   const handleSchemaUpdate = (newSchema: SchemaItem[]) => {
@@ -572,7 +573,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to write pipeline config");
+        throw new Error(await response.text());
       }
 
       const { filePath } = await response.json();
@@ -589,7 +590,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       console.error("Error optimizing operation:", error);
       toast({
         title: "Error",
-        description: "Failed to optimize operation",
+        description: error.message,
         variant: "destructive",
       });
       // Close the WebSocket connection
@@ -666,7 +667,11 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           <Card
             ref={provided.innerRef}
             {...provided.draggableProps}
-            className={`mb-2 relative rounded-sm shadow-sm w-full ${pipelineOutput?.operationId === operation.id ? "bg-white border-blue-500 border-2" : "bg-white"}`}
+            className={`mb-2 relative rounded-sm shadow-sm w-full ${
+              pipelineOutput?.operationId === operation.id
+                ? "bg-white border-blue-500 border-2"
+                : "bg-white"
+            }`}
           >
             {/* Move the drag handle div outside of the ml-5 container */}
             <div
@@ -690,7 +695,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 }}
                 onDelete={() =>
                   setOperations((prev) =>
-                    prev.filter((op) => op.id !== operation.id),
+                    prev.filter((op) => op.id !== operation.id)
                   )
                 }
                 onRunOperation={handleRunOperation}
@@ -703,7 +708,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                   operation,
                   handleOperationUpdate,
                   isSchemaExpanded,
-                  () => dispatch({ type: "TOGGLE_SCHEMA" }),
+                  () => dispatch({ type: "TOGGLE_SCHEMA" })
                 )}
               </CardContent>
               {operation.llmType === "LLM" && (

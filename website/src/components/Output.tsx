@@ -2,15 +2,12 @@ import React, {
   useState,
   useEffect,
   useMemo,
-  useRef,
-  useCallback,
 } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
-import { Loader2, Maximize2, Download, Columns } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import BookmarkableText from "@/components/BookmarkableText";
 import { Operation, OutputRow } from "@/app/types";
 import { Parser } from "json2csv";
@@ -21,10 +18,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Input } from "./ui/input";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import AnsiRenderer from "./AnsiRenderer";
-import { useToast } from "@/hooks/use-toast";
 
 export const ConsoleContent: React.FC = () => {
   const { terminalOutput, setTerminalOutput } = usePipelineContext();
@@ -64,12 +59,12 @@ export const Output: React.FC = () => {
 
   useEffect(() => {
     const foundOperation = operations.find(
-      (op: Operation) => op.id === output?.operationId
+      (op: Operation) => op.id === output?.operationId,
     );
     setOperation(foundOperation);
     setOpName(foundOperation?.name);
     setIsResolveOrReduce(
-      foundOperation?.type === "resolve" || foundOperation?.type === "reduce"
+      foundOperation?.type === "resolve" || foundOperation?.type === "reduce",
     );
   }, [operations, output]);
 
@@ -81,7 +76,7 @@ export const Output: React.FC = () => {
         try {
           // Fetch output data
           const outputResponse = await fetch(
-            `/api/readFile?path=${output.path}`
+            `/api/readFile?path=${output.path}`,
           );
           if (!outputResponse.ok) {
             throw new Error("Failed to fetch output file");
@@ -126,7 +121,7 @@ export const Output: React.FC = () => {
           // Fetch input data if inputPath exists
           if (output.inputPath) {
             const inputResponse = await fetch(
-              `/api/readFile?path=${output.inputPath}`
+              `/api/readFile?path=${output.inputPath}`,
             );
             if (!inputResponse.ok) {
               throw new Error("Failed to fetch input file");
@@ -134,7 +129,7 @@ export const Output: React.FC = () => {
             const inputContent = await inputResponse.text();
             const parsedInputs = JSON.parse(inputContent);
             setInputCount(
-              Array.isArray(parsedInputs) ? parsedInputs.length : 1
+              Array.isArray(parsedInputs) ? parsedInputs.length : 1,
             );
           } else {
             setInputCount(0);
@@ -210,8 +205,8 @@ export const Output: React.FC = () => {
       return outputs.length > 0 && reduceColumnName in outputs[0]
         ? { name: reduceColumnName, type: "reduce" }
         : outputs.length > 0 && resolveColumnName in outputs[0]
-        ? { name: resolveColumnName, type: "resolve" }
-        : null;
+          ? { name: resolveColumnName, type: "resolve" }
+          : null;
     }, [outputs, opName, operation]);
 
     if (!visualizationColumn || !operation) {
@@ -230,7 +225,7 @@ export const Output: React.FC = () => {
             .sort(
               (a, b) =>
                 Number(b[visualizationColumn.name]) -
-                Number(a[visualizationColumn.name])
+                Number(a[visualizationColumn.name]),
             )
             .map((row, index) => (
               <div key={index} className="mb-2">
@@ -257,10 +252,10 @@ export const Output: React.FC = () => {
           outputs.flatMap((row) => {
             const kvPairs = row[visualizationColumn.name];
             return Object.keys(kvPairs).filter((key) => key in row);
-          })
+          }),
         );
 
-        let groupedByIntersection: { [key: string]: any[] } = {};
+        const groupedByIntersection: { [key: string]: any[] } = {};
         outputs.forEach((row) => {
           const kvPairs = row[visualizationColumn.name];
           const key = Array.from(intersectionKeys)

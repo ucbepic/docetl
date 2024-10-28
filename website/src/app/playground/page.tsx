@@ -1,17 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import React, { useEffect, useState } from "react";
 import {
-  FileText,
-  Maximize2,
-  Minimize2,
-  Plus,
-  Play,
-  GripVertical,
-  Trash2,
-  ChevronDown,
-  Zap,
-  Upload,
   Scroll,
   Info,
 } from "lucide-react";
@@ -21,35 +12,51 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { DropResult } from "react-beautiful-dnd";
-import { OperationCard } from "@/components/OperationCard";
-import SpotlightOverlay from "@/components/SpotlightOverlay";
-import { Output } from "@/components/Output";
-import { File, Operation } from "@/app/types";
-import { FileExplorer } from "@/components/FileExplorer";
+const Output = dynamic(
+  () => import("../../components/Output").then((mod) => mod.Output),
+  {
+    ssr: false,
+  },
+);
+import { File } from "@/app/types";
 import {
   PipelineProvider,
   usePipelineContext,
 } from "@/contexts/PipelineContext";
-import DatasetView from "@/components/DatasetView";
-import PipelineGUI from "@/components/PipelineGui";
+const FileExplorer = dynamic(
+  () => import("@/components/FileExplorer").then((mod) => mod.FileExplorer),
+  {
+    ssr: false,
+  },
+);
+const DatasetView = dynamic(
+  () => import("@/components/DatasetView").then((mod) => mod.default),
+  {
+    ssr: false,
+  },
+);
+const PipelineGUI = dynamic(
+  () => import("@/components/PipelineGui").then((mod) => mod.default),
+  {
+    ssr: false,
+  },
+);
+const BookmarksPanel = dynamic(
+  () => import("@/components/BookmarksPanel").then((mod) => mod.default),
+  {
+    ssr: false,
+  },
+);
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
-import BookmarksPanel from "@/components/BookmarksPanel";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useWebSocket, WebSocketProvider } from "@/contexts/WebSocketContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
+
+
 import {
   Popover,
   PopoverContent,
@@ -156,7 +163,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   useEffect(() => {
     setIsLocalhost(
       window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1"
+        window.location.hostname === "127.0.0.1",
     );
     setIsMounted(true);
   }, []);
@@ -469,7 +476,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                     }
                     onFileDelete={(file: File) => {
                       setFiles((prevFiles) =>
-                        prevFiles.filter((f) => f.name !== file.name)
+                        prevFiles.filter((f) => f.name !== file.name),
                       );
                     }}
                     setCurrentFile={setCurrentFile}

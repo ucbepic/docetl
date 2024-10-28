@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useRef, useState, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 
 interface WebSocketContextType {
   lastMessage: any;
@@ -10,7 +16,9 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
-export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [lastMessage, setLastMessage] = useState<any>(null);
   const [readyState, setReadyState] = useState<number>(WebSocket.CLOSED);
   const ws = useRef<WebSocket | null>(null);
@@ -22,7 +30,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return;
       }
 
-      ws.current = new WebSocket('ws://localhost:8000/ws/run_pipeline');
+      ws.current = new WebSocket("ws://localhost:8000/ws/run_pipeline");
 
       ws.current.onopen = () => {
         setReadyState(WebSocket.OPEN);
@@ -31,11 +39,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       ws.current.onclose = () => {
         setReadyState(WebSocket.CLOSED);
-        console.log('WebSocket disconnected');
+        console.log("WebSocket disconnected");
       };
 
       ws.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error("WebSocket error:", error);
         reject(error);
       };
 
@@ -56,7 +64,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify(message));
     } else {
-      console.error('WebSocket is not connected');
+      console.error("WebSocket is not connected");
     }
   }, []);
 
@@ -78,7 +86,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 export const useWebSocket = () => {
   const context = useContext(WebSocketContext);
   if (!context) {
-    throw new Error('useWebSocket must be used within a WebSocketProvider');
+    throw new Error("useWebSocket must be used within a WebSocketProvider");
   }
   return context;
 };

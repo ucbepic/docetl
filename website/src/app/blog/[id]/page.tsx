@@ -1,24 +1,24 @@
-import Link from 'next/link'
-import { getPostData, getSortedPostsData } from '../../../lib/api'
-import MarkdownRenderer from '../../MarkdownRenderer'
-import { Scroll, Github } from 'lucide-react'
+import Link from "next/link";
+import { getPostData, getSortedPostsData } from "../../../lib/api";
+import MarkdownRenderer from "../../MarkdownRenderer";
+import { Scroll, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export async function generateStaticParams() {
-  const posts = getSortedPostsData()
+  const posts = getSortedPostsData();
   return posts.map((post) => ({
     id: post.id,
-  }))
+  }));
 }
 
 export default function BlogPost({ params }: { params: { id: string } }) {
-  const postData = getPostData(params.id)
+  const postData = getPostData(params.id);
 
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-        <Link href="/blog" className="flex items-center">
+          <Link href="/blog" className="flex items-center">
             <Scroll className="w-10 h-10 mr-2 text-primary" strokeWidth={1.5} />
             <span className="text-2xl font-bold">docetl blog</span>
           </Link>
@@ -51,5 +51,5 @@ export default function BlogPost({ params }: { params: { id: string } }) {
         </div>
       </div>
     </main>
-  )
+  );
 }

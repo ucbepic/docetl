@@ -1,16 +1,32 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Bookmark, BookmarkPlus, X } from 'lucide-react';
-import { useBookmarkContext } from '@/contexts/BookmarkContext';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserNote } from '@/app/types';
-import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useToast } from '@/hooks/use-toast';
+import React, { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Bookmark, BookmarkPlus, X } from "lucide-react";
+import { useBookmarkContext } from "@/contexts/BookmarkContext";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { UserNote } from "@/app/types";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useToast } from "@/hooks/use-toast";
 
 interface BookmarkableTextProps {
   children: React.ReactNode;
@@ -18,12 +34,15 @@ interface BookmarkableTextProps {
 }
 
 const formSchema = z.object({
-  editedText: z.string().min(1, 'Edited text is required'),
+  editedText: z.string().min(1, "Edited text is required"),
   color: z.string(),
   note: z.string(),
 });
 
-const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source }) => {
+const BookmarkableText: React.FC<BookmarkableTextProps> = ({
+  children,
+  source,
+}) => {
   const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 });
   const [showButton, setShowButton] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -36,14 +55,14 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      editedText: '',
-      color: '#FF0000',
-      note: '',
+      editedText: "",
+      color: "#FF0000",
+      note: "",
     },
   });
 
   const handleBookmark = (values: z.infer<typeof formSchema>) => {
-    const userNotes: UserNote[] = [{ id: 'default', note: values.note }];
+    const userNotes: UserNote[] = [{ id: "default", note: values.note }];
     addBookmark(values.editedText, source, values.color, userNotes);
     setShowButton(false);
     setIsPopoverOpen(false);
@@ -55,51 +74,52 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-    //   if (
-    //     isPopoverOpen &&
-    //     popoverRef.current &&
-    //     !popoverRef.current.contains(event.target as Node) &&
-    //     buttonRef.current &&
-    //     !buttonRef.current.contains(event.target as Node)
-    //   ) {
-    //     setIsPopoverOpen(false);
-    //   }
+      //   if (
+      //     isPopoverOpen &&
+      //     popoverRef.current &&
+      //     !popoverRef.current.contains(event.target as Node) &&
+      //     buttonRef.current &&
+      //     !buttonRef.current.contains(event.target as Node)
+      //   ) {
+      //     setIsPopoverOpen(false);
+      //   }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isPopoverOpen]);
 
-  const handleMultiElementSelection = (event: React.MouseEvent | React.TouchEvent) => {
+  const handleMultiElementSelection = (
+    event: React.MouseEvent | React.TouchEvent,
+  ) => {
     event.stopPropagation();
     const selection = window.getSelection();
 
     if (selection && !selection.isCollapsed) {
       const range = selection.getRangeAt(0);
       const fragment = range.cloneContents();
-      const tempDiv = document.createElement('div');
+      const tempDiv = document.createElement("div");
       tempDiv.appendChild(fragment);
       const text = tempDiv.innerText.trim();
       if (text) {
-        form.setValue('editedText', text);
+        form.setValue("editedText", text);
         const rect = range.getBoundingClientRect();
         setButtonPosition({
-          x: rect.left + (rect.width / 2),
+          x: rect.left + rect.width / 2,
           y: rect.top,
         });
         setShowButton(true);
       } else {
         // setShowButton(false);
       }
-    }
-    else {
-        // if (!isPopoverOpen) {
-        //     setShowButton(false);
-        // } else {
-        //     setShowButton(true);
-        // }
+    } else {
+      // if (!isPopoverOpen) {
+      //     setShowButton(false);
+      // } else {
+      //     setShowButton(true);
+      // }
     }
   };
 
@@ -121,7 +141,7 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
     >
       {children}
       {showButton && (
-        <Popover 
+        <Popover
           open={isPopoverOpen}
           onOpenChange={handlePopoverOpenChange}
           modal={true}
@@ -134,10 +154,10 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
               aria-label="Bookmark"
               className="shadow-md"
               style={{
-                position: 'absolute',
+                position: "absolute",
                 left: `${buttonPosition.x}px`,
                 top: `${buttonPosition.y}px`,
-                transform: 'translate(-50%, -100%)',
+                transform: "translate(-50%, -100%)",
               }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -147,8 +167,8 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
               <BookmarkPlus />
             </Button>
           </PopoverTrigger>
-          <PopoverContent 
-            className="w-[300px]" 
+          <PopoverContent
+            className="w-[300px]"
             ref={popoverRef}
             onInteractOutside={(e) => {
               if (!buttonRef.current?.contains(e.target as Node)) {
@@ -181,10 +201,7 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Textarea
-                          {...field}
-                          className="min-h-[100px] mb-2"
-                        />
+                        <Textarea {...field} className="min-h-[100px] mb-2" />
                       </FormControl>
                     </FormItem>
                   )}
@@ -194,7 +211,10 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
                   name="color"
                   render={({ field }) => (
                     <FormItem>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select a color" />
@@ -249,10 +269,7 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({ children, source })
                     <FormItem>
                       <FormLabel>Notes:</FormLabel>
                       <FormControl>
-                        <Textarea
-                          {...field}
-                          className="min-h-[50px] mb-1"
-                        />
+                        <Textarea {...field} className="min-h-[50px] mb-1" />
                       </FormControl>
                     </FormItem>
                   )}

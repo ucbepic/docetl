@@ -10,7 +10,7 @@ export function generatePipelineConfig(
   operation_id: string,
   name: string,
   sample_size: number | null,
-  optimize: boolean = false,
+  optimize: boolean = false
 ) {
   const homeDir = os.homedir();
 
@@ -53,7 +53,7 @@ export function generatePipelineConfig(
         if (item.type === "list") {
           if (!item.subType) {
             throw new Error(
-              `List type must specify its elements for field: ${item.key}`,
+              `List type must specify its elements for field: ${item.key}`
             );
           }
           const subType =
@@ -65,7 +65,7 @@ export function generatePipelineConfig(
           console.log(item);
           if (!item.subType) {
             throw new Error(
-              `Dict/Object type must specify its structure for field: ${item.key}`,
+              `Dict/Object type must specify its structure for field: ${item.key}`
             );
           }
           const subSchema = Object.entries(item.subType).reduce(
@@ -73,9 +73,9 @@ export function generatePipelineConfig(
               acc[value.key] = processSchemaItem(value as SchemaItem);
               return acc;
             },
-            {} as Record<string, string>,
+            {} as Record<string, string>
           );
-          return `dict{${Object.entries(subSchema)
+          return `{${Object.entries(subSchema)
             .map(([k, v]) => `${k}: ${v}`)
             .join(", ")}}`;
         } else {
@@ -89,7 +89,7 @@ export function generatePipelineConfig(
           newOp.samples = JSON.parse(op.otherKwargs.samples);
         } catch (e) {
           console.warn(
-            "Failed to parse custom samples as JSON, using raw value",
+            "Failed to parse custom samples as JSON, using raw value"
           );
         }
       }
@@ -102,17 +102,17 @@ export function generatePipelineConfig(
               acc[item.key] = processSchemaItem(item);
               return acc;
             },
-            {},
+            {}
           ),
         },
       };
-    },
+    }
   );
 
   // Fetch all operations up until and including the operation_id
   const operationsToRun = operations.slice(
     0,
-    operations.findIndex((op: Operation) => op.id === operation_id) + 1,
+    operations.findIndex((op: Operation) => op.id === operation_id) + 1
   );
 
   const pipelineConfig = {
@@ -134,14 +134,14 @@ export function generatePipelineConfig(
           ".docetl",
           "pipelines",
           "outputs",
-          `${name}.json`,
+          `${name}.json`
         ),
         intermediate_dir: path.join(
           homeDir,
           ".docetl",
           "pipelines",
           name,
-          "intermediates",
+          "intermediates"
         ),
       },
     },

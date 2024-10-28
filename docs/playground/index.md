@@ -1,6 +1,6 @@
 # Playground
 
-The playground is a web app that allows you to interactively build DocETL pipelines. The playground is built with Next.js.
+The playground is a web app that allows you to interactively build DocETL pipelines. The playground is built with Next.js and TypeScript. We use the `docetl` Python package (built from this source code) to process the data with a FastAPI server. We stream out the logs from the FastAPI server to the frontend so you can see the pipeline execution progress and outputs in real time.
 
 ## Why an interactive playground?
 
@@ -31,4 +31,3 @@ make run-ui-dev
 Navigate to [http://localhost:3000/playground](http://localhost:3000/playground) to access the playground. You should see the following screen:
 
 ![Playground Screenshot](../../assets/playground-screenshot.png)
-

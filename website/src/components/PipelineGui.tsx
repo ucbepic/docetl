@@ -52,8 +52,6 @@ import { Input } from "@/components/ui/input";
 import path from "path";
 import { schemaDictToItemSet } from "./utils";
 
-
-
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
@@ -84,10 +82,10 @@ const PipelineGUI: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempSampleSize, setTempSampleSize] = useState(
-    sampleSize?.toString() || "",
+    sampleSize?.toString() || ""
   );
   const [tempCurrentFile, setTempCurrentFile] = useState<File | null>(
-    currentFile,
+    currentFile
   );
   const [tempDefaultModel, setTempDefaultModel] = useState(defaultModel);
   const { toast } = useToast();
@@ -139,8 +137,8 @@ const PipelineGUI: React.FC = () => {
           };
           setOperations((prev) =>
             prev.map((op) =>
-              op.name === optimizedOp.name ? (convertedOp as Operation) : op,
-            ),
+              op.name === optimizedOp.name ? (convertedOp as Operation) : op
+            )
           );
         }
 
@@ -189,7 +187,7 @@ const PipelineGUI: React.FC = () => {
   }, [currentFile]);
 
   const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
+    event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -246,7 +244,7 @@ const PipelineGUI: React.FC = () => {
                   sample,
                   otherKwargs,
                 } as Operation;
-              }),
+              })
             );
             setPipelineName(yamlFileName || "Untitled Pipeline");
             setSampleSize(yamlContent.operations?.[0]?.sample || null);
@@ -268,8 +266,8 @@ const PipelineGUI: React.FC = () => {
                 const uniqueNewFiles = newFiles.filter(
                   (newFile) =>
                     !prevFiles.some(
-                      (prevFile) => prevFile.path === newFile.path,
-                    ),
+                      (prevFile) => prevFile.path === newFile.path
+                    )
                 );
                 return [...prevFiles, ...uniqueNewFiles];
               });
@@ -385,7 +383,7 @@ const PipelineGUI: React.FC = () => {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to write pipeline config");
+          throw new Error(await response.text());
         }
 
         const { filePath, inputPath, outputPath } = await response.json();
@@ -407,7 +405,7 @@ const PipelineGUI: React.FC = () => {
         console.error("Error writing pipeline config:", error);
         toast({
           title: "Error",
-          description: "Failed to write pipeline configuration",
+          description: error.message,
           variant: "destructive",
         });
         // Close the WebSocket connection
@@ -425,7 +423,7 @@ const PipelineGUI: React.FC = () => {
       defaultModel,
       pipelineName,
       sampleSize,
-    ],
+    ]
   );
 
   useEffect(() => {
@@ -463,7 +461,7 @@ const PipelineGUI: React.FC = () => {
   const handleAddOperation = (
     llmType: "LLM" | "non-LLM",
     type: string,
-    name: string,
+    name: string
   ) => {
     const newOperation: Operation = {
       id: String(Date.now()),
@@ -480,8 +478,8 @@ const PipelineGUI: React.FC = () => {
       tempSampleSize === ""
         ? null
         : tempSampleSize === null
-          ? null
-          : parseInt(tempSampleSize, 10),
+        ? null
+        : parseInt(tempSampleSize, 10)
     );
     setCurrentFile(tempCurrentFile);
     setDefaultModel(tempDefaultModel);
@@ -535,40 +533,6 @@ const PipelineGUI: React.FC = () => {
               </TooltipProvider>
             )}
             <div className="flex p-0 space-x-0">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        saveProgress();
-                        toast({
-                          title: "Progress Saved",
-                          description: "Your pipeline progress has been saved.",
-                          duration: 3000,
-                        });
-                      }}
-                      className={`relative ${
-                        unsavedChanges ? "border-orange-500" : ""
-                      }`}
-                    >
-                      <Save
-                        size={16}
-                        className={unsavedChanges ? "text-orange-500" : ""}
-                      />
-                      {unsavedChanges && (
-                        <span className="absolute top-0 right-0 w-2 h-2 bg-orange-500 rounded-full" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {unsavedChanges
-                      ? "Save changes to avoid losing progress!"
-                      : "No unsaved changes"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -661,7 +625,7 @@ const PipelineGUI: React.FC = () => {
                     handleAddOperation(
                       "LLM",
                       "parallel_map",
-                      "Untitled Parallel Map",
+                      "Untitled Parallel Map"
                     )
                   }
                 >
@@ -796,7 +760,7 @@ const PipelineGUI: React.FC = () => {
                 value={tempCurrentFile?.path || ""}
                 onValueChange={(value) =>
                   setTempCurrentFile(
-                    files.find((file) => file.path === value) || null,
+                    files.find((file) => file.path === value) || null
                   )
                 }
               >

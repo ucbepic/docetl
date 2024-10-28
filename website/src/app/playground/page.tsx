@@ -2,10 +2,7 @@
 
 import dynamic from "next/dynamic";
 import React, { useEffect, useState } from "react";
-import {
-  Scroll,
-  Info,
-} from "lucide-react";
+import { Scroll, Info, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
@@ -16,7 +13,7 @@ const Output = dynamic(
   () => import("../../components/Output").then((mod) => mod.Output),
   {
     ssr: false,
-  },
+  }
 );
 import { File } from "@/app/types";
 import {
@@ -27,25 +24,25 @@ const FileExplorer = dynamic(
   () => import("@/components/FileExplorer").then((mod) => mod.FileExplorer),
   {
     ssr: false,
-  },
+  }
 );
 const DatasetView = dynamic(
   () => import("@/components/DatasetView").then((mod) => mod.default),
   {
     ssr: false,
-  },
+  }
 );
 const PipelineGUI = dynamic(
   () => import("@/components/PipelineGui").then((mod) => mod.default),
   {
     ssr: false,
-  },
+  }
 );
 const BookmarksPanel = dynamic(
   () => import("@/components/BookmarksPanel").then((mod) => mod.default),
   {
     ssr: false,
-  },
+  }
 );
 import { BookmarkProvider } from "@/contexts/BookmarkContext";
 import {
@@ -55,7 +52,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
-
 
 import {
   Popover,
@@ -163,7 +159,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   useEffect(() => {
     setIsLocalhost(
       window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1",
+        window.location.hostname === "127.0.0.1"
     );
     setIsMounted(true);
   }, []);
@@ -236,6 +232,7 @@ const CodeEditorPipelineApp: React.FC = () => {
     setFiles,
     clearPipelineState,
     saveProgress,
+    unsavedChanges,
   } = usePipelineContext();
 
   const handleSaveAs = async () => {
@@ -318,7 +315,7 @@ const CodeEditorPipelineApp: React.FC = () => {
     <BookmarkProvider>
       <div className="h-screen flex flex-col bg-gray-50">
         <div className="p-1 flex justify-between items-center border-b">
-          <div className="flex-1">
+          <div className="flex-1 flex">
             <Menubar className="border-none bg-transparent shadow-none">
               <MenubarMenu>
                 <MenubarTrigger>File</MenubarTrigger>
@@ -366,6 +363,40 @@ const CodeEditorPipelineApp: React.FC = () => {
                 </MenubarContent>
               </MenubarMenu>
             </Menubar>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      saveProgress();
+                      toast({
+                        title: "Progress Saved",
+                        description: "Your pipeline progress has been saved.",
+                        duration: 3000,
+                      });
+                    }}
+                    className={`relative ${
+                      unsavedChanges ? "border-orange-500" : ""
+                    }`}
+                  >
+                    <Save
+                      size={16}
+                      className={unsavedChanges ? "text-orange-500" : ""}
+                    />
+                    {unsavedChanges && (
+                      <span className="absolute top-0 right-0 w-2 h-2 bg-orange-500 rounded-full" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {unsavedChanges
+                    ? "Save changes to avoid losing progress!"
+                    : "No unsaved changes"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <div className="flex items-center">
             <Scroll className="mr-2 text-primary" size={20} />
@@ -476,7 +507,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                     }
                     onFileDelete={(file: File) => {
                       setFiles((prevFiles) =>
-                        prevFiles.filter((f) => f.name !== file.name),
+                        prevFiles.filter((f) => f.name !== file.name)
                       );
                     }}
                     setCurrentFile={setCurrentFile}

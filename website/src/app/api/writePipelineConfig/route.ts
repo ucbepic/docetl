@@ -19,14 +19,14 @@ export async function POST(request: Request) {
     if (!name) {
       return NextResponse.json(
         { error: "Pipeline name is required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
-    if (!data) {
+    if (!data?.path) {
       return NextResponse.json(
         { error: "Data is required. Please select a file in the sidebar." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       operation_id,
       name,
       sample_size,
-      optimize,
+      optimize
     );
 
     console.log(yamlString);
@@ -52,9 +52,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ filePath, inputPath, outputPath });
   } catch (error) {
     console.error(error);
-    return NextResponse.json(
-      { error: "Failed to create pipeline config" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: error }, { status: 500 });
   }
 }

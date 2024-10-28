@@ -29,13 +29,33 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   setCurrentFile,
   setShowDatasetView,
 }) => {
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const uploadedFile = event.target.files?.[0];
     if (uploadedFile && uploadedFile.type === "application/json") {
-      const fullPath =
-        uploadedFile.webkitRelativePath || URL.createObjectURL(uploadedFile);
-      onFileUpload({ name: uploadedFile.name, path: fullPath });
-      setCurrentFile({ name: uploadedFile.name, path: fullPath });
+      const formData = new FormData();
+      formData.append("file", uploadedFile);
+
+      try {
+        const response = await fetch("/api/uploadFile", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Upload failed");
+        }
+
+        const data = await response.json();
+        const filePath = data.path; // This will be the absolute path from the server
+
+        onFileUpload({ name: uploadedFile.name, path: filePath });
+        setCurrentFile({ name: uploadedFile.name, path: filePath });
+      } catch (error) {
+        alert("Failed to upload file");
+        console.error(error);
+      }
     } else {
       alert("Please upload a JSON file");
     }
@@ -73,7 +93,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         {files.map((file) => (
           <ContextMenu key={file.name}>
             <ContextMenuTrigger
-              className={`flex w-full cursor-pointer hover:bg-gray-100 p-1 whitespace-nowrap ${currentFile?.name === file.name ? "bg-blue-100" : ""}`}
+              className={`flex w-full cursor-pointer hover:bg-gray-100 p-1 whitespace-nowrap ${
+                currentFile?.name === file.name ? "bg-blue-100" : ""
+              }`}
               onClick={() => handleFileSelection(file)}
             >
               <FileText className="inline mr-2" size={16} />

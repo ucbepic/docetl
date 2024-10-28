@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         page,
         hasMore: start + bytesRead < fileSize,
       },
-      { status: 200 },
+      { status: 200 }
     );
   } catch (error) {
     console.error("Error reading file:", error);

@@ -58,6 +58,10 @@ nav:
       - docetl.operations: api-reference/operations.md
       - docetl.optimizers: api-reference/optimizers.md
       - Python API: api-reference/python.md
+  - UI Playground:
+      - Installation: playground/index.md
+      - Simple Tutorial: playground/tutorial.md
+      - Features: playground/features.md
   - Community:
       - Community: community/index.md
       - Roadmap: community/roadmap.md

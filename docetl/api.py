@@ -203,7 +203,7 @@ class Pipeline:
             yaml_file_suffix=self.name,
             max_threads=max_threads,
         )
-        optimized_config = runner.optimize(return_pipeline=False)
+        optimized_config, _ = runner.optimize(return_pipeline=False)
 
         updated_pipeline = Pipeline(
             name=self.name,

@@ -1,6 +1,11 @@
-import React from 'react';
+import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const pipelinePrompts = [
   {
@@ -21,7 +26,7 @@ Return a list of themes and corresponding viewpoints in the following format:
     "viewpoints": "Candidate A's viewpoint... Candidate B's viewpoint..."
   },
   ...
-]`
+]`,
   },
   {
     name: "Synthesized Resolve",
@@ -38,7 +43,7 @@ Are these themes likely referring to the same concept? Consider the following at
 - The context in which the theme is presented
 - The viewpoints of the candidates associated with each theme
 
-Respond with "True" if they are likely the same theme, or "False" if they are likely different themes.`
+Respond with "True" if they are likely the same theme, or "False" if they are likely different themes.`,
   },
   {
     name: "Summarize Theme Evolution",
@@ -61,8 +66,8 @@ Your summary should:
 4. Use specific quotes to support your analysis
 5. The title should contain the start and end years of the analysis
 
-Format your response as a well-structured report.`
-  }
+Format your response as a well-structured report.`,
+  },
 ];
 
 const PipelinePrompts = () => {

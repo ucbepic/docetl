@@ -295,9 +295,9 @@ class ResolveOperation(BaseOperation):
                 total_cost += sum(costs)
 
         # Generate all pairs to compare, ensuring no duplicate comparisons
-        def get_unique_comparison_pairs():
+        def get_unique_comparison_pairs() -> Tuple[List[Tuple[int, int]], Dict[Tuple[str, ...], List[int]]]:
             # Create a mapping of values to their indices
-            value_to_indices = {}
+            value_to_indices: Dict[Tuple[str, ...], List[int]] = {}
             for i, item in enumerate(input_data):
                 # Create a hashable key from the blocking keys
                 key = tuple(str(item.get(k, "")) for k in blocking_keys)
@@ -323,7 +323,7 @@ class ResolveOperation(BaseOperation):
         comparison_pairs, value_to_indices = get_unique_comparison_pairs()
 
         # Filter pairs based on blocking conditions
-        def meets_blocking_conditions(pair):
+        def meets_blocking_conditions(pair: Tuple[int, int]) -> bool:
             i, j = pair
             return (
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
@@ -374,7 +374,7 @@ class ResolveOperation(BaseOperation):
 
         # Modified merge_clusters to handle all indices with the same value
 
-        def merge_clusters(item1, item2):
+        def merge_clusters(item1: int, item2: int) -> None:
             root1, root2 = find_cluster(item1, cluster_map), find_cluster(
                 item2, cluster_map
             )
@@ -416,21 +416,31 @@ class ResolveOperation(BaseOperation):
         )
 
         # Compute an auto-batch size based on the number of comparisons
-        def auto_batch():
-            M = 500 # should be made dynamic in the future based on the model, but this is the current rate limit for 4o-mini.
-            # (n-k)(k-1) is approximately len(filtered_pairs)
-            N = len(input_data)
-            # -k^2 + (n+1)k- n- fp + k^2/2 - k/2= 0, solve for k
-            quadratic_discriminant = (N + 0.5) ** 2 - 4 * (-1 / 2) * (-N - len(blocked_pairs))
-            K_cands = [(-1 * (N+0.5) + (quadratic_discriminant) ** 0.5 )/ (-1), (-1 * (N + 0.5) - (quadratic_discriminant) ** 0.5)/ (-1)]
-            K  = max(K_cands)
-            if K < 0:
-                return M
-            else:
-                return min(math.ceil(2*K), M)
+        def auto_batch() -> int:
+            # Maximum batch size limit for 4o-mini model
+            M = 500
+            
+            n = len(input_data)
+            m = len(blocked_pairs)
+            
+            # https://www.wolframalpha.com/input?i=k%28k-1%29%2F2+%2B+%28n-k%29%28k-1%29+%3D+m%2C+solve+for+k
+            # Two possible solutions for k:
+            # k = -1/2 sqrt((1 - 2n)^2 - 8m) + n + 1/2
+            # k = 1/2 (sqrt((1 - 2n)^2 - 8m) + 2n + 1)
+            
+            discriminant = (1 - 2*n)**2 - 8*m
+            sqrt_discriminant = discriminant ** 0.5
+            
+            k1 = -0.5 * sqrt_discriminant + n + 0.5
+            k2 = 0.5 * (sqrt_discriminant + 2*n + 1)
+            
+            # Take the maximum viable solution
+            k = max(k1, k2)
+            return M if k < 0 else min(int(k), M)
 
         # Compare pairs and update clusters in real-time
         batch_size = self.config.get("compare_batch_size", auto_batch())
+        self.console.log(f"Using compare batch size: {batch_size}")
         pair_costs = 0
 
         pbar = RichLoopBar(
@@ -441,7 +451,7 @@ class ResolveOperation(BaseOperation):
         last_processed = 0
         for i in pbar:
             batch_end = last_processed + batch_size
-            batch = blocked_pairs[last_processed:batch_end]
+            batch = blocked_pairs[last_processed : batch_end]
             # Filter pairs for the initial batch
             better_batch = [
                 pair for pair in batch

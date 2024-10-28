@@ -1,23 +1,30 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ColumnType } from '@/components/ResizableDataTable';
-import ResizableDataTable from '@/components/ResizableDataTable';
-import { usePipelineContext } from '@/contexts/PipelineContext';
-import { Loader2, Maximize2, Download, Columns } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import BookmarkableText from '@/components/BookmarkableText';
-import { Operation, OutputRow } from '@/app/types';
-import { Parser } from 'json2csv';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
+import { ColumnType } from "@/components/ResizableDataTable";
+import ResizableDataTable from "@/components/ResizableDataTable";
+import { usePipelineContext } from "@/contexts/PipelineContext";
+import { Loader2, Maximize2, Download, Columns } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import BookmarkableText from "@/components/BookmarkableText";
+import { Operation, OutputRow } from "@/app/types";
+import { Parser } from "json2csv";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Input } from './ui/input';
-import { useWebSocket } from '@/contexts/WebSocketContext';
-import AnsiRenderer from './AnsiRenderer'
-import { useToast } from '@/hooks/use-toast';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Input } from "./ui/input";
+import { useWebSocket } from "@/contexts/WebSocketContext";
+import AnsiRenderer from "./AnsiRenderer";
+import { useToast } from "@/hooks/use-toast";
 
 export const ConsoleContent: React.FC = () => {
   const { terminalOutput, setTerminalOutput } = usePipelineContext();
@@ -25,10 +32,10 @@ export const ConsoleContent: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full w-full bg-black text-white font-mono rounded-lg overflow-hidden">
-      <AnsiRenderer 
-        text={terminalOutput || ""} 
-        readyState={readyState} 
-        setTerminalOutput={setTerminalOutput} 
+      <AnsiRenderer
+        text={terminalOutput || ""}
+        readyState={readyState}
+        setTerminalOutput={setTerminalOutput}
       />
     </div>
   );
@@ -50,28 +57,34 @@ export const Output: React.FC = () => {
   useEffect(() => {
     if (!isLoadingOutputs) {
       setDefaultTab("table");
-    }
-    else {
+    } else {
       setDefaultTab("console");
     }
   }, [isLoadingOutputs]);
 
   useEffect(() => {
-    const foundOperation = operations.find((op: Operation) => op.id === output?.operationId);
+    const foundOperation = operations.find(
+      (op: Operation) => op.id === output?.operationId
+    );
     setOperation(foundOperation);
     setOpName(foundOperation?.name);
-    setIsResolveOrReduce(foundOperation?.type === 'resolve' || foundOperation?.type === 'reduce');
+    setIsResolveOrReduce(
+      foundOperation?.type === "resolve" || foundOperation?.type === "reduce"
+    );
   }, [operations, output]);
 
   useEffect(() => {
     const fetchData = async () => {
       if (output) {
-        const importantColumns = operation?.otherKwargs?.prompts?.[0]?.output_keys;
+        const importantColumns =
+          operation?.otherKwargs?.prompts?.[0]?.output_keys;
         try {
           // Fetch output data
-          const outputResponse = await fetch(`/api/readFile?path=${output.path}`);
+          const outputResponse = await fetch(
+            `/api/readFile?path=${output.path}`
+          );
           if (!outputResponse.ok) {
-            throw new Error('Failed to fetch output file');
+            throw new Error("Failed to fetch output file");
           }
           const outputContent = await outputResponse.text();
           let parsedOutputs = JSON.parse(outputContent) as OutputRow[];
@@ -79,7 +92,7 @@ export const Output: React.FC = () => {
 
           // Sort and reorder columns (existing logic)
           if (parsedOutputs.length > 0) {
-            if ('date' in parsedOutputs[0]) {
+            if ("date" in parsedOutputs[0]) {
               parsedOutputs.sort((a, b) => {
                 const dateA = (a as any).date;
                 const dateB = (b as any).date;
@@ -91,14 +104,14 @@ export const Output: React.FC = () => {
             }
 
             if (importantColumns && importantColumns.length > 0) {
-              parsedOutputs = parsedOutputs.map(row => {
+              parsedOutputs = parsedOutputs.map((row) => {
                 const orderedRow: OutputRow = {};
                 importantColumns.forEach((col: string) => {
                   if (col in row) {
                     orderedRow[col] = row[col];
                   }
                 });
-                Object.keys(row).forEach(key => {
+                Object.keys(row).forEach((key) => {
                   if (!importantColumns.includes(key)) {
                     orderedRow[key] = row[key];
                   }
@@ -107,33 +120,38 @@ export const Output: React.FC = () => {
               });
             }
           }
-          
+
           setOutputs(parsedOutputs);
 
           // Fetch input data if inputPath exists
           if (output.inputPath) {
-            const inputResponse = await fetch(`/api/readFile?path=${output.inputPath}`);
+            const inputResponse = await fetch(
+              `/api/readFile?path=${output.inputPath}`
+            );
             if (!inputResponse.ok) {
-              throw new Error('Failed to fetch input file');
+              throw new Error("Failed to fetch input file");
             }
             const inputContent = await inputResponse.text();
             const parsedInputs = JSON.parse(inputContent);
-            setInputCount(Array.isArray(parsedInputs) ? parsedInputs.length : 1);
-          }
-          else {
+            setInputCount(
+              Array.isArray(parsedInputs) ? parsedInputs.length : 1
+            );
+          } else {
             setInputCount(0);
           }
         } catch (error) {
-          console.error('Error fetching data:', error);
+          console.error("Error fetching data:", error);
         }
       }
     };
 
     fetchData();
-  }, [output, operation]);
+  }, [output, operation, isLoadingOutputs]);
 
   const columns: ColumnType<any>[] = React.useMemo(() => {
-    const importantColumns = operation?.output?.schema ? operation.output.schema.map(field => field.key) : [];
+    const importantColumns = operation?.output?.schema
+      ? operation.output.schema.map((field) => field.key)
+      : [];
 
     return outputs.length > 0
       ? Object.keys(outputs[0]).map((key) => ({
@@ -141,16 +159,21 @@ export const Output: React.FC = () => {
           header: key,
           cell: ({ getValue }: { getValue: () => any }) => {
             const value = getValue();
-            const stringValue = typeof value === 'object' && value !== null ? JSON.stringify(value, null, 2) : String(value);
+            const stringValue =
+              typeof value === "object" && value !== null
+                ? JSON.stringify(value, null, 2)
+                : String(value);
             return (
-              <pre className="whitespace-pre-wrap font-mono text-sm">{stringValue}</pre>
+              <pre className="whitespace-pre-wrap font-mono text-sm">
+                {stringValue}
+              </pre>
             );
           },
           initialWidth: importantColumns?.includes(key) ? 300 : 150,
         }))
       : [];
   }, [outputs, operation?.output?.schema]);
-  
+
   const TableContent = () => (
     <div className="flex-grow overflow-y-auto">
       {isLoadingOutputs ? (
@@ -160,75 +183,89 @@ export const Output: React.FC = () => {
         </div>
       ) : outputs.length > 0 ? (
         <BookmarkableText source="output">
-        <ResizableDataTable
-          data={outputs}
-          columns={columns}
-          boldedColumns={operation?.output?.schema ? operation.output.schema.map(field => field.key) : []}
-          startingRowHeight={180}
-        />
+          <ResizableDataTable
+            data={outputs}
+            columns={columns}
+            boldedColumns={
+              operation?.output?.schema
+                ? operation.output.schema.map((field) => field.key)
+                : []
+            }
+            startingRowHeight={180}
+          />
         </BookmarkableText>
       ) : (
-        <p className="text-center text-muted-foreground">No outputs available.</p>
+        <p className="text-center text-muted-foreground">
+          No outputs available.
+        </p>
       )}
     </div>
   );
 
   const VisualizeContent = () => {
-
     const visualizationColumn = useMemo(() => {
       if (!opName) return null;
       const reduceColumnName = `_counts_prereduce_${opName}`;
       const resolveColumnName = `_kv_pairs_preresolve_${opName}`;
-      return outputs.length > 0 && reduceColumnName in outputs[0] 
-        ? { name: reduceColumnName, type: 'reduce' }
+      return outputs.length > 0 && reduceColumnName in outputs[0]
+        ? { name: reduceColumnName, type: "reduce" }
         : outputs.length > 0 && resolveColumnName in outputs[0]
-        ? { name: resolveColumnName, type: 'resolve' }
+        ? { name: resolveColumnName, type: "resolve" }
         : null;
     }, [outputs, opName, operation]);
 
-
     if (!visualizationColumn || !operation) {
-      return <p className="text-center text-muted-foreground">No visualization data available.</p>;
+      return (
+        <p className="text-center text-muted-foreground">
+          No visualization data available.
+        </p>
+      );
     }
 
-    if (operation.type === 'reduce') {
+    if (operation.type === "reduce") {
       const reduceKeys = operation.otherKwargs?.reduce_key || [];
       return (
         <div className="flex-grow overflow-y-auto h-full">
           {outputs
-            .sort((a, b) => Number(b[visualizationColumn.name]) - Number(a[visualizationColumn.name]))
+            .sort(
+              (a, b) =>
+                Number(b[visualizationColumn.name]) -
+                Number(a[visualizationColumn.name])
+            )
             .map((row, index) => (
-            <div key={index} className="mb-2">
-              <h3 className="text-sm font-semibold mb-2">
-                {reduceKeys.map((key: string) => `${key}: ${row[key]}`).join(', ')} ({row[visualizationColumn.name]})
-              </h3>
-              <div className="flex">
-                {Array.from({ length: Number(row[visualizationColumn.name]) }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-4 h-10 bg-primary mr-1"
-                  />
-                ))}
+              <div key={index} className="mb-2">
+                <h3 className="text-sm font-semibold mb-2">
+                  {reduceKeys
+                    .map((key: string) => `${key}: ${row[key]}`)
+                    .join(", ")}{" "}
+                  ({row[visualizationColumn.name]})
+                </h3>
+                <div className="flex">
+                  {Array.from({
+                    length: Number(row[visualizationColumn.name]),
+                  }).map((_, i) => (
+                    <div key={i} className="w-4 h-10 bg-primary mr-1" />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       );
-    } else if (operation.type === 'resolve') {
+    } else if (operation.type === "resolve") {
       const groupedData = useMemo(() => {
         const intersectionKeys = new Set(
-          outputs.flatMap(row => {
+          outputs.flatMap((row) => {
             const kvPairs = row[visualizationColumn.name];
-            return Object.keys(kvPairs).filter(key => key in row);
+            return Object.keys(kvPairs).filter((key) => key in row);
           })
         );
 
         let groupedByIntersection: { [key: string]: any[] } = {};
-        outputs.forEach(row => {
+        outputs.forEach((row) => {
           const kvPairs = row[visualizationColumn.name];
           const key = Array.from(intersectionKeys)
-            .map(k => row[k])
-            .join('|');
+            .map((k) => row[k])
+            .join("|");
           if (!groupedByIntersection[key]) {
             groupedByIntersection[key] = [];
           }
@@ -243,32 +280,46 @@ export const Output: React.FC = () => {
           {Object.entries(groupedData)
             .sort(([, groupA], [, groupB]) => groupB.length - groupA.length)
             .map(([key, group]: [string, any[]]) => (
-            <div key={key} className="mb-2">
-              <h3 className="text-sm font-semibold mb-2">{key} ({group.length})</h3>
-              <div className="flex">
-                {group.map((item, index) => (
-                  <TooltipProvider key={index}>
-                    <Tooltip delayDuration={0}>
-                      <TooltipTrigger>
-                        <Button
-                          className="w-4 h-10 p-0 mr-1"
-                          variant="default"
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" align="center" className="max-w-[300px] overflow-auto">
-                        <p className="text-xs">Document values before resolution:</p>
-                        <pre className="whitespace-pre-wrap break-words">{JSON.stringify(item.oldValues, null, 2)}</pre>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))}
+              <div key={key} className="mb-2">
+                <h3 className="text-sm font-semibold mb-2">
+                  {key} ({group.length})
+                </h3>
+                <div className="flex">
+                  {group.map((item, index) => (
+                    <TooltipProvider key={index}>
+                      <Tooltip delayDuration={0}>
+                        <TooltipTrigger>
+                          <Button
+                            className="w-4 h-10 p-0 mr-1"
+                            variant="default"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="bottom"
+                          align="center"
+                          className="max-w-[300px] overflow-auto"
+                        >
+                          <p className="text-xs">
+                            Document values before resolution:
+                          </p>
+                          <pre className="whitespace-pre-wrap break-words">
+                            {JSON.stringify(item.oldValues, null, 2)}
+                          </pre>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       );
     } else {
-      return <p className="text-center text-muted-foreground">Visualization not supported for this operation type.</p>;
+      return (
+        <p className="text-center text-muted-foreground">
+          Visualization not supported for this operation type.
+        </p>
+      );
     }
   };
 
@@ -279,35 +330,44 @@ export const Output: React.FC = () => {
       const parser = new Parser();
       const csvContent = parser.parse(outputs);
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
       if (link.download !== undefined) {
         const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', 'output.csv');
-        link.style.visibility = 'hidden';
+        link.setAttribute("href", url);
+        link.setAttribute("download", "output.csv");
+        link.style.visibility = "hidden";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       }
     } catch (err) {
-      console.error('Error converting to CSV:', err);
+      console.error("Error converting to CSV:", err);
     }
   };
 
-  const selectivityFactor = inputCount > 0 ? (outputCount / inputCount).toFixed(2) : 'N/A';
+  const selectivityFactor =
+    inputCount > 0 ? (outputCount / inputCount).toFixed(2) : "N/A";
 
   return (
     <div className="h-full p-4 bg-white flex flex-col">
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-sm font-bold mb-2 flex items-center uppercase">
-          Output {opName && <span className="text-gray-500 ml-1">- {opName}</span>}
+          Output{" "}
+          {opName && <span className="text-gray-500 ml-1">- {opName}</span>}
         </h2>
         <div className="flex items-center space-x-2">
           <span className="text-sm text-gray-500">
-            {inputCount} inputs | {outputCount} outputs | Selectivity: {selectivityFactor}x
+            {inputCount} inputs | {outputCount} outputs | Selectivity:{" "}
+            {selectivityFactor}x
           </span>
-          <Button variant="ghost" size="sm" className="p-1" onClick={downloadCSV} disabled={outputs.length === 0}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1"
+            onClick={downloadCSV}
+            disabled={outputs.length === 0}
+          >
             <Download size={16} />
           </Button>
           {/* <Dialog>
@@ -336,7 +396,9 @@ export const Output: React.FC = () => {
             )}
           </TabsTrigger>
           <TabsTrigger value="table">Table</TabsTrigger>
-          <TabsTrigger value="visualize" disabled={!isResolveOrReduce}>Visualize Input Distribution</TabsTrigger>
+          <TabsTrigger value="visualize" disabled={!isResolveOrReduce}>
+            Visualize Input Distribution
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="table">
           <TableContent />

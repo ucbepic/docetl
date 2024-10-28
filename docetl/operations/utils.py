@@ -917,6 +917,15 @@ Remember: The scratchpad should contain information necessary for processing fut
 
             outputs = []
             for tool_call in tool_calls:
+                if response.choices[0].finish_reason == "content_filter":
+                    raise InvalidOutputError(
+                        "Content filter triggered in LLM response",
+                        "",
+                        schema,
+                        response.choices,
+                        tools,
+                    )
+
                 try:
                     output_dict = json.loads(tool_call.function.arguments)
                     if "ollama" in response.model:

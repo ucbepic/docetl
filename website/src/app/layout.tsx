@@ -19,6 +19,15 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "DocETL",
   description: "Powering complex document processing pipelines",
+  icons: {
+    icon: "/docetl-favicon-color.png",
+    shortcut: "/docetl-favicon-color.png",
+    apple: "/docetl-favicon-color.png",
+    other: {
+      rel: "icon",
+      url: "/docetl-favicon-color.png",
+    },
+  },
 };
 
 export default function RootLayout({

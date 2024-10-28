@@ -14,7 +14,7 @@ docetl = "docetl.cli:app"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-litellm = "^1.42.1"
+litellm = "^1.51.0"
 tqdm = "^4.66.4"
 rich = "^13.7.1"
 frozendict = "^2.4.4"

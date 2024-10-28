@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Copy, ChevronDown } from 'lucide-react';
+import { Copy, ChevronDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -10,17 +10,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import PipelineVisualization from './PipelineVisualization';
-import ReactMarkdown from 'react-markdown';
+import PipelineVisualization from "./PipelineVisualization";
+import ReactMarkdown from "react-markdown";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import { useToast } from "@/hooks/use-toast"
-import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-
-
+} from "@/components/ui/collapsible";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Tooltip,
+  TooltipProvider,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const pipelineCode = `datasets:
   debates:
@@ -157,17 +160,25 @@ pipeline:
     path: "theme_evolution_analysis.json"
     intermediate_dir: "checkpoints"`;
 
-
 const PresidentialDebateDemo = () => {
+  const [reports, setReports] = useState<
+    Array<{ theme: string; report: string }>
+  >([]);
+  const [selectedTheme, setSelectedTheme] = useState<string>("");
 
-  const [reports, setReports] = useState<Array<{ theme: string; report: string }>>([]);
-  const [selectedTheme, setSelectedTheme] = useState<string>('');
-
-  const [inputData, setInputData] = useState<Array<{ year: string; date: string, title: string, url: string, content: string }>>([]);
-  const [selectedDebate, setSelectedDebate] = useState<string>('');
-  const [geminiResult, setGeminiResult] = useState<string>('');
-  const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState<string>('demo-input');
+  const [inputData, setInputData] = useState<
+    Array<{
+      year: string;
+      date: string;
+      title: string;
+      url: string;
+      content: string;
+    }>
+  >([]);
+  const [selectedDebate, setSelectedDebate] = useState<string>("");
+  const [geminiResult, setGeminiResult] = useState<string>("");
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<string>("demo-input");
   const [isCollapsibleOpen, setIsCollapsibleOpen] = useState(false);
 
   useEffect(() => {
@@ -179,8 +190,16 @@ const PresidentialDebateDemo = () => {
 
   useEffect(() => {
     // Set the active tab based on the URL hash on initial load
-    const hash = window.location.hash.replace('#', '');
-    if (hash && ['demo-input', 'demo-docetl-output', 'demo-gemini-output', 'demo-code'].includes(hash)) {
+    const hash = window.location.hash.replace("#", "");
+    if (
+      hash &&
+      [
+        "demo-input",
+        "demo-docetl-output",
+        "demo-gemini-output",
+        "demo-code",
+      ].includes(hash)
+    ) {
       setActiveTab(hash);
       setIsCollapsibleOpen(true);
     }
@@ -188,139 +207,201 @@ const PresidentialDebateDemo = () => {
 
   useEffect(() => {
     // Fetch the JSON file
-    fetch('/theme_evolution_analysis.json')
-      .then(response => response.json())
-      .then(data => {
+    fetch("/theme_evolution_analysis.json")
+      .then((response) => response.json())
+      .then((data) => {
         setReports(data);
         if (data.length > 0) {
           setSelectedTheme(data[0].theme);
         }
       })
-      .catch(error => console.error('Error loading theme reports:', error));
+      .catch((error) => console.error("Error loading theme reports:", error));
 
-      // Fetch the input JSON file
-      fetch('/debate_transcripts.json')
-        .then(response => response.json())
-        .then(data => {
-          const transformedData = data
-            .map((item: { year: string; date: string; title: string; url: string; content: string }) => ({
+    // Fetch the input JSON file
+    fetch("/debate_transcripts.json")
+      .then((response) => response.json())
+      .then((data) => {
+        const transformedData = data
+          .map(
+            (item: {
+              year: string;
+              date: string;
+              title: string;
+              url: string;
+              content: string;
+            }) => ({
               ...item,
-              title: `${item.title} (${item.year})`
-            }))
-            .sort((a: { date: string }, b: { date: string }) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          setInputData(transformedData);
-          if (transformedData.length > 0) {
-            setSelectedDebate(transformedData[0].title);
-          }
-        })
-        .catch(error => console.error('Error loading input data:', error));
+              title: `${item.title} (${item.year})`,
+            }),
+          )
+          .sort(
+            (a: { date: string }, b: { date: string }) =>
+              new Date(b.date).getTime() - new Date(a.date).getTime(),
+          );
+        setInputData(transformedData);
+        if (transformedData.length > 0) {
+          setSelectedDebate(transformedData[0].title);
+        }
+      })
+      .catch((error) => console.error("Error loading input data:", error));
 
-    fetch('/debate_gemini_result.txt')
-        .then(response => response.text())
-        .then(data => {
-          setGeminiResult(data);
-        })
-        .catch(error => console.error('Error loading Gemini result:', error));
+    fetch("/debate_gemini_result.txt")
+      .then((response) => response.text())
+      .then((data) => {
+        setGeminiResult(data);
+      })
+      .catch((error) => console.error("Error loading Gemini result:", error));
   }, []);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(pipelineCode);
     toast({
       description: "The pipeline code has been copied to your clipboard.",
-    })
+    });
   };
-
 
   return (
     <Card className="max-w-8xl mx-auto bg-white shadow-md">
       <CardContent className="p-6 space-y-6">
-
-      
-
-
         <PipelineVisualization />
         <p className="text-sm text-muted-foreground text-left mb-2">
-          DocETL generates comprehensive reports for 152 distinct themes, each analyzing the evolution of Democratic and Republican viewpoints over time. You can explore the reports by selecting a theme from the dropdown menu.
+          DocETL generates comprehensive reports for 152 distinct themes, each
+          analyzing the evolution of Democratic and Republican viewpoints over
+          time. You can explore the reports by selecting a theme from the
+          dropdown menu.
         </p>
-      
-      <Collapsible open={isCollapsibleOpen} onOpenChange={setIsCollapsibleOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" className="w-full justify-between">
-            <span>See Code, Transcripts, and Outputs</span>
-            <ChevronDown className={`h-4 w-4 ml-2 inline-block ${isCollapsibleOpen ? 'transform rotate-180' : ''}`} />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value='demo-code'>Code</TabsTrigger>
-              <TabsTrigger value='demo-input'>Input</TabsTrigger>
-              <TabsTrigger value='demo-docetl-output'>DocETL Output</TabsTrigger>
-              <TabsTrigger value='demo-gemini-output'>Gemini Output</TabsTrigger>
-            </TabsList>
-            <TabsContent value='demo-input' className="mt-4">
-              <h3 className="text-lg font-semibold mb-4">Debate Transcripts</h3>
-              <Select value={selectedDebate} onValueChange={setSelectedDebate}>
-                <SelectTrigger className="w-full mb-4">
-                  <SelectValue placeholder="Select a debate" />
-                </SelectTrigger>
-                <SelectContent>
-                  {inputData.map((item) => (
-                    <SelectItem key={item.title} value={item.title}>
-                      {item.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="h-[400px] overflow-y-auto bg-muted p-4 rounded-md text-left">
-                <pre className="text-sm whitespace-pre-wrap">
-                  <code>{inputData.find(item => item.title === selectedDebate)?.content}</code>
-                </pre>
-              </div>
-            </TabsContent>
-            <TabsContent value='demo-docetl-output' className="mt-4">
-              <h3 className="text-lg font-semibold mb-4">DocETL-Generated Reports</h3>
-              <Select value={selectedTheme} onValueChange={setSelectedTheme}>
-                <SelectTrigger className="w-full mb-4">
-                  <SelectValue placeholder="Select a theme" />
-                </SelectTrigger>
-                <SelectContent>
-                  {reports.map((item) => (
-                    <SelectItem key={item.theme} value={item.theme}>
-                      {item.theme}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="h-[400px] overflow-y-auto bg-muted p-4 rounded-md text-left">
-                <ReactMarkdown
-                  className="prose prose-sm max-w-none"
-                  components={{
-                    h1: ({ ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
-                    h2: ({ ...props }) => <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />,
-                    h3: ({ ...props }) => <h3 className="text-base font-medium mt-2 mb-1" {...props} />,
-                    h4: ({ ...props }) => <h4 className="text-sm font-medium mt-2 mb-1" {...props} />,
-                    h5: ({ ...props }) => <h5 className="text-xs font-medium mt-1 mb-1" {...props} />,
-                    h6: ({ ...props }) => <h6 className="text-xs font-medium mt-1 mb-1" {...props} />,
-                  }}
+
+        <Collapsible
+          open={isCollapsibleOpen}
+          onOpenChange={setIsCollapsibleOpen}
+        >
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full justify-between">
+              <span>See Code, Transcripts, and Outputs</span>
+              <ChevronDown
+                className={`h-4 w-4 ml-2 inline-block ${isCollapsibleOpen ? "transform rotate-180" : ""}`}
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList>
+                <TabsTrigger value="demo-code">Code</TabsTrigger>
+                <TabsTrigger value="demo-input">Input</TabsTrigger>
+                <TabsTrigger value="demo-docetl-output">
+                  DocETL Output
+                </TabsTrigger>
+                <TabsTrigger value="demo-gemini-output">
+                  Gemini Output
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="demo-input" className="mt-4">
+                <h3 className="text-lg font-semibold mb-4">
+                  Debate Transcripts
+                </h3>
+                <Select
+                  value={selectedDebate}
+                  onValueChange={setSelectedDebate}
                 >
-                  {reports.find(item => item.theme === selectedTheme)?.report || ''}
-                </ReactMarkdown>
-              </div>
-            </TabsContent>
-            <TabsContent value='demo-gemini-output' className="mt-4">
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                Gemini-1.5-Pro-002 Result ({geminiResult.split(/\s+/).length} words)
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild className="cursor-help">
-                      <span className="ml-2 text-sm text-muted-foreground underline cursor-help">
-                        Hover to see prompt
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="p-4">
-                    <pre className="text-sm whitespace-pre-wrap text-left">
-                              {`Analyze the following presidential debate transcripts:
+                  <SelectTrigger className="w-full mb-4">
+                    <SelectValue placeholder="Select a debate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inputData.map((item) => (
+                      <SelectItem key={item.title} value={item.title}>
+                        {item.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="h-[400px] overflow-y-auto bg-muted p-4 rounded-md text-left">
+                  <pre className="text-sm whitespace-pre-wrap">
+                    <code>
+                      {
+                        inputData.find((item) => item.title === selectedDebate)
+                          ?.content
+                      }
+                    </code>
+                  </pre>
+                </div>
+              </TabsContent>
+              <TabsContent value="demo-docetl-output" className="mt-4">
+                <h3 className="text-lg font-semibold mb-4">
+                  DocETL-Generated Reports
+                </h3>
+                <Select value={selectedTheme} onValueChange={setSelectedTheme}>
+                  <SelectTrigger className="w-full mb-4">
+                    <SelectValue placeholder="Select a theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reports.map((item) => (
+                      <SelectItem key={item.theme} value={item.theme}>
+                        {item.theme}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="h-[400px] overflow-y-auto bg-muted p-4 rounded-md text-left">
+                  <ReactMarkdown
+                    className="prose prose-sm max-w-none"
+                    components={{
+                      h1: ({ ...props }) => (
+                        <h1
+                          className="text-xl font-bold mt-4 mb-2"
+                          {...props}
+                        />
+                      ),
+                      h2: ({ ...props }) => (
+                        <h2
+                          className="text-lg font-semibold mt-3 mb-2"
+                          {...props}
+                        />
+                      ),
+                      h3: ({ ...props }) => (
+                        <h3
+                          className="text-base font-medium mt-2 mb-1"
+                          {...props}
+                        />
+                      ),
+                      h4: ({ ...props }) => (
+                        <h4
+                          className="text-sm font-medium mt-2 mb-1"
+                          {...props}
+                        />
+                      ),
+                      h5: ({ ...props }) => (
+                        <h5
+                          className="text-xs font-medium mt-1 mb-1"
+                          {...props}
+                        />
+                      ),
+                      h6: ({ ...props }) => (
+                        <h6
+                          className="text-xs font-medium mt-1 mb-1"
+                          {...props}
+                        />
+                      ),
+                    }}
+                  >
+                    {reports.find((item) => item.theme === selectedTheme)
+                      ?.report || ""}
+                  </ReactMarkdown>
+                </div>
+              </TabsContent>
+              <TabsContent value="demo-gemini-output" className="mt-4">
+                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                  Gemini-1.5-Pro-002 Result ({geminiResult.split(/\s+/).length}{" "}
+                  words)
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild className="cursor-help">
+                        <span className="ml-2 text-sm text-muted-foreground underline cursor-help">
+                          Hover to see prompt
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="p-4">
+                        <pre className="text-sm whitespace-pre-wrap text-left">
+                          {`Analyze the following presidential debate transcripts:
 
 {% for debate in debates %}
 Title: {{ debate.title }}
@@ -345,44 +426,79 @@ For each theme's summary:
 Ensure each summary is well-structured and comprehensive.
 
 Provide your analysis as a detailed text response, organizing the information by themes and their evolution over time.`}
-                            </pre>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </h3>
-              <div className="h-[400px] overflow-y-auto bg-muted p-4 rounded-md text-left">
-                <ReactMarkdown className="prose prose-sm max-w-none" components={{
-                    h1: ({ ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
-                    h2: ({ ...props }) => <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />,
-                    h3: ({ ...props }) => <h3 className="text-base font-medium mt-2 mb-1" {...props} />,
-                    h4: ({ ...props }) => <h4 className="text-sm font-medium mt-2 mb-1" {...props} />,
-                    h5: ({ ...props }) => <h5 className="text-xs font-medium mt-1 mb-1" {...props} />,
-                    h6: ({ ...props }) => <h6 className="text-xs font-medium mt-1 mb-1" {...props} />,
-                  }}>
-                  {geminiResult}
-                </ReactMarkdown>
-              </div>
-            </TabsContent>
-            <TabsContent value='demo-code' className="mt-4">
-              <h3 className="text-lg font-semibold mb-4">Pipeline Code</h3>
-              <div className="relative h-[400px] overflow-hidden">
-                <pre className="h-full overflow-y-auto bg-muted p-4 rounded-md text-left">
-                  <code className="text-sm whitespace-pre-wrap">{pipelineCode}</code>
-                </pre>
-                <Button
-                  className="absolute top-2 right-2"
-                  variant="secondary"
-                  onClick={copyToClipboard}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CollapsibleContent>
-      </Collapsible>
+                        </pre>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </h3>
+                <div className="h-[400px] overflow-y-auto bg-muted p-4 rounded-md text-left">
+                  <ReactMarkdown
+                    className="prose prose-sm max-w-none"
+                    components={{
+                      h1: ({ ...props }) => (
+                        <h1
+                          className="text-xl font-bold mt-4 mb-2"
+                          {...props}
+                        />
+                      ),
+                      h2: ({ ...props }) => (
+                        <h2
+                          className="text-lg font-semibold mt-3 mb-2"
+                          {...props}
+                        />
+                      ),
+                      h3: ({ ...props }) => (
+                        <h3
+                          className="text-base font-medium mt-2 mb-1"
+                          {...props}
+                        />
+                      ),
+                      h4: ({ ...props }) => (
+                        <h4
+                          className="text-sm font-medium mt-2 mb-1"
+                          {...props}
+                        />
+                      ),
+                      h5: ({ ...props }) => (
+                        <h5
+                          className="text-xs font-medium mt-1 mb-1"
+                          {...props}
+                        />
+                      ),
+                      h6: ({ ...props }) => (
+                        <h6
+                          className="text-xs font-medium mt-1 mb-1"
+                          {...props}
+                        />
+                      ),
+                    }}
+                  >
+                    {geminiResult}
+                  </ReactMarkdown>
+                </div>
+              </TabsContent>
+              <TabsContent value="demo-code" className="mt-4">
+                <h3 className="text-lg font-semibold mb-4">Pipeline Code</h3>
+                <div className="relative h-[400px] overflow-hidden">
+                  <pre className="h-full overflow-y-auto bg-muted p-4 rounded-md text-left">
+                    <code className="text-sm whitespace-pre-wrap">
+                      {pipelineCode}
+                    </code>
+                  </pre>
+                  <Button
+                    className="absolute top-2 right-2"
+                    variant="secondary"
+                    onClick={copyToClipboard}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CollapsibleContent>
+        </Collapsible>
       </CardContent>
-      </Card>
+    </Card>
   );
 };
 

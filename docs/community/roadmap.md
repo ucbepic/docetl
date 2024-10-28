@@ -11,7 +11,6 @@ mindmap
   root((DocETL Roadmap))
     User Interface and Interaction
     Debugging and Optimization
-    Data Handling and Storage
     Model and Tool Integrations
     Agents and Planning
 ```
@@ -26,10 +25,6 @@ mindmap
 - **DocETL Debugger**: Creating a debugger with provenance tracking, allowing users to visualize all intermediates that contributed to a specific output.
 - **Plan Efficiency Optimization**: Implementing strategies (and devising new strategies) to reduce latency and cost for the most accurate plans. This includes batching LLM calls, using model cascades, and fusing operators.
 
-## Data Handling and Storage
-
-- **Comprehensive Data Loading**: Expanding support beyond JSON to include formats like CSV and Apache Arrow, as well as loading from the cloud.
-- **New Storage Formats**: Exploring a specialized storage format for unstructured data and documents, particularly suited for pipeline intermediates. For example, tokens that do not contribute much to the final output can be compressed further.
 
 ## Model and Tool Integrations
 

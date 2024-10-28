@@ -283,7 +283,7 @@ While DocETL provides several built-in parsing tools, the community can always b
 If the built-in tools don't meet your needs, you can create your own custom parsing tools. Here's how:
 
 1. Define your parsing function in the `parsing_tools` section of your configuration.
-2. Ensure your function takes a document (dict) as input and returns a list of documents (dicts).
+2. Ensure your function takes a item (dict) as input and returns a list of items (dicts).
 3. Use your custom parser in the `parsing` section of your dataset configuration.
 
 For example:
@@ -292,7 +292,7 @@ For example:
 parsing_tools:
   - name: my_custom_parser
     function_code: |
-      def my_custom_parser(document: Dict) -> List[Dict]:
+      def my_custom_parser(item: Dict) -> List[Dict]:
           # Your custom parsing logic here
           return [processed_data]
 

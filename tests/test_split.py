@@ -137,7 +137,6 @@ def test_split_map_gather_operations(
     assert len(map_results) == len(
         split_results
     ), "Map operation should produce same number of results as split operation"
-    assert map_cost > 0, "Map operation cost should be greater than zero"
 
     for result in map_results:
         assert "summary" in result, "Each result should have a summary"

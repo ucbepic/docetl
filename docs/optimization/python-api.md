@@ -29,6 +29,7 @@ operations = [
         type="resolve",
         blocking_keys=["medication"],
         optimize=True,  # This operation will be optimized
+        output={"schema": {"medication": "str"}},
         comparison_prompt="Compare medications:\n1: {{ input1.medication }}\n2: {{ input2.medication }}\nAre these the same or closely related?",
         resolution_prompt="Standardize the name for:\n{% for entry in inputs %}\n- {{ entry.medication }}\n{% endfor %}"
     ),

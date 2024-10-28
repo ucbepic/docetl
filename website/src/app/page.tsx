@@ -61,8 +61,10 @@ export default function Home() {
               Docs
             </Link>
           </Button>
-          <Button disabled className="btn btn-secondary">
-            Paper (Coming Soon!)
+          <Button className="btn btn-secondary" onClick={() => sendGAEvent('event', 'buttonClicked', { value: 'paper' })}>
+            <Link href="https://arxiv.org/abs/2410.12189" target="_blank">
+              Paper
+            </Link>
           </Button>
         </div>
 

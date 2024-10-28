@@ -64,17 +64,17 @@ from docetl.schemas import (
     FilterOp,
     GatherOp,
     MapOp,
-    OpType,
-    ParallelMapOp,
-    ParsingTool,
-)
-from docetl.schemas import (
-    PipelineOutput,
-    PipelineStep,
     ReduceOp,
     ResolveOp,
     SplitOp,
     UnnestOp,
+    ClusterOp,
+    SampleOp,
+    OpType,
+    ParallelMapOp,
+    ParsingTool,
+    PipelineOutput,
+    PipelineStep,
 )
 
 
@@ -197,17 +197,13 @@ class Pipeline:
             Pipeline: An optimized version of the pipeline.
         """
         config = self._to_dict()
-        optimizer = Optimizer(
+        runner = DSLRunner(
             config,
             base_name=os.path.join(os.getcwd(), self.name),
             yaml_file_suffix=self.name,
             max_threads=max_threads,
-            model=model,
-            timeout=timeout,
-            resume=resume,
         )
-        optimizer.optimize()
-        optimized_config = optimizer.clean_optimized_config()
+        optimized_config = runner.optimize(return_pipeline=False)
 
         updated_pipeline = Pipeline(
             name=self.name,
@@ -232,8 +228,13 @@ class Pipeline:
             float: The total cost of running the pipeline.
         """
         config = self._to_dict()
-        runner = DSLRunner(config, max_threads=max_threads)
-        result = runner.run()
+        runner = DSLRunner(
+            config,
+            base_name=os.path.join(os.getcwd(), self.name),
+            yaml_file_suffix=self.name,
+            max_threads=max_threads,
+        )
+        result = runner.load_run_save()
         return result
 
     def to_yaml(self, path: str) -> None:
@@ -322,6 +323,10 @@ class Pipeline:
                 self.operations.append(GatherOp(**op, type=op_type))
             elif op_type == "unnest":
                 self.operations.append(UnnestOp(**op, type=op_type))
+            elif op_type == "cluster":
+                self.operations.append(ClusterOp(**op, type=op_type))
+            elif op_type == "sample":
+                self.operations.append(SampleOp(**op, type=op_type))
         self.steps = [PipelineStep(**step) for step in config["pipeline"]["steps"]]
         self.output = PipelineOutput(**config["pipeline"]["output"])
         self.default_model = config.get("default_model")

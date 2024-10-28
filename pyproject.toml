@@ -17,7 +17,6 @@ python = "^3.10"
 litellm = "^1.42.1"
 tqdm = "^4.66.4"
 rich = "^13.7.1"
-tenacity = "^9.0.0"
 frozendict = "^2.4.4"
 diskcache = "^5.6.3"
 typer = "^0.12.5"
@@ -34,6 +33,8 @@ azure-ai-documentintelligence = { version = "^1.0.0b4", optional = true }
 paddlepaddle = { version = "^2.6.2", optional = true }
 paddleocr = { version = "^2.8.1", optional = true }
 pymupdf = { version = "^1.24.10", optional = true }
+jsonschema = "^4.23.0"
+rapidfuzz = "^3.10.0"
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "paddleocr", "pymupdf"]
@@ -89,6 +90,7 @@ resolve = "docetl.operations.resolve:ResolveOperation"
 gather = "docetl.operations.gather:GatherOperation"
 cluster = "docetl.operations.cluster:ClusterOperation"
 sample = "docetl.operations.sample:SampleOperation"
+link_resolve = "docetl.operations.link_resolve:LinkResolveOperation"
 
 [tool.poetry.plugins."docetl.parser"]
 llama_index_simple_directory_reader = "docetl.parsing_tools:llama_index_simple_directory_reader"

@@ -181,8 +181,6 @@ and a description, and groups them into a tree of categories.
 | `output_key`              | The name of the output key where the cluster path will be inserted in the items. | "clusters"                    |
 | `model`                   | The language model to use                                                        | Falls back to `default_model` |
 | `embedding_model`         | The embedding model to use                                                       | "text-embedding-3-small"      |
-| `tools`                   | List of tool definitions for LLM use                                             | None                          |
 | `timeout`                 | Timeout for each LLM call in seconds                                             | 120                           |
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                            | 2                             |
-| `validate`                | List of Python expressions to validate the output                                | None                          |
 | `sample`                  | Number of items to sample for this operation                                     | None                          |

@@ -3,19 +3,46 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 """
 
 import random
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import jinja2
 from jinja2 import Template
 from rich.prompt import Confirm
+import math
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed
 from docetl.utils import completion_cost, extract_jinja_variables
 
 
+def find_cluster(item, cluster_map):
+    while item != cluster_map[item]:
+        cluster_map[item] = cluster_map[cluster_map[item]]
+        item = cluster_map[item]
+    return item
+
+
 class ResolveOperation(BaseOperation):
+    class schema(BaseOperation.schema):
+        type: str = "resolve"
+        comparison_prompt: str
+        resolution_prompt: str
+        output: Optional[Dict[str, Any]] = None
+        embedding_model: Optional[str] = None
+        resolution_model: Optional[str] = None
+        comparison_model: Optional[str] = None
+        blocking_keys: Optional[List[str]] = None
+        blocking_threshold: Optional[float] = None
+        blocking_conditions: Optional[List[str]] = None
+        input: Optional[Dict[str, Any]] = None
+        embedding_batch_size: Optional[int] = None
+        compare_batch_size: Optional[int] = None
+        limit_comparisons: Optional[int] = None
+        optimize: Optional[bool] = None
+        timeout: Optional[int] = None
+
     def compare_pair(
         self,
         comparison_prompt: str,
@@ -267,41 +294,42 @@ class ResolveOperation(BaseOperation):
 
                 total_cost += sum(costs)
 
-        # Initialize clusters
-        clusters = [{i} for i in range(len(input_data))]
-        cluster_map = {i: i for i in range(len(input_data))}
+        # Generate all pairs to compare, ensuring no duplicate comparisons
+        def get_unique_comparison_pairs() -> Tuple[List[Tuple[int, int]], Dict[Tuple[str, ...], List[int]]]:
+            # Create a mapping of values to their indices
+            value_to_indices: Dict[Tuple[str, ...], List[int]] = {}
+            for i, item in enumerate(input_data):
+                # Create a hashable key from the blocking keys
+                key = tuple(str(item.get(k, "")) for k in blocking_keys)
+                if key not in value_to_indices:
+                    value_to_indices[key] = []
+                value_to_indices[key].append(i)
 
-        def find_cluster(item):
-            while item != cluster_map[item]:
-                cluster_map[item] = cluster_map[cluster_map[item]]
-                item = cluster_map[item]
-            return item
+            # Generate pairs for comparison, comparing each unique value combination only once
+            comparison_pairs = []
+            keys = list(value_to_indices.keys())
 
-        def merge_clusters(item1, item2):
-            root1, root2 = find_cluster(item1), find_cluster(item2)
-            if root1 != root2:
-                if len(clusters[root1]) < len(clusters[root2]):
-                    root1, root2 = root2, root1
-                clusters[root1] |= clusters[root2]
-                cluster_map[root2] = root1
-                clusters[root2] = set()
+            # First, handle comparisons between different values
+            for i in range(len(keys)):
+                for j in range(i + 1, len(keys)):
+                    # Only need one comparison between different values
+                    idx1 = value_to_indices[keys[i]][0]
+                    idx2 = value_to_indices[keys[j]][0]
+                    if idx1 < idx2:  # Maintain ordering to avoid duplicates
+                        comparison_pairs.append((idx1, idx2))
 
-        # Generate all pairs to compare
-        # TODO: virtualize this if possible
-        all_pairs = [
-            (i, j)
-            for i in range(len(input_data))
-            for j in range(i + 1, len(input_data))
-        ]
+            return comparison_pairs, value_to_indices
+
+        comparison_pairs, value_to_indices = get_unique_comparison_pairs()
 
         # Filter pairs based on blocking conditions
-        def meets_blocking_conditions(pair):
+        def meets_blocking_conditions(pair: Tuple[int, int]) -> bool:
             i, j = pair
             return (
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
-        blocked_pairs = list(filter(meets_blocking_conditions, all_pairs))
+        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs))
 
         # Apply limit_comparisons to blocked pairs
         if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
@@ -309,6 +337,10 @@ class ResolveOperation(BaseOperation):
                 f"Randomly sampling {limit_comparisons} pairs out of {len(blocked_pairs)} blocked pairs."
             )
             blocked_pairs = random.sample(blocked_pairs, limit_comparisons)
+
+        # Initialize clusters with all indices
+        clusters = [{i} for i in range(len(input_data))]
+        cluster_map = {i: i for i in range(len(input_data))}
 
         # If there are remaining comparisons, fill with highest cosine similarities
         remaining_comparisons = (
@@ -323,8 +355,10 @@ class ResolveOperation(BaseOperation):
             similarity_matrix = cosine_similarity(embeddings)
 
             cosine_pairs = []
-            for i, j in all_pairs:
-                if (i, j) not in blocked_pairs and find_cluster(i) != find_cluster(j):
+            for i, j in comparison_pairs:
+                if (i, j) not in blocked_pairs and find_cluster(
+                    i, cluster_map
+                ) != find_cluster(j, cluster_map):
                     similarity = similarity_matrix[i, j]
                     if similarity >= blocking_threshold:
                         cosine_pairs.append((i, j, similarity))
@@ -338,29 +372,107 @@ class ResolveOperation(BaseOperation):
             else:
                 blocked_pairs.extend((i, j) for i, j, _ in cosine_pairs)
 
-        filtered_pairs = blocked_pairs
+        # Modified merge_clusters to handle all indices with the same value
+
+        def merge_clusters(item1: int, item2: int) -> None:
+            root1, root2 = find_cluster(item1, cluster_map), find_cluster(
+                item2, cluster_map
+            )
+            if root1 != root2:
+                if len(clusters[root1]) < len(clusters[root2]):
+                    root1, root2 = root2, root1
+                clusters[root1] |= clusters[root2]
+                cluster_map[root2] = root1
+                clusters[root2] = set()
+
+                # Also merge all other indices that share the same values
+                key1 = tuple(str(input_data[item1].get(k, "")) for k in blocking_keys)
+                key2 = tuple(str(input_data[item2].get(k, "")) for k in blocking_keys)
+
+                # Merge all indices with the same values
+                for idx in value_to_indices.get(key1, []):
+                    if idx != item1:
+                        root_idx = find_cluster(idx, cluster_map)
+                        if root_idx != root1:
+                            clusters[root1] |= clusters[root_idx]
+                            cluster_map[root_idx] = root1
+                            clusters[root_idx] = set()
+
+                for idx in value_to_indices.get(key2, []):
+                    if idx != item2:
+                        root_idx = find_cluster(idx, cluster_map)
+                        if root_idx != root1:
+                            clusters[root1] |= clusters[root_idx]
+                            cluster_map[root_idx] = root1
+                            clusters[root_idx] = set()
 
         # Calculate and print statistics
         total_possible_comparisons = len(input_data) * (len(input_data) - 1) // 2
-        comparisons_made = len(filtered_pairs)
+        comparisons_made = len(blocked_pairs)
         comparisons_saved = total_possible_comparisons - comparisons_made
         self.console.log(
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
 
+        # Compute an auto-batch size based on the number of comparisons
+        def auto_batch() -> int:
+            # Maximum batch size limit for 4o-mini model
+            M = 500
+            
+            n = len(input_data)
+            m = len(blocked_pairs)
+            
+            # https://www.wolframalpha.com/input?i=k%28k-1%29%2F2+%2B+%28n-k%29%28k-1%29+%3D+m%2C+solve+for+k
+            # Two possible solutions for k:
+            # k = -1/2 sqrt((1 - 2n)^2 - 8m) + n + 1/2
+            # k = 1/2 (sqrt((1 - 2n)^2 - 8m) + 2n + 1)
+            
+            discriminant = (1 - 2*n)**2 - 8*m
+            sqrt_discriminant = discriminant ** 0.5
+            
+            k1 = -0.5 * sqrt_discriminant + n + 0.5
+            k2 = 0.5 * (sqrt_discriminant + 2*n + 1)
+            
+            # Take the maximum viable solution
+            k = max(k1, k2)
+            return M if k < 0 else min(int(k), M)
+
         # Compare pairs and update clusters in real-time
-        batch_size = self.config.get("compare_batch_size", 100)
+        batch_size = self.config.get("compare_batch_size", auto_batch())
+        self.console.log(f"Using compare batch size: {batch_size}")
         pair_costs = 0
 
         pbar = RichLoopBar(
-            range(0, len(filtered_pairs), batch_size),
+            range(0, len(blocked_pairs), batch_size),
             desc=f"Processing batches of {batch_size} LLM comparisons",
             console=self.console,
         )
+        last_processed = 0
         for i in pbar:
-            batch = filtered_pairs[i : i + batch_size]
+            batch_end = last_processed + batch_size
+            batch = blocked_pairs[last_processed : batch_end]
+            # Filter pairs for the initial batch
+            better_batch = [
+                pair for pair in batch
+                if find_cluster(pair[0], cluster_map) == pair[0] and find_cluster(pair[1], cluster_map) == pair[1]
+            ]
 
+            # Expand better_batch if it doesn’t reach batch_size
+            while len(better_batch) < batch_size and batch_end < len(blocked_pairs):
+                # Move batch_end forward by batch_size to get more pairs
+                next_end = batch_end + batch_size
+                next_batch = blocked_pairs[batch_end:next_end]
+
+                better_batch.extend(
+                    pair for pair in next_batch
+                    if find_cluster(pair[0], cluster_map) == pair[0] and find_cluster(pair[1], cluster_map) == pair[1]
+                )
+
+                # Update batch_end to prevent overlapping in the next loop
+                batch_end = next_end
+            better_batch = better_batch[:batch_size]
+            last_processed = batch_end
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 future_to_pair = {
                     executor.submit(
@@ -375,7 +487,7 @@ class ResolveOperation(BaseOperation):
                             "max_retries_per_timeout", 2
                         ),
                     ): pair
-                    for pair in batch
+                    for pair in better_batch
                 }
 
                 for future in as_completed(future_to_pair):
@@ -385,8 +497,7 @@ class ResolveOperation(BaseOperation):
                     if is_match_result:
                         merge_clusters(pair[0], pair[1])
 
-                    pbar.update(i)
-
+                    pbar.update(last_processed//batch_size)
         total_cost += pair_costs
 
         # Collect final clusters

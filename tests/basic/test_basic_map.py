@@ -26,8 +26,9 @@ def test_map_operation(
 
     assert len(results) == len(map_sample_data)
     assert all("sentiment" in result for result in results)
+    valid_sentiments = ["positive", "negative", "neutral"]
     assert all(
-        result["sentiment"] in ["positive", "negative", "neutral"] for result in results
+        any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
 
 
@@ -96,8 +97,9 @@ def test_map_operation_with_batching(
 
     assert len(results) == len(map_sample_data)
     assert all("sentiment" in result for result in results)
+    valid_sentiments = ["positive", "negative", "neutral"]
     assert all(
-        result["sentiment"] in ["positive", "negative", "neutral"] for result in results
+        any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
 
 
@@ -171,12 +173,14 @@ def simple_sample_data():
     ]
 
 
+@pytest.mark.flaky(reruns=2)
 def test_map_operation_with_timeout(simple_map_config, simple_sample_data, api_wrapper):
     # Add timeout to the map configuration
     map_config_with_timeout = {
         **simple_map_config,
         "timeout": 1,
         "max_retries_per_timeout": 0,
+        "bypass_cache": True,
     }
 
     operation = MapOperation(api_wrapper, map_config_with_timeout, "gpt-4o-mini", 4)

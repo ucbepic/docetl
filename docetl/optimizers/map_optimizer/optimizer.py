@@ -72,7 +72,7 @@ class MapOptimizer:
         self.k_to_pairwise_compare = 6
 
         self.plan_generator = PlanGenerator(
-            llm_client, console, config, run_operation, max_threads, is_filter
+            runner, llm_client, console, config, run_operation, max_threads, is_filter
         )
         self.evaluator = Evaluator(
             llm_client,
@@ -83,7 +83,7 @@ class MapOptimizer:
             is_filter,
         )
         self.prompt_generator = PromptGenerator(
-            llm_client, console, config, max_threads, is_filter
+            runner, llm_client, console, config, max_threads, is_filter
         )
 
     def optimize(

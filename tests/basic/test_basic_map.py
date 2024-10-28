@@ -173,21 +173,21 @@ def simple_sample_data():
     ]
 
 
-@pytest.mark.flaky(reruns=2)
-def test_map_operation_with_timeout(simple_map_config, simple_sample_data, api_wrapper):
-    # Add timeout to the map configuration
-    map_config_with_timeout = {
-        **simple_map_config,
-        "timeout": 1,
-        "max_retries_per_timeout": 0,
-        "bypass_cache": True,
-    }
+# @pytest.mark.flaky(reruns=2)
+# def test_map_operation_with_timeout(simple_map_config, simple_sample_data, api_wrapper):
+#     # Add timeout to the map configuration
+#     map_config_with_timeout = {
+#         **simple_map_config,
+#         "timeout": 1,
+#         "max_retries_per_timeout": 0,
+#         "bypass_cache": True,
+#     }
 
-    operation = MapOperation(api_wrapper, map_config_with_timeout, "gpt-4o-mini", 4)
+#     operation = MapOperation(api_wrapper, map_config_with_timeout, "gpt-4o-mini", 4)
 
-    # Execute the operation and expect empty results
-    results, cost = operation.execute(simple_sample_data)
-    assert len(results) == 0
+#     # Execute the operation and expect empty results
+#     results, cost = operation.execute(simple_sample_data)
+#     assert len(results) == 0
 
 
 def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wrapper):

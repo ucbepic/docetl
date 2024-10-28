@@ -426,38 +426,6 @@ const PipelineGUI: React.FC = () => {
     ]
   );
 
-  useEffect(() => {
-    if (lastMessage) {
-      if (lastMessage.type === "output") {
-        setTerminalOutput(lastMessage.data);
-      } else if (lastMessage.type === "result") {
-        const runCost = lastMessage.data.cost || 0;
-        setCost((prevCost) => prevCost + runCost);
-        toast({
-          title: "Pipeline Run Complete",
-          description: `The pipeline run cost $${runCost.toFixed(4)}`,
-          duration: 3000,
-        });
-
-        // Close the WebSocket connection
-        disconnect();
-
-        setIsLoadingOutputs(false);
-      } else if (lastMessage.type === "error") {
-        toast({
-          title: "Error",
-          description: lastMessage.data,
-          variant: "destructive",
-        });
-
-        // Close the WebSocket connection
-        disconnect();
-
-        setIsLoadingOutputs(false);
-      }
-    }
-  }, [lastMessage, setCost, setIsLoadingOutputs, setTerminalOutput]);
-
   const handleAddOperation = (
     llmType: "LLM" | "non-LLM",
     type: string,

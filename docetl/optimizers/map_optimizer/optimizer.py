@@ -15,7 +15,7 @@ from docetl.optimizers.map_optimizer.plan_generators import PlanGenerator
 from docetl.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from docetl.optimizers.map_optimizer.utils import select_evaluation_samples
 from docetl.optimizers.utils import LLMClient
-from docetl.utils import count_tokens
+from docetl.utils import count_tokens, CapturedOutput, StageType
 
 
 class MapOptimizer:
@@ -174,6 +174,16 @@ class MapOptimizer:
         output_data = self._run_operation(op_config, input_data, is_build=True)
         no_change_runtime = time.time() - no_change_start
 
+        # Capture output for the sample run
+        self.runner.captured_output.save_optimizer_output(
+            stage_type=StageType.SAMPLE_RUN,
+            output={
+                "operation_config": op_config,
+                "input_data": input_data,
+                "output_data": output_data,
+            },
+        )
+
         # Generate custom validator prompt
         validator_prompt = self.prompt_generator._generate_validator_prompt(
             op_config, input_data, output_data
@@ -198,6 +208,16 @@ class MapOptimizer:
                 f"[bold cyan]{key}:[/bold cyan] [yellow]{value}[/yellow]"
             )
         self.console.log("\n")  # Add a newline for better readability
+
+        self.runner.captured_output.save_optimizer_output(
+            stage_type=StageType.SHOULD_OPTIMIZE,
+            output={
+                "validator_prompt": validator_prompt,
+                "needs_improvement": assessment.get("needs_improvement", True),
+                "reasons": assessment.get("reasons", []),
+                "improvements": assessment.get("improvements", []),
+            },
+        )
 
         # Check if improvement is needed based on the assessment
         if not data_exceeds_limit and not assessment.get("needs_improvement", True):
@@ -263,6 +283,12 @@ class MapOptimizer:
 
         results = {}
         plans_list = list(candidate_plans.items())
+
+        # Capture candidate plans
+        self.runner.captured_output.save_optimizer_output(
+            stage_type=StageType.CANDIDATE_PLANS,
+            output=candidate_plans,
+        )
 
         self.console.log(
             f"[bold magenta]Evaluating {len(plans_list)} plans...[/bold magenta]"
@@ -379,6 +405,21 @@ class MapOptimizer:
         _, _, best_output = results[best_plan_name]
         self.console.log(
             f"[green]Choosing {best_plan_name} for operation {op_config['name']} (Score: {results[best_plan_name][0]:.2f}, Runtime: {results[best_plan_name][1]:.2f}s)[/green]"
+        )
+
+        # Capture evaluation results
+        ratings = {k: v[0] for k, v in results.items()}
+        runtime = {k: v[1] for k, v in results.items()}
+        sample_outputs = {k: v[2] for k, v in results.items()}
+        self.runner.captured_output.save_optimizer_output(
+            stage_type=StageType.EVALUATION_RESULTS,
+            output={
+                "input_data": evaluation_samples,
+                "all_plan_ratings": ratings,
+                "all_plan_runtimes": runtime,
+                "all_plan_sample_outputs": sample_outputs,
+                "all_plan_pairwise_rankings": pairwise_rankings,
+            },
         )
 
         return (

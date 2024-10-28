@@ -2,15 +2,6 @@
 
 ## Operations
 
-::: docetl.schemas.BaseOp
-    options:
-        show_root_heading: true
-        heading_level: 3
-        show_if_no_docstring: false
-        docstring_options:
-            ignore_init_summary: false
-            trim_doctest_flags: true
-
 ::: docetl.schemas.MapOp
     options:
         show_root_heading: true
@@ -84,6 +75,24 @@
             trim_doctest_flags: true
 
 ::: docetl.schemas.UnnestOp
+    options:
+        show_root_heading: true
+        heading_level: 3
+        show_if_no_docstring: false
+        docstring_options:
+            ignore_init_summary: false
+            trim_doctest_flags: true
+
+::: docetl.schemas.SampleOp
+    options:
+        show_root_heading: true
+        heading_level: 3
+        show_if_no_docstring: false
+        docstring_options:
+            ignore_init_summary: false
+            trim_doctest_flags: true
+
+::: docetl.schemas.ClusterOp
     options:
         show_root_heading: true
         heading_level: 3

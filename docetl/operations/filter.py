@@ -2,9 +2,11 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
+from pydantic import Field
 
 from jinja2 import Template
 
+from docetl.operations.base import BaseOperation
 from docetl.operations.map import MapOperation
 from docetl.operations.utils import (
     RichLoopBar,
@@ -12,6 +14,19 @@ from docetl.operations.utils import (
 
 
 class FilterOperation(MapOperation):
+    # FIXME: What happens if we actually inherit from MapOperation.schema?
+    class schema(BaseOperation.schema):
+        type: str = "filter"
+        output: Optional[Dict[str, Any]] = None
+        prompt: Optional[str] = None
+        model: Optional[str] = None
+        optimize: Optional[bool] = None
+        recursively_optimize: Optional[bool] = None
+        sample_size: Optional[int] = None
+        validation_rules: Optional[List[str]] = Field(None, alias="validate")
+        num_retries_on_validate_failure: Optional[int] = None
+        timeout: Optional[int] = None
+
     def syntax_check(self) -> None:
         """
         Checks the configuration of the FilterOperation for required keys and valid structure.

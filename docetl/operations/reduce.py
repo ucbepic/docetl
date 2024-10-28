@@ -12,7 +12,7 @@ import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import jinja2
 import numpy as np
@@ -35,6 +35,23 @@ class ReduceOperation(BaseOperation):
     using various strategies including batch reduce, incremental reduce, and parallel fold and merge.
     """
 
+    class schema(BaseOperation.schema):
+        type: str = "reduce"
+        reduce_key: Union[str, List[str]]
+        output: Optional[Dict[str, Any]] = None
+        prompt: Optional[str] = None
+        optimize: Optional[bool] = None
+        synthesize_resolve: Optional[bool] = None
+        model: Optional[str] = None
+        input: Optional[Dict[str, Any]] = None
+        pass_through: Optional[bool] = None
+        associative: Optional[bool] = None
+        fold_prompt: Optional[str] = None
+        fold_batch_size: Optional[int] = None
+        value_sampling: Optional[Dict[str, Any]] = None
+        verbose: Optional[bool] = None
+        timeout: Optional[int] = None
+        
     def __init__(self, *args, **kwargs):
         """
         Initialize the ReduceOperation.

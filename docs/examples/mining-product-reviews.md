@@ -16,7 +16,7 @@ Our goal is to create a pipeline that will:
 2. Resolve similar themes across different games
 3. Generate reports of polarizing themes common across games, supported by quotes from different game reviews
 
-We'll be using a subset of the [STEAM review dataset](https://www.kaggle.com/datasets/andrewmvd/steam-reviews). We've created a subset that contains reviews for 500 of the most popular games, with approximately 400 reviews per game, balanced between positive and negative ratings. For each game, we concatenate all reviews into a single text for analysis---so we'll have 500 input documents, each representing a game. You can get the dataset sample [here](https://drive.google.com/file/d/1hroljsvn8m23iVsNpET8Ma7sfb1OUu_u/view?usp=drive_link).
+We'll be using a subset of the [STEAM review dataset](https://www.kaggle.com/datasets/andrewmvd/steam-reviews). We've created a subset that contains reviews for 500 of the most popular games, with approximately 400 reviews per game, balanced between positive and negative ratings. For each game, we concatenate all reviews into a single text for analysis---so we'll have 500 input items/reviews, each representing a game. You can get the dataset sample [here](https://drive.google.com/file/d/1hroljsvn8m23iVsNpET8Ma7sfb1OUu_u/view?usp=drive_link).
 
 ## Pipeline Structure
 
@@ -284,7 +284,7 @@ This command, with `optimize: true` set for the map and resolve operations, prov
 
 2. Blocking statements and thresholds for the resolve operation: This optimizes the theme resolution process, making it more efficient when dealing with a large number of themes across multiple games. The optimizer provided us with blocking keys of `summary` and `theme`, and a threshold of 0.596 for similarity (to get 95% recall of duplicates).
 
-These optimizations are crucial for handling the scale of our dataset, which includes 500 games with an _average_ of 66,000 tokens per game, and 12% of the documents exceeding the context length limits of the OpenAI LLMs (128k tokens).
+These optimizations are crucial for handling the scale of our dataset, which includes 500 games with an _average_ of 66,000 tokens per game, and 12% of the items/reviews exceeding the context length limits of the OpenAI LLMs (128k tokens).
 
 ??? info "Optimized Pipeline"
 

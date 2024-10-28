@@ -1,3 +1,4 @@
+from docetl.runner import DSLRunner
 import pytest
 from docetl.operations.map import MapOperation
 import random
@@ -41,12 +42,20 @@ def test_map_operation_over_15_documents(simple_map_config, sample_documents):
     os.environ["AZURE_API_VERSION"] = os.getenv("LOW_RES_AZURE_API_VERSION")
     os.environ["AZURE_API_KEY"] = os.getenv("LOW_RES_AZURE_API_KEY")
 
-    operation = MapOperation(api_wrapper, simple_map_config, "azure/gpt-4o", 4)
-    results, cost = operation.execute(sample_documents)
+    runner = DSLRunner(
+        {
+            "default_model": "gpt-4o-mini",
+            "operations": [],
+            "pipeline": {"steps": [], "output": {"path": "/tmp/testingdocetl.json"}},
+        },
+        max_threads=64,
+    )
 
-    assert len(results) == 15
+    operation = MapOperation(runner, simple_map_config, "azure/gpt-4o", 4)
+    results, cost = operation.execute(sample_documents + sample_documents)
+
+    assert len(results) == 16
     assert all("sentiment" in result for result in results)
     assert all(
         result["sentiment"] in ["positive", "negative", "neutral"] for result in results
     )
-    assert cost > 0

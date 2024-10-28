@@ -1,22 +1,44 @@
-import React, { useReducer, useMemo, useCallback, useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { Draggable } from 'react-beautiful-dnd';
-import { FileText, Maximize2, Minimize2, Plus, Play, GripVertical, Trash2, ChevronDown, Zap, Edit2, Settings, ListCollapse } from 'lucide-react';
-import { Operation, SchemaItem, SchemaType } from '@/app/types';
-import { usePipelineContext } from '@/contexts/PipelineContext';
-import { useToast } from "@/hooks/use-toast"
-import { Skeleton } from "@/components/ui/skeleton"
-import { debounce } from 'lodash';
-import { Guardrails, OutputSchema, PromptInput } from './operations/args';
-import createOperationComponent from './operations/components';
-import { useWebSocket } from '@/contexts/WebSocketContext';
-import { Badge } from './ui/badge';
-import { schemaDictToItemSet } from './utils';
+import React, {
+  useReducer,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Draggable } from "react-beautiful-dnd";
+import {
+  GripVertical,
+  Trash2,
+  Zap,
+  Settings,
+  ListCollapse,
+} from "lucide-react";
+import { Operation, SchemaItem } from "@/app/types";
+import { usePipelineContext } from "@/contexts/PipelineContext";
+import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { debounce } from "lodash";
+import { Guardrails } from "./operations/args";
+import createOperationComponent from "./operations/components";
+import { useWebSocket } from "@/contexts/WebSocketContext";
+import { Badge } from "./ui/badge";
 
 // Separate components
 const OperationHeader: React.FC<{
@@ -31,82 +53,113 @@ const OperationHeader: React.FC<{
   onToggleSettings: () => void;
   onShowOutput: () => void;
   onOptimize: () => void;
-}> = React.memo(({ name, type, llmType, disabled, currOp, onEdit, onDelete, onRunOperation, onToggleSettings, onShowOutput, onOptimize }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedName, setEditedName] = useState(name);
+}> = React.memo(
+  ({
+    name,
+    type,
+    llmType,
+    disabled,
+    currOp,
+    onEdit,
+    onDelete,
+    onRunOperation,
+    onToggleSettings,
+    onShowOutput,
+    onOptimize,
+  }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedName, setEditedName] = useState(name);
 
-  const handleEditClick = () => {
-    setIsEditing(true);
-    setEditedName(name);
-  };
+    const handleEditClick = () => {
+      setIsEditing(true);
+      setEditedName(name);
+    };
 
-  const handleEditComplete = () => {
-    setIsEditing(false);
-    onEdit(editedName);
-  };
+    const handleEditComplete = () => {
+      setIsEditing(false);
+      onEdit(editedName);
+    };
 
-  return (
-    <div className="relative flex items-center justify-between py-3 px-4">
-      {/* Left side buttons */}
-      <div className="flex space-x-1 absolute left-1">
-        <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
-        <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" onClick={onToggleSettings}>
-          <Settings size={14} className="text-gray-500" />
-        </Button>
-        <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" disabled={type !== "resolve"} onClick={onOptimize}>
-          <Zap size={14} className="text-yellow-500" />
-        </Button>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" disabled={disabled} onClick={onShowOutput}>
-                <ListCollapse size={14} className="text-primary" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Show outputs</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+    return (
+      <div className="relative flex items-center justify-between py-3 px-4">
+        {/* Left side buttons */}
+        <div className="flex space-x-1 absolute left-1">
+          <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0.25 h-6 w-6"
+            onClick={onToggleSettings}
+          >
+            <Settings size={14} className="text-gray-500" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0.25 h-6 w-6"
+            disabled={type !== "resolve"}
+            onClick={onOptimize}
+          >
+            <Zap size={14} className="text-yellow-500" />
+          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="p-0.25 h-6 w-6"
+                  disabled={disabled}
+                  onClick={onShowOutput}
+                >
+                  <ListCollapse size={14} className="text-primary" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Show outputs</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
-        {/* <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" onClick={onRunOperation}>
+          {/* <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" onClick={onRunOperation}>
           <Play size={14} className="text-green-500" />
         </Button> */}
-      </div>
+        </div>
 
-      {/* Centered title */}
-      <div className="flex-grow flex justify-center">
-        {isEditing ? (
-          <Input
-            value={editedName}
-            onChange={(e) => setEditedName(e.target.value)}
-            onBlur={handleEditComplete}
-            onKeyPress={(e) => e.key === 'Enter' && handleEditComplete()}
-            className="text-sm font-medium w-1/2 font-mono text-center"
-            autoFocus
-          />
-        ) : (
-          <span 
-            className={`text-sm font-medium cursor-pointer ${llmType === 'LLM' ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text' : ''}`}
-            onClick={handleEditClick}
-          >
-            {name}
-          </span>
-        )}
-      </div>
+        {/* Centered title */}
+        <div className="flex-grow flex justify-center">
+          {isEditing ? (
+            <Input
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onBlur={handleEditComplete}
+              onKeyPress={(e) => e.key === "Enter" && handleEditComplete()}
+              className="text-sm font-medium w-1/2 font-mono text-center"
+              autoFocus
+            />
+          ) : (
+            <span
+              className={`text-sm font-medium cursor-pointer ${llmType === "LLM" ? "bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text" : ""}`}
+              onClick={handleEditClick}
+            >
+              {name}
+            </span>
+          )}
+        </div>
 
-      {/* Right side delete button */}
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        onClick={onDelete}
-        className="hover:bg-red-100 absolute right-1 p-1 h-7 w-7"
-      >
-        <Trash2 size={15} className="text-red-500" />
-      </Button>
-    </div>
-  );
-});
+        {/* Right side delete button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          className="hover:bg-red-100 absolute right-1 p-1 h-7 w-7"
+        >
+          <Trash2 size={15} className="text-red-500" />
+        </Button>
+      </div>
+    );
+  },
+);
 
 const SettingsModal: React.FC<{
   opName: string;
@@ -115,101 +168,143 @@ const SettingsModal: React.FC<{
   onClose: () => void;
   otherKwargs: Record<string, string>;
   onSettingsSave: (newSettings: Record<string, string>) => void;
-}> = React.memo(({ opName, opType, isOpen, onClose, otherKwargs, onSettingsSave }) => {
-  const [localSettings, setLocalSettings] = React.useState<Array<{ id: number; key: string; value: string }>>(
-    Object.entries(otherKwargs).map(([key, value], index) => ({ id: index, key, value }))
-  );
+}> = React.memo(
+  ({ opName, opType, isOpen, onClose, otherKwargs, onSettingsSave }) => {
+    const [localSettings, setLocalSettings] = React.useState<
+      Array<{ id: number; key: string; value: string }>
+    >(
+      Object.entries(otherKwargs).map(([key, value], index) => ({
+        id: index,
+        key,
+        value,
+      })),
+    );
 
-  useEffect(() => {
-    setLocalSettings(Object.entries(otherKwargs).map(([key, value], index) => ({ id: index, key, value })));
-  }, [otherKwargs]);
+    useEffect(() => {
+      setLocalSettings(
+        Object.entries(otherKwargs).map(([key, value], index) => ({
+          id: index,
+          key,
+          value,
+        })),
+      );
+    }, [otherKwargs]);
 
-  const handleSettingsChange = (id: number, newKey: string, newValue: string) => {
-    setLocalSettings(prev => prev.map(setting => 
-      setting.id === id ? { ...setting, key: newKey, value: newValue } : setting
-    ));
-  };
+    const handleSettingsChange = (
+      id: number,
+      newKey: string,
+      newValue: string,
+    ) => {
+      setLocalSettings((prev) =>
+        prev.map((setting) =>
+          setting.id === id
+            ? { ...setting, key: newKey, value: newValue }
+            : setting,
+        ),
+      );
+    };
 
-  const addSetting = () => {
-    setLocalSettings(prev => [...prev, { id: prev.length, key: '', value: '' }]);
-  };
+    const addSetting = () => {
+      setLocalSettings((prev) => [
+        ...prev,
+        { id: prev.length, key: "", value: "" },
+      ]);
+    };
 
-  const removeSetting = (id: number) => {
-    setLocalSettings(prev => prev.filter(setting => setting.id !== id));
-  };
+    const removeSetting = (id: number) => {
+      setLocalSettings((prev) => prev.filter((setting) => setting.id !== id));
+    };
 
-  const handleSave = () => {
-    const newSettings = localSettings.reduce((acc, { key, value }) => {
-      if (key !== '' && value !== '') {
-        acc[key] = value;
-      }
-      return acc;
-    }, {} as Record<string, string>);
-    onSettingsSave(newSettings);
-    onClose();
-  };
+    const handleSave = () => {
+      const newSettings = localSettings.reduce(
+        (acc, { key, value }) => {
+          if (key !== "" && value !== "") {
+            acc[key] = value;
+          }
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
+      onSettingsSave(newSettings);
+      onClose();
+    };
 
-  const isValidSettings = () => {
-    const keys = localSettings.map(({ key }) => key);
-    return localSettings.every(({ key, value }) => key !== '' && value !== '') &&
-           new Set(keys).size === keys.length;
-  };
+    const isValidSettings = () => {
+      const keys = localSettings.map(({ key }) => key);
+      return (
+        localSettings.every(({ key, value }) => key !== "" && value !== "") &&
+        new Set(keys).size === keys.length
+      );
+    };
 
-  if (!isOpen) return null;
+    if (!isOpen) return null;
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>{opName}</DialogTitle>
-          <DialogDescription>
-            Add or modify additional arguments for this {opType} operation.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          {localSettings.map(({ id, key, value }) => (
-            <div key={id} className="flex items-center gap-4">
-              <Input
-                className="flex-grow font-mono"
-                value={key}
-                onChange={(e) => handleSettingsChange(id, e.target.value, value)}
-                placeholder="Key"
-              />
-              <Input
-                className="flex-grow font-mono"
-                value={value}
-                onChange={(e) => handleSettingsChange(id, key, e.target.value)}
-                placeholder="Value"
-              />
-              <Button variant="ghost" size="sm" onClick={() => removeSetting(id)}>
-                <Trash2 size={15} />
-              </Button>
-            </div>
-          ))}
-          <Button onClick={addSetting}>Add Setting</Button>
-        </div>
-        <DialogFooter>
-          <Button onClick={handleSave} disabled={!isValidSettings()}>Save</Button>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-});
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{opName}</DialogTitle>
+            <DialogDescription>
+              Add or modify additional arguments for this {opType} operation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {localSettings.map(({ id, key, value }) => (
+              <div key={id} className="flex items-center gap-4">
+                <Input
+                  className="flex-grow font-mono"
+                  value={key}
+                  onChange={(e) =>
+                    handleSettingsChange(id, e.target.value, value)
+                  }
+                  placeholder="Key"
+                />
+                <Input
+                  className="flex-grow font-mono"
+                  value={value}
+                  onChange={(e) =>
+                    handleSettingsChange(id, key, e.target.value)
+                  }
+                  placeholder="Value"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeSetting(id)}
+                >
+                  <Trash2 size={15} />
+                </Button>
+              </div>
+            ))}
+            <Button onClick={addSetting}>Add Setting</Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSave} disabled={!isValidSettings()}>
+              Save
+            </Button>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  },
+);
 
 // Action types
 type Action =
-  | { type: 'SET_OPERATION'; payload: Operation }
-  | { type: 'UPDATE_NAME'; payload: string }
-  | { type: 'UPDATE_PROMPT'; payload: string }
-  | { type: 'UPDATE_SCHEMA'; payload: SchemaItem[] }
-  | { type: 'UPDATE_GUARDRAILS'; payload: string[] }
-  | { type: 'TOGGLE_EDITING' }
-  | { type: 'TOGGLE_SCHEMA' }
-  | { type: 'TOGGLE_GUARDRAILS' }
-  | { type: 'TOGGLE_SETTINGS' }
-  | { type: 'SET_RUN_INDEX'; payload: number }
-  | { type: 'UPDATE_SETTINGS'; payload: Record<string, string> };
+  | { type: "SET_OPERATION"; payload: Operation }
+  | { type: "UPDATE_NAME"; payload: string }
+  | { type: "UPDATE_PROMPT"; payload: string }
+  | { type: "UPDATE_SCHEMA"; payload: SchemaItem[] }
+  | { type: "UPDATE_GUARDRAILS"; payload: string[] }
+  | { type: "TOGGLE_EDITING" }
+  | { type: "TOGGLE_SCHEMA" }
+  | { type: "TOGGLE_GUARDRAILS" }
+  | { type: "TOGGLE_SETTINGS" }
+  | { type: "SET_RUN_INDEX"; payload: number }
+  | { type: "UPDATE_SETTINGS"; payload: Record<string, string> };
 
 // State type
 type State = {
@@ -223,13 +318,20 @@ type State = {
 // Reducer function
 function operationReducer(state: State, action: Action): State {
   switch (action.type) {
-    case 'SET_OPERATION':
+    case "SET_OPERATION":
       return { ...state, operation: action.payload };
-    case 'UPDATE_NAME':
-      return state.operation ? { ...state, operation: { ...state.operation, name: action.payload } } : state;
-    case 'UPDATE_PROMPT':
-      return state.operation ? { ...state, operation: { ...state.operation, prompt: action.payload } } : state;
-    case 'UPDATE_SCHEMA':
+    case "UPDATE_NAME":
+      return state.operation
+        ? { ...state, operation: { ...state.operation, name: action.payload } }
+        : state;
+    case "UPDATE_PROMPT":
+      return state.operation
+        ? {
+            ...state,
+            operation: { ...state.operation, prompt: action.payload },
+          }
+        : state;
+    case "UPDATE_SCHEMA":
       return state.operation
         ? {
             ...state,
@@ -237,26 +339,41 @@ function operationReducer(state: State, action: Action): State {
               ...state.operation,
               output: {
                 ...state.operation.output,
-                schema: action.payload
-              }
-            }
+                schema: action.payload,
+              },
+            },
           }
         : state;
-  
-    case 'UPDATE_GUARDRAILS':
-      return state.operation ? { ...state, operation: { ...state.operation, validate: action.payload } } : state;
-    case 'TOGGLE_EDITING':
+
+    case "UPDATE_GUARDRAILS":
+      return state.operation
+        ? {
+            ...state,
+            operation: { ...state.operation, validate: action.payload },
+          }
+        : state;
+    case "TOGGLE_EDITING":
       return { ...state, isEditing: !state.isEditing };
-    case 'TOGGLE_SCHEMA':
+    case "TOGGLE_SCHEMA":
       return { ...state, isSchemaExpanded: !state.isSchemaExpanded };
-    case 'TOGGLE_GUARDRAILS':
+    case "TOGGLE_GUARDRAILS":
       return { ...state, isGuardrailsExpanded: !state.isGuardrailsExpanded };
-    case 'TOGGLE_SETTINGS':
+    case "TOGGLE_SETTINGS":
       return { ...state, isSettingsOpen: !state.isSettingsOpen };
-    case 'UPDATE_SETTINGS':
-      return state.operation ? { ...state, operation: { ...state.operation, otherKwargs: action.payload } } : state;
-    case 'SET_RUN_INDEX':
-      return state.operation ? { ...state, operation: { ...state.operation, runIndex: action.payload } } : state;
+    case "UPDATE_SETTINGS":
+      return state.operation
+        ? {
+            ...state,
+            operation: { ...state.operation, otherKwargs: action.payload },
+          }
+        : state;
+    case "SET_RUN_INDEX":
+      return state.operation
+        ? {
+            ...state,
+            operation: { ...state.operation, runIndex: action.payload },
+          }
+        : state;
     default:
       return state;
   }
@@ -274,73 +391,100 @@ const initialState: State = {
 // Main component
 export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
   const [state, dispatch] = useReducer(operationReducer, initialState);
-  const { operation, isEditing, isSchemaExpanded, isGuardrailsExpanded, isSettingsOpen } = state;
+  const {
+    operation,
+    isEditing,
+    isSchemaExpanded,
+    isGuardrailsExpanded,
+    isSettingsOpen,
+  } = state;
 
-  const { output: pipelineOutput, setOutput, isLoadingOutputs, setIsLoadingOutputs, numOpRun, setNumOpRun, currentFile, operations, setOperations, pipelineName, sampleSize, setCost, defaultModel, setTerminalOutput } = usePipelineContext();
+  const {
+    output: pipelineOutput,
+    setOutput,
+    isLoadingOutputs,
+    setIsLoadingOutputs,
+    numOpRun,
+    setNumOpRun,
+    currentFile,
+    operations,
+    setOperations,
+    pipelineName,
+    sampleSize,
+    setCost,
+    defaultModel,
+    setTerminalOutput,
+  } = usePipelineContext();
   const { toast } = useToast();
 
   const operationRef = useRef(operation);
-  const { connect, sendMessage, lastMessage, readyState, disconnect } = useWebSocket();
+  const { connect, sendMessage, lastMessage, readyState, disconnect } =
+    useWebSocket();
 
   useEffect(() => {
     operationRef.current = operation;
   }, [operation]);
 
   useEffect(() => {
-    dispatch({ type: 'SET_OPERATION', payload: operations[index] });
+    dispatch({ type: "SET_OPERATION", payload: operations[index] });
 
     // Also dispatch the runIndex update
     if (operations[index].runIndex !== undefined) {
-      dispatch({ type: 'SET_RUN_INDEX', payload: operations[index].runIndex });
+      dispatch({ type: "SET_RUN_INDEX", payload: operations[index].runIndex });
     }
-
   }, [operations, index]);
-
 
   const debouncedUpdate = useCallback(
     debounce(() => {
       if (operationRef.current) {
         const updatedOperation = { ...operationRef.current };
-        setOperations(prev => prev.map(op => op.id === updatedOperation.id ? updatedOperation : op));
+        setOperations((prev) =>
+          prev.map((op) =>
+            op.id === updatedOperation.id ? updatedOperation : op,
+          ),
+        );
       }
     }, 500),
-    [setOperations]
+    [setOperations],
   );
 
-  const handleOperationUpdate = useCallback((updatedOperation: Operation) => {
-    dispatch({ type: 'SET_OPERATION', payload: updatedOperation });
-    debouncedUpdate();
-  }, [debouncedUpdate]);
+  const handleOperationUpdate = useCallback(
+    (updatedOperation: Operation) => {
+      dispatch({ type: "SET_OPERATION", payload: updatedOperation });
+      debouncedUpdate();
+    },
+    [debouncedUpdate],
+  );
 
   const handleRunOperation = useCallback(async () => {
     if (!operation) return;
     setIsLoadingOutputs(true);
-    setNumOpRun(prevNum => {
+    setNumOpRun((prevNum) => {
       const newNum = prevNum + 1;
-      dispatch({ type: 'SET_RUN_INDEX', payload: newNum });
+      dispatch({ type: "SET_RUN_INDEX", payload: newNum });
       return newNum;
     });
 
-    setTerminalOutput('');
+    setTerminalOutput("");
 
     try {
-      const response = await fetch('/api/writePipelineConfig', {
-        method: 'POST',
+      const response = await fetch("/api/writePipelineConfig", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           default_model: defaultModel,
-          data: { path: currentFile?.path || '' },
+          data: { path: currentFile?.path || "" },
           operations,
           operation_id: operation.id,
           name: pipelineName,
-          sample_size: sampleSize
+          sample_size: sampleSize,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to write pipeline config');
+        throw new Error("Failed to write pipeline config");
       }
 
       const { filePath, inputPath, outputPath } = await response.json();
@@ -348,17 +492,17 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       setOutput({
         operationId: operation.id,
         path: outputPath,
-        inputPath: inputPath
+        inputPath: inputPath,
       });
 
       // Ensure the WebSocket is connected before sending the message
       await connect();
 
       sendMessage({
-        yaml_config: filePath
+        yaml_config: filePath,
       });
     } catch (error) {
-      console.error('Error writing pipeline config:', error);
+      console.error("Error writing pipeline config:", error);
       toast({
         title: "Error",
         description: "Failed to write pipeline configuration",
@@ -368,19 +512,36 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       disconnect();
       setIsLoadingOutputs(false);
     }
-  }, [operation, currentFile, operations, setIsLoadingOutputs, setNumOpRun, sendMessage, readyState, defaultModel, pipelineName, sampleSize]);
+  }, [
+    operation,
+    currentFile,
+    operations,
+    setIsLoadingOutputs,
+    setNumOpRun,
+    sendMessage,
+    readyState,
+    defaultModel,
+    pipelineName,
+    sampleSize,
+  ]);
 
-
-  const handleSettingsSave = useCallback((newSettings: Record<string, string>) => {
-    dispatch({ type: 'UPDATE_SETTINGS', payload: newSettings });
-    if (operation) {
-      const updatedOperation = { ...operation, otherKwargs: newSettings };
-      setOperations(prev => prev.map(op => op.id === updatedOperation.id ? updatedOperation : op));
-    }
-  }, [operation, setOperations]);
+  const handleSettingsSave = useCallback(
+    (newSettings: Record<string, string>) => {
+      dispatch({ type: "UPDATE_SETTINGS", payload: newSettings });
+      if (operation) {
+        const updatedOperation = { ...operation, otherKwargs: newSettings };
+        setOperations((prev) =>
+          prev.map((op) =>
+            op.id === updatedOperation.id ? updatedOperation : op,
+          ),
+        );
+      }
+    },
+    [operation, setOperations],
+  );
 
   const handleSchemaUpdate = (newSchema: SchemaItem[]) => {
-    dispatch({ type: 'UPDATE_SCHEMA', payload: newSchema });
+    dispatch({ type: "UPDATE_SCHEMA", payload: newSchema });
     debouncedUpdate();
   };
 
@@ -390,32 +551,31 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
 
     try {
       // Clear the output
-      setTerminalOutput('');
+      setTerminalOutput("");
       setIsLoadingOutputs(true);
 
       // Write pipeline config
-      const response = await fetch('/api/writePipelineConfig', {
-        method: 'POST',
+      const response = await fetch("/api/writePipelineConfig", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           default_model: defaultModel,
-          data: { path: currentFile?.path || '' },
+          data: { path: currentFile?.path || "" },
           operations,
           operation_id: operation.id,
           name: pipelineName,
           sample_size: sampleSize,
-          optimize: true
+          optimize: true,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to write pipeline config');
+        throw new Error("Failed to write pipeline config");
       }
 
       const { filePath } = await response.json();
-
 
       // Ensure WebSocket is connected
       await connect();
@@ -423,11 +583,10 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       // Send message to run the pipeline
       sendMessage({
         yaml_config: filePath,
-        optimize: true
+        optimize: true,
       });
-
     } catch (error) {
-      console.error('Error optimizing operation:', error);
+      console.error("Error optimizing operation:", error);
       toast({
         title: "Error",
         description: "Failed to optimize operation",
@@ -435,31 +594,30 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       });
       // Close the WebSocket connection
       disconnect();
-    } 
-
+    }
   }, [operation]);
 
   const onShowOutput = useCallback(async () => {
     if (!operation) return;
 
     try {
-      const response = await fetch('/api/getInputOutput', {
-        method: 'POST',
+      const response = await fetch("/api/getInputOutput", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           default_model: defaultModel,
-          data: { path: currentFile?.path || '' },
+          data: { path: currentFile?.path || "" },
           operations,
           operation_id: operation.id,
           name: pipelineName,
-          sample_size: sampleSize
+          sample_size: sampleSize,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get input and output paths');
+        throw new Error("Failed to get input and output paths");
       }
 
       const { inputPath, outputPath } = await response.json();
@@ -467,17 +625,26 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       setOutput({
         operationId: operation.id,
         path: outputPath,
-        inputPath: inputPath
+        inputPath: inputPath,
       });
     } catch (error) {
-      console.error('Error fetching input and output paths:', error);
+      console.error("Error fetching input and output paths:", error);
       toast({
         title: "Error",
         description: "Failed to get input and output paths",
         variant: "destructive",
       });
     }
-  }, [operation, defaultModel, currentFile, operations, pipelineName, sampleSize, setOutput, toast]);
+  }, [
+    operation,
+    defaultModel,
+    currentFile,
+    operations,
+    pipelineName,
+    sampleSize,
+    setOutput,
+    toast,
+  ]);
 
   if (!operation) {
     return <SkeletonCard />;
@@ -486,7 +653,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
   return (
     <div className="flex items-start w-full">
       <div className="mr-1 w-8 h-8 flex-shrink-0 flex items-center justify-center bg-gray-100 text-gray-600 font-mono text-xs rounded-sm shadow-sm">
-      {isLoadingOutputs ? (
+        {isLoadingOutputs ? (
           <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-gray-900"></div>
         ) : operation.runIndex ? (
           <>[{operation.runIndex}]</>
@@ -494,62 +661,76 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           <>[ ]</>
         )}
       </div>
-    <Draggable draggableId={operation.id} index={index} key={operation.id}>
-      {(provided) => (
-        <Card 
-          ref={provided.innerRef} 
-          {...provided.draggableProps} 
-          className={`mb-2 relative rounded-sm shadow-sm w-full ${pipelineOutput?.operationId === operation.id ? 'bg-white border-blue-500 border-2' : 'bg-white'}`}
-        >
-          {/* Move the drag handle div outside of the ml-5 container */}
-          <div 
-            {...provided.dragHandleProps} 
-            className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-move hover:bg-gray-100 border-r border-gray-100"
+      <Draggable draggableId={operation.id} index={index} key={operation.id}>
+        {(provided) => (
+          <Card
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            className={`mb-2 relative rounded-sm shadow-sm w-full ${pipelineOutput?.operationId === operation.id ? "bg-white border-blue-500 border-2" : "bg-white"}`}
           >
-            <GripVertical size={14} className="text-gray-400" />
-          </div>
-          
-          {/* Adjust the left margin to accommodate the drag handle */}
-          <div className="ml-6">
-            <OperationHeader
-              name={operation.name}
-              type={operation.type}
-              llmType={operation.llmType}
-              disabled={isLoadingOutputs || pipelineOutput === undefined}
-              currOp={operation.id === pipelineOutput?.operationId}
-              onEdit={(name) => {
-                dispatch({ type: 'UPDATE_NAME', payload: name });
-                debouncedUpdate();
-              }}
-              onDelete={() => setOperations(prev => prev.filter(op => op.id !== operation.id))}
-              onRunOperation={handleRunOperation}
-              onToggleSettings={() => dispatch({ type: 'TOGGLE_SETTINGS' })}
-              onShowOutput={onShowOutput}
-              onOptimize={onOptimize}
-            />
-            <CardContent className="py-2 px-3">
-              {createOperationComponent(operation, handleOperationUpdate, isSchemaExpanded, () => dispatch({ type: 'TOGGLE_SCHEMA' }))}
-            </CardContent>
-            {operation.llmType === 'LLM' && (
-              <Guardrails
-                guardrails={operation.validate || []}
-                onUpdate={(newGuardrails) => dispatch({ type: 'UPDATE_GUARDRAILS', payload: newGuardrails })}
-                isExpanded={isGuardrailsExpanded}
-                onToggle={() => dispatch({ type: 'TOGGLE_GUARDRAILS' })}
+            {/* Move the drag handle div outside of the ml-5 container */}
+            <div
+              {...provided.dragHandleProps}
+              className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-move hover:bg-gray-100 border-r border-gray-100"
+            >
+              <GripVertical size={14} className="text-gray-400" />
+            </div>
+
+            {/* Adjust the left margin to accommodate the drag handle */}
+            <div className="ml-6">
+              <OperationHeader
+                name={operation.name}
+                type={operation.type}
+                llmType={operation.llmType}
+                disabled={isLoadingOutputs || pipelineOutput === undefined}
+                currOp={operation.id === pipelineOutput?.operationId}
+                onEdit={(name) => {
+                  dispatch({ type: "UPDATE_NAME", payload: name });
+                  debouncedUpdate();
+                }}
+                onDelete={() =>
+                  setOperations((prev) =>
+                    prev.filter((op) => op.id !== operation.id),
+                  )
+                }
+                onRunOperation={handleRunOperation}
+                onToggleSettings={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+                onShowOutput={onShowOutput}
+                onOptimize={onOptimize}
               />
-            )}
-            <SettingsModal
-              opName={operation.name}
-              opType={operation.type}
-              isOpen={isSettingsOpen}
-              onClose={() => dispatch({ type: 'TOGGLE_SETTINGS' })}
-              otherKwargs={operation.otherKwargs || {}}
-              onSettingsSave={handleSettingsSave}
-            />
-          </div>
-        </Card>
-      )}
-    </Draggable>
+              <CardContent className="py-2 px-3">
+                {createOperationComponent(
+                  operation,
+                  handleOperationUpdate,
+                  isSchemaExpanded,
+                  () => dispatch({ type: "TOGGLE_SCHEMA" }),
+                )}
+              </CardContent>
+              {operation.llmType === "LLM" && (
+                <Guardrails
+                  guardrails={operation.validate || []}
+                  onUpdate={(newGuardrails) =>
+                    dispatch({
+                      type: "UPDATE_GUARDRAILS",
+                      payload: newGuardrails,
+                    })
+                  }
+                  isExpanded={isGuardrailsExpanded}
+                  onToggle={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
+                />
+              )}
+              <SettingsModal
+                opName={operation.name}
+                opType={operation.type}
+                isOpen={isSettingsOpen}
+                onClose={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+                otherKwargs={operation.otherKwargs || {}}
+                onSettingsSave={handleSettingsSave}
+              />
+            </div>
+          </Card>
+        )}
+      </Draggable>
     </div>
   );
 };

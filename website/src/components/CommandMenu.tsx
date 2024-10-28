@@ -1,8 +1,15 @@
-import React from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
-import { Bookmark, Search } from 'lucide-react';
-import { useBookmarkContext } from '@/contexts/BookmarkContext';
+import React from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import { Bookmark, Search } from "lucide-react";
+import { useBookmarkContext } from "@/contexts/BookmarkContext";
 
 interface CommandMenuProps {
   isOpen: boolean;
@@ -10,7 +17,11 @@ interface CommandMenuProps {
   onBookmarkCurrent: () => void;
 }
 
-const CommandMenu: React.FC<CommandMenuProps> = ({ isOpen, onClose, onBookmarkCurrent }) => {
+const CommandMenu: React.FC<CommandMenuProps> = ({
+  isOpen,
+  onClose,
+  onBookmarkCurrent,
+}) => {
   const { bookmarks } = useBookmarkContext();
 
   return (
@@ -29,7 +40,12 @@ const CommandMenu: React.FC<CommandMenuProps> = ({ isOpen, onClose, onBookmarkCu
             </CommandGroup>
             <CommandGroup heading="Bookmarks">
               {bookmarks.map((bookmark) => (
-                <CommandItem key={bookmark.id} onSelect={() => console.log('Navigate to bookmark', bookmark.id)}>
+                <CommandItem
+                  key={bookmark.id}
+                  onSelect={() =>
+                    console.log("Navigate to bookmark", bookmark.id)
+                  }
+                >
                   <Search className="mr-2 h-4 w-4" />
                   <span>{bookmark.text.substring(0, 30)}...</span>
                 </CommandItem>

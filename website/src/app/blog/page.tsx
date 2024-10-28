@@ -1,10 +1,10 @@
-import Link from 'next/link'
-import { getSortedPostsData } from '../../lib/api'
-import { Scroll, Github } from 'lucide-react'
+import Link from "next/link";
+import { getSortedPostsData } from "../../lib/api";
+import { Scroll, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function BlogPage() {
-  const allPostsData = getSortedPostsData()
+  const allPostsData = getSortedPostsData();
 
   return (
     <main className="min-h-screen p-8">
@@ -30,7 +30,10 @@ export default function BlogPage() {
         <ul className="space-y-8">
           {allPostsData.map(({ id, date, title }) => (
             <li key={id} className="border-b pb-6">
-              <Link href={`/blog/${id}`} className="text-2xl font-semibold hover:text-blue-500 block mb-2">
+              <Link
+                href={`/blog/${id}`}
+                className="text-2xl font-semibold hover:text-blue-500 block mb-2"
+              >
                 {title}
               </Link>
               <span className="text-gray-500">{date}</span>
@@ -44,5 +47,5 @@ export default function BlogPage() {
         </div>
       </div>
     </main>
-  )
+  );
 }

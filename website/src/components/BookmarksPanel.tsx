@@ -1,26 +1,44 @@
-import React, { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { useBookmarkContext } from '@/contexts/BookmarkContext';
-import { Bookmark, ChevronDown, ChevronUp, Filter, Trash2, X } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
+import React, { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { useBookmarkContext } from "@/contexts/BookmarkContext";
+import {
+  Bookmark,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
+} from "@/components/ui/popover";
 
 const BookmarksPanel: React.FC = () => {
   const { bookmarks, removeBookmark } = useBookmarkContext();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [expandedBookmarkId, setExpandedBookmarkId] = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [expandedBookmarkId, setExpandedBookmarkId] = useState<string | null>(
+    null,
+  );
+  const [selectedColor, setSelectedColor] = useState<string | "all">("all");
 
-  const uniqueColors = Array.from(new Set(bookmarks.map(bookmark => bookmark.color)));
+  const uniqueColors = Array.from(
+    new Set(bookmarks.map((bookmark) => bookmark.color)),
+  );
 
-  const filteredBookmarks = bookmarks.filter(bookmark =>
-    bookmark.text.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    (selectedColor === 'all' || bookmark.color === selectedColor)
+  const filteredBookmarks = bookmarks.filter(
+    (bookmark) =>
+      bookmark.text.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      (selectedColor === "all" || bookmark.color === selectedColor),
   );
 
   const toggleBookmarkExpansion = (id: string) => {
@@ -36,9 +54,9 @@ const BookmarksPanel: React.FC = () => {
   };
 
   const handleClearAll = () => {
-    bookmarks.forEach(bookmark => removeBookmark(bookmark.id));
-    setSearchTerm('');
-    setSelectedColor('all');
+    bookmarks.forEach((bookmark) => removeBookmark(bookmark.id));
+    setSearchTerm("");
+    setSelectedColor("all");
   };
 
   return (
@@ -70,7 +88,7 @@ const BookmarksPanel: React.FC = () => {
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Filter className="h-4 w-4" />
-              {selectedColor !== 'all' && (
+              {selectedColor !== "all" && (
                 <span className="absolute -top-2 -right-2 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                   1
                 </span>
@@ -78,7 +96,10 @@ const BookmarksPanel: React.FC = () => {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-48">
-            <Select value={selectedColor} onValueChange={(value) => setSelectedColor(value as string)}>
+            <Select
+              value={selectedColor}
+              onValueChange={(value) => setSelectedColor(value as string)}
+            >
               <SelectTrigger className="border-none shadow-none">
                 <SelectValue placeholder="Filter by color" />
               </SelectTrigger>
@@ -100,21 +121,23 @@ const BookmarksPanel: React.FC = () => {
         </Popover>
       </div>
       <div className="overflow-y-auto flex-grow">
-        {filteredBookmarks.map(bookmark => (
+        {filteredBookmarks.map((bookmark) => (
           <div key={bookmark.id} className="mb-2">
-            <div 
+            <div
               className="flex items-start cursor-pointer"
               onClick={() => toggleBookmarkExpansion(bookmark.id)}
             >
               <div
                 className="w-3 h-3 rounded-full mr-2 mt-1"
-                style={{ 
+                style={{
                   backgroundColor: bookmark.color,
-                  minWidth: '0.75rem',
-                  minHeight: '0.75rem'
+                  minWidth: "0.75rem",
+                  minHeight: "0.75rem",
                 }}
               />
-              <span className={`flex-grow ${expandedBookmarkId === bookmark.id ? 'whitespace-normal' : 'whitespace-nowrap overflow-hidden text-ellipsis'}`}>
+              <span
+                className={`flex-grow ${expandedBookmarkId === bookmark.id ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis"}`}
+              >
                 {bookmark.text}
               </span>
               {expandedBookmarkId === bookmark.id ? (
@@ -127,7 +150,9 @@ const BookmarksPanel: React.FC = () => {
               <div className="mt-2 ml-5 text-sm text-gray-600">
                 <p>Source: {bookmark.source}</p>
                 {bookmark.notes.map((note, index) => (
-                  <p key={index}>Note {index + 1}: {note.note}</p>
+                  <p key={index}>
+                    Note {index + 1}: {note.note}
+                  </p>
                 ))}
                 <Button
                   variant="destructive"

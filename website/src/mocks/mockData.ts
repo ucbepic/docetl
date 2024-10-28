@@ -1,21 +1,29 @@
-import { File, Operation, SchemaItem } from '@/app/types';
+import { File, Operation } from "@/app/types";
 
 export const mockFiles: File[] = [
-  { name: 'debate_transcripts.json', path: '/Users/shreyashankar/Documents/hacking/motion-v3/website/public/debate_transcripts.json' },
+  {
+    name: "debate_transcripts.json",
+    path: "/Users/shreyashankar/Documents/hacking/motion-v3/website/public/debate_transcripts.json",
+  },
 ];
 
 export const initialOperations: Operation[] = [
   {
-    id: '1',
-    llmType: 'LLM',
-    type: 'map',
-    name: 'extract_funny_quotes',
-    prompt: 'list the funniest quotes in this presidential debate, {{ input.date }}. here is the transcript: \n {{ input.content }}',
+    id: "1",
+    llmType: "LLM",
+    type: "map",
+    name: "extract_funny_quotes",
+    prompt:
+      "list the funniest quotes in this presidential debate, {{ input.date }}. here is the transcript: \n {{ input.content }}",
     output: {
       schema: [
-        { key: 'quote', type: 'list', subType: { key: 'quote', type: 'string' } }
-      ]
-    }
+        {
+          key: "quote",
+          type: "list",
+          subType: { key: "quote", type: "string" },
+        },
+      ],
+    },
   },
   // {
   //   id: '2',
@@ -60,4 +68,4 @@ export const initialOperations: Operation[] = [
 ];
 
 export const mockSampleSize = 5;
-export const mockPipelineName = 'Debate_Analysis';
+export const mockPipelineName = "Debate_Analysis";

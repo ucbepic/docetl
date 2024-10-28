@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { DropResult } from "react-beautiful-dnd";
 import yaml from "js-yaml";
-import { Operation, File, SchemaType, SchemaItem } from "@/app/types";
+import { Operation, File } from "@/app/types";
 import { Droppable, DragDropContext } from "react-beautiful-dnd";
 import {
   DropdownMenu,
@@ -19,10 +19,8 @@ import {
   Play,
   Settings,
   PieChart,
-  Trash2,
   RefreshCw,
   Download,
-  Upload,
   FileUp,
   Save,
 } from "lucide-react";
@@ -53,17 +51,8 @@ import { useWebSocket } from "@/contexts/WebSocketContext";
 import { Input } from "@/components/ui/input";
 import path from "path";
 import { schemaDictToItemSet } from "./utils";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+
+
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -95,10 +84,10 @@ const PipelineGUI: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempSampleSize, setTempSampleSize] = useState(
-    sampleSize?.toString() || ""
+    sampleSize?.toString() || "",
   );
   const [tempCurrentFile, setTempCurrentFile] = useState<File | null>(
-    currentFile
+    currentFile,
   );
   const [tempDefaultModel, setTempDefaultModel] = useState(defaultModel);
   const { toast } = useToast();
@@ -150,8 +139,8 @@ const PipelineGUI: React.FC = () => {
           };
           setOperations((prev) =>
             prev.map((op) =>
-              op.name === optimizedOp.name ? (convertedOp as Operation) : op
-            )
+              op.name === optimizedOp.name ? (convertedOp as Operation) : op,
+            ),
           );
         }
 
@@ -200,7 +189,7 @@ const PipelineGUI: React.FC = () => {
   }, [currentFile]);
 
   const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -257,7 +246,7 @@ const PipelineGUI: React.FC = () => {
                   sample,
                   otherKwargs,
                 } as Operation;
-              })
+              }),
             );
             setPipelineName(yamlFileName || "Untitled Pipeline");
             setSampleSize(yamlContent.operations?.[0]?.sample || null);
@@ -279,8 +268,8 @@ const PipelineGUI: React.FC = () => {
                 const uniqueNewFiles = newFiles.filter(
                   (newFile) =>
                     !prevFiles.some(
-                      (prevFile) => prevFile.path === newFile.path
-                    )
+                      (prevFile) => prevFile.path === newFile.path,
+                    ),
                 );
                 return [...prevFiles, ...uniqueNewFiles];
               });
@@ -436,7 +425,7 @@ const PipelineGUI: React.FC = () => {
       defaultModel,
       pipelineName,
       sampleSize,
-    ]
+    ],
   );
 
   useEffect(() => {
@@ -474,7 +463,7 @@ const PipelineGUI: React.FC = () => {
   const handleAddOperation = (
     llmType: "LLM" | "non-LLM",
     type: string,
-    name: string
+    name: string,
   ) => {
     const newOperation: Operation = {
       id: String(Date.now()),
@@ -491,8 +480,8 @@ const PipelineGUI: React.FC = () => {
       tempSampleSize === ""
         ? null
         : tempSampleSize === null
-        ? null
-        : parseInt(tempSampleSize, 10)
+          ? null
+          : parseInt(tempSampleSize, 10),
     );
     setCurrentFile(tempCurrentFile);
     setDefaultModel(tempDefaultModel);
@@ -672,7 +661,7 @@ const PipelineGUI: React.FC = () => {
                     handleAddOperation(
                       "LLM",
                       "parallel_map",
-                      "Untitled Parallel Map"
+                      "Untitled Parallel Map",
                     )
                   }
                 >
@@ -807,7 +796,7 @@ const PipelineGUI: React.FC = () => {
                 value={tempCurrentFile?.path || ""}
                 onValueChange={(value) =>
                   setTempCurrentFile(
-                    files.find((file) => file.path === value) || null
+                    files.find((file) => file.path === value) || null,
                   )
                 }
               >

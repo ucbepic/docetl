@@ -30,7 +30,7 @@ make run-ui-dev
 
 Navigate to [http://localhost:3000/playground](http://localhost:3000/playground) to access the playground. You should see the following screen:
 
-![Playground Screenshot](../../assets/tutorial/playground-screenshot.png)
+![Playground Screenshot](/assets/tutorial/playground-screenshot.png)
 
 ## Complex Tutorial
 

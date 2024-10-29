@@ -28,9 +28,7 @@ Then, run `make run-ui-dev` to start the development server.
 make run-ui-dev
 ```
 
-Navigate to [http://localhost:3000/playground](http://localhost:3000/playground) to access the playground. You should see the following screen:
-
-![Playground Screenshot](/assets/tutorial/playground-screenshot.png)
+Navigate to [http://localhost:3000/playground](http://localhost:3000/playground) to access the playground. 
 
 ## Complex Tutorial
 

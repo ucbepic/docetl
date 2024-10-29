@@ -202,13 +202,16 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         """Renders a jinja2 template specified in the operation config
         (or a default template if not found) against a given context.
 
-        config_path is a jinja2 expression, evaluated with two
-        variables: operation (self.config) and config (the entire
-        config file). It should yield a jinja2 template string.
+        config_path is a jinja2 expression, evaluated within
+        the context of the operation config (self.config) and one
+        additional variable: config, which is bound to the entire
+        config file.
         """
         if config_path not in self.compiled_configs:
             env = jinja2.Environment()
-            template = env.compile_expression(config_path)(**self.config)
+            template = env.compile_expression(config_path)(
+                config=self.runner.config,
+                **self.config)
             if template is None:
                 template = default_template
             self.compiled_configs[config_path] = jinja2.Template(template)

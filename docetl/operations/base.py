@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.status import Status
 import jsonschema
 from pydantic import BaseModel
-
+import jinja2
 
 # FIXME: This should probably live in some utils module?
 class classproperty(object):
@@ -62,6 +62,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
             "num_retries_on_validate_failure", 0
         )
         self.syntax_check()
+        self.compiled_configs = {}
 
     # This must be overridden in a subclass
     class schema(BaseModel, extra="allow"):
@@ -142,3 +143,73 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
             raise ValueError(
                 "'validation_prompt' in 'gleaning' configuration cannot be empty"
             )
+
+    def evaluate_expression(self, config_path, default_expression=None, default_value=None, **context):
+        """Evaluates a jinja2 expression specified in the operation
+        config (or a default expression if not found) against a given
+        context.
+
+        config_path is itself a jinja2 expression, evaluated within
+        the context of the operation config (self.config) and one
+        additional variable: config, which is bound to the entire
+        config file.
+
+        Evaluating config_path should yield a jinja2 expression, or
+        alternatively a list of expressions (if so, a list of values
+        is returned).
+
+        If no expression is found and no default expression is
+        provided, or the expression evaluates to Undefined,
+        default_value is returned.
+
+        Example:
+
+        Assuming
+        
+          config_path = "input.title_keys"
+          self.config = {"input": {"title_keys": ["title", "categories.0.title"]}}
+          context = {"input": {"title": "Hello", "categories": [{"title": "world"}]}}
+
+        this function will return ["Hello", "world"].
+
+        """
+        if config_path not in self.compiled_configs:
+            env = jinja2.Environment()
+            expression = env.compile_expression(config_path)(
+                config=self.runner.config,
+                **self.config)
+            if expression is None:
+                expression = default_expression
+            if isinstance(expression, (list, tuple)):
+                self.compiled_configs[config_path] = [env.compile_expression(e, undefined_to_none=False) for e in expression]
+            elif isinstance(expression, str):
+                self.compiled_configs[config_path] = env.compile_expression(expression, undefined_to_none=False)
+            else:
+                self.compiled_configs[config_path] = None
+        expr = self.compiled_configs[config_path]
+        if expr is None:
+            return default_value
+        def expr_or_default(expr):
+            res = expr(**context)
+            if res is jinja2.Undefined:
+                return default_value
+            return res
+        if isinstance(expr, list):
+            return [expr_or_default(e) for e in expr]
+        return expr_or_default(expr)
+
+    def evaluate_template(self, config_path, default_template=None, **context):
+        """Renders a jinja2 template specified in the operation config
+        (or a default template if not found) against a given context.
+
+        config_path is a jinja2 expression, evaluated with two
+        variables: operation (self.config) and config (the entire
+        config file). It should yield a jinja2 template string.
+        """
+        if config_path not in self.compiled_configs:
+            env = jinja2.Environment()
+            template = env.compile_expression(config_path)(**self.config)
+            if template is None:
+                template = default_template
+            self.compiled_configs[config_path] = jinja2.Template(template)
+        return self.compiled_configs[config_path].render(**context)

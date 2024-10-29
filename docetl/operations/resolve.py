@@ -47,7 +47,6 @@ class ResolveOperation(BaseOperation):
         model: str,
         item1: Dict,
         item2: Dict,
-        blocking_keys: List[str] = [],
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
     ) -> Tuple[bool, float]:
@@ -63,14 +62,15 @@ class ResolveOperation(BaseOperation):
         Returns:
             Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
         """
-        if blocking_keys:
-            if all(
-                key in item1
-                and key in item2
-                and item1[key].lower() == item2[key].lower()
-                for key in blocking_keys
-            ):
-                return True, 0
+        keys1 = self.get_blocking_keys(item1)
+        keys2 = self.get_blocking_keys(item1)
+
+        if all(key1 is not None
+               and key2 is not None
+               and key1.lower() == key2.lower()
+               for key1, key2 in zip(keys1, keys2)
+               ):
+            return True, 0
 
         prompt_template = Template(comparison_prompt)
         prompt = prompt_template.render(input1=item1, input2=item2)
@@ -89,6 +89,16 @@ class ResolveOperation(BaseOperation):
         )[0]
         return output["is_match"], response.total_cost
 
+    def get_blocking_keys(self, item):
+        return self.evaluate_expression(
+            "blocking_keys", default_expression=list(item.keys()), **item)
+    
+    def get_hash_key(self, item):
+        """Create a hashable key from the blocking keys"""
+        return tuple(
+            str(value) if value is not None else ""
+            for value in self.get_blocking_keys(item))
+    
     def syntax_check(self) -> None:
         """
         Checks the configuration of the ResolveOperation for required keys and valid structure.
@@ -226,7 +236,6 @@ class ResolveOperation(BaseOperation):
         if len(input_data) == 0:
             return [], 0
 
-        blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
         if self.status:
@@ -243,9 +252,6 @@ class ResolveOperation(BaseOperation):
                 raise ValueError("Operation cancelled by user.")
 
         input_schema = self.config.get("input", {}).get("schema", {})
-        if not blocking_keys:
-            # Set them to all keys in the input data
-            blocking_keys = list(input_data[0].keys())
         limit_comparisons = self.config.get("limit_comparisons")
         total_cost = 0
 
@@ -264,7 +270,10 @@ class ResolveOperation(BaseOperation):
                 items: List[Dict[str, Any]]
             ) -> List[Tuple[List[float], float]]:
                 texts = [
-                    " ".join(str(item[key]) for key in blocking_keys if key in item)
+                    " ".join(
+                        str(value) for value
+                        in self.get_blocking_keys(item)
+                        if value is not None)
                     for item in items
                 ]
                 response = self.runner.api.gen_embedding(
@@ -291,14 +300,14 @@ class ResolveOperation(BaseOperation):
                         costs.extend([r[1] for r in result])
 
                 total_cost += sum(costs)
-
+                
         # Generate all pairs to compare, ensuring no duplicate comparisons
         def get_unique_comparison_pairs():
             # Create a mapping of values to their indices
             value_to_indices = {}
             for i, item in enumerate(input_data):
                 # Create a hashable key from the blocking keys
-                key = tuple(str(item.get(k, "")) for k in blocking_keys)
+                key = self.get_hash_key(item)
                 if key not in value_to_indices:
                     value_to_indices[key] = []
                 value_to_indices[key].append(i)
@@ -384,8 +393,8 @@ class ResolveOperation(BaseOperation):
                 clusters[root2] = set()
 
                 # Also merge all other indices that share the same values
-                key1 = tuple(str(input_data[item1].get(k, "")) for k in blocking_keys)
-                key2 = tuple(str(input_data[item2].get(k, "")) for k in blocking_keys)
+                key1 = self.get_hash_key(input_data[item1])
+                key2 = self.get_hash_key(input_data[item2])
 
                 # Merge all indices with the same values
                 for idx in value_to_indices.get(key1, []):
@@ -433,7 +442,6 @@ class ResolveOperation(BaseOperation):
                         self.config.get("comparison_model", self.default_model),
                         input_data[pair[0]],
                         input_data[pair[1]],
-                        blocking_keys,
                         timeout_seconds=self.config.get("timeout", 120),
                         max_retries_per_timeout=self.config.get(
                             "max_retries_per_timeout", 2

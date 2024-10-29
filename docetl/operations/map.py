@@ -161,8 +161,7 @@ class MapOperation(BaseOperation):
             self.status.stop()
 
         def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
-            prompt_template = Template(self.config["prompt"])
-            prompt = prompt_template.render(input=item)
+            prompt = self.evaluate_template("prompt", input=item)
 
             def validation_fn(response: Dict[str, Any]):
                 output = self.runner.api.parse_llm_response(

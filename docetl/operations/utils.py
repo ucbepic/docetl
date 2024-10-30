@@ -524,6 +524,18 @@ class APIWrapper(object):
                         )
                         self.runner.rate_limiter.try_acquire("llm_call", weight=1)
 
+                        # Get params for should refine
+                        should_refine_params = {
+                            "type": "object",
+                            "properties": {
+                                "should_refine": {"type": "boolean"},
+                                "improvements": {"type": "string"},
+                            },
+                            "required": ["should_refine", "improvements"],
+                        }
+                        if "gemini" not in model:
+                            should_refine_params["additionalProperties"] = False
+
                         validator_response = completion(
                             model=gleaning_config.get("model", model),
                             messages=truncate_messages(
@@ -531,28 +543,25 @@ class APIWrapper(object):
                                 + [{"role": "user", "content": validator_prompt}],
                                 model,
                             ),
-                            response_format={
-                                "type": "json_schema",
-                                "json_schema": {
-                                    "name": "response",
-                                    "strict": True,
-                                    "schema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "should_refine": {"type": "boolean"},
-                                            "improvements": {"type": "string"},
-                                        },
-                                        "required": ["should_refine", "improvements"],
+                            tools=[
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "should_refine_answer",
+                                        "description": "Determine if the output should be refined based on the validation feedback",
+                                        "strict": True,
+                                        "parameters": should_refine_params,
                                         "additionalProperties": False,
                                     },
-                                },
-                            },
+                                }
+                            ],
+                            tool_choice="required",
                         )
                         total_cost += completion_cost(validator_response)
 
                         # Parse the validator response
                         suggestion = json.loads(
-                            validator_response.choices[0].message.content
+                            validator_response.choices[0].message.tool_calls[0].function.arguments
                         )
                         if not suggestion["should_refine"]:
                             break
@@ -590,7 +599,7 @@ class APIWrapper(object):
 
                 # If there's validation, handle it here
                 elif validation_config:
-                    num_tries = validation_config.get("num_retries", 2)
+                    num_tries = validation_config.get("num_retries", 2) + 1
                     validation_fn = validation_config.get("validation_fn")
                     val_rule = validation_config.get("val_rule")
 

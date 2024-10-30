@@ -3,7 +3,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from jinja2 import Environment, Template
 from tqdm import tqdm
@@ -13,6 +13,7 @@ from docetl.operations.utils import RichLoopBar
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.utils import completion_cost
 from pydantic import Field, field_validator
+from litellm.utils import ModelResponse
 
 
 def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
@@ -47,7 +48,7 @@ class MapOperation(BaseOperation):
         timeout: Optional[int] = None
         batch_size: Optional[int] = None
         clustering_method: Optional[str] = None
-
+        batch_prompt: Optional[str] = None
         @field_validator("drop_keys")
         def validate_drop_keys(cls, v):
             if isinstance(v, str):
@@ -61,7 +62,7 @@ class MapOperation(BaseOperation):
     ):
         super().__init__(*args, **kwargs)
         self.max_batch_size: int = self.config.get(
-            "max_batch_size", kwargs.get("max_batch_size", float("inf"))
+            "max_batch_size", kwargs.get("max_batch_size", None)
         )
         self.clustering_method = "random"
 
@@ -82,6 +83,16 @@ class MapOperation(BaseOperation):
             raise ValueError(
                 "If 'drop_keys' is not specified, both 'prompt' and 'output' must be present in the configuration"
             )
+        
+        if config.batch_prompt:
+            try:
+                template = Template(config.batch_prompt)
+                # Test render with a minimal inputs list to validate template
+                template.render(inputs=[{}])
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid Jinja2 template in 'batch_prompt' or missing required 'inputs' variable: {str(e)}"
+                ) from e
 
         if config.prompt or config.output:
             for key in ["prompt", "output"]:
@@ -126,6 +137,7 @@ class MapOperation(BaseOperation):
                             )
 
             self.gleaning_check()
+        
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
@@ -160,17 +172,17 @@ class MapOperation(BaseOperation):
         if self.status:
             self.status.stop()
 
-        def _process_map_item(item: Dict) -> Tuple[Optional[Dict], float]:
+        def _process_map_item(item: Dict, initial_result: Optional[Dict] = None) -> Tuple[Optional[Dict], float]:
             prompt_template = Template(self.config["prompt"])
             prompt = prompt_template.render(input=item)
 
-            def validation_fn(response: Dict[str, Any]):
+            def validation_fn(response: Union[Dict[str, Any], ModelResponse]):
                 output = self.runner.api.parse_llm_response(
                     response,
                     schema=self.config["output"]["schema"],
                     tools=self.config.get("tools", None),
                     manually_fix_errors=self.manually_fix_errors,
-                )[0]
+                )[0] if isinstance(response, ModelResponse) else response
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value
@@ -200,24 +212,72 @@ class MapOperation(BaseOperation):
                 gleaning_config=self.config.get("gleaning", None),
                 verbose=self.config.get("verbose", False),
                 bypass_cache=self.config.get("bypass_cache", False),
+                initial_result=initial_result,
             )
 
             if llm_result.validated:
                 # Parse the response
-                output = self.runner.api.parse_llm_response(
-                    llm_result.response,
-                    schema=self.config["output"]["schema"],
-                    tools=self.config.get("tools", None),
-                    manually_fix_errors=self.manually_fix_errors,
-                )[0]
+                if isinstance(llm_result.response, ModelResponse):
+                    output = self.runner.api.parse_llm_response(
+                        llm_result.response,
+                        schema=self.config["output"]["schema"],
+                        tools=self.config.get("tools", None),
+                        manually_fix_errors=self.manually_fix_errors,
+                    )[0]
+                else:
+                    output = llm_result.response
+                
                 # Augment the output with the original item
                 output = {**item, **output}
                 return output, llm_result.total_cost
 
             return None, llm_result.total_cost
+        
+         # If there's a batch prompt, let's use that
+        def _process_map_batch(items: List[Dict]) -> Tuple[List[Dict], float]:
+            total_cost = 0
+            if self.config.get("batch_prompt", None):
+                batch_prompt_template = Template(self.config["batch_prompt"])
+                batch_prompt = batch_prompt_template.render(inputs=items)
+
+                # Issue the batch call
+                llm_result = self.runner.api.call_llm_batch(
+                    self.config.get("model", self.default_model),
+                    "batch map",
+                    [{"role": "user", "content": batch_prompt}],
+                    self.config["output"]["schema"],
+                    verbose=self.config.get("verbose", False),
+                    timeout_seconds=self.config.get("timeout", 120),
+                    max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                    bypass_cache=self.config.get("bypass_cache", False)
+                )
+                total_cost += llm_result.total_cost
+
+                # Parse the LLM response
+                parsed_output = self.runner.api.parse_llm_response(llm_result.response, self.config["output"]["schema"])[0].get("results", [])
+                items_and_outputs = [(item, parsed_output[idx] if idx < len(parsed_output) else None) for idx, item in enumerate(items)]
+            else:
+                items_and_outputs = [(item, None) for item in items]
+
+            # Run _process_map_item for each item 
+            all_results = []
+            with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
+                futures = [executor.submit(_process_map_item, items_and_outputs[i][0], items_and_outputs[i][1]) for i in range(len(items_and_outputs))]
+                for i in range(len(futures)):
+                    result, item_cost = futures[i].result()
+                    if result is not None:
+                        all_results.append(result)
+                    total_cost += item_cost
+
+            # Return items and cost
+            return all_results, total_cost
 
         with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
-            futures = [executor.submit(_process_map_item, item) for item in input_data]
+            batch_size = self.max_batch_size if self.max_batch_size is not None else 1
+            futures = []
+            for i in range(0, len(input_data), batch_size):
+                batch = input_data[i:i + batch_size]
+                futures.append(executor.submit(_process_map_batch, batch))
             results = []
             total_cost = 0
             pbar = RichLoopBar(
@@ -226,15 +286,15 @@ class MapOperation(BaseOperation):
                 console=self.console,
             )
             for i in pbar:
-                result, item_cost = futures[i].result()
-                if result is not None:
+                result_list, item_cost = futures[i].result()
+                if result_list:
                     if "drop_keys" in self.config:
-                        result = {
+                        result_list = [{
                             k: v
                             for k, v in result.items()
                             if k not in self.config["drop_keys"]
-                        }
-                    results.append(result)
+                        } for result in result_list]
+                    results.extend(result_list)
                 total_cost += item_cost
 
         if self.status:

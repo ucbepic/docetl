@@ -236,7 +236,7 @@ class MapOperation(BaseOperation):
          # If there's a batch prompt, let's use that
         def _process_map_batch(items: List[Dict]) -> Tuple[List[Dict], float]:
             total_cost = 0
-            if self.config.get("batch_prompt", None):
+            if len(items) > 1 and self.config.get("batch_prompt", None):
                 batch_prompt_template = Template(self.config["batch_prompt"])
                 batch_prompt = batch_prompt_template.render(inputs=items)
 
@@ -261,13 +261,19 @@ class MapOperation(BaseOperation):
 
             # Run _process_map_item for each item 
             all_results = []
-            with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
-                futures = [executor.submit(_process_map_item, items_and_outputs[i][0], items_and_outputs[i][1]) for i in range(len(items_and_outputs))]
-                for i in range(len(futures)):
-                    result, item_cost = futures[i].result()
-                    if result is not None:
-                        all_results.append(result)
-                    total_cost += item_cost
+            if len(items_and_outputs) > 1:
+                with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
+                    futures = [executor.submit(_process_map_item, items_and_outputs[i][0], items_and_outputs[i][1]) for i in range(len(items_and_outputs))]
+                    for i in range(len(futures)):
+                        result, item_cost = futures[i].result()
+                        if result is not None:
+                            all_results.append(result)
+                        total_cost += item_cost
+            else:
+                result, item_cost = _process_map_item(items_and_outputs[0][0], items_and_outputs[0][1])
+                if result is not None:
+                    all_results.append(result)
+                total_cost += item_cost
 
             # Return items and cost
             return all_results, total_cost

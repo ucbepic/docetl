@@ -289,7 +289,8 @@ class DSLRunner(ConfigWrapper):
         output_config = self.config["pipeline"]["output"]
         if output_config["type"] == "file":
             # Create the directory if it doesn't exist
-            os.makedirs(os.path.dirname(output_config["path"]), exist_ok=True)
+            if os.path.dirname(output_config["path"]):
+                os.makedirs(os.path.dirname(output_config["path"]), exist_ok=True)
             if output_config["path"].lower().endswith(".json"):
                 with open(output_config["path"], "w") as file:
                     json.dump(data, file, indent=2)
@@ -468,7 +469,8 @@ class DSLRunner(ConfigWrapper):
         checkpoint_path = os.path.join(
             self.intermediate_dir, step_name, f"{operation_name}.json"
         )
-        os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+        if os.path.dirname(checkpoint_path):
+            os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         with open(checkpoint_path, "w") as f:
             json.dump(data, f)
 

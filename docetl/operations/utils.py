@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from docetl.console import DOCETL_CONSOLE
 from docetl.utils import completion_cost, count_tokens
 import time
+from litellm.utils import ModelResponse
 
 aeval = Interpreter()
 
@@ -124,6 +125,9 @@ def clear_cache(console: Console = DOCETL_CONSOLE):
     except Exception as e:
         console.log(f"[bold red]Error clearing cache: {str(e)}[/bold red]")
 
+def convert_dict_schema_to_list_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+    schema_str = "{" + ", ".join([f"{k}: {v}" for k, v in schema.items()]) + "}"
+    return {"results": f"list[{schema_str}]"}
 
 def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
     """
@@ -419,6 +423,24 @@ class APIWrapper(object):
                 c.set(key, result)
 
         return result
+    
+    def call_llm_batch(
+        self,
+        model: str,
+        op_type: str,
+        messages: List[Dict[str, str]],
+        output_schema: Dict[str, str],
+        verbose: bool = False,
+        timeout_seconds: int = 120,
+        max_retries_per_timeout: int = 2,
+        bypass_cache: bool = False,
+    ) -> LLMResult:
+        # Turn the output schema into a list of schemas
+        output_schema = convert_dict_schema_to_list_schema(output_schema)
+        
+        # Invoke the LLM call
+        return self.call_llm(model, op_type,messages, output_schema, verbose=verbose, timeout_seconds=timeout_seconds, max_retries_per_timeout=max_retries_per_timeout, bypass_cache=bypass_cache)
+        
 
     def _cached_call_llm(
         self,
@@ -433,6 +455,7 @@ class APIWrapper(object):
         gleaning_config: Optional[Dict[str, Any]] = None,
         verbose: bool = False,
         bypass_cache: bool = False,
+        initial_result: Optional[Any] = None,
     ) -> LLMResult:
         """
         Cached version of the call_llm function.
@@ -453,6 +476,7 @@ class APIWrapper(object):
             gleaning_config (Optional[Dict[str, Any]]): The gleaning configuration.
             verbose (bool): Whether to print verbose output.
             bypass_cache (bool): Whether to bypass the cache.
+            initial_result (Optional[Any]): The initial result to use for the operation, if exists.
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
@@ -463,10 +487,13 @@ class APIWrapper(object):
             if response is not None and not bypass_cache:
                 validated = True
             else:
-                response = self._call_llm_with_cache(
-                    model, op_type, messages, output_schema, tools, scratchpad
-                )
-                total_cost += completion_cost(response)
+                if not initial_result:
+                    response = self._call_llm_with_cache(
+                        model, op_type, messages, output_schema, tools, scratchpad
+                    )
+                    total_cost += completion_cost(response)
+                else:
+                    response = initial_result
 
                 if gleaning_config:
                     # Retry gleaning prompt + regular LLM
@@ -477,7 +504,7 @@ class APIWrapper(object):
 
                     parsed_output = self.parse_llm_response(
                         response, output_schema, tools
-                    )[0]
+                    )[0] if isinstance(response, ModelResponse) else response
 
                     validator_messages = (
                         [
@@ -606,11 +633,7 @@ class APIWrapper(object):
                     validated = True
 
                 # Only set the cache if the result tool calls or output is not empty
-                if (
-                    response
-                    and "tool_calls" in dir(response.choices[0].message)
-                    and response.choices[0].message.tool_calls
-                ):
+                if validated:
                     c.set(cache_key, response)
 
         return LLMResult(response=response, total_cost=total_cost, validated=validated)
@@ -629,6 +652,7 @@ class APIWrapper(object):
         gleaning_config: Optional[Dict[str, Any]] = None,
         verbose: bool = False,
         bypass_cache: bool = False,
+        initial_result: Optional[Any] = None,
     ) -> LLMResult:
         """
         Wrapper function that uses caching for LLM calls.
@@ -646,6 +670,7 @@ class APIWrapper(object):
             timeout_seconds (int): The timeout for the LLM call.
             max_retries_per_timeout (int): The maximum number of retries per timeout.
             bypass_cache (bool): Whether to bypass the cache.
+            initial_result (Optional[Any]): The initial result to use for the operation, if exists.
         Returns:
             LLMResult: The result from the cached LLM call.
 
@@ -671,6 +696,7 @@ class APIWrapper(object):
                     gleaning_config=gleaning_config,
                     verbose=verbose,
                     bypass_cache=bypass_cache,
+                    initial_result=initial_result,
                 )
             except RateLimitError:
                 # TODO: this is a really hacky way to handle rate limits

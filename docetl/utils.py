@@ -8,6 +8,30 @@ from jinja2 import Environment, meta
 from litellm import completion_cost as lcc
 
 
+class StageType:
+    SAMPLE_RUN = "sample_run"
+    SHOULD_OPTIMIZE = "should_optimize"
+    CANDIDATE_PLANS = "candidate_plans"
+    EVALUATION_RESULTS = "evaluation_results"
+
+class CapturedOutput:
+    def __init__(self):
+        self.optimizer_output = {}
+        self.step = None
+        
+    def set_step(self, step: str):
+        self.step = step
+    
+    def save_optimizer_output(self, stage_type: StageType, output: Any):
+        if self.step is None:
+            raise ValueError("Step must be set before saving optimizer output")
+
+        # Save this to a file
+        if self.step not in self.optimizer_output:
+            self.optimizer_output[self.step] = {}
+
+        self.optimizer_output[self.step][stage_type] = output
+
 def extract_jinja_variables(template_string: str) -> List[str]:
     """
     Extract variables from a Jinja2 template string.

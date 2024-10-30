@@ -6,6 +6,7 @@ import time
 import functools
 from typing import Any, Dict, List, Optional, Tuple, Union
 from docetl.builder import Optimizer
+from docetl.console import get_console
 from pydantic import BaseModel
 
 from dotenv import load_dotenv
@@ -481,12 +482,20 @@ class DSLRunner(ConfigWrapper):
         return_pipeline: bool = True,
         **kwargs,
     ) -> Tuple[Union[Dict, "DSLRunner"], float]:
+
         builder = Optimizer(
             self,
             max_threads=self.max_threads,
             **kwargs,
         )
         cost = builder.optimize()
+
+        # Dump via pickle
+        import pickle
+        with open(f"{self.base_name}_optimizer_output.pkl", "wb") as f:
+            pickle.dump(builder.captured_output, f)
+
+
         if save:
             builder.save_optimized_config(f"{self.base_name}_opt.yaml")
             self.optimized_config_path = f"{self.base_name}_opt.yaml"

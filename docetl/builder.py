@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
+from docetl.utils import CapturedOutput
 from rich.console import Console
 from rich.status import Status
 from rich.traceback import install
@@ -138,6 +139,7 @@ class Optimizer:
         self.selectivities = defaultdict(dict)
         self.samples_taken = defaultdict(dict)
         self.resume = resume
+        self.captured_output = CapturedOutput()
 
         home_dir = os.path.expanduser("~")
         cache_dir = os.path.join(home_dir, f".docetl/cache/{runner.yaml_file_suffix}")
@@ -1269,6 +1271,8 @@ class Optimizer:
         Returns:
             List[Dict[str, Any]]: The optimized operation configuration.
         """
+        self.captured_output.set_step(op_config["name"])
+
         map_optimizer = MapOptimizer(
             self,
             self.config,

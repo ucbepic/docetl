@@ -336,7 +336,7 @@ class PromptGenerator:
         - The only variable you are allowed to use is the `inputs` variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(schema_keys)}
         - Avoid using filters or complex logic, even though Jinja technically supports it
         - The prompt template must be a valid Jinja2 template
-        - You must use the {{ inputs }} variable somehow (you can access specific schema keys if you'ld like)
+        - You must use the {{{{ inputs }}}} variable somehow, in a for loop. You must access specific keys in each item in the loop.
 
         Provide your prompt template as a single string.
         """

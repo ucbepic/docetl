@@ -29,7 +29,7 @@ def transform(doc):
 """  
         },
         runner=mock_runner,
-        default_model="gpt-3.5-turbo",  # This won't be used but is required
+        default_model="gpt-staru-turbo", 
         max_threads=4
     )
 

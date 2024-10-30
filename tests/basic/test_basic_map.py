@@ -217,3 +217,75 @@ def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wra
     assert all(
         any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
+
+def test_map_operation_with_batch_processing(simple_map_config, map_sample_data, api_wrapper):
+    # Add batch processing configuration
+    map_config_with_batch = {
+        **simple_map_config,
+        "max_batch_size": 2,
+        "batch_prompt": """Analyze the sentiment of each of the following texts:
+{% for input in inputs %}
+Text {{loop.index}}: {{input.text}}
+{% endfor %}
+
+For each text, provide a sentiment analysis in the following format:
+[
+  {"sentiment": "positive/negative/neutral"}
+]""",
+        "bypass_cache": True,
+        "validate": ["output['sentiment'] in ['positive', 'negative', 'neutral']"],
+        "num_retries_on_validate_failure": 1,
+    }
+
+    operation = MapOperation(api_wrapper, map_config_with_batch, "gpt-4o-mini", 4)
+
+    # Execute the operation
+    results, cost = operation.execute(map_sample_data)
+
+    # Assert that we have results for all input items
+    assert len(results) == len(map_sample_data)
+
+    # Check that all results have a sentiment
+    assert all("sentiment" in result for result in results)
+
+    # Verify that all sentiments are valid
+    valid_sentiments = ["positive", "negative", "neutral"]
+    assert all(
+        any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
+    )
+
+def test_map_operation_with_larger_batch(simple_map_config, map_sample_data_with_extra_keys, api_wrapper):
+    # Add batch processing configuration with larger batch size
+    map_config_with_large_batch = {
+        **simple_map_config,
+        "max_batch_size": 4,  # Process 4 items at a time
+        "batch_prompt": """Analyze the sentiment of each of the following texts:
+{% for input in inputs %}
+Text {{loop.index}}: {{input.text}}
+{% endfor %}
+
+For each text, provide a sentiment analysis in the following format:
+[
+  {"sentiment": "positive/negative/neutral"}
+]""",
+        "bypass_cache": True,
+        "validate": ["output['sentiment'] in ['positive', 'negative', 'neutral']"],
+        "num_retries_on_validate_failure": 1,
+    }
+
+    operation = MapOperation(api_wrapper, map_config_with_large_batch, "gpt-4o-mini", 64)
+
+    # Execute the operation with the larger dataset
+    results, cost = operation.execute(map_sample_data_with_extra_keys * 4)
+
+    # Assert that we have results for all input items
+    assert len(results) == len(map_sample_data_with_extra_keys * 4)
+
+    # Check that all results have a sentiment
+    assert all("sentiment" in result for result in results)
+
+    # Verify that all sentiments are valid
+    valid_sentiments = ["positive", "negative", "neutral"]
+    assert all(
+        any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
+    )

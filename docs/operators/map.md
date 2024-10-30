@@ -132,6 +132,8 @@ This example demonstrates how the Map operation can transform long, unstructured
 | Parameter                         | Description                                                                                     | Default                       |
 | --------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------- |
 | `prompt`                          | The prompt template to use for the transformation. Access input variables with `input.keyname`. | None                          |
+| `batch_prompt`                    | Template for processing multiple documents in a single prompt. Access batch with `inputs` list. | None                          |
+| `max_batch_size`                  | Maximum number of documents to process in a single batch                                        | None                          |
 | `output`                          | Schema definition for the output from the LLM.                                                  | None                          |
 | `model`                           | The language model to use                                                                       | Falls back to `default_model` |
 | `optimize`                        | Flag to enable operation optimization                                                           | `True`                        |
@@ -148,9 +150,52 @@ This example demonstrates how the Map operation can transform long, unstructured
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
 
+
 !!! info "Validation and Gleaning"
 
     For more details on validation techniques and implementation, see [operators](../concepts/operators.md#validation).
+
+### Batch Processing
+
+The Map operation supports processing multiple documents in a single prompt using the `batch_prompt` parameter. This can be more efficient than processing documents individually, especially for simpler tasks and shorter documents, especially when there are LLM call limits. However, larger batch sizes (even > 5) can lead to more incorrect results, so use this feature judiciously.
+
+??? example "Batch Processing Example"
+
+    ```yaml
+    - name: classify_documents
+      type: map
+      max_batch_size: 5  # Process up to 5 documents in a single LLM call
+      batch_prompt: |
+        Classify each of the following documents into categories (technology, business, or science):
+        
+        {% for doc in inputs %}
+        Document {{loop.index}}:
+        {{doc.text}}
+        {% endfor %}
+        
+        Provide a classification for each document.
+      prompt: |
+        Classify the following document:
+        {{input.text}}
+      output:
+        schema:
+          category: string
+    ```
+
+When using batch processing:
+
+1. The `batch_prompt` template receives an `inputs` list containing the batch of documents
+2. Use `max_batch_size` to control how many documents are processed in each batch
+3. You must also provide a `prompt` parameter that will be used in case the batch prompt's response cannot be parsed into the output schema
+4. Gleaning and validation are applied to each document in the batch individually, after the batch has been processed by the LLM
+
+!!! tip "Batch Size Considerations"
+
+    Choose your `max_batch_size` carefully:
+    
+    - Larger batches may be more efficient but risk hitting token limits
+    - Start with smaller batches (3-5 documents) and adjust based on your needs
+    - Consider document length when setting batch size
 
 ## Advanced Features
 

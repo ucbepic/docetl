@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
-import { Operation, File, OutputType } from "@/app/types";
+import { Operation, File, OutputType, Bookmark } from "@/app/types";
 import {
   mockFiles,
   initialOperations,
@@ -14,6 +14,7 @@ import {
   mockPipelineName,
 } from "@/mocks/mockData";
 import * as localStorageKeys from "@/app/localStorageKeys";
+import { BOOKMARKS_STORAGE_KEY } from "@/app/localStorageKeys";
 
 interface PipelineState {
   operations: Operation[];
@@ -44,6 +45,7 @@ interface PipelineContextType extends PipelineState {
   saveProgress: () => void;
   unsavedChanges: boolean;
   clearPipelineState: () => void;
+  serializeState: () => Promise<string>;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -56,6 +58,125 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
     return storedValue ? JSON.parse(storedValue) : defaultValue;
   }
   return defaultValue;
+};
+
+const serializeState = async (state: PipelineState): Promise<string> => {
+  const bookmarks = loadFromLocalStorage(BOOKMARKS_STORAGE_KEY, []);
+
+  // Get important output samples
+  let outputSample = "";
+  let currentOperationName = "";
+
+  if (state.output?.path) {
+    try {
+      const outputResponse = await fetch(
+        `/api/readFile?path=${state.output.path}`
+      );
+      if (!outputResponse.ok) {
+        throw new Error("Failed to fetch output file");
+      }
+
+      const outputContent = await outputResponse.text();
+      const outputs = JSON.parse(outputContent) || [];
+
+      if (outputs.length > 0) {
+        // Get the operation that generated this output
+        const operation = state.operations.find(
+          (op) => op.id === state.output?.operationId
+        );
+        currentOperationName = operation?.name || "";
+        const importantColumns =
+          operation?.output?.schema?.map((item) => item.key) || [];
+
+        // Take up to 5 samples
+        const samples = outputs
+          .slice(0, 5)
+          .map((row: Record<string, unknown>) => {
+            const sampleRow: Record<string, unknown> = {};
+
+            // Prioritize important columns
+            importantColumns.forEach((col) => {
+              if (col in row) {
+                const value = String(row[col]);
+                if (value.length > 10000) {
+                  sampleRow[`**${col}**`] =
+                    `**${value.slice(0, 10000)}` +
+                    `** ... (${value.length - 10000} more characters)`;
+                } else {
+                  sampleRow[`**${col}**`] = `**${value}**`;
+                }
+              }
+            });
+
+            // Add other columns in addition to important ones
+            Object.keys(row).forEach((key) => {
+              if (!(key in sampleRow)) {
+                // Only add if not already added
+                const value = String(row[key]);
+                if (value.length > 10000) {
+                  sampleRow[key] =
+                    value.slice(0, 10000) +
+                    ` ... (${value.length - 10000} more characters)`;
+                } else {
+                  sampleRow[key] = value;
+                }
+              }
+            });
+
+            return sampleRow;
+          });
+
+        outputSample =
+          samples.length > 0 ? JSON.stringify(samples, null, 2) : "";
+      }
+    } catch {
+      outputSample = "\nError parsing output samples";
+    }
+  }
+
+  // Format operations details
+  const operationsDetails = state.operations
+    .map((op) => {
+      return `
+- Operation: ${op.name} (${op.type})
+  Type: ${op.type}
+  Is LLM: ${op.llmType ? "Yes" : "No"}
+  Prompt (relevant for llm operations): ${op.prompt || "No prompt"}
+  Output Schema (relevant for llm operations): ${JSON.stringify(
+    op.output?.schema || []
+  )}
+  Other arguments: ${JSON.stringify(op.otherKwargs || {}, null, 2)}`;
+    })
+    .join("\n");
+
+  // Format bookmarks
+  const bookmarksDetails = bookmarks
+    .map((bookmark: Bookmark) => {
+      return `
+- Text: "${bookmark.text}"
+  Source: ${bookmark.source}
+  Context: ${bookmark.notes[0].note || "None"}`;
+    })
+    .join("\n");
+
+  return `Current Pipeline State:
+Pipeline Name: "${state.pipelineName}"
+
+Input Dataset File: ${
+    state.currentFile ? `"${state.currentFile.name}"` : "None"
+  }
+
+Pipeline operations:${operationsDetails}
+
+Bookmarks:${bookmarksDetails}
+${
+  currentOperationName && outputSample
+    ? `
+Operation just executed: ${currentOperationName}
+Sample output for current operation (the LLM-generated outputs for this operation are bolded; other keys are included but not bolded):
+${outputSample}`
+    : ""
+}`;
 };
 
 export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -159,7 +280,9 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       setState((prevState) => {
         const newValue =
           typeof value === "function"
-            ? (value as Function)(prevState[key])
+            ? (value as (prev: PipelineState[K]) => PipelineState[K])(
+                prevState[key]
+              )
             : value;
         if (newValue !== prevState[key]) {
           setUnsavedChanges(true);
@@ -256,6 +379,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     saveProgress,
     unsavedChanges,
     clearPipelineState,
+    serializeState: useCallback(() => serializeState(stateRef.current), []),
   };
 
   return (

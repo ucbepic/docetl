@@ -30,6 +30,12 @@ make run-ui-dev
 
 Navigate to [http://localhost:3000/playground](http://localhost:3000/playground) to access the playground. 
 
+### Setting up the AI Assistant
+
+The UI offers an optional chat-based assistant that can help you iteratively develop your pipeline. It is currently very experimental. It can't write to your pipeline, but you can bounce ideas off of it and get it to help you iteratively develop your pipeline.
+
+To use the assistant, you need to set your OpenAI API key in the `.env.local` file. You can get an API key [here](https://platform.openai.com/api-keys). The API key should be in the following format: `sk-proj-...`. We only support the openai models for the assistant.
+
 ## Complex Tutorial
 
 See this [YouTube video](https://www.youtube.com/watch?v=IlgueVqtHGo) for a more in depth tutorial on how to use the playground.

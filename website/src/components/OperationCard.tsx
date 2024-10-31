@@ -129,7 +129,7 @@ const OperationHeader: React.FC<{
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <Popover>
+          {/* <Popover>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -149,7 +149,7 @@ const OperationHeader: React.FC<{
               </Tooltip>
             </TooltipProvider>
             <AIEditPopover onSubmit={onAIEdit} />
-          </Popover>
+          </Popover> */}
         </div>
 
         {/* Centered title */}

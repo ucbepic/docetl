@@ -29,6 +29,7 @@ import {
   Zap,
   Settings,
   ListCollapse,
+  Wand2,
 } from "lucide-react";
 import { Operation, SchemaItem } from "@/app/types";
 import { usePipelineContext } from "@/contexts/PipelineContext";
@@ -39,6 +40,12 @@ import { Guardrails } from "./operations/args";
 import createOperationComponent from "./operations/components";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import { Badge } from "./ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { AIEditPopover } from "@/components/AIEditPopover";
 
 // Separate components
 const OperationHeader: React.FC<{
@@ -53,6 +60,7 @@ const OperationHeader: React.FC<{
   onToggleSettings: () => void;
   onShowOutput: () => void;
   onOptimize: () => void;
+  onAIEdit: (instruction: string) => void;
 }> = React.memo(
   ({
     name,
@@ -66,6 +74,7 @@ const OperationHeader: React.FC<{
     onToggleSettings,
     onShowOutput,
     onOptimize,
+    onAIEdit,
   }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(name);
@@ -120,10 +129,27 @@ const OperationHeader: React.FC<{
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-
-          {/* <Button variant="ghost" size="sm" className="p-0.25 h-6 w-6" onClick={onRunOperation}>
-          <Play size={14} className="text-green-500" />
-        </Button> */}
+          <Popover>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="p-0.25 h-6 w-6"
+                    >
+                      <Wand2 size={14} className="text-purple-500" />
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Assisted edit</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <AIEditPopover onSubmit={onAIEdit} />
+          </Popover>
         </div>
 
         {/* Centered title */}
@@ -647,6 +673,45 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     toast,
   ]);
 
+  const handleAIEdit = useCallback(
+    async (instruction: string) => {
+      if (!operation) return;
+
+      try {
+        const response = await fetch("/api/edit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            operation,
+            instruction,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to apply AI edit");
+        }
+
+        const updatedOperation = await response.json();
+        handleOperationUpdate(updatedOperation);
+
+        toast({
+          title: "Success",
+          description: "Operation updated successfully",
+        });
+      } catch (error) {
+        console.error("Error applying AI edit:", error);
+        toast({
+          title: "Error",
+          description: "Failed to apply AI edit",
+          variant: "destructive",
+        });
+      }
+    },
+    [operation, handleOperationUpdate, toast]
+  );
+
   if (!operation) {
     return <SkeletonCard />;
   }
@@ -702,6 +767,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 onToggleSettings={() => dispatch({ type: "TOGGLE_SETTINGS" })}
                 onShowOutput={onShowOutput}
                 onOptimize={onOptimize}
+                onAIEdit={handleAIEdit}
               />
               <CardContent className="py-2 px-3">
                 {createOperationComponent(
@@ -757,5 +823,3 @@ const SkeletonCard: React.FC = () => (
     </Card>
   </div>
 );
-
-export default OperationCard;

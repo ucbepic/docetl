@@ -153,76 +153,15 @@ const RightPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
 );
 
 const CodeEditorPipelineApp: React.FC = () => {
-  const [isLocalhost, setIsLocalhost] = useState(true);
-  // Add client-side only rendering for the cost display
   const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsLocalhost(
-      window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1"
-    );
-    setIsMounted(true);
-  }, []);
-
-  if (!isLocalhost) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-2xl p-6 bg-white rounded-lg shadow-md">
-          <h1 className="text-2xl font-bold text-primary mb-4">
-            DocETL Playground
-          </h1>
-          <p className="mb-4">
-            The DocETL playground is designed to run locally. To use it, please
-            follow these steps:
-          </p>
-          <ol className="list-decimal list-inside mb-4">
-            <li>
-              Clone the GitHub repo:{" "}
-              <a
-                href="https://github.com/ucbepic/docetl"
-                className="text-blue-500 hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                https://github.com/ucbepic/docetl
-              </a>
-            </li>
-            <li>
-              Set up the project by running:
-              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
-                make install make install-ui
-              </pre>
-            </li>
-            <li>
-              Start the application:
-              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
-                make run-ui-prod
-              </pre>
-            </li>
-            <li>
-              Navigate to{" "}
-              <a
-                href="http://localhost:3000/playground"
-                className="text-blue-500 hover:underline"
-              >
-                http://localhost:3000/playground
-              </a>
-            </li>
-          </ol>
-          <p>
-            Once you've completed these steps, you'll be able to use the DocETL
-            playground locally.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
   const [showChat, setShowChat] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const {
     operations,
@@ -573,12 +512,77 @@ const CodeEditorPipelineApp: React.FC = () => {
   );
 };
 
-const WrappedCodeEditorPipelineApp: React.FC = () => (
-  <WebSocketProvider>
-    <PipelineProvider>
-      <CodeEditorPipelineApp />
-    </PipelineProvider>
-  </WebSocketProvider>
-);
+const WrappedCodeEditorPipelineApp: React.FC = () => {
+  const [isLocalhost, setIsLocalhost] = useState(true);
+
+  useEffect(() => {
+    setIsLocalhost(
+      window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1"
+    );
+  }, []);
+
+  if (!isLocalhost) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-2xl p-6 bg-white rounded-lg shadow-md">
+          <h1 className="text-2xl font-bold text-primary mb-4">
+            DocETL Playground
+          </h1>
+          <p className="mb-4">
+            The DocETL playground is designed to run locally. To use it, please
+            follow these steps:
+          </p>
+          <ol className="list-decimal list-inside mb-4">
+            <li>
+              Clone the GitHub repo:{" "}
+              <a
+                href="https://github.com/ucbepic/docetl"
+                className="text-blue-500 hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                https://github.com/ucbepic/docetl
+              </a>
+            </li>
+            <li>
+              Set up the project by running:
+              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
+                make install make install-ui
+              </pre>
+            </li>
+            <li>
+              Start the application:
+              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
+                make run-ui-prod
+              </pre>
+            </li>
+            <li>
+              Navigate to{" "}
+              <a
+                href="http://localhost:3000/playground"
+                className="text-blue-500 hover:underline"
+              >
+                http://localhost:3000/playground
+              </a>
+            </li>
+          </ol>
+          <p>
+            Once you've completed these steps, you'll be able to use the DocETL
+            playground locally.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <WebSocketProvider>
+      <PipelineProvider>
+        <CodeEditorPipelineApp />
+      </PipelineProvider>
+    </WebSocketProvider>
+  );
+};
 
 export default WrappedCodeEditorPipelineApp;

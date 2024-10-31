@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Scroll, Info, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,6 +84,7 @@ import {
 } from "@/utils/fileOperations";
 import * as localStorageKeys from "@/app/localStorageKeys";
 import { toast } from "@/hooks/use-toast";
+import AIChatPanel from "@/components/AIChatPanel";
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg
@@ -221,6 +222,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   const {
     operations,
@@ -355,11 +357,11 @@ const CodeEditorPipelineApp: React.FC = () => {
                 </MenubarContent>
               </MenubarMenu>
               <MenubarMenu>
-                <MenubarTrigger className="opacity-50 cursor-not-allowed">
-                  Assistant (Not Yet Available)
-                </MenubarTrigger>
+                <MenubarTrigger>Assistant</MenubarTrigger>
                 <MenubarContent>
-                  <MenubarItem disabled>Open Assistant</MenubarItem>
+                  <MenubarItem onSelect={() => setShowChat(!showChat)}>
+                    Toggle Chat
+                  </MenubarItem>
                 </MenubarContent>
               </MenubarMenu>
             </Menubar>
@@ -490,6 +492,7 @@ const CodeEditorPipelineApp: React.FC = () => {
             </TooltipProvider>
           </div>
         </div>
+        {showChat && <AIChatPanel onClose={() => setShowChat(false)} />}
         {/* Main content */}
         <ResizablePanelGroup direction="horizontal" className="flex-grow">
           {/* File Explorer and Bookmarks */}

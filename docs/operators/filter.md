@@ -81,17 +81,7 @@ This example demonstrates how the Filter operation distinguishes between high-im
 
 ### Optional Parameters
 
-| Parameter                         | Description                                       | Default                       |
-| --------------------------------- | ------------------------------------------------- | ----------------------------- |
-| `model`                           | The language model to use                         | Falls back to `default_model` |
-| `optimize`                        | Flag to enable operation optimization             | True                          |
-| `recursively_optimize`            | Flag to enable recursive optimization             | false                         |
-| `sample_size`                     | Number of samples to use for the operation        | Processes all data            |
-| `validate`                        | List of Python expressions to validate the output | None                          |
-| `num_retries_on_validate_failure` | Number of retry attempts on validation failure    | 0                             |
-| `timeout`                         | Timeout for each LLM call in seconds              | 120                           |
-| `max_retries_per_timeout`         | Maximum number of retries per timeout             | 2                             |
-| `sample`                          | Number of samples to use for the operation        | None                          |
+See [map optional parameters](./map.md#optional-parameters) for additional configuration options, including `batch_prompt` and `max_batch_size`.
 
 !!! info "Validation"
 

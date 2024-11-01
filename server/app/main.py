@@ -2,6 +2,9 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from server.app.routes import pipeline
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 os.environ["USE_FRONTEND"] = "true"

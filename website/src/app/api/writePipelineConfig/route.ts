@@ -14,6 +14,7 @@ export async function POST(request: Request) {
       name,
       sample_size,
       optimize = false,
+      clear_intermediate = false,
     } = await request.json();
 
     if (!name) {
@@ -37,7 +38,8 @@ export async function POST(request: Request) {
       operation_id,
       name,
       sample_size,
-      optimize
+      optimize,
+      clear_intermediate
     );
 
     console.log(yamlString);

@@ -379,6 +379,7 @@ const PipelineGUI: React.FC = () => {
             operation_id: lastOperation.id,
             name: pipelineName,
             sample_size: sampleSize,
+            clear_intermediate: clear_intermediate,
           }),
         });
 

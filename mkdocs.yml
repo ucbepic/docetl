@@ -35,6 +35,7 @@ nav:
           - Gather: operators/gather.md
           - Unnest: operators/unnest.md
           - Sample: operators/sample.md
+          - Code: operators/code.md
       - Optimization:
           - Overview: optimization/overview.md
           - Example: optimization/example.md

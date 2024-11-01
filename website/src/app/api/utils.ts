@@ -10,7 +10,8 @@ export function generatePipelineConfig(
   operation_id: string,
   name: string,
   sample_size: number | null,
-  optimize: boolean = false
+  optimize: boolean = false,
+  clear_intermediate: boolean = false
 ) {
   const homeDir = os.homedir();
 
@@ -40,6 +41,10 @@ export function generatePipelineConfig(
 
       if (optimize && op.id === operation_id) {
         newOp.optimize = true;
+      }
+
+      if (clear_intermediate) {
+        newOp.bypass_cache = true;
       }
 
       delete newOp.runIndex;

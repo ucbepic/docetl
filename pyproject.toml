@@ -95,6 +95,9 @@ gather = "docetl.operations.gather:GatherOperation"
 cluster = "docetl.operations.cluster:ClusterOperation"
 sample = "docetl.operations.sample:SampleOperation"
 link_resolve = "docetl.operations.link_resolve:LinkResolveOperation"
+code_map = "docetl.operations.code_operations:CodeMapOperation"
+code_reduce = "docetl.operations.code_operations:CodeReduceOperation"
+code_filter = "docetl.operations.code_operations:CodeFilterOperation"
 
 [tool.poetry.plugins."docetl.parser"]
 llama_index_simple_directory_reader = "docetl.parsing_tools:llama_index_simple_directory_reader"

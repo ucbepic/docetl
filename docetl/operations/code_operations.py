@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar
-from pydantic import Field
 
 class CodeMapOperation(BaseOperation):
     class schema(BaseOperation.schema):
@@ -35,16 +34,19 @@ class CodeMapOperation(BaseOperation):
                 desc=f"Processing {self.config['name']} (code_map)",
                 console=self.console,
             )
-            for i, doc in enumerate(input_data):
+            for i in pbar:
                 result = futures[i].result()
                 if self.config.get("drop_keys"):
                     result = {
                         k: v for k, v in result.items() 
                         if k not in self.config["drop_keys"]
                     }
+                doc = input_data[i]
                 merged_result = {**doc, **result}
                 results.append(merged_result)
+                
         return results, 0.0
+
 class CodeReduceOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "code_reduce"
@@ -87,11 +89,26 @@ class CodeReduceOperation(BaseOperation):
             grouped_data = list(grouped_data.items())
 
         results = []
-        for _, group in grouped_data:
-            result = reduce_fn(group)
-            results.append(result)
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(reduce_fn, group) for _, group in grouped_data]
+            pbar = RichLoopBar(
+                range(len(futures)),
+                desc=f"Processing {self.config['name']} (code_reduce)",
+                console=self.console,
+            )
+            for i, (key, group) in zip(pbar, grouped_data):
+                result = futures[i].result()
+                
+                # Apply pass-through at the group level
+                if self.config.get("pass_through", False) and group:
+                    for k, v in group[0].items():
+                        if k not in result:
+                            result[k] = v
+                            
+                results.append(result)
 
         return results, 0.0
+
 class CodeFilterOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "code_filter"

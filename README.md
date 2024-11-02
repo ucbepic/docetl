@@ -33,17 +33,25 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 
 ## Installation
 
-See the documentation for installing from PyPI.
+You can install DocETL using either PyPI or from source. We recommend installing from source for the latest features and bug fixes.
 
 ### Prerequisites
 
 Before installing DocETL, ensure you have Python 3.10 or later installed on your system. You can check your Python version by running:
 
+```bash
 python --version
+```
 
-### Installation Steps (from Source)
+### Install from PyPI
 
-1. Clone the DocETL repository:
+```bash
+pip install docetl
+```
+
+### Install from Source
+
+1. Clone the DocETL repository (or your fork):
 
 ```bash
 git clone https://github.com/ucbepic/docetl.git

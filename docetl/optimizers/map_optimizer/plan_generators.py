@@ -781,9 +781,6 @@ class PlanGenerator:
         """
 
         output_schema = op_config["output"]["schema"]
-        if len(output_schema) <= 1:
-            return {}  # No need for chain decomposition if there's only one output key
-
         variables_in_prompt = extract_jinja_variables(op_config["prompt"])
         variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
 

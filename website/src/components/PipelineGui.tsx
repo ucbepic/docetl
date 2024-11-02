@@ -23,6 +23,8 @@ import {
   Download,
   FileUp,
   Save,
+  Loader2,
+  StopCircle,
 } from "lucide-react";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import {
@@ -78,9 +80,14 @@ const PipelineGUI: React.FC = () => {
     setTerminalOutput,
     saveProgress,
     clearPipelineState,
+    optimizerModel,
+    setOptimizerModel,
+    optimizerProgress,
+    setOptimizerProgress,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
+  const [tempOptimizerModel, setTempOptimizerModel] = useState(defaultModel);
   const [tempSampleSize, setTempSampleSize] = useState(
     sampleSize?.toString() || ""
   );
@@ -91,55 +98,73 @@ const PipelineGUI: React.FC = () => {
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
+  const [runningButtonType, setRunningButtonType] = useState<
+    "run" | "clear-run" | null
+  >(null);
 
   useEffect(() => {
     if (lastMessage) {
       if (lastMessage.type === "output") {
         setTerminalOutput(lastMessage.data);
+      } else if (lastMessage.type === "optimizer_progress") {
+        setOptimizerProgress({
+          status: lastMessage.status,
+          progress: lastMessage.progress,
+          shouldOptimize: lastMessage.should_optimize,
+          rationale: lastMessage.rationale,
+          validatorPrompt: lastMessage.validator_prompt,
+        });
       } else if (lastMessage.type === "result") {
         const runCost = lastMessage.data.cost || 0;
+        setOptimizerProgress(null);
 
         // See if there was an optimized operation
-        const optimizedOp = lastMessage.data.optimized_op;
-        if (optimizedOp) {
-          const {
-            id,
-            llmType,
-            type,
-            name,
-            prompt,
-            output,
-            validate,
-            sample,
-            ...otherKwargs
-          } = optimizedOp;
-          const convertedOp = {
-            id: id || crypto.randomUUID(),
-            llmType:
-              type === "map" ||
-              type === "reduce" ||
-              type === "resolve" ||
-              type === "filter" ||
-              type === "parallel_map"
-                ? "LLM"
-                : "non-LLM",
-            type: type,
-            name: name || "Untitled Operation",
-            prompt: prompt,
-            output: output
-              ? {
-                  schema: schemaDictToItemSet(output.schema),
-                }
-              : undefined,
-            validate: validate,
-            sample: sample,
-            otherKwargs: otherKwargs || {},
-          };
-          setOperations((prev) =>
-            prev.map((op) =>
-              op.name === optimizedOp.name ? (convertedOp as Operation) : op
-            )
-          );
+        const optimizedOps = lastMessage.data.optimized_ops;
+        if (optimizedOps) {
+          const newOperations = optimizedOps.map((optimizedOp) => {
+            const {
+              id,
+              llmType,
+              type,
+              name,
+              prompt,
+              output,
+              validate,
+              gleaning,
+              sample,
+              ...otherKwargs
+            } = optimizedOp;
+
+            // Find matching operation in previous operations list
+            const existingOp = operations.find((op) => op.name === name);
+
+            return {
+              id: id || crypto.randomUUID(),
+              llmType:
+                type === "map" ||
+                type === "reduce" ||
+                type === "resolve" ||
+                type === "filter" ||
+                type === "parallel_map"
+                  ? "LLM"
+                  : "non-LLM",
+              type: type,
+              name: name || "Untitled Operation",
+              prompt: prompt,
+              output: output
+                ? {
+                    schema: schemaDictToItemSet(output.schema),
+                  }
+                : undefined,
+              validate: validate,
+              gleaning: gleaning,
+              sample: sample,
+              otherKwargs: otherKwargs || {},
+              ...(existingOp?.runIndex && { runIndex: existingOp.runIndex }),
+            } as Operation;
+          });
+
+          setOperations(newOperations);
         }
 
         setCost((prevCost) => prevCost + runCost);
@@ -185,6 +210,12 @@ const PipelineGUI: React.FC = () => {
       setTempCurrentFile(currentFile);
     }
   }, [currentFile]);
+
+  useEffect(() => {
+    if (optimizerModel) {
+      setTempDefaultModel(tempOptimizerModel);
+    }
+  }, [optimizerModel]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -353,7 +384,9 @@ const PipelineGUI: React.FC = () => {
       if (lastOpIndex < 0) return;
 
       const lastOperation = operations[lastOpIndex];
+      setOptimizerProgress(null);
       setIsLoadingOutputs(true);
+      setRunningButtonType(clear_intermediate ? "clear-run" : "run");
       setNumOpRun((prevNum) => {
         const newNum = prevNum + operations.length;
         const updatedOperations = operations.map((op, index) => ({
@@ -412,6 +445,7 @@ const PipelineGUI: React.FC = () => {
         // Close the WebSocket connection
         disconnect();
         setIsLoadingOutputs(false);
+        setRunningButtonType(null);
       }
     },
     [
@@ -453,6 +487,7 @@ const PipelineGUI: React.FC = () => {
     setCurrentFile(tempCurrentFile);
     setDefaultModel(tempDefaultModel);
     setIsSettingsOpen(false);
+    setOptimizerModel(tempOptimizerModel);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -473,297 +508,319 @@ const PipelineGUI: React.FC = () => {
     }
   };
 
-  return (
-    <div className="relative">
-      <div className="h-full overflow-auto">
-        <div className="sticky top-0 z-10 p-2 bg-white">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <h2 className="text-sm font-bold uppercase">
-                {pipelineName.toUpperCase()}
-              </h2>
-              {sampleSize && (
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <div className="flex items-center">
-                        <PieChart size={16} className="text-primary mr-2" />
-                        <span className="text-xs text-primary">
-                          {sampleSize} samples
-                        </span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-[200px]">
-                      <p>
-                        Pipeline will run on a sample of {sampleSize} random
-                        documents.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              <div className="flex p-0 space-x-0">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <FileUp size={16} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Initialize from config file</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <Input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  accept=".yaml,.yml"
-                  className="hidden"
-                />
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleExport()}
-                      >
-                        <Download size={16} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Download pipeline config file</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+  const handleStop = () => {
+    sendMessage("kill");
+    setRunningButtonType(null);
+  };
 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setIsSettingsOpen(true)}
-                >
-                  <Settings size={16} />
-                </Button>
-              </div>
-            </div>
-            <div className="flex space-x-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" className="rounded-sm">
-                    <Plus size={16} className="mr-2" /> Add Operation{" "}
-                    <ChevronDown size={16} className="ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuLabel>LLM Operations</DropdownMenuLabel>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation("LLM", "map", "Untitled Map")
-                    }
-                  >
-                    Map
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation("LLM", "reduce", "Untitled Reduce")
-                    }
-                  >
-                    Reduce
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation("LLM", "resolve", "Untitled Resolve")
-                    }
-                  >
-                    Resolve
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation("LLM", "filter", "Untitled Filter")
-                    }
-                  >
-                    Filter
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation(
-                        "LLM",
-                        "parallel_map",
-                        "Untitled Parallel Map"
-                      )
-                    }
-                  >
-                    Parallel Map
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Non-LLM Operations</DropdownMenuLabel>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation("non-LLM", "unnest", "Untitled Unnest")
-                    }
-                  >
-                    Unnest
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation("non-LLM", "split", "Untitled Split")
-                    }
-                  >
-                    Split
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation("non-LLM", "gather", "Untitled Gather")
-                    }
-                  >
-                    Gather
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      handleAddOperation("non-LLM", "sample", "Untitled Sample")
-                    }
-                  >
-                    Sample
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <div className="flex space-x-2">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        className="rounded-sm"
-                        disabled={isLoadingOutputs}
-                        onClick={() => onRunAll(true)}
-                      >
-                        <RefreshCw size={16} className="mr-2" /> Clear and Run
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>The cache will be cleared before running</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        className="rounded-sm"
-                        disabled={isLoadingOutputs}
-                        onClick={() => onRunAll(false)}
-                      >
-                        <Play size={16} className="mr-2" /> Run
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>This will use any cached outputs if applicable</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+  return (
+    <div className="h-[calc(70vh-2rem)] flex flex-col">
+      <div className="flex-none p-2 bg-white border-b sticky top-0 z-10">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-sm font-bold uppercase">
+              {pipelineName.toUpperCase()}
+            </h2>
+            {sampleSize && (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <div className="flex items-center">
+                      <PieChart size={16} className="text-primary mr-2" />
+                      <span className="text-xs text-primary">
+                        {sampleSize} samples
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[200px]">
+                    <p>
+                      Pipeline will run on a sample of {sampleSize} random
+                      documents.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            <div className="flex p-0 space-x-0">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <FileUp size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Initialize from config file</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".yaml,.yml"
+                className="hidden"
+              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleExport()}
+                    >
+                      <Download size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Download pipeline config file</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setIsSettingsOpen(true)}
+              >
+                <Settings size={16} />
+              </Button>
             </div>
           </div>
-        </div>
-        <div className="p-2">
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="operations" type="operation">
-              {(provided, snapshot) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className={`space-y-2 ${
-                    snapshot.isDraggingOver ? "bg-gray-50" : ""
-                  }`}
+          <div className="flex space-x-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="rounded-sm">
+                  <Plus size={16} className="mr-2" /> Add Operation{" "}
+                  <ChevronDown size={16} className="ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuLabel>LLM Operations</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation("LLM", "map", "Untitled Map")
+                  }
                 >
-                  {operations.map((op, index) => (
-                    <OperationCard key={op.id} index={index} />
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
-        </div>
-        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Pipeline Settings</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="name"
-                  value={tempPipelineName}
-                  onChange={(e) => setTempPipelineName(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="sampling" className="text-right">
-                  Sample Size
-                </Label>
-                <Input
-                  id="sampling"
-                  type="number"
-                  value={tempSampleSize}
-                  onChange={(e) => setTempSampleSize(e.target.value)}
-                  placeholder="None"
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="currentFile" className="text-right">
-                  Dataset JSON
-                </Label>
-                <Select
-                  value={tempCurrentFile?.path || ""}
-                  onValueChange={(value) =>
-                    setTempCurrentFile(
-                      files.find((file) => file.path === value) || null
+                  Map
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation("LLM", "reduce", "Untitled Reduce")
+                  }
+                >
+                  Reduce
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation("LLM", "resolve", "Untitled Resolve")
+                  }
+                >
+                  Resolve
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation("LLM", "filter", "Untitled Filter")
+                  }
+                >
+                  Filter
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation(
+                      "LLM",
+                      "parallel_map",
+                      "Untitled Parallel Map"
                     )
                   }
                 >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select a file" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {files.map((file) => (
-                      <SelectItem key={file.path} value={file.path}>
-                        {file.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="defaultModel" className="text-right">
-                  Default Model
-                </Label>
-                <Input
-                  id="defaultModel"
-                  value={tempDefaultModel}
-                  onChange={(e) => setTempDefaultModel(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
+                  Parallel Map
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Non-LLM Operations</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation("non-LLM", "unnest", "Untitled Unnest")
+                  }
+                >
+                  Unnest
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation("non-LLM", "split", "Untitled Split")
+                  }
+                >
+                  Split
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation("non-LLM", "gather", "Untitled Gather")
+                  }
+                >
+                  Gather
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation("non-LLM", "sample", "Untitled Sample")
+                  }
+                >
+                  Sample
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="flex space-x-2">
+              <Button
+                size="sm"
+                variant="destructive"
+                className="rounded-sm"
+                onClick={handleStop}
+                disabled={!isLoadingOutputs}
+              >
+                <StopCircle size={16} className="mr-2" />
+                Stop Pipeline
+              </Button>
+              <Button
+                size="sm"
+                className="rounded-sm"
+                onClick={() => onRunAll(true)}
+                disabled={isLoadingOutputs}
+              >
+                {isLoadingOutputs ? (
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw size={16} className="mr-2" />
+                )}
+                Clear and Run
+              </Button>
+              <Button
+                size="sm"
+                className="rounded-sm"
+                disabled={isLoadingOutputs}
+                onClick={() => onRunAll(false)}
+              >
+                {isLoadingOutputs ? (
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <Play size={16} className="mr-2" />
+                )}
+                Run
+              </Button>
             </div>
-            <DialogFooter>
-              <Button onClick={handleSettingsSave}>Save changes</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
       </div>
+      <div className="flex-1 overflow-y-auto min-h-0 p-2">
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="operations" type="operation">
+            {(provided, snapshot) => (
+              <div
+                {...provided.droppableProps}
+                ref={provided.innerRef}
+                className={`space-y-2 ${
+                  snapshot.isDraggingOver ? "bg-gray-50" : ""
+                }`}
+              >
+                {operations.map((op, index) => (
+                  <OperationCard key={op.id} index={index} />
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
+      </div>
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pipeline Settings</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="name"
+                value={tempPipelineName}
+                onChange={(e) => setTempPipelineName(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="sampling" className="text-right">
+                Sample Size
+              </Label>
+              <Input
+                id="sampling"
+                type="number"
+                value={tempSampleSize}
+                onChange={(e) => setTempSampleSize(e.target.value)}
+                placeholder="None"
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="currentFile" className="text-right">
+                Dataset JSON
+              </Label>
+              <Select
+                value={tempCurrentFile?.path || ""}
+                onValueChange={(value) =>
+                  setTempCurrentFile(
+                    files.find((file) => file.path === value) || null
+                  )
+                }
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select a file" />
+                </SelectTrigger>
+                <SelectContent>
+                  {files.map((file) => (
+                    <SelectItem key={file.path} value={file.path}>
+                      {file.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="defaultModel" className="text-right">
+                Default Model
+              </Label>
+              <Input
+                id="defaultModel"
+                value={tempDefaultModel}
+                onChange={(e) => setTempDefaultModel(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="optimize" className="text-right">
+                Optimizer Model
+              </Label>
+              <Select
+                value={tempOptimizerModel}
+                onValueChange={(value) => setTempOptimizerModel(value)}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select optimizer model" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gpt-4o">gpt-4o</SelectItem>
+                  <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSettingsSave}>Save changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

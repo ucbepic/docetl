@@ -487,15 +487,14 @@ class DSLRunner(ConfigWrapper):
 
         builder = Optimizer(
             self,
-            max_threads=self.max_threads,
             **kwargs,
         )
         cost = builder.optimize()
-
-        # Dump via pickle
-        import pickle
-        with open(f"{self.base_name}_optimizer_output.pkl", "wb") as f:
-            pickle.dump(builder.captured_output, f)
+    
+        # Dump via json
+        # import json
+        # with open(f"{self.base_name}_optimizer_output.json", "wb") as f:
+        #     json.dump(builder.captured_output.optimizer_output, f)
 
 
         if save:

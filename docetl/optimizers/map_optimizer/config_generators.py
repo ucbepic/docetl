@@ -252,9 +252,8 @@ class ConfigGenerator:
         Determine if metadata is needed to perform the subtask.
 
         Consider:
-        1. Does the subtask require information that might be present in metadata?
-        2. Is the sample chunk or full input missing any crucial information that could be in metadata?
-        3. Would having metadata significantly improve the performance or accuracy of the subtask?
+        1. Does the input sample have any structural metadata that might be relevant to the subtask?
+        2. Is the sample chunk or full input missing any crucial information that could be in this metadata?
 
         Provide your response in the following format:
         """

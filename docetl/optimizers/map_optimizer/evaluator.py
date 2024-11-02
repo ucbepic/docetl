@@ -267,7 +267,7 @@ class Evaluator:
         # Extract input variables from the prompt
         variables_in_prompt = extract_jinja_variables(op_config["prompt"])
         variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
-        input_sample = input_data[:2]
+        input_sample = input_data[:3]
         output_sample = [
             next(
                 (
@@ -291,7 +291,7 @@ class Evaluator:
         )
         available_tokens = (
             model_input_context_length - prompt_tokens - 100
-        ) // 4  # 100 token buffer, divide by 4 for each sample
+        ) // 6  # 100 token buffer, divide by 6 for each sample
 
         # Prepare and truncate sample data
         input_1 = truncate_sample_data(
@@ -336,22 +336,43 @@ class Evaluator:
         {json.dumps({"input": input_2, "output": output_2}, indent=2)}
         """
 
+        if len(input_sample) > 2:
+            input_3 = truncate_sample_data(
+                {key: input_sample[2].get(key, "N/A") for key in variables_in_prompt},
+                available_tokens,
+                [variables_in_prompt],
+                self.llm_client.model,
+            )
+            output_3 = truncate_sample_data(
+                {key: output_sample[2].get(key, "N/A") for key in output_schema.keys()},
+                available_tokens,
+                [list(output_schema.keys())],
+                self.llm_client.model,
+            )
+            prompt += f"""
+        ---Pair 3---
+        {json.dumps({"input": input_3, "output": output_3}, indent=2)}
+        """
+
         prompt += f"""
         Custom Validator Prompt:
         {validator_prompt}
 
-        Based on the above information, please assess the operation's performance. Provide your assessment in the following format:
+        Based on the above information, please assess the operation's performance. 
+        If it needs improvement, provide specific examples in your assessment.
+        Be very detailed in your reasons for improvements, if any.
+        Provide your assessment in the following format:
         """
 
         parameters = {
             "type": "object",
             "properties": {
-                "needs_improvement": {"type": "boolean"},
                 "reasons": {"type": "array", "items": {"type": "string"}},
                 "improvements": {
                     "type": "array",
                     "items": {"type": "string"},
                 },
+                "needs_improvement": {"type": "boolean"},
             },
             "required": ["needs_improvement", "reasons", "improvements"],
         }

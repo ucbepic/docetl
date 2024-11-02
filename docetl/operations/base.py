@@ -38,6 +38,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         max_threads: int,
         console: Optional[Console] = None,
         status: Optional[Status] = None,
+        is_build: bool = False,
         **kwargs,
     ):
         """
@@ -62,6 +63,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         self.num_retries_on_validate_failure = self.config.get(
             "num_retries_on_validate_failure", 0
         )
+        self.is_build = is_build
         self.syntax_check()
 
     # This must be overridden in a subclass

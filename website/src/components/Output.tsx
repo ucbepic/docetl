@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import BookmarkableText from "@/components/BookmarkableText";
@@ -24,51 +24,97 @@ export const ConsoleContent: React.FC = () => {
   const { readyState } = useWebSocket();
 
   return (
-    <div className="flex flex-col h-full w-full bg-black text-white font-mono rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full w-full">
       {optimizerProgress && (
-        <div className="p-4 border-b border-gray-800 bg-gray-900">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium text-blue-400">
-              {optimizerProgress.status}
-            </div>
-            <div className="text-xs text-gray-400">
-              {Math.round(optimizerProgress.progress * 100)}%
-            </div>
-          </div>
-          <Progress
-            value={optimizerProgress.progress * 100}
-            className="w-full h-2 bg-gray-700"
+        <div className="mb-4 p-[6px] rounded-lg relative">
+          {/* Animated gradient border */}
+          <div
+            className="absolute inset-0 rounded-lg opacity-80"
+            style={{
+              background:
+                "linear-gradient(45deg, #60a5fa, #c084fc, #818cf8, #60a5fa, #60a5fa, #c084fc, #818cf8)",
+              backgroundSize: "300% 300%",
+              animation: "gradient 8s linear infinite",
+            }}
           />
-          {optimizerProgress.shouldOptimize && (
-            <div className="mt-4 space-y-4">
-              <div>
-                <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">
-                  Optimizing because
-                </div>
-                <div className="text-sm text-gray-200 leading-relaxed">
-                  {optimizerProgress.rationale}
-                </div>
-              </div>
 
-              {optimizerProgress.validatorPrompt && (
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">
-                    Using this prompt to find the best plan
-                  </div>
-                  <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap border-l-4 border-gray-600 pl-4 my-2 italic">
-                    {optimizerProgress.validatorPrompt}
-                  </div>
-                </div>
-              )}
+          {/* Inner content container */}
+          <div className="relative rounded-lg p-4 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                {optimizerProgress.status}
+              </div>
+              <div className="text-xs text-blue-600">
+                {Math.round(optimizerProgress.progress * 100)}%
+              </div>
             </div>
-          )}
+            <div className="relative w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="absolute top-0 left-0 h-full"
+                style={{
+                  width: `${optimizerProgress.progress * 100}%`,
+                  background:
+                    "linear-gradient(45deg, #60a5fa, #c084fc, #818cf8, #60a5fa, #60a5fa, #c084fc, #818cf8)",
+                  backgroundSize: "300% 300%",
+                  animation: "gradient 8s linear infinite",
+                }}
+              />
+            </div>
+
+            {optimizerProgress.shouldOptimize && (
+              <div className="mt-4 space-y-4">
+                <details className="group">
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-center">
+                      <div className="text-xs font-medium uppercase tracking-wider bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                        Optimizing because
+                      </div>
+                      <ChevronDown className="w-4 h-4 ml-2 text-gray-500 transition-transform group-open:rotate-180" />
+                    </div>
+                  </summary>
+                  <div className="mt-1 text-sm text-gray-600">
+                    {optimizerProgress.rationale}
+                  </div>
+                </details>
+
+                {optimizerProgress.validatorPrompt && (
+                  <details className="group">
+                    <summary className="cursor-pointer list-none">
+                      <div className="flex items-center">
+                        <div className="text-xs font-medium uppercase tracking-wider bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                          Using this prompt to evaluate the best plan
+                        </div>
+                        <ChevronDown className="w-4 h-4 ml-2 text-gray-500 transition-transform group-open:rotate-180" />
+                      </div>
+                    </summary>
+                    <div className="mt-1 text-sm text-gray-600 whitespace-pre-wrap border-l-4 border-purple-300 pl-3 italic">
+                      {optimizerProgress.validatorPrompt}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
-      <AnsiRenderer
-        text={terminalOutput || ""}
-        readyState={readyState}
-        setTerminalOutput={setTerminalOutput}
-      />
+
+      <div className="flex-1">
+        <AnsiRenderer
+          text={terminalOutput || ""}
+          readyState={readyState}
+          setTerminalOutput={setTerminalOutput}
+        />
+      </div>
+
+      <style>
+        {`
+          @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+        `}
+      </style>
     </div>
   );
 };

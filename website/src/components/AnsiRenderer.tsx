@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Convert from "ansi-to-html";
 import { useWebSocket } from "@/contexts/WebSocketContext";
+import { useToast } from "@/hooks/use-toast";
 
 const convert = new Convert({
   fg: "#000",
@@ -25,6 +26,7 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [userInput, setUserInput] = useState("");
   const { sendMessage } = useWebSocket();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -33,15 +35,22 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
   }, [text]);
 
   const handleSendMessage = () => {
-    sendMessage(userInput.trim());
-    setUserInput("");
+    const trimmedInput = userInput.trim();
+    if (trimmedInput) {
+      sendMessage(trimmedInput);
+      toast({
+        title: "Terminal input received",
+        description: `You sent: ${trimmedInput}`,
+      });
+      setUserInput("");
+    }
   };
 
   const isWebSocketClosed = readyState === WebSocket.CLOSED;
 
   return (
     <div
-      className={`flex flex-col w-full h-[620px] bg-black text-white font-mono rounded-lg overflow-hidden ${
+      className={`flex flex-col w-full h-[420px] bg-black text-white font-mono rounded-lg overflow-hidden ${
         isWebSocketClosed ? "opacity-50" : ""
       }`}
     >
@@ -49,8 +58,8 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
         ref={scrollRef}
         className="flex-grow overflow-auto p-4"
         style={{
-          height: "600px", // Reduced height to accommodate input field
-          maxHeight: "600px",
+          height: "400px", // Reduced height to accommodate input field
+          maxHeight: "400px",
         }}
       >
         <pre

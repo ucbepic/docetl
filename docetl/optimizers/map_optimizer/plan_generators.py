@@ -774,8 +774,6 @@ class PlanGenerator:
         Note:
             - This method is most effective when the original task has multiple output keys
               with dependencies between them.
-            - If the output schema has only one key, an empty dictionary is returned as
-              chain decomposition is not necessary.
             - The method uses the LLM to generate the chain of subtasks, ensuring that
               all output keys from the original task are covered.
         """

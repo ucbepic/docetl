@@ -21,6 +21,13 @@ interface PipelineState {
   currentFile: File | null;
   output: OutputType | null;
   terminalOutput: string;
+  optimizerProgress: {
+    status: string;
+    progress: number;
+    shouldOptimize: boolean;
+    rationale: string;
+    validatorPrompt: string;
+  } | null;
   isLoadingOutputs: boolean;
   numOpRun: number;
   pipelineName: string;
@@ -28,6 +35,7 @@ interface PipelineState {
   files: File[];
   cost: number;
   defaultModel: string;
+  optimizerModel: string;
 }
 
 interface PipelineContextType extends PipelineState {
@@ -35,6 +43,15 @@ interface PipelineContextType extends PipelineState {
   setCurrentFile: React.Dispatch<React.SetStateAction<File | null>>;
   setOutput: React.Dispatch<React.SetStateAction<OutputType | null>>;
   setTerminalOutput: React.Dispatch<React.SetStateAction<string>>;
+  setOptimizerProgress: React.Dispatch<
+    React.SetStateAction<{
+      status: string;
+      progress: number;
+      shouldOptimize: boolean;
+      rationale: string;
+      validatorPrompt: string;
+    } | null>
+  >;
   setIsLoadingOutputs: React.Dispatch<React.SetStateAction<boolean>>;
   setNumOpRun: React.Dispatch<React.SetStateAction<number>>;
   setPipelineName: React.Dispatch<React.SetStateAction<string>>;
@@ -42,6 +59,7 @@ interface PipelineContextType extends PipelineState {
   setFiles: React.Dispatch<React.SetStateAction<File[]>>;
   setCost: React.Dispatch<React.SetStateAction<number>>;
   setDefaultModel: React.Dispatch<React.SetStateAction<string>>;
+  setOptimizerModel: React.Dispatch<React.SetStateAction<string>>;
   saveProgress: () => void;
   unsavedChanges: boolean;
   clearPipelineState: () => void;
@@ -193,6 +211,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.TERMINAL_OUTPUT_KEY,
       ""
     ),
+    optimizerProgress: null,
     isLoadingOutputs: loadFromLocalStorage(
       localStorageKeys.IS_LOADING_OUTPUTS_KEY,
       false
@@ -210,6 +229,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     cost: loadFromLocalStorage(localStorageKeys.COST_KEY, 0),
     defaultModel: loadFromLocalStorage(
       localStorageKeys.DEFAULT_MODEL_KEY,
+      "gpt-4o-mini"
+    ),
+    optimizerModel: loadFromLocalStorage(
+      localStorageKeys.OPTIMIZER_MODEL_KEY,
       "gpt-4o-mini"
     ),
   }));
@@ -266,6 +289,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.DEFAULT_MODEL_KEY,
       JSON.stringify(stateRef.current.defaultModel)
     );
+    localStorage.setItem(
+      localStorageKeys.OPTIMIZER_MODEL_KEY,
+      JSON.stringify(stateRef.current.optimizerModel)
+    );
     setUnsavedChanges(false);
     console.log("Progress saved!");
   }, []);
@@ -310,6 +337,8 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       files: mockFiles,
       cost: 0,
       defaultModel: "gpt-4o-mini",
+      optimizerModel: "gpt-4o-mini",
+      optimizerProgress: null,
     });
     setUnsavedChanges(false);
     console.log("Pipeline state cleared!");
@@ -374,6 +403,14 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     ),
     setDefaultModel: useCallback(
       (value) => setStateAndUpdate("defaultModel", value),
+      [setStateAndUpdate]
+    ),
+    setOptimizerModel: useCallback(
+      (value) => setStateAndUpdate("optimizerModel", value),
+      [setStateAndUpdate]
+    ),
+    setOptimizerProgress: useCallback(
+      (value) => setStateAndUpdate("optimizerProgress", value),
       [setStateAndUpdate]
     ),
     saveProgress,

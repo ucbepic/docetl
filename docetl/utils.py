@@ -1,18 +1,32 @@
 import json
 import re
 from typing import Any, Dict, List
-
+from enum import Enum
 import tiktoken
 import yaml
 from jinja2 import Environment, meta
 from litellm import completion_cost as lcc
 
 
-class StageType:
+class StageType(Enum):
     SAMPLE_RUN = "sample_run"
     SHOULD_OPTIMIZE = "should_optimize"
     CANDIDATE_PLANS = "candidate_plans"
     EVALUATION_RESULTS = "evaluation_results"
+    END = "end"
+
+def get_stage_description(stage_type: StageType) -> str:
+    if stage_type == StageType.SAMPLE_RUN:
+        return "Running samples..."
+    elif stage_type == StageType.SHOULD_OPTIMIZE:
+        return "Checking if optimization is needed..."
+    elif stage_type == StageType.CANDIDATE_PLANS:
+        return "Generating candidate plans..."
+    elif stage_type == StageType.EVALUATION_RESULTS:
+        return "Evaluating candidate plans..."
+    elif stage_type == StageType.END:
+        return "Optimization complete!"
+    raise ValueError(f"Unknown stage type: {stage_type}")
 
 class CapturedOutput:
     def __init__(self):

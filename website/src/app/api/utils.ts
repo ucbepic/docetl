@@ -52,6 +52,13 @@ export function generatePipelineConfig(
       delete newOp.id;
       delete newOp.llmType;
 
+      if (
+        op.gleaning &&
+        (op.gleaning.num_rounds === 0 || !op.gleaning.validation_prompt)
+      ) {
+        delete newOp.gleaning;
+      }
+
       if (!op.output || !op.output.schema) return newOp;
 
       const processSchemaItem = (item: SchemaItem): string => {

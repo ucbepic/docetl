@@ -1,13 +1,10 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-} from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import { Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import BookmarkableText from "@/components/BookmarkableText";
 import { Operation, OutputRow } from "@/app/types";
 import { Parser } from "json2csv";
@@ -22,11 +19,51 @@ import { useWebSocket } from "@/contexts/WebSocketContext";
 import AnsiRenderer from "./AnsiRenderer";
 
 export const ConsoleContent: React.FC = () => {
-  const { terminalOutput, setTerminalOutput } = usePipelineContext();
+  const { terminalOutput, setTerminalOutput, optimizerProgress } =
+    usePipelineContext();
   const { readyState } = useWebSocket();
 
   return (
     <div className="flex flex-col h-full w-full bg-black text-white font-mono rounded-lg overflow-hidden">
+      {optimizerProgress && (
+        <div className="p-4 border-b border-gray-800 bg-gray-900">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-blue-400">
+              {optimizerProgress.status}
+            </div>
+            <div className="text-xs text-gray-400">
+              {Math.round(optimizerProgress.progress * 100)}%
+            </div>
+          </div>
+          <Progress
+            value={optimizerProgress.progress * 100}
+            className="w-full h-2 bg-gray-700"
+          />
+          {optimizerProgress.shouldOptimize && (
+            <div className="mt-4 space-y-4">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">
+                  Optimizing because
+                </div>
+                <div className="text-sm text-gray-200 leading-relaxed">
+                  {optimizerProgress.rationale}
+                </div>
+              </div>
+
+              {optimizerProgress.validatorPrompt && (
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">
+                    Using this prompt to find the best plan
+                  </div>
+                  <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap border-l-4 border-gray-600 pl-4 my-2 italic">
+                    {optimizerProgress.validatorPrompt}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <AnsiRenderer
         text={terminalOutput || ""}
         readyState={readyState}
@@ -59,12 +96,12 @@ export const Output: React.FC = () => {
 
   useEffect(() => {
     const foundOperation = operations.find(
-      (op: Operation) => op.id === output?.operationId,
+      (op: Operation) => op.id === output?.operationId
     );
     setOperation(foundOperation);
     setOpName(foundOperation?.name);
     setIsResolveOrReduce(
-      foundOperation?.type === "resolve" || foundOperation?.type === "reduce",
+      foundOperation?.type === "resolve" || foundOperation?.type === "reduce"
     );
   }, [operations, output]);
 
@@ -76,7 +113,7 @@ export const Output: React.FC = () => {
         try {
           // Fetch output data
           const outputResponse = await fetch(
-            `/api/readFile?path=${output.path}`,
+            `/api/readFile?path=${output.path}`
           );
           if (!outputResponse.ok) {
             throw new Error("Failed to fetch output file");
@@ -121,7 +158,7 @@ export const Output: React.FC = () => {
           // Fetch input data if inputPath exists
           if (output.inputPath) {
             const inputResponse = await fetch(
-              `/api/readFile?path=${output.inputPath}`,
+              `/api/readFile?path=${output.inputPath}`
             );
             if (!inputResponse.ok) {
               throw new Error("Failed to fetch input file");
@@ -129,7 +166,7 @@ export const Output: React.FC = () => {
             const inputContent = await inputResponse.text();
             const parsedInputs = JSON.parse(inputContent);
             setInputCount(
-              Array.isArray(parsedInputs) ? parsedInputs.length : 1,
+              Array.isArray(parsedInputs) ? parsedInputs.length : 1
             );
           } else {
             setInputCount(0);
@@ -205,8 +242,8 @@ export const Output: React.FC = () => {
       return outputs.length > 0 && reduceColumnName in outputs[0]
         ? { name: reduceColumnName, type: "reduce" }
         : outputs.length > 0 && resolveColumnName in outputs[0]
-          ? { name: resolveColumnName, type: "resolve" }
-          : null;
+        ? { name: resolveColumnName, type: "resolve" }
+        : null;
     }, [outputs, opName, operation]);
 
     if (!visualizationColumn || !operation) {
@@ -225,7 +262,7 @@ export const Output: React.FC = () => {
             .sort(
               (a, b) =>
                 Number(b[visualizationColumn.name]) -
-                Number(a[visualizationColumn.name]),
+                Number(a[visualizationColumn.name])
             )
             .map((row, index) => (
               <div key={index} className="mb-2">
@@ -252,7 +289,7 @@ export const Output: React.FC = () => {
           outputs.flatMap((row) => {
             const kvPairs = row[visualizationColumn.name];
             return Object.keys(kvPairs).filter((key) => key in row);
-          }),
+          })
         );
 
         const groupedByIntersection: { [key: string]: any[] } = {};

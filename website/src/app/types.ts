@@ -20,6 +20,7 @@ export type Operation = {
   prompt?: string;
   output?: { schema: SchemaItem[] };
   validate?: string[];
+  gleaning?: { num_rounds: number; validation_prompt: string };
   otherKwargs?: Record<string, any>;
   runIndex?: number;
   sample?: number;
@@ -60,7 +61,7 @@ export interface BookmarkContextType {
     text: string,
     source: string,
     color: string,
-    notes: UserNote[],
+    notes: UserNote[]
   ) => void;
   removeBookmark: (id: string) => void;
 }

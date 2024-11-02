@@ -133,6 +133,7 @@ class MapOptimizer:
             The cost is the cost of the optimizer (from possibly synthesizing resolves).
 
         """
+        self.console.post_optimizer_status(StageType.SAMPLE_RUN)
         input_data = copy.deepcopy(input_data)
         # Add id to each input_data
         for i in range(len(input_data)):
@@ -184,7 +185,9 @@ class MapOptimizer:
             },
         )
 
+
         # Generate custom validator prompt
+        self.console.post_optimizer_status(StageType.SHOULD_OPTIMIZE)
         validator_prompt = self.prompt_generator._generate_validator_prompt(
             op_config, input_data, output_data
         )
@@ -218,6 +221,11 @@ class MapOptimizer:
                 "improvements": assessment.get("improvements", []),
             },
         )
+        self.console.post_optimizer_rationale(
+            assessment.get("needs_improvement", True),
+            "\n".join(assessment.get("reasons", [])),
+            validator_prompt
+        )
 
         # Check if improvement is needed based on the assessment
         if not data_exceeds_limit and not assessment.get("needs_improvement", True):
@@ -237,6 +245,7 @@ class MapOptimizer:
             candidate_plans["no_change"] = [op_config]
 
         # Generate chunk size plans
+        self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
         self.console.log("[bold magenta]Generating chunking plans...[/bold magenta]")
         chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
             op_config, input_data, validator_prompt, model_input_context_length
@@ -290,6 +299,7 @@ class MapOptimizer:
             output=candidate_plans,
         )
 
+        self.console.post_optimizer_status(StageType.EVALUATION_RESULTS)
         self.console.log(
             f"[bold magenta]Evaluating {len(plans_list)} plans...[/bold magenta]"
         )
@@ -349,6 +359,7 @@ class MapOptimizer:
 
         # Check if there are no top plans
         if len(top_plans) == 0:
+            self.console.post_optimizer_status(StageType.END)
             raise ValueError(
                 "Agent did not generate any plans. Unable to proceed with optimization. Try again."
             )
@@ -422,6 +433,7 @@ class MapOptimizer:
             },
         )
 
+        self.console.post_optimizer_status(StageType.END)
         return (
             candidate_plans[best_plan_name],
             best_output,

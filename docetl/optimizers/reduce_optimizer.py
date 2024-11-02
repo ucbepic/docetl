@@ -15,7 +15,7 @@ from docetl.operations.base import BaseOperation
 from docetl.operations.utils import truncate_messages
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.utils import LLMClient
-from docetl.utils import count_tokens, extract_jinja_variables
+from docetl.utils import count_tokens, extract_jinja_variables, StageType
 
 
 class ReduceOptimizer:
@@ -149,9 +149,11 @@ class ReduceOptimizer:
         #     # Return unoptimized map and reduce operations
         #     return [map_prompt, op_config], input_data, 0.0
 
+        self.console.post_optimizer_status(StageType.SAMPLE_RUN)
         original_output = self._run_operation(op_config, input_data)
 
         # Step 1: Synthesize a validator prompt
+        self.console.post_optimizer_status(StageType.SHOULD_OPTIMIZE)
         validator_prompt = self._generate_validator_prompt(
             op_config, input_data, original_output
         )
@@ -172,6 +174,11 @@ class ReduceOptimizer:
         # Print the validation results
         self.console.log("[bold]Validation Results on Initial Sample:[/bold]")
         if validation_results["needs_improvement"]:
+            self.console.post_optimizer_rationale(
+                should_optimize=True,
+                rationale="\n".join(validation_results["issues"]),
+                validator_prompt=validator_prompt,
+            )
             self.console.log(
                 "\n".join(
                     [
@@ -302,6 +309,7 @@ class ReduceOptimizer:
         is_associative = self._is_associative(op_config, input_data)
 
         # Step 3: Create and evaluate multiple reduce plans
+        self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
         self.console.log("[bold magenta]Generating batched plans...[/bold magenta]")
         reduce_plans = self._create_reduce_plans(op_config, input_data, is_associative)
 
@@ -310,12 +318,14 @@ class ReduceOptimizer:
         gleaning_plans = self._generate_gleaning_plans(reduce_plans, validator_prompt)
 
         self.console.log("[bold magenta]Evaluating plans...[/bold magenta]")
+        self.console.post_optimizer_status(StageType.EVALUATION_RESULTS)
         best_plan = self._evaluate_reduce_plans(
             op_config, reduce_plans + gleaning_plans, input_data, validator_prompt
         )
 
         # Step 4: Run the best reduce plan
         optimized_output = self._run_operation(best_plan, input_data)
+        self.console.post_optimizer_status(StageType.END)
 
         return [best_plan], optimized_output, 0.0
 

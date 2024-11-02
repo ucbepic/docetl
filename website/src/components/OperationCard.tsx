@@ -126,6 +126,7 @@ const OperationHeader: React.FC<{
               size="sm"
               className="p-0.25 h-6 w-6"
               onClick={onOptimize}
+              disabled={disabled}
             >
               <Zap size={14} className="text-yellow-500" />
             </Button>

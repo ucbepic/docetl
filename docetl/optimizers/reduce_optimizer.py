@@ -103,13 +103,16 @@ class ReduceOptimizer:
         )
 
         # Find the key with the longest value
-        longest_key = max(
-            op_config["reduce_key"], key=lambda k: len(str(input_data[0][k]))
-        )
-        sample_key = tuple(
-            input_data[0][k] if k == longest_key else input_data[0][k]
-            for k in op_config["reduce_key"]
-        )
+        if op_config["reduce_key"] == ["_all"]:
+            sample_key = tuple(["_all"])
+        else:
+            longest_key = max(
+                op_config["reduce_key"], key=lambda k: len(str(input_data[0][k]))
+            )
+            sample_key = tuple(
+                input_data[0][k] if k == longest_key else input_data[0][k]
+                for k in op_config["reduce_key"]
+            )
 
         # Render the prompt with a sample input
         prompt_template = Template(op_config["prompt"])
@@ -200,7 +203,7 @@ class ReduceOptimizer:
 
             return self._optimize_single_reduce(op_config, input_data, validator_prompt)
         else:
-            self.console.log("No improvements identified.")
+            self.console.log(f"No improvements identified; {validation_results}.")
             return [op_config], original_output, 0.0
 
     def _should_use_map(
@@ -1082,7 +1085,9 @@ class ReduceOptimizer:
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = []
             for reduce_key, inputs in validation_inputs.items():
-                if isinstance(op_config["reduce_key"], list):
+                if op_config["reduce_key"] == ["_all"] or op_config["reduce_key"] == "_all":
+                    sample_output = output_data[0]
+                elif isinstance(op_config["reduce_key"], list):
                     sample_output = next(
                         (
                             item
@@ -1133,11 +1138,11 @@ class ReduceOptimizer:
                 parameters = {
                     "type": "object",
                     "properties": {
-                        "is_valid": {"type": "boolean"},
+                        "is_correct": {"type": "boolean"},
                         "issues": {"type": "array", "items": {"type": "string"}},
                         "suggestions": {"type": "array", "items": {"type": "string"}},
                     },
-                    "required": ["is_valid", "issues", "suggestions"],
+                    "required": ["is_correct", "issues", "suggestions"],
                 }
 
                 futures.append(
@@ -1156,9 +1161,11 @@ class ReduceOptimizer:
 
         # Determine if optimization is needed based on validation results
         invalid_count = sum(
-            1 for result in validation_results if not result["is_valid"]
+            1 for result in validation_results if not result["is_correct"]
         )
-        needs_improvement = invalid_count > 1
+        needs_improvement = invalid_count > 1 or (
+            invalid_count == 1 and len(validation_results) == 1
+        )
 
         return {
             "needs_improvement": needs_improvement,
@@ -1170,14 +1177,19 @@ class ReduceOptimizer:
     ) -> Dict[Any, List[Dict[str, Any]]]:
         # Group input data by reduce_key
         grouped_data = {}
-        for item in input_data:
-            if isinstance(reduce_key, list):
-                key = tuple(item[k] for k in reduce_key)
-            else:
-                key = item[reduce_key]
-            if key not in grouped_data:
-                grouped_data[key] = []
-            grouped_data[key].append(item)
+        if reduce_key == ["_all"]:
+            # Put all data in one group under a single key
+            grouped_data[("_all",)] = input_data
+        else:
+            # Group by reduce key(s) as before
+            for item in input_data:
+                if isinstance(reduce_key, list):
+                    key = tuple(item[k] for k in reduce_key)
+                else:
+                    key = item[reduce_key]
+                if key not in grouped_data:
+                    grouped_data[key] = []
+                grouped_data[key].append(item)
 
         # Select a fixed number of reduce keys
         selected_keys = random.sample(
@@ -1738,7 +1750,7 @@ class ReduceOptimizer:
         valid_count = sum(
             1
             for result in validation_result["validation_results"]
-            if result["is_valid"]
+            if result["is_correct"]
         )
         score = valid_count / len(validation_result["validation_results"])
 

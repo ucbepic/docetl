@@ -1,9 +1,16 @@
+import os
+import signal
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from server.app.models import PipelineRequest
 from docetl.runner import DSLRunner
 import asyncio
-import queue
+from rich.logging import RichHandler
+import logging
 
+FORMAT = "%(message)s"
+logging.basicConfig(
+    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+)
 router = APIRouter()
 
 
@@ -29,9 +36,10 @@ async def websocket_run_pipeline(websocket: WebSocket):
             runner.clear_intermediate()
 
         if config.get("optimize", False):
-
+            logging.info(f"Optimizing pipeline with model {config.get('optimizer_model', 'gpt-4o')}")
+            
             async def run_pipeline():
-                return await asyncio.to_thread(runner.optimize, return_pipeline=False)
+                return await asyncio.to_thread(runner.optimize, return_pipeline=False, model=config.get("optimizer_model", "gpt-4o"))
 
         else:
 
@@ -44,11 +52,32 @@ async def websocket_run_pipeline(websocket: WebSocket):
             console_output = runner.console.file.getvalue()
             await websocket.send_json({"type": "output", "data": console_output})
 
+            if config.get("optimize", False):
+                optimizer_progress = runner.console.get_optimizer_progress()
+                rationale = runner.console.optimizer_rationale
+                await websocket.send_json({
+                    "type": "optimizer_progress", 
+                    "status": optimizer_progress[0], 
+                    "progress": optimizer_progress[1],
+                    "rationale": rationale[1] if rationale is not None else "",
+                    "should_optimize": rationale[0] if rationale is not None else False,
+                    "validator_prompt": rationale[2] if rationale is not None else ""
+                })
+
             # Check for incoming messages from the user
             try:
                 user_message = await asyncio.wait_for(
                     websocket.receive_json(), timeout=0.1
                 )
+
+                if user_message == "kill":
+                    runner.console.print("Stopping process...")
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Process stopped by user request"
+                    })
+                    raise Exception("Process stopped by user request")
+
                 # Process the user message and send it to the runner
                 runner.console.post_input(user_message)
             except asyncio.TimeoutError:
@@ -69,17 +98,15 @@ async def websocket_run_pipeline(websocket: WebSocket):
         # If optimize is true, send back the optimized operations
         if config.get("optimize", False):
             optimized_config, cost = result
-            # find the operation that has optimize = true
-            optimized_op = None
-            for op in optimized_config["operations"]:
-                if op.get("optimize", False):
-                    optimized_op = op
-                    break
 
-            if not optimized_op:
-                raise HTTPException(
-                    status_code=500, detail="No optimized operation found"
-                )
+            # Send the operations back in order
+            new_pipeline_steps = optimized_config["pipeline"]["steps"]
+            new_pipeline_op_name_to_op_map = {op["name"]: op for op in optimized_config["operations"]}
+            new_ops_in_order = []
+            for new_step in new_pipeline_steps:
+                for op in new_step.get("operations", []):
+                    if op not in new_ops_in_order:
+                        new_ops_in_order.append(new_pipeline_op_name_to_op_map[op])
 
             await websocket.send_json(
                 {
@@ -87,7 +114,7 @@ async def websocket_run_pipeline(websocket: WebSocket):
                     "data": {
                         "message": "Pipeline executed successfully",
                         "cost": cost,
-                        "optimized_op": optimized_op,
+                        "optimized_ops": new_ops_in_order,
                     },
                 }
             )
@@ -108,4 +135,6 @@ async def websocket_run_pipeline(websocket: WebSocket):
 
         error_traceback = traceback.format_exc()
         print(f"Error occurred:\n{error_traceback}")
-        await websocket.send_json({"type": "error", "data": str(e)})
+        await websocket.send_json({"type": "error", "data": str(e) + "\n" + error_traceback})
+    finally:
+        await websocket.close()

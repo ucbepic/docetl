@@ -11,7 +11,7 @@ from rich.status import Status
 
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.resolve import ResolveOperation
-from docetl.utils import completion_cost, extract_jinja_variables
+from docetl.utils import completion_cost, extract_jinja_variables, StageType
 
 
 class JoinOptimizer:

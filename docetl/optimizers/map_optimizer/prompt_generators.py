@@ -192,7 +192,7 @@ class PromptGenerator:
 
         header_extraction_prompt = f"""Analyze the following chunk of a document and extract any headers you see.
 
-        {{ input.{split_key}_chunk }}
+        {{{{ input.{split_key}_chunk }}}}
 
         Examples of headers and their levels based on the document structure:
         {chr(10).join(header_examples)}
@@ -331,15 +331,41 @@ class PromptGenerator:
         {sample_inputs}
 
         Modify the original prompt to be a prompt that will combine these chunk results to accomplish the original task.
+        This prompt will be submitted to an LLM, so it must be a valid Jinja2 template, with natural language instructions.
 
         Guidelines for your prompt template:
         - The only variable you are allowed to use is the `inputs` variable, which contains all chunk results. Each value is a dictionary with the keys {', '.join(schema_keys)}
-        - Avoid using filters or complex logic, even though Jinja technically supports it
+        - Avoid using filters or complex logic like `do` statements, even though Jinja technically supports it
         - The prompt template must be a valid Jinja2 template
         - You must use the {{{{ inputs }}}} variable somehow, in a for loop. You must access specific keys in each item in the loop.
+        - The prompt template must also contain natural language instructions so the LLM knows what to do with the data
 
         Provide your prompt template as a single string.
         """
+        # Add example for combining themes
+        base_prompt += """
+        Example of a good combine prompt for combining themes:
+        ```
+        You are tasked with combining themes extracted from different chunks of text.
+
+        Here are the themes extracted from each chunk:
+        {% for item in inputs %}
+        Themes for chunk {loop.index}:
+        {{ item.themes }}
+        {% endfor %}
+
+        Analyze all the themes above and create a consolidated list that:
+        1. Combines similar or related themes
+        2. Preserves unique themes that appear in only one chunk
+        3. Prioritizes themes that appear multiple times across chunks
+        4. Maintains the original wording where possible
+
+        Provide the final consolidated list of themes, ensuring each theme is distinct and meaningful.
+        ```
+
+        Now generate a combine prompt for the current task.
+        """
+
         parameters = {
             "type": "object",
             "properties": {"combine_prompt": {"type": "string"}},

@@ -15,7 +15,7 @@ from docetl.operations.base import BaseOperation
 from docetl.operations.utils import truncate_messages
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.utils import LLMClient
-from docetl.utils import count_tokens, extract_jinja_variables
+from docetl.utils import count_tokens, extract_jinja_variables, StageType
 
 
 class ReduceOptimizer:
@@ -103,13 +103,16 @@ class ReduceOptimizer:
         )
 
         # Find the key with the longest value
-        longest_key = max(
-            op_config["reduce_key"], key=lambda k: len(str(input_data[0][k]))
-        )
-        sample_key = tuple(
-            input_data[0][k] if k == longest_key else input_data[0][k]
-            for k in op_config["reduce_key"]
-        )
+        if op_config["reduce_key"] == ["_all"]:
+            sample_key = tuple(["_all"])
+        else:
+            longest_key = max(
+                op_config["reduce_key"], key=lambda k: len(str(input_data[0][k]))
+            )
+            sample_key = tuple(
+                input_data[0][k] if k == longest_key else input_data[0][k]
+                for k in op_config["reduce_key"]
+            )
 
         # Render the prompt with a sample input
         prompt_template = Template(op_config["prompt"])
@@ -149,9 +152,11 @@ class ReduceOptimizer:
         #     # Return unoptimized map and reduce operations
         #     return [map_prompt, op_config], input_data, 0.0
 
+        self.console.post_optimizer_status(StageType.SAMPLE_RUN)
         original_output = self._run_operation(op_config, input_data)
 
         # Step 1: Synthesize a validator prompt
+        self.console.post_optimizer_status(StageType.SHOULD_OPTIMIZE)
         validator_prompt = self._generate_validator_prompt(
             op_config, input_data, original_output
         )
@@ -172,6 +177,11 @@ class ReduceOptimizer:
         # Print the validation results
         self.console.log("[bold]Validation Results on Initial Sample:[/bold]")
         if validation_results["needs_improvement"]:
+            self.console.post_optimizer_rationale(
+                should_optimize=True,
+                rationale="\n".join(validation_results["issues"]),
+                validator_prompt=validator_prompt,
+            )
             self.console.log(
                 "\n".join(
                     [
@@ -193,7 +203,7 @@ class ReduceOptimizer:
 
             return self._optimize_single_reduce(op_config, input_data, validator_prompt)
         else:
-            self.console.log("No improvements identified.")
+            self.console.log(f"No improvements identified; {validation_results}.")
             return [op_config], original_output, 0.0
 
     def _should_use_map(
@@ -302,6 +312,7 @@ class ReduceOptimizer:
         is_associative = self._is_associative(op_config, input_data)
 
         # Step 3: Create and evaluate multiple reduce plans
+        self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
         self.console.log("[bold magenta]Generating batched plans...[/bold magenta]")
         reduce_plans = self._create_reduce_plans(op_config, input_data, is_associative)
 
@@ -310,12 +321,14 @@ class ReduceOptimizer:
         gleaning_plans = self._generate_gleaning_plans(reduce_plans, validator_prompt)
 
         self.console.log("[bold magenta]Evaluating plans...[/bold magenta]")
+        self.console.post_optimizer_status(StageType.EVALUATION_RESULTS)
         best_plan = self._evaluate_reduce_plans(
             op_config, reduce_plans + gleaning_plans, input_data, validator_prompt
         )
 
         # Step 4: Run the best reduce plan
         optimized_output = self._run_operation(best_plan, input_data)
+        self.console.post_optimizer_status(StageType.END)
 
         return [best_plan], optimized_output, 0.0
 
@@ -1072,7 +1085,9 @@ class ReduceOptimizer:
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = []
             for reduce_key, inputs in validation_inputs.items():
-                if isinstance(op_config["reduce_key"], list):
+                if op_config["reduce_key"] == ["_all"] or op_config["reduce_key"] == "_all":
+                    sample_output = output_data[0]
+                elif isinstance(op_config["reduce_key"], list):
                     sample_output = next(
                         (
                             item
@@ -1123,11 +1138,11 @@ class ReduceOptimizer:
                 parameters = {
                     "type": "object",
                     "properties": {
-                        "is_valid": {"type": "boolean"},
+                        "is_correct": {"type": "boolean"},
                         "issues": {"type": "array", "items": {"type": "string"}},
                         "suggestions": {"type": "array", "items": {"type": "string"}},
                     },
-                    "required": ["is_valid", "issues", "suggestions"],
+                    "required": ["is_correct", "issues", "suggestions"],
                 }
 
                 futures.append(
@@ -1146,9 +1161,11 @@ class ReduceOptimizer:
 
         # Determine if optimization is needed based on validation results
         invalid_count = sum(
-            1 for result in validation_results if not result["is_valid"]
+            1 for result in validation_results if not result["is_correct"]
         )
-        needs_improvement = invalid_count > 1
+        needs_improvement = invalid_count > 1 or (
+            invalid_count == 1 and len(validation_results) == 1
+        )
 
         return {
             "needs_improvement": needs_improvement,
@@ -1160,14 +1177,19 @@ class ReduceOptimizer:
     ) -> Dict[Any, List[Dict[str, Any]]]:
         # Group input data by reduce_key
         grouped_data = {}
-        for item in input_data:
-            if isinstance(reduce_key, list):
-                key = tuple(item[k] for k in reduce_key)
-            else:
-                key = item[reduce_key]
-            if key not in grouped_data:
-                grouped_data[key] = []
-            grouped_data[key].append(item)
+        if reduce_key == ["_all"]:
+            # Put all data in one group under a single key
+            grouped_data[("_all",)] = input_data
+        else:
+            # Group by reduce key(s) as before
+            for item in input_data:
+                if isinstance(reduce_key, list):
+                    key = tuple(item[k] for k in reduce_key)
+                else:
+                    key = item[reduce_key]
+                if key not in grouped_data:
+                    grouped_data[key] = []
+                grouped_data[key].append(item)
 
         # Select a fixed number of reduce keys
         selected_keys = random.sample(
@@ -1728,7 +1750,7 @@ class ReduceOptimizer:
         valid_count = sum(
             1
             for result in validation_result["validation_results"]
-            if result["is_valid"]
+            if result["is_correct"]
         )
         score = valid_count / len(validation_result["validation_results"])
 

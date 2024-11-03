@@ -13,3 +13,4 @@ export const SAMPLE_SIZE_KEY = "docetl_sampleSize";
 export const FILES_KEY = "docetl_files";
 export const COST_KEY = "docetl_cost";
 export const DEFAULT_MODEL_KEY = "docetl_defaultModel";
+export const OPTIMIZER_MODEL_KEY = "docetl_optimizerModel";

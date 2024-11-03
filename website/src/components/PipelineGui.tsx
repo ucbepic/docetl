@@ -511,6 +511,10 @@ const PipelineGUI: React.FC = () => {
   const handleStop = () => {
     sendMessage("kill");
     setRunningButtonType(null);
+
+    if (readyState === WebSocket.CLOSED && isLoadingOutputs) {
+      setIsLoadingOutputs(false);
+    }
   };
 
   return (

@@ -71,24 +71,12 @@ async def websocket_run_pipeline(websocket: WebSocket):
                 )
 
                 if user_message == "kill":
-                    runner.console.print("Killing process...")
+                    runner.console.print("Stopping process...")
                     await websocket.send_json({
                         "type": "error",
-                        "message": "Killing process. Service will restart automatically."
+                        "message": "Process stopped by user request"
                     })
-                    # Close websocket cleanly
-                    await websocket.close()
-                    
-                    # Get current process ID
-                    pid = os.getpid()
-                    
-                    # Schedule the process to kill itself
-                    async def delayed_kill():
-                        await asyncio.sleep(0.5)  # Give time for websocket to close
-                        os.kill(pid, signal.SIGTERM)
-                    
-                    asyncio.create_task(delayed_kill())
-                    return
+                    raise Exception("Process stopped by user request")
 
                 # Process the user message and send it to the runner
                 runner.console.post_input(user_message)
@@ -148,3 +136,5 @@ async def websocket_run_pipeline(websocket: WebSocket):
         error_traceback = traceback.format_exc()
         print(f"Error occurred:\n{error_traceback}")
         await websocket.send_json({"type": "error", "data": str(e) + "\n" + error_traceback})
+    finally:
+        await websocket.close()

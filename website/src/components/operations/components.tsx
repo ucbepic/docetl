@@ -146,7 +146,7 @@ export const ReduceOperationComponent: React.FC<OperationComponentProps> = ({
                       <X size={12} />
                     </Button>
                   </div>
-                ),
+                )
               )}
               <Button
                 onClick={() => {
@@ -341,7 +341,7 @@ export const ResolveOperationComponent: React.FC<OperationComponentProps> = ({
                   <X size={12} />
                 </Button>
               </div>
-            ),
+            )
           )}
           <Button
             onClick={() => {
@@ -427,7 +427,9 @@ export const SplitOperationComponent: React.FC<OperationComponentProps> = ({
   };
 
   const addMethodKwarg = () => {
-    const newKey = `arg${Object.keys(operation.otherKwargs?.method_kwargs || {}).length + 1}`;
+    const newKey = `arg${
+      Object.keys(operation.otherKwargs?.method_kwargs || {}).length + 1
+    }`;
     handleMethodKwargsChange(newKey, "");
   };
 
@@ -538,7 +540,7 @@ export const SplitOperationComponent: React.FC<OperationComponentProps> = ({
                   <X size={16} />
                 </Button>
               </div>
-            ),
+            )
           )}
           <Button size="sm" variant="outline" onClick={addMethodKwarg}>
             <Plus size={16} className="mr-2" /> Add Argument
@@ -651,7 +653,7 @@ export const GatherOperationComponent: React.FC<OperationComponentProps> = ({
     section: "previous" | "next",
     subsection: "head" | "middle" | "tail",
     key: string,
-    value: any,
+    value: any
   ) => {
     const updatedPeripheralChunks = {
       ...(operation.otherKwargs?.peripheral_chunks || {}),
@@ -794,7 +796,7 @@ export const GatherOperationComponent: React.FC<OperationComponentProps> = ({
                         "previous",
                         subsection as "head" | "middle" | "tail",
                         "content_key",
-                        e.target.value,
+                        e.target.value
                       )
                     }
                     placeholder="Content key"
@@ -813,7 +815,7 @@ export const GatherOperationComponent: React.FC<OperationComponentProps> = ({
                           "previous",
                           subsection as "head" | "middle" | "tail",
                           "count",
-                          Number(e.target.value),
+                          Number(e.target.value)
                         )
                       }
                       placeholder="Count"
@@ -843,7 +845,7 @@ export const GatherOperationComponent: React.FC<OperationComponentProps> = ({
                         "next",
                         subsection as "head" | "middle" | "tail",
                         "content_key",
-                        e.target.value,
+                        e.target.value
                       )
                     }
                     placeholder="Content key"
@@ -862,7 +864,7 @@ export const GatherOperationComponent: React.FC<OperationComponentProps> = ({
                           "next",
                           subsection as "head" | "middle" | "tail",
                           "count",
-                          Number(e.target.value),
+                          Number(e.target.value)
                         )
                       }
                       placeholder="Count"
@@ -899,7 +901,7 @@ export const ParallelMapOperationComponent: React.FC<
     index: number,
     action: "add" | "remove" | "update",
     value?: string,
-    keyIndex?: number,
+    keyIndex?: number
   ) => {
     const updatedPrompts = [...(operation.otherKwargs?.prompts || [])];
     const currentOutputKeys = [...(updatedPrompts[index].output_keys || [])];
@@ -988,10 +990,10 @@ export const ParallelMapOperationComponent: React.FC<
                             index,
                             "update",
                             e.target.value,
-                            keyIndex,
+                            keyIndex
                           )
                         }
-                        className="w-32"
+                        className="w-48"
                       />
                       <Button
                         variant="ghost"
@@ -1001,7 +1003,7 @@ export const ParallelMapOperationComponent: React.FC<
                             index,
                             "remove",
                             undefined,
-                            keyIndex,
+                            keyIndex
                           )
                         }
                       >
@@ -1026,12 +1028,12 @@ export const ParallelMapOperationComponent: React.FC<
                     handlePromptChange(index, "model", e.target.value)
                   }
                   placeholder="Model"
-                  className="w-32 mt-1"
+                  className="w-48 mt-1"
                 />
               </div>
             </div>
           </div>
-        ),
+        )
       )}
       <Button onClick={addPrompt} size="sm">
         Add Prompt
@@ -1159,13 +1161,13 @@ export const SampleOperationComponent: React.FC<OperationComponentProps> = ({
               type="text"
               value={
                 operation.otherKwargs?.method_kwargs?.embedding_keys?.join(
-                  ", ",
+                  ", "
                 ) || ""
               }
               onChange={(e) =>
                 handleMethodKwargsChange(
                   "embedding_keys",
-                  e.target.value.split(", "),
+                  e.target.value.split(", ")
                 )
               }
               placeholder="Comma-separated list of keys"
@@ -1214,7 +1216,7 @@ export default function createOperationComponent(
   operation: Operation,
   onUpdate: (updatedOperation: Operation) => void,
   isSchemaExpanded: boolean,
-  onToggleSchema: () => void,
+  onToggleSchema: () => void
 ) {
   switch (operation.type) {
     case "reduce":

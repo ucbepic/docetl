@@ -83,7 +83,6 @@ class Optimizer:
     def __init__(
         self,
         runner: "DSLRunner",
-        max_threads: Optional[int] = None,
         model: str = "gpt-4o",
         resume: bool = False,
         timeout: int = 60,
@@ -980,6 +979,9 @@ class Optimizer:
                 return self._get_reduce_sample(
                     data, op_config.get("reduce_key"), sample_size
                 )
+            
+        if not self.config.get("optimizer_config", {}).get("random_sample", False):
+            return data[:sample_size]
 
         # Take the random 500 examples or all if less than 500
         initial_data = random.sample(data, min(500, len(data)))
@@ -1038,7 +1040,13 @@ class Optimizer:
             group_sample_size = int(sample_size * group_proportion)
 
             # Sample from the group
-            group_sample = random.sample(items, min(group_sample_size, len(items)))
+            if not self.config.get("optimizer_config", {}).get("random_sample", False):
+                group_sample = items[:group_sample_size]
+            else:
+                group_sample = random.sample(
+                    items, min(group_sample_size, len(items))
+                )
+
             sample.extend(group_sample)
 
         # If we haven't reached the desired sample size, add more items randomly
@@ -1051,22 +1059,10 @@ class Optimizer:
             ]
             additional_sample = random.sample(
                 remaining_items,
-                min(sample_size - len(sample), len(remaining_items)),
-            )
-            sample.extend(additional_sample)
-
-        # Add items randomly from non-top groups to meet the sample size
-        if len(sample) < sample_size:
-            remaining_items = [
-                item
-                for _, items in grouped_data.items()
-                for item in items
-                if item not in sample
-            ]
-            additional_sample = random.sample(
-                remaining_items,
-                min(sample_size - len(sample), len(remaining_items)),
-            )
+                min(
+                    sample_size - len(sample), len(remaining_items)
+                ),
+            ) if self.config.get("optimizer_config", {}).get("random_sample", False) else remaining_items[:sample_size - len(sample)]
             sample.extend(additional_sample)
 
         # Create a histogram of group sizes
@@ -1201,7 +1197,7 @@ class Optimizer:
             if map_operation["optimize"]:
                 dataset_to_transform_sample = random.sample(
                     dataset_to_transform, self.sample_size_map.get("map")
-                )
+                ) if self.config.get("optimizer_config", {}).get("random_sample", False) else dataset_to_transform[:self.sample_size_map.get("map")]
                 optimized_map_operations = self._optimize_map(
                     map_operation, dataset_to_transform_sample
                 )

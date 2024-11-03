@@ -17,21 +17,46 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
+import { Switch } from "../ui/switch";
+import { Label } from "../ui/label";
 
-export const PromptInput: React.FC<{
+interface PromptInputProps {
   prompt: string;
   onChange: (value: string) => void;
-}> = React.memo(({ prompt, onChange }) => {
-  return (
-    <Textarea
-      placeholder="Enter prompt"
-      className="mb-1 rounded-sm text-sm font-mono"
-      rows={3}
-      value={prompt}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
-});
+}
+
+export const PromptInput: React.FC<PromptInputProps> = React.memo(
+  ({ prompt, onChange }) => {
+    const validateJinjaTemplate = (value: string) => {
+      const hasOpenBrace = value.includes("{{");
+      const hasCloseBrace = value.includes("}}");
+      return hasOpenBrace && hasCloseBrace;
+    };
+
+    return (
+      <>
+        <Textarea
+          placeholder="Enter prompt (must be a Jinja2 template)"
+          className={`mb-1 rounded-sm text-sm font-mono ${
+            !validateJinjaTemplate(prompt) ? "border-red-500" : ""
+          }`}
+          rows={3}
+          value={prompt}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {!validateJinjaTemplate(prompt) && (
+          <div className="text-red-500 text-sm mb-1">
+            Prompt must contain Jinja2 template syntax {"{"}
+            {"{"} and {"}"}
+            {"}"}
+          </div>
+        )}
+      </>
+    );
+  }
+);
+
+PromptInput.displayName = "PromptInput";
 
 export const SchemaForm: React.FC<{
   schema: SchemaItem[];
@@ -80,8 +105,8 @@ export const SchemaForm: React.FC<{
                   value === "list"
                     ? { key: "0", type: "string" }
                     : value === "dict"
-                      ? [{ key: "", type: "string" }]
-                      : undefined,
+                    ? [{ key: "", type: "string" }]
+                    : undefined,
               });
             }}
           >
@@ -165,6 +190,101 @@ export const OutputSchema: React.FC<{
     </div>
   );
 });
+
+export interface GleaningConfigProps {
+  gleaning: { num_rounds: number; validation_prompt: string } | null;
+  onUpdate: (
+    newGleaning: {
+      num_rounds: number;
+      validation_prompt: string;
+    } | null
+  ) => void;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+export const GleaningConfig: React.FC<GleaningConfigProps> = React.memo(
+  ({ gleaning, onUpdate, isExpanded, onToggle }) => {
+    return (
+      <div className="border-t border-primary">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggle}
+          className="w-full text-primary hover:bg-primary/10 flex justify-between items-center"
+        >
+          <div className="flex items-center gap-2">
+            <span>
+              Gleaning {gleaning?.num_rounds ? "(enabled)" : "(not enabled)"}
+            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info size={16} className="text-primary" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-md whitespace-normal break-words text-left">
+                  <p>
+                    Gleaning allows you to iteratively refine outputs through
+                    multiple rounds of validation and improvement.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <ChevronDown
+            size={16}
+            className={`transition-transform duration-200 ${
+              isExpanded ? "transform rotate-180" : ""
+            }`}
+          />
+        </Button>
+
+        {isExpanded && (
+          <div className="p-2">
+            <div className="grid grid-cols-8 gap-4">
+              <div className="col-span-1 space-y-2">
+                <Label htmlFor="num_rounds">Rounds</Label>
+                <Input
+                  id="num_rounds"
+                  type="number"
+                  min="0"
+                  max="5"
+                  value={gleaning?.num_rounds || 0}
+                  onChange={(e) =>
+                    onUpdate({
+                      ...gleaning,
+                      num_rounds: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className={gleaning?.num_rounds === 0 ? "border-red-500" : ""}
+                />
+              </div>
+
+              <div className="col-span-7 space-y-2">
+                <Label htmlFor="validation_prompt">Validation Prompt</Label>
+                <Textarea
+                  id="validation_prompt"
+                  value={gleaning?.validation_prompt || ""}
+                  onChange={(e) =>
+                    onUpdate({
+                      ...gleaning,
+                      validation_prompt: e.target.value,
+                    })
+                  }
+                  className={
+                    !gleaning?.validation_prompt ? "border-red-500" : ""
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+
+GleaningConfig.displayName = "GleaningConfig";
 
 export const Guardrails: React.FC<{
   guardrails: string[];

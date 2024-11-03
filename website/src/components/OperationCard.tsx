@@ -30,13 +30,14 @@ import {
   Settings,
   ListCollapse,
   Wand2,
+  ChevronDown,
 } from "lucide-react";
 import { Operation, SchemaItem } from "@/app/types";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { debounce } from "lodash";
-import { Guardrails } from "./operations/args";
+import { Guardrails, GleaningConfig } from "./operations/args";
 import createOperationComponent from "./operations/components";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import { Badge } from "./ui/badge";
@@ -54,6 +55,7 @@ const OperationHeader: React.FC<{
   llmType: string;
   disabled: boolean;
   currOp: boolean;
+  expanded: boolean;
   onEdit: (name: string) => void;
   onDelete: () => void;
   onRunOperation: () => void;
@@ -61,6 +63,7 @@ const OperationHeader: React.FC<{
   onShowOutput: () => void;
   onOptimize: () => void;
   onAIEdit: (instruction: string) => void;
+  onToggleExpand: () => void;
 }> = React.memo(
   ({
     name,
@@ -68,6 +71,7 @@ const OperationHeader: React.FC<{
     llmType,
     disabled,
     currOp,
+    expanded,
     onEdit,
     onDelete,
     onRunOperation,
@@ -75,6 +79,7 @@ const OperationHeader: React.FC<{
     onShowOutput,
     onOptimize,
     onAIEdit,
+    onToggleExpand,
   }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(name);
@@ -93,6 +98,19 @@ const OperationHeader: React.FC<{
       <div className="relative flex items-center justify-between py-3 px-4">
         {/* Left side buttons */}
         <div className="flex space-x-1 absolute left-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0.25 h-6 w-6"
+            onClick={onToggleExpand}
+          >
+            <ChevronDown
+              size={14}
+              className={`text-gray-500 transform transition-transform ${
+                expanded ? "rotate-180" : ""
+              }`}
+            />
+          </Button>
           <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
           <Button
             variant="ghost"
@@ -102,15 +120,17 @@ const OperationHeader: React.FC<{
           >
             <Settings size={14} className="text-gray-500" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-0.25 h-6 w-6"
-            disabled={type !== "resolve"}
-            onClick={onOptimize}
-          >
-            <Zap size={14} className="text-yellow-500" />
-          </Button>
+          {["resolve", "map", "reduce", "filter"].includes(type) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-0.25 h-6 w-6"
+              onClick={onOptimize}
+              disabled={disabled}
+            >
+              <Zap size={14} className="text-yellow-500" />
+            </Button>
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -331,7 +351,13 @@ type Action =
   | { type: "TOGGLE_GUARDRAILS" }
   | { type: "TOGGLE_SETTINGS" }
   | { type: "SET_RUN_INDEX"; payload: number }
-  | { type: "UPDATE_SETTINGS"; payload: Record<string, string> };
+  | { type: "UPDATE_SETTINGS"; payload: Record<string, string> }
+  | { type: "TOGGLE_EXPAND" }
+  | {
+      type: "UPDATE_GLEANINGS";
+      payload: { num_rounds: number; validation_prompt: string };
+    }
+  | { type: "TOGGLE_GLEANINGS" };
 
 // State type
 type State = {
@@ -340,6 +366,8 @@ type State = {
   isSchemaExpanded: boolean;
   isGuardrailsExpanded: boolean;
   isSettingsOpen: boolean;
+  isExpanded: boolean;
+  isGleaningsExpanded: boolean;
 };
 
 // Reducer function
@@ -401,6 +429,17 @@ function operationReducer(state: State, action: Action): State {
             operation: { ...state.operation, runIndex: action.payload },
           }
         : state;
+    case "TOGGLE_EXPAND":
+      return { ...state, isExpanded: !state.isExpanded };
+    case "UPDATE_GLEANINGS":
+      return state.operation
+        ? {
+            ...state,
+            operation: { ...state.operation, gleaning: action.payload },
+          }
+        : state;
+    case "TOGGLE_GLEANINGS":
+      return { ...state, isGleaningsExpanded: !state.isGleaningsExpanded };
     default:
       return state;
   }
@@ -413,6 +452,8 @@ const initialState: State = {
   isSchemaExpanded: false,
   isGuardrailsExpanded: false,
   isSettingsOpen: false,
+  isExpanded: true,
+  isGleaningsExpanded: false,
 };
 
 // Main component
@@ -424,6 +465,8 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     isSchemaExpanded,
     isGuardrailsExpanded,
     isSettingsOpen,
+    isExpanded,
+    isGleaningsExpanded,
   } = state;
 
   const {
@@ -440,6 +483,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     sampleSize,
     setCost,
     defaultModel,
+    optimizerModel,
     setTerminalOutput,
   } = usePipelineContext();
   const { toast } = useToast();
@@ -611,6 +655,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
       sendMessage({
         yaml_config: filePath,
         optimize: true,
+        optimizer_model: optimizerModel,
       });
     } catch (error) {
       console.error("Error optimizing operation:", error);
@@ -754,6 +799,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 llmType={operation.llmType}
                 disabled={isLoadingOutputs || pipelineOutput === undefined}
                 currOp={operation.id === pipelineOutput?.operationId}
+                expanded={isExpanded}
                 onEdit={(name) => {
                   dispatch({ type: "UPDATE_NAME", payload: name });
                   debouncedUpdate();
@@ -768,27 +814,49 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 onShowOutput={onShowOutput}
                 onOptimize={onOptimize}
                 onAIEdit={handleAIEdit}
+                onToggleExpand={() => dispatch({ type: "TOGGLE_EXPAND" })}
               />
-              <CardContent className="py-2 px-3">
-                {createOperationComponent(
-                  operation,
-                  handleOperationUpdate,
-                  isSchemaExpanded,
-                  () => dispatch({ type: "TOGGLE_SCHEMA" })
-                )}
-              </CardContent>
-              {operation.llmType === "LLM" && (
-                <Guardrails
-                  guardrails={operation.validate || []}
-                  onUpdate={(newGuardrails) =>
-                    dispatch({
-                      type: "UPDATE_GUARDRAILS",
-                      payload: newGuardrails,
-                    })
-                  }
-                  isExpanded={isGuardrailsExpanded}
-                  onToggle={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
-                />
+              {isExpanded && (
+                <>
+                  <CardContent className="py-2 px-3">
+                    {createOperationComponent(
+                      operation,
+                      handleOperationUpdate,
+                      isSchemaExpanded,
+                      () => dispatch({ type: "TOGGLE_SCHEMA" })
+                    )}
+                  </CardContent>
+                  {operation.llmType === "LLM" && (
+                    <>
+                      <Guardrails
+                        guardrails={operation.validate || []}
+                        onUpdate={(newGuardrails) =>
+                          dispatch({
+                            type: "UPDATE_GUARDRAILS",
+                            payload: newGuardrails,
+                          })
+                        }
+                        isExpanded={isGuardrailsExpanded}
+                        onToggle={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
+                      />
+                    </>
+                  )}
+                  {(operation.type === "map" ||
+                    operation.type === "reduce" ||
+                    operation.type === "filter") && (
+                    <GleaningConfig
+                      gleaning={operation.gleaning || null}
+                      onUpdate={(newGleanings) =>
+                        dispatch({
+                          type: "UPDATE_GLEANINGS",
+                          payload: newGleanings,
+                        })
+                      }
+                      isExpanded={isGleaningsExpanded}
+                      onToggle={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
+                    />
+                  )}
+                </>
               )}
               <SettingsModal
                 opName={operation.name}

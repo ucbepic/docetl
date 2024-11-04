@@ -2,6 +2,16 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Environment variables setting-up
+
+Copy the env. sample file from the root directory to .env.local and modify the environment variables inside:
+
+```bash
+NEXT_PUBLIC_BACKEND_HOST=localhost
+NEXT_PUBLIC_BACKEND_PORT=8008
+
+```
+
 First, run the development server:
 
 ```bash

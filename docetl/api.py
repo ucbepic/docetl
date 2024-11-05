@@ -134,6 +134,45 @@ class Pipeline:
     This example shows a complete pipeline configuration with datasets, operations,
     steps, and output settings.
     """
+    DEFAULT_RATE_LIMITS = {
+        # OpenAI models
+        "gpt-4o": 1000,
+        "gpt-4o-mini": 200,
+        "gpt-3.5-turbo": 500,
+        
+        # Anthropic models
+        "claude 3.5-sonnet": 1000,
+        "claude-3-opus": 500,
+        "claude-3-sonnet": 400,
+        "claude-3-haiku": 200,
+    }
+
+    def get_rate_limits(self, model: str) -> dict:
+        """Get rate limits for a specific model.
+        
+        Args:
+            model: The model identifier (e.g., 'gpt-4o', 'claude-3-sonnet')
+            
+        Returns:
+            dict: Rate limit information including requests_per_minute
+        """
+        if self.rate_limits and model in self.rate_limits:
+            return {
+                "requests_per_minute": self.rate_limits[model],
+                "source": "custom"
+            }
+        
+        if model in self.DEFAULT_RATE_LIMITS:
+            return {
+                "requests_per_minute": self.DEFAULT_RATE_LIMITS[model],
+                "source": "default"
+            }
+        
+        return {
+            "requests_per_minute": 200,
+            "source": "fallback"
+        }
+
 
     def __init__(
         self,

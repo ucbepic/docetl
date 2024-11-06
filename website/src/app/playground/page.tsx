@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Scroll, Info, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -433,12 +433,18 @@ const CodeEditorPipelineApp: React.FC = () => {
         </div>
         {showChat && <AIChatPanel onClose={() => setShowChat(false)} />}
         {/* Main content */}
-        <ResizablePanelGroup direction="horizontal" className="flex-grow">
-          {/* File Explorer and Bookmarks */}
+        <ResizablePanelGroup
+          direction="horizontal"
+          className="flex-grow overflow-hidden"
+        >
           {showFileExplorer && (
-            <ResizablePanel defaultSize={10} minSize={6}>
-              <ResizablePanelGroup direction="vertical">
-                <ResizablePanel defaultSize={40} minSize={20}>
+            <ResizablePanel defaultSize={10} minSize={6} className="h-full">
+              <ResizablePanelGroup direction="vertical" className="h-full">
+                <ResizablePanel
+                  defaultSize={40}
+                  minSize={20}
+                  className="overflow-auto"
+                >
                   <FileExplorer
                     files={files}
                     onFileClick={(file) => {
@@ -461,7 +467,11 @@ const CodeEditorPipelineApp: React.FC = () => {
                   withHandle
                   className="h-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
                 />
-                <ResizablePanel defaultSize={60} minSize={20}>
+                <ResizablePanel
+                  defaultSize={60}
+                  minSize={20}
+                  className="overflow-auto"
+                >
                   <BookmarksPanel />
                 </ResizablePanel>
               </ResizablePanelGroup>
@@ -474,10 +484,13 @@ const CodeEditorPipelineApp: React.FC = () => {
             />
           )}
 
-          {/* Pipeline GUI and Output */}
-          <ResizablePanel defaultSize={60} minSize={30}>
-            <ResizablePanelGroup direction="vertical">
-              <ResizablePanel defaultSize={70} minSize={5}>
+          <ResizablePanel defaultSize={60} minSize={30} className="h-full">
+            <ResizablePanelGroup direction="vertical" className="h-full">
+              <ResizablePanel
+                defaultSize={70}
+                minSize={5}
+                className="overflow-auto"
+              >
                 <PipelineGUI />
               </ResizablePanel>
               {showOutput && (
@@ -487,24 +500,31 @@ const CodeEditorPipelineApp: React.FC = () => {
                 />
               )}
               {showOutput && (
-                <ResizablePanel defaultSize={105} minSize={20}>
+                <ResizablePanel
+                  defaultSize={105}
+                  minSize={20}
+                  className="overflow-auto"
+                >
                   <Output />
                 </ResizablePanel>
               )}
             </ResizablePanelGroup>
           </ResizablePanel>
 
-          {/* Dataset View */}
-          {showDatasetView && (
-            <ResizableHandle
-              withHandle
-              className="w-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
-            />
-          )}
           {showDatasetView && currentFile && (
-            <ResizablePanel defaultSize={20} minSize={10}>
-              <DatasetView file={currentFile} />
-            </ResizablePanel>
+            <>
+              <ResizableHandle
+                withHandle
+                className="w-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
+              />
+              <ResizablePanel
+                defaultSize={20}
+                minSize={10}
+                className="h-full overflow-auto"
+              >
+                <DatasetView file={currentFile} />
+              </ResizablePanel>
+            </>
           )}
         </ResizablePanelGroup>
       </div>
@@ -518,7 +538,7 @@ const WrappedCodeEditorPipelineApp: React.FC = () => {
   useEffect(() => {
     setIsLocalhost(
       window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1"
+        window.location.hostname === "127.0.0.1"
     );
   }, []);
 

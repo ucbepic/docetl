@@ -89,7 +89,14 @@ def get_console():
             highlight=False,
         )
     else:
-        return Console()
+        class NoOpConsole(Console):
+            def post_optimizer_status(self, *args, **kwargs):
+                pass
+
+            def post_optimizer_rationale(self, *args, **kwargs):
+                pass
+
+        return NoOpConsole()
 
 
 DOCETL_CONSOLE = get_console()

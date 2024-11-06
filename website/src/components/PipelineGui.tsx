@@ -87,7 +87,7 @@ const PipelineGUI: React.FC = () => {
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
-  const [tempOptimizerModel, setTempOptimizerModel] = useState(defaultModel);
+  const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
   const [tempSampleSize, setTempSampleSize] = useState(
     sampleSize?.toString() || ""
   );
@@ -518,7 +518,7 @@ const PipelineGUI: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(70vh-2rem)] flex flex-col">
+    <div className="flex flex-col h-full">
       <div className="flex-none p-2 bg-white border-b sticky top-0 z-10">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">

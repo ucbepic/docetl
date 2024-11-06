@@ -137,19 +137,16 @@ function ResizableDataTable<T extends DataType>({
   const saveSettings = useCallback(() => {
     localStorage.setItem(
       TABLE_SETTINGS_KEY,
-      JSON.stringify({ columnSizing, rowSizing }),
+      JSON.stringify({ columnSizing, rowSizing })
     );
   }, [columnSizing, rowSizing]);
 
   useEffect(() => {
     // Initialize row heights when data changes
-    const initialRowSizing = data.reduce(
-      (acc, _, index) => {
-        acc[index] = startingRowHeight;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
+    const initialRowSizing = data.reduce((acc, _, index) => {
+      acc[index] = startingRowHeight;
+      return acc;
+    }, {} as Record<string, number>);
     setRowSizing(initialRowSizing);
 
     // Initialize all columns as visible
@@ -266,7 +263,7 @@ function ResizableDataTable<T extends DataType>({
                     minWidth: `${header.column.columnDef.minSize}px`,
                     maxWidth: `${header.column.columnDef.maxSize}px`,
                     fontWeight: boldedColumns.includes(
-                      header.column.columnDef.header as string,
+                      header.column.columnDef.header as string
                     )
                       ? "bold"
                       : "normal",
@@ -276,7 +273,7 @@ function ResizableDataTable<T extends DataType>({
                     ? null
                     : flexRender(
                         header.column.columnDef.header,
-                        header.getContext(),
+                        header.getContext()
                       )}
                   <ColumnResizer header={header} />
                 </TableHead>
@@ -323,7 +320,7 @@ function ResizableDataTable<T extends DataType>({
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
-                        cell.getContext(),
+                        cell.getContext()
                       )}
                     </div>
                   </TableCell>

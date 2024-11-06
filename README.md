@@ -76,7 +76,6 @@ Copy the .env.sample file under the root directory to .env and modify the enviro
 
 ```bash
 OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=
 
 BACKEND_ALLOW_ORIGINS=
 BACKEND_HOST=localhost

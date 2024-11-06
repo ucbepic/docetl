@@ -2,7 +2,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-### Environment variables setting-up
+### Setting up environment variables
 
 Copy the .env.sample file from the root directory to .env.local and modify the environment variables inside:
 

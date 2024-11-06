@@ -70,15 +70,23 @@ pip install poetry
 poetry install
 ```
 
-4. Set up your OpenAI API key:
+4. Set up your OpenAI API key and other environment variables:
 
-Create a .env file in the project root and add your OpenAI API key:
+Copy the .env.sample file under the root directory to .env and modify the environment variables inside as needed.
 
 ```bash
 OPENAI_API_KEY=your_api_key_here
+
+BACKEND_ALLOW_ORIGINS=
+BACKEND_HOST=localhost
+BACKEND_PORT=8000
+BACKEND_RELOAD=True
+
+FRONTEND_HOST=0.0.0.0
+FRONTEND_PORT=3000
 ```
 
-Alternatively, you can set the OPENAI_API_KEY environment variable in your shell.
+Alternatively, you can set the OPENAI_API_KEY environment variable and others in your shell.
 
 5. Run the basic test suite to ensure everything is working (this costs less than $0.01 with OpenAI):
 

@@ -162,7 +162,8 @@ export async function POST(request: Request) {
     await fs.writeFile(filePath, yamlString, "utf8");
 
     // Submit the YAML config to the FastAPI endpoint
-    const response = await axios.post("http://localhost:8000/run_pipeline", {
+
+    const response = await axios.post(`http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/run_pipeline`, {
       yaml_config: filePath,
     });
 

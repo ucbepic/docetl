@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 interface BookmarkableTextProps {
   children: React.ReactNode;
   source: string;
+  className?: string;
 }
 
 const formSchema = z.object({
@@ -42,6 +43,7 @@ const formSchema = z.object({
 const BookmarkableText: React.FC<BookmarkableTextProps> = ({
   children,
   source,
+  className = "overflow-y-auto"
 }) => {
   const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 });
   const [showButton, setShowButton] = useState(false);
@@ -137,7 +139,7 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({
       ref={textRef}
       onMouseUp={handleMultiElementSelection}
       onTouchEnd={handleMultiElementSelection}
-      className="overflow-y-auto"
+      className={className}
     >
       {children}
       {showButton && (

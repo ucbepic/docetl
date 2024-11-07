@@ -219,6 +219,8 @@ function ResizableDataTable<T extends DataType>({
     getPaginationRowModel: getPaginationRowModel(),
     onColumnSizingChange: (newColumnSizing) => {
       setColumnSizing(newColumnSizing);
+      setIsResizing(true);  
+      debouncedSetIsResizing(false);  
       saveSettings();
     },
     onColumnVisibilityChange: setColumnVisibility,
@@ -236,9 +238,7 @@ function ResizableDataTable<T extends DataType>({
       pagination: {
         pageSize: 5,
       },
-    },
-    onColumnSizingStart: () => setIsResizing(true),
-    onColumnSizingEnd: () => debouncedSetIsResizing(false),
+    }
   });
 
   return (

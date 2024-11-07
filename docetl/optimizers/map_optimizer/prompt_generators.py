@@ -387,17 +387,17 @@ class PromptGenerator:
         combine_prompt = result["combine_prompt"]
 
         # Confirm with the user that this prompt is good & ask them to edit
-        if self.runner.status:
-            self.runner.status.stop()
+        # if self.runner.status:
+        #     self.runner.status.stop()
 
-        combine_prompt = Prompt.ask(
-            f"Here is the prompt generated for the reduce operation:\n```\n{combine_prompt}\n```\n\nPress enter to confirm, or type in the prompt you would like to use instead.",
-            default=combine_prompt,
-            console=self.console,
-        )
+        # combine_prompt = Prompt.ask(
+        #     f"Here is the prompt generated for the reduce operation:\n```\n{combine_prompt}\n```\n\nPress enter to confirm, or type in the prompt you would like to use instead.",
+        #     default=combine_prompt,
+        #     console=self.console,
+        # )
 
-        if self.runner.status:
-            self.runner.status.start()
+        # if self.runner.status:
+        #     self.runner.status.start()
 
         # Determine if the combine operation is associative
         system_prompt_associative = (

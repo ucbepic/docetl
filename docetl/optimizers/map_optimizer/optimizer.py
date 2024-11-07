@@ -223,8 +223,10 @@ class MapOptimizer:
         )
         self.console.post_optimizer_rationale(
             assessment.get("needs_improvement", True),
-            "\n".join(assessment.get("reasons", [])),
-            validator_prompt
+            "\n".join(assessment.get("reasons", []))
+            + "\n\n"
+            + "\n".join(assessment.get("improvements", [])),
+            validator_prompt,
         )
 
         # Check if improvement is needed based on the assessment

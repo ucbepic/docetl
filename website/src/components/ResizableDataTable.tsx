@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -28,8 +34,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TABLE_SETTINGS_KEY } from "@/app/localStorageKeys";
+import ReactMarkdown from "react-markdown";
+import debounce from "lodash/debounce";
 
-export type DataType = Record<string, any>;
+export type DataType = Record<string, unknown>;
 export type ColumnType<T extends DataType> = ColumnDef<T> & {
   initialWidth?: number;
 };
@@ -57,13 +65,7 @@ interface ResizableRow<T extends DataType> extends Row<T> {
   setSize: (size: number) => void;
 }
 
-const RowResizer = <T extends DataType>({
-  row,
-  saveSettings,
-}: {
-  row: ResizableRow<T>;
-  saveSettings: () => void;
-}) => {
+const RowResizer = <T extends DataType>({ row }: { row: ResizableRow<T> }) => {
   return (
     <tr>
       <td colSpan={100}>
@@ -104,6 +106,39 @@ interface ResizableDataTableProps<T extends DataType> {
   startingRowHeight?: number;
 }
 
+interface MarkdownCellProps {
+  content: string;
+}
+
+const MarkdownCell = React.memo(({ content }: MarkdownCellProps) => {
+  return (
+    <ReactMarkdown
+      components={{
+        h1: ({ children }) => (
+          <div style={{ fontWeight: "bold", fontSize: "1.5rem" }}>
+            {children}
+          </div>
+        ),
+        h2: ({ children }) => (
+          <div style={{ fontWeight: "bold", fontSize: "1.25rem" }}>
+            {children}
+          </div>
+        ),
+        h3: ({ children }) => (
+          <div style={{ fontWeight: "bold", fontSize: "1.1rem" }}>
+            {children}
+          </div>
+        ),
+        h4: ({ children }) => (
+          <div style={{ fontWeight: "bold" }}>{children}</div>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+});
+
 function ResizableDataTable<T extends DataType>({
   data,
   columns,
@@ -137,19 +172,16 @@ function ResizableDataTable<T extends DataType>({
   const saveSettings = useCallback(() => {
     localStorage.setItem(
       TABLE_SETTINGS_KEY,
-      JSON.stringify({ columnSizing, rowSizing }),
+      JSON.stringify({ columnSizing, rowSizing })
     );
   }, [columnSizing, rowSizing]);
 
   useEffect(() => {
     // Initialize row heights when data changes
-    const initialRowSizing = data.reduce(
-      (acc, _, index) => {
-        acc[index] = startingRowHeight;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
+    const initialRowSizing = data.reduce((acc, _, index) => {
+      acc[index] = startingRowHeight;
+      return acc;
+    }, {} as Record<string, number>);
     setRowSizing(initialRowSizing);
 
     // Initialize all columns as visible
@@ -172,6 +204,12 @@ function ResizableDataTable<T extends DataType>({
     return 0;
   });
 
+  const [isResizing, setIsResizing] = useState(false);
+  const debouncedSetIsResizing = useMemo(
+    () => debounce((value: boolean) => setIsResizing(value), 150),
+    []
+  );
+
   const table = useReactTable({
     data,
     // Replace columns with sortedColumns here
@@ -181,6 +219,8 @@ function ResizableDataTable<T extends DataType>({
     getPaginationRowModel: getPaginationRowModel(),
     onColumnSizingChange: (newColumnSizing) => {
       setColumnSizing(newColumnSizing);
+      setIsResizing(true);  
+      debouncedSetIsResizing(false);  
       saveSettings();
     },
     onColumnVisibilityChange: setColumnVisibility,
@@ -198,7 +238,7 @@ function ResizableDataTable<T extends DataType>({
       pagination: {
         pageSize: 5,
       },
-    },
+    }
   });
 
   return (
@@ -206,7 +246,7 @@ function ResizableDataTable<T extends DataType>({
       <div className="mb-4 flex justify-between items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center">
+            <Button variant="ghost" className="flex items-center ml-4">
               Show/Hide Columns
               <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
@@ -227,7 +267,7 @@ function ResizableDataTable<T extends DataType>({
         </DropdownMenu>
         <div className="flex items-center space-x-2">
           {data.length > 0 && (
-            <div className="flex items-center justify-end space-x-2 py-4">
+            <div className="flex items-center justify-end space-x-2 py-4 mr-4">
               <Button
                 variant="outline"
                 size="sm"
@@ -266,7 +306,7 @@ function ResizableDataTable<T extends DataType>({
                     minWidth: `${header.column.columnDef.minSize}px`,
                     maxWidth: `${header.column.columnDef.maxSize}px`,
                     fontWeight: boldedColumns.includes(
-                      header.column.columnDef.header as string,
+                      header.column.columnDef.header as string
                     )
                       ? "bold"
                       : "normal",
@@ -276,7 +316,7 @@ function ResizableDataTable<T extends DataType>({
                     ? null
                     : flexRender(
                         header.column.columnDef.header,
-                        header.getContext(),
+                        header.getContext()
                       )}
                   <ColumnResizer header={header} />
                 </TableHead>
@@ -321,9 +361,17 @@ function ResizableDataTable<T extends DataType>({
                         fontWeight: "normal",
                       }}
                     >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
+                      {typeof cell.getValue() === "string" ? (
+                        isResizing ? (
+                          <div>{cell.getValue() as string}</div>
+                        ) : (
+                          <MarkdownCell content={cell.getValue() as string} />
+                        )
+                      ) : (
+                        flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )
                       )}
                     </div>
                   </TableCell>
@@ -341,7 +389,6 @@ function ResizableDataTable<T extends DataType>({
                     });
                   },
                 }}
-                saveSettings={saveSettings}
               />
             </React.Fragment>
           ))}

@@ -6,6 +6,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Read backend configuration from .env
+host = os.getenv("BACKEND_HOST", "127.0.0.1")
+port = int(os.getenv("BACKEND_PORT", 8000))
+reload = os.getenv("BACKEND_RELOAD", "False").lower() == "true"
+
+# Set default allow_origins if BACKEND_ALLOW_ORIGINS is not provided
+allow_origins = os.getenv("BACKEND_ALLOW_ORIGINS", "http://localhost:3000").split(",")
+
 app = FastAPI()
 os.environ["USE_FRONTEND"] = "true"
 
@@ -13,7 +21,7 @@ os.environ["USE_FRONTEND"] = "true"
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Adjust this to your Next.js app's URL
+    allow_origins=allow_origins,  # Adjust this to your Next.js app's URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,4 +38,4 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("server.app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("server.app.main:app", host=host, port=port, reload=reload)

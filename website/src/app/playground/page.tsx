@@ -544,21 +544,21 @@ const WrappedCodeEditorPipelineApp: React.FC = () => {
 
   if (!isLocalhost) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-2xl p-6 bg-white rounded-lg shadow-md">
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="max-w-2xl p-6 bg-card rounded-lg shadow-md">
           <h1 className="text-2xl font-bold text-primary mb-4">
             DocETL Playground
           </h1>
-          <p className="mb-4">
+          <p className="mb-4 text-foreground">
             The DocETL playground is designed to run locally. To use it, please
             follow these steps:
           </p>
-          <ol className="list-decimal list-inside mb-4">
+          <ol className="list-decimal list-inside mb-4 text-foreground">
             <li>
               Clone the GitHub repo:{" "}
               <a
                 href="https://github.com/ucbepic/docetl"
-                className="text-blue-500 hover:underline"
+                className="text-primary hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -567,13 +567,16 @@ const WrappedCodeEditorPipelineApp: React.FC = () => {
             </li>
             <li>
               Set up the project by running:
-              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
-                make install make install-ui
+              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
+                make install
+              </pre>
+              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
+                make install-ui
               </pre>
             </li>
             <li>
               Start the application:
-              <pre className="bg-gray-100 p-2 rounded mt-2 mb-2">
+              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
                 make run-ui-prod
               </pre>
             </li>
@@ -581,15 +584,15 @@ const WrappedCodeEditorPipelineApp: React.FC = () => {
               Navigate to{" "}
               <a
                 href="http://localhost:3000/playground"
-                className="text-blue-500 hover:underline"
+                className="text-primary hover:underline"
               >
                 http://localhost:3000/playground
               </a>
             </li>
           </ol>
-          <p>
-            Once you've completed these steps, you'll be able to use the DocETL
-            playground locally.
+          <p className="text-foreground">
+            Once you&apos;ve completed these steps, you&apos;ll be able to use
+            the DocETL playground locally.
           </p>
         </div>
       </div>

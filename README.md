@@ -47,6 +47,8 @@ pip install docetl
 
 ### Running the UI Locally
 
+We offer a simple UI for building pipelines. We recommend building up complex pipelines one operation at a time, so you can see the results of each operation as you go and iterate on your pipeline. To run it locally, follow these steps:
+
 ![Playground Screenshot](docs/assets/tutorial/playground-screenshot.png)
 
 1. Clone the repository:

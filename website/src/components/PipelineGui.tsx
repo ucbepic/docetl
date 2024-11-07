@@ -53,6 +53,7 @@ import { useWebSocket } from "@/contexts/WebSocketContext";
 import { Input } from "@/components/ui/input";
 import path from "path";
 import { schemaDictToItemSet } from "./utils";
+import { v4 as uuidv4 } from "uuid";
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,8 +68,6 @@ const PipelineGUI: React.FC = () => {
     setNumOpRun,
     currentFile,
     setCurrentFile,
-    output,
-    unsavedChanges,
     setFiles,
     setOutput,
     isLoadingOutputs,
@@ -78,11 +77,8 @@ const PipelineGUI: React.FC = () => {
     defaultModel,
     setDefaultModel,
     setTerminalOutput,
-    saveProgress,
-    clearPipelineState,
     optimizerModel,
     setOptimizerModel,
-    optimizerProgress,
     setOptimizerProgress,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -98,9 +94,6 @@ const PipelineGUI: React.FC = () => {
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
-  const [runningButtonType, setRunningButtonType] = useState<
-    "run" | "clear-run" | null
-  >(null);
 
   useEffect(() => {
     if (lastMessage) {
@@ -139,7 +132,7 @@ const PipelineGUI: React.FC = () => {
             const existingOp = operations.find((op) => op.name === name);
 
             return {
-              id: id || crypto.randomUUID(),
+              id: id || uuidv4(),
               llmType:
                 type === "map" ||
                 type === "reduce" ||
@@ -254,7 +247,7 @@ const PipelineGUI: React.FC = () => {
                 }
 
                 return {
-                  id: id || crypto.randomUUID(),
+                  id: id || uuidv4(),
                   llmType:
                     type === "map" ||
                     type === "reduce" ||
@@ -386,7 +379,6 @@ const PipelineGUI: React.FC = () => {
       const lastOperation = operations[lastOpIndex];
       setOptimizerProgress(null);
       setIsLoadingOutputs(true);
-      setRunningButtonType(clear_intermediate ? "clear-run" : "run");
       setNumOpRun((prevNum) => {
         const newNum = prevNum + operations.length;
         const updatedOperations = operations.map((op, index) => ({
@@ -445,7 +437,6 @@ const PipelineGUI: React.FC = () => {
         // Close the WebSocket connection
         disconnect();
         setIsLoadingOutputs(false);
-        setRunningButtonType(null);
       }
     },
     [
@@ -510,7 +501,6 @@ const PipelineGUI: React.FC = () => {
 
   const handleStop = () => {
     sendMessage("kill");
-    setRunningButtonType(null);
 
     if (readyState === WebSocket.CLOSED && isLoadingOutputs) {
       setIsLoadingOutputs(false);

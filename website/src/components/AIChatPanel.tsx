@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { ResizableBox } from "react-resizable";
-import { X } from "lucide-react";
+import { Eraser, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +17,12 @@ import ReactMarkdown from "react-markdown";
 interface AIChatPanelProps {
   onClose: () => void;
 }
+
+const DEFAULT_SUGGESTIONS = [
+  "Go over current outputs",
+  "Help me refine my current operation prompt",
+  "Am I doing this right?",
+];
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   const [position, setPosition] = useState({
@@ -36,6 +42,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   } = useChat({
     api: "/api/chat",
     initialMessages: [],
+    id: "persistent-chat",
   });
   const { serializeState } = usePipelineContext();
 
@@ -114,6 +121,10 @@ ${pipelineState}`,
     handleSubmit(e);
   };
 
+  const handleClearMessages = () => {
+    setMessages([]);
+  };
+
   return (
     <div
       style={{
@@ -139,46 +150,78 @@ ${pipelineState}`,
             <Scroll size={12} />
             <LLMContextPopover />
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-4 w-4 p-0"
-            onClick={onClose}
-          >
-            <X size={12} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0"
+              onClick={handleClearMessages}
+              title="Clear messages"
+            >
+              <RefreshCw size={12} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0"
+              onClick={onClose}
+            >
+              <X size={12} />
+            </Button>
+          </div>
         </div>
         <div className="flex flex-col h-[calc(100%-24px)]">
           <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
-            {messages
-              .filter((message) => message.role !== "system")
-              .map((message, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    "mb-2 flex",
-                    message.role === "assistant"
-                      ? "justify-start"
-                      : "justify-end"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "rounded-lg px-3 py-2 max-w-[75%] break-words prose prose-xs [&_pre]:whitespace-pre-wrap [&_code]:whitespace-pre-wrap",
-                      message.role === "assistant"
-                        ? "bg-gray-100 text-gray-900"
-                        : "bg-primary text-white prose-invert"
-                    )}
-                    style={{
-                      overflowWrap: "break-word",
-                      wordWrap: "break-word",
-                      hyphens: "auto",
+            {messages.filter((message) => message.role !== "system").length ===
+            0 ? (
+              <div className="flex flex-col gap-2">
+                {DEFAULT_SUGGESTIONS.map((suggestion, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    className="text-xs justify-start h-auto py-2 px-3"
+                    onClick={() => {
+                      handleInputChange({
+                        target: { value: suggestion },
+                      } as any);
+                      handleMessageSubmit({ preventDefault: () => {} } as any);
                     }}
                   >
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                    {suggestion}
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              messages
+                .filter((message) => message.role !== "system")
+                .map((message, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "mb-2 flex",
+                      message.role === "assistant"
+                        ? "justify-start"
+                        : "justify-end"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "rounded-lg px-3 py-2 max-w-[75%] break-words prose prose-xs [&_pre]:whitespace-pre-wrap [&_code]:whitespace-pre-wrap",
+                        message.role === "assistant"
+                          ? "bg-gray-100 text-gray-900"
+                          : "bg-primary text-white prose-invert"
+                      )}
+                      style={{
+                        overflowWrap: "break-word",
+                        wordWrap: "break-word",
+                        hyphens: "auto",
+                      }}
+                    >
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+            )}
             {isLoading && (
               <div className="flex justify-center">
                 <Loader2 className="h-3 w-3 animate-spin" />

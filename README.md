@@ -45,6 +45,8 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 pip install docetl
 ```
 
+To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
+
 ### Running the UI Locally
 
 We offer a simple UI for building pipelines. We recommend building up complex pipelines one operation at a time, so you can see the results of each operation as you go and iterate on your pipeline. To run it locally, follow these steps:

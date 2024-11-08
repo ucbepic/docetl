@@ -796,8 +796,9 @@ class PlanGenerator:
 
         Decompose the original task into a chain of subtasks, where each subtask produces one or more keys of the output schema or synthesizes new intermediate keys.
         Analyze dependencies between output keys and arrange subtasks in a logical order. You can create new intermediate keys that don't exist in the given output schema if they help break down the task into simpler steps. For example, the first chain step can generate a helpful intermediate result that subsequent steps can build upon.
-        To access the output of a previous subtask, use the syntax {{ input.key }}. Each prompt should be a Jinja2 template.
+        To access the output of a previous subtask, use the syntax {{ input.key }}. Each prompt should be a Jinja2 template. To refer to a key in a placeholder, or a previous subtask's output, use the syntax {{ input.key }}.
         Ensure that all keys in the original output schema are produced by the end of the chain, even if some subtasks create additional intermediate keys.
+        Try not to have more than 8 subtasks in the chain; you might have to group subtasks together.
 
         Provide your response in the following format:
         {{

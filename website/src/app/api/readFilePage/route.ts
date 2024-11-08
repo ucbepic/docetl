@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 
-const CHUNK_SIZE = 500000; // Number of characters to read at a time
+const CHUNK_SIZE = 1000000; // Number of characters to read at a time
 
 export async function GET(req: NextRequest) {
   const filePath = req.nextUrl.searchParams.get("path");

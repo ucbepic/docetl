@@ -47,6 +47,7 @@ class MapOptimizer:
         run_operation: Callable,
         timeout: int = 10,
         is_filter: bool = False,
+        skip_chunk_size_plans: bool = False,
     ):
         """
         Initialize the MapOptimizer.
@@ -59,6 +60,7 @@ class MapOptimizer:
             run_operation (Callable): A function to execute operations.
             timeout (int, optional): The timeout in seconds for operation execution. Defaults to 10.
             is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
+            skip_chunk_size_plans (bool, optional): If True, skip chunk size plans. Defaults to False.
         """
         self.runner = runner
         self.config = config
@@ -70,7 +72,7 @@ class MapOptimizer:
         self._num_plans_to_evaluate_in_parallel = 5
         self.is_filter = is_filter
         self.k_to_pairwise_compare = 6
-
+        self.skip_chunk_size_plans = skip_chunk_size_plans
         self.plan_generator = PlanGenerator(
             runner, llm_client, console, config, run_operation, max_threads, is_filter
         )
@@ -247,13 +249,14 @@ class MapOptimizer:
             candidate_plans["no_change"] = [op_config]
 
         # Generate chunk size plans
-        self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
-        self.console.log("[bold magenta]Generating chunking plans...[/bold magenta]")
-        chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
-            op_config, input_data, validator_prompt, model_input_context_length
-        )
-        for pname, plan in chunk_size_plans.items():
-            candidate_plans[pname] = plan
+        if not self.skip_chunk_size_plans:
+            self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
+            self.console.log("[bold magenta]Generating chunking plans...[/bold magenta]")
+            chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
+                op_config, input_data, validator_prompt, model_input_context_length
+            )
+            for pname, plan in chunk_size_plans.items():
+                candidate_plans[pname] = plan
 
         # Generate gleaning plans
         if not data_exceeds_limit:

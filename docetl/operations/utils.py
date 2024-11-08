@@ -185,6 +185,7 @@ def cache_key(
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
     scratchpad: Optional[str] = None,
+    gleaning_config: Optional[str] = None,
 ) -> str:
     """
     Generate a unique cache key based on function arguments.
@@ -209,6 +210,7 @@ def cache_key(
         "messages": json.dumps(messages, sort_keys=True),
         "output_schema": json.dumps(output_schema, sort_keys=True),
         "scratchpad": scratchpad,
+        "gleaning_config": gleaning_config,
     }
     return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest()
 
@@ -690,7 +692,7 @@ class APIWrapper(object):
         Raises:
             TimeoutError: If the call times out after retrying.
         """
-        key = cache_key(model, op_type, messages, output_schema, scratchpad)
+        key = cache_key(model, op_type, messages, output_schema, scratchpad, str(gleaning_config))
 
         max_retries = max_retries_per_timeout
         attempt = 0

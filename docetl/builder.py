@@ -1278,6 +1278,7 @@ class Optimizer:
             self._run_operation,
             timeout=self.timeout,
             is_filter=is_filter,
+            skip_chunk_size_plans=self.config.get("optimizer_config", {}).get("skip_chunk_size_plans", False),
         )
         optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data)
         self.operations_cost += cost

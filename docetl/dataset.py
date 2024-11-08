@@ -344,11 +344,7 @@ class Dataset:
                         )
                     sampled_data = rd.sample(data, n)
                 else:
-                    sampled_data = []
-                    for i, line in enumerate(f):
-                        if i >= n:
-                            break
-                        sampled_data.append(json.loads(line))
+                    sampled_data = json.load(f)[:n]
 
         elif ext == ".csv":
             import csv

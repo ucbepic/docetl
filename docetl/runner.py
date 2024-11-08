@@ -349,7 +349,7 @@ class DSLRunner(ConfigWrapper):
 
             # If sample is set, sample the input data
             if op_object.get("sample"):
-                input_data = self.datasets[step["input"]].sample(op_object["sample"])
+                input_data = self.datasets[step["input"]].sample(op_object["sample"], random=op_object.get("random_sample", True))
 
             with self.console.status("[bold]Running Operation:[/bold]") as status:
                 status.update(f"Type: [cyan]{op_object['type']}[/cyan]")

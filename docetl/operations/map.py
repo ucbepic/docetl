@@ -191,7 +191,6 @@ class MapOperation(BaseOperation):
                     return output, True
                 return output, False
 
-            self.runner.rate_limiter.try_acquire("call", weight=1)
             llm_result = self.runner.api.call_llm(
                 self.config.get("model", self.default_model),
                 "map",

@@ -84,6 +84,7 @@ const serializeState = async (state: PipelineState): Promise<string> => {
   // Get important output samples
   let outputSample = "";
   let currentOperationName = "";
+  let schemaInfo = "";
 
   if (state.output?.path) {
     try {
@@ -105,6 +106,21 @@ const serializeState = async (state: PipelineState): Promise<string> => {
         currentOperationName = operation?.name || "";
         const importantColumns =
           operation?.output?.schema?.map((item) => item.key) || [];
+
+        // Generate schema information
+        if (outputs.length > 0) {
+          const firstRow = outputs[0];
+          schemaInfo = Object.entries(firstRow)
+            .map(([key, value]) => {
+              const type = typeof value;
+              return `- ${key}: ${type}${
+                importantColumns.includes(key)
+                  ? " (output of current operation)"
+                  : ""
+              }`;
+            })
+            .join("\n");
+        }
 
         // Take up to 5 samples
         const samples = outputs
@@ -186,12 +202,16 @@ Input Dataset File: ${
 
 Pipeline operations:${operationsDetails}
 
-Bookmarks:${bookmarksDetails}
+My notes:${bookmarks.length > 0 ? bookmarksDetails : "\nNo notes added yet"}
 ${
   currentOperationName && outputSample
     ? `
 Operation just executed: ${currentOperationName}
-Sample output for current operation (the LLM-generated outputs for this operation are bolded; other keys are included but not bolded):
+
+Schema Information:
+${schemaInfo}
+
+Sample output for current operation (the LLM-generated outputs for this operation are bolded; other keys from other operations or the original input file are included but not bolded):
 ${outputSample}`
     : ""
 }`;

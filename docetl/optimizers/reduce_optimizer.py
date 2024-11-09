@@ -179,7 +179,7 @@ class ReduceOptimizer:
         if validation_results["needs_improvement"]:
             self.console.post_optimizer_rationale(
                 should_optimize=True,
-                rationale="\n".join(validation_results["issues"]),
+                rationale="\n".join([issue for result in validation_results["validation_results"] for issue in result["issues"]]),
                 validator_prompt=validator_prompt,
             )
             self.console.log(
@@ -512,7 +512,7 @@ class ReduceOptimizer:
         user_agrees = Confirm.ask(
             f"Do you agree with the decomposition assessment? "
             f"[bold]{'Recommended' if should_decompose['should_decompose'] else 'Not recommended'}[/bold]",
-            self.console,
+            console=self.console,
         )
 
         # If user disagrees, invert the decomposition decision

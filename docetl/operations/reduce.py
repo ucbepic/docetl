@@ -387,7 +387,7 @@ class ReduceOperation(BaseOperation):
             # Only execute merge-based plans if associative = True
             if "merge_prompt" in self.config and self.config.get("associative", True):
                 result, cost = self._parallel_fold_and_merge(key, group_list)
-            elif "fold_prompt" in self.config:
+            elif "fold_prompt" in self.config and len(group_list) > self.config["fold_batch_size"]:
                 result, cost = self._incremental_reduce(key, group_list)
             else:
                 result, cost = self._batch_reduce(key, group_list)

@@ -22,7 +22,11 @@ struct BlockingRule {
 #[pyclass]
 pub struct FastResolver {
     #[pyo3(get, set)]
-    pub blocking_threshold: f64,
+    pub blocking_threshold: Option<f64>,
+    #[pyo3(get, set)]
+    pub debug: bool,
+    #[pyo3(get, set)]
+    pub limit_comparisons: Option<usize>,
     parent: Vec<usize>,
     size: Vec<usize>,
     clusters: Vec<HashSet<usize>>,
@@ -33,9 +37,11 @@ pub struct FastResolver {
 #[pymethods]
 impl FastResolver {
     #[new]
-    fn new(blocking_threshold: f64) -> Self {
+    fn new(blocking_threshold: Option<f64>, debug: Option<bool>, limit_comparisons: Option<usize>) -> Self {
         FastResolver {
             blocking_threshold,
+            debug: debug.unwrap_or(false),
+            limit_comparisons,
             parent: Vec::new(),
             size: Vec::new(),
             clusters: Vec::new(),
@@ -102,11 +108,15 @@ impl FastResolver {
         for rule in &self.blocking_rules {
             let val1 = match item1.get_item(&rule.key1) {
                 Some(v) => v.to_string().to_lowercase(),
-                None => continue,
+                None => {
+                    continue;
+                },
             };
             let val2 = match item2.get_item(&rule.key2) {
                 Some(v) => v.to_string().to_lowercase(),
-                None => continue,
+                None => {
+                    continue;
+                },
             };
 
             match rule.rule_type.as_str() {
@@ -144,6 +154,20 @@ impl FastResolver {
             return Ok(blocking_pairs);
         }
 
+        // Print rules once before processing
+        if self.debug {
+            println!("\nChecking blocking rules:");
+            for rule in &self.blocking_rules {
+                match rule.rule_type.as_str() {
+                    "contains" => println!("- CONTAINS rule: input1 {} contains input2 {}", rule.key1, rule.key2),
+                    "contained_in" => println!("- CONTAINED_IN rule: input1 {} is contained in input2 {}", rule.key1, rule.key2),
+                    "equals" => println!("- EQUALS rule: input1 {} equals input2 {}", rule.key1, rule.key2),
+                    _ => println!("- Unknown rule type: {}", rule.rule_type),
+                }
+            }
+            println!("");  // Empty line for readability
+        }
+
         // Check each pair against blocking rules
         for i in 0..n_samples {
             for j in (i+1)..n_samples {
@@ -151,7 +175,6 @@ impl FastResolver {
                 let item2 = items.get_item(j)?.downcast::<PyDict>()?;
 
                 if self.check_blocking_rules(item1, item2)? {
-                    // Only add if not already in same cluster and not processed
                     let root1 = self.find_cluster(i);
                     let root2 = self.find_cluster(j);
                     if root1 != root2 && !self.is_processed(i, j) {
@@ -178,62 +201,69 @@ impl FastResolver {
             ));
         }
         Python::with_gil(|py| {
-            let sys = PyModule::import(py, "sys")?;
-            let stdout = sys.getattr("stdout")?;
-            
             let n_samples = embeddings.len();
-            stdout.call_method1("write", (format!("Processing embeddings for {} samples...\n", n_samples),))?;
             
-            // Initialize union-find data structures
+            if self.debug {
+                println!("Processing embeddings for {} samples...", n_samples);
+            }
+            
+            // Initialize only parent and size vectors
             self.parent = (0..n_samples).collect();
             self.size = vec![1; n_samples];
-            self.clusters = vec![HashSet::new(); n_samples];
-            for i in 0..n_samples {
-                self.clusters[i].insert(i);
-            }
             self.processed_pairs.clear();
 
-            // Get pairs from embeddings
-            stdout.call_method1("write", ("Computing similarity matrix...\n".to_string(),))?;
             let mut all_pairs = Vec::new();
+            let mut similarity_pairs = Vec::new();
             
-            // Add embedding-based pairs
-            let mut pairs = Vec::new();
+            if self.debug {
+                println!("Computing similarity matrix...");
+            }
+            
             let similarity_matrix = Self::compute_similarity_matrix(embeddings);
             
-            stdout.call_method1("write", ("Finding pairs above threshold...\n".to_string(),))?;
+            // Store all pairs with their similarities
             for i in 0..n_samples {
                 for j in (i+1)..n_samples {
                     let similarity = similarity_matrix[i][j];
-                    if similarity >= self.blocking_threshold {
-                        pairs.push(ComparisonPair { i, j, similarity });
+                    if self.blocking_threshold.map_or(true, |t| similarity >= t) {
+                        similarity_pairs.push(ComparisonPair { i, j, similarity });
                     }
                 }
             }
             
-            stdout.call_method1("write", 
-                (format!("Found {} pairs above threshold {}\n", pairs.len(), self.blocking_threshold),))?;
-            
-            // Sort by similarity descending
-            pairs.sort_unstable_by(|a, b| {
+            similarity_pairs.sort_unstable_by(|a, b| {
                 b.similarity.partial_cmp(&a.similarity).unwrap()
             });
-            
-            // Convert to (i,j) pairs and add to all_pairs
-            all_pairs.extend(pairs.into_iter().map(|pair| (pair.i, pair.j)));
 
             // Add blocking rule pairs if items were provided
             if let Some(items_list) = items {
-                stdout.call_method1("write", ("Applying blocking rules...\n".to_string(),))?;
+                if self.debug {
+                    println!("Applying blocking rules...");
+                }
+                
                 let blocking_pairs = self.process_items_with_rules(py, items_list)?;
-                stdout.call_method1("write", 
-                    (format!("Found {} additional pairs from blocking rules\n", blocking_pairs.len()),))?;
+                
+                if self.debug {
+                    println!("Found {} pairs from blocking rules", blocking_pairs.len());
+                }
+
                 all_pairs.extend(blocking_pairs);
             }
 
-            // Filter pairs that are already in the same cluster
-            stdout.call_method1("write", ("Filtering processed pairs...\n".to_string(),))?;
-            let filtered_pairs: Vec<(usize, usize)> = all_pairs.into_iter()
+            // Add similarity pairs after blocking pairs
+            all_pairs.extend(similarity_pairs.into_iter().map(|pair| (pair.i, pair.j)));
+
+            // Initialize clusters only after all pairs are collected
+            self.clusters = vec![HashSet::new(); n_samples];
+            for i in 0..n_samples {
+                self.clusters[i].insert(i);
+            }
+
+            if self.debug {
+                println!("Filtering processed pairs...");
+            }
+            
+            let mut filtered_pairs: Vec<(usize, usize)> = all_pairs.into_iter()
                 .filter(|(i, j)| {
                     let root1 = self.find_cluster(*i);
                     let root2 = self.find_cluster(*j);
@@ -241,9 +271,18 @@ impl FastResolver {
                 })
                 .collect();
 
-            stdout.call_method1("write", 
-                (format!("Final number of pairs to process: {}\n", filtered_pairs.len()),))?;
-            stdout.call_method0("flush")?;
+            if let Some(limit) = self.limit_comparisons {
+                if filtered_pairs.len() > limit {
+                    if self.debug {
+                        println!("Limiting to {} pairs out of {}", limit, filtered_pairs.len());
+                    }
+                    filtered_pairs.truncate(limit);
+                }
+            }
+
+            if self.debug {
+                println!("Final number of pairs to process: {}", filtered_pairs.len());
+            }
 
             Ok(filtered_pairs)
         })

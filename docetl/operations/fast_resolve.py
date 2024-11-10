@@ -9,6 +9,8 @@ from jinja2 import Template
 import jinja2
 from docetl.operations.utils import RichLoopBar, rich_as_completed
 
+from rich.prompt import Confirm
+
 class FastResolveOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "fast_resolve"
@@ -75,7 +77,9 @@ class FastResolveOperation(BaseOperation):
     ):
         super().__init__(runner, config, default_model, max_threads, console, status, is_build, **kwargs)
         self.resolver = FastResolver(
-            blocking_threshold=config.get("blocking_threshold", 0.8)
+            blocking_threshold=config.get("blocking_threshold", None), 
+            debug=config.get("debug", False),
+            limit_comparisons=config.get("limit_comparisons", None),
         )
 
     def batch_embeddings(self, items: List[Dict], batch_size: int = 1000) -> Tuple[List[List[float]], float]:
@@ -218,6 +222,23 @@ class FastResolveOperation(BaseOperation):
         """Execute the fast resolve operation."""
         if not input_data:
             return [], 0
+        
+        blocking_threshold = self.config.get("blocking_threshold")
+        blocking_conditions = self.config.get("blocking_conditions", [])
+
+        if self.status:
+            self.status.stop()
+        
+        if not blocking_threshold and not blocking_conditions:
+            # Prompt the user for confirmation
+            if not Confirm.ask(
+                f"[yellow]Warning: No blocking keys or conditions specified. "
+                f"This may result in a large number of comparisons. "
+                f"We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
+                f"Do you want to continue without blocking?[/yellow]",
+                console=self.console,
+            ):
+                raise ValueError("Operation cancelled by user.")
             
         self.input_data = input_data
         total_cost = 0
@@ -226,22 +247,31 @@ class FastResolveOperation(BaseOperation):
         blocking_conditions = self.config.get("blocking_conditions", [])
         for condition in blocking_conditions:
             # Parse the condition string to extract keys and operation
-            if "in" in condition:
-                parts = condition.split("in")
+            if "==" in condition:
+                parts = condition.split("==")
+                if parts[0].strip().endswith(".lower()") and parts[1].strip().endswith(".lower()"):
+                    key1 = parts[0].split("[")[1].split("]")[0].strip('"\'')
+                    key2 = parts[1].split("[")[1].split("]")[0].strip('"\'')
+                    self.resolver.add_equals_rule(key1, key2)
+                    self.console.log(f"Added equals rule: {key1} equals {key2}")
+                else:
+                    self.console.log(f"Skipped '==' condition - not using .lower(): {condition}")
+            elif " in " in condition:
+                parts = condition.split(" in ")
                 if parts[0].strip().endswith(".lower()") and parts[1].strip().endswith(".lower()"):
                     key1 = parts[0].split("[")[1].split("]")[0].strip('"\'')
                     key2 = parts[1].split("[")[1].split("]")[0].strip('"\'')
                     
                     if parts[0].strip().startswith("input1"):
                         self.resolver.add_contains_rule(key1, key2)
+                        self.console.log(f"Added contains rule: {key1} contains {key2}")
                     else:
                         self.resolver.add_contained_in_rule(key1, key2)
-            elif "==" in condition:
-                parts = condition.split("==")
-                if parts[0].strip().endswith(".lower()") and parts[1].strip().endswith(".lower()"):
-                    key1 = parts[0].split("[")[1].split("]")[0].strip('"\'')
-                    key2 = parts[1].split("[")[1].split("]")[0].strip('"\'')
-                    self.resolver.add_equals_rule(key1, key2)
+                        self.console.log(f"Added contained_in rule: {key1} contained in {key2}")
+                else:
+                    self.console.log(f"Skipped 'in' condition - not using .lower(): {condition}")
+            else:
+                self.console.log(f"Skipped condition - no recognized operator: {condition}")
 
         # Get embeddings with configurable batch size
         embedding_batch_size = self.config.get("embedding_batch_size", 1000)
@@ -341,5 +371,8 @@ class FastResolveOperation(BaseOperation):
                 cluster_results, cost = future.result()
                 results.extend(cluster_results)
                 total_cost += cost
+
+        if self.status:
+            self.status.start()
         
         return results, total_cost

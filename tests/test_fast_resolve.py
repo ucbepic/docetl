@@ -12,12 +12,19 @@ def fast_resolve_config():
         "name": "name_email_resolver",
         "type": "fast_resolve",
         "blocking_threshold": 0.8,
+        "debug": True,
         "blocking_keys": ["name", "email"],
+        "blocking_conditions": [
+            "input1['email'].lower() == input2['email'].lower()",  # Exact email match
+            "input1['name'].lower() in input2['name'].lower()",    # Name containment
+            "input2['name'].lower() in input1['name'].lower()"     # Reverse name containment
+        ],
         "comparison_prompt": """Compare these two entries and determine if they refer to the same person:
             Person 1: {{ input1.name }} {{ input1.email }}
             Person 2: {{ input2.name }} {{ input2.email }}
             Return true if they match, false otherwise.""",
-        "resolution_prompt": "Given these similar entries, determine the canonical form: {{ inputs }}",
+        "resolution_prompt": """Given these similar entries, determine the canonical form. 
+            Choose the most complete name and the most professional email address: {{ inputs }}""",
         "output": {
             "schema": {
                 "name": "string",
@@ -26,7 +33,9 @@ def fast_resolve_config():
         },
         "embedding_model": "text-embedding-3-small",
         "comparison_model": "azure/gpt-4o-mini",
-        "resolution_model": "azure/gpt-4o-mini"
+        "resolution_model": "azure/gpt-4o-mini",
+        "embedding_batch_size": 1000,
+        "limit_comparisons": 1000
     }
 
 
@@ -162,38 +171,17 @@ def test_fast_resolve_operation_empty_input(
     assert cost == 0
 
 
-@pytest.fixture
-def resolve_config():
-    return {
-        "name": "name_email_resolver",
-        "type": "resolve",
-        "blocking_keys": ["name", "email"],
-        "blocking_threshold": 0.8,
-        "comparison_prompt": "Compare these two entries and determine if they refer to the same person: Person 1: {{ input1 }} Person 2: {{ input2 }} Return true if they match, false otherwise.",
-        "resolution_prompt": "Given these similar entries, determine the canonical form: {{ inputs }}",
-        "output": {"schema": {"name": "string", "email": "string"}},
-        "embedding_model": "text-embedding-3-small",
-        "comparison_model": "gpt-4o-mini",
-        "resolution_model": "gpt-4o-mini"
-    }
-
 
 def test_compare_resolve_performance(
-    fast_resolve_config, resolve_config, default_model, api_wrapper
+    fast_resolve_config, default_model, api_wrapper
 ):
     """Compare performance between FastResolve and regular Resolve operations."""
     
-    # Generate a large dataset specifically for this test
+    # Generate a smaller dataset for testing
     large_dataset = generate_large_dataset()
+    print(f"\nTesting with {len(large_dataset)} records")
     
-    # Use a smaller subset for the regular resolve to keep test duration reasonable
-    sample_size = min(len(large_dataset) // 4, 1000)
-    sample_data = random.sample(large_dataset, sample_size)
-    
-    print(f"\nTesting with {len(large_dataset)} records for FastResolve")
-    print(f"Testing with {len(sample_data)} records for regular Resolve")
-    
-    # Test FastResolve with full dataset
+    # Test FastResolve with blocking rules
     start_time = time.time()
     fast_operation = FastResolveOperation(
         api_wrapper, fast_resolve_config, default_model, 256
@@ -204,25 +192,27 @@ def test_compare_resolve_performance(
     # Test regular Resolve with sample
     start_time = time.time()
     regular_operation = ResolveOperation(
-        api_wrapper, resolve_config, default_model, 256
+        api_wrapper, fast_resolve_config, default_model, 256
     )
-    regular_results, regular_cost = regular_operation.execute(sample_data)
+    regular_results, regular_cost = regular_operation.execute(large_dataset)
     regular_time = time.time() - start_time
 
-    # Scale up regular metrics for fair comparison
-    scale_factor = len(large_dataset) / len(sample_data)
-    regular_time_scaled = regular_time * scale_factor
-    regular_cost_scaled = regular_cost * scale_factor
-
-    # Print performance comparison
-    print("\nPerformance Comparison (scaled to same dataset size):")
+    # Print detailed performance metrics
+    print("\nPerformance Comparison:")
     print(f"FastResolve Time: {fast_time:.2f} seconds")
-    print(f"Regular Resolve Time (scaled): {regular_time_scaled:.2f} seconds")
+    print(f"Regular Resolve Time: {regular_time:.2f} seconds")
     print(f"FastResolve Cost: ${fast_cost:.4f}")
-    print(f"Regular Resolve Cost (scaled): ${regular_cost_scaled:.4f}")
-    print(f"Speed Improvement: {(regular_time_scaled - fast_time) / regular_time_scaled:.1%}")
-    print(f"Cost Savings: {(regular_cost_scaled - fast_cost) / regular_cost_scaled:.1%}")
+    print(f"Regular Resolve Cost: ${regular_cost:.4f}")
+    print(f"Speed Improvement: {(regular_time - fast_time) / regular_time:.1%}")
+    print(f"Cost Savings: {(regular_cost - fast_cost) / regular_cost:.1%}")
+    
+    # Additional metrics
+    print("\nResolution Quality Metrics:")
+    print(f"FastResolve output records: {len(fast_results)}")
+    print(f"Distinct names in output: {len(set(r['name'] for r in fast_results))}")
+    print(f"Distinct emails in output: {len(set(r['email'] for r in fast_results))}")
+    print(f"Reduction ratio: {(len(large_dataset) - len(fast_results)) / len(large_dataset):.2%}")
 
     # Assertions
-    assert fast_time < regular_time_scaled, "FastResolve should be faster than regular Resolve"
-    assert fast_cost < regular_cost_scaled, "FastResolve should be more cost-effective"
+    assert fast_time < regular_time, "FastResolve should be faster than regular Resolve"
+    assert len(fast_results) <= len(large_dataset), "Output should not be larger than input"

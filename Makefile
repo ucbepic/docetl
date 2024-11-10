@@ -1,23 +1,40 @@
 # Load environment variables from .env file
 include .env
 
-.PHONY: tests tests-basic lint install mypy update ui-install ui-run
+.PHONY: tests tests-basic lint install mypy update ui-install ui-run build-rust develop clean
+
+# Build commands
+build-rust:
+	maturin develop --release --manifest-path docetl/rust/Cargo.toml
+
+develop: clean build-rust
+	poetry install --all-extras
+
+clean:
+	rm -rf target/
+	rm -rf docetl/rust/target/
+	rm -f docetl/resolver/resolver*.so
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete
+	find . -type f -name "*.pyo" -delete
+	find . -type f -name "*.so" -delete
+
+# Install command now includes Rust build
+install: clean
+	pip install poetry maturin
+	$(MAKE) develop
 
 # Existing commands
-tests:
+tests: clean build-rust
 	poetry run pytest
 
-tests-basic:
+tests-basic: clean build-rust
 	poetry run pytest tests/basic
 	poetry run pytest tests/test_api.py
 	poetry run pytest tests/test_runner_caching.py
 
 lint:
 	poetry run ruff check docetl/* --fix
-
-install:
-	pip install poetry
-	poetry install --all-extras
 
 mypy:
 	poetry run mypy

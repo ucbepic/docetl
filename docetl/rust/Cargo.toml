@@ -1,0 +1,13 @@
+[package]
+name = "docetl_resolver"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "docetl_resolver"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.19", features = ["extension-module"] }
+ndarray = { version = "0.15", features = ["rayon"] }
+rayon = "1.7"

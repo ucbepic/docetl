@@ -477,6 +477,7 @@ class ResolveOperation(BaseOperation):
 
                 # Update batch_end to prevent overlapping in the next loop
                 batch_end = next_end
+                
             better_batch = better_batch[:batch_size]
             last_processed = batch_end
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:

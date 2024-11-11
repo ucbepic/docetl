@@ -529,16 +529,16 @@ class APIWrapper(object):
                         self.runner.rate_limiter.try_acquire("llm_call", weight=1)
 
                         # Get params for should refine
-                        should_refine_params = {
+                        should_improve_params = {
                             "type": "object",
                             "properties": {
-                                "should_refine": {"type": "boolean"},
                                 "improvements": {"type": "string"},
+                                "should_improve": {"type": "boolean"},
                             },
-                            "required": ["should_refine", "improvements"],
+                            "required": ["improvements", "should_improve"],
                         }
                         if "gemini" not in model:
-                            should_refine_params["additionalProperties"] = False
+                            should_improve_params["additionalProperties"] = False
 
                         validator_response = completion(
                             model=gleaning_config.get("model", model),
@@ -551,10 +551,10 @@ class APIWrapper(object):
                                 {
                                     "type": "function",
                                     "function": {
-                                        "name": "should_refine_answer",
-                                        "description": "Determine if the output should be refined based on the validation feedback",
+                                        "name": "should_improve_answer",
+                                        "description": "Determine if the output should be refined to meet the validation criteria",
                                         "strict": True,
-                                        "parameters": should_refine_params,
+                                        "parameters": should_improve_params,
                                         "additionalProperties": False,
                                     },
                                 }
@@ -568,7 +568,10 @@ class APIWrapper(object):
                         suggestion = json.loads(
                             validator_response.choices[0].message.tool_calls[0].function.arguments
                         )
-                        if not suggestion["should_refine"]:
+                        if not suggestion.get("should_improve", True):
+                            self.runner.console.log(
+                                f"No improvements needed (gleaning round {rnd + 1})"
+                            )
                             break
 
                         if verbose:
@@ -767,7 +770,7 @@ class APIWrapper(object):
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and ("ollama" in model or "azure/gpt-4o-mini" in model or "sagemaker" in model)
+            and ("ollama" in model or "sagemaker" in model)
         ):
             use_tools = False
 

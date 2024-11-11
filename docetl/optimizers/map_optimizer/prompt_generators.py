@@ -71,11 +71,12 @@ class PromptGenerator:
         Sample Input & Output: {json.dumps(truncated_output, indent=2)}
         Task Prompt: {op_config.get('prompt', 'N/A')}
 
-        Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask 2 or 3 specific questions about the quality and completeness of the output, such as:
-        1. Are there any instances of the target information missed?
-        2. Would the output improve if the input was analyzed more carefully?
-        3. Is the output format correct and consistent?
-        4. Are there any errors or inconsistencies in the extracted information?
+        Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask 2-3 specific questions evaluating:
+
+        1. Precision & Recall: Are all extracted elements correct and relevant, and were any important elements missed?
+        2. Accuracy & Compliance: Does the output strictly follow the format and instructions specified in the original prompt?
+
+        The validator prompt should be specific to this task while focusing on these key quality dimensions.
 
         Provide your response as a single string containing the custom validator prompt. The prompt should be tailored to the task and avoid generic criteria.
         """

@@ -20,6 +20,7 @@ from pydantic import Field
 
 
 def find_cluster(item, cluster_map):
+    # Apply path compression
     while item != cluster_map[item]:
         cluster_map[item] = cluster_map[cluster_map[item]]
         item = cluster_map[item]
@@ -336,7 +337,7 @@ class ResolveOperation(BaseOperation):
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
-        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs))
+        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs)) if len(blocking_conditions) > 0 else comparison_pairs
 
         # Apply limit_comparisons to blocked pairs
         if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
@@ -452,6 +453,7 @@ class ResolveOperation(BaseOperation):
         batch_size = self.config.get("compare_batch_size", auto_batch())
         self.console.log(f"Using compare batch size: {batch_size}")
         pair_costs = 0
+        num_pairs_actually_compared = 0
 
         pbar = RichLoopBar(
             range(0, len(blocked_pairs), batch_size),
@@ -460,6 +462,10 @@ class ResolveOperation(BaseOperation):
         )
         last_processed = 0
         for i in pbar:
+            # Break if we've already processed all pairs
+            if last_processed >= len(blocked_pairs):
+                break
+
             batch_end = last_processed + batch_size
             batch = blocked_pairs[last_processed : batch_end]
             # Filter pairs for the initial batch
@@ -481,6 +487,7 @@ class ResolveOperation(BaseOperation):
 
                 # Update batch_end to prevent overlapping in the next loop
                 batch_end = next_end
+            
             better_batch = better_batch[:batch_size]
             last_processed = batch_end
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
@@ -499,6 +506,7 @@ class ResolveOperation(BaseOperation):
                     ): pair
                     for pair in better_batch
                 }
+                num_pairs_actually_compared += len(better_batch)
 
                 for future in as_completed(future_to_pair):
                     pair = future_to_pair[future]
@@ -506,8 +514,7 @@ class ResolveOperation(BaseOperation):
                     pair_costs += cost
                     if is_match_result:
                         merge_clusters(pair[0], pair[1])
-
-                    pbar.update(last_processed//batch_size)
+        
         total_cost += pair_costs
 
         # Collect final clusters
@@ -629,7 +636,8 @@ class ResolveOperation(BaseOperation):
         self.console.log(
             f"Number of distinct keys after resolution: {num_clusters_after}"
         )
-
+        fraction = num_pairs_actually_compared / len(blocked_pairs)
+        self.console.log(f"Number of pairs actually compared: {num_pairs_actually_compared}/{len(blocked_pairs)} ({fraction:.2%} of pairs compared)")
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = [
                 executor.submit(process_cluster, cluster) for cluster in final_clusters

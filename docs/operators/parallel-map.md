@@ -37,6 +37,7 @@ Each prompt configuration in the `prompts` list should contain:
 | `sample`             | Number of samples to use for the operation | Processes all data            |
 | `timeout`                 | Timeout for each LLM call in seconds       | 120                           |
 | `max_retries_per_timeout` | Maximum number of retries per timeout      | 2                             |
+| `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
 
 ??? question "Why use Parallel Map instead of multiple Map operations?"
 

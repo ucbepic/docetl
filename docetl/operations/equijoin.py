@@ -19,6 +19,8 @@ from docetl.operations.utils import (
     rich_as_completed,
 )
 from docetl.utils import completion_cost
+from pydantic import Field
+
 
 # Global variables to store shared data
 _right_data = None
@@ -66,6 +68,7 @@ class EquijoinOperation(BaseOperation):
         limit_comparisons: Optional[int] = None
         blocking_keys: Optional[Dict[str, List[str]]] = None
         timeout: Optional[int] = None
+        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
     
     def compare_pair(
         self,
@@ -101,6 +104,7 @@ class EquijoinOperation(BaseOperation):
             timeout_seconds=timeout_seconds,
             max_retries_per_timeout=max_retries_per_timeout,
             bypass_cache=self.config.get("bypass_cache", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
         output = self.runner.api.parse_llm_response(
             response.response, {"is_match": "bool"}

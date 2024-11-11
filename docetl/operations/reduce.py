@@ -323,7 +323,15 @@ class ReduceOperation(BaseOperation):
         else:
             # Group the input data by the reduce key(s) while maintaining original order
             def get_group_key(item):
-                return tuple(item[key] for key in reduce_keys)
+                key_values = []
+                for key in reduce_keys:
+                    value = item[key]
+                    # Special handling for list-type values
+                    if isinstance(value, list):
+                        key_values.append(tuple(sorted(value)))  # Convert list to sorted tuple
+                    else:
+                        key_values.append(value)
+                return tuple(key_values)
 
             grouped_data = {}
             for item in input_data:

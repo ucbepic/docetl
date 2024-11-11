@@ -175,6 +175,7 @@ class LinkResolveOperation(BaseOperation):
                 else None
             ),
             verbose=self.config.get("verbose", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
         
         if response.validated:

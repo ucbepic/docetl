@@ -219,6 +219,7 @@ class ClusterOperation(BaseOperation):
                     else None
                 ),
                 verbose=self.config.get("verbose", False),
+                litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             )
             total_cost += response.total_cost
             if response.validated:

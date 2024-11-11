@@ -24,13 +24,20 @@ LLM-based operators have additional attributes:
 - `prompt`: A Jinja2 template that defines the instruction for the language model.
 - `output`: Specifies the schema for the output from the LLM call.
 - `model` (optional): Allows specifying a different model from the pipeline default.
+- `litellm_completion_kwargs` (optional): Additional parameters to pass to LiteLLM completion calls.
+
+DocETL uses [LiteLLM](https://docs.litellm.ai) to execute all LLM calls, providing support for 100+ LLM providers including OpenAI, Anthropic, Azure, and more. You can pass any LiteLLM completion arguments using the `litellm_completion_kwargs` field.
 
 Example:
 
 ```yaml
 - name: extract_insights
   type: map
-  model: gpt-4o
+  model: gpt-4o-mini
+  litellm_completion_kwargs:
+    max_tokens: 500          # limit response length
+    temperature: 0.7         # control randomness
+    top_p: 0.9              # nucleus sampling parameter
   prompt: |
     Analyze the following user interaction log:
     {{ input.log }}

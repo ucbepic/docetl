@@ -64,6 +64,7 @@ This Reduce operation processes customer feedback grouped by department:
 | `persist_intermediates`   | If true, persists the intermediate results for each group to the key `_{operation_name}_intermediates` | false                       |
 | `timeout`                 | Timeout for each LLM call in seconds                                                                   | 120                         |
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                                                  | 2                           |
+| `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
 
 ## Advanced Features
 

@@ -126,7 +126,9 @@ After determining eligible pairs for comparison, the Resolve operation uses a Un
 | `limit_comparisons`       | Maximum number of comparisons to perform                                          | None                          |
 | `timeout`                 | Timeout for each LLM call in seconds                                              | 120                           |
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                             | 2                             |
-| `sample`                  | Number of samples to use for the operation                                                      | None                        |
+| `sample`                  | Number of samples to use for the operation                                                      |   None                        |
+| `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
+
 ## Best Practices
 
 1. **Anticipate Resolve Needs**: If you anticipate needing a Resolve operation and want to control the prompts, create it in your pipeline and let the optimizer find the appropriate blocking rules and thresholds.

@@ -184,3 +184,4 @@ and a description, and groups them into a tree of categories.
 | `timeout`                 | Timeout for each LLM call in seconds                                             | 120                           |
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                            | 2                             |
 | `sample`                  | Number of items to sample for this operation                                     | None                          |
+| `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |

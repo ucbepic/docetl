@@ -25,6 +25,7 @@ from docetl.operations.clustering_utils import (
 )
 from docetl.operations.utils import rich_as_completed
 from docetl.utils import completion_cost
+from pydantic import Field
 
 
 class ReduceOperation(BaseOperation):
@@ -51,7 +52,8 @@ class ReduceOperation(BaseOperation):
         value_sampling: Optional[Dict[str, Any]] = None
         verbose: Optional[bool] = None
         timeout: Optional[int] = None
-        
+        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+
     def __init__(self, *args, **kwargs):
         """
         Initialize the ReduceOperation.
@@ -797,6 +799,7 @@ class ReduceOperation(BaseOperation):
             ),
             bypass_cache=self.config.get("bypass_cache", False),
             verbose=self.config.get("verbose", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
 
         end_time = time.time()
@@ -855,6 +858,7 @@ class ReduceOperation(BaseOperation):
             ),
             bypass_cache=self.config.get("bypass_cache", False),
             verbose=self.config.get("verbose", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
 
         end_time = time.time()
@@ -964,6 +968,7 @@ class ReduceOperation(BaseOperation):
             ),
             gleaning_config=self.config.get("gleaning", None),
             verbose=self.config.get("verbose", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
 
         item_cost += response.total_cost

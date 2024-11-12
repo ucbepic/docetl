@@ -765,7 +765,7 @@ class APIWrapper(object):
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and ("ollama" in model or "azure/gpt-4o-mini" in model)
+            and ("ollama" in model or "azure/gpt-4o-mini" in model or "sagemaker" in model)
         ):
             use_tools = False
 

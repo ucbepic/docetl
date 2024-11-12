@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { ResizableBox } from "react-resizable";
-import { X } from "lucide-react";
+import { Eraser, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +17,12 @@ import ReactMarkdown from "react-markdown";
 interface AIChatPanelProps {
   onClose: () => void;
 }
+
+const DEFAULT_SUGGESTIONS = [
+  "Go over current outputs",
+  "Help me refine my current operation prompt",
+  "Am I doing this right?",
+];
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   const [position, setPosition] = useState({
@@ -36,6 +42,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   } = useChat({
     api: "/api/chat",
     initialMessages: [],
+    id: "persistent-chat",
   });
   const { serializeState } = usePipelineContext();
 
@@ -93,17 +100,36 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
       {
         id: String(Date.now()),
         role: "system",
-        content: `You are the DocETL assistant, helping users build and refine data analysis pipelines. You are an expert at data analysis. DocETL enables users to create sophisticated data processing workflows that combine the power of LLMs with traditional data operations.
+        content: `You are the DocETL assistant, helping users build and refine data analysis pipelines. You are an expert at data analysis.
 
-Each pipeline processes documents (or key-value pairs) through a sequence of operations. LLM operations like 'map' (process individual documents), 'reduce' (analyze multiple documents together), 'resolve' (entity resolution), and 'filter' (conditionally retain documents) can be combined with utility operations like 'unnest', 'split', 'gather', and 'sample' to create powerful analysis flows.
-Every LLM operation has a prompt and an output schema, which determine the keys to be added to the documents as the operation runs. Prompts are jinja2 templates, and output schemas are JSON schemas. For 'map' and 'filter' operations, you can reference the current document as 'input' and access its keys as '{{ input.keyname }}'. For 'reduce' operations, you can reference the group of input documents as 'inputs' and loop over them with '{% for doc in inputs %}...{% endfor %}'. For 'resolve' operations, there are two prompts: the comparison_prompt compares two documents (referenced as '{{ input1 }}' and '{{ input2 }}') to determine if they match, while the resolution_prompt takes a group of matching documents (referenced as 'inputs') and canonicalizes them into a single output following the operation's schema.
-You should help users optimize their pipelines and overcome any challenges they encounter. Ask questions to better understand their goals, suggest improvements, help debug issues, or explore new approaches to achieve their analysis objectives. Only ask one question at a time, and keep your responses concise.
-Also, don't give lots of suggestions. Only give one or two at a time. For each suggestion, be very detailed--if you say "use the 'map' operation", then you should also say what the prompt and output schema should be.
+Core Capabilities:
+- DocETL enables users to create sophisticated data processing workflows combining LLMs with traditional data operations
+- Each pipeline processes documents through a sequence of operations
+- Operations can be LLM-based (map, reduce, resolve, filter) or utility-based (unnest, split, gather, sample)
 
-You don't have the ability to write to the pipeline state. You can only give suggestions about what the user should do next.
-Before jumping to a new operation, verify that the user is satisfied with the current operation's outputs. Ask them specific questions about the outputs related to the task, to get them to iterate on the current operation if needed. For example, if all the outputs look the same, maybe they want to be more specific in their operation prompt. The users will typically be biased towards accepting the current operation's outputs, so be very specific in your questions to get them to iterate on the current operation. You may have to propose iterations yourself. Always look for inadequacies in the outputs, and surface them to the user (with ) to see what they think.
-Remember, always be specific! Never be vague or general. Never suggest new operations unless the user is completely satisfied with the current operation's outputs.
-Your answers will be in markdown format. Use bold, italics, and lists to draw attention to important points.
+Operation Details:
+- Every LLM operation has:
+  - A prompt (jinja2 template)
+  - An output schema (JSON schema)
+- Operation-specific templating:
+  - Map/Filter: Access current doc with '{{ input.keyname }}'
+  - Reduce: Loop through docs with '{% for doc in inputs %}...{% endfor %}'
+  - Resolve: Compare docs with '{{ input1 }}/{{ input2 }}' and canonicalize with 'inputs'
+
+Your Role:
+- Help users optimize pipelines and overcome challenges
+- Ask focused questions to understand goals (one at a time)
+- Keep responses concise
+- Provide 1-2 detailed suggestions at a time
+- Cannot directly modify pipeline state - only provide guidance
+
+Best Practices:
+- Verify satisfaction with current operation before suggesting new ones
+- Ask specific questions about outputs to encourage iteration
+- Look for and surface potential inadequacies in outputs
+- Use markdown formatting (bold, italics, lists) for clarity. Only action items or suggestions should be bolded.
+- Be specific, never vague or general
+- Be concise, don't repeat yourself
 
 Here's their current pipeline state:
 ${pipelineState}`,
@@ -112,6 +138,10 @@ ${pipelineState}`,
     ]);
 
     handleSubmit(e);
+  };
+
+  const handleClearMessages = () => {
+    setMessages([]);
   };
 
   return (
@@ -139,46 +169,78 @@ ${pipelineState}`,
             <Scroll size={12} />
             <LLMContextPopover />
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-4 w-4 p-0"
-            onClick={onClose}
-          >
-            <X size={12} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0"
+              onClick={handleClearMessages}
+              title="Clear messages"
+            >
+              <RefreshCw size={12} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0"
+              onClick={onClose}
+            >
+              <X size={12} />
+            </Button>
+          </div>
         </div>
         <div className="flex flex-col h-[calc(100%-24px)]">
           <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
-            {messages
-              .filter((message) => message.role !== "system")
-              .map((message, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    "mb-2 flex",
-                    message.role === "assistant"
-                      ? "justify-start"
-                      : "justify-end"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "rounded-lg px-3 py-2 max-w-[75%] break-words prose prose-xs [&_pre]:whitespace-pre-wrap [&_code]:whitespace-pre-wrap",
-                      message.role === "assistant"
-                        ? "bg-gray-100 text-gray-900"
-                        : "bg-primary text-white prose-invert"
-                    )}
-                    style={{
-                      overflowWrap: "break-word",
-                      wordWrap: "break-word",
-                      hyphens: "auto",
+            {messages.filter((message) => message.role !== "system").length ===
+            0 ? (
+              <div className="flex flex-col gap-2">
+                {DEFAULT_SUGGESTIONS.map((suggestion, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    className="text-xs justify-start h-auto py-2 px-3"
+                    onClick={() => {
+                      handleInputChange({
+                        target: { value: suggestion },
+                      } as any);
+                      handleMessageSubmit({ preventDefault: () => {} } as any);
                     }}
                   >
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                    {suggestion}
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              messages
+                .filter((message) => message.role !== "system")
+                .map((message, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "mb-2 flex",
+                      message.role === "assistant"
+                        ? "justify-start"
+                        : "justify-end"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "rounded-lg px-3 py-2 max-w-[75%] break-words prose prose-xs [&_pre]:whitespace-pre-wrap [&_code]:whitespace-pre-wrap",
+                        message.role === "assistant"
+                          ? "bg-gray-100 text-gray-900"
+                          : "bg-primary text-white prose-invert"
+                      )}
+                      style={{
+                        overflowWrap: "break-word",
+                        wordWrap: "break-word",
+                        hyphens: "auto",
+                      }}
+                    >
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+            )}
             {isLoading && (
               <div className="flex justify-center">
                 <Loader2 className="h-3 w-3 animate-spin" />

@@ -16,6 +16,8 @@ from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed
 from docetl.utils import completion_cost, extract_jinja_variables
 
+from pydantic import Field
+
 
 def find_cluster(item, cluster_map):
     while item != cluster_map[item]:
@@ -42,6 +44,7 @@ class ResolveOperation(BaseOperation):
         limit_comparisons: Optional[int] = None
         optimize: Optional[bool] = None
         timeout: Optional[int] = None
+        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
 
     def compare_pair(
         self,
@@ -84,6 +87,7 @@ class ResolveOperation(BaseOperation):
             timeout_seconds=timeout_seconds,
             max_retries_per_timeout=max_retries_per_timeout,
             bypass_cache=self.config.get("bypass_cache", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
         output = self.runner.api.parse_llm_response(
             response.response,
@@ -545,6 +549,7 @@ class ResolveOperation(BaseOperation):
                         if self.config.get("validate", None)
                         else None
                     ),
+                    litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
                 )
                 reduction_cost = reduction_response.total_cost
 

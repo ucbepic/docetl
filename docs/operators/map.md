@@ -147,6 +147,7 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
 | `max_retries_per_timeout`         | Maximum number of retries per timeout                                                           | 2                             |
 | `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
+| `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
 

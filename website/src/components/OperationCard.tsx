@@ -401,6 +401,7 @@ function operationReducer(state: State, action: Action): State {
         : state;
 
     case "UPDATE_GUARDRAILS":
+      console.log("UPDATE_GUARDRAILS", state, action.payload);
       return state.operation
         ? {
             ...state,
@@ -757,6 +758,22 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     [operation, handleOperationUpdate, toast]
   );
 
+  const handleGuardrailsUpdate = useCallback(
+    (newGuardrails: string[]) => {
+      dispatch({ type: "UPDATE_GUARDRAILS", payload: newGuardrails });
+      debouncedUpdate();
+    },
+    [debouncedUpdate]
+  );
+
+  const handleGleaningsUpdate = useCallback(
+    (newGleanings: { num_rounds: number; validation_prompt: string }) => {
+      dispatch({ type: "UPDATE_GLEANINGS", payload: newGleanings });
+      debouncedUpdate();
+    },
+    [debouncedUpdate]
+  );
+
   if (!operation) {
     return <SkeletonCard />;
   }
@@ -830,12 +847,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                     <>
                       <Guardrails
                         guardrails={operation.validate || []}
-                        onUpdate={(newGuardrails) =>
-                          dispatch({
-                            type: "UPDATE_GUARDRAILS",
-                            payload: newGuardrails,
-                          })
-                        }
+                        onUpdate={handleGuardrailsUpdate}
                         isExpanded={isGuardrailsExpanded}
                         onToggle={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
                       />
@@ -846,12 +858,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                     operation.type === "filter") && (
                     <GleaningConfig
                       gleaning={operation.gleaning || null}
-                      onUpdate={(newGleanings) =>
-                        dispatch({
-                          type: "UPDATE_GLEANINGS",
-                          payload: newGleanings,
-                        })
-                      }
+                      onUpdate={handleGleaningsUpdate}
                       isExpanded={isGleaningsExpanded}
                       onToggle={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
                     />

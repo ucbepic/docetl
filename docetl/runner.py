@@ -366,8 +366,8 @@ class DSLRunner(ConfigWrapper):
                     self.status,
                 )
                 if op_object["type"] == "equijoin":
-                    left_data = self.datasets[op_object["left"]].load()
-                    right_data = self.datasets[op_object["right"]].load()
+                    left_data = self.datasets[operation[operation_name]["left"]].load()
+                    right_data = self.datasets[operation[operation_name]["right"]].load()
                     input_data, cost = operation_instance.execute(left_data, right_data)
                 else:
                     input_data, cost = operation_instance.execute(input_data)

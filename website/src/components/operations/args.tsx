@@ -17,15 +17,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
+import { type FC, memo } from "react";
 
-interface PromptInputProps {
+type PromptInputProps = {
   prompt: string;
   onChange: (value: string) => void;
-}
+};
 
-export const PromptInput: React.FC<PromptInputProps> = React.memo(
+export const PromptInput: FC<PromptInputProps> = memo(
   ({ prompt, onChange }) => {
     const validateJinjaTemplate = (value: string) => {
       const hasOpenBrace = value.includes("{{");
@@ -58,14 +58,14 @@ export const PromptInput: React.FC<PromptInputProps> = React.memo(
 
 PromptInput.displayName = "PromptInput";
 
-interface SchemaFormProps {
+type SchemaFormProps = {
   schema: SchemaItem[];
   onUpdate: (newSchema: SchemaItem[]) => void;
   level?: number;
   isList?: boolean;
-}
+};
 
-export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
+export const SchemaForm: FC<SchemaFormProps> = memo(
   ({ schema, onUpdate, level = 0, isList = false }) => {
     const addItem = () => {
       if (isList) return;
@@ -183,14 +183,14 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
 
 SchemaForm.displayName = "SchemaForm";
 
-interface OutputSchemaProps {
+type OutputSchemaProps = {
   schema: SchemaItem[];
   onUpdate: (newSchema: SchemaItem[]) => void;
   isExpanded: boolean;
   onToggle: () => void;
-}
+};
 
-export const OutputSchema: React.FC<OutputSchemaProps> = React.memo(
+export const OutputSchema: FC<OutputSchemaProps> = memo(
   ({ schema, onUpdate, isExpanded, onToggle }) => {
     return (
       <div>
@@ -211,19 +211,19 @@ export const OutputSchema: React.FC<OutputSchemaProps> = React.memo(
 
 OutputSchema.displayName = "OutputSchema";
 
-export interface GleaningConfigProps {
-  gleaning: { num_rounds: number; validation_prompt: string } | null;
-  onUpdate: (
-    newGleaning: {
-      num_rounds: number;
-      validation_prompt: string;
-    } | null
-  ) => void;
+type GleaningConfig = {
+  num_rounds: number;
+  validation_prompt: string;
+} | null;
+
+type GleaningConfigProps = {
+  gleaning: GleaningConfig;
+  onUpdate: (newGleaning: GleaningConfig) => void;
   isExpanded: boolean;
   onToggle: () => void;
-}
+};
 
-export const GleaningConfig: React.FC<GleaningConfigProps> = React.memo(
+export const GleaningConfig: FC<GleaningConfigProps> = memo(
   ({ gleaning, onUpdate, isExpanded, onToggle }) => {
     return (
       <div className="border-t border-primary">
@@ -306,14 +306,14 @@ export const GleaningConfig: React.FC<GleaningConfigProps> = React.memo(
 
 GleaningConfig.displayName = "GleaningConfig";
 
-interface GuardrailsProps {
+type GuardrailsProps = {
   guardrails: string[];
   onUpdate: (newGuardrails: string[]) => void;
   isExpanded: boolean;
   onToggle: () => void;
-}
+};
 
-export const Guardrails: React.FC<GuardrailsProps> = React.memo(
+export const Guardrails: FC<GuardrailsProps> = memo(
   ({ guardrails, onUpdate, isExpanded, onToggle }) => {
     const handleGuardrailChange = (index: number, value: string) => {
       const newGuardrails = [...guardrails];

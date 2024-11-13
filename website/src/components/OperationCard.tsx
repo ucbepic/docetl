@@ -401,6 +401,7 @@ function operationReducer(state: State, action: Action): State {
         : state;
 
     case "UPDATE_GUARDRAILS":
+      console.log("UPDATE_GUARDRAILS", state, action.payload);
       return state.operation
         ? {
             ...state,

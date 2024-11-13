@@ -5,7 +5,7 @@ The `EquijoinOperation` class is a subclass of `BaseOperation` that performs an 
 import json
 import random
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -16,6 +16,7 @@ from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import (
+    RichLoopBar,
     rich_as_completed,
 )
 from docetl.utils import completion_cost
@@ -256,7 +257,7 @@ class EquijoinOperation(BaseOperation):
                 f"[yellow]Warning: {dropped_pairs} pairs will be dropped due to the comparison limit. "
                 f"Proceeding with {limit_comparisons} randomly sampled pairs. "
                 f"Do you want to continue?[/yellow]",
-                self.console,
+                console=self.console,
             ):
                 raise ValueError("Operation cancelled by user due to pair limit.")
 
@@ -404,60 +405,59 @@ class EquijoinOperation(BaseOperation):
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
 
-        left_match_counts = defaultdict(int)
-        right_match_counts = defaultdict(int)
         results = []
         comparison_costs = 0
 
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            future_to_pair = {
-                executor.submit(
-                    self.compare_pair,
-                    self.config["comparison_prompt"],
-                    self.config.get("comparison_model", self.default_model),
-                    left,
-                    right,
-                    self.config.get("timeout", 120),
-                    self.config.get("max_retries_per_timeout", 2),
-                ): (left, right)
-                for left, right in blocked_pairs
-            }
+        # Simplify the batch processing to just process pairs directly:
+        batch_size = self.config.get("compare_batch_size", 1000)  # Simple fixed max batch size
+        self.console.log(f"Using compare batch size: {batch_size}")
+        pair_costs = 0
+        num_pairs_actually_compared = 0
 
-            for future in rich_as_completed(
-                future_to_pair,
-                total=len(future_to_pair),
-                desc="Comparing pairs",
-                console=self.console,
-            ):
-                pair = future_to_pair[future]
-                is_match, cost = future.result()
-                comparison_costs += cost
+        pbar = RichLoopBar(
+            range(0, len(blocked_pairs), batch_size),
+            desc=f"Processing batches of {batch_size} LLM comparisons",
+            console=self.console,
+        )
 
-                if is_match:
-                    joined_item = {}
-                    left_item, right_item = pair
-                    left_key_hash = get_hashable_key(left_item)
-                    right_key_hash = get_hashable_key(right_item)
-                    if (
-                        left_match_counts[left_key_hash] >= left_limit
-                        or right_match_counts[right_key_hash] >= right_limit
-                    ):
-                        continue
+        for i in pbar:
+            batch = blocked_pairs[i:i + batch_size]
+            
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                future_to_pair = {
+                    executor.submit(
+                        self.compare_pair,
+                        self.config["comparison_prompt"],
+                        self.config.get("comparison_model", self.default_model),
+                        left_item,
+                        right_item,
+                        self.config.get("timeout", 120),
+                        self.config.get("max_retries_per_timeout", 2),
+                    ): (left_item, right_item)
+                    for left_item, right_item in batch
+                }
+                num_pairs_actually_compared += len(batch)
 
-                    for key, value in left_item.items():
-                        joined_item[f"{key}_left" if key in right_item else key] = value
-                    for key, value in right_item.items():
-                        joined_item[f"{key}_right" if key in left_item else key] = value
-                    if self.runner.api.validate_output(
-                        self.config, joined_item, self.console
-                    ):
-                        results.append(joined_item)
-                        left_match_counts[left_key_hash] += 1
-                        right_match_counts[right_key_hash] += 1
+                for future in as_completed(future_to_pair):
+                    left_item, right_item = future_to_pair[future]
+                    is_match, cost = future.result()
+                    pair_costs += cost
+                    
+                    if is_match:
+                        joined_item = {}
+                        for key, value in left_item.items():
+                            joined_item[f"{key}_left" if key in right_item else key] = value
+                        for key, value in right_item.items():
+                            joined_item[f"{key}_right" if key in left_item else key] = value
+                        
+                        if self.runner.api.validate_output(self.config, joined_item, self.console):
+                            results.append(joined_item)
 
-                    # TODO: support retry in validation failure
+        total_cost += pair_costs
 
-        total_cost += comparison_costs
+        # Add statistics about comparisons actually made
+        fraction = num_pairs_actually_compared / len(blocked_pairs)
+        self.console.log(f"Number of pairs actually compared: {num_pairs_actually_compared}/{len(blocked_pairs)} ({fraction:.2%} of pairs compared)")
 
         # Calculate and print the join selectivity
         join_selectivity = (

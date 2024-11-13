@@ -401,7 +401,6 @@ function operationReducer(state: State, action: Action): State {
         : state;
 
     case "UPDATE_GUARDRAILS":
-      console.log("UPDATE_GUARDRAILS", state, action.payload);
       return state.operation
         ? {
             ...state,
@@ -619,7 +618,6 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
 
   const onOptimize = useCallback(async () => {
     if (!operation) return;
-    console.log("Optimizing operation", operation.id);
 
     try {
       // Clear the output

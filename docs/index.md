@@ -1,5 +1,11 @@
 # 📜 DocETL: A System for Complex Document Processing
 
+[![GitHub](https://img.shields.io/github/stars/ucbepic/docetl?style=social)](https://github.com/ucbepic/docetl)
+[![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
+[![Documentation](https://img.shields.io/badge/Documentation-docs-green)](https://ucbepic.github.io/docetl)
+[![Discord](https://img.shields.io/discord/1285485891095236608?label=Discord&logo=discord)](https://discord.gg/fHp7B2X3xx)
+[![Paper](https://img.shields.io/badge/Paper-arXiv-red)](https://arxiv.org/abs/2410.12189)
+
 ![DocETL Figure](assets/readmefig.png)
 
 DocETL is a tool for creating and executing LLM-powered data processing pipelines. It offers a low-code, declarative YAML interface to define complex data operations on complex data.

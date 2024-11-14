@@ -12,6 +12,7 @@
     "@agbishop/react-ansi-18": "^4.0.6",
     "@ai-sdk/openai": "^0.0.70",
     "@hookform/resolvers": "^3.9.0",
+    "@monaco-editor/react": "^4.6.0",
     "@next/third-parties": "^14.2.11",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.2",

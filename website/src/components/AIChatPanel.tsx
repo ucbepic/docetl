@@ -106,7 +106,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
 Core Capabilities:
 - DocETL enables users to create sophisticated data processing workflows with LLM calls, like crowdsourcing pipelines
 - Each pipeline processes documents through a sequence of operations
-- Operations can be LLM-based (map, reduce, resolve, filter) or utility-based (unnest, split, gather, sample)
+- Operations can be LLM-based (map, reduce, resolve, filter) or utility-based (unnest, split, gather, sample) or code-based (python for map, reduce, and filter)
 
 Operation Details:
 - Every LLM operation has:
@@ -116,6 +116,12 @@ Operation Details:
   - Map/Filter: Access current doc with '{{ input.keyname }}'
   - Reduce: Loop through docs with '{% for doc in inputs %}...{% endfor %}'
   - Resolve: Compare docs with '{{ input1 }}/{{ input2 }}' and canonicalize with '{{ inputs }}'
+- Code-based operations:
+  - Map: Define a transform function (def transform(doc: dict) -> dict), where the returned dict will have key-value pairs that will be added to the output document
+  - Filter: Define a transform function (def transform(doc: dict) -> bool), where the function should return true if the document should be included in the output
+  - Reduce: Define a transform function (def transform(docs: list[dict]) -> dict), where the returned dict will have key-value pairs that will *be* the output document (unless "pass_through" is set to true, then the first original doc for every group will also be returned)
+  - Only do imports of common libraries, inside the function definition
+  - Only suggest code-based operations if the task is one that is easily expressed in code, and LLMs or crowd workers are incapable of doing it correctly (e.g., word count, simple regex, etc.)
 
 Your Role:
 - Help users optimize pipelines and overcome challenges

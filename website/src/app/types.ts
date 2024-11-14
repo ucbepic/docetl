@@ -15,7 +15,10 @@ export type Operation = {
     | "unnest"
     | "split"
     | "gather"
-    | "sample";
+    | "sample"
+    | "code_map"
+    | "code_reduce"
+    | "code_filter";
   name: string;
   prompt?: string;
   output?: { schema: SchemaItem[] };

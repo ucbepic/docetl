@@ -475,6 +475,96 @@ class Optimizer:
         else:
             self.console.log("[yellow]No optimized operations found[/yellow]")
 
+    def should_optimize(self, step_name: str, op_name: str) -> bool:
+        """
+        Determine if an operation should be optimized.
+        We do this by running the operations on a sample of the input data and checking if the output is correct.
+        """
+        self.console.rule("[bold cyan]Beginning Pipeline Optimization[/bold cyan]")
+        self.syntax_check()
+
+        self._insert_empty_resolve_operations()
+
+        for step in self.config["pipeline"]["steps"]:
+            self.captured_output.set_step(step.get("name"))
+            # Go through each operation in the step until we find the one we want to optimize
+            ops_run = []
+            op_name_to_object = {name: self.find_operation(name) for name in step["operations"]}
+            for op_idx, operation in enumerate(step["operations"]):
+                if isinstance(operation, dict):
+                    operation_name = list(operation.keys())[0]
+                    operation_config = operation[operation_name]
+                else:
+                    operation_name = operation
+                    operation_config = {}
+
+                op_object = self.find_operation(operation_name).copy()
+                op_object.update(operation_config)
+                op_object["name"] = operation_name
+
+                # Run the pipeline
+                sample_size = self.compute_sample_size(
+                    step.get("name"), step.get("operations"), op_object
+                )
+                input_data = self._run_partial_step(
+                    step, ops_run, sample_size, op_name_to_object
+                )
+
+                # If this is not the operation we want to optimize, just execute it and add to selectivities
+                if f"{step.get('name')}/{op_name}" != f"{step_name}/{op_name}" and op_object.get("empty", False):
+                    output_data = self._run_operation(op_object, input_data, is_build=True)
+                    self.selectivities[step.get("name")][op_name] = len(output_data) / len(input_data)
+                    ops_run.append(op_name)
+
+                # if this is the operation we want to optimize, invoke the optimizer's should_optimize method
+                else:
+                    if op_object.get("type") == "map" or op_object.get("type") == "filter":
+                        # Create instance of map optimizer
+                        map_optimizer = MapOptimizer(
+                            self,
+                            self.config,
+                            self.console,
+                            self.llm_client,
+                            self.max_threads,
+                            self._run_operation,
+                            timeout=self.timeout,
+                            is_filter=op_object.get("type") == "filter",
+                        )
+                        should_optimize_output = map_optimizer.should_optimize(op_object, input_data)
+                    elif op_object.get("type") == "reduce":
+                        reduce_optimizer = ReduceOptimizer(
+                            self.runner,
+                            self.config,
+                            self.console,
+                            self.llm_client,
+                            self.max_threads,
+                            self._run_operation,
+                        )
+                        should_optimize_output = reduce_optimizer.should_optimize(op_object, input_data)
+                    elif op_object.get("type") == "resolve":
+                        resolve_optimizer = JoinOptimizer(
+                            self.runner,
+                            self.config,
+                            op_object,
+                            self.console,
+                            self.llm_client,
+                            self.max_threads,
+                            target_recall=self.config.get("optimizer_config", {})
+                            .get("resolve", {})
+                            .get("target_recall", 0.95),
+                        )
+                        _, should_optimize_output = resolve_optimizer.should_optimize(input_data)
+
+                        # if should_optimize_output is empty, then we should move to the reduce operation
+                        if should_optimize_output == "":
+                            continue
+
+                    # Return the string and operation cost
+                    return should_optimize_output, self.operations_cost + self.llm_client.total_cost
+        
+        # Should not get here
+        raise ValueError("No operation to optimize found")
+
     def optimize(self) -> float:
         """
         Optimize the entire pipeline defined in the configuration.
@@ -706,6 +796,7 @@ class Optimizer:
         Raises:
             ValueError: If an unsupported operation type is encountered.
         """
+        self.captured_output.set_step(step.get("name"))
         optimized_operations = {}
         optimized_operation_names = []
         replacement_operations = {}  # List from old op name to new ops
@@ -1267,7 +1358,6 @@ class Optimizer:
         Returns:
             List[Dict[str, Any]]: The optimized operation configuration.
         """
-        self.captured_output.set_step(op_config["name"])
 
         map_optimizer = MapOptimizer(
             self,

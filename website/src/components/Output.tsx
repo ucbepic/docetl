@@ -120,14 +120,12 @@ export const Output: React.FC = () => {
   const [opName, setOpName] = useState<string | undefined>(undefined);
   const [isResolveOrReduce, setIsResolveOrReduce] = useState<boolean>(false);
 
-  const [defaultTab, setDefaultTab] = useState<string>("table");
+  const [activeTab, setActiveTab] = useState<string>("table");
   const { readyState } = useWebSocket();
 
   useEffect(() => {
-    if (!isLoadingOutputs) {
-      setDefaultTab("table");
-    } else {
-      setDefaultTab("console");
+    if (isLoadingOutputs) {
+      setActiveTab("console");
     }
   }, [isLoadingOutputs]);
 
@@ -498,7 +496,11 @@ export const Output: React.FC = () => {
         </div>
       </div>
 
-      <Tabs defaultValue={defaultTab} className="flex-1 flex flex-col min-h-0">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex-1 flex flex-col min-h-0"
+      >
         <div className="flex-none px-4">
           <TabsList>
             <TabsTrigger value="console" className="flex items-center">

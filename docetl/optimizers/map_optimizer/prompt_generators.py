@@ -72,8 +72,8 @@ class PromptGenerator:
         Task Prompt: {op_config.get('prompt', 'N/A')}
 
         Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask 2 or 3 specific questions about the quality and completeness of the output, such as:
-        1. Are there any instances of the target information missed?
-        2. Would the output improve if the input was analyzed more carefully?
+        1. Recall-oriented; if the prompt asks for all instances of a target information, the validator prompt should ask if all instances were found?
+        2. Would the output significantly improve if the input was analyzed more carefully?
         3. Is the output format correct and consistent?
         4. Are there any errors or inconsistencies in the extracted information?
 

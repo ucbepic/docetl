@@ -36,6 +36,7 @@ interface PipelineState {
   cost: number;
   defaultModel: string;
   optimizerModel: string;
+  autoOptimizeCheck: boolean;
 }
 
 interface PipelineContextType extends PipelineState {
@@ -64,6 +65,7 @@ interface PipelineContextType extends PipelineState {
   unsavedChanges: boolean;
   clearPipelineState: () => void;
   serializeState: () => Promise<string>;
+  setAutoOptimizeCheck: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -84,6 +86,7 @@ const serializeState = async (state: PipelineState): Promise<string> => {
   // Get important output samples
   let outputSample = "";
   let currentOperationName = "";
+  let schemaInfo = "";
 
   if (state.output?.path) {
     try {
@@ -105,6 +108,21 @@ const serializeState = async (state: PipelineState): Promise<string> => {
         currentOperationName = operation?.name || "";
         const importantColumns =
           operation?.output?.schema?.map((item) => item.key) || [];
+
+        // Generate schema information
+        if (outputs.length > 0) {
+          const firstRow = outputs[0];
+          schemaInfo = Object.entries(firstRow)
+            .map(([key, value]) => {
+              const type = typeof value;
+              return `- ${key}: ${type}${
+                importantColumns.includes(key)
+                  ? " (output of current operation)"
+                  : ""
+              }`;
+            })
+            .join("\n");
+        }
 
         // Take up to 5 samples
         const samples = outputs
@@ -186,12 +204,16 @@ Input Dataset File: ${
 
 Pipeline operations:${operationsDetails}
 
-Bookmarks:${bookmarksDetails}
+My notes:${bookmarks.length > 0 ? bookmarksDetails : "\nNo notes added yet"}
 ${
   currentOperationName && outputSample
     ? `
 Operation just executed: ${currentOperationName}
-Sample output for current operation (the LLM-generated outputs for this operation are bolded; other keys are included but not bolded):
+
+Schema Information:
+${schemaInfo}
+
+Sample output for current operation (the LLM-generated outputs for this operation are bolded; other keys from other operations or the original input file are included but not bolded):
 ${outputSample}`
     : ""
 }`;
@@ -234,6 +256,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     optimizerModel: loadFromLocalStorage(
       localStorageKeys.OPTIMIZER_MODEL_KEY,
       "gpt-4o-mini"
+    ),
+    autoOptimizeCheck: loadFromLocalStorage(
+      localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
+      false
     ),
   }));
 
@@ -293,8 +319,11 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.OPTIMIZER_MODEL_KEY,
       JSON.stringify(stateRef.current.optimizerModel)
     );
+    localStorage.setItem(
+      localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
+      JSON.stringify(stateRef.current.autoOptimizeCheck)
+    );
     setUnsavedChanges(false);
-    console.log("Progress saved!");
   }, []);
 
   const setStateAndUpdate = useCallback(
@@ -339,6 +368,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       defaultModel: "gpt-4o-mini",
       optimizerModel: "gpt-4o-mini",
       optimizerProgress: null,
+      autoOptimizeCheck: false,
     });
     setUnsavedChanges(false);
     console.log("Pipeline state cleared!");
@@ -417,6 +447,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     unsavedChanges,
     clearPipelineState,
     serializeState: useCallback(() => serializeState(stateRef.current), []),
+    setAutoOptimizeCheck: useCallback(
+      (value) => setStateAndUpdate("autoOptimizeCheck", value),
+      [setStateAndUpdate]
+    ),
   };
 
   return (

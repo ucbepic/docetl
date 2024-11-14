@@ -49,6 +49,7 @@ class MapOperation(BaseOperation):
         batch_size: Optional[int] = None
         clustering_method: Optional[str] = None
         batch_prompt: Optional[str] = None
+        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
         @field_validator("drop_keys")
         def validate_drop_keys(cls, v):
             if isinstance(v, str):
@@ -213,6 +214,7 @@ class MapOperation(BaseOperation):
                 verbose=self.config.get("verbose", False),
                 bypass_cache=self.config.get("bypass_cache", False),
                 initial_result=initial_result,
+                litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             )
 
             if llm_result.validated:
@@ -249,7 +251,8 @@ class MapOperation(BaseOperation):
                     verbose=self.config.get("verbose", False),
                     timeout_seconds=self.config.get("timeout", 120),
                     max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-                    bypass_cache=self.config.get("bypass_cache", False)
+                    bypass_cache=self.config.get("bypass_cache", False),
+                    litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
                 )
                 total_cost += llm_result.total_cost
 
@@ -460,6 +463,7 @@ class ParallelMapOperation(BaseOperation):
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
                 bypass_cache=self.config.get("bypass_cache", False),
+                litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             )
             output = self.runner.api.parse_llm_response(
                 response.response,

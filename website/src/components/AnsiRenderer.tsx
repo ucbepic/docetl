@@ -50,24 +50,17 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
 
   return (
     <div
-      className={`flex flex-col w-full h-[420px] bg-black text-white font-mono rounded-lg overflow-hidden ${
+      className={`flex flex-col h-full bg-black text-white font-mono rounded-lg overflow-hidden ${
         isWebSocketClosed ? "opacity-50" : ""
       }`}
     >
-      <div
-        ref={scrollRef}
-        className="flex-grow overflow-auto p-4"
-        style={{
-          height: "400px", // Reduced height to accommodate input field
-          maxHeight: "400px",
-        }}
-      >
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-4">
         <pre
           className="m-0 whitespace-pre-wrap break-words"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>
-      <div className="p-2 border-t border-gray-700">
+      <div className="flex-none p-2 border-t border-gray-700">
         <div className="flex mb-2">
           <input
             type="text"

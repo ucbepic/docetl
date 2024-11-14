@@ -53,6 +53,10 @@ import { useWebSocket } from "@/contexts/WebSocketContext";
 import { Input } from "@/components/ui/input";
 import path from "path";
 import { schemaDictToItemSet } from "./utils";
+import { v4 as uuidv4 } from "uuid";
+import { useOptimizeCheck } from "@/hooks/useOptimizeCheck";
+import { canBeOptimized } from "@/lib/utils";
+import { Switch } from "./ui/switch";
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,8 +71,6 @@ const PipelineGUI: React.FC = () => {
     setNumOpRun,
     currentFile,
     setCurrentFile,
-    output,
-    unsavedChanges,
     setFiles,
     setOutput,
     isLoadingOutputs,
@@ -78,16 +80,17 @@ const PipelineGUI: React.FC = () => {
     defaultModel,
     setDefaultModel,
     setTerminalOutput,
-    saveProgress,
-    clearPipelineState,
     optimizerModel,
     setOptimizerModel,
-    optimizerProgress,
     setOptimizerProgress,
+    autoOptimizeCheck,
+    setAutoOptimizeCheck,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
-  const [tempOptimizerModel, setTempOptimizerModel] = useState(defaultModel);
+  const [tempAutoOptimizeCheck, setTempAutoOptimizeCheck] =
+    useState(autoOptimizeCheck);
+  const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
   const [tempSampleSize, setTempSampleSize] = useState(
     sampleSize?.toString() || ""
   );
@@ -98,9 +101,38 @@ const PipelineGUI: React.FC = () => {
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
-  const [runningButtonType, setRunningButtonType] = useState<
-    "run" | "clear-run" | null
-  >(null);
+
+  const { submitTask } = useOptimizeCheck({
+    onComplete: (result) => {
+      setOperations((prev) => {
+        const newOps = [...prev];
+        if (newOps.length > 0) {
+          const lastOp = newOps[newOps.length - 1];
+          lastOp.shouldOptimizeResult = result.should_optimize;
+        }
+        return newOps;
+      });
+      setCost((prev) => prev + result.cost);
+      // Send toast with should optimize result
+      // If should_optimize string is not empty, send toast with should optimize result
+      if (result.should_optimize) {
+        toast({
+          title: `Hey! Consider optimizing ${
+            operations[operations.length - 1].name
+          }`,
+          description: result.should_optimize,
+          duration: Infinity,
+        });
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Optimization Check Failed",
+        description: error,
+        variant: "destructive",
+      });
+    },
+  });
 
   useEffect(() => {
     if (lastMessage) {
@@ -124,7 +156,6 @@ const PipelineGUI: React.FC = () => {
           const newOperations = optimizedOps.map((optimizedOp) => {
             const {
               id,
-              llmType,
               type,
               name,
               prompt,
@@ -139,7 +170,7 @@ const PipelineGUI: React.FC = () => {
             const existingOp = operations.find((op) => op.name === name);
 
             return {
-              id: id || crypto.randomUUID(),
+              id: id || uuidv4(),
               llmType:
                 type === "map" ||
                 type === "reduce" ||
@@ -165,6 +196,19 @@ const PipelineGUI: React.FC = () => {
           });
 
           setOperations(newOperations);
+        } else {
+          // No optimized operations, so we need to check if we should optimize the last operation
+          // Trigger should optimize for the last operation
+          if (autoOptimizeCheck) {
+            const lastOp = operations[operations.length - 1];
+            if (lastOp && canBeOptimized(lastOp.type)) {
+              submitTask({
+                yaml_config: lastMessage.data.yaml_config,
+                step_name: "data_processing", // TODO: Make this a constant
+                op_name: lastOp.name,
+              });
+            }
+          }
         }
 
         setCost((prevCost) => prevCost + runCost);
@@ -183,6 +227,7 @@ const PipelineGUI: React.FC = () => {
           title: "Error",
           description: lastMessage.data,
           variant: "destructive",
+          duration: Infinity,
         });
 
         // Close the WebSocket connection
@@ -198,6 +243,12 @@ const PipelineGUI: React.FC = () => {
       setTempPipelineName(pipelineName);
     }
   }, [pipelineName]);
+
+  useEffect(() => {
+    if (autoOptimizeCheck) {
+      setTempAutoOptimizeCheck(autoOptimizeCheck);
+    }
+  }, [autoOptimizeCheck]);
 
   useEffect(() => {
     if (defaultModel) {
@@ -254,7 +305,7 @@ const PipelineGUI: React.FC = () => {
                 }
 
                 return {
-                  id: id || crypto.randomUUID(),
+                  id: id || uuidv4(),
                   llmType:
                     type === "map" ||
                     type === "reduce" ||
@@ -386,12 +437,12 @@ const PipelineGUI: React.FC = () => {
       const lastOperation = operations[lastOpIndex];
       setOptimizerProgress(null);
       setIsLoadingOutputs(true);
-      setRunningButtonType(clear_intermediate ? "clear-run" : "run");
       setNumOpRun((prevNum) => {
         const newNum = prevNum + operations.length;
         const updatedOperations = operations.map((op, index) => ({
           ...op,
           runIndex: prevNum + index + 1,
+          shouldOptimizeResult: undefined,
         }));
         setOperations(updatedOperations);
         return newNum;
@@ -445,7 +496,6 @@ const PipelineGUI: React.FC = () => {
         // Close the WebSocket connection
         disconnect();
         setIsLoadingOutputs(false);
-        setRunningButtonType(null);
       }
     },
     [
@@ -488,6 +538,7 @@ const PipelineGUI: React.FC = () => {
     setDefaultModel(tempDefaultModel);
     setIsSettingsOpen(false);
     setOptimizerModel(tempOptimizerModel);
+    setAutoOptimizeCheck(tempAutoOptimizeCheck);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -510,7 +561,6 @@ const PipelineGUI: React.FC = () => {
 
   const handleStop = () => {
     sendMessage("kill");
-    setRunningButtonType(null);
 
     if (readyState === WebSocket.CLOSED && isLoadingOutputs) {
       setIsLoadingOutputs(false);
@@ -518,7 +568,7 @@ const PipelineGUI: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(70vh-2rem)] flex flex-col">
+    <div className="flex flex-col h-full">
       <div className="flex-none p-2 bg-white border-b sticky top-0 z-10">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
@@ -818,6 +868,17 @@ const PipelineGUI: React.FC = () => {
                   <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="autoOptimize" className="text-right">
+                Automatically Check Whether to Optimize
+              </Label>
+              <Switch
+                id="autoOptimize"
+                checked={tempAutoOptimizeCheck}
+                onCheckedChange={(checked) => setTempAutoOptimizeCheck(checked)}
+                className="col-span-3"
+              />
             </div>
           </div>
           <DialogFooter>

@@ -478,6 +478,10 @@ class DSLRunner(ConfigWrapper):
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )
 
+    def should_optimize(self, step_name: str, op_name: str, **kwargs) -> Tuple[str, float]:
+        builder = Optimizer(self, **kwargs)
+        return builder.should_optimize(step_name, op_name)
+
     def optimize(
         self,
         save: bool = False,

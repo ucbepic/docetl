@@ -30,7 +30,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      ws.current = new WebSocket("ws://localhost:8000/ws/run_pipeline");
+      ws.current = new WebSocket(`ws://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/ws/run_pipeline`);
 
       ws.current.onopen = () => {
         setReadyState(WebSocket.OPEN);

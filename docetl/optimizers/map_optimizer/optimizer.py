@@ -86,52 +86,25 @@ class MapOptimizer:
             runner, llm_client, console, config, max_threads, is_filter
         )
 
-    def optimize(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> str:
         """
-        Optimize the given operation configuration for the input data.
-        This method analyzes the operation and input data, generates various
-        optimization plans, evaluates them, and returns the best plan along
-        with its output. A key part of this process is creating a custom
-        validator prompt for evaluation. The validator prompt is generated
-        based on the specific task, input data, and output data. It serves
-        as a critical tool for assessing the quality and correctness of
-        each optimization plan's output. This custom prompt ensures that
-        the evaluation is tailored to the unique requirements and nuances
-        of the given operation. The types of optimization plans include:
+        Determine if the given operation configuration should be optimized.
+        """
+        input_data, output_data, _, _, validator_prompt, assessment, data_exceeds_limit = self._should_optimize_helper(op_config, input_data)
+        if data_exceeds_limit or assessment.get("needs_improvement", True):
+            assessment_str = "\n".join(assessment.get("reasons", [])) + "\n\nHere are some improvements that may help:\n" + "\n".join(assessment.get("improvements", []))
+            if data_exceeds_limit:
+                assessment_str += "\nAlso, the input data exceeds the token limit."
+            return assessment_str
+        else:
+            return ""
+            
 
-        1. Improved Prompt Plan: Enhances the original prompt based on evaluation, aiming to improve output quality.
-
-        2. Chunk Size Plan: Splits input data into chunks of different sizes,
-           processes each chunk separately, and then combines the results. This
-           can improve performance for large inputs.
-
-        3. Gleaning Plans: Implements an iterative refinement process where the
-           output is validated and improved over multiple rounds, enhancing accuracy.
-
-        4. Chain Decomposition Plan: Breaks down complex operations into a series
-           of simpler sub-operations, potentially improving overall performance
-           and interpretability.
-
-        5. Parallel Map Plan: Decomposes the task into subtasks that can be
-           executed in parallel, potentially speeding up processing for
-           independent operations.
-
-        The method generates these plans, evaluates their performance using
-        a custom validator, and selects the best performing plan based on
-        output quality and execution time.
-
-        Args:
-            op_config (Dict[str, Any]): The configuration of the operation to optimize.
-            input_data (List[Dict[str, Any]]): The input data for the operation.
-
-        Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing
-            the best optimization plan and its output. The plan is a list of
-            operation configurations that achieve the best performance.
-            The cost is the cost of the optimizer (from possibly synthesizing resolves).
-
+    def _should_optimize_helper(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int, float, str, Dict[str, Any], bool]:
+        """
+        Determine if the given operation configuration should be optimized.
+        Create a custom validator prompt and assess the operation's performance
+        using the validator.
         """
         self.console.post_optimizer_status(StageType.SAMPLE_RUN)
         input_data = copy.deepcopy(input_data)
@@ -223,9 +196,63 @@ class MapOptimizer:
         )
         self.console.post_optimizer_rationale(
             assessment.get("needs_improvement", True),
-            "\n".join(assessment.get("reasons", [])),
-            validator_prompt
+            "\n".join(assessment.get("reasons", []))
+            + "\n\n"
+            + "\n".join(assessment.get("improvements", [])),
+            validator_prompt,
         )
+
+        return input_data, output_data, model_input_context_length, no_change_runtime, validator_prompt, assessment, data_exceeds_limit
+        
+
+    def optimize(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+        """
+        Optimize the given operation configuration for the input data.
+        This method analyzes the operation and input data, generates various
+        optimization plans, evaluates them, and returns the best plan along
+        with its output. A key part of this process is creating a custom
+        validator prompt for evaluation. The validator prompt is generated
+        based on the specific task, input data, and output data. It serves
+        as a critical tool for assessing the quality and correctness of
+        each optimization plan's output. This custom prompt ensures that
+        the evaluation is tailored to the unique requirements and nuances
+        of the given operation. The types of optimization plans include:
+
+        1. Improved Prompt Plan: Enhances the original prompt based on evaluation, aiming to improve output quality.
+
+        2. Chunk Size Plan: Splits input data into chunks of different sizes,
+           processes each chunk separately, and then combines the results. This
+           can improve performance for large inputs.
+
+        3. Gleaning Plans: Implements an iterative refinement process where the
+           output is validated and improved over multiple rounds, enhancing accuracy.
+
+        4. Chain Decomposition Plan: Breaks down complex operations into a series
+           of simpler sub-operations, potentially improving overall performance
+           and interpretability.
+
+        5. Parallel Map Plan: Decomposes the task into subtasks that can be
+           executed in parallel, potentially speeding up processing for
+           independent operations.
+
+        The method generates these plans, evaluates their performance using
+        a custom validator, and selects the best performing plan based on
+        output quality and execution time.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation to optimize.
+            input_data (List[Dict[str, Any]]): The input data for the operation.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing
+            the best optimization plan and its output. The plan is a list of
+            operation configurations that achieve the best performance.
+            The cost is the cost of the optimizer (from possibly synthesizing resolves).
+
+        """
+        input_data, output_data, model_input_context_length, no_change_runtime, validator_prompt, assessment, data_exceeds_limit = self._should_optimize_helper(op_config, input_data)
 
         # Check if improvement is needed based on the assessment
         if not data_exceeds_limit and not assessment.get("needs_improvement", True):

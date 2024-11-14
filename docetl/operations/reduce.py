@@ -25,6 +25,7 @@ from docetl.operations.clustering_utils import (
 )
 from docetl.operations.utils import rich_as_completed
 from docetl.utils import completion_cost
+from pydantic import Field
 
 
 class ReduceOperation(BaseOperation):
@@ -51,7 +52,8 @@ class ReduceOperation(BaseOperation):
         value_sampling: Optional[Dict[str, Any]] = None
         verbose: Optional[bool] = None
         timeout: Optional[int] = None
-        
+        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+
     def __init__(self, *args, **kwargs):
         """
         Initialize the ReduceOperation.
@@ -323,7 +325,15 @@ class ReduceOperation(BaseOperation):
         else:
             # Group the input data by the reduce key(s) while maintaining original order
             def get_group_key(item):
-                return tuple(item[key] for key in reduce_keys)
+                key_values = []
+                for key in reduce_keys:
+                    value = item[key]
+                    # Special handling for list-type values
+                    if isinstance(value, list):
+                        key_values.append(tuple(sorted(value)))  # Convert list to sorted tuple
+                    else:
+                        key_values.append(value)
+                return tuple(key_values)
 
             grouped_data = {}
             for item in input_data:
@@ -789,6 +799,7 @@ class ReduceOperation(BaseOperation):
             ),
             bypass_cache=self.config.get("bypass_cache", False),
             verbose=self.config.get("verbose", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
 
         end_time = time.time()
@@ -847,6 +858,7 @@ class ReduceOperation(BaseOperation):
             ),
             bypass_cache=self.config.get("bypass_cache", False),
             verbose=self.config.get("verbose", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
 
         end_time = time.time()
@@ -956,6 +968,7 @@ class ReduceOperation(BaseOperation):
             ),
             gleaning_config=self.config.get("gleaning", None),
             verbose=self.config.get("verbose", False),
+            litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
 
         item_cost += response.total_cost

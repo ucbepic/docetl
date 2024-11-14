@@ -434,12 +434,13 @@ class APIWrapper(object):
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
         bypass_cache: bool = False,
+        litellm_completion_kwargs: Dict[str, Any] = {},
     ) -> LLMResult:
         # Turn the output schema into a list of schemas
         output_schema = convert_dict_schema_to_list_schema(output_schema)
         
         # Invoke the LLM call
-        return self.call_llm(model, op_type,messages, output_schema, verbose=verbose, timeout_seconds=timeout_seconds, max_retries_per_timeout=max_retries_per_timeout, bypass_cache=bypass_cache)
+        return self.call_llm(model, op_type,messages, output_schema, verbose=verbose, timeout_seconds=timeout_seconds, max_retries_per_timeout=max_retries_per_timeout, bypass_cache=bypass_cache, litellm_completion_kwargs=litellm_completion_kwargs)
         
 
     def _cached_call_llm(
@@ -456,6 +457,7 @@ class APIWrapper(object):
         verbose: bool = False,
         bypass_cache: bool = False,
         initial_result: Optional[Any] = None,
+        litellm_completion_kwargs: Dict[str, Any] = {},
     ) -> LLMResult:
         """
         Cached version of the call_llm function.
@@ -489,7 +491,7 @@ class APIWrapper(object):
             else:
                 if not initial_result:
                     response = self._call_llm_with_cache(
-                        model, op_type, messages, output_schema, tools, scratchpad
+                        model, op_type, messages, output_schema, tools, scratchpad, litellm_completion_kwargs
                     )
                     total_cost += completion_cost(response)
                 else:
@@ -556,6 +558,7 @@ class APIWrapper(object):
                                 }
                             ],
                             tool_choice="required",
+                            **litellm_completion_kwargs,
                         )
                         total_cost += completion_cost(validator_response)
 
@@ -583,7 +586,7 @@ class APIWrapper(object):
 
                         # Call LLM again
                         response = self._call_llm_with_cache(
-                            model, op_type, messages, output_schema, tools, scratchpad
+                            model, op_type, messages, output_schema, tools, scratchpad, litellm_completion_kwargs
                         )
                         parsed_output = self.parse_llm_response(
                             response, output_schema, tools
@@ -633,7 +636,7 @@ class APIWrapper(object):
                         i += 1
 
                         response = self._call_llm_with_cache(
-                            model, op_type, messages, output_schema, tools, scratchpad
+                            model, op_type, messages, output_schema, tools, scratchpad, litellm_completion_kwargs
                         )
                         total_cost += completion_cost(response)
 
@@ -662,6 +665,7 @@ class APIWrapper(object):
         verbose: bool = False,
         bypass_cache: bool = False,
         initial_result: Optional[Any] = None,
+        litellm_completion_kwargs: Dict[str, Any] = {},
     ) -> LLMResult:
         """
         Wrapper function that uses caching for LLM calls.
@@ -706,6 +710,7 @@ class APIWrapper(object):
                     verbose=verbose,
                     bypass_cache=bypass_cache,
                     initial_result=initial_result,
+                    litellm_completion_kwargs=litellm_completion_kwargs,
                 )
             except RateLimitError:
                 # TODO: this is a really hacky way to handle rate limits
@@ -735,6 +740,7 @@ class APIWrapper(object):
         output_schema: Dict[str, str],
         tools: Optional[str] = None,
         scratchpad: Optional[str] = None,
+        litellm_completion_kwargs: Dict[str, Any] = {},
     ) -> Any:
         """
         Make an LLM call with caching.
@@ -759,7 +765,7 @@ class APIWrapper(object):
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and ("ollama" in model or "azure/gpt-4o-mini" in model)
+            and ("ollama" in model or "azure/gpt-4o-mini" in model or "sagemaker" in model)
         ):
             use_tools = False
 
@@ -841,6 +847,7 @@ Remember: The scratchpad should contain information necessary for processing fut
                 + messages,
                 tools=tools,
                 tool_choice=tool_choice,
+                **litellm_completion_kwargs,
             )
         else:
             response = completion(
@@ -852,6 +859,7 @@ Remember: The scratchpad should contain information necessary for processing fut
                     },
                 ]
                 + messages,
+                **litellm_completion_kwargs,
             )
 
 

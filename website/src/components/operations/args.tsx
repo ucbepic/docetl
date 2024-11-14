@@ -471,9 +471,18 @@ export const CodeInput: React.FC<CodeInputProps> = React.memo(
             </Tooltip>
           </TooltipProvider>
         </div>
-        <div className="border">
+        <div
+          className="border"
+          style={{
+            resize: "vertical",
+            overflow: "auto",
+            minHeight: "200px",
+            height: "200px", // Set initial height explicitly
+            backgroundColor: "var(--background)", // Match editor background
+          }}
+        >
           <Editor
-            height="200px"
+            height="100%"
             defaultLanguage="python"
             value={code || getPlaceholder()}
             onChange={(value) => onChange(value || "")}

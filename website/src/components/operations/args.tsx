@@ -19,6 +19,7 @@ import {
 } from "../ui/tooltip";
 import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
+import Editor from "@monaco-editor/react";
 
 interface PromptInputProps {
   prompt: string;
@@ -398,3 +399,109 @@ export const Guardrails: React.FC<GuardrailsProps> = React.memo(
 );
 
 Guardrails.displayName = "Guardrails";
+
+interface CodeInputProps {
+  code: string;
+  operationType: "code_map" | "code_reduce" | "code_filter";
+  onChange: (value: string) => void;
+}
+
+export const CodeInput: React.FC<CodeInputProps> = React.memo(
+  ({ code, operationType, onChange }) => {
+    const getPlaceholder = () => {
+      switch (operationType) {
+        case "code_map":
+          return `def transform(doc: dict) -> dict:
+    # Transform a single document
+    # Return a dictionary with new key-value pairs
+    return {
+        'new_key': process(doc['existing_key'])
+    }`;
+        case "code_filter":
+          return `def transform(doc: dict) -> bool:
+    # Return True to keep the document, False to filter it out
+    return doc['score'] >= 0.5`;
+        case "code_reduce":
+          return `def transform(items: list) -> dict:
+    # Aggregate multiple items into a single result
+    # Return a dictionary with aggregated values
+    return {
+        'total': sum(item['value'] for item in items),
+        'count': len(items)
+    }`;
+      }
+    };
+
+    const validatePythonCode = (value: string) => {
+      return value.includes("def transform") && value.includes("return");
+    };
+
+    const getTooltipContent = () => {
+      switch (operationType) {
+        case "code_map":
+          return "Transform each document independently using Python code. The transform function takes a single document as input and returns a dictionary with new key-value pairs.";
+        case "code_filter":
+          return "Filter documents using Python code. The transform function takes a document as input and returns True to keep it or False to filter it out.";
+        case "code_reduce":
+          return "Aggregate multiple documents using Python code. The transform function takes a list of documents as input and returns a single aggregated result.";
+      }
+    };
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 mb-1">
+          <Label>Python Code</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Info className="h-4 w-4 text-gray-500" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-md">
+                <p className="text-sm">{getTooltipContent()}</p>
+                <p className="text-sm mt-2">
+                  Code operations allow you to use Python for:
+                  <ul className="list-disc ml-4 mt-1">
+                    <li>Deterministic processing</li>
+                    <li>Complex calculations</li>
+                    <li>Integration with Python libraries</li>
+                    <li>Structured data transformations</li>
+                  </ul>
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <div className="border">
+          <Editor
+            height="200px"
+            defaultLanguage="python"
+            value={code || getPlaceholder()}
+            onChange={(value) => onChange(value || "")}
+            options={{
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              wrappingIndent: "indent",
+              automaticLayout: true,
+              tabSize: 4,
+              fontSize: 14,
+              fontFamily: "monospace",
+              suggest: {
+                showKeywords: true,
+                showSnippets: true,
+              },
+            }}
+          />
+        </div>
+        {!validatePythonCode(code) && (
+          <div className="text-red-500 text-sm">
+            Code must define a transform function with a return statement
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+
+CodeInput.displayName = "CodeInput";

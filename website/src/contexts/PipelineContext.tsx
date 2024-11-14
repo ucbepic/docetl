@@ -36,6 +36,7 @@ interface PipelineState {
   cost: number;
   defaultModel: string;
   optimizerModel: string;
+  autoOptimizeCheck: boolean;
 }
 
 interface PipelineContextType extends PipelineState {
@@ -64,6 +65,7 @@ interface PipelineContextType extends PipelineState {
   unsavedChanges: boolean;
   clearPipelineState: () => void;
   serializeState: () => Promise<string>;
+  setAutoOptimizeCheck: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -255,6 +257,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.OPTIMIZER_MODEL_KEY,
       "gpt-4o-mini"
     ),
+    autoOptimizeCheck: loadFromLocalStorage(
+      localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
+      false
+    ),
   }));
 
   const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -313,8 +319,11 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.OPTIMIZER_MODEL_KEY,
       JSON.stringify(stateRef.current.optimizerModel)
     );
+    localStorage.setItem(
+      localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
+      JSON.stringify(stateRef.current.autoOptimizeCheck)
+    );
     setUnsavedChanges(false);
-    console.log("Progress saved!");
   }, []);
 
   const setStateAndUpdate = useCallback(
@@ -359,6 +368,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       defaultModel: "gpt-4o-mini",
       optimizerModel: "gpt-4o-mini",
       optimizerProgress: null,
+      autoOptimizeCheck: false,
     });
     setUnsavedChanges(false);
     console.log("Pipeline state cleared!");
@@ -437,6 +447,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     unsavedChanges,
     clearPipelineState,
     serializeState: useCallback(() => serializeState(stateRef.current), []),
+    setAutoOptimizeCheck: useCallback(
+      (value) => setStateAndUpdate("autoOptimizeCheck", value),
+      [setStateAndUpdate]
+    ),
   };
 
   return (

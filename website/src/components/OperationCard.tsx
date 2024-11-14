@@ -47,6 +47,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { AIEditPopover } from "@/components/AIEditPopover";
+import { canBeOptimized } from "@/lib/utils";
 
 // Separate components
 const OperationHeader: React.FC<{
@@ -56,6 +57,7 @@ const OperationHeader: React.FC<{
   disabled: boolean;
   currOp: boolean;
   expanded: boolean;
+  optimizeResult?: string;
   onEdit: (name: string) => void;
   onDelete: () => void;
   onRunOperation: () => void;
@@ -72,6 +74,7 @@ const OperationHeader: React.FC<{
     disabled,
     currOp,
     expanded,
+    optimizeResult,
     onEdit,
     onDelete,
     onRunOperation,
@@ -111,7 +114,59 @@ const OperationHeader: React.FC<{
               }`}
             />
           </Button>
-          <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
+          <div className="relative">
+            <div className="flex items-center space-x-1">
+              <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
+              {canBeOptimized(type) && (
+                <div className="relative">
+                  {optimizeResult !== undefined && (
+                    <div
+                      className={`absolute -top-1 -right-1 h-2 w-2 rounded-full ${
+                        optimizeResult === null || optimizeResult === ""
+                          ? "bg-gray-300"
+                          : "bg-red-500"
+                      }`}
+                    />
+                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="p-0.25 h-6 w-6"
+                          onClick={onOptimize}
+                          disabled={disabled}
+                        >
+                          <Zap
+                            size={14}
+                            className={
+                              optimizeResult === undefined ||
+                              optimizeResult === null ||
+                              optimizeResult === ""
+                                ? "text-gray-400"
+                                : "text-red-500"
+                            }
+                          />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-sm">
+                          {optimizeResult === undefined ||
+                          optimizeResult === null
+                            ? "Computing whether optimization is needed..."
+                            : optimizeResult === ""
+                            ? "No optimization recommended"
+                            : "Optimization recommended because: " +
+                              optimizeResult}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              )}
+            </div>
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -120,17 +175,6 @@ const OperationHeader: React.FC<{
           >
             <Settings size={14} className="text-gray-500" />
           </Button>
-          {["resolve", "map", "reduce", "filter"].includes(type) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-0.25 h-6 w-6"
-              onClick={onOptimize}
-              disabled={disabled}
-            >
-              <Zap size={14} className="text-yellow-500" />
-            </Button>
-          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -149,27 +193,6 @@ const OperationHeader: React.FC<{
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          {/* <Popover>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="p-0.25 h-6 w-6"
-                    >
-                      <Wand2 size={14} className="text-purple-500" />
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Assisted edit</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <AIEditPopover onSubmit={onAIEdit} />
-          </Popover> */}
         </div>
 
         {/* Centered title */}
@@ -210,6 +233,7 @@ const OperationHeader: React.FC<{
     );
   }
 );
+OperationHeader.displayName = "OperationHeader";
 
 const SettingsModal: React.FC<{
   opName: string;
@@ -815,6 +839,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 disabled={isLoadingOutputs || pipelineOutput === undefined}
                 currOp={operation.id === pipelineOutput?.operationId}
                 expanded={isExpanded}
+                optimizeResult={operation.shouldOptimizeResult}
                 onEdit={(name) => {
                   dispatch({ type: "UPDATE_NAME", payload: name });
                   debouncedUpdate();

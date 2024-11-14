@@ -48,7 +48,7 @@ class JoinOptimizer:
         #         f"[yellow]Using estimated selectivity of {self.estimated_selectivity}[/yellow]"
         #     )
 
-    def _analyze_map_prompt_categorization(self, map_prompt: str) -> bool:
+    def _analyze_map_prompt_categorization(self, map_prompt: str) -> Tuple[bool, str]:
         """
         Analyze the map prompt to determine if it's explicitly categorical.
 
@@ -102,14 +102,14 @@ class JoinOptimizer:
         self.console.log(f"Is Categorical: {analysis['is_categorical']}")
         self.console.log(f"Explanation: {analysis['explanation']}")
 
-        return analysis["is_categorical"].lower() == "yes"
+        return analysis["is_categorical"].lower() == "yes", analysis["explanation"]
 
     def _determine_duplicate_keys(
         self,
         input_data: List[Dict[str, Any]],
         reduce_key: List[str],
         map_prompt: Optional[str] = None,
-    ) -> bool:
+    ) -> Tuple[bool, str]:
         # Prepare a sample of the input data for analysis
         sample_size = min(10, len(input_data))
         data_sample = random.sample(
@@ -156,8 +156,8 @@ class JoinOptimizer:
             self.console.log(
                 "[yellow]Duplicates are likely. Consider using a deduplication strategy in the resolution step.[/yellow]"
             )
-            return True
-        return False
+            return True, analysis["explanation"]
+        return False, ""
 
     def _sample_random_pairs(
         self, input_data: List[Dict[str, Any]], n: int
@@ -181,7 +181,7 @@ class JoinOptimizer:
         pairs: List[Tuple[int, int]],
         reduce_key: List[str],
         map_prompt: Optional[str],
-    ) -> bool:
+    ) -> Tuple[bool, str]:
         """Use LLM to check if any pairs are duplicates."""
 
         content = "Analyze the following pairs of entries and determine if any of them are likely duplicates. Respond with 'Yes' if you find any likely duplicates, or 'No' if none of the pairs seem to be duplicates. Provide a brief explanation for your decision.\n\n"
@@ -222,7 +222,7 @@ class JoinOptimizer:
             f"[bold]Explanation:[/bold] {response['explanation']}"
         )
 
-        return response["duplicates_found"].lower() == "yes"
+        return response["duplicates_found"].lower() == "yes", response["explanation"]
 
     def synthesize_compare_prompt(
         self, map_prompt: Optional[str], reduce_key: List[str]
@@ -376,13 +376,17 @@ class JoinOptimizer:
             )
 
         return resolution_prompt
-
-    def optimize_resolve(
-        self, input_data: List[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], float]:
+    
+    def should_optimize(self, input_data: List[Dict[str, Any]]) -> Tuple[bool, str]:
+        """
+        Determine if the given operation configuration should be optimized.
+        """
+        # If there are no blocking keys or embeddings, then we don't need to optimize
+        if not self.op_config.get("blocking_conditions") or not self.op_config.get("blocking_threshold"):
+            return True, ""
 
         # Check if the operation is marked as empty
-        if self.op_config.get("empty", False):
+        elif self.op_config.get("empty", False):
             # Extract the map prompt from the intermediates
             map_prompt = self.op_config["_intermediates"]["map_prompt"]
             reduce_key = self.op_config["_intermediates"]["reduce_key"]
@@ -393,10 +397,11 @@ class JoinOptimizer:
                 )
 
             dedup = True
+            explanation = "There is a reduce operation that does not follow a resolve operation. Consider adding a resolve operation to deduplicate the data."
 
             if map_prompt:
                 # Analyze the map prompt
-                analysis = self._analyze_map_prompt_categorization(map_prompt)
+                analysis, explanation = self._analyze_map_prompt_categorization(map_prompt)
 
                 if analysis:
                     dedup = False
@@ -410,7 +415,7 @@ class JoinOptimizer:
                 map_prompt = "N/A"
 
             if dedup is False:
-                dedup = self._determine_duplicate_keys(
+                dedup, explanation = self._determine_duplicate_keys(
                     input_data, reduce_key, map_prompt
                 )
 
@@ -420,12 +425,27 @@ class JoinOptimizer:
                 sampled_pairs = self._sample_random_pairs(input_data, 20)
 
                 # Use LLM to check for duplicates
-                duplicates_found = self._check_duplicates_with_llm(
+                duplicates_found, explanation = self._check_duplicates_with_llm(
                     input_data, sampled_pairs, reduce_key, map_prompt
                 )
 
                 if duplicates_found:
                     dedup = True
+            
+            return dedup, explanation
+        
+        return False, ""
+
+    def optimize_resolve(
+        self, input_data: List[Dict[str, Any]]
+    ) -> Tuple[Dict[str, Any], float]:
+
+        # Check if the operation is marked as empty
+        if self.op_config.get("empty", False):
+            # Extract the map prompt from the intermediates
+            dedup, _ = self.should_optimize(input_data)
+            reduce_key = self.op_config["_intermediates"]["reduce_key"]
+            map_prompt = self.op_config["_intermediates"]["map_prompt"]
 
             if dedup is False:
                 # If no deduplication is needed, return the same config with 0 cost

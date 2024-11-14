@@ -57,6 +57,7 @@ import { v4 as uuidv4 } from "uuid";
 import { useOptimizeCheck } from "@/hooks/useOptimizeCheck";
 import { canBeOptimized } from "@/lib/utils";
 import { Switch } from "./ui/switch";
+import { Textarea } from "./ui/textarea";
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,12 +86,15 @@ const PipelineGUI: React.FC = () => {
     setOptimizerProgress,
     autoOptimizeCheck,
     setAutoOptimizeCheck,
+    highLevelGoal,
+    setHighLevelGoal,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempAutoOptimizeCheck, setTempAutoOptimizeCheck] =
     useState(autoOptimizeCheck);
   const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
+  const [tempHighLevelGoal, setTempHighLevelGoal] = useState(highLevelGoal);
   const [tempSampleSize, setTempSampleSize] = useState(
     sampleSize?.toString() || ""
   );
@@ -264,9 +268,15 @@ const PipelineGUI: React.FC = () => {
 
   useEffect(() => {
     if (optimizerModel) {
-      setTempDefaultModel(tempOptimizerModel);
+      setTempOptimizerModel(optimizerModel);
     }
   }, [optimizerModel]);
+
+  useEffect(() => {
+    if (highLevelGoal) {
+      setTempHighLevelGoal(highLevelGoal);
+    }
+  }, [highLevelGoal]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -539,6 +549,7 @@ const PipelineGUI: React.FC = () => {
     setIsSettingsOpen(false);
     setOptimizerModel(tempOptimizerModel);
     setAutoOptimizeCheck(tempAutoOptimizeCheck);
+    setHighLevelGoal(tempHighLevelGoal);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -802,6 +813,19 @@ const PipelineGUI: React.FC = () => {
                 value={tempPipelineName}
                 onChange={(e) => setTempPipelineName(e.target.value)}
                 className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="goal" className="text-right">
+                High-Level Goal
+              </Label>
+              <Textarea
+                id="goal"
+                value={tempHighLevelGoal}
+                onChange={(e) => setTempHighLevelGoal(e.target.value)}
+                className="col-span-3"
+                rows={4}
+                placeholder="Describe the high-level goal of your pipeline (e.g., 'I want to find common themes across all the documents' or 'I want to summarize the most important things related to X')..."
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

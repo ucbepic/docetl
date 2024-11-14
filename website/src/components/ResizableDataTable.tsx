@@ -50,16 +50,42 @@ interface ColumnStats {
   avg: number;
   distribution: number[];
   bucketSize: number;
+  type: "number" | "array" | "string";
 }
 
 function calculateColumnStats(
   data: Record<string, unknown>[],
   accessor: string
 ): ColumnStats | null {
+  let type: "number" | "array" | "string" = "string";
+  const firstValue = data.find((row) => row[accessor] != null)?.[accessor];
+
+  // Determine type based on first non-null value
+  if (typeof firstValue === "number") type = "number";
+  if (Array.isArray(firstValue)) type = "array";
+
   const values = data
     .map((row) => {
       const value = row[accessor];
-      return typeof value === "string" ? value.split(/\s+/).length : null;
+
+      if (value === null || value === undefined) {
+        return null;
+      }
+
+      // For numbers, use the value directly
+      if (typeof value === "number") {
+        return value;
+      }
+
+      // For arrays, count number of elements
+      if (Array.isArray(value)) {
+        return value.length;
+      }
+
+      // For strings and other types, count words after converting to string
+      const stringValue =
+        typeof value === "string" ? value : JSON.stringify(value);
+      return stringValue.split(/\s+/).length;
     })
     .filter((length): length is number => length !== null);
 
@@ -69,8 +95,10 @@ function calculateColumnStats(
   const max = Math.max(...values);
   const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
 
-  // Create 7 buckets for distribution
-  const bucketSize = Math.ceil((max - min) / 7);
+  // For numbers, use more precise bucketing
+  const bucketSize =
+    type === "number" ? (max - min) / 7 : Math.ceil((max - min) / 7);
+
   const distribution = new Array(7).fill(0);
 
   values.forEach((value) => {
@@ -87,6 +115,7 @@ function calculateColumnStats(
     avg,
     distribution,
     bucketSize,
+    type,
   };
 }
 
@@ -129,42 +158,81 @@ const WordCountHistogram = React.memo(
 );
 WordCountHistogram.displayName = "WordCountHistogram";
 
-// Update the ColumnHeader to use the memoized histogram
-const ColumnHeader: React.FC<{
+interface ColumnStats {
+  min: number;
+  max: number;
+  avg: number;
+  distribution: number[];
+  bucketSize: number;
+  type: "number" | "string" | "array";
+}
+
+interface ColumnHeaderProps {
   header: string;
   stats: ColumnStats | null;
   isBold: boolean;
-}> = React.memo(({ header, stats, isBold }) => {
-  const histogramData = useMemo(() => {
-    if (!stats) return [];
+}
 
-    return stats.distribution.map((count, i) => ({
-      range: `${Math.round(stats.min + i * stats.bucketSize)}`,
-      count,
-      fullRange: `${Math.round(
-        stats.min + i * stats.bucketSize
-      )} - ${Math.round(stats.min + (i + 1) * stats.bucketSize)} words`,
-    }));
-  }, [stats]);
+const ColumnHeader = React.memo(
+  ({ header, stats, isBold }: ColumnHeaderProps) => {
+    const histogramData = useMemo(() => {
+      if (!stats) return [];
 
-  return (
-    <div className="space-y-2">
-      <div className={`${isBold ? "font-bold" : ""}`}>{header}</div>
-      {stats && (
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{stats.min} words</span>
-            <span>avg: {Math.round(stats.avg)}</span>
-            <span>{stats.max} words</span>
+      const getUnitLabel = () => {
+        switch (stats.type) {
+          case "number":
+            return "";
+          case "array":
+            return " items";
+          default:
+            return " words";
+        }
+      };
+
+      return stats.distribution.map((count, i) => ({
+        range: `${Math.round(stats.min + i * stats.bucketSize)}`,
+        count,
+        fullRange: `${Math.round(
+          stats.min + i * stats.bucketSize
+        )} - ${Math.round(
+          stats.min + (i + 1) * stats.bucketSize
+        )}${getUnitLabel()}`,
+      }));
+    }, [stats]);
+
+    return (
+      <div className="space-y-2">
+        <div className={`${isBold ? "font-bold" : ""}`}>{header}</div>
+        {stats && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>
+                {stats.min}
+                {stats.type === "array"
+                  ? " items"
+                  : stats.type === "string"
+                  ? " words"
+                  : ""}
+              </span>
+              <span>avg: {Math.round(stats.avg)}</span>
+              <span>
+                {stats.max}
+                {stats.type === "array"
+                  ? " items"
+                  : stats.type === "string"
+                  ? " words"
+                  : ""}
+              </span>
+            </div>
+            <div className="h-24 w-full">
+              <WordCountHistogram histogramData={histogramData} />
+            </div>
           </div>
-          <div className="h-24 w-full">
-            <WordCountHistogram histogramData={histogramData} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-});
+        )}
+      </div>
+    );
+  }
+);
 ColumnHeader.displayName = "ColumnHeader";
 
 const ColumnResizer = <T extends DataType>({

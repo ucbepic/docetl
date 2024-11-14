@@ -1,5 +1,6 @@
+import React from "react";
 import { Operation, SchemaItem } from "@/app/types";
-import { OutputSchema, PromptInput } from "./args";
+import { OutputSchema, PromptInput, CodeInput } from "./args";
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,67 @@ import {
 } from "../ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "../ui/textarea";
+
+interface PromptConfig {
+  prompt: string;
+  output_keys?: string[];
+  model?: string;
+}
+
+interface MethodKwargs {
+  delimiter?: string;
+  num_tokens?: number;
+  stratify_key?: string;
+  embedding_keys?: string[];
+  std?: number;
+  keep?: boolean;
+}
+
+interface PeripheralChunkConfig {
+  content_key?: string;
+  count?: number;
+}
+
+interface PeripheralChunksSection {
+  head?: PeripheralChunkConfig;
+  middle?: PeripheralChunkConfig;
+  tail?: PeripheralChunkConfig;
+}
+
+interface PeripheralChunks {
+  previous?: PeripheralChunksSection;
+  next?: PeripheralChunksSection;
+}
+
+interface OtherKwargs {
+  prompts?: PromptConfig[];
+  method?: string;
+  method_kwargs?: MethodKwargs;
+  reduce_key?: string[];
+  comparison_prompt?: string;
+  resolution_prompt?: string;
+  blocking_threshold?: number;
+  blocking_keys?: string[];
+  split_key?: string;
+  unnest_key?: string;
+  recursive?: boolean;
+  depth?: number;
+  content_key?: string;
+  doc_id_key?: string;
+  order_key?: string;
+  peripheral_chunks?: PeripheralChunks;
+  samples?: string | number;
+  code?: string;
+}
+
+interface Operation {
+  type: string;
+  prompt?: string;
+  output?: {
+    schema?: SchemaItem[];
+  };
+  otherKwargs?: OtherKwargs;
+}
 
 interface OperationComponentProps {
   operation: Operation;
@@ -961,7 +1023,7 @@ export const ParallelMapOperationComponent: React.FC<
   return (
     <div className="space-y-4">
       {(operation.otherKwargs?.prompts || []).map(
-        (prompt: any, index: number) => (
+        (prompt: PromptConfig, index: number) => (
           <div key={index} className="border p-2 rounded space-y-2">
             <div className="flex justify-between items-center">
               <Label className="text-sm font-medium">Prompt {index + 1}</Label>
@@ -1059,7 +1121,7 @@ export const SampleOperationComponent: React.FC<OperationComponentProps> = ({
   isSchemaExpanded,
   onToggleSchema,
 }) => {
-  const handleChange = (field: string, value: any) => {
+  const handleChange = (field: string, value: string | number | boolean) => {
     onUpdate({
       ...operation,
       otherKwargs: {
@@ -1069,7 +1131,10 @@ export const SampleOperationComponent: React.FC<OperationComponentProps> = ({
     });
   };
 
-  const handleMethodKwargsChange = (field: string, value: any) => {
+  const handleMethodKwargsChange = (
+    field: string,
+    value: string | number | boolean | string[]
+  ) => {
     onUpdate({
       ...operation,
       otherKwargs: {
@@ -1212,6 +1277,109 @@ export const SampleOperationComponent: React.FC<OperationComponentProps> = ({
   );
 };
 
+export const CodeOperationComponent: React.FC<OperationComponentProps> = ({
+  operation,
+  onUpdate,
+}) => {
+  const handleCodeChange = (newCode: string) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        code: newCode,
+      },
+    });
+  };
+
+  const handleReduceKeysChange = (newReduceKeys: string[]) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        reduce_key: newReduceKeys,
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {operation.type === "code_reduce" && (
+        <div className="mb-4">
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="reduce-keys" className="w-1/4">
+              Reduce Key(s)
+            </Label>
+            <div className="flex-grow flex items-center space-x-2 overflow-x-auto">
+              <div className="flex-nowrap flex items-center space-x-2">
+                {(operation.otherKwargs?.reduce_key || [""]).map(
+                  (key: string, index: number) => (
+                    <div
+                      key={index}
+                      className="relative flex-shrink-0 flex items-center"
+                      style={{ minWidth: "150px" }}
+                    >
+                      <Input
+                        id={`reduce-key-${index}`}
+                        value={key}
+                        onChange={(e) => {
+                          const newKeys = [
+                            ...(operation.otherKwargs?.reduce_key || [""]),
+                          ];
+                          newKeys[index] = e.target.value;
+                          handleReduceKeysChange(newKeys);
+                        }}
+                        placeholder="Enter reduce key"
+                        className="w-full pr-8"
+                      />
+                      <Button
+                        onClick={() => {
+                          const newKeys = [
+                            ...(operation.otherKwargs?.reduce_key || [""]),
+                          ];
+                          newKeys.splice(index, 1);
+                          handleReduceKeysChange(newKeys);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="absolute right-0 top-0 bottom-0"
+                      >
+                        <X size={12} />
+                      </Button>
+                    </div>
+                  )
+                )}
+                <Button
+                  onClick={() => {
+                    const newKeys = [
+                      ...(operation.otherKwargs?.reduce_key || [""]),
+                      "",
+                    ];
+                    handleReduceKeysChange(newKeys);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="flex-shrink-0"
+                >
+                  <Plus size={16} />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <div>
+        <CodeInput
+          code={operation.otherKwargs?.code || ""}
+          operationType={
+            operation.type as "code_map" | "code_reduce" | "code_filter"
+          }
+          onChange={handleCodeChange}
+        />
+      </div>
+    </div>
+  );
+};
+
 export default function createOperationComponent(
   operation: Operation,
   onUpdate: (updatedOperation: Operation) => void,
@@ -1292,7 +1460,17 @@ export default function createOperationComponent(
           onToggleSchema={onToggleSchema}
         />
       );
-
+    case "code_map":
+    case "code_reduce":
+    case "code_filter":
+      return (
+        <CodeOperationComponent
+          operation={operation}
+          onUpdate={onUpdate}
+          isSchemaExpanded={isSchemaExpanded}
+          onToggleSchema={onToggleSchema}
+        />
+      );
     default:
       console.warn(`Unsupported operation type: ${operation.type}`);
       return null;

@@ -735,6 +735,41 @@ const PipelineGUI: React.FC = () => {
                 >
                   Sample
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Code Operations</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_map",
+                      "Untitled Code Map"
+                    )
+                  }
+                >
+                  Code Map
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_reduce",
+                      "Untitled Code Reduce"
+                    )
+                  }
+                >
+                  Code Reduce
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_filter",
+                      "Untitled Code Filter"
+                    )
+                  }
+                >
+                  Code Filter
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex space-x-2">

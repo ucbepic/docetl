@@ -428,9 +428,8 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
                         />
                         <Bar
                           dataKey="count"
-                          fill="hsl(var(--primary))"
+                          fill="hsl(var(--chart-2))"
                           name="Documents"
-                          className="hover:opacity-80 transition-opacity"
                           radius={[4, 4, 0, 0]}
                         />
                       </BarChart>

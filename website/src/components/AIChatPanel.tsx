@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { ResizableBox } from "react-resizable";
-import { Eraser, RefreshCw, X } from "lucide-react";
+import { Eraser, RefreshCw, X, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,6 +22,7 @@ const DEFAULT_SUGGESTIONS = [
   "Go over current outputs",
   "Help me refine my current operation prompt",
   "Am I doing this right?",
+  "Help me with jinja2 templating",
 ];
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
@@ -144,6 +145,27 @@ ${pipelineState}`,
     setMessages([]);
   };
 
+  const CodeBlock = ({ children }: { children: string }) => {
+    const handleCopy = () => {
+      navigator.clipboard.writeText(children);
+    };
+
+    return (
+      <div className="relative group">
+        <Button
+          variant="ghost"
+          className="absolute right-2 top-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={handleCopy}
+        >
+          <Copy size={16} />
+        </Button>
+        <pre>
+          <code>{children}</code>
+        </pre>
+      </div>
+    );
+  };
+
   return (
     <div
       style={{
@@ -236,7 +258,24 @@ ${pipelineState}`,
                         hyphens: "auto",
                       }}
                     >
-                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                      <ReactMarkdown
+                        components={{
+                          code: ({
+                            inline,
+                            children,
+                          }: {
+                            inline?: boolean;
+                            children: React.ReactNode;
+                          }) => {
+                            if (inline) {
+                              return <code>{children}</code>;
+                            }
+                            return <CodeBlock>{String(children)}</CodeBlock>;
+                          },
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 ))

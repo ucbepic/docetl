@@ -69,33 +69,9 @@ class ReduceOptimizer:
         self.num_samples_in_validation = num_samples_in_validation
         self.status = status
 
-    def optimize(
-        self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        level: int = 1,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
-        """
-        Optimize the reduce operation based on the given configuration and input data.
-
-        This method performs the following steps:
-        1. Run the original operation
-        2. Generate a validator prompt
-        3. Validate the output
-        4. If improvement is needed:
-           a. Evaluate if decomposition is beneficial
-           b. If decomposition is beneficial, recursively optimize each sub-operation
-           c. If not, proceed with single operation optimization
-        5. Run the optimized operation(s)
-
-        Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
-
-        Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
-            and the list of outputs from the optimized operation(s), and the cost of the operation due to synthesizing any resolve operations.
-        """
+    def should_optimize_helper(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> str:
         # Check if we're running out of token limits for the reduce prompt
         model = op_config.get("model", self.config.get("default_model", "gpt-4o-mini"))
         model_input_context_length = model_cost.get(model, {}).get(
@@ -123,6 +99,74 @@ class ReduceOptimizer:
 
         # Count tokens in the sample prompt
         prompt_tokens = count_tokens(sample_prompt, model)
+
+        self.console.post_optimizer_status(StageType.SAMPLE_RUN)
+        original_output = self._run_operation(op_config, input_data)
+
+        # Step 1: Synthesize a validator prompt
+        self.console.post_optimizer_status(StageType.SHOULD_OPTIMIZE)
+        validator_prompt = self._generate_validator_prompt(
+            op_config, input_data, original_output
+        )
+
+        # Log the validator prompt
+        self.console.log("[bold]Validator Prompt:[/bold]")
+        self.console.log(validator_prompt)
+        self.console.log("\n")  # Add a newline for better readability
+
+        # Step 2: validate the output
+        validator_inputs = self._create_validation_inputs(
+            input_data, op_config["reduce_key"]
+        )
+        validation_results = self._validate_reduce_output(
+            op_config, validator_inputs, original_output, validator_prompt
+        )
+
+        return validation_results, prompt_tokens, model_input_context_length, model, validator_prompt, original_output
+    
+    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> str:
+        validation_results, prompt_tokens, model_input_context_length, model, validator_prompt, original_output = self.should_optimize_helper(op_config, input_data)
+        if prompt_tokens * 1.5 > model_input_context_length:
+            return "The reduce prompt is likely to exceed the token limit for model {model}."
+
+        if validation_results.get("needs_improvement", False):
+            return "\n".join(
+                [
+                    f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
+                    for result in validation_results["validation_results"]
+                ]
+            )
+        else:
+            return ""
+
+    def optimize(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        level: int = 1,
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+        """
+        Optimize the reduce operation based on the given configuration and input data.
+
+        This method performs the following steps:
+        1. Run the original operation
+        2. Generate a validator prompt
+        3. Validate the output
+        4. If improvement is needed:
+           a. Evaluate if decomposition is beneficial
+           b. If decomposition is beneficial, recursively optimize each sub-operation
+           c. If not, proceed with single operation optimization
+        5. Run the optimized operation(s)
+
+        Args:
+            op_config (Dict[str, Any]): Configuration for the reduce operation.
+            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
+            and the list of outputs from the optimized operation(s), and the cost of the operation due to synthesizing any resolve operations.
+        """
+        validation_results, prompt_tokens, model_input_context_length, model, validator_prompt, original_output = self.should_optimize_helper(op_config, input_data)
 
         add_map_op = False
         if prompt_tokens * 2 > model_input_context_length:
@@ -152,34 +196,18 @@ class ReduceOptimizer:
         #     # Return unoptimized map and reduce operations
         #     return [map_prompt, op_config], input_data, 0.0
 
-        self.console.post_optimizer_status(StageType.SAMPLE_RUN)
-        original_output = self._run_operation(op_config, input_data)
-
-        # Step 1: Synthesize a validator prompt
-        self.console.post_optimizer_status(StageType.SHOULD_OPTIMIZE)
-        validator_prompt = self._generate_validator_prompt(
-            op_config, input_data, original_output
-        )
-
-        # Log the validator prompt
-        self.console.log("[bold]Validator Prompt:[/bold]")
-        self.console.log(validator_prompt)
-        self.console.log("\n")  # Add a newline for better readability
-
-        # Step 2: validate the output
-        validator_inputs = self._create_validation_inputs(
-            input_data, op_config["reduce_key"]
-        )
-        validation_results = self._validate_reduce_output(
-            op_config, validator_inputs, original_output, validator_prompt
-        )
-
+       
         # Print the validation results
         self.console.log("[bold]Validation Results on Initial Sample:[/bold]")
         if validation_results["needs_improvement"]:
             self.console.post_optimizer_rationale(
                 should_optimize=True,
-                rationale="\n".join(validation_results["issues"]),
+                rationale= "\n".join(
+                    [
+                        f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
+                        for result in validation_results["validation_results"]
+                    ]
+                ),
                 validator_prompt=validator_prompt,
             )
             self.console.log(
@@ -204,6 +232,11 @@ class ReduceOptimizer:
             return self._optimize_single_reduce(op_config, input_data, validator_prompt)
         else:
             self.console.log(f"No improvements identified; {validation_results}.")
+            self.console.post_optimizer_rationale(
+                should_optimize=False,
+                rationale="No improvements identified; no optimization recommended.",
+                validator_prompt=validator_prompt,
+            )
             return [op_config], original_output, 0.0
 
     def _should_use_map(

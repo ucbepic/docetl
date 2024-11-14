@@ -1,29 +1,188 @@
-import os
-import signal
+from typing import Any, Dict, Optional
+import uuid
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from server.app.models import PipelineRequest
 from docetl.runner import DSLRunner
 import asyncio
+from asyncio import Task
 from rich.logging import RichHandler
 import logging
+from pydantic import BaseModel
+from datetime import datetime, timedelta
+from enum import Enum
 
+# Setup logging
 FORMAT = "%(message)s"
 logging.basicConfig(
     level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
+
 router = APIRouter()
 
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
+class OptimizeResult(BaseModel):
+    task_id: str
+    status: TaskStatus
+    should_optimize: Optional[str] = None
+    cost: Optional[float] = None
+    error: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+class OptimizeRequest(BaseModel):
+    yaml_config: str
+    step_name: str
+    op_name: str
+
+# Task storage
+tasks: Dict[str, OptimizeResult] = {}
+asyncio_tasks: Dict[str, Task] = {}
+
+# Configuration
+COMPLETED_TASK_TTL = timedelta(hours=1)
+
+async def cleanup_old_tasks():
+    """Background task to clean up completed tasks"""
+    while True:
+        try:
+            current_time = datetime.now()
+            task_ids_to_remove = []
+
+            for task_id, task in tasks.items():
+                if (task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED] and
+                    task.completed_at and 
+                    current_time - task.completed_at > COMPLETED_TASK_TTL):
+                    task_ids_to_remove.append(task_id)
+
+            for task_id in task_ids_to_remove:
+                del tasks[task_id]
+                
+            await asyncio.sleep(60)
+            
+        except Exception as e:
+            logging.error(f"Error in cleanup task: {e}")
+            await asyncio.sleep(60)
+
+async def run_optimization(task_id: str, yaml_config: str, step_name: str, op_name: str):
+    """Execute the optimization task"""
+    try:
+        tasks[task_id].status = TaskStatus.PROCESSING
+        
+        # Run the actual optimization in a separate thread to not block
+        runner = DSLRunner.from_yaml(yaml_config)
+        should_optimize, cost = await asyncio.to_thread(
+            runner.should_optimize,
+            step_name,
+            op_name
+        )
+        
+        # Update task result
+        tasks[task_id].status = TaskStatus.COMPLETED
+        tasks[task_id].should_optimize = should_optimize
+        tasks[task_id].cost = cost
+        tasks[task_id].completed_at = datetime.now()
+        
+    except asyncio.CancelledError:
+        tasks[task_id].status = TaskStatus.CANCELLED
+        tasks[task_id].completed_at = datetime.now()
+        raise
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        tasks[task_id].status = TaskStatus.FAILED
+        tasks[task_id].error = f"{str(e)}\n{error_traceback}"
+        tasks[task_id].completed_at = datetime.now()
+        raise
+    
+    finally:
+        if task_id in asyncio_tasks:
+            del asyncio_tasks[task_id]
+
+@router.on_event("startup")
+async def startup_event():
+    """Start the cleanup task when the application starts"""
+    asyncio.create_task(cleanup_old_tasks())
+
+@router.post("/should_optimize", status_code=202)
+async def submit_optimize_task(request: OptimizeRequest):
+    """Submit a new optimization task"""
+    task_id = str(uuid.uuid4())
+    
+    # Create task record
+    tasks[task_id] = OptimizeResult(
+        task_id=task_id,
+        status=TaskStatus.PENDING,
+        created_at=datetime.now()
+    )
+    
+    # Create and store the asyncio task
+    task = asyncio.create_task(
+        run_optimization(
+            task_id,
+            request.yaml_config,
+            request.step_name,
+            request.op_name
+        )
+    )
+    asyncio_tasks[task_id] = task
+    
+    return {"task_id": task_id}
+
+@router.get("/should_optimize/{task_id}")
+async def get_optimize_status(task_id: str) -> OptimizeResult:
+    """Get the current status of an optimization task"""
+    if task_id not in tasks:
+        raise HTTPException(
+            status_code=404, 
+            detail="Task not found or has been cleaned up"
+        )
+    
+    return tasks[task_id]
+
+@router.post("/should_optimize/{task_id}/cancel")
+async def cancel_optimize_task(task_id: str):
+    """Cancel a running optimization task"""
+    if task_id not in tasks:
+        raise HTTPException(
+            status_code=404, 
+            detail="Task not found or has been cleaned up"
+        )
+    
+    if task_id not in asyncio_tasks:
+        raise HTTPException(
+            status_code=400, 
+            detail="Task already finished or cannot be cancelled"
+        )
+    
+    asyncio_task = asyncio_tasks[task_id]
+    asyncio_task.cancel()
+    
+    try:
+        await asyncio_task
+    except asyncio.CancelledError:
+        pass
+    
+    return {"message": "Task cancelled successfully"}
+
+# Keep the original run_pipeline endpoint
 @router.post("/run_pipeline")
-def run_pipeline(request: PipelineRequest):
+def run_pipeline(request: PipelineRequest) -> Dict[str, Any]:
     try:
         runner = DSLRunner.from_yaml(request.yaml_config)
         cost = runner.load_run_save()
         return {"cost": cost, "message": "Pipeline executed successfully"}
     except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=str(e))
-
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error occurred:\n{e}\n{error_traceback}")
+        raise HTTPException(status_code=500, detail=str(e) + "\n" + error_traceback)
 
 @router.websocket("/ws/run_pipeline")
 async def websocket_run_pipeline(websocket: WebSocket):
@@ -115,6 +274,7 @@ async def websocket_run_pipeline(websocket: WebSocket):
                         "message": "Pipeline executed successfully",
                         "cost": cost,
                         "optimized_ops": new_ops_in_order,
+                        "yaml_config": config["yaml_config"],
                     },
                 }
             )
@@ -125,6 +285,7 @@ async def websocket_run_pipeline(websocket: WebSocket):
                     "data": {
                         "message": "Pipeline executed successfully",
                         "cost": result,
+                        "yaml_config": config["yaml_config"],
                     },
                 }
             )

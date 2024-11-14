@@ -27,7 +27,7 @@ async function proxyRequest(path: string, init?: RequestInit) {
   return response.json();
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Extract task ID from the URL if it exists
     const taskId = request.nextUrl.searchParams.get("taskId");
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     // Extract task ID from the URL
     const taskId = request.nextUrl.searchParams.get("taskId");
@@ -73,13 +73,3 @@ export async function GET(request: NextRequest) {
     return handleError(error);
   }
 }
-
-// Updated API routes configuration
-export const API_ROUTES = {
-  OPTIMIZE: {
-    SUBMIT: "/api/shouldOptimize",
-    STATUS: (taskId: string) => `/api/shouldOptimize?taskId=${taskId}`,
-    CANCEL: (taskId: string) =>
-      `/api/shouldOptimize?taskId=${taskId}&cancel=true`,
-  },
-} as const;

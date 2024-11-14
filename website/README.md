@@ -2,6 +2,20 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Setting up environment variables
+
+Copy the .env.sample file from the root directory to .env.local and modify the environment variables inside:
+
+```bash
+OPENAI_API_KEY=sk-xxx
+OPENAI_API_BASE=https://api.openai.com/v1
+MODEL_NAME=gpt-4o-mini
+
+NEXT_PUBLIC_BACKEND_HOST=localhost
+NEXT_PUBLIC_BACKEND_PORT=8008
+
+```
+
 First, run the development server:
 
 ```bash

@@ -14,18 +14,18 @@ DocETL is a tool for creating and executing data processing pipelines, especiall
 DocETL is the ideal choice when you're looking to maximize correctness and output quality for complex tasks over a collection of documents or unstructured datasets. You should consider using DocETL if:
 
 - You want to perform semantic processing on a collection of data
-- You have complex tasks that you want to represent via map-reduce (e.g., map over your documents, then group by the result of your map call & reduce)
+- You have complex tasks that you want to represent via map-reduce
 - You're unsure how to best express your task to maximize LLM accuracy
-- You're working with long documents that don't fit into a single prompt or are too lengthy for effective LLM reasoning
-- You have validation criteria and want tasks to automatically retry when the validation fails
+- You're working with long documents that don't fit into a single prompt
+- You have validation criteria and want tasks to automatically retry when validation fails
 
-## Cool Things People Are Doing with DocETL
+## Community Projects
 
 - [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation)
 - [Text-to-speech](https://github.com/PassionFruits-net/docetl-speaker)
 - [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
 
-## (Educational) Threads
+## Educational Resources
 
 - [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
 - [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
@@ -33,59 +33,62 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 
 ## Installation
 
-You can install DocETL using either PyPI or from source. We recommend installing from source for the latest features and bug fixes.
-
 ### Prerequisites
 
-Before installing DocETL, ensure you have Python 3.10 or later installed on your system. You can check your Python version by running:
+- Python 3.10 or later
+- OpenAI API key
 
-```bash
-python --version
-```
+### Quick Start
 
-### Install from PyPI
-
+1. Install from PyPI:
 ```bash
 pip install docetl
 ```
 
-### Install from Source
+To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
 
-1. Clone the DocETL repository (or your fork):
+### Running the UI Locally
 
+We offer a simple UI for building pipelines. We recommend building up complex pipelines one operation at a time, so you can see the results of each operation as you go and iterate on your pipeline. To run it locally, follow these steps:
+
+![Playground Screenshot](docs/assets/tutorial/playground-screenshot.png)
+
+1. Clone the repository:
 ```bash
 git clone https://github.com/ucbepic/docetl.git
 cd docetl
 ```
 
-2. Install Poetry (if not already installed):
-
+2. Install dependencies:
 ```bash
-pip install poetry
+make install      # Install Python package
+make install-ui   # Install UI dependencies
 ```
 
-3. Install the project dependencies:
-
-```bash
-poetry install
-```
-
-4. Set up your OpenAI API key:
-
-Create a .env file in the project root and add your OpenAI API key:
-
+3. Set up environment variables in `.env`:
 ```bash
 OPENAI_API_KEY=your_api_key_here
+BACKEND_ALLOW_ORIGINS=
+BACKEND_HOST=localhost
+BACKEND_PORT=8000
+BACKEND_RELOAD=True
+FRONTEND_HOST=0.0.0.0
+FRONTEND_PORT=3000
 ```
 
-Alternatively, you can set the OPENAI_API_KEY environment variable in your shell.
+4. Start the development server:
+```bash
+make run-ui-dev
+```
 
-5. Run the basic test suite to ensure everything is working (this costs less than $0.01 with OpenAI):
+5. Visit http://localhost:3000/playground
+
+### Development Setup
+
+If you're planning to contribute or modify DocETL, you can verify your setup by running the test suite:
 
 ```bash
-make tests-basic
+make tests-basic  # Runs basic test suite (costs < $0.01 with OpenAI)
 ```
 
-That's it! You've successfully installed DocETL and are ready to start processing documents.
-
-For more detailed information on usage and configuration, please refer to our [documentation](https://ucbepic.github.io/docetl).
+For detailed documentation and tutorials, visit our [documentation](https://ucbepic.github.io/docetl).

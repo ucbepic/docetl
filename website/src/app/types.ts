@@ -24,6 +24,7 @@ export type Operation = {
   otherKwargs?: Record<string, any>;
   runIndex?: number;
   sample?: number;
+  shouldOptimizeResult?: string;
 };
 
 export type OutputRow = Record<string, string>;
@@ -70,4 +71,27 @@ export interface OutputType {
   path: string;
   operationId: string;
   inputPath?: string;
+}
+
+export interface OptimizeRequest {
+  yaml_config: string;
+  step_name: string;
+  op_name: string;
+}
+
+export type TaskStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface OptimizeResult {
+  task_id: string;
+  status: TaskStatus;
+  should_optimize?: string;
+  cost?: number;
+  error?: string;
+  created_at: string;
+  completed_at?: string;
 }

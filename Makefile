@@ -1,3 +1,6 @@
+# Load environment variables from .env file
+include .env
+
 .PHONY: tests tests-basic lint install mypy update ui-install ui-run
 
 # Existing commands
@@ -32,13 +35,13 @@ run-ui-dev:
 	@echo "Starting server..."
 	@python server/app/main.py & \
 	echo "Starting UI development server..." && \
-	cd $(UI_DIR) && npm run dev
+	cd $(UI_DIR) && HOST=${FRONTEND_HOST}  PORT=${FRONTEND_PORT} npm run dev
 
 run-ui:
 	@echo "Starting server..."
 	@python server/app/main.py & \
 	echo "Building UI..." && \
-	cd $(UI_DIR) && npm run build && npm run start
+	cd $(UI_DIR) && npm run build && HOST=${FRONTEND_HOST}  PORT=${FRONTEND_PORT} NEXT_PUBLIC_FRONTEND_ALLOWED_HOSTS=${FRONTEND_ALLOWED_HOSTS} npm run start
 
 # Help command
 help:

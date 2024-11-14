@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { OptimizeResult, OptimizeRequest } from "@/app/types";
-import { API_ROUTES } from "@/app/api/shouldOptimize/route";
+import { API_ROUTES } from "@/app/api/constants";
 
 interface UseOptimizeCheckProps {
   onComplete?: (result: OptimizeResult) => void;

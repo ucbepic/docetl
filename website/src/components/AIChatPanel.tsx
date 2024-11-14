@@ -260,7 +260,13 @@ ${pipelineState}`,
                     >
                       <ReactMarkdown
                         components={{
-                          code: ({ node, inline, children }) => {
+                          code: ({
+                            inline,
+                            children,
+                          }: {
+                            inline?: boolean;
+                            children: React.ReactNode;
+                          }) => {
                             if (inline) {
                               return <code>{children}</code>;
                             }

@@ -282,7 +282,16 @@ const MarkdownCell = React.memo(({ content }: MarkdownCellProps) => {
         li: ({ children }) => (
           <li style={{ marginBottom: "0.125rem" }}>{children}</li>
         ),
-        code: ({ node, inline, className, children, ...props }) => {
+        code: ({
+          className,
+          children,
+          inline,
+          ...props
+        }: {
+          className?: string;
+          children: React.ReactNode;
+          inline?: boolean;
+        }) => {
           const match = /language-(\w+)/.exec(className || "");
           return !inline && match ? (
             <pre className="bg-slate-100 p-2 rounded">
@@ -386,11 +395,9 @@ function ResizableDataTable<T extends DataType>({
   const columnStats = useMemo(() => {
     const stats: Record<string, ColumnStats | null> = {};
     columns.forEach((column) => {
-      if (column.accessorKey) {
-        stats[column.accessorKey as string] = calculateColumnStats(
-          data,
-          column.accessorKey as string
-        );
+      const accessorKey = (column as { accessorKey?: string }).accessorKey;
+      if (accessorKey) {
+        stats[accessorKey] = calculateColumnStats(data, accessorKey);
       }
     });
     return stats;
@@ -503,7 +510,8 @@ function ResizableDataTable<T extends DataType>({
                       header={header.column.columnDef.header as string}
                       stats={
                         columnStats[
-                          header.column.columnDef.accessorKey as string
+                          (header.column.columnDef as { accessorKey?: string })
+                            .accessorKey || ""
                         ]
                       }
                       isBold={boldedColumns.includes(

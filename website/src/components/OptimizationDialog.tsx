@@ -183,8 +183,12 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
               </div>
             )}
           </div>
-
-          <div className="mt-4 whitespace-pre-wrap">{content}</div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-bold uppercase">
+              Decomposition Rationale and Feedback
+            </h3>
+            <div className="mt-4 whitespace-pre-wrap">{content}</div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -558,7 +558,7 @@ const SearchableCell = React.memo(
 
     return (
       <div className="relative">
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm rounded-md">
           <div className="flex items-center gap-2 p-1">
             <Search className="h-3 w-3 text-muted-foreground" />
             <Input

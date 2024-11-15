@@ -349,7 +349,7 @@ class DSLRunner(ConfigWrapper):
 
             # If sample is set, sample the input data
             if op_object.get("sample"):
-                input_data = self.datasets[step["input"]].sample(op_object["sample"])
+                input_data = self.datasets[step["input"]].sample(op_object["sample"], False)
 
             with self.console.status("[bold]Running Operation:[/bold]") as status:
                 status.update(f"Type: [cyan]{op_object['type']}[/cyan]")
@@ -478,7 +478,7 @@ class DSLRunner(ConfigWrapper):
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )
 
-    def should_optimize(self, step_name: str, op_name: str, **kwargs) -> Tuple[str, float]:
+    def should_optimize(self, step_name: str, op_name: str, **kwargs) -> Tuple[str, float, List[Dict[str, Any]], List[Dict[str, Any]]]:
         builder = Optimizer(self, **kwargs)
         return builder.should_optimize(step_name, op_name)
 

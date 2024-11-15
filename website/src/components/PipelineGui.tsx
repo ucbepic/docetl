@@ -58,6 +58,7 @@ import { useOptimizeCheck } from "@/hooks/useOptimizeCheck";
 import { canBeOptimized } from "@/lib/utils";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
+import { OptimizationDialog } from "@/components/OptimizationDialog";
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +106,19 @@ const PipelineGUI: React.FC = () => {
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
+  const [optimizationDialog, setOptimizationDialog] = useState<{
+    isOpen: boolean;
+    content: string;
+    prompt?: string;
+    inputData?: Array<Record<string, unknown>>;
+    outputData?: Array<Record<string, unknown>>;
+    operationName?: string;
+  }>({
+    isOpen: false,
+    content: "",
+    prompt: undefined,
+    operationName: undefined,
+  });
 
   const { submitTask } = useOptimizeCheck({
     onComplete: (result) => {
@@ -117,14 +131,30 @@ const PipelineGUI: React.FC = () => {
         return newOps;
       });
       setCost((prev) => prev + result.cost);
-      // Send toast with should optimize result
-      // If should_optimize string is not empty, send toast with should optimize result
+
       if (result.should_optimize) {
         toast({
-          title: `Hey! Consider optimizing ${
+          title: `Hey! Consider decomposing ${
             operations[operations.length - 1].name
           }`,
-          description: result.should_optimize,
+          description: (
+            <span
+              className="cursor-pointer text-blue-500 hover:text-blue-700"
+              onClick={() => {
+                const lastOp = operations[operations.length - 1];
+                setOptimizationDialog({
+                  isOpen: true,
+                  content: result.should_optimize,
+                  prompt: lastOp.prompt || "No prompt specified",
+                  operationName: lastOp.name,
+                  inputData: result.input_data,
+                  outputData: result.output_data,
+                });
+              }}
+            >
+              Click here to see why.
+            </span>
+          ),
           duration: Infinity,
         });
       }
@@ -945,6 +975,17 @@ const PipelineGUI: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <OptimizationDialog
+        isOpen={optimizationDialog.isOpen}
+        content={optimizationDialog.content}
+        prompt={optimizationDialog.prompt}
+        operationName={optimizationDialog.operationName}
+        inputData={optimizationDialog.inputData}
+        outputData={optimizationDialog.outputData}
+        onOpenChange={(open) =>
+          setOptimizationDialog((prev) => ({ ...prev, isOpen: open }))
+        }
+      />
     </div>
   );
 };

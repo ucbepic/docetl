@@ -154,10 +154,10 @@ const OperationHeader: React.FC<{
                         <p className="text-sm">
                           {optimizeResult === undefined ||
                           optimizeResult === null
-                            ? "Computing whether optimization is needed..."
+                            ? "Determining whether to recommend a decomposition..."
                             : optimizeResult === ""
-                            ? "No optimization recommended"
-                            : "Optimization recommended because: " +
+                            ? "No decomposition recommended"
+                            : "Decomposition recommended because: " +
                               optimizeResult}
                         </p>
                       </TooltipContent>

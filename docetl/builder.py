@@ -475,7 +475,7 @@ class Optimizer:
         else:
             self.console.log("[yellow]No optimized operations found[/yellow]")
 
-    def should_optimize(self, step_name: str, op_name: str) -> bool:
+    def should_optimize(self, step_name: str, op_name: str) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Determine if an operation should be optimized.
         We do this by running the operations on a sample of the input data and checking if the output is correct.
@@ -509,6 +509,7 @@ class Optimizer:
                 input_data = self._run_partial_step(
                     step, ops_run, sample_size, op_name_to_object
                 )
+                output_data = input_data
 
                 # If this is not the operation we want to optimize, just execute it and add to selectivities
                 if f"{step.get('name')}/{op_name}" != f"{step_name}/{op_name}" and op_object.get("empty", False):
@@ -530,7 +531,7 @@ class Optimizer:
                             timeout=self.timeout,
                             is_filter=op_object.get("type") == "filter",
                         )
-                        should_optimize_output = map_optimizer.should_optimize(op_object, input_data)
+                        should_optimize_output, input_data, output_data = map_optimizer.should_optimize(op_object, input_data)
                     elif op_object.get("type") == "reduce":
                         reduce_optimizer = ReduceOptimizer(
                             self.runner,
@@ -540,7 +541,7 @@ class Optimizer:
                             self.max_threads,
                             self._run_operation,
                         )
-                        should_optimize_output = reduce_optimizer.should_optimize(op_object, input_data)
+                        should_optimize_output, input_data, output_data = reduce_optimizer.should_optimize(op_object, input_data)
                     elif op_object.get("type") == "resolve":
                         resolve_optimizer = JoinOptimizer(
                             self.runner,
@@ -560,7 +561,7 @@ class Optimizer:
                             continue
 
                     # Return the string and operation cost
-                    return should_optimize_output, self.operations_cost + self.llm_client.total_cost
+                    return should_optimize_output, input_data, output_data, self.operations_cost + self.llm_client.total_cost
         
         # Should not get here
         raise ValueError("No operation to optimize found")

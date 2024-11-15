@@ -74,15 +74,6 @@ interface OtherKwargs {
   code?: string;
 }
 
-interface Operation {
-  type: string;
-  prompt?: string;
-  output?: {
-    schema?: SchemaItem[];
-  };
-  otherKwargs?: OtherKwargs;
-}
-
 interface OperationComponentProps {
   operation: Operation;
   isSchemaExpanded: boolean;

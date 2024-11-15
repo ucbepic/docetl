@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
-} from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -16,6 +10,8 @@ import {
   Row,
   getPaginationRowModel,
   VisibilityState,
+  SortingState,
+  getSortedRowModel,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -26,7 +22,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -36,11 +39,260 @@ import {
 import { TABLE_SETTINGS_KEY } from "@/app/localStorageKeys";
 import ReactMarkdown from "react-markdown";
 import debounce from "lodash/debounce";
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 export type DataType = Record<string, unknown>;
 export type ColumnType<T extends DataType> = ColumnDef<T> & {
   initialWidth?: number;
+  accessorKey?: string;
 };
+
+interface ColumnStats {
+  min: number;
+  max: number;
+  avg: number;
+  distribution: number[];
+  bucketSize: number;
+  type: "number" | "array" | "string";
+}
+
+function calculateColumnStats(
+  data: Record<string, unknown>[],
+  accessor: string
+): ColumnStats | null {
+  let type: "number" | "array" | "string" = "string";
+  const firstValue = data.find((row) => row[accessor] != null)?.[accessor];
+
+  // Determine type based on first non-null value
+  if (typeof firstValue === "number") type = "number";
+  if (Array.isArray(firstValue)) type = "array";
+
+  const values = data
+    .map((row) => {
+      const value = row[accessor];
+
+      if (value === null || value === undefined) {
+        return null;
+      }
+
+      // For numbers, use the value directly
+      if (typeof value === "number") {
+        return value;
+      }
+
+      // For arrays, count number of elements
+      if (Array.isArray(value)) {
+        return value.length;
+      }
+
+      // For strings and other types, count words after converting to string
+      const stringValue =
+        typeof value === "string" ? value : JSON.stringify(value);
+      return stringValue.split(/\s+/).length;
+    })
+    .filter((length): length is number => length !== null);
+
+  if (values.length === 0) return null;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+
+  // Special handling for single distinct value
+  if (min === max) {
+    return {
+      min,
+      max,
+      avg,
+      distribution: [values.length], // Put all values in a single bucket
+      bucketSize: 1,
+      type: type,
+    };
+  }
+
+  // For numbers, use more precise bucketing
+  const bucketSize =
+    type === "number" ? (max - min) / 7 : Math.ceil((max - min) / 7);
+
+  const distribution = new Array(7).fill(0);
+
+  values.forEach((value) => {
+    const bucketIndex = Math.min(
+      Math.floor((value - min) / bucketSize),
+      distribution.length - 1
+    );
+    distribution[bucketIndex]++;
+  });
+
+  return {
+    min,
+    max,
+    avg,
+    distribution,
+    bucketSize,
+    type,
+  };
+}
+
+const WordCountHistogram = React.memo(
+  ({
+    histogramData,
+  }: {
+    histogramData: { range: string; count: number; fullRange: string }[];
+  }) => {
+    // Calculate total count for fractions
+    const totalCount = useMemo(
+      () => histogramData.reduce((sum, item) => sum + item.count, 0),
+      [histogramData]
+    );
+
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={histogramData} barCategoryGap={1}>
+          <XAxis
+            dataKey="range"
+            tick={{ fontSize: 10 }}
+            interval={2}
+            tickLine={false}
+            stroke="hsl(var(--muted-foreground))"
+          />
+          <Tooltip
+            formatter={(value: number) => [
+              `${value.toLocaleString()} (${(
+                (value / totalCount) *
+                100
+              ).toFixed(1)}%)`,
+              "Count",
+            ]}
+            labelFormatter={(label: string) => label}
+            contentStyle={{
+              backgroundColor: "hsl(var(--popover))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "var(--radius)",
+              color: "hsl(var(--popover-foreground))",
+              padding: "8px 12px",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            }}
+          />
+          <Bar
+            dataKey="count"
+            fill="hsl(var(--chart-2))"
+            radius={[4, 4, 0, 0]}
+            isAnimationActive={false}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+);
+WordCountHistogram.displayName = "WordCountHistogram";
+
+interface ColumnHeaderProps {
+  header: string;
+  stats: ColumnStats | null;
+  isBold: boolean;
+  onSort: () => void;
+  sortDirection: "asc" | "desc" | false;
+}
+
+const ColumnHeader = React.memo(
+  ({ header, stats, isBold, onSort, sortDirection }: ColumnHeaderProps) => {
+    const histogramData = useMemo(() => {
+      if (!stats) return [];
+
+      const getUnitLabel = () => {
+        switch (stats.type) {
+          case "number":
+            return "";
+          case "array":
+            return " items";
+          default:
+            return " words";
+        }
+      };
+
+      // Special handling for single distinct value
+      if (stats.min === stats.max) {
+        return [
+          {
+            range: `${Math.round(stats.min)}`,
+            count: stats.distribution[0],
+            fullRange: `${Math.round(stats.min)}${getUnitLabel()}`,
+          },
+        ];
+      }
+
+      return stats.distribution.map((count, i) => ({
+        range: `${Math.round(stats.min + i * stats.bucketSize)}`,
+        count,
+        fullRange: `${Math.round(
+          stats.min + i * stats.bucketSize
+        )} - ${Math.round(
+          stats.min + (i + 1) * stats.bucketSize
+        )}${getUnitLabel()}`,
+      }));
+    }, [stats]);
+
+    return (
+      <div className="space-y-2">
+        <div className={`${isBold ? "font-bold" : ""} flex items-center gap-2`}>
+          <span>{header}</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSort();
+            }}
+            className="p-1 hover:bg-accent rounded-sm"
+          >
+            {sortDirection === false && <ArrowUpDown className="h-4 w-4" />}
+            {sortDirection === "asc" && <ArrowUp className="h-4 w-4" />}
+            {sortDirection === "desc" && <ArrowDown className="h-4 w-4" />}
+          </button>
+        </div>
+        {stats && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              {stats.min === stats.max ? (
+                <span className="w-full text-center">
+                  Single value: {stats.min}
+                  {stats.type === "array"
+                    ? " items"
+                    : stats.type === "string"
+                    ? " words"
+                    : ""}
+                </span>
+              ) : (
+                <>
+                  <span>
+                    {stats.min}
+                    {stats.type === "array"
+                      ? " items"
+                      : stats.type === "string"
+                      ? " words"
+                      : ""}
+                  </span>
+                  <span>avg: {Math.round(stats.avg)}</span>
+                  <span>
+                    {stats.max}
+                    {stats.type === "array"
+                      ? " items"
+                      : stats.type === "string"
+                      ? " words"
+                      : ""}
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="h-24 w-full">
+              <WordCountHistogram histogramData={histogramData} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+ColumnHeader.displayName = "ColumnHeader";
 
 const ColumnResizer = <T extends DataType>({
   header,
@@ -132,12 +384,69 @@ const MarkdownCell = React.memo(({ content }: MarkdownCellProps) => {
         h4: ({ children }) => (
           <div style={{ fontWeight: "bold" }}>{children}</div>
         ),
+        ul: ({ children }) => (
+          <ul
+            style={{
+              listStyleType: "•",
+              paddingLeft: "1rem",
+              margin: "0.25rem 0",
+            }}
+          >
+            {children}
+          </ul>
+        ),
+        ol: ({ children }) => (
+          <ol
+            style={{
+              listStyleType: "decimal",
+              paddingLeft: "1rem",
+              margin: "0.25rem 0",
+            }}
+          >
+            {children}
+          </ol>
+        ),
+        li: ({ children }) => (
+          <li style={{ marginBottom: "0.125rem" }}>{children}</li>
+        ),
+        code: ({
+          className,
+          children,
+          inline,
+          ...props
+        }: {
+          className?: string;
+          children: React.ReactNode;
+          inline?: boolean;
+        }) => {
+          const match = /language-(\w+)/.exec(className || "");
+          return !inline && match ? (
+            <pre className="bg-slate-100 p-2 rounded">
+              <code className={className} {...props}>
+                {children}
+              </code>
+            </pre>
+          ) : (
+            <code className="bg-slate-100 px-1 rounded" {...props}>
+              {children}
+            </code>
+          );
+        },
+        pre: ({ children }) => (
+          <pre className="bg-slate-100 p-2 rounded">{children}</pre>
+        ),
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-4 border-slate-300 pl-4 my-2 italic">
+            {children}
+          </blockquote>
+        ),
       }}
     >
       {content}
     </ReactMarkdown>
   );
 });
+MarkdownCell.displayName = "MarkdownCell";
 
 function ResizableDataTable<T extends DataType>({
   data,
@@ -168,6 +477,7 @@ function ResizableDataTable<T extends DataType>({
     return {};
   });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const saveSettings = useCallback(() => {
     localStorage.setItem(
@@ -210,24 +520,64 @@ function ResizableDataTable<T extends DataType>({
     []
   );
 
+  const columnStats = useMemo(() => {
+    const stats: Record<string, ColumnStats | null> = {};
+    columns.forEach((column) => {
+      const accessorKey = (column as { accessorKey?: string }).accessorKey;
+      if (accessorKey) {
+        stats[accessorKey] = calculateColumnStats(data, accessorKey);
+      }
+    });
+    return stats;
+  }, [data, columns]);
+
   const table = useReactTable({
     data,
-    // Replace columns with sortedColumns here
-    columns: sortedColumns,
+    columns: sortedColumns.map((col) => ({
+      ...col,
+      enableSorting: true,
+      sortingFn: (rowA: any, rowB: any) => {
+        const accessor = col.accessorKey;
+        if (!accessor) return 0;
+
+        const a = rowA.getValue(accessor);
+        const b = rowB.getValue(accessor);
+
+        // Handle null/undefined values
+        if (a == null) return -1;
+        if (b == null) return 1;
+
+        // Sort based on type
+        if (typeof a === "number" && typeof b === "number") {
+          return a - b;
+        }
+
+        if (Array.isArray(a) && Array.isArray(b)) {
+          return a.length - b.length;
+        }
+
+        // For strings, do alphabetical comparison
+        return String(a).localeCompare(String(b));
+      },
+    })),
     columnResizeMode: "onChange" as ColumnResizeMode,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     onColumnSizingChange: (newColumnSizing) => {
       setColumnSizing(newColumnSizing);
-      setIsResizing(true);  
-      debouncedSetIsResizing(false);  
+      setIsResizing(true);
+      debouncedSetIsResizing(false);
       saveSettings();
     },
     onColumnVisibilityChange: setColumnVisibility,
+    onSortingChange: setSorting,
     state: {
       columnSizing,
       columnVisibility,
+      sorting,
     },
+    enableSorting: true,
     enableColumnResizing: true,
     defaultColumn: {
       minSize: 30,
@@ -238,7 +588,7 @@ function ResizableDataTable<T extends DataType>({
       pagination: {
         pageSize: 5,
       },
-    }
+    },
   });
 
   return (
@@ -312,12 +662,24 @@ function ResizableDataTable<T extends DataType>({
                       : "normal",
                   }}
                 >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
+                  {header.isPlaceholder ? null : (
+                    <ColumnHeader
+                      header={header.column.columnDef.header as string}
+                      stats={
+                        columnStats[
+                          (header.column.columnDef as { accessorKey?: string })
+                            .accessorKey || ""
+                        ]
+                      }
+                      isBold={boldedColumns.includes(
+                        header.column.columnDef.header as string
                       )}
+                      onSort={() => header.column.toggleSorting()}
+                      sortDirection={
+                        header.column.getIsSorted() as false | "asc" | "desc"
+                      }
+                    />
+                  )}
                   <ColumnResizer header={header} />
                 </TableHead>
               ))}
@@ -336,10 +698,7 @@ function ResizableDataTable<T extends DataType>({
                   }}
                 >
                   <span style={{ fontSize: "0.75rem", color: "#888" }}>
-                    {table.getState().pagination.pageIndex *
-                      table.getState().pagination.pageSize +
-                      index +
-                      1}
+                    {row.index + 1}
                   </span>
                 </TableCell>
                 {row.getVisibleCells().map((cell) => (

@@ -54,6 +54,10 @@ import { Input } from "@/components/ui/input";
 import path from "path";
 import { schemaDictToItemSet } from "./utils";
 import { v4 as uuidv4 } from "uuid";
+import { useOptimizeCheck } from "@/hooks/useOptimizeCheck";
+import { canBeOptimized } from "@/lib/utils";
+import { Switch } from "./ui/switch";
+import { Textarea } from "./ui/textarea";
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -80,10 +84,17 @@ const PipelineGUI: React.FC = () => {
     optimizerModel,
     setOptimizerModel,
     setOptimizerProgress,
+    autoOptimizeCheck,
+    setAutoOptimizeCheck,
+    highLevelGoal,
+    setHighLevelGoal,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
+  const [tempAutoOptimizeCheck, setTempAutoOptimizeCheck] =
+    useState(autoOptimizeCheck);
   const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
+  const [tempHighLevelGoal, setTempHighLevelGoal] = useState(highLevelGoal);
   const [tempSampleSize, setTempSampleSize] = useState(
     sampleSize?.toString() || ""
   );
@@ -94,6 +105,38 @@ const PipelineGUI: React.FC = () => {
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
+
+  const { submitTask } = useOptimizeCheck({
+    onComplete: (result) => {
+      setOperations((prev) => {
+        const newOps = [...prev];
+        if (newOps.length > 0) {
+          const lastOp = newOps[newOps.length - 1];
+          lastOp.shouldOptimizeResult = result.should_optimize;
+        }
+        return newOps;
+      });
+      setCost((prev) => prev + result.cost);
+      // Send toast with should optimize result
+      // If should_optimize string is not empty, send toast with should optimize result
+      if (result.should_optimize) {
+        toast({
+          title: `Hey! Consider optimizing ${
+            operations[operations.length - 1].name
+          }`,
+          description: result.should_optimize,
+          duration: Infinity,
+        });
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Optimization Check Failed",
+        description: error,
+        variant: "destructive",
+      });
+    },
+  });
 
   useEffect(() => {
     if (lastMessage) {
@@ -117,7 +160,6 @@ const PipelineGUI: React.FC = () => {
           const newOperations = optimizedOps.map((optimizedOp) => {
             const {
               id,
-              llmType,
               type,
               name,
               prompt,
@@ -158,6 +200,19 @@ const PipelineGUI: React.FC = () => {
           });
 
           setOperations(newOperations);
+        } else {
+          // No optimized operations, so we need to check if we should optimize the last operation
+          // Trigger should optimize for the last operation
+          if (autoOptimizeCheck) {
+            const lastOp = operations[operations.length - 1];
+            if (lastOp && canBeOptimized(lastOp.type)) {
+              submitTask({
+                yaml_config: lastMessage.data.yaml_config,
+                step_name: "data_processing", // TODO: Make this a constant
+                op_name: lastOp.name,
+              });
+            }
+          }
         }
 
         setCost((prevCost) => prevCost + runCost);
@@ -176,6 +231,7 @@ const PipelineGUI: React.FC = () => {
           title: "Error",
           description: lastMessage.data,
           variant: "destructive",
+          duration: Infinity,
         });
 
         // Close the WebSocket connection
@@ -193,6 +249,12 @@ const PipelineGUI: React.FC = () => {
   }, [pipelineName]);
 
   useEffect(() => {
+    if (autoOptimizeCheck) {
+      setTempAutoOptimizeCheck(autoOptimizeCheck);
+    }
+  }, [autoOptimizeCheck]);
+
+  useEffect(() => {
     if (defaultModel) {
       setTempDefaultModel(defaultModel);
     }
@@ -206,9 +268,15 @@ const PipelineGUI: React.FC = () => {
 
   useEffect(() => {
     if (optimizerModel) {
-      setTempDefaultModel(tempOptimizerModel);
+      setTempOptimizerModel(optimizerModel);
     }
   }, [optimizerModel]);
+
+  useEffect(() => {
+    if (highLevelGoal) {
+      setTempHighLevelGoal(highLevelGoal);
+    }
+  }, [highLevelGoal]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -384,6 +452,7 @@ const PipelineGUI: React.FC = () => {
         const updatedOperations = operations.map((op, index) => ({
           ...op,
           runIndex: prevNum + index + 1,
+          shouldOptimizeResult: undefined,
         }));
         setOperations(updatedOperations);
         return newNum;
@@ -479,6 +548,8 @@ const PipelineGUI: React.FC = () => {
     setDefaultModel(tempDefaultModel);
     setIsSettingsOpen(false);
     setOptimizerModel(tempOptimizerModel);
+    setAutoOptimizeCheck(tempAutoOptimizeCheck);
+    setHighLevelGoal(tempHighLevelGoal);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -664,6 +735,41 @@ const PipelineGUI: React.FC = () => {
                 >
                   Sample
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Code Operations</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_map",
+                      "Untitled Code Map"
+                    )
+                  }
+                >
+                  Code Map
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_reduce",
+                      "Untitled Code Reduce"
+                    )
+                  }
+                >
+                  Code Reduce
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_filter",
+                      "Untitled Code Filter"
+                    )
+                  }
+                >
+                  Code Filter
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex space-x-2">
@@ -745,6 +851,19 @@ const PipelineGUI: React.FC = () => {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="goal" className="text-right">
+                High-Level Goal
+              </Label>
+              <Textarea
+                id="goal"
+                value={tempHighLevelGoal}
+                onChange={(e) => setTempHighLevelGoal(e.target.value)}
+                className="col-span-3"
+                rows={4}
+                placeholder="Describe the high-level goal of your pipeline (e.g., 'I want to find common themes across all the documents' or 'I want to summarize the most important things related to X')..."
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="sampling" className="text-right">
                 Sample Size
               </Label>
@@ -808,6 +927,17 @@ const PipelineGUI: React.FC = () => {
                   <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="autoOptimize" className="text-right">
+                Automatically Check Whether to Optimize
+              </Label>
+              <Switch
+                id="autoOptimize"
+                checked={tempAutoOptimizeCheck}
+                onCheckedChange={(checked) => setTempAutoOptimizeCheck(checked)}
+                className="col-span-3"
+              />
             </div>
           </div>
           <DialogFooter>

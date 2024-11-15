@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
-import { Loader2, Download, ChevronDown } from "lucide-react";
+import { Loader2, Download, ChevronDown, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import BookmarkableText from "@/components/BookmarkableText";
@@ -18,6 +18,47 @@ import {
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import AnsiRenderer from "./AnsiRenderer";
 import clsx from "clsx";
+
+const TinyPieChart: React.FC<{ percentage: number }> = ({ percentage }) => {
+  const size = 16;
+  const radius = 6;
+  const strokeWidth = 2;
+  const center = size / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDasharray = `${
+    (percentage * circumference) / 100
+  } ${circumference}`;
+
+  return (
+    <div className="relative w-4 h-4 flex items-center justify-center">
+      <svg
+        className="w-4 h-4 -rotate-90"
+        viewBox={`0 0 ${size} ${size}`}
+        width={size}
+        height={size}
+      >
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          className="fill-none stroke-gray-200"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          className={clsx(
+            "fill-none transition-all duration-500 ease-out",
+            percentage > 100 ? "stroke-emerald-500" : "stroke-rose-500"
+          )}
+          strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
+        />
+      </svg>
+    </div>
+  );
+};
 
 export const ConsoleContent: React.FC = () => {
   const { terminalOutput, setTerminalOutput, optimizerProgress } =
@@ -120,14 +161,12 @@ export const Output: React.FC = () => {
   const [opName, setOpName] = useState<string | undefined>(undefined);
   const [isResolveOrReduce, setIsResolveOrReduce] = useState<boolean>(false);
 
-  const [defaultTab, setDefaultTab] = useState<string>("table");
+  const [activeTab, setActiveTab] = useState<string>("table");
   const { readyState } = useWebSocket();
 
   useEffect(() => {
-    if (!isLoadingOutputs) {
-      setDefaultTab("table");
-    } else {
-      setDefaultTab("console");
+    if (isLoadingOutputs) {
+      setActiveTab("console");
     }
   }, [isLoadingOutputs]);
 
@@ -444,7 +483,7 @@ export const Output: React.FC = () => {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
+                    <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md cursor-help">
                       <span
                         className={clsx(
                           "font-medium",
@@ -459,6 +498,14 @@ export const Output: React.FC = () => {
                       >
                         {selectivityFactor}×
                       </span>
+                      {selectivityFactor !== "N/A" &&
+                        Number(selectivityFactor) < 1 && (
+                          <div className="ml-1">
+                            <TinyPieChart
+                              percentage={Number(selectivityFactor) * 100}
+                            />
+                          </div>
+                        )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -498,7 +545,11 @@ export const Output: React.FC = () => {
         </div>
       </div>
 
-      <Tabs defaultValue={defaultTab} className="flex-1 flex flex-col min-h-0">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex-1 flex flex-col min-h-0"
+      >
         <div className="flex-none px-4">
           <TabsList>
             <TabsTrigger value="console" className="flex items-center">

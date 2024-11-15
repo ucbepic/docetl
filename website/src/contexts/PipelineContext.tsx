@@ -36,6 +36,8 @@ interface PipelineState {
   cost: number;
   defaultModel: string;
   optimizerModel: string;
+  autoOptimizeCheck: boolean;
+  highLevelGoal: string;
 }
 
 interface PipelineContextType extends PipelineState {
@@ -64,6 +66,8 @@ interface PipelineContextType extends PipelineState {
   unsavedChanges: boolean;
   clearPipelineState: () => void;
   serializeState: () => Promise<string>;
+  setAutoOptimizeCheck: React.Dispatch<React.SetStateAction<boolean>>;
+  setHighLevelGoal: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -195,7 +199,7 @@ const serializeState = async (state: PipelineState): Promise<string> => {
 
   return `Current Pipeline State:
 Pipeline Name: "${state.pipelineName}"
-
+High-Level Goal: "${state.highLevelGoal || "unspecified"}"
 Input Dataset File: ${
     state.currentFile ? `"${state.currentFile.name}"` : "None"
   }
@@ -255,6 +259,14 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.OPTIMIZER_MODEL_KEY,
       "gpt-4o-mini"
     ),
+    autoOptimizeCheck: loadFromLocalStorage(
+      localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
+      false
+    ),
+    highLevelGoal: loadFromLocalStorage(
+      localStorageKeys.HIGH_LEVEL_GOAL_KEY,
+      ""
+    ),
   }));
 
   const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -313,8 +325,15 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.OPTIMIZER_MODEL_KEY,
       JSON.stringify(stateRef.current.optimizerModel)
     );
+    localStorage.setItem(
+      localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
+      JSON.stringify(stateRef.current.autoOptimizeCheck)
+    );
+    localStorage.setItem(
+      localStorageKeys.HIGH_LEVEL_GOAL_KEY,
+      JSON.stringify(stateRef.current.highLevelGoal)
+    );
     setUnsavedChanges(false);
-    console.log("Progress saved!");
   }, []);
 
   const setStateAndUpdate = useCallback(
@@ -359,6 +378,8 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       defaultModel: "gpt-4o-mini",
       optimizerModel: "gpt-4o-mini",
       optimizerProgress: null,
+      autoOptimizeCheck: false,
+      highLevelGoal: "",
     });
     setUnsavedChanges(false);
     console.log("Pipeline state cleared!");
@@ -437,6 +458,14 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     unsavedChanges,
     clearPipelineState,
     serializeState: useCallback(() => serializeState(stateRef.current), []),
+    setAutoOptimizeCheck: useCallback(
+      (value) => setStateAndUpdate("autoOptimizeCheck", value),
+      [setStateAndUpdate]
+    ),
+    setHighLevelGoal: useCallback(
+      (value) => setStateAndUpdate("highLevelGoal", value),
+      [setStateAndUpdate]
+    ),
   };
 
   return (

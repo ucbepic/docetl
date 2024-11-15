@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { ResizableBox } from "react-resizable";
-import { Eraser, RefreshCw, X } from "lucide-react";
+import { Eraser, RefreshCw, X, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,6 +22,7 @@ const DEFAULT_SUGGESTIONS = [
   "Go over current outputs",
   "Help me refine my current operation prompt",
   "Am I doing this right?",
+  "Help me with jinja2 templating",
 ];
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
@@ -103,9 +104,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
         content: `You are the DocETL assistant, helping users build and refine data analysis pipelines. You are an expert at data analysis.
 
 Core Capabilities:
-- DocETL enables users to create sophisticated data processing workflows combining LLMs with traditional data operations
+- DocETL enables users to create sophisticated data processing workflows with LLM calls, like crowdsourcing pipelines
 - Each pipeline processes documents through a sequence of operations
-- Operations can be LLM-based (map, reduce, resolve, filter) or utility-based (unnest, split, gather, sample)
+- Operations can be LLM-based (map, reduce, resolve, filter) or utility-based (unnest, split, gather, sample) or code-based (python for map, reduce, and filter)
 
 Operation Details:
 - Every LLM operation has:
@@ -114,7 +115,13 @@ Operation Details:
 - Operation-specific templating:
   - Map/Filter: Access current doc with '{{ input.keyname }}'
   - Reduce: Loop through docs with '{% for doc in inputs %}...{% endfor %}'
-  - Resolve: Compare docs with '{{ input1 }}/{{ input2 }}' and canonicalize with 'inputs'
+  - Resolve: Compare docs with '{{ input1 }}/{{ input2 }}' and canonicalize with '{{ inputs }}'
+- Code-based operations:
+  - Map: Define a transform function (def transform(doc: dict) -> dict), where the returned dict will have key-value pairs that will be added to the output document
+  - Filter: Define a transform function (def transform(doc: dict) -> bool), where the function should return true if the document should be included in the output
+  - Reduce: Define a transform function (def transform(docs: list[dict]) -> dict), where the returned dict will have key-value pairs that will *be* the output document (unless "pass_through" is set to true, then the first original doc for every group will also be returned)
+  - Only do imports of common libraries, inside the function definition
+  - Only suggest code-based operations if the task is one that is easily expressed in code, and LLMs or crowd workers are incapable of doing it correctly (e.g., word count, simple regex, etc.)
 
 Your Role:
 - Help users optimize pipelines and overcome challenges
@@ -131,8 +138,20 @@ Best Practices:
 - Be specific, never vague or general
 - Be concise, don't repeat yourself
 
+When Reviewing Outputs:
+- All the output fields have been converted to strings, even if they were originally numbers, arrays, or other types. So NEVER COMMENT ON TYPES.
+- Actively analyze outputs for discrepancies in structure across the outputs, edge cases, and quality issues.
+- For discrepancies, describe how to standardize them.
+- Identify where outputs may not fully satisfy the intended goals
+- Never simply restate or summarize outputs - provide critical analysis
+- Provide 1 suggestion at a time
+
+Remember, you are only helping the user discover their analysis goal, and only suggest improvements that LLMs or crowd workers are capable of.
+
 Here's their current pipeline state:
-${pipelineState}`,
+${pipelineState}
+
+Remember, all the output fields have been converted to strings, even if they were originally numbers, arrays, or other types. So NEVER COMMENT ON TYPES. Steer the user towards their high-level goal, if specified.`,
       },
       ...messages.filter((m) => m.role !== "system"),
     ]);
@@ -142,6 +161,27 @@ ${pipelineState}`,
 
   const handleClearMessages = () => {
     setMessages([]);
+  };
+
+  const CodeBlock = ({ children }: { children: string }) => {
+    const handleCopy = () => {
+      navigator.clipboard.writeText(children);
+    };
+
+    return (
+      <div className="relative group">
+        <Button
+          variant="ghost"
+          className="absolute right-2 top-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={handleCopy}
+        >
+          <Copy size={16} />
+        </Button>
+        <pre>
+          <code>{children}</code>
+        </pre>
+      </div>
+    );
   };
 
   return (
@@ -236,7 +276,24 @@ ${pipelineState}`,
                         hyphens: "auto",
                       }}
                     >
-                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                      <ReactMarkdown
+                        components={{
+                          code: ({
+                            inline,
+                            children,
+                          }: {
+                            inline?: boolean;
+                            children: React.ReactNode;
+                          }) => {
+                            if (inline) {
+                              return <code>{children}</code>;
+                            }
+                            return <CodeBlock>{String(children)}</CodeBlock>;
+                          },
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 ))

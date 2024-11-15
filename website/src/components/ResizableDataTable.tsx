@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -40,6 +46,8 @@ import { TABLE_SETTINGS_KEY } from "@/app/localStorageKeys";
 import ReactMarkdown from "react-markdown";
 import debounce from "lodash/debounce";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 
 export type DataType = Record<string, unknown>;
 export type ColumnType<T extends DataType> = ColumnDef<T> & {
@@ -448,6 +456,163 @@ const MarkdownCell = React.memo(({ content }: MarkdownCellProps) => {
 });
 MarkdownCell.displayName = "MarkdownCell";
 
+interface SearchableCellProps {
+  content: string;
+  isResizing: boolean;
+}
+
+const SearchableCell = React.memo(
+  ({ content, isResizing }: SearchableCellProps) => {
+    const [searchTerm, setSearchTerm] = useState("");
+    const [highlightedContent, setHighlightedContent] = useState(content);
+    const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+    const [matchCount, setMatchCount] = useState(0);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Search functionality
+    useEffect(() => {
+      if (!searchTerm) {
+        setHighlightedContent(content);
+        setMatchCount(0);
+        setCurrentMatchIndex(0);
+        return;
+      }
+
+      try {
+        const regex = new RegExp(`(${searchTerm})`, "gi");
+        const matches = content.match(regex);
+        const matchesCount = matches ? matches.length : 0;
+        setMatchCount(matchesCount);
+
+        if (matchesCount > 0) {
+          const highlighted = content.replace(
+            regex,
+            (match) => `<mark class="search-match">${match}</mark>`
+          );
+          setHighlightedContent(highlighted);
+
+          // Scroll to current match
+          setTimeout(() => {
+            if (containerRef.current) {
+              const marks =
+                containerRef.current.getElementsByClassName("search-match");
+              if (marks.length > 0 && currentMatchIndex < marks.length) {
+                marks[currentMatchIndex].scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+              }
+            }
+          }, 100);
+        } else {
+          setHighlightedContent(content);
+        }
+      } catch {
+        setHighlightedContent(content);
+        setMatchCount(0);
+      }
+    }, [searchTerm, content, currentMatchIndex]);
+
+    const navigateMatches = useCallback(
+      (direction: "next" | "prev") => {
+        if (matchCount === 0) return;
+
+        if (direction === "next") {
+          setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
+        } else {
+          setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
+        }
+      },
+      [matchCount]
+    );
+
+    // Style for search matches
+    useEffect(() => {
+      const styleId = "search-match-style";
+      let styleElement = document.getElementById(styleId) as HTMLStyleElement;
+
+      if (!styleElement) {
+        styleElement = document.createElement("style");
+        styleElement.id = styleId;
+        document.head.appendChild(styleElement);
+      }
+
+      styleElement.textContent = `
+        mark.search-match {
+          background-color: hsl(var(--primary) / 0.2);
+          color: inherit;
+          padding: 0;
+          border-radius: 2px;
+        }
+        mark.search-match:nth-of-type(${currentMatchIndex + 1}) {
+          background-color: hsl(var(--primary) / 0.5);
+        }
+      `;
+
+      return () => {
+        if (styleElement && styleElement.parentNode) {
+          styleElement.parentNode.removeChild(styleElement);
+        }
+      };
+    }, [currentMatchIndex]);
+
+    return (
+      <div className="relative">
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center gap-2 p-1">
+            <Search className="h-3 w-3 text-muted-foreground" />
+            <Input
+              placeholder="Search in cell..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentMatchIndex(0);
+              }}
+              className="h-6 text-xs border-none shadow-none focus-visible:ring-0"
+            />
+            {matchCount > 0 && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => navigateMatches("prev")}
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </Button>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {currentMatchIndex + 1}/{matchCount}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => navigateMatches("next")}
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div ref={containerRef}>
+          {isResizing ? (
+            <div>{content}</div>
+          ) : searchTerm ? (
+            <div
+              dangerouslySetInnerHTML={{ __html: highlightedContent }}
+              className="prose prose-sm max-w-none"
+            />
+          ) : (
+            <MarkdownCell content={content} />
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+SearchableCell.displayName = "SearchableCell";
+
 function ResizableDataTable<T extends DataType>({
   data,
   columns,
@@ -536,7 +701,7 @@ function ResizableDataTable<T extends DataType>({
     columns: sortedColumns.map((col) => ({
       ...col,
       enableSorting: true,
-      sortingFn: (rowA: any, rowB: any) => {
+      sortingFn: (rowA: Row<T>, rowB: Row<T>) => {
         const accessor = col.accessorKey;
         if (!accessor) return 0;
 
@@ -721,11 +886,10 @@ function ResizableDataTable<T extends DataType>({
                       }}
                     >
                       {typeof cell.getValue() === "string" ? (
-                        isResizing ? (
-                          <div>{cell.getValue() as string}</div>
-                        ) : (
-                          <MarkdownCell content={cell.getValue() as string} />
-                        )
+                        <SearchableCell
+                          content={cell.getValue() as string}
+                          isResizing={isResizing}
+                        />
                       ) : (
                         flexRender(
                           cell.column.columnDef.cell,

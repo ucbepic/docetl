@@ -86,7 +86,7 @@ class MapOptimizer:
             runner, llm_client, console, config, max_threads, is_filter
         )
 
-    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> str:
+    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Determine if the given operation configuration should be optimized.
         """
@@ -95,9 +95,9 @@ class MapOptimizer:
             assessment_str = "\n".join(assessment.get("reasons", [])) + "\n\nHere are some improvements that may help:\n" + "\n".join(assessment.get("improvements", []))
             if data_exceeds_limit:
                 assessment_str += "\nAlso, the input data exceeds the token limit."
-            return assessment_str
+            return assessment_str, input_data, output_data
         else:
-            return ""
+            return "", input_data, output_data
             
 
     def _should_optimize_helper(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int, float, str, Dict[str, Any], bool]:

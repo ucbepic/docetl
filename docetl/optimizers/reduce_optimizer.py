@@ -124,10 +124,10 @@ class ReduceOptimizer:
 
         return validation_results, prompt_tokens, model_input_context_length, model, validator_prompt, original_output
     
-    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> str:
+    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
         validation_results, prompt_tokens, model_input_context_length, model, validator_prompt, original_output = self.should_optimize_helper(op_config, input_data)
         if prompt_tokens * 1.5 > model_input_context_length:
-            return "The reduce prompt is likely to exceed the token limit for model {model}."
+            return "The reduce prompt is likely to exceed the token limit for model {model}.", input_data, original_output
 
         if validation_results.get("needs_improvement", False):
             return "\n".join(
@@ -135,9 +135,9 @@ class ReduceOptimizer:
                     f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
                     for result in validation_results["validation_results"]
                 ]
-            )
+            ), input_data, original_output
         else:
-            return ""
+            return "", input_data, original_output
 
     def optimize(
         self,

@@ -43,7 +43,7 @@ const formSchema = z.object({
 const BookmarkableText: React.FC<BookmarkableTextProps> = ({
   children,
   source,
-  className = "overflow-y-auto"
+  className = "overflow-y-auto",
 }) => {
   const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 });
   const [showButton, setShowButton] = useState(false);
@@ -74,59 +74,58 @@ const BookmarkableText: React.FC<BookmarkableTextProps> = ({
     });
   };
 
+  // Listen for selection changes
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      //   if (
-      //     isPopoverOpen &&
-      //     popoverRef.current &&
-      //     !popoverRef.current.contains(event.target as Node) &&
-      //     buttonRef.current &&
-      //     !buttonRef.current.contains(event.target as Node)
-      //   ) {
-      //     setIsPopoverOpen(false);
-      //   }
+    const handleSelectionChange = () => {
+      if (isPopoverOpen) return;
+
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        setShowButton(false);
+      }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("selectionchange", handleSelectionChange);
+    document.addEventListener("mousedown", handleSelectionChange);
+
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      document.removeEventListener("mousedown", handleSelectionChange);
     };
   }, [isPopoverOpen]);
 
   const handleMultiElementSelection = (
-    event: React.MouseEvent | React.TouchEvent,
+    event: React.MouseEvent | React.TouchEvent
   ) => {
-    event.stopPropagation();
-    const selection = window.getSelection();
+    if (isPopoverOpen) return;
 
-    if (selection && !selection.isCollapsed) {
-      const range = selection.getRangeAt(0);
-      const fragment = range.cloneContents();
-      const tempDiv = document.createElement("div");
-      tempDiv.appendChild(fragment);
-      const text = tempDiv.innerText.trim();
-      if (text) {
-        form.setValue("editedText", text);
-        const rect = range.getBoundingClientRect();
-        setButtonPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.top,
-        });
-        setShowButton(true);
-      } else {
-        // setShowButton(false);
-      }
-    } else {
-      // if (!isPopoverOpen) {
-      //     setShowButton(false);
-      // } else {
-      //     setShowButton(true);
-      // }
+    const selection = window.getSelection();
+    const text = selection?.toString().trim();
+
+    if (!selection || !text) {
+      setShowButton(false);
+      return;
     }
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    form.setValue("editedText", text);
+    setButtonPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
+    setShowButton(true);
   };
 
   const handlePopoverOpenChange = (open: boolean) => {
     setIsPopoverOpen(open);
+    if (!open) {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        setShowButton(false);
+      }
+    }
   };
 
   const handleClosePopover = () => {

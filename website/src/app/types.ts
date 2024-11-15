@@ -93,6 +93,8 @@ export interface OptimizeResult {
   task_id: string;
   status: TaskStatus;
   should_optimize?: string;
+  input_data?: Array<Record<string, unknown>>;
+  output_data?: Array<Record<string, unknown>>;
   cost?: number;
   error?: string;
   created_at: string;

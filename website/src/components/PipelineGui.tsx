@@ -824,7 +824,7 @@ const PipelineGUI: React.FC = () => {
                 ) : (
                   <RefreshCw size={16} className="mr-2" />
                 )}
-                Clear and Run
+                Clear Cache and Run
               </Button>
               <Button
                 size="sm"

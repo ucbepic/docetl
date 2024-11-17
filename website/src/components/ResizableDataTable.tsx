@@ -155,14 +155,15 @@ const WordCountHistogram = React.memo(
     );
 
     return (
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height={40}>
         <BarChart data={histogramData} barCategoryGap={1}>
           <XAxis
             dataKey="range"
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 8 }}
             interval={2}
             tickLine={false}
             stroke="hsl(var(--muted-foreground))"
+            height={15}
           />
           <Tooltip
             formatter={(value: number) => [
@@ -181,6 +182,7 @@ const WordCountHistogram = React.memo(
               padding: "8px 12px",
               boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
             }}
+            wrapperStyle={{ zIndex: 1000 }}
           />
           <Bar
             dataKey="count"
@@ -242,7 +244,7 @@ const ColumnHeader = React.memo(
     }, [stats]);
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-1">
         <div className={`${isBold ? "font-bold" : ""} flex items-center gap-2`}>
           <span>{header}</span>
           <button
@@ -250,16 +252,16 @@ const ColumnHeader = React.memo(
               e.stopPropagation();
               onSort();
             }}
-            className="p-1 hover:bg-accent rounded-sm"
+            className="p-0.5 hover:bg-accent rounded-sm"
           >
-            {sortDirection === false && <ArrowUpDown className="h-4 w-4" />}
-            {sortDirection === "asc" && <ArrowUp className="h-4 w-4" />}
-            {sortDirection === "desc" && <ArrowDown className="h-4 w-4" />}
+            {sortDirection === false && <ArrowUpDown className="h-3 w-3" />}
+            {sortDirection === "asc" && <ArrowUp className="h-3 w-3" />}
+            {sortDirection === "desc" && <ArrowDown className="h-3 w-3" />}
           </button>
         </div>
         {stats && (
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="space-y-0.5">
+            <div className="flex justify-between text-[10px] text-muted-foreground">
               {stats.min === stats.max ? (
                 <span className="w-full text-center">
                   Single value: {stats.min}
@@ -291,7 +293,7 @@ const ColumnHeader = React.memo(
                 </>
               )}
             </div>
-            <div className="h-24 w-full">
+            <div className="h-10 w-full">
               <WordCountHistogram histogramData={histogramData} />
             </div>
           </div>
@@ -758,12 +760,16 @@ function ResizableDataTable<T extends DataType>({
 
   return (
     <div className="w-full overflow-auto">
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-2 flex justify-between items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center ml-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center ml-2 h-7"
+            >
               Show/Hide Columns
-              <ChevronDown className="ml-2 h-4 w-4" />
+              <ChevronDown className="ml-1 h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56">
@@ -782,26 +788,28 @@ function ResizableDataTable<T extends DataType>({
         </DropdownMenu>
         <div className="flex items-center space-x-2">
           {data.length > 0 && (
-            <div className="flex items-center justify-end space-x-2 py-4 mr-4">
+            <div className="flex items-center justify-end space-x-2 py-1 mr-2">
               <Button
                 variant="outline"
                 size="sm"
+                className="h-7"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
               >
-                <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+                <ChevronLeft className="mr-1 h-3 w-3" /> Previous
               </Button>
-              <span className="text-sm text-gray-600">
+              <span className="text-xs text-gray-600">
                 Page {table.getState().pagination.pageIndex + 1} of{" "}
                 {table.getPageCount()}
               </span>
               <Button
                 variant="outline"
                 size="sm"
+                className="h-7"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
               >
-                Next <ChevronRight className="ml-2 h-4 w-4" />
+                Next <ChevronRight className="ml-1 h-3 w-3" />
               </Button>
             </div>
           )}

@@ -922,11 +922,13 @@ const PipelineGUI: React.FC = () => {
                   <SelectValue placeholder="Select a file" />
                 </SelectTrigger>
                 <SelectContent>
-                  {files.map((file) => (
-                    <SelectItem key={file.path} value={file.path}>
-                      {file.name}
-                    </SelectItem>
-                  ))}
+                  {files
+                    .filter((file) => file.type === "json")
+                    .map((file) => (
+                      <SelectItem key={file.path} value={file.path}>
+                        {file.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

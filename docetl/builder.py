@@ -320,8 +320,12 @@ class Optimizer:
                     has_map = True
                     map_op = op
                 elif op_type == "reduce" and op_config.get("synthesize_resolve", True):
-                    has_reduce = True
-                    reduce_op = op
+                    reduce_key = op_config.get("reduce_key", "_all")
+                    if isinstance(reduce_key, str):
+                        reduce_key = [reduce_key]
+                    if "_all" not in reduce_key:
+                        has_reduce = True
+                        reduce_op = op
                 elif op_type == "resolve":
                     has_resolve = True
 

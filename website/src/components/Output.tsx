@@ -467,19 +467,41 @@ export const Output: React.FC = () => {
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const data = payload[0].payload;
+
+                    // Compute distinct values by stringifying and using Set
+                    const distinctValues = Array.from(
+                      new Set(
+                        data.oldValues.map((value) =>
+                          JSON.stringify(value, null, 2)
+                        )
+                      )
+                    ).map((str) => JSON.parse(str));
+
+                    // Calculate percentage of total documents
+                    const totalDocs = groupedData.reduce(
+                      (sum, item) => sum + item.value,
+                      0
+                    );
+                    const percentage = ((data.value / totalDocs) * 100).toFixed(
+                      1
+                    );
+
                     return (
-                      <div className="bg-[hsl(var(--popover))] border border-[hsl(var(--border))] rounded-[var(--radius)] p-3 shadow-md max-h-[400px] overflow-y-auto">
+                      <div className="bg-[hsl(var(--popover))] border border-[hsl(var(--border))] rounded-[var(--radius)] p-3 shadow-md max-h-[400px] overflow-y-auto w-[400px]">
                         <p className="font-medium mb-2">
-                          {data.value.toLocaleString()} Documents
+                          {data.value.toLocaleString()} Documents ({percentage}
+                          %)
                         </p>
                         <div className="text-sm space-y-2">
                           <p className="font-medium text-[hsl(var(--muted-foreground))]">
-                            Distinct values before resolution:
+                            {distinctValues.length} distinct value
+                            {distinctValues.length !== 1 ? "s" : ""} before
+                            resolution:
                           </p>
-                          {data.oldValues.map((value, idx) => (
+                          {distinctValues.map((value, idx) => (
                             <pre
                               key={idx}
-                              className="text-xs bg-[hsl(var(--muted)/.1)] p-2 rounded overflow-x-auto"
+                              className="text-xs bg-[hsl(var(--muted)/.1)] p-2 rounded overflow-x-auto whitespace-pre-wrap break-all"
                             >
                               {JSON.stringify(value, null, 2)}
                             </pre>

@@ -73,6 +73,56 @@ function mergeFileList(
   return dt.files;
 }
 
+async function getAllFiles(entry: FileSystemEntry): Promise<File[]> {
+  const files: File[] = [];
+
+  async function processEntry(
+    entry: FileSystemEntry,
+    path: string = ""
+  ): Promise<void> {
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry;
+      const file = await new Promise<File>((resolve, reject) => {
+        fileEntry.file(resolve, reject);
+      });
+
+      // Check if file has supported extension
+      const supportedExtensions = [
+        ".pdf",
+        ".docx",
+        ".doc",
+        ".txt",
+        ".html",
+        ".pptx",
+      ];
+      if (
+        supportedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
+      ) {
+        // Create a new file with the full path
+        const fullPath = path ? `${path}/${file.name}` : file.name;
+        const newFile = new File([file], fullPath, { type: file.type });
+        Object.defineProperty(newFile, "relativePath", { value: fullPath });
+        files.push(newFile);
+      }
+    } else if (entry.isDirectory) {
+      const dirEntry = entry as FileSystemDirectoryEntry;
+      const dirReader = dirEntry.createReader();
+
+      const entries = await new Promise<FileSystemEntry[]>(
+        (resolve, reject) => {
+          dirReader.readEntries(resolve, reject);
+        }
+      );
+
+      const newPath = path ? `${path}/${entry.name}` : entry.name;
+      await Promise.all(entries.map((e) => processEntry(e, newPath)));
+    }
+  }
+
+  await processEntry(entry);
+  return files;
+}
+
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   files,
   onFileClick,
@@ -154,8 +204,50 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     onFileClick(file);
   };
 
-  const handleFolderUpload = async (files: FileList) => {
-    setSelectedFiles((prevFiles) => mergeFileList(prevFiles, files));
+  const handleFolderUpload = async (
+    fileList: FileList | DataTransferItemList
+  ) => {
+    const files: File[] = [];
+
+    const processItems = async () => {
+      const items = Array.from(fileList);
+
+      for (const item of items) {
+        if ("webkitGetAsEntry" in item) {
+          // Handle drag and drop
+          const entry = (item as DataTransferItem).webkitGetAsEntry();
+          if (entry) {
+            const entryFiles = await getAllFiles(entry);
+            files.push(...entryFiles);
+          }
+        } else {
+          // Handle regular file input
+          const file = item as File;
+          const supportedExtensions = [
+            ".pdf",
+            ".docx",
+            ".doc",
+            ".txt",
+            ".html",
+            ".pptx",
+          ];
+          if (
+            supportedExtensions.some((ext) =>
+              file.name.toLowerCase().endsWith(ext)
+            )
+          ) {
+            files.push(file);
+          }
+        }
+      }
+    };
+
+    await processItems();
+
+    // Create a new FileList-like object with the collected files
+    const dt = new DataTransfer();
+    files.forEach((file) => dt.items.add(file));
+    setSelectedFiles((prevFiles) => mergeFileList(prevFiles, dt.files));
   };
 
   useEffect(() => {
@@ -469,15 +561,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             }
           }}
         >
-          <DialogContent className="max-w-5xl w-full overflow-hidden">
+          <DialogContent className="max-w-5xl w-full overflow-hidden max-h-[80vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Upload Documents</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-6 w-full">
+            <div className="space-y-6 w-full flex-1 overflow-hidden flex flex-col">
               <div
                 className={`
-                  border-2 border-dashed rounded-lg transition-colors relative
+                  border-2 border-dashed rounded-lg transition-colors relative flex-shrink-0
                   ${
                     selectedFiles && selectedFiles.length > 0
                       ? "border-gray-200 bg-gray-50/50 p-6"
@@ -512,9 +604,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                     "bg-blue-50/50"
                   );
                   setDraggedFiles(0);
-                  const { files } = e.dataTransfer;
-                  if (files) {
-                    handleFolderUpload(files);
+                  if (e.dataTransfer.items) {
+                    handleFolderUpload(e.dataTransfer.items);
+                  } else if (e.dataTransfer.files) {
+                    handleFolderUpload(e.dataTransfer.files);
                   }
                 }}
               >
@@ -563,8 +656,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               </div>
 
               {selectedFiles && selectedFiles.length > 0 && (
-                <div className="space-y-4">
-                  <div className="border rounded-lg divide-y max-w-full">
+                <div className="space-y-4 flex-1 min-h-0 flex flex-col">
+                  <div className="border rounded-lg divide-y max-w-full flex-1 overflow-y-auto">
                     {Array.from(selectedFiles).map((file, index) => (
                       <div
                         key={`${file.name}-${index}`}
@@ -574,7 +667,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                         <div className="min-w-0 flex-1 overflow-hidden">
                           <div className="flex items-center">
                             <p className="text-sm font-medium text-gray-700 truncate">
-                              {file.name}
+                              {(file as any).relativePath || file.name}
                             </p>
                           </div>
                           <p className="text-xs text-gray-500">
@@ -599,7 +692,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center justify-between pt-2 flex-shrink-0">
                     <div className="flex items-center space-x-4">
                       <p className="text-sm text-gray-600">
                         {selectedFiles.length} file

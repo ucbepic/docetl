@@ -1,6 +1,8 @@
 export type File = {
   name: string;
   path: string;
+  type: "json" | "document";
+  parentFolder?: string;
 };
 
 export type Operation = {

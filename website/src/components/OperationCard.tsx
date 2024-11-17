@@ -8,12 +8,6 @@ import React, {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -48,6 +42,17 @@ import {
 } from "@/components/ui/popover";
 import { AIEditPopover } from "@/components/AIEditPopover";
 import { canBeOptimized } from "@/lib/utils";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 // Separate components
 const OperationHeader: React.FC<{
@@ -128,41 +133,38 @@ const OperationHeader: React.FC<{
                       }`}
                     />
                   )}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="p-0.25 h-6 w-6"
-                          onClick={onOptimize}
-                          disabled={disabled}
-                        >
-                          <Zap
-                            size={14}
-                            className={
-                              optimizeResult === undefined ||
-                              optimizeResult === null ||
-                              optimizeResult === ""
-                                ? "text-gray-400"
-                                : "text-red-500"
-                            }
-                          />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p className="text-sm">
-                          {optimizeResult === undefined ||
-                          optimizeResult === null
-                            ? "Determining whether to recommend a decomposition..."
-                            : optimizeResult === ""
-                            ? "No decomposition recommended"
-                            : "Decomposition recommended because: " +
-                              optimizeResult}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="p-0.25 h-6 w-6"
+                        onClick={onOptimize}
+                        disabled={disabled}
+                      >
+                        <Zap
+                          size={14}
+                          className={
+                            optimizeResult === undefined ||
+                            optimizeResult === null ||
+                            optimizeResult === ""
+                              ? "text-gray-400"
+                              : "text-red-500"
+                          }
+                        />
+                      </Button>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-80 p-2">
+                      <p className="text-sm">
+                        {optimizeResult === undefined || optimizeResult === null
+                          ? "Determining whether to recommend a decomposition..."
+                          : optimizeResult === ""
+                          ? "No decomposition recommended"
+                          : "Decomposition recommended because: " +
+                            optimizeResult}
+                      </p>
+                    </HoverCardContent>
+                  </HoverCard>
                 </div>
               )}
             </div>

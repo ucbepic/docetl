@@ -52,6 +52,23 @@ export function generatePipelineConfig(
       delete newOp.id;
       delete newOp.llmType;
 
+      // Convert numeric strings in otherKwargs to numbers
+      Object.entries(newOp).forEach(([key, value]) => {
+        if (typeof value === "string") {
+          // Try parsing as float first
+          const floatVal = parseFloat(value);
+          if (!isNaN(floatVal) && floatVal.toString() === value) {
+            newOp[key] = floatVal;
+            return;
+          }
+          // Try parsing as integer
+          const intVal = parseInt(value, 10);
+          if (!isNaN(intVal) && intVal.toString() === value) {
+            newOp[key] = intVal;
+          }
+        }
+      });
+
       if (
         op.gleaning &&
         (op.gleaning.num_rounds === 0 || !op.gleaning.validation_prompt)

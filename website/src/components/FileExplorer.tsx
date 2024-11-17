@@ -140,6 +140,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const [draggedFiles, setDraggedFiles] = useState<number>(0);
   const [viewingDocument, setViewingDocument] = useState<File | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
 
   // Group files by folder
   const groupedFiles = files.reduce((acc: { [key: string]: File[] }, file) => {
@@ -163,7 +164,14 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const uploadedFile = event.target.files?.[0];
-    if (uploadedFile && uploadedFile.type === "application/json") {
+    if (!uploadedFile) {
+      console.log("No file selected");
+      return;
+    }
+
+    if (uploadedFile.type === "application/json") {
+      setUploadingFiles((prev) => new Set(prev).add(uploadedFile.name));
+
       const formData = new FormData();
       formData.append("file", uploadedFile);
 
@@ -178,17 +186,34 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         }
 
         const data = await response.json();
-        const filePath = data.path;
 
-        onFileUpload({ name: uploadedFile.name, path: filePath });
-        setCurrentFile({ name: uploadedFile.name, path: filePath });
+        const newFile = {
+          name: uploadedFile.name,
+          path: data.path,
+          type: "json" as const,
+          parentFolder: "root",
+        };
+
+        onFileUpload(newFile);
+        setCurrentFile(newFile);
+
+        toast({
+          title: "Success",
+          description: "Dataset uploaded successfully",
+        });
       } catch (error) {
+        console.error(error);
         toast({
           variant: "destructive",
           title: "Error",
           description: "Failed to upload file",
         });
-        console.error(error);
+      } finally {
+        setUploadingFiles((prev) => {
+          const next = new Set(prev);
+          next.delete(uploadedFile.name);
+          return next;
+        });
       }
     } else {
       toast({
@@ -443,21 +468,26 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <label
-                htmlFor="file-upload"
-                className="flex items-center w-full cursor-pointer"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                <span>Upload dataset.json</span>
-              </label>
-              <Input
-                type="file"
-                accept=".json"
-                onChange={handleFileUpload}
-                className="hidden"
-                id="file-upload"
-              />
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              <div className="flex items-center w-full">
+                <Input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={(e) => {
+                    handleFileUpload(e);
+                    e.currentTarget.value = "";
+                  }}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="flex items-center w-full cursor-pointer"
+                >
+                  <Database className="mr-2 h-4 w-4" />
+                  <span>Upload dataset.json</span>
+                </label>
+              </div>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setIsUploadDialogOpen(true)}>
               <FolderUp className="mr-2 h-4 w-4" />
@@ -499,7 +529,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   onClick={() => handleFileClick(file)}
                 >
                   <div className="absolute left-1">
-                    {file.type === "json" ? (
+                    {uploadingFiles.has(file.name) ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : file.type === "json" ? (
                       <Database className="h-4 w-4" />
                     ) : (
                       <FileText className="h-4 w-4" />
@@ -539,6 +571,26 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 </ContextMenuContent>
               </ContextMenu>
             ))}
+            {Array.from(uploadingFiles).map((filename) => {
+              if (!folderFiles.some((f) => f.name === filename)) {
+                return (
+                  <div
+                    key={`uploading-${filename}`}
+                    className="group relative flex items-center w-full p-1"
+                  >
+                    <div className="absolute left-1">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                    <div className="w-full pl-5 pr-2 overflow-x-auto">
+                      <span className="block whitespace-nowrap text-xs text-gray-500">
+                        {filename}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })}
           </div>
         ))}
       </div>

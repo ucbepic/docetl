@@ -18,6 +18,14 @@ import {
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import AnsiRenderer from "./AnsiRenderer";
 import clsx from "clsx";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 const TinyPieChart: React.FC<{ percentage: number }> = ({ percentage }) => {
   const size = 16;
@@ -334,105 +342,174 @@ export const Output: React.FC = () => {
 
     if (operation.type === "reduce") {
       const reduceKeys = operation.otherKwargs?.reduce_key || [];
+      const chartData = outputs
+        .sort(
+          (a, b) =>
+            Number(b[visualizationColumn.name]) -
+            Number(a[visualizationColumn.name])
+        )
+        .map((row) => ({
+          name: reduceKeys.map((key: string) => `${row[key]}`).join(", "),
+          value: Number(row[visualizationColumn.name]),
+        }));
+
       return (
-        <div className="h-full overflow-auto p-4">
-          {outputs
-            .sort(
-              (a, b) =>
-                Number(b[visualizationColumn.name]) -
-                Number(a[visualizationColumn.name])
-            )
-            .map((row, index) => (
-              <div key={index} className="mb-2">
-                <h3 className="text-sm font-semibold mb-2">
-                  {reduceKeys
-                    .map((key: string) => `${key}: ${row[key]}`)
-                    .join(", ")}{" "}
-                  ({row[visualizationColumn.name]})
-                </h3>
-                <div className="flex">
-                  {Array.from({
-                    length: Number(row[visualizationColumn.name]),
-                  }).map((_, i) => (
-                    <div key={i} className="w-4 h-10 bg-primary mr-1" />
-                  ))}
-                </div>
-              </div>
-            ))}
+        <div className="h-full p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
+            >
+              <XAxis
+                type="number"
+                tickFormatter={(value) => value.toLocaleString()}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={100}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <RechartsTooltip
+                formatter={(value: number) => [value.toLocaleString(), "Count"]}
+                contentStyle={{
+                  backgroundColor: "hsl(var(--popover))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "var(--radius)",
+                  color: "hsl(var(--popover-foreground))",
+                  padding: "8px 12px",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                }}
+              />
+              <Bar
+                dataKey="value"
+                fill="hsl(var(--chart-2))"
+                name="Count"
+                radius={[0, 4, 4, 0]} // Adjusted for vertical layout
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       );
     } else if (operation.type === "resolve") {
       const groupedData = useMemo(() => {
         const intersectionKeys = new Set(
           outputs.flatMap((row) => {
-            const kvPairs = row[visualizationColumn.name];
+            const kvPairs = row[visualizationColumn.name] as Record<
+              string,
+              unknown
+            >;
             return Object.keys(kvPairs).filter((key) => key in row);
           })
         );
 
-        const groupedByIntersection: { [key: string]: any[] } = {};
+        const groupedByIntersection: {
+          [key: string]: {
+            count: number;
+            oldValues: Record<string, unknown>[];
+          };
+        } = {};
+
         outputs.forEach((row) => {
-          const kvPairs = row[visualizationColumn.name];
+          const kvPairs = row[visualizationColumn.name] as Record<
+            string,
+            unknown
+          >;
           const key = Array.from(intersectionKeys)
             .map((k) => row[k])
             .join("|");
+
           if (!groupedByIntersection[key]) {
-            groupedByIntersection[key] = [];
+            groupedByIntersection[key] = {
+              count: 0,
+              oldValues: [],
+            };
           }
-          groupedByIntersection[key].push({ row, oldValues: kvPairs });
+          groupedByIntersection[key].count++;
+          groupedByIntersection[key].oldValues.push(kvPairs);
         });
 
-        return groupedByIntersection;
+        return Object.entries(groupedByIntersection)
+          .map(([key, data]) => ({
+            name: key,
+            value: data.count,
+            oldValues: data.oldValues,
+          }))
+          .sort((a, b) => b.value - a.value);
       }, [outputs, visualizationColumn.name]);
 
       return (
-        <div className="h-full overflow-auto p-4">
-          {Object.entries(groupedData)
-            .sort(([, groupA], [, groupB]) => groupB.length - groupA.length)
-            .map(([key, group]: [string, any[]]) => (
-              <div key={key} className="mb-2">
-                <h3 className="text-sm font-semibold mb-2">
-                  {key} ({group.length})
-                </h3>
-                <div className="flex">
-                  {group.map((item, index) => (
-                    <TooltipProvider key={index}>
-                      <Tooltip delayDuration={0}>
-                        <TooltipTrigger>
-                          <Button
-                            className="w-4 h-10 p-0 mr-1"
-                            variant="default"
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="bottom"
-                          align="center"
-                          className="max-w-[300px] overflow-auto"
-                        >
-                          <p className="text-xs">
-                            Document values before resolution:
+        <div className="h-full p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={groupedData}
+              layout="vertical"
+              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
+            >
+              <XAxis
+                type="number"
+                tickFormatter={(value) => value.toLocaleString()}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={100}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-[hsl(var(--popover))] border border-[hsl(var(--border))] rounded-[var(--radius)] p-3 shadow-md max-h-[400px] overflow-y-auto">
+                        <p className="font-medium mb-2">
+                          {data.value.toLocaleString()} Documents
+                        </p>
+                        <div className="text-sm space-y-2">
+                          <p className="font-medium text-[hsl(var(--muted-foreground))]">
+                            Distinct values before resolution:
                           </p>
-                          <pre className="whitespace-pre-wrap break-words">
-                            {JSON.stringify(item.oldValues, null, 2)}
-                          </pre>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ))}
-                </div>
-              </div>
-            ))}
-        </div>
-      );
-    } else {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">
-            Visualization not supported for this operation type.
-          </p>
+                          {data.oldValues.map((value, idx) => (
+                            <pre
+                              key={idx}
+                              className="text-xs bg-[hsl(var(--muted)/.1)] p-2 rounded overflow-x-auto"
+                            >
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar
+                dataKey="value"
+                fill="hsl(var(--chart-2))"
+                name="Documents"
+                radius={[0, 4, 4, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       );
     }
+
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">
+          Visualization not supported for this operation type.
+        </p>
+      </div>
+    );
   };
 
   const downloadCSV = () => {

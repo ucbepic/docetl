@@ -1,7 +1,8 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar
+from docetl.helper.progress_bar import RichLoopBar
+
 
 class CodeMapOperation(BaseOperation):
     class schema(BaseOperation.schema):

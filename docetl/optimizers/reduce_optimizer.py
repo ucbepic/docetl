@@ -12,7 +12,7 @@ from rich.prompt import Confirm
 from rich.status import Status
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import truncate_messages
+from docetl.helper.generic import truncate_messages
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.utils import LLMClient
 from docetl.utils import count_tokens, extract_jinja_variables

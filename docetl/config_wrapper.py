@@ -2,8 +2,8 @@ import datetime
 import os
 from docetl.console import get_console
 from docetl.utils import load_config
-from typing import Any, Dict, List, Optional, Tuple, Union
-from docetl.operations.utils import APIWrapper
+from typing import Dict, Optional
+from docetl.helper.api_wrapper import APIWrapper
 import pyrate_limiter
 from inspect import isawaitable
 import math

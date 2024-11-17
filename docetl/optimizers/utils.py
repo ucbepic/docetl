@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 
 from litellm import completion, completion_cost
 
-from docetl.operations.utils import truncate_messages
+from docetl.helper.generic import truncate_messages
 from docetl.utils import completion_cost
 
 

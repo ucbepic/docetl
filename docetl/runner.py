@@ -6,17 +6,15 @@ import time
 import functools
 from typing import Any, Dict, List, Optional, Tuple, Union
 from docetl.builder import Optimizer
-from docetl.console import get_console
 from pydantic import BaseModel
 
 from dotenv import load_dotenv
 import hashlib
 from rich.console import Console
-from rich.prompt import Confirm
 
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation, get_operations
-from docetl.operations.utils import flush_cache
+from docetl.helper.cache import flush_cache
 from docetl.config_wrapper import ConfigWrapper
 from . import schemas
 from .utils import classproperty

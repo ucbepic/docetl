@@ -15,9 +15,7 @@ from litellm import model_cost
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import (
-    rich_as_completed,
-)
+from docetl.helper.progress_bar import rich_as_completed
 from docetl.utils import completion_cost
 
 # Global variables to store shared data

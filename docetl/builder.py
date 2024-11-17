@@ -13,15 +13,14 @@ from rich.console import Console
 from rich.status import Status
 from rich.traceback import install
 
-from docetl.dataset import Dataset, create_parsing_tool_map
+from docetl.dataset import Dataset
 from docetl.operations import get_operation
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import flush_cache
+from docetl.helper.cache import flush_cache
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.map_optimizer import MapOptimizer
 from docetl.optimizers.reduce_optimizer import ReduceOptimizer
 from docetl.optimizers.utils import LLMClient
-from docetl.config_wrapper import ConfigWrapper
 
 install(show_locals=True)
 

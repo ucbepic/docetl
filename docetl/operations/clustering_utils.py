@@ -6,7 +6,7 @@ We use these in map and reduce operations.
 
 from typing import Dict, List, Tuple
 
-from docetl.operations.utils import APIWrapper
+from docetl.helper.api_wrapper import APIWrapper
 from docetl.utils import completion_cost
 
 

@@ -9,9 +9,8 @@ from jinja2 import Environment, Template
 from tqdm import tqdm
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar
+from docetl.helper.progress_bar import RichLoopBar
 from docetl.base_schemas import Tool, ToolFunction
-from docetl.utils import completion_cost
 from pydantic import Field, field_validator
 from litellm.utils import ModelResponse
 

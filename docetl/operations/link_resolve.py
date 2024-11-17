@@ -1,17 +1,15 @@
 import random
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Tuple
 
-import jinja2
 from jinja2 import Template
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, rich_as_completed
-from docetl.utils import completion_cost, extract_jinja_variables
+from ..helper.progress_bar import RichLoopBar, rich_as_completed
 from .clustering_utils import get_embeddings_for_clustering
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+
 
 class LinkResolveOperation(BaseOperation):
     def syntax_check(self) -> None:

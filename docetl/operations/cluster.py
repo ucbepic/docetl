@@ -1,9 +1,9 @@
 import numpy as np
-from jinja2 import Environment, Template
+from jinja2 import Template
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 from .base import BaseOperation
-from .utils import RichLoopBar
+from ..helper.progress_bar import RichLoopBar
 from .clustering_utils import get_embeddings_for_clustering
 
 

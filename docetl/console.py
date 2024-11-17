@@ -1,9 +1,12 @@
 import os
-from typing import Any, Optional
-from rich.console import Console
-from io import StringIO
 import threading
 import queue
+from io import StringIO
+from typing import override, Optional, Union, Any
+
+from rich.console import Console, JustifyMethod
+from rich.style import Style
+
 
 
 class ThreadSafeConsole(Console):
@@ -18,7 +21,7 @@ class ThreadSafeConsole(Console):
         super().print(*args, **kwargs)
 
     def input(
-        self, prompt="", *, markup: bool = True, emoji: bool = True, **kwargs
+            self, prompt="", *, markup: bool = True, emoji: bool = True, **kwargs
     ) -> str:
         if prompt:
             self.print(prompt, markup=markup, emoji=emoji, end="")

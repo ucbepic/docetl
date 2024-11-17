@@ -5,12 +5,12 @@ The BaseOperation class is an abstract base class for all operations in the doce
 from abc import ABC, ABCMeta, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
-from docetl.operations.utils import APIWrapper
-from docetl.console import DOCETL_CONSOLE
-from rich.console import Console
-from rich.status import Status
 import jsonschema
 from pydantic import BaseModel
+from rich.console import Console
+from rich.status import Status
+
+from docetl.console import DOCETL_CONSOLE
 
 
 # FIXME: This should probably live in some utils module?
@@ -143,3 +143,4 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
             raise ValueError(
                 "'validation_prompt' in 'gleaning' configuration cannot be empty"
             )
+

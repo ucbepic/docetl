@@ -4,7 +4,7 @@ from typing import Optional
 import os
 import typer
 
-from docetl.operations.utils import clear_cache as cc
+from docetl.helper.cache import clear_cache as cc
 from docetl.runner import DSLRunner
 
 from dotenv import load_dotenv

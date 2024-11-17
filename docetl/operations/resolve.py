@@ -3,17 +3,15 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 """
 
 import random
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple, Optional
 
 import jinja2
 from jinja2 import Template
 from rich.prompt import Confirm
-import math
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, rich_as_completed
+from docetl.helper.progress_bar import RichLoopBar, rich_as_completed
 from docetl.utils import completion_cost, extract_jinja_variables
 
 

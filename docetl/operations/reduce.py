@@ -23,7 +23,7 @@ from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
 )
-from docetl.operations.utils import rich_as_completed
+from docetl.helper.progress_bar import rich_as_completed
 from docetl.utils import completion_cost
 
 

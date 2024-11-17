@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 from docetl.runner import DSLRunner
-from docetl.utils import load_config
+from docetl.helper import load_config
 import yaml
 from docetl.api import (
     Pipeline,

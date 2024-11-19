@@ -10,25 +10,50 @@ The playground allows you to do just that.
 
 ## Installation
 
-First, make sure you have installed the DocETL Python package from source. Fork or clone the repository, then run `make install` in the root directory:
-
+1. Clone the repository:
 ```bash
-make install
+git clone https://github.com/ucbepic/docetl.git
+cd docetl
 ```
 
-Then, to install the dependencies for the playground, run `make install-ui` in the root directory.
-
+2. Install dependencies:
 ```bash
-make install-ui
+make install      # Install Python package
+make install-ui   # Install UI dependencies
 ```
 
-Then, run `make run-ui-dev` to start the development server.
+3. Set up environment variables by creating a `.env` file in the root directory:
+```bash
+OPENAI_API_KEY=your_api_key_here # Or any other llm keys
+BACKEND_ALLOW_ORIGINS=
+BACKEND_HOST=localhost
+BACKEND_PORT=8000
+BACKEND_RELOAD=True
+FRONTEND_HOST=0.0.0.0
+FRONTEND_PORT=3000
+```
 
+The `.env` file is used for the backend server.
+
+For the front end, create an `.env.local` file in the `website` directory with:
+```bash
+OPENAI_API_KEY=sk-xxx
+OPENAI_API_BASE=https://api.openai.com/v1
+MODEL_NAME=gpt-4-mini
+
+NEXT_PUBLIC_BACKEND_HOST=localhost
+NEXT_PUBLIC_BACKEND_PORT=8000
+```
+
+!!! note
+    Note that the OpenAI API key, base, and model name in the `.env.local` file are only for the UI assistant functionality, not the DocETL pipeline execution engine.
+
+4. Start the development server:
 ```bash
 make run-ui-dev
 ```
 
-Navigate to [http://localhost:3000/playground](http://localhost:3000/playground) to access the playground. 
+5. Navigate to [http://localhost:3000/playground](http://localhost:3000/playground) to access the playground.
 
 ### Setting up the AI Assistant
 

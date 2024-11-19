@@ -576,12 +576,16 @@ export const Output: React.FC = () => {
           <div className="flex items-center space-x-2">
             <div className="flex items-center gap-2 text-sm">
               <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
-                <span className="text-gray-900 font-medium">{inputCount}</span>
+                <span className="text-gray-900 font-medium">
+                  {isLoadingOutputs ? "0" : inputCount}
+                </span>
                 <span className="text-gray-500 ml-1">in</span>
               </div>
               <span className="text-gray-400">→</span>
               <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
-                <span className="text-gray-900 font-medium">{outputCount}</span>
+                <span className="text-gray-900 font-medium">
+                  {isLoadingOutputs ? "0" : outputCount}
+                </span>
                 <span className="text-gray-500 ml-1">out</span>
               </div>
               <TooltipProvider>
@@ -591,18 +595,22 @@ export const Output: React.FC = () => {
                       <span
                         className={clsx(
                           "font-medium",
-                          selectivityFactor !== "N/A" &&
+                          !isLoadingOutputs &&
+                            selectivityFactor !== "N/A" &&
                             Number(selectivityFactor) > 1 &&
                             "text-emerald-600",
-                          selectivityFactor !== "N/A" &&
+                          !isLoadingOutputs &&
+                            selectivityFactor !== "N/A" &&
                             Number(selectivityFactor) < 1 &&
                             "text-rose-600",
-                          selectivityFactor === "N/A" && "text-gray-900"
+                          (isLoadingOutputs || selectivityFactor === "N/A") &&
+                            "text-gray-900"
                         )}
                       >
-                        {selectivityFactor}×
+                        {isLoadingOutputs ? "N/A" : selectivityFactor}×
                       </span>
-                      {selectivityFactor !== "N/A" &&
+                      {!isLoadingOutputs &&
+                        selectivityFactor !== "N/A" &&
                         Number(selectivityFactor) < 1 && (
                           <div className="ml-1">
                             <TinyPieChart
@@ -614,7 +622,7 @@ export const Output: React.FC = () => {
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="font-medium">Output to input ratio</p>
-                    {selectivityFactor !== "N/A" && (
+                    {!isLoadingOutputs && selectivityFactor !== "N/A" && (
                       <p className="text-xs mt-1">
                         {Number(selectivityFactor) > 1
                           ? "Operation increases data volume"

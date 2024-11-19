@@ -199,7 +199,7 @@ class ReduceOptimizer:
        
         # Print the validation results
         self.console.log("[bold]Validation Results on Initial Sample:[/bold]")
-        if validation_results["needs_improvement"]:
+        if validation_results["needs_improvement"] or self.config.get("optimizer_config", {}).get("force_decompose", False):
             self.console.post_optimizer_rationale(
                 should_optimize=True,
                 rationale= "\n".join(
@@ -545,7 +545,7 @@ class ReduceOptimizer:
         user_agrees = Confirm.ask(
             f"Do you agree with the decomposition assessment? "
             f"[bold]{'Recommended' if should_decompose['should_decompose'] else 'Not recommended'}[/bold]",
-            self.console,
+            console=self.console,
         )
 
         # If user disagrees, invert the decomposition decision
@@ -640,7 +640,7 @@ class ReduceOptimizer:
         Sample values for other keys:
         {json.dumps(sample_values, indent=2)}
 
-        Based on this information, determine if it would be beneficial to decompose this reduce operation into a sub-reduce operation followed by a final reduce operation. Consider the following:
+        Based on this information, determine if it would be beneficial to decompose this reduce operation into a sub-reduce operation followed by a final reduce operation. Consider ALL of the following:
 
         1. Is there a natural hierarchy in the data (e.g., country -> state -> city) among the other available keys, with a key at a finer level of granularity than the current reduce key(s)?
         2. Are the current reduce key(s) some form of ID, and are there many different types of inputs for that ID among the other available keys?
@@ -648,6 +648,7 @@ class ReduceOptimizer:
         4. Would splitting the operation improve accuracy (i.e., make sure information isn't lost when reducing)?
         5. Are all the keys of the potential hierarchy provided in the other available keys? If not, we should not decompose.
         6. Importantly, do not suggest decomposition using any key that is already part of the current reduce key(s). We are looking for a new key from the other available keys to use for sub-grouping.
+        7. Do not suggest keys that don't contain meaningful information (e.g., id-related keys).
 
         Provide your analysis in the following format:
         """
@@ -1315,6 +1316,7 @@ class ReduceOptimizer:
                     sample_output,
                     num_prompts=self.num_fold_prompts,
                 )
+                fold_prompts = list(set(fold_prompts))
                 if not fold_prompts:
                     raise ValueError("No fold prompts generated")
             except Exception as e:
@@ -1485,10 +1487,16 @@ class ReduceOptimizer:
 
         input_schema = op_config.get("input", {}).get("schema", {})
         output_schema = op_config["output"]["schema"]
-        reduce_key = op_config["reduce_key"]
 
         def get_random_examples():
-            if isinstance(reduce_key, list):
+            reduce_key = op_config["reduce_key"]
+            reduce_key = list(reduce_key) if not isinstance(reduce_key, list) else reduce_key
+            
+            if reduce_key == ["_all"]:
+                # For _all case, just pick random input and output examples
+                input_example = random.choice(sample_input)
+                output_example = random.choice(sample_output)
+            elif isinstance(reduce_key, list):
                 random_key = tuple(
                     random.choice(
                         [
@@ -1511,16 +1519,6 @@ class ReduceOptimizer:
                         for item in sample_output
                         if all(item.get(k) == v for k, v in zip(reduce_key, random_key))
                     ]
-                )
-            else:
-                random_key = random.choice(
-                    [item[reduce_key] for item in sample_input if reduce_key in item]
-                )
-                input_example = random.choice(
-                    [item for item in sample_input if item[reduce_key] == random_key]
-                )
-                output_example = random.choice(
-                    [item for item in sample_output if item[reduce_key] == random_key]
                 )
 
             if input_schema:
@@ -1560,9 +1558,9 @@ class ReduceOptimizer:
             3. Be designed to work iteratively, allowing for multiple fold operations. The first iteration will use the original prompt, and all successive iterations will use the fold prompt.
 
             The fold prompt should be a Jinja2 template with the following variables available:
-            - {{ output }}: The current reduced value (a dictionary with the current output schema)
-            - {{ inputs }}: A list of new values to be folded in
-            - {{ reduce_key }}: The key used for grouping in the reduce operation
+            - {{{{ output }}}}: The current reduced value (a dictionary with the current output schema)
+            - {{{{ inputs }}}}: A list of new values to be folded in
+            - {{{{ reduce_key }}}}: The key used for grouping in the reduce operation
 
             Provide the fold prompt as a string.
             """
@@ -1582,11 +1580,25 @@ class ReduceOptimizer:
             )  # Use a small batch size for testing
 
             # Run the operation with the fold prompt
-            self._run_operation(temp_plan, sample_input[: temp_plan["fold_batch_size"]])
+            try:
+                self._run_operation(temp_plan, sample_input[: temp_plan["fold_batch_size"]])
 
-            # If the operation runs successfully, return the fold prompt
-            return fold_prompt
+                return fold_prompt
+            except Exception as e:
+                self.console.log(f"[red]Error in agent-generated fold prompt: {e}[/red]")
 
+                # Create a default fold prompt that instructs folding new data into existing output
+                fold_prompt = f"""Analyze this batch of data using the following instructions:
+
+{original_prompt}
+
+However, instead of starting fresh, fold your analysis into the existing output that has already been generated. The existing output is provided in the 'output' variable below:
+
+{{{{ output }}}} 
+
+Remember, you must fold the new data into the existing output, do not start fresh."""
+                return fold_prompt
+                
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             fold_prompts = list(
                 executor.map(lambda _: generate_single_prompt(), range(num_prompts))

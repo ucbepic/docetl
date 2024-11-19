@@ -255,11 +255,12 @@ class MapOptimizer:
         input_data, output_data, model_input_context_length, no_change_runtime, validator_prompt, assessment, data_exceeds_limit = self._should_optimize_helper(op_config, input_data)
 
         # Check if improvement is needed based on the assessment
-        if not data_exceeds_limit and not assessment.get("needs_improvement", True):
-            self.console.log(
-                f"[green]No improvement needed for operation {op_config['name']}[/green]"
-            )
-            return [op_config], output_data, self.plan_generator.reduce_optimizer_cost
+        if not self.config.get("optimizer_config", {}).get("force_decompose", False):
+            if not data_exceeds_limit and not assessment.get("needs_improvement", True):
+                self.console.log(
+                    f"[green]No improvement needed for operation {op_config['name']}[/green]"
+                )
+                return [op_config], output_data, self.plan_generator.reduce_optimizer_cost
 
         candidate_plans = {}
 

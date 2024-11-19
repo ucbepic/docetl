@@ -65,7 +65,7 @@ make install      # Install Python package
 make install-ui   # Install UI dependencies
 ```
 
-3. Set up environment variables in `.env`:
+3. Set up environment variables in `.env` in the root/top-level directory:
 ```bash
 OPENAI_API_KEY=your_api_key_here
 BACKEND_ALLOW_ORIGINS=
@@ -76,7 +76,7 @@ FRONTEND_HOST=0.0.0.0
 FRONTEND_PORT=3000
 ```
 
-And create an .env.local file in the website directory with the following:
+And create an .env.local file in the `website` directory with the following:
 
 ```bash
 OPENAI_API_KEY=sk-xxx

@@ -147,6 +147,9 @@ export function generatePipelineConfig(
   const pipelineConfig = {
     datasets,
     default_model,
+    optimizer_config: {
+      force_decompose: true,
+    },
     operations: updatedOperations,
     pipeline: {
       steps: [

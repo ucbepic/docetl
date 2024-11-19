@@ -382,21 +382,27 @@ const PipelineGUI: React.FC = () => {
               const newFiles = datasetPaths.map((filePath) => ({
                 name: path.basename(filePath),
                 path: filePath,
+                type: "json",
               }));
 
               setFiles((prevFiles: File[]) => {
-                const uniqueNewFiles = newFiles.filter(
-                  (newFile) =>
-                    !prevFiles.some(
-                      (prevFile) => prevFile.path === newFile.path
-                    )
-                );
+                const uniqueNewFiles = newFiles
+                  .filter(
+                    (newFile) =>
+                      !prevFiles.some(
+                        (prevFile) => prevFile.path === newFile.path
+                      )
+                  )
+                  .map((file) => ({
+                    ...file,
+                    type: "json" as const, // Explicitly type as literal "json"
+                  }));
                 return [...prevFiles, ...uniqueNewFiles];
               });
 
               // Set the first file as current if no current file exists
               if (!currentFile) {
-                setCurrentFile(newFiles[0]);
+                setCurrentFile({ ...newFiles[0], type: "json" });
               }
             }
 

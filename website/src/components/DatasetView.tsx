@@ -253,6 +253,7 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
 
       setTimeout(() => {
         try {
+          // @ts-ignore
           const allContent = data.pages.map((page) => page.content).join("");
           let documents: Record<string, unknown>[] = [];
 

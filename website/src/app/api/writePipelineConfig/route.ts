@@ -46,9 +46,12 @@ export async function POST(request: Request) {
 
     // Save the YAML file in the user's home directory
     const homeDir = os.homedir();
-    const pipelineDir = path.join(homeDir, ".docetl", "pipelines", "configs");
-    await fs.mkdir(pipelineDir, { recursive: true });
-    const filePath = path.join(pipelineDir, `${name}.yaml`);
+    const pipelineDir = path.join(homeDir, ".docetl", "pipelines");
+    const configDir = path.join(pipelineDir, "configs");
+    const nameDir = path.join(pipelineDir, name, "intermediates");
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.mkdir(nameDir, { recursive: true });
+    const filePath = path.join(configDir, `${name}.yaml`);
     await fs.writeFile(filePath, yamlString, "utf8");
 
     return NextResponse.json({ filePath, inputPath, outputPath });

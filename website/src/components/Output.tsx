@@ -175,6 +175,8 @@ export const Output: React.FC = () => {
   useEffect(() => {
     if (isLoadingOutputs) {
       setActiveTab("console");
+    } else {
+      setActiveTab("table");
     }
   }, [isLoadingOutputs]);
 
@@ -399,6 +401,7 @@ export const Output: React.FC = () => {
       const groupedData = useMemo(() => {
         const intersectionKeys = new Set(
           outputs.flatMap((row) => {
+            // @ts-ignore
             const kvPairs = row[visualizationColumn.name] as Record<
               string,
               unknown
@@ -415,6 +418,7 @@ export const Output: React.FC = () => {
         } = {};
 
         outputs.forEach((row) => {
+          // @ts-ignore
           const kvPairs = row[visualizationColumn.name] as Record<
             string,
             unknown
@@ -475,6 +479,7 @@ export const Output: React.FC = () => {
                           JSON.stringify(value, null, 2)
                         )
                       )
+                      // @ts-ignore
                     ).map((str) => JSON.parse(str));
 
                     // Calculate percentage of total documents

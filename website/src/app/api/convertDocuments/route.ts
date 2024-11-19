@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -42,10 +44,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-// Increase the maximum request size limit for file uploads
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};

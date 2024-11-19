@@ -76,6 +76,19 @@ FRONTEND_HOST=0.0.0.0
 FRONTEND_PORT=3000
 ```
 
+And create an .env.local file in the website directory with the following:
+
+```bash
+OPENAI_API_KEY=sk-xxx
+OPENAI_API_BASE=https://api.openai.com/v1
+MODEL_NAME=gpt-4o-mini
+
+NEXT_PUBLIC_BACKEND_HOST=localhost
+NEXT_PUBLIC_BACKEND_PORT=8000
+```
+
+Note that the openai api key, base, and model name are for the UI assistant only; not the DocETL pipeline execution engine.
+
 4. Start the development server:
 ```bash
 make run-ui-dev

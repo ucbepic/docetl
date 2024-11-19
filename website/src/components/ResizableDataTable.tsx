@@ -18,6 +18,9 @@ import {
   VisibilityState,
   SortingState,
   getSortedRowModel,
+  getFilteredRowModel,
+  FilterFn,
+  ColumnFiltersState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -61,19 +64,37 @@ interface ColumnStats {
   avg: number;
   distribution: number[];
   bucketSize: number;
-  type: "number" | "array" | "string";
+  type: "number" | "array" | "string-words" | "string-chars" | "boolean";
 }
 
 function calculateColumnStats(
   data: Record<string, unknown>[],
   accessor: string
 ): ColumnStats | null {
-  let type: "number" | "array" | "string" = "string";
+  let type: ColumnStats["type"] = "string-words";
   const firstValue = data.find((row) => row[accessor] != null)?.[accessor];
 
   // Determine type based on first non-null value
   if (typeof firstValue === "number") type = "number";
   if (Array.isArray(firstValue)) type = "array";
+  if (typeof firstValue === "boolean") type = "boolean";
+
+  // For strings, check first 5 non-null values to determine if we should count chars
+  if (typeof firstValue === "string") {
+    const first5Values = data
+      .filter(
+        (row) => typeof row[accessor] === "string" && row[accessor] != null
+      )
+      .slice(0, 5)
+      .map((row) => row[accessor] as string);
+
+    // Use char count if all sampled values are single words
+    type =
+      first5Values.length > 0 &&
+      first5Values.every((val) => !/\s/.test(val.trim()))
+        ? "string-chars"
+        : "string-words";
+  }
 
   const values = data
     .map((row) => {
@@ -81,6 +102,11 @@ function calculateColumnStats(
 
       if (value === null || value === undefined) {
         return null;
+      }
+
+      // For booleans, convert to 0 or 1
+      if (typeof value === "boolean") {
+        return value ? 1 : 0;
       }
 
       // For numbers, use the value directly
@@ -93,9 +119,16 @@ function calculateColumnStats(
         return value.length;
       }
 
-      // For strings and other types, count words after converting to string
-      const stringValue =
-        typeof value === "string" ? value : JSON.stringify(value);
+      // For strings, count either chars or words based on earlier determination
+      if (typeof value === "string") {
+        const trimmedValue = value.trim();
+        return type === "string-chars"
+          ? trimmedValue.length
+          : trimmedValue.split(/\s+/).length;
+      }
+
+      // For other types, convert to string and count words
+      const stringValue = JSON.stringify(value);
       return stringValue.split(/\s+/).length;
     })
     .filter((length): length is number => length !== null);
@@ -106,6 +139,22 @@ function calculateColumnStats(
   const max = Math.max(...values);
   const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
 
+  // For boolean values, create a special two-bucket distribution
+  if (type === "boolean") {
+    const distribution = [0, 0]; // [false count, true count]
+    values.forEach((value) => {
+      distribution[value]++;
+    });
+    return {
+      min,
+      max,
+      avg,
+      distribution,
+      bucketSize: 1,
+      type,
+    };
+  }
+
   // Special handling for single distinct value
   if (min === max) {
     return {
@@ -114,7 +163,7 @@ function calculateColumnStats(
       avg,
       distribution: [values.length], // Put all values in a single bucket
       bucketSize: 1,
-      type: type,
+      type,
     };
   }
 
@@ -203,10 +252,20 @@ interface ColumnHeaderProps {
   isBold: boolean;
   onSort: () => void;
   sortDirection: "asc" | "desc" | false;
+  onFilter: (value: string) => void;
+  filterValue: string;
 }
 
 const ColumnHeader = React.memo(
-  ({ header, stats, isBold, onSort, sortDirection }: ColumnHeaderProps) => {
+  ({
+    header,
+    stats,
+    isBold,
+    onSort,
+    sortDirection,
+    onFilter,
+    filterValue,
+  }: ColumnHeaderProps) => {
     const histogramData = useMemo(() => {
       if (!stats) return [];
 
@@ -216,10 +275,32 @@ const ColumnHeader = React.memo(
             return "";
           case "array":
             return " items";
+          case "boolean":
+            return "";
+          case "string-chars":
+            return " chars";
+          case "string-words":
+            return " words";
           default:
             return " words";
         }
       };
+
+      // Special handling for boolean values
+      if (stats.type === "boolean") {
+        return [
+          {
+            range: "False",
+            count: stats.distribution[0],
+            fullRange: "False",
+          },
+          {
+            range: "True",
+            count: stats.distribution[1],
+            fullRange: "True",
+          },
+        ];
+      }
 
       // Special handling for single distinct value
       if (stats.min === stats.max) {
@@ -245,19 +326,22 @@ const ColumnHeader = React.memo(
 
     return (
       <div className="space-y-1">
-        <div className={`${isBold ? "font-bold" : ""} flex items-center gap-2`}>
-          <span>{header}</span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSort();
-            }}
-            className="p-0.5 hover:bg-accent rounded-sm"
-          >
-            {sortDirection === false && <ArrowUpDown className="h-3 w-3" />}
-            {sortDirection === "asc" && <ArrowUp className="h-3 w-3" />}
-            {sortDirection === "desc" && <ArrowDown className="h-3 w-3" />}
-          </button>
+        <div
+          className={`${isBold ? "font-bold" : ""} space-y-2 ${
+            filterValue ? "bg-primary/5 rounded-md p-1" : ""
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Search className="h-3 w-3 text-muted-foreground" />
+            <Input
+              placeholder="Filter..."
+              value={filterValue}
+              onChange={(e) => onFilter(e.target.value)}
+              className={`h-6 text-xs border-none shadow-none focus-visible:ring-0 ${
+                filterValue ? "bg-primary/5" : ""
+              }`}
+            />
+          </div>
         </div>
         {stats && (
           <div className="space-y-0.5">
@@ -267,7 +351,7 @@ const ColumnHeader = React.memo(
                   Single value: {stats.min}
                   {stats.type === "array"
                     ? " items"
-                    : stats.type === "string"
+                    : stats.type === "string-words"
                     ? " words"
                     : ""}
                 </span>
@@ -277,7 +361,7 @@ const ColumnHeader = React.memo(
                     {stats.min}
                     {stats.type === "array"
                       ? " items"
-                      : stats.type === "string"
+                      : stats.type === "string-words"
                       ? " words"
                       : ""}
                   </span>
@@ -286,7 +370,7 @@ const ColumnHeader = React.memo(
                     {stats.max}
                     {stats.type === "array"
                       ? " items"
-                      : stats.type === "string"
+                      : stats.type === "string-words"
                       ? " words"
                       : ""}
                   </span>
@@ -645,6 +729,7 @@ function ResizableDataTable<T extends DataType>({
   });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const saveSettings = useCallback(() => {
     localStorage.setItem(
@@ -698,11 +783,32 @@ function ResizableDataTable<T extends DataType>({
     return stats;
   }, [data, columns]);
 
+  const fuzzyFilter: FilterFn<T> = (row, columnId, value) => {
+    const searchValue = value.toLowerCase();
+    const cellValue = row.getValue(columnId);
+
+    if (cellValue == null) return false;
+
+    // Handle different types of values
+    if (typeof cellValue === "number") {
+      return cellValue.toString().includes(searchValue);
+    }
+
+    if (Array.isArray(cellValue)) {
+      return cellValue.some((item) =>
+        String(item).toLowerCase().includes(searchValue)
+      );
+    }
+
+    return String(cellValue).toLowerCase().includes(searchValue);
+  };
+
   const table = useReactTable({
     data,
     columns: sortedColumns.map((col) => ({
       ...col,
       enableSorting: true,
+      filterFn: fuzzyFilter,
       sortingFn: (rowA: Row<T>, rowB: Row<T>) => {
         const accessor = col.accessorKey;
         if (!accessor) return 0;
@@ -731,6 +837,7 @@ function ResizableDataTable<T extends DataType>({
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     onColumnSizingChange: (newColumnSizing) => {
       setColumnSizing(newColumnSizing);
       setIsResizing(true);
@@ -739,10 +846,12 @@ function ResizableDataTable<T extends DataType>({
     },
     onColumnVisibilityChange: setColumnVisibility,
     onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
     state: {
       columnSizing,
       columnVisibility,
       sorting,
+      columnFilters,
     },
     enableSorting: true,
     enableColumnResizing: true,
@@ -755,6 +864,9 @@ function ResizableDataTable<T extends DataType>({
       pagination: {
         pageSize: 5,
       },
+    },
+    filterFns: {
+      fuzzy: fuzzyFilter,
     },
   });
 
@@ -850,6 +962,10 @@ function ResizableDataTable<T extends DataType>({
                       onSort={() => header.column.toggleSorting()}
                       sortDirection={
                         header.column.getIsSorted() as false | "asc" | "desc"
+                      }
+                      onFilter={(value) => header.column.setFilterValue(value)}
+                      filterValue={
+                        (header.column.getFilterValue() as string) ?? ""
                       }
                     />
                   )}

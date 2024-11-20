@@ -16,13 +16,7 @@ git clone https://github.com/ucbepic/docetl.git
 cd docetl
 ```
 
-2. Install dependencies:
-```bash
-make install      # Install Python package
-make install-ui   # Install UI dependencies
-```
-
-3. Set up environment variables by creating a `.env` file in the root directory:
+2. Set up environment variables by creating a `.env` file in the root directory:
 ```bash
 OPENAI_API_KEY=your_api_key_here # Or any other llm keys
 BACKEND_ALLOW_ORIGINS=
@@ -47,6 +41,12 @@ NEXT_PUBLIC_BACKEND_PORT=8000
 
 !!! note
     Note that the OpenAI API key, base, and model name in the `.env.local` file are only for the UI assistant functionality, not the DocETL pipeline execution engine.
+
+3. Install dependencies:
+```bash
+make install      # Install Python package
+make install-ui   # Install UI dependencies
+```
 
 4. Start the development server:
 ```bash

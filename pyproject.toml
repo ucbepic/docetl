@@ -79,8 +79,14 @@ ignore_missing_imports = true
 show_error_codes = true
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=1.0.0", "maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+python-source = "docetl"
+module-name = "docetl_resolver"
+manifest-path = "docetl/rust/Cargo.toml"
+develop = true
 
 [tool.poetry.plugins."docetl.operation"]
 map = "docetl.operations.map:MapOperation"

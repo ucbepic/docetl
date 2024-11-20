@@ -10,6 +10,7 @@ import {
   X,
   Folder,
   Database,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 interface FileExplorerProps {
   files: File[];
@@ -126,6 +135,8 @@ async function getAllFiles(entry: FileSystemEntry): Promise<File[]> {
   return files;
 }
 
+type ConversionMethod = "docling" | "azure";
+
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   files,
   onFileClick,
@@ -144,6 +155,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const [viewingDocument, setViewingDocument] = useState<File | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
+  const [conversionMethod, setConversionMethod] =
+    useState<ConversionMethod>("docling");
+  const [azureEndpoint, setAzureEndpoint] = useState("");
+  const [azureKey, setAzureKey] = useState("");
 
   // Group files by folder
   const groupedFiles = files.reduce((acc: { [key: string]: File[] }, file) => {
@@ -305,9 +320,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     // First, save all original documents and collect their paths
     const originalDocsFormData = new FormData();
     Array.from(selectedFiles).forEach((file) => {
-      // Add to conversion formData
       formData.append("files", file);
-      // Add to storage formData with original filename to preserve it
       originalDocsFormData.append(
         "files",
         new File([file], file.name, { type: file.type })
@@ -327,10 +340,21 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
       const savedDocs = await saveDocsResponse.json();
 
+      // Choose endpoint based on conversion method
+      const conversionEndpoint = "/api/convertDocuments";
+
+      // Prepare headers for Azure if needed
+      const headers: HeadersInit = {};
+      if (conversionMethod === "azure") {
+        headers["azure-endpoint"] = azureEndpoint;
+        headers["azure-key"] = azureKey;
+      }
+
       // Then proceed with conversion
-      const response = await fetch("/api/convertDocuments", {
+      const response = await fetch(conversionEndpoint, {
         method: "POST",
         body: formData,
+        headers,
       });
 
       if (!response.ok) {
@@ -625,7 +649,68 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               <DialogTitle>Upload Documents</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-6 w-full flex-1 overflow-hidden flex flex-col">
+            <div className="space-y-4 w-full flex-1 overflow-hidden flex flex-col">
+              <div className="flex flex-col space-y-2">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Switch
+                    id="conversion-method"
+                    checked={conversionMethod === "azure"}
+                    onCheckedChange={(checked) =>
+                      setConversionMethod(checked ? "azure" : "docling")
+                    }
+                  />
+                  <Label htmlFor="conversion-method">
+                    Use Azure Document Intelligence
+                  </Label>
+                </div>
+
+                {conversionMethod === "azure" && (
+                  <div className="grid gap-3 animate-in fade-in slide-in-from-top-1">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="azure-endpoint" className="text-sm">
+                        Azure Endpoint
+                      </Label>
+                      <Input
+                        id="azure-endpoint"
+                        placeholder="https://your-resource.cognitiveservices.azure.com/"
+                        value={azureEndpoint}
+                        onChange={(e) => setAzureEndpoint(e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Label htmlFor="azure-key" className="text-sm">
+                          Azure Key
+                        </Label>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <AlertTriangle className="h-4 w-4 text-amber-500" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-amber-50 border-amber-200 text-amber-900 w-[150px]">
+                              <p>
+                                Warning: Key is passed in plaintext to your
+                                local server. Ensure no one is snooping on your
+                                network traffic and stealing your key.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <Input
+                        id="azure-key"
+                        type="password"
+                        placeholder="Enter your Azure Document Intelligence key"
+                        value={azureKey}
+                        onChange={(e) => setAzureKey(e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div
                 className={`
                   border-2 border-dashed rounded-lg transition-colors relative flex-shrink-0
@@ -774,7 +859,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                     </div>
                     <Button
                       onClick={handleConversion}
-                      disabled={isConverting}
+                      disabled={
+                        isConverting ||
+                        (conversionMethod === "azure" &&
+                          (!azureEndpoint || !azureKey))
+                      }
                       className="min-w-[100px]"
                     >
                       {isConverting ? (

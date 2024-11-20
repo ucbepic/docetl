@@ -123,6 +123,11 @@ export function generatePipelineConfig(
         }
       }
 
+      // If it's a resolve type, add return_graph_to_debug to True
+      if (op.type === "resolve") {
+        newOp.return_graph_to_debug = true;
+      }
+
       return {
         ...newOp,
         output: {

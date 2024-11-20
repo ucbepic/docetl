@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
-import { Loader2, Download, ChevronDown, Circle } from "lucide-react";
+import { Loader2, Download, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import BookmarkableText from "@/components/BookmarkableText";
 import { Operation, OutputRow } from "@/app/types";
 import { Parser } from "json2csv";
@@ -18,14 +17,54 @@ import {
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import AnsiRenderer from "./AnsiRenderer";
 import clsx from "clsx";
+import ForceGraph2D from "react-force-graph-2d";
 import {
   BarChart,
-  Bar,
   XAxis,
   YAxis,
+  Bar,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from "recharts";
+
+interface GraphNode {
+  id: number;
+  size: number;
+  items: unknown[];
+  [key: string]: unknown;
+}
+
+interface ForceGraphNode extends GraphNode {
+  x?: number;
+  y?: number;
+  __r?: number;
+}
+
+interface GraphLink {
+  source: number;
+  target: number;
+  distance: number;
+  [key: string]: unknown;
+}
+
+interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphLink[];
+  distance_matrix: number[][];
+}
+
+interface DateRow extends Record<string, unknown> {
+  date?: string;
+}
+
+interface ForceGraphMethods {
+  link: () => {
+    distance: (fn: (link: GraphLink) => number) => void;
+  };
+  nodes: () => {
+    strength: (strength: number) => void;
+  };
+}
 
 const TinyPieChart: React.FC<{ percentage: number }> = ({ percentage }) => {
   const size = 16;
@@ -212,8 +251,8 @@ export const Output: React.FC = () => {
           if (parsedOutputs.length > 0) {
             if ("date" in parsedOutputs[0]) {
               parsedOutputs.sort((a, b) => {
-                const dateA = (a as any).date;
-                const dateB = (b as any).date;
+                const dateA = (a as DateRow).date;
+                const dateB = (b as DateRow).date;
                 if (dateA && dateB) {
                   return new Date(dateB).getTime() - new Date(dateA).getTime();
                 }
@@ -266,7 +305,7 @@ export const Output: React.FC = () => {
     fetchData();
   }, [output, operation, isLoadingOutputs]);
 
-  const columns: ColumnType<any>[] = React.useMemo(() => {
+  const columns: ColumnType<Record<string, unknown>>[] = React.useMemo(() => {
     const importantColumns = operation?.output?.schema
       ? operation.output.schema.map((field) => field.key)
       : [];
@@ -275,7 +314,7 @@ export const Output: React.FC = () => {
       ? Object.keys(outputs[0]).map((key) => ({
           accessorKey: key,
           header: key,
-          cell: ({ getValue }: { getValue: () => any }) => {
+          cell: ({ getValue }: { getValue: () => unknown }) => {
             const value = getValue();
             const stringValue =
               typeof value === "object" && value !== null
@@ -321,38 +360,62 @@ export const Output: React.FC = () => {
   );
 
   const VisualizeContent = () => {
-    const visualizationColumn = useMemo(() => {
-      if (!opName) return null;
-      const reduceColumnName = `_counts_prereduce_${opName}`;
-      const resolveColumnName = `_kv_pairs_preresolve_${opName}`;
-      return outputs.length > 0 && reduceColumnName in outputs[0]
-        ? { name: reduceColumnName, type: "reduce" }
-        : outputs.length > 0 && resolveColumnName in outputs[0]
-        ? { name: resolveColumnName, type: "resolve" }
-        : null;
-    }, [outputs, opName, operation]);
+    const [graphData, setGraphData] = useState<GraphData | null>(null);
+    const [isLoadingGraph, setIsLoadingGraph] = useState(false);
 
-    if (!visualizationColumn || !operation) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">
-            No visualization data available.
-          </p>
-        </div>
-      );
-    }
+    useEffect(() => {
+      const fetchGraphData = async () => {
+        if (!output?.path || operation?.type !== "resolve") return;
 
-    if (operation.type === "reduce") {
+        setIsLoadingGraph(true);
+        try {
+          const graphPath = output.path.replace(".json", "_debug_graph.json");
+          const response = await fetch(`/api/readFile?path=${graphPath}`);
+          if (!response.ok) {
+            throw new Error("Failed to fetch graph data");
+          }
+          const data = await response.json();
+
+          // Normalize distances
+          const distances = data.edges.map((edge: GraphLink) => edge.distance);
+          const minDist = Math.min(...distances);
+          const maxDist = Math.max(...distances);
+          const normalizedEdges = data.edges.map((edge: GraphLink) => ({
+            ...edge,
+            distance: (edge.distance - minDist) / (maxDist - minDist),
+          }));
+
+          // Filter edges - only keep meaningful connections
+          const filteredEdges = normalizedEdges.filter(
+            (edge: GraphLink) => edge.distance < 0.2
+          );
+
+          setGraphData({
+            ...data,
+            edges: filteredEdges,
+          });
+        } catch (error) {
+          console.error("Error fetching graph data:", error);
+        } finally {
+          setIsLoadingGraph(false);
+        }
+      };
+
+      fetchGraphData();
+    }, [output?.path, operation?.type]);
+
+    if (operation?.type === "reduce") {
       const reduceKeys = operation.otherKwargs?.reduce_key || [];
+      const visualizationColumn = `_counts_prereduce_${opName}`;
+
       const chartData = outputs
         .sort(
           (a, b) =>
-            Number(b[visualizationColumn.name]) -
-            Number(a[visualizationColumn.name])
+            Number(b[visualizationColumn]) - Number(a[visualizationColumn])
         )
         .map((row) => ({
           name: reduceKeys.map((key: string) => `${row[key]}`).join(", "),
-          value: Number(row[visualizationColumn.name]),
+          value: Number(row[visualizationColumn]),
         }));
 
       return (
@@ -391,137 +454,6 @@ export const Output: React.FC = () => {
                 dataKey="value"
                 fill="hsl(var(--chart-2))"
                 name="Count"
-                radius={[0, 4, 4, 0]} // Adjusted for vertical layout
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    } else if (operation.type === "resolve") {
-      const groupedData = useMemo(() => {
-        const intersectionKeys = new Set(
-          outputs.flatMap((row) => {
-            // @ts-ignore
-            const kvPairs = row[visualizationColumn.name] as Record<
-              string,
-              unknown
-            >;
-            return Object.keys(kvPairs).filter((key) => key in row);
-          })
-        );
-
-        const groupedByIntersection: {
-          [key: string]: {
-            count: number;
-            oldValues: Record<string, unknown>[];
-          };
-        } = {};
-
-        outputs.forEach((row) => {
-          // @ts-ignore
-          const kvPairs = row[visualizationColumn.name] as Record<
-            string,
-            unknown
-          >;
-          const key = Array.from(intersectionKeys)
-            .map((k) => row[k])
-            .join("|");
-
-          if (!groupedByIntersection[key]) {
-            groupedByIntersection[key] = {
-              count: 0,
-              oldValues: [],
-            };
-          }
-          groupedByIntersection[key].count++;
-          groupedByIntersection[key].oldValues.push(kvPairs);
-        });
-
-        return Object.entries(groupedByIntersection)
-          .map(([key, data]) => ({
-            name: key,
-            value: data.count,
-            oldValues: data.oldValues,
-          }))
-          .sort((a, b) => b.value - a.value);
-      }, [outputs, visualizationColumn.name]);
-
-      return (
-        <div className="h-full p-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={groupedData}
-              layout="vertical"
-              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
-            >
-              <XAxis
-                type="number"
-                tickFormatter={(value) => value.toLocaleString()}
-                className="text-foreground text-xs"
-                stroke="currentColor"
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={100}
-                className="text-foreground text-xs"
-                stroke="currentColor"
-              />
-              <RechartsTooltip
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const data = payload[0].payload;
-
-                    // Compute distinct values by stringifying and using Set
-                    const distinctValues = Array.from(
-                      new Set(
-                        data.oldValues.map((value) =>
-                          JSON.stringify(value, null, 2)
-                        )
-                      )
-                      // @ts-ignore
-                    ).map((str) => JSON.parse(str));
-
-                    // Calculate percentage of total documents
-                    const totalDocs = groupedData.reduce(
-                      (sum, item) => sum + item.value,
-                      0
-                    );
-                    const percentage = ((data.value / totalDocs) * 100).toFixed(
-                      1
-                    );
-
-                    return (
-                      <div className="bg-[hsl(var(--popover))] border border-[hsl(var(--border))] rounded-[var(--radius)] p-3 shadow-md max-h-[400px] overflow-y-auto w-[400px]">
-                        <p className="font-medium mb-2">
-                          {data.value.toLocaleString()} Documents ({percentage}
-                          %)
-                        </p>
-                        <div className="text-sm space-y-2">
-                          <p className="font-medium text-[hsl(var(--muted-foreground))]">
-                            {distinctValues.length} distinct value
-                            {distinctValues.length !== 1 ? "s" : ""} before
-                            resolution:
-                          </p>
-                          {distinctValues.map((value, idx) => (
-                            <pre
-                              key={idx}
-                              className="text-xs bg-[hsl(var(--muted)/.1)] p-2 rounded overflow-x-auto whitespace-pre-wrap break-all"
-                            >
-                              {JSON.stringify(value, null, 2)}
-                            </pre>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Bar
-                dataKey="value"
-                fill="hsl(var(--chart-2))"
-                name="Documents"
                 radius={[0, 4, 4, 0]}
               />
             </BarChart>
@@ -530,11 +462,83 @@ export const Output: React.FC = () => {
       );
     }
 
+    if (isLoadingGraph) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="ml-2 text-muted-foreground">
+            Loading graph data...
+          </span>
+        </div>
+      );
+    }
+
+    if (!graphData) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-muted-foreground">No graph data available.</p>
+        </div>
+      );
+    }
+
+    const graphDataFormatted = {
+      nodes: graphData.nodes,
+      links: graphData.edges.map((edge) => ({
+        ...edge,
+        source: edge.source,
+        target: edge.target,
+      })),
+    };
+
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">
-          Visualization not supported for this operation type.
-        </p>
+      <div className="h-full w-full">
+        <ForceGraph2D
+          graphData={graphDataFormatted}
+          nodeRelSize={8}
+          nodeVal={(node) => {
+            const size = (node as GraphNode).size;
+            return Math.sqrt(size) * 8;
+          }}
+          linkLabel={(link) =>
+            `Similarity: ${(100 * (1 - (link as GraphLink).distance)).toFixed(
+              1
+            )}%`
+          }
+          linkWidth={3}
+          linkColor={() => "rgba(100, 116, 139, 0.4)"}
+          backgroundColor="#ffffff"
+          nodeColor={() => "hsl(222, 67%, 51%)"}
+          nodeLabel={(node) => {
+            const n = node as GraphNode;
+            const relevantKeys =
+              operation?.output?.schema?.map((field) => field.key) || [];
+            const itemsPreview = n.items
+              .map((item) => {
+                const filteredItem: Record<string, unknown> = {};
+                relevantKeys.forEach((key) => {
+                  if (key in (item as Record<string, unknown>)) {
+                    filteredItem[key] = (item as Record<string, unknown>)[key];
+                  }
+                });
+                return JSON.stringify(filteredItem, null, 2);
+              })
+              .join("\n\n");
+
+            return `Cluster ${n.id} (${n.size} items)\n\nItems:\n${itemsPreview}`;
+          }}
+          linkDirectionalParticles={0}
+          d3VelocityDecay={0.3}
+          d3Force={(d3Force: ForceGraphMethods) => {
+            d3Force.link().distance((link) => {
+              const sourceSize = (link.source as unknown as GraphNode).size;
+              const targetSize = (link.target as unknown as GraphNode).size;
+              return 200 + Math.sqrt(sourceSize + targetSize) * 4;
+            });
+            d3Force.nodes().strength(-1000);
+          }}
+          cooldownTicks={100}
+          warmupTicks={100}
+        />
       </div>
     );
   };

@@ -38,10 +38,11 @@ fastapi = { version = "^0.115.0", optional = true }
 uvicorn = { version = "^0.31.0", optional = true }
 websockets = "^13.1"
 docling = { version  = "^2.5.2", optional = true }
+azure-ai-formrecognizer = { version = "^3.3.3", optional = true }
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]
-server = ["fastapi", "uvicorn", "docling"]
+server = ["fastapi", "uvicorn", "docling", "azure-ai-formrecognizer", "azure-ai-documentintelligence"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"

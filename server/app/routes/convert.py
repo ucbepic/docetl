@@ -1,13 +1,45 @@
-from fastapi import APIRouter, UploadFile, File
-from typing import List
+from fastapi import APIRouter, UploadFile, File, Header
+from typing import List, Optional
 import tempfile
 import os
 import aiohttp
 from pathlib import Path
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, ContentFormat, AnalyzeResult
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.core.credentials import AzureKeyCredential
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Add Azure credentials
+AZURE_ENDPOINT = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+AZURE_KEY = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
 
 router = APIRouter()
 
 MODAL_ENDPOINT = "https://ucbepic--docling-converter-convert-documents.modal.run"
+
+def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
+    """Process a single document with Azure Document Intelligence"""
+    try:
+        document_analysis_client = DocumentIntelligenceClient(
+            endpoint=endpoint, 
+            credential=AzureKeyCredential(key)
+        )
+
+        with open(file_path, "rb") as f:
+            poller = document_analysis_client.begin_analyze_document(
+                "prebuilt-layout", AnalyzeDocumentRequest(bytes_source=f.read()), output_content_format=ContentFormat.MARKDOWN,
+            )
+        result = poller.result()
+
+        return result.content
+    except Exception as e:
+        print(f"Error processing document: {str(e)}")
+        return f"Error processing document: {str(e)}"
 
 @router.post("/api/convert-documents")
 async def convert_documents(files: List[UploadFile] = File(...)):
@@ -78,3 +110,58 @@ async def convert_documents(files: List[UploadFile] = File(...)):
                 })
         
         return {"documents": results}
+    
+@router.post("/api/azure-convert-documents")
+async def azure_convert_documents(
+    files: List[UploadFile] = File(...),
+    azure_endpoint: Optional[str] = Header(None),
+    azure_key: Optional[str] = Header(None)
+):
+    if not azure_endpoint or not azure_key:
+        return {"error": "Azure credentials are required"}
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Save uploaded files and prepare for processing
+        file_paths = []
+        original_filenames = []
+        
+        for file in files:
+            file_path = os.path.join(temp_dir, file.filename)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            with open(file_path, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
+            
+            file_paths.append(file_path)
+            original_filenames.append(file.filename)
+
+        # Process documents concurrently using ThreadPoolExecutor
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for file_path in file_paths:
+                future = executor.submit(
+                    process_document_with_azure,
+                    file_path,
+                    azure_endpoint,
+                    azure_key
+                )
+                futures.append(future)
+
+            # Collect results as they complete
+            results = []
+            for future in futures:
+                results.append(future.result())
+
+        # Format results to match the existing endpoint's schema
+        formatted_results = [
+            {
+                "filename": filename,
+                "markdown": content
+            }
+            for filename, content in zip(original_filenames, results)
+        ]
+
+        return {"documents": formatted_results}
+    
+

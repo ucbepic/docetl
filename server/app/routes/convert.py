@@ -43,23 +43,25 @@ def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
 
 @router.post("/api/convert-documents")
 async def convert_documents(files: List[UploadFile] = File(...)):
-    # First try Modal endpoint
-    try:
-        async with aiohttp.ClientSession() as session:
-            # Prepare files for multipart upload
-            data = aiohttp.FormData()
-            for file in files:
-                data.add_field('files',
-                             await file.read(),
-                             filename=file.filename,
-                             content_type=file.content_type)
+    # First try Modal endpoint if there are no txt files
+    all_txt_files = all(file.filename.lower().endswith('.txt') or file.filename.lower().endswith('.md') for file in files)
+    if not all_txt_files:
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Prepare files for multipart upload
+                data = aiohttp.FormData()
+                for file in files:
+                    data.add_field('files',
+                                await file.read(),
+                                filename=file.filename,
+                                content_type=file.content_type)
             
-            async with session.post(MODAL_ENDPOINT, data=data, timeout=120) as response:
-                if response.status == 200:
-                    return await response.json()
+                async with session.post(MODAL_ENDPOINT, data=data, timeout=120) as response:
+                    if response.status == 200:
+                        return await response.json()
             
-    except Exception as e:
-        print(f"Modal endpoint failed: {str(e)}. Falling back to local processing...")
+        except Exception as e:
+            print(f"Modal endpoint failed: {str(e)}. Falling back to local processing...")
     
     # If Modal fails, fall back to local processing
     from docling.document_converter import DocumentConverter
@@ -70,7 +72,7 @@ async def convert_documents(files: List[UploadFile] = File(...)):
         # Save uploaded files to temporary directory
         file_paths = []
         original_filenames = []  # Keep track of original filenames
-        txt_files = []  # Track which files are .txt
+        txt_files = []  # Track which files are .txt or markdown
         for file in files:
             # Reset file position since we might have read it in the Modal attempt
             await file.seek(0)
@@ -82,7 +84,7 @@ async def convert_documents(files: List[UploadFile] = File(...)):
                 buffer.write(content)
             file_paths.append(file_path)
             original_filenames.append(file.filename)
-            txt_files.append(file.filename.lower().endswith('.txt'))
+            txt_files.append(file.filename.lower().endswith('.txt') or file.filename.lower().endswith('.md'))
         
         # Convert all documents
         results = []

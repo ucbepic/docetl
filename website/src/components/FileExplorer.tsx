@@ -778,7 +778,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                         type="file"
                         multiple
                         className="hidden"
-                        accept=".pdf,.docx,.doc,.txt,.html,.pptx"
+                        accept=".pdf,.docx,.doc,.txt,.html,.pptx,.md"
                         onChange={(e) => {
                           if (e.target.files) {
                             handleFolderUpload(e.target.files);
@@ -790,7 +790,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       </span>
                     </label>
                     <p className="text-xs text-gray-500">
-                      Supported formats: PDF, DOCX, DOC, TXT, HTML, PPTX
+                      Supported formats: PDF, DOCX, DOC, TXT, HTML, PPTX, MD
                     </p>
                     <p className="text-xs text-gray-500">
                       Processing may take up to 2 minutes

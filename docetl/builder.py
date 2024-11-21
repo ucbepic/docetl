@@ -140,7 +140,7 @@ class Optimizer:
         self.resume = resume
         self.captured_output = CapturedOutput()
 
-        home_dir = os.path.expanduser("~")
+        home_dir = os.environ.get("DOCETL_HOME_DIR", os.path.expanduser("~"))
         cache_dir = os.path.join(home_dir, f".docetl/cache/{runner.yaml_file_suffix}")
         os.makedirs(cache_dir, exist_ok=True)
         self.datasets = DatasetOnDisk(dir=cache_dir, console=self.console)

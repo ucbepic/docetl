@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     // Create uploads directory in user's home directory if it doesn't exist
-    const uploadDir = path.join(os.homedir(), ".docetl", "files");
+    const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
+    const uploadDir = path.join(homeDir, ".docetl", "files");
     await mkdir(uploadDir, { recursive: true });
 
     // Create full file path

@@ -31,15 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Search,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -49,14 +41,7 @@ import {
 import { TABLE_SETTINGS_KEY } from "@/app/localStorageKeys";
 import ReactMarkdown from "react-markdown";
 import debounce from "lodash/debounce";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  Tooltip,
-  ResponsiveContainer,
-  YAxis,
-} from "recharts";
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Input } from "@/components/ui/input";
 
 export type DataType = Record<string, unknown>;
@@ -88,7 +73,10 @@ function calculateDistinctValueCounts(
     const value = row[accessor];
     if (value != null) {
       const key = typeof value === "object" ? JSON.stringify(value) : value;
-      valueCounts.set(key, (valueCounts.get(key) || 0) + 1);
+      valueCounts.set(
+        key as string | number | boolean,
+        (valueCounts.get(key as string | number | boolean) || 0) + 1
+      );
     }
   });
 
@@ -956,7 +944,6 @@ function ResizableDataTable<T extends DataType>({
     defaultColumn: {
       minSize: 30,
       size: 150,
-      maxSize: Number.MAX_SAFE_INTEGER,
     },
     initialState: {
       pagination: {
@@ -1074,116 +1061,127 @@ function ResizableDataTable<T extends DataType>({
           )}
         </div>
       </div>
-      <Table style={{ width: "max-content", minWidth: "100%" }}>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              <TableHead style={{ width: "30px" }}>#</TableHead>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  style={{
-                    width: header.getSize(),
-                    position: "relative",
-                    minWidth: `${header.column.columnDef.minSize}px`,
-                    maxWidth: `${header.column.columnDef.maxSize}px`,
-                    fontWeight: boldedColumns.includes(
-                      header.column.columnDef.header as string
-                    )
-                      ? "bold"
-                      : "normal",
-                  }}
-                >
-                  {header.isPlaceholder ? null : (
-                    <ColumnHeader
-                      header={header.column.columnDef.header as string}
-                      stats={
-                        columnStats[
-                          (header.column.columnDef as { accessorKey?: string })
-                            .accessorKey || ""
-                        ]
-                      }
-                      isBold={boldedColumns.includes(
-                        header.column.columnDef.header as string
-                      )}
-                      onFilter={(value) => header.column.setFilterValue(value)}
-                      filterValue={
-                        (header.column.getFilterValue() as string) ?? ""
-                      }
-                    />
-                  )}
-                  <ColumnResizer header={header} />
+      <div style={{ width: "100%", overflow: "auto" }}>
+        <Table
+          style={{
+            width: table.getTotalSize() + 100, // Add extra space for resizing
+            minWidth: "100%",
+          }}
+        >
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                <TableHead style={{ width: "30px", minWidth: "30px" }}>
+                  #
                 </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row, index) => (
-            <React.Fragment key={row.id}>
-              <TableRow>
-                <TableCell
-                  style={{
-                    width: "30px",
-                    padding: "0.25rem",
-                    textAlign: "center",
-                  }}
-                >
-                  <span style={{ fontSize: "0.75rem", color: "#888" }}>
-                    {row.index + 1}
-                  </span>
-                </TableCell>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
                     style={{
-                      width: cell.column.getSize(),
-                      minWidth: cell.column.columnDef.minSize,
-                      height: `${rowSizing[index] || startingRowHeight}px`,
-                      padding: "0",
-                      overflow: "hidden",
+                      width: header.getSize(),
+                      position: "relative",
+                      minWidth: `${header.column.columnDef.minSize}px`,
                     }}
                   >
-                    <div
-                      style={{
-                        height: "100%",
-                        overflowY: "auto",
-                        padding: "0.5rem",
-                        fontWeight: "normal",
-                      }}
-                    >
-                      {typeof cell.getValue() === "string" ? (
-                        <SearchableCell
-                          content={cell.getValue() as string}
-                          isResizing={isResizing}
-                        />
-                      ) : (
-                        flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )
-                      )}
-                    </div>
-                  </TableCell>
+                    {header.isPlaceholder ? null : (
+                      <ColumnHeader
+                        header={header.column.columnDef.header as string}
+                        stats={
+                          columnStats[
+                            (
+                              header.column.columnDef as {
+                                accessorKey?: string;
+                              }
+                            ).accessorKey || ""
+                          ]
+                        }
+                        isBold={boldedColumns.includes(
+                          header.column.columnDef.header as string
+                        )}
+                        onFilter={(value) =>
+                          header.column.setFilterValue(value)
+                        }
+                        filterValue={
+                          (header.column.getFilterValue() as string) ?? ""
+                        }
+                      />
+                    )}
+                    <ColumnResizer header={header} />
+                  </TableHead>
                 ))}
               </TableRow>
-              <RowResizer
-                row={{
-                  ...row,
-                  getSize: () => rowSizing[index] || startingRowHeight,
-                  setSize: (size: number) => {
-                    setRowSizing((prev) => {
-                      const newRowSizing = { ...prev, [index]: size };
-                      saveSettings();
-                      return newRowSizing;
-                    });
-                  },
-                }}
-              />
-            </React.Fragment>
-          ))}
-        </TableBody>
-      </Table>
+            ))}
+          </TableHeader>
+
+          <TableBody>
+            {table.getRowModel().rows.map((row, index) => (
+              <React.Fragment key={row.id}>
+                <TableRow>
+                  <TableCell
+                    style={{
+                      width: "30px",
+                      minWidth: "30px",
+                      padding: "0.25rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.75rem", color: "#888" }}>
+                      {row.index + 1}
+                    </span>
+                  </TableCell>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      style={{
+                        width: cell.column.getSize(),
+                        minWidth: cell.column.columnDef.minSize,
+                        height: `${rowSizing[index] || startingRowHeight}px`,
+                        padding: "0",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          overflowY: "auto",
+                          padding: "0.5rem",
+                          fontWeight: "normal",
+                        }}
+                      >
+                        {typeof cell.getValue() === "string" ? (
+                          <SearchableCell
+                            content={cell.getValue() as string}
+                            isResizing={isResizing}
+                          />
+                        ) : (
+                          flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )
+                        )}
+                      </div>
+                    </TableCell>
+                  ))}
+                </TableRow>
+                <RowResizer
+                  row={{
+                    ...row,
+                    getSize: () => rowSizing[index] || startingRowHeight,
+                    setSize: (size: number) => {
+                      setRowSizing((prev) => {
+                        const newRowSizing = { ...prev, [index]: size };
+                        saveSettings();
+                        return newRowSizing;
+                      });
+                    },
+                  }}
+                />
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
       {data.length > 0 && (
         <div className="flex items-center justify-end space-x-2 py-4">
           <Button

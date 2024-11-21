@@ -18,8 +18,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
 
+    const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
+
     // Create uploads directory in user's home directory if it doesn't exist
-    const uploadsDir = path.join(os.homedir(), ".docetl", "documents");
+    const uploadsDir = path.join(homeDir, ".docetl", "documents");
     await mkdir(uploadsDir, { recursive: true });
 
     const savedFiles = await Promise.all(

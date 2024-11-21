@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --all-extras --no
     poetry install --all-extras
 
 # Build stage for Node.js dependencies
-FROM node:20-slim AS node-builder
+FROM node:20-alpine AS node-builder
 
 WORKDIR /app/website
 

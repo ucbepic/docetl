@@ -87,7 +87,7 @@ function calculateDistinctValueCounts(
   data.forEach((row) => {
     const value = row[accessor];
     if (value != null) {
-      const key = typeof value === "object" ? JSON.stringify(value) : value;
+      const key = typeof value === "object" ? JSON.stringify(value) : String(value);
       valueCounts.set(key, (valueCounts.get(key) || 0) + 1);
     }
   });

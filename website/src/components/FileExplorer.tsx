@@ -82,8 +82,13 @@ function mergeFileList(
   return dt.files;
 }
 
-async function getAllFiles(entry: FileSystemEntry): Promise<File[]> {
-  const files: File[] = [];
+// Add this type to handle File with relativePath
+interface FileWithPath extends File {
+  relativePath?: string;
+}
+
+async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
+  const files: FileWithPath[] = [];
 
   async function processEntry(
     entry: FileSystemEntry,
@@ -92,7 +97,7 @@ async function getAllFiles(entry: FileSystemEntry): Promise<File[]> {
     if (entry.isFile) {
       const fileEntry = entry as FileSystemFileEntry;
       const file = await new Promise<File>((resolve, reject) => {
-        // @ts-ignore
+        // @ts-expect-error FileSystemFileEntry type definitions are incomplete
         fileEntry.file(resolve, reject);
       });
 
@@ -110,10 +115,11 @@ async function getAllFiles(entry: FileSystemEntry): Promise<File[]> {
       ) {
         // Create a new file with the full path
         const fullPath = path ? `${path}/${file.name}` : file.name;
-        // @ts-ignore
-        const newFile = new File([file], fullPath, { type: file.type });
+        // @ts-expect-error File constructor with path is not in type definitions
+        const newFile = new File([file], fullPath, {
+          type: file.type,
+        }) as FileWithPath;
         Object.defineProperty(newFile, "relativePath", { value: fullPath });
-        // @ts-ignore
         files.push(newFile);
       }
     } else if (entry.isDirectory) {
@@ -136,6 +142,55 @@ async function getAllFiles(entry: FileSystemEntry): Promise<File[]> {
 }
 
 type ConversionMethod = "docling" | "azure";
+
+interface UploadedDataset {
+  [key: string]: unknown;
+}
+
+async function validateJsonDataset(file: Blob): Promise<void> {
+  const text = await file.text();
+  let data: unknown;
+
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Invalid JSON format");
+  }
+
+  // Check if it's an array
+  if (!Array.isArray(data)) {
+    throw new Error(
+      "Dataset must be an array of objects, like this: [{key: value}, {key: value}]"
+    );
+  }
+
+  // Check if array is not empty
+  if (data.length === 0) {
+    throw new Error("Dataset cannot be empty");
+  }
+
+  // Check if first item is an object
+  if (typeof data[0] !== "object" || data[0] === null) {
+    throw new Error("Dataset must contain objects");
+  }
+
+  // Get keys of first object
+  const firstObjectKeys = Object.keys(data[0]).sort();
+
+  // Check if all objects have the same keys
+  const hasConsistentKeys = data.every((item) => {
+    if (typeof item !== "object" || item === null) return false;
+    const currentKeys = Object.keys(item).sort();
+    return (
+      currentKeys.length === firstObjectKeys.length &&
+      currentKeys.every((key, index) => key === firstObjectKeys[index])
+    );
+  });
+
+  if (!hasConsistentKeys) {
+    throw new Error("All objects in dataset must have the same keys");
+  }
+}
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   files,
@@ -187,57 +242,62 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       return;
     }
 
-    if (uploadedFile.type === "application/json") {
-      setUploadingFiles((prev) => new Set(prev).add(uploadedFile.name));
-
-      const formData = new FormData();
-      formData.append("file", uploadedFile);
-
-      try {
-        const response = await fetch("/api/uploadFile", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error("Upload failed");
-        }
-
-        const data = await response.json();
-
-        const newFile = {
-          name: uploadedFile.name,
-          path: data.path,
-          type: "json" as const,
-          parentFolder: "root",
-        };
-
-        onFileUpload(newFile);
-        setCurrentFile(newFile);
-
-        toast({
-          title: "Success",
-          description: "Dataset uploaded successfully",
-        });
-      } catch (error) {
-        console.error(error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to upload file",
-        });
-      } finally {
-        setUploadingFiles((prev) => {
-          const next = new Set(prev);
-          next.delete(uploadedFile.name);
-          return next;
-        });
-      }
-    } else {
+    if (!uploadedFile.name.toLowerCase().endsWith(".json")) {
       toast({
         variant: "destructive",
         title: "Error",
         description: "Please upload a JSON file",
+      });
+      return;
+    }
+
+    setUploadingFiles((prev) => new Set(prev).add(uploadedFile.name));
+
+    try {
+      // Validate JSON structure before uploading
+      await validateJsonDataset(uploadedFile);
+
+      const formData = new FormData();
+      formData.append("file", uploadedFile);
+
+      const response = await fetch("/api/uploadFile", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const data = await response.json();
+
+      const newFile = {
+        name: uploadedFile.name,
+        path: data.path,
+        type: "json" as const,
+        parentFolder: "root",
+      };
+
+      onFileUpload(newFile);
+      setCurrentFile(newFile);
+
+      toast({
+        title: "Success",
+        description: "Dataset uploaded successfully",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to upload file",
+      });
+    } finally {
+      setUploadingFiles((prev) => {
+        const next = new Set(prev);
+        next.delete(uploadedFile.name);
+        return next;
       });
     }
   };
@@ -250,16 +310,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleFolderUpload = async (
     fileList: FileList | DataTransferItemList
   ) => {
-    const files: File[] = [];
+    const files: FileWithPath[] = [];
 
     const processItems = async () => {
-      // @ts-ignore
+      // @ts-expect-error DataTransferItemList doesn't have proper type support
       const items = Array.from(fileList);
 
       for (const item of items) {
         if ("webkitGetAsEntry" in item) {
           // Handle drag and drop
-          // @ts-ignore
+          // @ts-expect-error webkitGetAsEntry is not in type definitions
           const entry = (item as DataTransferItem).webkitGetAsEntry();
           if (entry) {
             const entryFiles = await getAllFiles(entry);
@@ -267,8 +327,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           }
         } else {
           // Handle regular file input
-          // @ts-ignore
-          const file = item as File;
+          // @ts-expect-error FileList type conversion needs explicit cast
+          const file = item as FileWithPath;
           const supportedExtensions = [
             ".pdf",
             ".docx",
@@ -292,7 +352,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
     // Create a new FileList-like object with the collected files
     const dt = new DataTransfer();
-    // @ts-ignore
+    // @ts-expect-error DataTransfer.items.add type is incomplete
     files.forEach((file) => dt.items.add(file));
     setSelectedFiles((prevFiles) => mergeFileList(prevFiles, dt.files));
   };
@@ -811,7 +871,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                         <div className="min-w-0 flex-1 overflow-hidden">
                           <div className="flex items-center">
                             <p className="text-sm font-medium text-gray-700 truncate">
-                              {(file as any).relativePath || file.name}
+                              {/* @ts-ignore */}
+                              {(file as FileWithPath).relativePath || file.name}
                             </p>
                           </div>
                           <p className="text-xs text-gray-500">

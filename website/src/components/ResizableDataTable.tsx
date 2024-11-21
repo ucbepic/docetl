@@ -38,6 +38,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Search,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -48,9 +49,15 @@ import {
 import { TABLE_SETTINGS_KEY } from "@/app/localStorageKeys";
 import ReactMarkdown from "react-markdown";
 import debounce from "lodash/debounce";
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  Tooltip,
+  ResponsiveContainer,
+  YAxis,
+} from "recharts";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
 
 export type DataType = Record<string, unknown>;
 export type ColumnType<T extends DataType> = ColumnDef<T> & {
@@ -65,6 +72,27 @@ interface ColumnStats {
   distribution: number[];
   bucketSize: number;
   type: "number" | "array" | "string-words" | "string-chars" | "boolean";
+  distinctCount: number;
+  totalCount: number;
+  isLowCardinality: boolean;
+  sortedValueCounts: { value: string; count: number }[];
+}
+
+function calculateDistinctValueCounts(
+  data: Record<string, unknown>[],
+  accessor: string
+): Map<string | number | boolean, number> {
+  const valueCounts = new Map<string | number | boolean, number>();
+
+  data.forEach((row) => {
+    const value = row[accessor];
+    if (value != null) {
+      const key = typeof value === "object" ? JSON.stringify(value) : value;
+      valueCounts.set(key, (valueCounts.get(key) || 0) + 1);
+    }
+  });
+
+  return valueCounts;
 }
 
 function calculateColumnStats(
@@ -139,6 +167,19 @@ function calculateColumnStats(
   const max = Math.max(...values);
   const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
 
+  const valueCounts = calculateDistinctValueCounts(data, accessor);
+  const distinctCount = valueCounts.size;
+  const totalCount = data.filter((row) => row[accessor] != null).length;
+  const isLowCardinality = distinctCount < totalCount * 0.5;
+
+  // Convert value counts to sorted array for bar chart
+  const sortedValueCounts = Array.from(valueCounts.entries())
+    .sort((a, b) => b[1] - a[1]) // Sort by count in descending order
+    .map(([value, count]) => ({
+      value: String(value),
+      count,
+    }));
+
   // For boolean values, create a special two-bucket distribution
   if (type === "boolean") {
     const distribution = [0, 0]; // [false count, true count]
@@ -152,6 +193,10 @@ function calculateColumnStats(
       distribution,
       bucketSize: 1,
       type,
+      distinctCount,
+      totalCount,
+      isLowCardinality,
+      sortedValueCounts,
     };
   }
 
@@ -164,6 +209,10 @@ function calculateColumnStats(
       distribution: [values.length], // Put all values in a single bucket
       bucketSize: 1,
       type,
+      distinctCount,
+      totalCount,
+      isLowCardinality,
+      sortedValueCounts,
     };
   }
 
@@ -188,6 +237,10 @@ function calculateColumnStats(
     distribution,
     bucketSize,
     type,
+    distinctCount,
+    totalCount,
+    isLowCardinality,
+    sortedValueCounts,
   };
 }
 
@@ -246,26 +299,69 @@ const WordCountHistogram = React.memo(
 );
 WordCountHistogram.displayName = "WordCountHistogram";
 
+const CategoricalBarChart = React.memo(
+  ({ data }: { data: { value: string; count: number }[] }) => {
+    const totalCount = useMemo(
+      () => data.reduce((sum, item) => sum + item.count, 0),
+      [data]
+    );
+
+    // Take top 10 values for visualization
+    const displayData = data.slice(0, 10);
+
+    return (
+      <ResponsiveContainer width="100%" height={40}>
+        <BarChart data={displayData} barCategoryGap={1}>
+          <XAxis
+            dataKey="value"
+            tick={{ fontSize: 8 }}
+            interval={0}
+            tickLine={false}
+            stroke="hsl(var(--muted-foreground))"
+            height={15}
+          />
+          <Tooltip
+            formatter={(value: number) => [
+              `${value.toLocaleString()} (${(
+                (value / totalCount) *
+                100
+              ).toFixed(1)}%)`,
+              "Count",
+            ]}
+            labelFormatter={(label: string) => label}
+            contentStyle={{
+              backgroundColor: "hsl(var(--popover))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "var(--radius)",
+              color: "hsl(var(--popover-foreground))",
+              padding: "8px 12px",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            }}
+            wrapperStyle={{ zIndex: 1000 }}
+          />
+          <Bar
+            dataKey="count"
+            fill="hsl(var(--chart-2))"
+            radius={[4, 4, 0, 0]}
+            isAnimationActive={false}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+);
+CategoricalBarChart.displayName = "CategoricalBarChart";
+
 interface ColumnHeaderProps {
   header: string;
   stats: ColumnStats | null;
   isBold: boolean;
-  onSort: () => void;
-  sortDirection: "asc" | "desc" | false;
   onFilter: (value: string) => void;
   filterValue: string;
 }
 
 const ColumnHeader = React.memo(
-  ({
-    header,
-    stats,
-    isBold,
-    onSort,
-    sortDirection,
-    onFilter,
-    filterValue,
-  }: ColumnHeaderProps) => {
+  ({ header, stats, isBold, onFilter, filterValue }: ColumnHeaderProps) => {
     const histogramData = useMemo(() => {
       if (!stats) return [];
 
@@ -326,6 +422,9 @@ const ColumnHeader = React.memo(
 
     return (
       <div className="space-y-1">
+        <div className={`${isBold ? "font-bold" : ""} text-sm px-1`}>
+          {header}
+        </div>
         <div
           className={`${isBold ? "font-bold" : ""} space-y-2 ${
             filterValue ? "bg-primary/5 rounded-md p-1" : ""
@@ -346,14 +445,9 @@ const ColumnHeader = React.memo(
         {stats && (
           <div className="space-y-0.5">
             <div className="flex justify-between text-[10px] text-muted-foreground">
-              {stats.min === stats.max ? (
+              {stats.isLowCardinality ? (
                 <span className="w-full text-center">
-                  Single value: {stats.min}
-                  {stats.type === "array"
-                    ? " items"
-                    : stats.type === "string-words"
-                    ? " words"
-                    : ""}
+                  {stats.distinctCount} distinct values
                 </span>
               ) : (
                 <>
@@ -378,7 +472,11 @@ const ColumnHeader = React.memo(
               )}
             </div>
             <div className="h-10 w-full">
-              <WordCountHistogram histogramData={histogramData} />
+              {stats.isLowCardinality ? (
+                <CategoricalBarChart data={stats.sortedValueCounts} />
+              ) : (
+                <WordCountHistogram histogramData={histogramData} />
+              )}
             </div>
           </div>
         )}
@@ -703,7 +801,7 @@ function ResizableDataTable<T extends DataType>({
   data,
   columns,
   boldedColumns,
-  startingRowHeight = 60, // Default starting height
+  startingRowHeight = 60,
 }: ResizableDataTableProps<T>) {
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
     const savedSettings = localStorage.getItem(TABLE_SETTINGS_KEY);
@@ -870,34 +968,83 @@ function ResizableDataTable<T extends DataType>({
     },
   });
 
+  const resetColumnWidths = useCallback(() => {
+    const initialSizing: ColumnSizingState = {};
+    columns.forEach((column) => {
+      if (column.initialWidth) {
+        initialSizing[column.id as string] = column.initialWidth;
+      } else {
+        // Get all values for this column
+        const values = data.map((row) => {
+          const value = row[column.accessorKey as string];
+          return value ? String(value) : "";
+        });
+
+        // Estimate width based on content (including header)
+        const header = column.header as string;
+        const maxContentLength = Math.max(
+          header.length,
+          ...values.map((v) => v.length)
+        );
+
+        // Estimate width: ~8px per character, with min 150px and max 400px
+        const estimatedWidth = Math.min(
+          Math.max(maxContentLength * 8, 150),
+          400
+        );
+
+        initialSizing[column.id as string] = estimatedWidth;
+      }
+    });
+
+    // Update the table's column sizing state
+    table.setColumnSizing(initialSizing);
+
+    // Update our local state and save settings
+    setColumnSizing(initialSizing);
+    saveSettings();
+  }, [columns, data, saveSettings, table]);
+
   return (
     <div className="w-full overflow-auto">
       <div className="mb-2 flex justify-between items-center">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="flex items-center ml-2 h-7"
-            >
-              Show/Hide Columns
-              <ChevronDown className="ml-1 h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56">
-            {table.getAllLeafColumns().map((column) => {
-              return (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  checked={column.getIsVisible()}
-                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                >
-                  {column.id}
-                </DropdownMenuCheckboxItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center ml-2 h-7"
+              >
+                Show/Hide Columns
+                <ChevronDown className="ml-1 h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56">
+              {table.getAllLeafColumns().map((column) => {
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) =>
+                      column.toggleVisibility(!!value)
+                    }
+                  >
+                    {column.id}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7"
+            onClick={resetColumnWidths}
+          >
+            Reset Widths
+          </Button>
+        </div>
         <div className="flex items-center space-x-2">
           {data.length > 0 && (
             <div className="flex items-center justify-end space-x-2 py-1 mr-2">
@@ -959,10 +1106,6 @@ function ResizableDataTable<T extends DataType>({
                       isBold={boldedColumns.includes(
                         header.column.columnDef.header as string
                       )}
-                      onSort={() => header.column.toggleSorting()}
-                      sortDirection={
-                        header.column.getIsSorted() as false | "asc" | "desc"
-                      }
                       onFilter={(value) => header.column.setFilterValue(value)}
                       filterValue={
                         (header.column.getFilterValue() as string) ?? ""

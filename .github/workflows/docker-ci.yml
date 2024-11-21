@@ -12,6 +12,9 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Remove .env copy from Dockerfile
+      run: sed -i '/COPY .env/d' Dockerfile
       
     - name: Build Docker image
       run: docker build -t docetl .

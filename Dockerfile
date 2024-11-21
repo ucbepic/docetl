@@ -59,7 +59,7 @@ COPY docetl/ ./docetl/
 COPY server/ ./server/
 COPY tests/ ./tests/
 COPY pyproject.toml poetry.lock ./
-COPY .env* ./ 2>/dev/null || true
+COPY .env ./ 2>/dev/null || :
 
 # Copy Node.js dependencies and application files
 COPY --from=node-builder /app/website ./website

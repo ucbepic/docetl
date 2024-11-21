@@ -72,7 +72,8 @@ function calculateDistinctValueCounts(
   data.forEach((row) => {
     const value = row[accessor];
     if (value != null) {
-      const key = typeof value === "object" ? JSON.stringify(value) : value;
+      const key =
+        typeof value === "object" ? JSON.stringify(value) : String(value);
       valueCounts.set(
         key as string | number | boolean,
         (valueCounts.get(key as string | number | boolean) || 0) + 1

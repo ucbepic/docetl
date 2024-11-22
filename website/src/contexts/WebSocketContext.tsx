@@ -6,12 +6,24 @@ import React, {
   useCallback,
 } from "react";
 
+// Define message types
+interface WebSocketMessage {
+  type: "output" | "result" | "error" | "optimizer_progress";
+  data?: any;
+  message?: string;
+  status?: string;
+  progress?: number;
+  should_optimize?: boolean;
+  rationale?: string;
+  validator_prompt?: string;
+}
+
 interface WebSocketContextType {
-  lastMessage: any;
+  lastMessage: WebSocketMessage | null;
   readyState: number;
   connect: () => Promise<void>;
   disconnect: () => void;
-  sendMessage: (message: any) => void;
+  sendMessage: (message: string | Record<string, unknown>) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -19,7 +31,7 @@ const WebSocketContext = createContext<WebSocketContextType | null>(null);
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [readyState, setReadyState] = useState<number>(WebSocket.CLOSED);
   const ws = useRef<WebSocket | null>(null);
 
@@ -44,14 +56,33 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         console.log("WebSocket disconnected");
       };
 
-      ws.current.onerror = (error) => {
+      ws.current.onerror = (error: Event) => {
         console.error("WebSocket error:", error);
-        reject(error);
+        setLastMessage({
+          type: "error",
+          data: "A WebSocket error occurred. Make sure websockets is installed and enabled on your server.",
+        });
+        reject(new Error("WebSocket connection failed"));
       };
 
       ws.current.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        setLastMessage(message);
+        try {
+          const message: WebSocketMessage = JSON.parse(event.data);
+          if (message.type === "error" && !message.data) {
+            setLastMessage({
+              type: "error",
+              data: message.message || "An unknown error occurred",
+            });
+          } else {
+            setLastMessage(message);
+          }
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
+          setLastMessage({
+            type: "error",
+            data: "Failed to parse WebSocket message",
+          });
+        }
       };
     });
   }, []);
@@ -62,13 +93,16 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  const sendMessage = useCallback((message: any) => {
-    if (ws.current?.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(message));
-    } else {
-      console.error("WebSocket is not connected");
-    }
-  }, []);
+  const sendMessage = useCallback(
+    (message: string | Record<string, unknown>) => {
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify(message));
+      } else {
+        console.error("WebSocket is not connected");
+      }
+    },
+    []
+  );
 
   const contextValue: WebSocketContextType = {
     lastMessage,

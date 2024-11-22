@@ -1,7 +1,7 @@
 # Load environment variables from .env file
 include .env
 
-.PHONY: tests tests-basic lint install mypy update ui-install ui-run
+.PHONY: tests tests-basic lint install mypy update ui-install ui-run docker
 
 # Existing commands
 tests:
@@ -25,7 +25,7 @@ mypy:
 update:
 	poetry update
 
-# New UI-related commands
+# UI-related commands
 UI_DIR := ./website 
 
 install-ui:
@@ -43,6 +43,24 @@ run-ui:
 	echo "Building UI..." && \
 	cd $(UI_DIR) && npm run build && HOST=${FRONTEND_HOST}  PORT=${FRONTEND_PORT} NEXT_PUBLIC_FRONTEND_ALLOWED_HOSTS=${FRONTEND_ALLOWED_HOSTS} npm run start
 
+# Single Docker command to build and run
+docker:
+	docker volume create docetl-data && \
+	docker build -t docetl . && \
+	docker run --rm -it \
+		-p 3000:3000 \
+		-p 8000:8000 \
+		-v docetl-data:/docetl-data \
+		-e FRONTEND_HOST=0.0.0.0 \
+		-e FRONTEND_PORT=3000 \
+		-e BACKEND_HOST=0.0.0.0 \
+		-e BACKEND_PORT=8000 \
+		docetl
+
+# Add new command for cleaning up docker resources
+docker-clean:
+	docker volume rm docetl-data
+
 # Help command
 help:
 	@echo "Available commands:"
@@ -54,5 +72,7 @@ help:
 	@echo "  make update       : Update dependencies"
 	@echo "  make install-ui   : Install UI dependencies"
 	@echo "  make run-ui-dev   : Run UI development server"
-	@echo "  make run-ui-prod  : Run UI production server"
+	@echo "  make run-ui       : Run UI production server"
+	@echo "  make docker       : Build and run docetl in Docker"
+	@echo "  make docker-clean : Remove docetl Docker volume"
 	@echo "  make help         : Show this help message"

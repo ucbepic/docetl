@@ -150,9 +150,7 @@ Note that the OpenAI API key, base, and model name are for the UI assistant only
 make run-ui-dev
 ```
 
-5. Visit http://localhost:3000/playground to access the interactive UI:
-
-![DocETL Playground](docs/assets/tutorial/playground-screenshot.png)
+5. Visit http://localhost:3000/playground to access the interactive UI.
 
 ### Development Setup
 

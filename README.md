@@ -1,4 +1,4 @@
-# DocETL: Powering Complex Document Processing Pipelines
+# 📜 DocETL: Powering Complex Document Processing Pipelines
 
 [![Website](https://img.shields.io/badge/Website-docetl.org-blue)](https://docetl.org)
 [![Documentation](https://img.shields.io/badge/Documentation-docs-green)](https://ucbepic.github.io/docetl)
@@ -12,34 +12,24 @@ DocETL is a tool for creating and executing data processing pipelines, especiall
 1. An interactive UI playground for iterative prompt engineering and pipeline development
 2. A Python package for running production pipelines from the command line or Python code
 
-## When to Use DocETL
-
-DocETL is the ideal choice when you're looking to maximize correctness and output quality for complex tasks over a collection of documents or unstructured datasets. You should consider using DocETL if:
-
-- You want to perform semantic processing on a collection of data
-- You have complex tasks that you want to represent via map-reduce
-- You're unsure how to best express your task to maximize LLM accuracy
-- You're working with long documents that don't fit into a single prompt
-- You have validation criteria and want tasks to automatically retry when validation fails
-
-### Community Projects
+### 🌟 Community Projects
 
 - [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation)
 - [Text-to-speech](https://github.com/PassionFruits-net/docetl-speaker)
 - [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
 
-### Educational Resources
+### 📚 Educational Resources
 
 - [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
 - [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
 - [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)
 
 
-## Getting Started
+## 🚀 Getting Started
 
 There are two main ways to use DocETL:
 
-### 1. Interactive UI Playground (Recommended for Development)
+### 1. 🎮 Interactive UI Playground (Recommended for Development)
 
 The [UI Playground](https://ucbepic.github.io/docetl/playground/) helps you iteratively develop your pipeline:
 - Experiment with different prompts and see results in real-time
@@ -54,7 +44,7 @@ To run the playground locally, you can either:
 
 See the [Playground Setup Guide](https://ucbepic.github.io/docetl/playground/) for detailed instructions.
 
-### 2. Python Package (For Production Use)
+### 2. 📦 Python Package (For Production Use)
 
 If you want to use DocETL as a Python package:
 
@@ -73,7 +63,7 @@ OPENAI_API_KEY=your_api_key_here  # Required for LLM operations (or the key for 
 
 To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
 
-### 2. UI Playground Setup
+### 2. 🎮 UI Playground Setup
 
 To run the UI playground locally, you have two options:
 
@@ -165,7 +155,7 @@ make run-ui-dev
 
 5. Visit http://localhost:3000/playground to access the interactive UI.
 
-### Development Setup
+### 🛠️ Development Setup
 
 If you're planning to contribute or modify DocETL, you can verify your setup by running the test suite:
 

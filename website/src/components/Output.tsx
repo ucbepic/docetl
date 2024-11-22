@@ -310,6 +310,7 @@ export const Output: React.FC = () => {
                 : []
             }
             startingRowHeight={180}
+            currentOperation={opName}
           />
         </BookmarkableText>
       ) : (

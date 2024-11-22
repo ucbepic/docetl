@@ -31,7 +31,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ChevronDown, Search } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Search,
+  Eye,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -43,6 +49,11 @@ import ReactMarkdown from "react-markdown";
 import debounce from "lodash/debounce";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Input } from "@/components/ui/input";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 export type DataType = Record<string, unknown>;
 export type ColumnType<T extends DataType> = ColumnDef<T> & {
@@ -446,6 +457,8 @@ const ColumnHeader = React.memo(
                       ? " items"
                       : stats.type === "string-words"
                       ? " words"
+                      : stats.type === "string-chars"
+                      ? " chars"
                       : ""}
                   </span>
                   <span>avg: {Math.round(stats.avg)}</span>
@@ -455,6 +468,8 @@ const ColumnHeader = React.memo(
                       ? " items"
                       : stats.type === "string-words"
                       ? " words"
+                      : stats.type === "string-chars"
+                      ? " chars"
                       : ""}
                   </span>
                 </>
@@ -537,6 +552,7 @@ interface ResizableDataTableProps<T extends DataType> {
   columns: ColumnType<T>[];
   boldedColumns: string[];
   startingRowHeight?: number;
+  currentOperation: string;
 }
 
 interface MarkdownCellProps {
@@ -786,11 +802,61 @@ const SearchableCell = React.memo(
 );
 SearchableCell.displayName = "SearchableCell";
 
+interface ObservabilityIndicatorProps {
+  row: Record<string, unknown>;
+  currentOperation: string;
+}
+
+const ObservabilityIndicator = React.memo(
+  ({ row, currentOperation }: ObservabilityIndicatorProps) => {
+    // Only show observability data for the current operation
+    const observabilityEntries = Object.entries(row).filter(
+      ([key]) => key === `_observability_${currentOperation}`
+    );
+
+    if (observabilityEntries.length === 0) return null;
+
+    return (
+      <HoverCard>
+        <HoverCardTrigger asChild>
+          <div className="cursor-help">
+            <Eye className="h-4 w-4 text-muted-foreground hover:text-primary" />
+          </div>
+        </HoverCardTrigger>
+        <HoverCardContent
+          className="w-[800px] max-h-[600px] overflow-auto"
+          side="right"
+          align="start"
+        >
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold border-b pb-2">
+              LLM Call(s) for {currentOperation}
+            </h3>
+            <div className="space-y-2">
+              {observabilityEntries.map(([key, value]) => (
+                <div key={key} className="flex flex-col gap-1">
+                  <div className="text-sm text-muted-foreground">
+                    {typeof value === "object"
+                      ? JSON.stringify(value, null, 2)
+                      : String(value)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </HoverCardContent>
+      </HoverCard>
+    );
+  }
+);
+ObservabilityIndicator.displayName = "ObservabilityIndicator";
+
 function ResizableDataTable<T extends DataType>({
   data,
   columns,
   boldedColumns,
   startingRowHeight = 60,
+  currentOperation,
 }: ResizableDataTableProps<T>) {
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
     const savedSettings = localStorage.getItem(TABLE_SETTINGS_KEY);
@@ -892,34 +958,39 @@ function ResizableDataTable<T extends DataType>({
 
   const table = useReactTable({
     data,
-    columns: sortedColumns.map((col) => ({
-      ...col,
-      enableSorting: true,
-      filterFn: fuzzyFilter,
-      sortingFn: (rowA: Row<T>, rowB: Row<T>) => {
-        const accessor = col.accessorKey;
-        if (!accessor) return 0;
+    columns: sortedColumns
+      .filter((col) => {
+        const columnId = col.accessorKey || col.id;
+        return !columnId?.startsWith("_observability_");
+      })
+      .map((col) => ({
+        ...col,
+        enableSorting: true,
+        filterFn: fuzzyFilter,
+        sortingFn: (rowA: Row<T>, rowB: Row<T>) => {
+          const accessor = col.accessorKey;
+          if (!accessor) return 0;
 
-        const a = rowA.getValue(accessor);
-        const b = rowB.getValue(accessor);
+          const a = rowA.getValue(accessor);
+          const b = rowB.getValue(accessor);
 
-        // Handle null/undefined values
-        if (a == null) return -1;
-        if (b == null) return 1;
+          // Handle null/undefined values
+          if (a == null) return -1;
+          if (b == null) return 1;
 
-        // Sort based on type
-        if (typeof a === "number" && typeof b === "number") {
-          return a - b;
-        }
+          // Sort based on type
+          if (typeof a === "number" && typeof b === "number") {
+            return a - b;
+          }
 
-        if (Array.isArray(a) && Array.isArray(b)) {
-          return a.length - b.length;
-        }
+          if (Array.isArray(a) && Array.isArray(b)) {
+            return a.length - b.length;
+          }
 
-        // For strings, do alphabetical comparison
-        return String(a).localeCompare(String(b));
-      },
-    })),
+          // For strings, do alphabetical comparison
+          return String(a).localeCompare(String(b));
+        },
+      })),
     columnResizeMode: "onChange" as ColumnResizeMode,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -1065,7 +1136,7 @@ function ResizableDataTable<T extends DataType>({
       <div style={{ width: "100%", overflow: "auto" }}>
         <Table
           style={{
-            width: table.getTotalSize() + 100, // Add extra space for resizing
+            width: table.getTotalSize() + 100,
             minWidth: "100%",
           }}
         >
@@ -1126,9 +1197,15 @@ function ResizableDataTable<T extends DataType>({
                       textAlign: "center",
                     }}
                   >
-                    <span style={{ fontSize: "0.75rem", color: "#888" }}>
-                      {row.index + 1}
-                    </span>
+                    <div className="flex flex-col items-center gap-1">
+                      <span style={{ fontSize: "0.75rem", color: "#888" }}>
+                        {row.index + 1}
+                      </span>
+                      <ObservabilityIndicator
+                        row={row.original}
+                        currentOperation={currentOperation}
+                      />
+                    </div>
                   </TableCell>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell

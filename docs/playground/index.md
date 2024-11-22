@@ -10,15 +10,63 @@ The playground allows you to do just that.
 
 ## Installation
 
+There are two ways to run the playground:
+
+### 1. Using Docker (Recommended for Quick Start)
+
+The easiest way to get started is using Docker:
+
+1. Create the required environment files:
+
+Create `.env` in the root directory:
+```bash
+OPENAI_API_KEY=your_api_key_here
+BACKEND_ALLOW_ORIGINS=
+BACKEND_HOST=localhost
+BACKEND_PORT=8000
+BACKEND_RELOAD=True
+FRONTEND_HOST=localhost
+FRONTEND_PORT=3000
+```
+
+Create `.env.local` in the `website` directory:
+```bash
+OPENAI_API_KEY=sk-xxx
+OPENAI_API_BASE=https://api.openai.com/v1
+MODEL_NAME=gpt-4o-mini
+
+NEXT_PUBLIC_BACKEND_HOST=localhost
+NEXT_PUBLIC_BACKEND_PORT=8000
+```
+
+2. Run Docker:
+```bash
+make docker
+```
+
+This will:
+- Create a Docker volume for persistent data
+- Build the DocETL image
+- Run the container with the UI accessible at http://localhost:3000 and API at http://localhost:8000
+
+To clean up Docker resources (note that this will delete the Docker volume):
+```bash
+make docker-clean
+```
+
+### 2. Running Locally (Development Setup)
+
+For development or if you want to run the UI locally:
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/ucbepic/docetl.git
 cd docetl
 ```
 
-2. Set up environment variables by creating a `.env` file in the root directory:
+2. Set up environment variables in `.env` in the root directory:
 ```bash
-OPENAI_API_KEY=your_api_key_here # Or any other llm keys
+OPENAI_API_KEY=your_api_key_here
 BACKEND_ALLOW_ORIGINS=
 BACKEND_HOST=localhost
 BACKEND_PORT=8000
@@ -27,13 +75,11 @@ FRONTEND_HOST=0.0.0.0
 FRONTEND_PORT=3000
 ```
 
-The `.env` file is used for the backend server.
-
-For the front end, create an `.env.local` file in the `website` directory with:
+Create `.env.local` in the `website` directory:
 ```bash
 OPENAI_API_KEY=sk-xxx
 OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4-mini
+MODEL_NAME=gpt-4o-mini
 
 NEXT_PUBLIC_BACKEND_HOST=localhost
 NEXT_PUBLIC_BACKEND_PORT=8000
@@ -53,19 +99,13 @@ make install-ui   # Install UI dependencies
 make run-ui-dev
 ```
 
-5. Navigate to [http://localhost:3000/playground](http://localhost:3000/playground) to access the playground.
+5. Navigate to http://localhost:3000/playground to access the playground.
 
 ### Setting up the AI Assistant
 
 The UI offers an optional chat-based assistant that can help you iteratively develop your pipeline. It is currently very experimental. It can't write to your pipeline, but you can bounce ideas off of it and get it to help you iteratively develop your pipeline.
 
 To use the assistant, you need to set your OpenAI API key in the `.env.local` file in the website directory. You can get an API key [here](https://platform.openai.com/api-keys). The API key should be in the following format: `sk-proj-...`. We only support the openai models for the assistant.
-
-Your `.env.local` file should look like this:
-
-```
-OPENAI_API_KEY=sk-proj-...
-```
 
 ## Complex Tutorial
 

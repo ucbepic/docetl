@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { generatePipelineConfig } from "@/app/api/utils";
-
+import os from "os";
 export async function POST(request: Request) {
   try {
     const { default_model, data, operations, operation_id, name, sample_size } =
@@ -9,16 +9,18 @@ export async function POST(request: Request) {
     if (!name) {
       return NextResponse.json(
         { error: "Pipeline name is required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     if (!data) {
       return NextResponse.json(
         { error: "Data is required. Please select a file in the sidebar." },
-        { status: 400 },
+        { status: 400 }
       );
     }
+
+    const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
 
     const { yamlString } = generatePipelineConfig(
       default_model,
@@ -26,7 +28,8 @@ export async function POST(request: Request) {
       operations,
       operation_id,
       name,
-      sample_size,
+      homeDir,
+      sample_size
     );
 
     return NextResponse.json({ pipelineConfig: yamlString });
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
     console.error(error);
     return NextResponse.json(
       { error: "Failed to generate pipeline configuration" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

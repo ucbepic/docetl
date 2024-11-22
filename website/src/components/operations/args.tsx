@@ -20,6 +20,7 @@ import {
 import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import Editor from "@monaco-editor/react";
+import PropTypes from "prop-types";
 
 interface PromptInputProps {
   prompt: string;
@@ -59,6 +60,11 @@ export const PromptInput: React.FC<PromptInputProps> = React.memo(
 
 PromptInput.displayName = "PromptInput";
 
+PromptInput.propTypes = {
+  prompt: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
+};
+
 interface SchemaFormProps {
   schema: SchemaItem[];
   onUpdate: (newSchema: SchemaItem[]) => void;
@@ -85,6 +91,20 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
       onUpdate(newSchema);
     };
 
+    const isItemValid = (item: SchemaItem): boolean => {
+      if (!isList && !item.key) return false;
+
+      if (item.type === "list" && item.subType) {
+        return isItemValid(item.subType as SchemaItem);
+      }
+
+      if (item.type === "dict" && item.subType) {
+        return (item.subType as SchemaItem[]).every(isItemValid);
+      }
+
+      return true;
+    };
+
     return (
       <div style={{ marginLeft: `${level * 20}px` }}>
         {schema.map((item, index) => (
@@ -99,7 +119,9 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
                   updateItem(index, { ...item, key: e.target.value })
                 }
                 placeholder="Key"
-                className="w-1/3 min-w-[150px]"
+                className={`w-1/3 min-w-[150px] ${
+                  !item.key ? "border-red-500" : ""
+                }`}
               />
             )}
             <Select
@@ -165,6 +187,11 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
                 />
               </div>
             )}
+            {!isList && !item.key && (
+              <div className="w-full mt-1 text-red-500 text-sm">
+                Key is required
+              </div>
+            )}
           </div>
         ))}
         {!isList && (
@@ -183,6 +210,30 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
 );
 
 SchemaForm.displayName = "SchemaForm";
+
+SchemaForm.propTypes = {
+  // @ts-ignore
+  schema: PropTypes.arrayOf(
+    PropTypes.shape({
+      key: PropTypes.string,
+      type: PropTypes.oneOf([
+        "string",
+        "float",
+        "int",
+        "boolean",
+        "list",
+        "dict",
+      ]).isRequired,
+      subType: PropTypes.oneOfType([
+        PropTypes.object,
+        PropTypes.arrayOf(PropTypes.object),
+      ]),
+    })
+  ).isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  level: PropTypes.number,
+  isList: PropTypes.bool,
+};
 
 interface OutputSchemaProps {
   schema: SchemaItem[];
@@ -211,6 +262,13 @@ export const OutputSchema: React.FC<OutputSchemaProps> = React.memo(
 );
 
 OutputSchema.displayName = "OutputSchema";
+
+OutputSchema.propTypes = {
+  schema: PropTypes.array.isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  isExpanded: PropTypes.bool.isRequired,
+  onToggle: PropTypes.func.isRequired,
+};
 
 export interface GleaningConfigProps {
   gleaning: { num_rounds: number; validation_prompt: string } | null;
@@ -307,6 +365,17 @@ export const GleaningConfig: React.FC<GleaningConfigProps> = React.memo(
 
 GleaningConfig.displayName = "GleaningConfig";
 
+GleaningConfig.propTypes = {
+  // @ts-ignore
+  gleaning: PropTypes.shape({
+    num_rounds: PropTypes.number,
+    validation_prompt: PropTypes.string,
+  }),
+  onUpdate: PropTypes.func.isRequired,
+  isExpanded: PropTypes.bool.isRequired,
+  onToggle: PropTypes.func.isRequired,
+};
+
 interface GuardrailsProps {
   guardrails: string[];
   onUpdate: (newGuardrails: string[]) => void;
@@ -399,6 +468,13 @@ export const Guardrails: React.FC<GuardrailsProps> = React.memo(
 );
 
 Guardrails.displayName = "Guardrails";
+
+Guardrails.propTypes = {
+  guardrails: PropTypes.arrayOf(PropTypes.string).isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  isExpanded: PropTypes.bool.isRequired,
+  onToggle: PropTypes.func.isRequired,
+};
 
 interface CodeInputProps {
   code: string;
@@ -514,3 +590,11 @@ export const CodeInput: React.FC<CodeInputProps> = React.memo(
 );
 
 CodeInput.displayName = "CodeInput";
+
+CodeInput.propTypes = {
+  code: PropTypes.string.isRequired,
+  // @ts-ignore
+  operationType: PropTypes.oneOf(["code_map", "code_reduce", "code_filter"])
+    .isRequired,
+  onChange: PropTypes.func.isRequired,
+};

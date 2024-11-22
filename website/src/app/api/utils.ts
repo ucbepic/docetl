@@ -9,12 +9,11 @@ export function generatePipelineConfig(
   operations: Operation[],
   operation_id: string,
   name: string,
+  homeDir: string,
   sample_size: number | null,
   optimize: boolean = false,
   clear_intermediate: boolean = false
 ) {
-  const homeDir = os.homedir();
-
   const datasets = {
     input: {
       type: "file",

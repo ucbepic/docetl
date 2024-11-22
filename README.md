@@ -33,32 +33,73 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 
 ## Installation
 
-### Prerequisites
+There are three ways to run DocETL:
 
+### 1. Using Docker (Recommended for Quick Start)
+
+The easiest way to get started is using Docker:
+
+1. Create the required environment files:
+
+Create `.env` in the root directory:
+```bash
+OPENAI_API_KEY=your_api_key_here
+BACKEND_ALLOW_ORIGINS=
+BACKEND_HOST=0.0.0.0
+BACKEND_PORT=8000
+BACKEND_RELOAD=True
+FRONTEND_HOST=0.0.0.0
+FRONTEND_PORT=3000
+```
+
+Create `.env.local` in the `website` directory:
+```bash
+OPENAI_API_KEY=sk-xxx
+OPENAI_API_BASE=https://api.openai.com/v1
+MODEL_NAME=gpt-4o-mini
+
+NEXT_PUBLIC_BACKEND_HOST=localhost
+NEXT_PUBLIC_BACKEND_PORT=8000
+```
+
+2. Run Docker:
+```bash
+make docker
+```
+
+This will:
+- Create a Docker volume for persistent data
+- Build the DocETL image
+- Run the container with the UI accessible at http://localhost:3000 and API at http://localhost:8000
+
+To clean up Docker resources (note that this will delete the Docker volume):
+```bash
+make docker-clean
+```
+
+### 2. Using pip (Basic Installation)
+
+If you just want to use DocETL as a Python package:
+
+#### Prerequisites
 - Python 3.10 or later
 - OpenAI API key
 
-### Quick Start
-
-1. Install from PyPI:
 ```bash
 pip install docetl
 ```
 
 To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
 
-### Running the UI Locally
+### 3. Running the UI Locally (Development Setup)
 
-We offer a simple UI for building pipelines. We recommend building up complex pipelines one operation at a time, so you can see the results of each operation as you go and iterate on your pipeline. To run it locally, follow these steps:
-
-![Playground Screenshot](docs/assets/tutorial/playground-screenshot.png)
+For development or if you want to run the UI locally:
 
 1. Clone the repository:
 ```bash
 git clone https://github.com/ucbepic/docetl.git
 cd docetl
 ```
-
 
 2. Set up environment variables in `.env` in the root/top-level directory:
 ```bash
@@ -72,7 +113,6 @@ FRONTEND_PORT=3000
 ```
 
 And create an .env.local file in the `website` directory with the following:
-
 ```bash
 OPENAI_API_KEY=sk-xxx
 OPENAI_API_BASE=https://api.openai.com/v1
@@ -88,7 +128,7 @@ make install      # Install Python package
 make install-ui   # Install UI dependencies
 ```
 
-Note that the openai api key, base, and model name are for the UI assistant only; not the DocETL pipeline execution engine.
+Note that the OpenAI API key, base, and model name are for the UI assistant only; not the DocETL pipeline execution engine.
 
 4. Start the development server:
 ```bash

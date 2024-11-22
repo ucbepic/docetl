@@ -7,7 +7,10 @@
 
 ![DocETL Figure](docs/assets/readmefig.png)
 
-DocETL is a tool for creating and executing data processing pipelines, especially suited for complex document processing tasks. It offers a low-code, declarative YAML interface to define LLM-powered operations on complex data.
+DocETL is a tool for creating and executing data processing pipelines, especially suited for complex document processing tasks. It offers:
+
+1. An interactive UI playground for iterative prompt engineering and pipeline development
+2. A Python package for running production pipelines from the command line or Python code
 
 ## When to Use DocETL
 
@@ -19,25 +22,51 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 - You're working with long documents that don't fit into a single prompt
 - You have validation criteria and want tasks to automatically retry when validation fails
 
-## Community Projects
+## Getting Started
 
-- [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation)
-- [Text-to-speech](https://github.com/PassionFruits-net/docetl-speaker)
-- [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
+There are two main ways to use DocETL:
 
-## Educational Resources
+### 1. Interactive UI Playground (Recommended for Development)
 
-- [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
-- [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
-- [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)
+The [UI Playground](https://ucbepic.github.io/docetl/playground/) helps you iteratively develop your pipeline:
+- Experiment with different prompts and see results in real-time
+- Build your pipeline step by step
+- Export your finalized pipeline configuration for production use
 
-## Installation
+![DocETL Playground](docs/assets/tutorial/playground-screenshot.png)
 
-There are three ways to run DocETL:
+To run the playground locally, you can either:
+- Use Docker (recommended for quick start): `make docker`
+- Set up the development environment manually
 
-### 1. Using Docker (Recommended for Quick Start)
+See the [Playground Setup Guide](https://ucbepic.github.io/docetl/playground/) for detailed instructions.
 
-The easiest way to get started is using Docker:
+### 2. Python Package (For Production Use)
+
+If you want to use DocETL as a Python package:
+
+#### Prerequisites
+- Python 3.10 or later
+- OpenAI API key
+
+```bash
+pip install docetl
+```
+
+Create a `.env` file in your project directory:
+```bash
+OPENAI_API_KEY=your_api_key_here  # Required for LLM operations (or the key for the LLM of your choice)
+```
+
+To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
+
+### 2. UI Playground Setup
+
+To run the UI playground locally, you have two options:
+
+#### Option A: Using Docker (Recommended for Quick Start)
+
+The easiest way to get the playground running:
 
 1. Create the required environment files:
 
@@ -70,30 +99,16 @@ make docker
 This will:
 - Create a Docker volume for persistent data
 - Build the DocETL image
-- Run the container with the UI accessible at http://localhost:3000 and API at http://localhost:8000
+- Run the container with the UI accessible at http://localhost:3000
 
 To clean up Docker resources (note that this will delete the Docker volume):
 ```bash
 make docker-clean
 ```
 
-### 2. Using pip (Basic Installation)
+#### Option B: Manual Setup (Development)
 
-If you just want to use DocETL as a Python package:
-
-#### Prerequisites
-- Python 3.10 or later
-- OpenAI API key
-
-```bash
-pip install docetl
-```
-
-To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
-
-### 3. Running the UI Locally (Development Setup)
-
-For development or if you want to run the UI locally:
+For development or if you prefer not to use Docker:
 
 1. Clone the repository:
 ```bash
@@ -135,7 +150,9 @@ Note that the OpenAI API key, base, and model name are for the UI assistant only
 make run-ui-dev
 ```
 
-5. Visit http://localhost:3000/playground
+5. Visit http://localhost:3000/playground to access the interactive UI:
+
+![DocETL Playground](docs/assets/tutorial/playground-screenshot.png)
 
 ### Development Setup
 
@@ -146,3 +163,15 @@ make tests-basic  # Runs basic test suite (costs < $0.01 with OpenAI)
 ```
 
 For detailed documentation and tutorials, visit our [documentation](https://ucbepic.github.io/docetl).
+
+## Community Projects
+
+- [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation)
+- [Text-to-speech](https://github.com/PassionFruits-net/docetl-speaker)
+- [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
+
+## Educational Resources
+
+- [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
+- [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
+- [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)

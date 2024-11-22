@@ -53,6 +53,7 @@ class ReduceOperation(BaseOperation):
         verbose: Optional[bool] = None
         timeout: Optional[int] = None
         litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        enable_observability: bool = False
 
     def __init__(self, *args, **kwargs):
         """
@@ -386,23 +387,29 @@ class ReduceOperation(BaseOperation):
 
             # Only execute merge-based plans if associative = True
             if "merge_prompt" in self.config and self.config.get("associative", True):
-                result, cost = self._parallel_fold_and_merge(key, group_list)
+                result, prompts, cost = self._parallel_fold_and_merge(key, group_list)
             elif (
                 self.config.get("fold_batch_size", None)
                 and self.config.get("fold_batch_size") >= len(group_list)
             ):
                 # If the fold batch size is greater than or equal to the number of items in the group,
                 # we can just run a single fold operation
-                result, cost = self._batch_reduce(key, group_list)
+                result, prompts, cost = self._batch_reduce(key, group_list)
             elif "fold_prompt" in self.config:
-                result, cost = self._incremental_reduce(key, group_list)
+                result, prompts, cost = self._incremental_reduce(key, group_list)
             else:
-                result, cost = self._batch_reduce(key, group_list)
+                result, prompts, cost = self._batch_reduce(key, group_list)
 
             total_cost += cost
 
             # Add the counts of items in the group to the result
             result[f"_counts_prereduce_{self.config['name']}"] = len(group_elems)
+
+            if self.config.get("enable_observability", False):
+                # Add the _observability_{self.config['name']} key to the result
+                result[f"_observability_{self.config['name']}"] = {
+                    "prompts": prompts
+                }
 
             # Apply pass-through at the group level
             if (
@@ -548,7 +555,7 @@ class ReduceOperation(BaseOperation):
         fold_batch_size = self.config["fold_batch_size"]
         merge_batch_size = self.config["merge_batch_size"]
         total_cost = 0
-
+        prompts = []
         def calculate_num_parallel_folds():
             fold_time, fold_default = self.get_fold_time()
             merge_time, merge_default = self.get_merge_time()
@@ -589,8 +596,9 @@ class ReduceOperation(BaseOperation):
 
                 new_fold_results = []
                 for future in as_completed(fold_futures):
-                    result, cost = future.result()
+                    result, prompt, cost = future.result()
                     total_cost += cost
+                    prompts.append(prompt)
                     if result is not None:
                         new_fold_results.append(result)
                         if self.config.get("persist_intermediates", False):
@@ -620,8 +628,9 @@ class ReduceOperation(BaseOperation):
 
                     new_results = []
                     for future in as_completed(merge_futures):
-                        result, cost = future.result()
+                        result, prompt, cost = future.result()
                         total_cost += cost
+                        prompts.append(prompt)
                         if result is not None:
                             new_results.append(result)
                             if self.config.get("persist_intermediates", False):
@@ -660,8 +669,9 @@ class ReduceOperation(BaseOperation):
 
                 new_results = []
                 for future in as_completed(merge_futures):
-                    result, cost = future.result()
+                    result, prompt, cost = future.result()
                     total_cost += cost
+                    prompts.append(prompt)
                     if result is not None:
                         new_results.append(result)
                         if self.config.get("persist_intermediates", False):
@@ -676,11 +686,11 @@ class ReduceOperation(BaseOperation):
 
                 fold_results = new_results
 
-        return (fold_results[0], total_cost) if fold_results else (None, total_cost)
+        return (fold_results[0], prompts, total_cost) if fold_results else (None, prompts, total_cost)
 
     def _incremental_reduce(
         self, key: Tuple, group_list: List[Dict]
-    ) -> Tuple[Optional[Dict], float]:
+    ) -> Tuple[Optional[Dict], List[str], float]:
         """
         Perform an incremental reduce operation on a group of items.
 
@@ -691,12 +701,13 @@ class ReduceOperation(BaseOperation):
             group_list (List[Dict]): The list of items in the group to be processed.
 
         Returns:
-            Tuple[Optional[Dict], float]: A tuple containing the final reduced result (or None if processing failed)
-            and the total cost of the operation.
+            Tuple[Optional[Dict], List[str], float]: A tuple containing the final reduced result (or None if processing failed),
+            the list of prompts used, and the total cost of the operation.
         """
         fold_batch_size = self.config["fold_batch_size"]
         total_cost = 0
         current_output = None
+        prompts = []
 
         # Calculate and log the number of folds to be performed
         num_folds = (len(group_list) + fold_batch_size - 1) // fold_batch_size
@@ -715,10 +726,11 @@ class ReduceOperation(BaseOperation):
                 )
             batch = group_list[i : i + fold_batch_size]
 
-            folded_output, fold_cost = self._increment_fold(
+            folded_output, prompt, fold_cost = self._increment_fold(
                 key, batch, current_output, scratchpad
             )
             total_cost += fold_cost
+            prompts.append(prompt)
 
             if folded_output is None:
                 continue
@@ -744,7 +756,7 @@ class ReduceOperation(BaseOperation):
 
             current_output = folded_output
 
-        return current_output, total_cost
+        return current_output, prompts, total_cost
 
     def validation_fn(self, response: Dict[str, Any]):
         output = self.runner.api.parse_llm_response(
@@ -761,7 +773,7 @@ class ReduceOperation(BaseOperation):
         batch: List[Dict],
         current_output: Optional[Dict],
         scratchpad: Optional[str] = None,
-    ) -> Tuple[Optional[Dict], float]:
+    ) -> Tuple[Optional[Dict], str, float]:
         """
         Perform an incremental fold operation on a batch of items.
 
@@ -773,8 +785,8 @@ class ReduceOperation(BaseOperation):
             current_output (Optional[Dict]): The current accumulated output, if any.
             scratchpad (Optional[str]): The scratchpad to use for the fold operation.
         Returns:
-            Tuple[Optional[Dict], float]: A tuple containing the folded output (or None if processing failed)
-            and the cost of the fold operation.
+            Tuple[Optional[Dict], str, float]: A tuple containing the folded output (or None if processing failed),
+            the prompt used, and the cost of the fold operation.
         """
         if current_output is None:
             return self._batch_reduce(key, batch, scratchpad)
@@ -822,13 +834,13 @@ class ReduceOperation(BaseOperation):
             folded_output.update(dict(zip(self.config["reduce_key"], key)))
             fold_cost = response.total_cost
 
-            return folded_output, fold_cost
+            return folded_output, fold_prompt, fold_cost
 
-        return None, fold_cost
+        return None, fold_prompt, fold_cost
 
     def _merge_results(
         self, key: Tuple, outputs: List[Dict]
-    ) -> Tuple[Optional[Dict], float]:
+    ) -> Tuple[Optional[Dict], str, float]:
         """
         Merge multiple outputs into a single result.
 
@@ -839,8 +851,8 @@ class ReduceOperation(BaseOperation):
             outputs (List[Dict]): The list of outputs to be merged.
 
         Returns:
-            Tuple[Optional[Dict], float]: A tuple containing the merged output (or None if processing failed)
-            and the cost of the merge operation.
+            Tuple[Optional[Dict], str, float]: A tuple containing the merged output (or None if processing failed),
+            the prompt used, and the cost of the merge operation.
         """
         start_time = time.time()
         merge_prompt_template = Template(self.config["merge_prompt"])
@@ -879,9 +891,9 @@ class ReduceOperation(BaseOperation):
             )[0]
             merged_output.update(dict(zip(self.config["reduce_key"], key)))
             merge_cost = response.total_cost
-            return merged_output, merge_cost
+            return merged_output, merge_prompt, merge_cost
 
-        return None, merge_cost
+        return None, merge_prompt, merge_cost
 
     def get_fold_time(self) -> Tuple[float, bool]:
         """
@@ -935,7 +947,7 @@ class ReduceOperation(BaseOperation):
 
     def _batch_reduce(
         self, key: Tuple, group_list: List[Dict], scratchpad: Optional[str] = None
-    ) -> Tuple[Optional[Dict], float]:
+    ) -> Tuple[Optional[Dict], str, float]:
         """
         Perform a batch reduce operation on a group of items.
 
@@ -946,8 +958,8 @@ class ReduceOperation(BaseOperation):
             group_list (List[Dict]): The list of items to be reduced.
             scratchpad (Optional[str]): The scratchpad to use for the reduce operation.
         Returns:
-            Tuple[Optional[Dict], float]: A tuple containing the reduced output (or None if processing failed)
-            and the cost of the reduce operation.
+            Tuple[Optional[Dict], str, float]: A tuple containing the reduced output (or None if processing failed),
+            the prompt used, and the cost of the reduce operation.
         """
         prompt_template = Template(self.config["prompt"])
         prompt = prompt_template.render(
@@ -988,5 +1000,5 @@ class ReduceOperation(BaseOperation):
             )[0]
             output.update(dict(zip(self.config["reduce_key"], key)))
 
-            return output, item_cost
-        return None, item_cost
+            return output, prompt, item_cost
+        return None, prompt, item_cost

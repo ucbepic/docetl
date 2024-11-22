@@ -394,11 +394,13 @@ class ReduceOperation(BaseOperation):
             ):
                 # If the fold batch size is greater than or equal to the number of items in the group,
                 # we can just run a single fold operation
-                result, prompts, cost = self._batch_reduce(key, group_list)
+                result, prompt, cost = self._batch_reduce(key, group_list)
+                prompts = [prompt]
             elif "fold_prompt" in self.config:
                 result, prompts, cost = self._incremental_reduce(key, group_list)
             else:
-                result, prompts, cost = self._batch_reduce(key, group_list)
+                result, prompt, cost = self._batch_reduce(key, group_list)
+                prompts = [prompt]
 
             total_cost += cost
 

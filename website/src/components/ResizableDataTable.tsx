@@ -831,7 +831,7 @@ const ObservabilityIndicator = React.memo(
         >
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">
-              LLM Call for {currentOperation}
+              LLM Call(s) for {currentOperation}
             </h3>
             <div className="space-y-2">
               {observabilityEntries.map(([key, value]) => (

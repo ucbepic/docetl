@@ -236,6 +236,16 @@ class ResolveOperation(BaseOperation):
         if len(input_data) == 0:
             return [], 0
 
+        # Initialize observability data for all items at the start
+        if self.config.get("enable_observability", False):
+            observability_key = f"_observability_{self.config['name']}"
+            for item in input_data:
+                if observability_key not in item:
+                    item[observability_key] = {
+                        "comparison_prompts": [],
+                        "resolution_prompt": None
+                    }
+
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
@@ -340,7 +350,7 @@ class ResolveOperation(BaseOperation):
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
-        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs))
+        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs)) if blocking_conditions else comparison_pairs
 
         # Apply limit_comparisons to blocked pairs
         if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
@@ -641,6 +651,8 @@ class ResolveOperation(BaseOperation):
                 for output_key, compare_key in key_mapping.items():
                     if compare_key in input_data[list(cluster)[0]]:
                         result[output_key] = input_data[list(cluster)[0]][compare_key]
+                    elif output_key in input_data[list(cluster)[0]]:
+                        result[output_key] = input_data[list(cluster)[0]][output_key]
                     else:
                         result[output_key] = None  # or some default value
 

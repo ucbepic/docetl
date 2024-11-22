@@ -124,6 +124,7 @@ export function generatePipelineConfig(
 
       return {
         ...newOp,
+        enable_observability: true,
         output: {
           schema: op.output.schema.reduce(
             (acc: Record<string, string>, item: SchemaItem) => {

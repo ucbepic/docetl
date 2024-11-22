@@ -1119,7 +1119,7 @@ class JoinOptimizer:
                 for i, j in pairs
             ]
             for future, (i, j) in zip(futures, pairs):
-                is_match, cost = future.result()
+                is_match, cost, _ = future.result()
                 comparisons.append((i, j, is_match))
                 total_cost += cost
 

@@ -22,6 +22,19 @@ DocETL is the ideal choice when you're looking to maximize correctness and outpu
 - You're working with long documents that don't fit into a single prompt
 - You have validation criteria and want tasks to automatically retry when validation fails
 
+### Community Projects
+
+- [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation)
+- [Text-to-speech](https://github.com/PassionFruits-net/docetl-speaker)
+- [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
+
+### Educational Resources
+
+- [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
+- [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
+- [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)
+
+
 ## Getting Started
 
 There are two main ways to use DocETL:
@@ -161,15 +174,3 @@ make tests-basic  # Runs basic test suite (costs < $0.01 with OpenAI)
 ```
 
 For detailed documentation and tutorials, visit our [documentation](https://ucbepic.github.io/docetl).
-
-## Community Projects
-
-- [Conversation Generator](https://github.com/PassionFruits-net/docetl-conversation)
-- [Text-to-speech](https://github.com/PassionFruits-net/docetl-speaker)
-- [YouTube Transcript Topic Extraction](https://github.com/rajib76/docetl_examples)
-
-## Educational Resources
-
-- [UI/UX Thoughts](https://x.com/sh_reya/status/1846235904664273201)
-- [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
-- [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)

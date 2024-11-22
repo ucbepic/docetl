@@ -457,6 +457,8 @@ const ColumnHeader = React.memo(
                       ? " items"
                       : stats.type === "string-words"
                       ? " words"
+                      : stats.type === "string-chars"
+                      ? " chars"
                       : ""}
                   </span>
                   <span>avg: {Math.round(stats.avg)}</span>
@@ -466,6 +468,8 @@ const ColumnHeader = React.memo(
                       ? " items"
                       : stats.type === "string-words"
                       ? " words"
+                      : stats.type === "string-chars"
+                      ? " chars"
                       : ""}
                   </span>
                 </>
@@ -798,11 +802,6 @@ const SearchableCell = React.memo(
 );
 SearchableCell.displayName = "SearchableCell";
 
-const isObservabilityColumn = (columnId: string | undefined): boolean => {
-  if (!columnId) return false;
-  return columnId.startsWith("_observability_");
-};
-
 interface ObservabilityIndicatorProps {
   row: Record<string, unknown>;
   currentOperation: string;
@@ -961,8 +960,8 @@ function ResizableDataTable<T extends DataType>({
     data,
     columns: sortedColumns
       .filter((col) => {
-        const columnId = col.id as string | undefined;
-        return !isObservabilityColumn(columnId);
+        const columnId = col.accessorKey || col.id;
+        return !columnId?.startsWith("_observability_");
       })
       .map((col) => ({
         ...col,

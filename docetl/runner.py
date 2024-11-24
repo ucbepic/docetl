@@ -102,7 +102,7 @@ class DSLRunner(ConfigWrapper):
 
                 all_ops_until_and_including_current = [
                     op_map[prev_op] for prev_op in step["operations"][:idx]
-                ] + [op_map[op_name]]
+                ] + [op_map[op_name]] + [self.config.get("system_prompt", {})]
                 # If there's no model in the op, add the default model
                 for op in all_ops_until_and_including_current:
                     if "model" not in op:

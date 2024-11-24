@@ -25,6 +25,7 @@ import {
   Save,
   Loader2,
   StopCircle,
+  Brain,
 } from "lucide-react";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import {
@@ -59,6 +60,11 @@ import { canBeOptimized } from "@/lib/utils";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
 import { OptimizationDialog } from "@/components/OptimizationDialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -87,15 +93,14 @@ const PipelineGUI: React.FC = () => {
     setOptimizerProgress,
     autoOptimizeCheck,
     setAutoOptimizeCheck,
-    highLevelGoal,
-    setHighLevelGoal,
+    systemPrompt,
+    setSystemPrompt,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempAutoOptimizeCheck, setTempAutoOptimizeCheck] =
     useState(autoOptimizeCheck);
   const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
-  const [tempHighLevelGoal, setTempHighLevelGoal] = useState(highLevelGoal);
   const [tempSampleSize, setTempSampleSize] = useState(
     sampleSize?.toString() || ""
   );
@@ -118,6 +123,10 @@ const PipelineGUI: React.FC = () => {
     content: "",
     prompt: undefined,
     operationName: undefined,
+  });
+  const [tempSystemPrompt, setTempSystemPrompt] = useState({
+    datasetDescription: systemPrompt.datasetDescription || "",
+    persona: systemPrompt.persona || "",
   });
 
   const { submitTask } = useOptimizeCheck({
@@ -303,10 +312,10 @@ const PipelineGUI: React.FC = () => {
   }, [optimizerModel]);
 
   useEffect(() => {
-    if (highLevelGoal) {
-      setTempHighLevelGoal(highLevelGoal);
+    if (sampleSize) {
+      setTempSampleSize(sampleSize.toString());
     }
-  }, [highLevelGoal]);
+  }, [sampleSize]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -510,6 +519,7 @@ const PipelineGUI: React.FC = () => {
             name: pipelineName,
             sample_size: sampleSize,
             clear_intermediate: clear_intermediate,
+            system_prompt: systemPrompt,
           }),
         });
 
@@ -585,7 +595,7 @@ const PipelineGUI: React.FC = () => {
     setIsSettingsOpen(false);
     setOptimizerModel(tempOptimizerModel);
     setAutoOptimizeCheck(tempAutoOptimizeCheck);
-    setHighLevelGoal(tempHighLevelGoal);
+    setSystemPrompt(tempSystemPrompt);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -626,7 +636,7 @@ const PipelineGUI: React.FC = () => {
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger>
-                    <div className="flex items-center">
+                    <div className="flex items-center cursor-help">
                       <PieChart size={16} className="text-primary mr-2" />
                       <span className="text-xs text-primary">
                         {sampleSize} samples
@@ -690,6 +700,71 @@ const PipelineGUI: React.FC = () => {
               >
                 <Settings size={16} />
               </Button>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="link" size="sm">
+                    Set System Prompts
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-88">
+                  <div className="grid gap-3">
+                    <div className="space-y-1">
+                      <h4 className="text-lg font-semibold">
+                        System Configuration
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        This will be in the system prompt for <b>every</b>{" "}
+                        operation!
+                      </p>
+                    </div>
+                    <div className="grid gap-3">
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="datasetDescription"
+                          className="text-sm font-medium"
+                        >
+                          Dataset Description
+                        </Label>
+                        <Textarea
+                          id="datasetDescription"
+                          placeholder="a collection of documents"
+                          value={tempSystemPrompt.datasetDescription}
+                          onChange={(e) =>
+                            setTempSystemPrompt((prev) => ({
+                              ...prev,
+                              datasetDescription: e.target.value,
+                            }))
+                          }
+                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          className="h-[3.5rem]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="persona"
+                          className="text-sm font-medium"
+                        >
+                          Persona
+                        </Label>
+                        <Textarea
+                          id="persona"
+                          placeholder="a helpful assistant"
+                          value={tempSystemPrompt.persona}
+                          onChange={(e) =>
+                            setTempSystemPrompt((prev) => ({
+                              ...prev,
+                              persona: e.target.value,
+                            }))
+                          }
+                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          className="h-[3.5rem]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div className="flex space-x-2">
@@ -884,19 +959,6 @@ const PipelineGUI: React.FC = () => {
                 value={tempPipelineName}
                 onChange={(e) => setTempPipelineName(e.target.value)}
                 className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="goal" className="text-right">
-                High-Level Goal
-              </Label>
-              <Textarea
-                id="goal"
-                value={tempHighLevelGoal}
-                onChange={(e) => setTempHighLevelGoal(e.target.value)}
-                className="col-span-3"
-                rows={4}
-                placeholder="Describe the high-level goal of your pipeline (e.g., 'I want to find common themes across all the documents' or 'I want to summarize the most important things related to X')..."
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

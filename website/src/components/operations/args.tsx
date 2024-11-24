@@ -17,10 +17,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import Editor from "@monaco-editor/react";
 import PropTypes from "prop-types";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "../ui/hover-card";
 
 interface PromptInputProps {
   prompt: string;
@@ -42,7 +46,7 @@ export const PromptInput: React.FC<PromptInputProps> = React.memo(
           className={`mb-1 rounded-sm text-sm font-mono ${
             !validateJinjaTemplate(prompt) ? "border-red-500" : ""
           }`}
-          rows={3}
+          rows={Math.max(3, Math.ceil(prompt.split("\n").length))}
           value={prompt}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -89,20 +93,6 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
       if (isList) return;
       const newSchema = schema.filter((_, i) => i !== index);
       onUpdate(newSchema);
-    };
-
-    const isItemValid = (item: SchemaItem): boolean => {
-      if (!isList && !item.key) return false;
-
-      if (item.type === "list" && item.subType) {
-        return isItemValid(item.subType as SchemaItem);
-      }
-
-      if (item.type === "dict" && item.subType) {
-        return (item.subType as SchemaItem[]).every(isItemValid);
-      }
-
-      return true;
     };
 
     return (
@@ -212,7 +202,7 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
 SchemaForm.displayName = "SchemaForm";
 
 SchemaForm.propTypes = {
-  // @ts-ignore
+  // @ts-expect-error - PropTypes schema doesn't match TypeScript SchemaItem[] type exactly
   schema: PropTypes.arrayOf(
     PropTypes.shape({
       key: PropTypes.string,
@@ -244,18 +234,66 @@ interface OutputSchemaProps {
 
 export const OutputSchema: React.FC<OutputSchemaProps> = React.memo(
   ({ schema, onUpdate, isExpanded, onToggle }) => {
+    const isEmpty = schema.length === 0;
+    const hasEmptyKeys = schema.some((item) => !item.key);
+    const shouldExpandByDefault = isEmpty || hasEmptyKeys;
+
+    // If there are validation issues, force expand unless user explicitly closed it
+    const shouldShow = shouldExpandByDefault ? true : isExpanded;
+
     return (
       <div>
-        <Button variant="ghost" size="sm" onClick={onToggle} className="p-0">
-          <ChevronDown
-            size={16}
-            className={`mr-1 transition-transform duration-200 ${
-              isExpanded ? "transform rotate-180" : ""
-            }`}
-          />
-          <h4 className="text-xs font-semibold">Output Schema</h4>
-        </Button>
-        {isExpanded && <SchemaForm schema={schema} onUpdate={onUpdate} />}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggle}
+            className={`p-0 ${isEmpty || hasEmptyKeys ? "text-red-500" : ""}`}
+          >
+            <ChevronDown
+              size={16}
+              className={`mr-1 transition-transform duration-200 ${
+                shouldShow ? "transform rotate-180" : ""
+              }`}
+            />
+            <h4 className="text-xs font-semibold">
+              Output Schema {isEmpty && "(Required)"}
+            </h4>
+          </Button>
+          <HoverCard>
+            <HoverCardTrigger>
+              <Info size={16} className="text-primary cursor-help" />
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">Output Column Naming</h4>
+                <p className="text-sm text-muted-foreground">
+                  Name your columns appropriately as they influence the
+                  LLM&apos;s output.
+                </p>
+                <div className="mt-2 rounded-md bg-muted p-2">
+                  <p className="text-sm font-medium">Example:</p>
+                  <p className="text-xs text-muted-foreground">
+                    If your prompt extracts names from a document, use
+                    &quot;names&quot; as your output column name instead of
+                    &quot;extracted_data&quot; or &quot;results&quot;.
+                  </p>
+                </div>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
+        {shouldShow && <SchemaForm schema={schema} onUpdate={onUpdate} />}
+        {isEmpty && (
+          <div className="text-red-500 text-sm mt-1">
+            At least one output field is required
+          </div>
+        )}
+        {hasEmptyKeys && !isEmpty && (
+          <div className="text-red-500 text-sm mt-1">
+            All fields must have a key name
+          </div>
+        )}
       </div>
     );
   }
@@ -366,7 +404,7 @@ export const GleaningConfig: React.FC<GleaningConfigProps> = React.memo(
 GleaningConfig.displayName = "GleaningConfig";
 
 GleaningConfig.propTypes = {
-  // @ts-ignore
+  // @ts-expect-error - PropTypes null type doesn't match TypeScript optional type
   gleaning: PropTypes.shape({
     num_rounds: PropTypes.number,
     validation_prompt: PropTypes.string,
@@ -418,8 +456,8 @@ export const Guardrails: React.FC<GuardrailsProps> = React.memo(
                 <TooltipContent className="max-w-md whitespace-normal break-words text-left">
                   <p>
                     Guardrails are Python statements to validate output.
-                    Example: "len(output["summary"]) {">"} 100" ensures a
-                    summary is at least 100 characters long.
+                    Example: &quot;len(output[&quot;summary&quot;]) &gt;
+                    100&quot; ensures a summary is at least 100 characters long.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -593,7 +631,7 @@ CodeInput.displayName = "CodeInput";
 
 CodeInput.propTypes = {
   code: PropTypes.string.isRequired,
-  // @ts-ignore
+  // @ts-expect-error - PropTypes string union doesn't match TypeScript type exactly
   operationType: PropTypes.oneOf(["code_map", "code_reduce", "code_filter"])
     .isRequired,
   onChange: PropTypes.func.isRequired,

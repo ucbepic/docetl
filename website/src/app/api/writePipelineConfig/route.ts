@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       sample_size,
       optimize = false,
       clear_intermediate = false,
+      system_prompt,
     } = await request.json();
 
     if (!name) {
@@ -42,7 +43,8 @@ export async function POST(request: Request) {
       homeDir,
       sample_size,
       optimize,
-      clear_intermediate
+      clear_intermediate,
+      system_prompt
     );
 
     // Save the YAML file in the user's home directory

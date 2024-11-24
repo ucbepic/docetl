@@ -236,10 +236,6 @@ export const OutputSchema: React.FC<OutputSchemaProps> = React.memo(
   ({ schema, onUpdate, isExpanded, onToggle }) => {
     const isEmpty = schema.length === 0;
     const hasEmptyKeys = schema.some((item) => !item.key);
-    const shouldExpandByDefault = isEmpty || hasEmptyKeys;
-
-    // If there are validation issues, force expand unless user explicitly closed it
-    const shouldShow = shouldExpandByDefault ? true : isExpanded;
 
     return (
       <div>
@@ -253,7 +249,7 @@ export const OutputSchema: React.FC<OutputSchemaProps> = React.memo(
             <ChevronDown
               size={16}
               className={`mr-1 transition-transform duration-200 ${
-                shouldShow ? "transform rotate-180" : ""
+                isExpanded ? "transform rotate-180" : ""
               }`}
             />
             <h4 className="text-xs font-semibold">
@@ -283,7 +279,7 @@ export const OutputSchema: React.FC<OutputSchemaProps> = React.memo(
             </HoverCardContent>
           </HoverCard>
         </div>
-        {shouldShow && <SchemaForm schema={schema} onUpdate={onUpdate} />}
+        {isExpanded && <SchemaForm schema={schema} onUpdate={onUpdate} />}
         {isEmpty && (
           <div className="text-red-500 text-sm mt-1">
             At least one output field is required

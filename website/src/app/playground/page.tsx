@@ -296,10 +296,17 @@ const CodeEditorPipelineApp: React.FC = () => {
                 </MenubarContent>
               </MenubarMenu>
               <MenubarMenu>
-                <MenubarTrigger>Assistant</MenubarTrigger>
+                <MenubarTrigger>Help</MenubarTrigger>
                 <MenubarContent>
+                  <MenubarItem
+                    onSelect={() =>
+                      window.open("https://ucbepic.github.io/docetl/", "_blank")
+                    }
+                  >
+                    Show Documentation
+                  </MenubarItem>
                   <MenubarItem onSelect={() => setShowChat(!showChat)}>
-                    Toggle Chat
+                    Show Chat
                   </MenubarItem>
                 </MenubarContent>
               </MenubarMenu>

@@ -65,6 +65,43 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+
+interface OperationMenuItemProps {
+  name: string;
+  description: string;
+  onClick: () => void;
+}
+
+const OperationMenuItem: React.FC<OperationMenuItemProps> = ({
+  name,
+  description,
+  onClick,
+}) => {
+  return (
+    <HoverCard openDelay={200}>
+      <HoverCardTrigger asChild>
+        <div className="relative w-full">
+          <DropdownMenuItem onClick={onClick} className="w-full cursor-help">
+            {name}
+          </DropdownMenuItem>
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="right" align="start" className="w-72 p-2">
+        <div className="space-y-1">
+          <h4 className="font-medium text-sm">{name} Operation</h4>
+          <p className="text-xs text-muted-foreground leading-snug">
+            {description}
+          </p>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -777,35 +814,37 @@ const PipelineGUI: React.FC = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuLabel>LLM Operations</DropdownMenuLabel>
-                <DropdownMenuItem
+                <OperationMenuItem
+                  name="Map"
+                  description="Transforms each input item for complex data processing and insight extraction. 1 to 1 operation (each document gets one result, but the output of the operation can be any type, like a list)."
                   onClick={() =>
                     handleAddOperation("LLM", "map", "Untitled Map")
                   }
-                >
-                  Map
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Reduce"
+                  description="Aggregates data by key for summarization or folding. Many to 1 operation (many documents get combined into one result)."
                   onClick={() =>
                     handleAddOperation("LLM", "reduce", "Untitled Reduce")
                   }
-                >
-                  Reduce
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Resolve"
+                  description="Identifies and merges duplicate entities for data consistency. Keeps the same number of documents; just resolves values."
                   onClick={() =>
                     handleAddOperation("LLM", "resolve", "Untitled Resolve")
                   }
-                >
-                  Resolve
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Filter"
+                  description="Selectively includes or excludes data based on specific conditions. This is like a map operation, but with a boolean output schema. The size of your dataset may decrease, as documents that evaluate to false based on the prompt will be dropped from the dataset."
                   onClick={() =>
                     handleAddOperation("LLM", "filter", "Untitled Filter")
                   }
-                >
-                  Filter
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Parallel Map"
+                  description="Like a Map operation, but processes multiple documents in parallel for improved performance. Best used when documents can be processed independently."
                   onClick={() =>
                     handleAddOperation(
                       "LLM",
@@ -813,9 +852,7 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Parallel Map"
                     )
                   }
-                >
-                  Parallel Map
-                </DropdownMenuItem>
+                />
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Non-LLM Operations</DropdownMenuLabel>
                 <DropdownMenuItem
@@ -848,7 +885,9 @@ const PipelineGUI: React.FC = () => {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Code Operations</DropdownMenuLabel>
-                <DropdownMenuItem
+                <OperationMenuItem
+                  name="Code Map"
+                  description="Like the LLM Map operation, but uses a Python function instead of an LLM. Write custom Python code to transform each document."
                   onClick={() =>
                     handleAddOperation(
                       "non-LLM",
@@ -856,10 +895,10 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Code Map"
                     )
                   }
-                >
-                  Code Map
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Code Reduce"
+                  description="Like the LLM Reduce operation, but uses a Python function instead of an LLM. Write custom Python code to aggregate multiple documents into one."
                   onClick={() =>
                     handleAddOperation(
                       "non-LLM",
@@ -867,10 +906,10 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Code Reduce"
                     )
                   }
-                >
-                  Code Reduce
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Code Filter"
+                  description="Like the LLM Filter operation, but uses a Python function instead of an LLM. Write custom Python code to determine which documents to keep."
                   onClick={() =>
                     handleAddOperation(
                       "non-LLM",
@@ -878,9 +917,7 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Code Filter"
                     )
                   }
-                >
-                  Code Filter
-                </DropdownMenuItem>
+                />
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex space-x-2">

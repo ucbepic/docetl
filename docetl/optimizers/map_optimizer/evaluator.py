@@ -307,14 +307,14 @@ class Evaluator:
             self.llm_client.model,
         )
 
-        prompt = f"""Task: Assess the performance of a data processing operation based on sample input-output pairs and a custom validator prompt.
+        prompt = f"""Task: Assess the performance of a data processing operation based on sample rows and a custom validator prompt. You will see the output of the operation for each row.
 
         Operation Name: {op_config['name']}
         Operation Type: {op_config['type']}
         Current Task Prompt: {op_config.get('prompt', 'N/A')}
 
-        Sample Input-Output Pairs:
-        ---Pair 1---
+        Sample Rows:
+        ---Row 1---
         {json.dumps({"input": input_1, "output": output_1}, indent=2)}
         """
 
@@ -332,7 +332,7 @@ class Evaluator:
                 self.llm_client.model,
             )
             prompt += f"""
-        ---Pair 2---
+        ---Row 2---
         {json.dumps({"input": input_2, "output": output_2}, indent=2)}
         """
 
@@ -350,7 +350,7 @@ class Evaluator:
                 self.llm_client.model,
             )
             prompt += f"""
-        ---Pair 3---
+        ---Row 3---
         {json.dumps({"input": input_3, "output": output_3}, indent=2)}
         """
 

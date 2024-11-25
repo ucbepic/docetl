@@ -107,7 +107,15 @@ class CodeReduceOperation(BaseOperation):
                     for k, v in group[0].items():
                         if k not in result:
                             result[k] = v
-                            
+
+                # Also add the reduce key
+                if reduce_keys != ["_all"]:
+                    for k in reduce_keys:
+                        if k not in result:
+                            result[k] = group[0][k]
+
+                result[f"_counts_prereduce_{self.config['name']}"] = len(group)
+
                 results.append(result)
 
         return results, 0.0

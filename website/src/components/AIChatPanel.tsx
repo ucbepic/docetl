@@ -1,8 +1,14 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import { ResizableBox } from "react-resizable";
-import { Eraser, RefreshCw, X, Copy } from "lucide-react";
+import { RefreshCw, X, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,6 +19,13 @@ import "react-resizable/css/styles.css";
 import { LLMContextPopover } from "@/components/LLMContextPopover";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import ReactMarkdown from "react-markdown";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { debounce } from "lodash";
 
 interface AIChatPanelProps {
   onClose: () => void;
@@ -45,7 +58,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
     initialMessages: [],
     id: "persistent-chat",
   });
-  const { serializeState } = usePipelineContext();
+  const { serializeState, highLevelGoal, setHighLevelGoal } =
+    usePipelineContext();
+  const [localGoal, setLocalGoal] = useState(highLevelGoal);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).classList.contains("drag-handle")) {
@@ -184,6 +199,25 @@ Remember, all the output fields have been converted to strings, even if they wer
     );
   };
 
+  const debouncedSetHighLevelGoal = useMemo(
+    () => debounce((value: string) => setHighLevelGoal(value), 1000),
+    [setHighLevelGoal]
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedSetHighLevelGoal.cancel();
+    };
+  }, [debouncedSetHighLevelGoal]);
+
+  const handleGoalUpdate = useCallback(
+    (newGoal: string) => {
+      setLocalGoal(newGoal);
+      debouncedSetHighLevelGoal(newGoal);
+    },
+    [debouncedSetHighLevelGoal]
+  );
+
   return (
     <div
       style={{
@@ -210,6 +244,33 @@ Remember, all the output fields have been converted to strings, even if they wer
             <LLMContextPopover />
           </span>
           <div className="flex items-center gap-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <span className="text-s text-primary font-medium flex items-center gap-2 cursor-pointer">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 px-2 text-xs"
+                  >
+                    {highLevelGoal ? "Edit Analysis Goal" : "Set Analysis Goal"}
+                  </Button>
+                </span>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 z-[10000]" side="top" align="end">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Pipeline Goal</h4>
+                  <Textarea
+                    placeholder="Describe the high-level goal of your pipeline..."
+                    className="min-h-[100px]"
+                    value={localGoal}
+                    onChange={(e) => handleGoalUpdate(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This helps the assistant provide more relevant suggestions.
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button
               variant="ghost"
               size="sm"
@@ -242,8 +303,10 @@ Remember, all the output fields have been converted to strings, even if they wer
                     onClick={() => {
                       handleInputChange({
                         target: { value: suggestion },
-                      } as any);
-                      handleMessageSubmit({ preventDefault: () => {} } as any);
+                      } as React.ChangeEvent<HTMLInputElement>);
+                      handleMessageSubmit({
+                        preventDefault: () => {},
+                      } as React.FormEvent);
                     }}
                   >
                     {suggestion}

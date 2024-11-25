@@ -358,10 +358,20 @@ interface ColumnHeaderProps {
   isBold: boolean;
   onFilter: (value: string) => void;
   filterValue: string;
+  onSort: () => void;
+  sortDirection: false | "asc" | "desc";
 }
 
 const ColumnHeader = React.memo(
-  ({ header, stats, isBold, onFilter, filterValue }: ColumnHeaderProps) => {
+  ({
+    header,
+    stats,
+    isBold,
+    onFilter,
+    filterValue,
+    onSort,
+    sortDirection,
+  }: ColumnHeaderProps) => {
     const histogramData = useMemo(() => {
       if (!stats) return [];
 
@@ -422,7 +432,69 @@ const ColumnHeader = React.memo(
 
     return (
       <div className="space-y-1">
-        <div className={`${isBold ? "font-bold" : ""} text-sm px-1`}>
+        <div
+          className={`${
+            isBold ? "font-bold" : ""
+          } text-sm px-1 flex items-center gap-2`}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={onSort}
+          >
+            {sortDirection === false && (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-muted-foreground"
+              >
+                <path d="m3 16 4 4 4-4" />
+                <path d="M7 20V4" />
+                <path d="m21 8-4-4-4 4" />
+                <path d="M17 4v16" />
+              </svg>
+            )}
+            {sortDirection === "asc" && (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m3 8 4-4 4 4" />
+                <path d="M7 4v16" />
+              </svg>
+            )}
+            {sortDirection === "desc" && (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m3 16 4 4 4-4" />
+                <path d="M7 20V4" />
+              </svg>
+            )}
+          </Button>
           {header}
         </div>
         <div
@@ -851,6 +923,20 @@ const ObservabilityIndicator = React.memo(
 );
 ObservabilityIndicator.displayName = "ObservabilityIndicator";
 
+// Move the sortingFns definition outside of the table config
+const createSortingFns = <T extends DataType>(
+  data: T[],
+  originalIndices: number[]
+) => ({
+  preserveIndex: (rowA: Row<T>, rowB: Row<T>) => {
+    const a = rowA.original;
+    const b = rowB.original;
+    const aIndex = originalIndices[data.indexOf(a)];
+    const bIndex = originalIndices[data.indexOf(b)];
+    return aIndex - bIndex;
+  },
+});
+
 function ResizableDataTable<T extends DataType>({
   data,
   columns,
@@ -956,6 +1042,16 @@ function ResizableDataTable<T extends DataType>({
     return String(cellValue).toLowerCase().includes(searchValue);
   };
 
+  // Add this state to store original row indices
+  const [originalIndices] = useState(() => data.map((_, index) => index));
+
+  // Create sorting functions
+  const sortingFns = useMemo(
+    () => createSortingFns(data, originalIndices),
+    [data, originalIndices]
+  );
+
+  // Modify the table configuration
   const table = useReactTable({
     data,
     columns: sortedColumns
@@ -1025,6 +1121,7 @@ function ResizableDataTable<T extends DataType>({
     filterFns: {
       fuzzy: fuzzyFilter,
     },
+    sortingFns,
   });
 
   const resetColumnWidths = useCallback(() => {
@@ -1176,6 +1273,18 @@ function ResizableDataTable<T extends DataType>({
                         filterValue={
                           (header.column.getFilterValue() as string) ?? ""
                         }
+                        onSort={() => {
+                          const currentSortDirection =
+                            header.column.getIsSorted();
+                          if (currentSortDirection === false) {
+                            setSorting([{ id: header.column.id, desc: false }]);
+                          } else if (currentSortDirection === "asc") {
+                            setSorting([{ id: header.column.id, desc: true }]);
+                          } else {
+                            setSorting([]);
+                          }
+                        }}
+                        sortDirection={header.column.getIsSorted()}
                       />
                     )}
                     <ColumnResizer header={header} />

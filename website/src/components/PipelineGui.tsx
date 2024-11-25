@@ -25,6 +25,7 @@ import {
   Save,
   Loader2,
   StopCircle,
+  Brain,
 } from "lucide-react";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import {
@@ -59,6 +60,48 @@ import { canBeOptimized } from "@/lib/utils";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
 import { OptimizationDialog } from "@/components/OptimizationDialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+
+interface OperationMenuItemProps {
+  name: string;
+  description: string;
+  onClick: () => void;
+}
+
+const OperationMenuItem: React.FC<OperationMenuItemProps> = ({
+  name,
+  description,
+  onClick,
+}) => {
+  return (
+    <HoverCard openDelay={200}>
+      <HoverCardTrigger asChild>
+        <div className="relative w-full">
+          <DropdownMenuItem onClick={onClick} className="w-full cursor-help">
+            {name}
+          </DropdownMenuItem>
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="right" align="start" className="w-72 p-2">
+        <div className="space-y-1">
+          <h4 className="font-medium text-sm">{name} Operation</h4>
+          <p className="text-xs text-muted-foreground leading-snug">
+            {description}
+          </p>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -87,15 +130,14 @@ const PipelineGUI: React.FC = () => {
     setOptimizerProgress,
     autoOptimizeCheck,
     setAutoOptimizeCheck,
-    highLevelGoal,
-    setHighLevelGoal,
+    systemPrompt,
+    setSystemPrompt,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempAutoOptimizeCheck, setTempAutoOptimizeCheck] =
     useState(autoOptimizeCheck);
   const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
-  const [tempHighLevelGoal, setTempHighLevelGoal] = useState(highLevelGoal);
   const [tempSampleSize, setTempSampleSize] = useState(
     sampleSize?.toString() || ""
   );
@@ -118,6 +160,10 @@ const PipelineGUI: React.FC = () => {
     content: "",
     prompt: undefined,
     operationName: undefined,
+  });
+  const [tempSystemPrompt, setTempSystemPrompt] = useState({
+    datasetDescription: systemPrompt.datasetDescription || "",
+    persona: systemPrompt.persona || "",
   });
 
   const { submitTask } = useOptimizeCheck({
@@ -303,10 +349,10 @@ const PipelineGUI: React.FC = () => {
   }, [optimizerModel]);
 
   useEffect(() => {
-    if (highLevelGoal) {
-      setTempHighLevelGoal(highLevelGoal);
+    if (sampleSize) {
+      setTempSampleSize(sampleSize.toString());
     }
-  }, [highLevelGoal]);
+  }, [sampleSize]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -510,6 +556,7 @@ const PipelineGUI: React.FC = () => {
             name: pipelineName,
             sample_size: sampleSize,
             clear_intermediate: clear_intermediate,
+            system_prompt: systemPrompt,
           }),
         });
 
@@ -585,7 +632,7 @@ const PipelineGUI: React.FC = () => {
     setIsSettingsOpen(false);
     setOptimizerModel(tempOptimizerModel);
     setAutoOptimizeCheck(tempAutoOptimizeCheck);
-    setHighLevelGoal(tempHighLevelGoal);
+    setSystemPrompt(tempSystemPrompt);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -626,7 +673,7 @@ const PipelineGUI: React.FC = () => {
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger>
-                    <div className="flex items-center">
+                    <div className="flex items-center cursor-help">
                       <PieChart size={16} className="text-primary mr-2" />
                       <span className="text-xs text-primary">
                         {sampleSize} samples
@@ -690,6 +737,71 @@ const PipelineGUI: React.FC = () => {
               >
                 <Settings size={16} />
               </Button>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="link" size="sm">
+                    Set System Prompts
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-88">
+                  <div className="grid gap-3">
+                    <div className="space-y-1">
+                      <h4 className="text-lg font-semibold">
+                        System Configuration
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        This will be in the system prompt for <b>every</b>{" "}
+                        operation!
+                      </p>
+                    </div>
+                    <div className="grid gap-3">
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="datasetDescription"
+                          className="text-sm font-medium"
+                        >
+                          Dataset Description
+                        </Label>
+                        <Textarea
+                          id="datasetDescription"
+                          placeholder="a collection of documents"
+                          value={tempSystemPrompt.datasetDescription}
+                          onChange={(e) =>
+                            setTempSystemPrompt((prev) => ({
+                              ...prev,
+                              datasetDescription: e.target.value,
+                            }))
+                          }
+                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          className="h-[3.5rem]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="persona"
+                          className="text-sm font-medium"
+                        >
+                          Persona
+                        </Label>
+                        <Textarea
+                          id="persona"
+                          placeholder="a helpful assistant"
+                          value={tempSystemPrompt.persona}
+                          onChange={(e) =>
+                            setTempSystemPrompt((prev) => ({
+                              ...prev,
+                              persona: e.target.value,
+                            }))
+                          }
+                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          className="h-[3.5rem]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div className="flex space-x-2">
@@ -702,35 +814,37 @@ const PipelineGUI: React.FC = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuLabel>LLM Operations</DropdownMenuLabel>
-                <DropdownMenuItem
+                <OperationMenuItem
+                  name="Map"
+                  description="Transforms each input item for complex data processing and insight extraction. 1 to 1 operation (each document gets one result, but the output of the operation can be any type, like a list)."
                   onClick={() =>
                     handleAddOperation("LLM", "map", "Untitled Map")
                   }
-                >
-                  Map
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Reduce"
+                  description="Aggregates data by key for summarization or folding. Many to 1 operation (many documents get combined into one result)."
                   onClick={() =>
                     handleAddOperation("LLM", "reduce", "Untitled Reduce")
                   }
-                >
-                  Reduce
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Resolve"
+                  description="Identifies and merges duplicate entities for data consistency. Keeps the same number of documents; just resolves values."
                   onClick={() =>
                     handleAddOperation("LLM", "resolve", "Untitled Resolve")
                   }
-                >
-                  Resolve
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Filter"
+                  description="Selectively includes or excludes data based on specific conditions. This is like a map operation, but with a boolean output schema. The size of your dataset may decrease, as documents that evaluate to false based on the prompt will be dropped from the dataset."
                   onClick={() =>
                     handleAddOperation("LLM", "filter", "Untitled Filter")
                   }
-                >
-                  Filter
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Parallel Map"
+                  description="Like a Map operation, but processes multiple documents in parallel for improved performance. Best used when documents can be processed independently."
                   onClick={() =>
                     handleAddOperation(
                       "LLM",
@@ -738,9 +852,7 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Parallel Map"
                     )
                   }
-                >
-                  Parallel Map
-                </DropdownMenuItem>
+                />
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Non-LLM Operations</DropdownMenuLabel>
                 <DropdownMenuItem
@@ -773,7 +885,9 @@ const PipelineGUI: React.FC = () => {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Code Operations</DropdownMenuLabel>
-                <DropdownMenuItem
+                <OperationMenuItem
+                  name="Code Map"
+                  description="Like the LLM Map operation, but uses a Python function instead of an LLM. Write custom Python code to transform each document."
                   onClick={() =>
                     handleAddOperation(
                       "non-LLM",
@@ -781,10 +895,10 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Code Map"
                     )
                   }
-                >
-                  Code Map
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Code Reduce"
+                  description="Like the LLM Reduce operation, but uses a Python function instead of an LLM. Write custom Python code to aggregate multiple documents into one."
                   onClick={() =>
                     handleAddOperation(
                       "non-LLM",
@@ -792,10 +906,10 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Code Reduce"
                     )
                   }
-                >
-                  Code Reduce
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Code Filter"
+                  description="Like the LLM Filter operation, but uses a Python function instead of an LLM. Write custom Python code to determine which documents to keep."
                   onClick={() =>
                     handleAddOperation(
                       "non-LLM",
@@ -803,9 +917,7 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Code Filter"
                     )
                   }
-                >
-                  Code Filter
-                </DropdownMenuItem>
+                />
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex space-x-2">
@@ -884,19 +996,6 @@ const PipelineGUI: React.FC = () => {
                 value={tempPipelineName}
                 onChange={(e) => setTempPipelineName(e.target.value)}
                 className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="goal" className="text-right">
-                High-Level Goal
-              </Label>
-              <Textarea
-                id="goal"
-                value={tempHighLevelGoal}
-                onChange={(e) => setTempHighLevelGoal(e.target.value)}
-                className="col-span-3"
-                rows={4}
-                placeholder="Describe the high-level goal of your pipeline (e.g., 'I want to find common themes across all the documents' or 'I want to summarize the most important things related to X')..."
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

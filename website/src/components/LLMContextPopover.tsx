@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Popover,
   PopoverContent,
@@ -11,21 +11,47 @@ import { usePipelineContext } from "@/contexts/PipelineContext";
 import { Loader2 } from "lucide-react";
 
 export const LLMContextPopover: React.FC = () => {
-  const { serializeState } = usePipelineContext();
+  const { serializeState, highLevelGoal } = usePipelineContext();
   const [contextData, setContextData] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const loadTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const loadContext = async () => {
+    setIsLoading(true);
+    try {
+      const data = await serializeState();
+      setContextData(data);
+    } catch (error) {
+      console.error("Failed to load context:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update context when high-level goal changes and popover is open
+  useEffect(() => {
+    if (isOpen) {
+      // Clear any pending timeout
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current);
+      }
+      // Set a new timeout to load context
+      loadTimeoutRef.current = setTimeout(() => {
+        loadContext();
+      }, 500);
+    }
+    return () => {
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current);
+      }
+    };
+  }, [highLevelGoal, isOpen]);
 
   const handlePopoverOpen = async (open: boolean) => {
+    setIsOpen(open);
     if (open && !contextData) {
-      setIsLoading(true);
-      try {
-        const data = await serializeState();
-        setContextData(data);
-      } catch (error) {
-        console.error("Failed to load context:", error);
-      } finally {
-        setIsLoading(false);
-      }
+      await loadContext();
     }
   };
 

@@ -49,7 +49,9 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
 
   const renderTable = (data: Array<Record<string, unknown>>) => {
     if (!data.length) return null;
-    const columns = Object.keys(data[0]);
+    const columns = Object.keys(data[0]).filter(
+      (column) => !column.startsWith("_observability")
+    );
 
     const totalPages = Math.ceil(data.length / rowsPerPage);
     const startIndex = (currentPage - 1) * rowsPerPage;

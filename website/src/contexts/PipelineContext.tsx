@@ -38,6 +38,7 @@ interface PipelineState {
   optimizerModel: string;
   autoOptimizeCheck: boolean;
   highLevelGoal: string;
+  systemPrompt: { datasetDescription: string | null; persona: string | null };
 }
 
 interface PipelineContextType extends PipelineState {
@@ -68,6 +69,12 @@ interface PipelineContextType extends PipelineState {
   serializeState: () => Promise<string>;
   setAutoOptimizeCheck: React.Dispatch<React.SetStateAction<boolean>>;
   setHighLevelGoal: React.Dispatch<React.SetStateAction<string>>;
+  setSystemPrompt: React.Dispatch<
+    React.SetStateAction<{
+      datasetDescription: string | null;
+      persona: string | null;
+    }>
+  >;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -267,6 +274,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.HIGH_LEVEL_GOAL_KEY,
       ""
     ),
+    systemPrompt: loadFromLocalStorage(localStorageKeys.SYSTEM_PROMPT_KEY, {
+      datasetDescription: null,
+      persona: null,
+    }),
   }));
 
   const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -380,6 +391,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       optimizerProgress: null,
       autoOptimizeCheck: false,
       highLevelGoal: "",
+      systemPrompt: { datasetDescription: null, persona: null },
     });
     setUnsavedChanges(false);
     console.log("Pipeline state cleared!");
@@ -464,6 +476,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     ),
     setHighLevelGoal: useCallback(
       (value) => setStateAndUpdate("highLevelGoal", value),
+      [setStateAndUpdate]
+    ),
+    setSystemPrompt: useCallback(
+      (value) => setStateAndUpdate("systemPrompt", value),
       [setStateAndUpdate]
     ),
   };

@@ -16,3 +16,4 @@ export const DEFAULT_MODEL_KEY = "docetl_defaultModel";
 export const OPTIMIZER_MODEL_KEY = "docetl_optimizerModel";
 export const AUTO_OPTIMIZE_CHECK_KEY = "docetl_autoOptimizeCheck";
 export const HIGH_LEVEL_GOAL_KEY = "docetl_highLevelGoal";
+export const SYSTEM_PROMPT_KEY = "docetl_systemPrompt";

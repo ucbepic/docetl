@@ -12,7 +12,11 @@ export function generatePipelineConfig(
   homeDir: string,
   sample_size: number | null,
   optimize: boolean = false,
-  clear_intermediate: boolean = false
+  clear_intermediate: boolean = false,
+  system_prompt: {
+    datasetDescription: string | null;
+    persona: string | null;
+  } | null = null
 ) {
   const datasets = {
     input: {
@@ -156,7 +160,7 @@ export function generatePipelineConfig(
         {
           name: "data_processing",
           input: Object.keys(datasets)[0], // Assuming the first dataset is the input
-          operations: operationsToRun.map((op: any) => op.name),
+          operations: operationsToRun.map((op) => op.name),
         },
       ],
       output: {
@@ -177,7 +181,20 @@ export function generatePipelineConfig(
         ),
       },
     },
+    system_prompt: {},
   };
+
+  if (system_prompt) {
+    if (system_prompt.datasetDescription) {
+      // @ts-ignore
+      pipelineConfig.system_prompt!.dataset_description =
+        system_prompt.datasetDescription;
+    }
+    if (system_prompt.persona) {
+      // @ts-ignore
+      pipelineConfig.system_prompt!.persona = system_prompt.persona;
+    }
+  }
 
   // Get the inputPath from the intermediate_dir
   let inputPath;

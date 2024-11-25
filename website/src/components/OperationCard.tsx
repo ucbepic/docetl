@@ -475,7 +475,7 @@ function operationReducer(state: State, action: Action): State {
 const initialState: State = {
   operation: undefined,
   isEditing: false,
-  isSchemaExpanded: false,
+  isSchemaExpanded: true,
   isGuardrailsExpanded: false,
   isSettingsOpen: false,
   isExpanded: true,

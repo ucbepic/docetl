@@ -1,7 +1,6 @@
-import React from "react";
+import React, { useMemo, useEffect } from "react";
 import { Operation, SchemaItem } from "@/app/types";
 import { OutputSchema, PromptInput, CodeInput } from "./args";
-import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "../ui/button";
@@ -155,6 +154,12 @@ export const ReduceOperationComponent: React.FC<OperationComponentProps> = ({
     });
   };
 
+  useEffect(() => {
+    if (!operation.otherKwargs?.reduce_key) {
+      handleReduceKeysChange(["_all"]);
+    }
+  }, []);
+
   return (
     <>
       <div className="mb-4">
@@ -194,7 +199,7 @@ export const ReduceOperationComponent: React.FC<OperationComponentProps> = ({
                       }}
                       size="sm"
                       variant="ghost"
-                      className="absolute right-0 top-0 bottom-0"
+                      className="absolute right-0 top-0 h-full"
                     >
                       <X size={12} />
                     </Button>

@@ -51,14 +51,28 @@ export async function POST(request: Request) {
     const pipelineDir = path.join(homeDir, ".docetl", "pipelines");
     const configDir = path.join(pipelineDir, "configs");
     const nameDir = path.join(pipelineDir, name, "intermediates");
-    await fs.mkdir(configDir, { recursive: true });
-    await fs.mkdir(nameDir, { recursive: true });
-    const filePath = path.join(configDir, `${name}.yaml`);
-    await fs.writeFile(filePath, yamlString, "utf8");
 
-    return NextResponse.json({ filePath, inputPath, outputPath });
+    try {
+      await fs.mkdir(configDir, { recursive: true });
+      await fs.mkdir(nameDir, { recursive: true });
+      const filePath = path.join(configDir, `${name}.yaml`);
+      await fs.writeFile(filePath, yamlString, "utf8");
+
+      return NextResponse.json({ filePath, inputPath, outputPath });
+    } catch (fsError) {
+      console.error("File system error:", fsError);
+      return NextResponse.json(
+        `Failed to write pipeline configuration: ${fsError.message}`,
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error }, { status: 500 });
+    console.error("Pipeline configuration error:", error);
+    return NextResponse.json(
+      error instanceof Error
+        ? error.message
+        : "An unexpected error occurred while creating the pipeline configuration",
+      { status: 500 }
+    );
   }
 }

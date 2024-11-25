@@ -139,10 +139,24 @@ const serializeState = async (state: PipelineState): Promise<string> => {
           .map((row: Record<string, unknown>) => {
             const sampleRow: Record<string, unknown> = {};
 
+            // Helper function to safely stringify values
+            const safeStringify = (value: unknown): string => {
+              if (value === null) return "null";
+              if (value === undefined) return "undefined";
+              if (typeof value === "object") {
+                try {
+                  return JSON.stringify(value);
+                } catch {
+                  return "[Complex Object]";
+                }
+              }
+              return String(value);
+            };
+
             // Prioritize important columns
             importantColumns.forEach((col) => {
               if (col in row) {
-                const value = String(row[col]);
+                const value = safeStringify(row[col]);
                 if (value.length > 10000) {
                   sampleRow[`**${col}**`] =
                     `**${value.slice(0, 10000)}` +
@@ -157,7 +171,7 @@ const serializeState = async (state: PipelineState): Promise<string> => {
             Object.keys(row).forEach((key) => {
               if (!(key in sampleRow)) {
                 // Only add if not already added
-                const value = String(row[key]);
+                const value = safeStringify(row[key]);
                 if (value.length > 10000) {
                   sampleRow[key] =
                     value.slice(0, 10000) +

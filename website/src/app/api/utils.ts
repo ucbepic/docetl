@@ -1,6 +1,5 @@
 import yaml from "js-yaml";
 import path from "path";
-import os from "os";
 import { Operation, SchemaItem } from "@/app/types";
 
 export function generatePipelineConfig(
@@ -35,9 +34,14 @@ export function generatePipelineConfig(
   }
 
   // Fix the output schema of all operations to ensure correct typing
-  const updatedOperations: Record<string, any> = operations.map(
-    (op: Operation) => {
-      const newOp: Record<string, any> = {
+  const updatedOperations = operations
+    .map((op: Operation) => {
+      // Skip if visibility is false
+      if (!op.visibility) {
+        return null;
+      }
+
+      const newOp: Record<string, unknown> = {
         ...op,
         ...op.otherKwargs,
       };
@@ -54,6 +58,7 @@ export function generatePipelineConfig(
       delete newOp.otherKwargs;
       delete newOp.id;
       delete newOp.llmType;
+      delete newOp.visibility;
 
       // Convert numeric strings in otherKwargs to numbers
       Object.entries(newOp).forEach(([key, value]) => {
@@ -119,7 +124,7 @@ export function generatePipelineConfig(
       if (op.type === "sample" && op.otherKwargs?.method === "custom") {
         try {
           newOp.samples = JSON.parse(op.otherKwargs.samples);
-        } catch (e) {
+        } catch (error) {
           console.warn(
             "Failed to parse custom samples as JSON, using raw value"
           );
@@ -139,8 +144,13 @@ export function generatePipelineConfig(
           ),
         },
       };
-    }
-  );
+    })
+    .filter((op) => op !== null);
+
+  // Add check for empty operations
+  if (updatedOperations.length === 0) {
+    throw new Error("No valid operations found in pipeline configuration");
+  }
 
   // Fetch all operations up until and including the operation_id
   const operationsToRun = operations.slice(
@@ -186,12 +196,12 @@ export function generatePipelineConfig(
 
   if (system_prompt) {
     if (system_prompt.datasetDescription) {
-      // @ts-ignore
+      // @ts-expect-error
       pipelineConfig.system_prompt!.dataset_description =
         system_prompt.datasetDescription;
     }
     if (system_prompt.persona) {
-      // @ts-ignore
+      // @ts-expect-error
       pipelineConfig.system_prompt!.persona = system_prompt.persona;
     }
   }

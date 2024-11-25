@@ -196,12 +196,12 @@ export function generatePipelineConfig(
 
   if (system_prompt) {
     if (system_prompt.datasetDescription) {
-      // @ts-expect-error
+      // @ts-ignore
       pipelineConfig.system_prompt!.dataset_description =
         system_prompt.datasetDescription;
     }
     if (system_prompt.persona) {
-      // @ts-expect-error
+      // @ts-ignore
       pipelineConfig.system_prompt!.persona = system_prompt.persona;
     }
   }

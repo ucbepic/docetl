@@ -411,6 +411,7 @@ const PipelineGUI: React.FC = () => {
                   validate,
                   sample,
                   otherKwargs,
+                  visibility: true,
                 } as Operation;
               })
             );
@@ -614,6 +615,7 @@ const PipelineGUI: React.FC = () => {
       llmType,
       type: type as Operation["type"],
       name: `${name} ${numOpRun}`,
+      visibility: true,
     };
     setOperations([...operations, newOperation]);
   };
@@ -689,7 +691,7 @@ const PipelineGUI: React.FC = () => {
                 </Tooltip>
               </TooltipProvider>
             )}
-            <div className="flex p-0 space-x-0">
+            <div className="flex items-center space-x-0">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -697,6 +699,7 @@ const PipelineGUI: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => fileInputRef.current?.click()}
+                      className="h-8 w-8"
                     >
                       <FileUp size={16} />
                     </Button>
@@ -720,6 +723,7 @@ const PipelineGUI: React.FC = () => {
                       size="icon"
                       variant="ghost"
                       onClick={() => handleExport()}
+                      className="h-8 w-8"
                     >
                       <Download size={16} />
                     </Button>
@@ -734,14 +738,22 @@ const PipelineGUI: React.FC = () => {
                 size="icon"
                 variant="ghost"
                 onClick={() => setIsSettingsOpen(true)}
+                className="h-8 w-8"
               >
                 <Settings size={16} />
               </Button>
 
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="link" size="sm">
-                    Set System Prompts
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 flex items-center gap-1"
+                  >
+                    <Brain size={14} className="text-primary" />
+                    <span className="text-xs text-primary">
+                      Set system prompts
+                    </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-88">

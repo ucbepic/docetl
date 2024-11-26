@@ -1277,6 +1277,15 @@ export const CodeOperationComponent: React.FC<OperationComponentProps> = ({
   operation,
   onUpdate,
 }) => {
+  useEffect(() => {
+    if (
+      operation.type === "code_reduce" &&
+      !operation.otherKwargs?.reduce_key
+    ) {
+      handleReduceKeysChange(["_all"]);
+    }
+  }, []);
+
   const handleCodeChange = (newCode: string) => {
     onUpdate({
       ...operation,

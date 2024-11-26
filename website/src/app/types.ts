@@ -30,6 +30,7 @@ export type Operation = {
   runIndex?: number;
   sample?: number;
   shouldOptimizeResult?: string;
+  visibility: boolean;
 };
 
 export type OutputRow = Record<string, string>;

@@ -264,7 +264,7 @@ export const Output: React.FC = () => {
     };
 
     fetchData();
-  }, [output, operation, isLoadingOutputs]);
+  }, [output, isLoadingOutputs]);
 
   const columns: ColumnType<any>[] = React.useMemo(() => {
     const importantColumns = operation?.output?.schema

@@ -109,6 +109,7 @@ async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
         ".txt",
         ".html",
         ".pptx",
+        ".md",
       ];
       if (
         supportedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
@@ -336,6 +337,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             ".txt",
             ".html",
             ".pptx",
+            ".md",
           ];
           if (
             supportedExtensions.some((ext) =>
@@ -908,7 +910,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                           type="file"
                           multiple
                           className="hidden"
-                          accept=".pdf,.docx,.doc,.txt,.html,.pptx"
+                          accept=".pdf,.docx,.doc,.txt,.html,.pptx,.md"
                           onChange={(e) => {
                             if (e.target.files) {
                               handleFolderUpload(e.target.files);

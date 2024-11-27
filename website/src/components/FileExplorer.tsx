@@ -82,10 +82,19 @@ function mergeFileList(
   return dt.files;
 }
 
-// Add this type to handle File with relativePath
 interface FileWithPath extends File {
   relativePath?: string;
 }
+
+const SUPPORTED_EXTENSIONS = [
+  ".pdf",
+  ".docx",
+  ".doc",
+  ".txt",
+  ".html",
+  ".pptx",
+  ".md",
+] as const;
 
 async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
   const files: FileWithPath[] = [];
@@ -102,16 +111,10 @@ async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
       });
 
       // Check if file has supported extension
-      const supportedExtensions = [
-        ".pdf",
-        ".docx",
-        ".doc",
-        ".txt",
-        ".html",
-        ".pptx",
-      ];
       if (
-        supportedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
+        SUPPORTED_EXTENSIONS.some((ext) =>
+          file.name.toLowerCase().endsWith(ext)
+        )
       ) {
         // Create a new file with the full path
         const fullPath = path ? `${path}/${file.name}` : file.name;
@@ -142,10 +145,6 @@ async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
 }
 
 type ConversionMethod = "docling" | "azure";
-
-interface UploadedDataset {
-  [key: string]: unknown;
-}
 
 async function validateJsonDataset(file: Blob): Promise<void> {
   const text = await file.text();
@@ -329,16 +328,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           // Handle regular file input
           // @ts-expect-error FileList type conversion needs explicit cast
           const file = item as FileWithPath;
-          const supportedExtensions = [
-            ".pdf",
-            ".docx",
-            ".doc",
-            ".txt",
-            ".html",
-            ".pptx",
-          ];
           if (
-            supportedExtensions.some((ext) =>
+            SUPPORTED_EXTENSIONS.some((ext) =>
               file.name.toLowerCase().endsWith(ext)
             )
           ) {
@@ -838,7 +829,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                         type="file"
                         multiple
                         className="hidden"
-                        accept=".pdf,.docx,.doc,.txt,.html,.pptx,.md"
+                        accept={SUPPORTED_EXTENSIONS.join(",")}
                         onChange={(e) => {
                           if (e.target.files) {
                             handleFolderUpload(e.target.files);
@@ -871,7 +862,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                         <div className="min-w-0 flex-1 overflow-hidden">
                           <div className="flex items-center">
                             <p className="text-sm font-medium text-gray-700 truncate">
-                              {/* @ts-ignore */}
+                              {/* @ts-expect-error FileWithPath type is not fully defined */}
                               {(file as FileWithPath).relativePath || file.name}
                             </p>
                           </div>
@@ -908,7 +899,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                           type="file"
                           multiple
                           className="hidden"
-                          accept=".pdf,.docx,.doc,.txt,.html,.pptx"
+                          accept={SUPPORTED_EXTENSIONS.join(",")}
                           onChange={(e) => {
                             if (e.target.files) {
                               handleFolderUpload(e.target.files);

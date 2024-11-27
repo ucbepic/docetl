@@ -22,13 +22,6 @@ type ActionTypes = {
   REMOVE_TOAST: "REMOVE_TOAST";
 };
 
-const actionTypes: ActionTypes = {
-  ADD_TOAST: "ADD_TOAST",
-  UPDATE_TOAST: "UPDATE_TOAST",
-  DISMISS_TOAST: "DISMISS_TOAST",
-  REMOVE_TOAST: "REMOVE_TOAST",
-} as const;
-
 let count = 0;
 
 function genId() {
@@ -160,7 +153,13 @@ function toast({ ...props }: Toast) {
       ...props,
       id,
       open: true,
-      style: { wordWrap: "break-word", maxWidth: "100%" },
+      style: {
+        wordWrap: "break-word",
+        maxWidth: "100%",
+        maxHeight: "80vh",
+        overflow: "auto",
+        padding: "8px",
+      },
       onOpenChange: (open) => {
         if (!open) dismiss();
       },

@@ -102,7 +102,7 @@ class DSLRunner(ConfigWrapper):
 
                 all_ops_until_and_including_current = [
                     op_map[prev_op] for prev_op in step["operations"][:idx]
-                ] + [op_map[op_name]]
+                ] + [op_map[op_name]] + [self.config.get("system_prompt", {})]
                 # If there's no model in the op, add the default model
                 for op in all_ops_until_and_including_current:
                     if "model" not in op:
@@ -349,7 +349,10 @@ class DSLRunner(ConfigWrapper):
 
             # If sample is set, sample the input data
             if op_object.get("sample"):
-                input_data = self.datasets[step["input"]].sample(op_object["sample"])
+                if input_data is None:
+                    input_data = self.datasets[step["input"]].sample(op_object["sample"], False)
+                else:
+                    input_data = input_data[: op_object["sample"]]
 
             with self.console.status("[bold]Running Operation:[/bold]") as status:
                 status.update(f"Type: [cyan]{op_object['type']}[/cyan]")
@@ -478,7 +481,7 @@ class DSLRunner(ConfigWrapper):
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )
 
-    def should_optimize(self, step_name: str, op_name: str, **kwargs) -> Tuple[str, float]:
+    def should_optimize(self, step_name: str, op_name: str, **kwargs) -> Tuple[str, float, List[Dict[str, Any]], List[Dict[str, Any]]]:
         builder = Optimizer(self, **kwargs)
         return builder.should_optimize(step_name, op_name)
 

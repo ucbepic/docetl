@@ -31,7 +31,7 @@ aeval = Interpreter()
 
 load_dotenv()
 # litellm.set_verbose = True
-DOCETL_HOME_DIR = os.path.expanduser("~/.docetl")
+DOCETL_HOME_DIR = os.environ.get("DOCETL_HOME_DIR", os.path.expanduser("~"))+"/.docetl"
 
 CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "cache")
 LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm_cache")
@@ -185,6 +185,7 @@ def cache_key(
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
     scratchpad: Optional[str] = None,
+    system_prompt: Optional[Dict[str, str]] = None,
 ) -> str:
     """
     Generate a unique cache key based on function arguments.
@@ -209,6 +210,7 @@ def cache_key(
         "messages": json.dumps(messages, sort_keys=True),
         "output_schema": json.dumps(output_schema, sort_keys=True),
         "scratchpad": scratchpad,
+        "system_prompt": json.dumps(system_prompt, sort_keys=True),
     }
     return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest()
 
@@ -690,7 +692,7 @@ class APIWrapper(object):
         Raises:
             TimeoutError: If the call times out after retrying.
         """
-        key = cache_key(model, op_type, messages, output_schema, scratchpad)
+        key = cache_key(model, op_type, messages, output_schema, scratchpad, self.runner.config.get("system_prompt", {}))
 
         max_retries = max_retries_per_timeout
         attempt = 0
@@ -765,7 +767,7 @@ class APIWrapper(object):
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and ("ollama" in model or "azure/gpt-4o-mini" in model or "sagemaker" in model)
+            and ("ollama" in model or "sagemaker" in model)
         ):
             use_tools = False
 
@@ -809,27 +811,40 @@ class APIWrapper(object):
             tools = None
             tool_choice = None
 
-        system_prompt = f"You are a helpful assistant, intelligently processing data. This is a {op_type} operation. You will perform the specified task on the provided data. The result should be a structured output that you will send back to the user."
+        persona = self.runner.config.get("system_prompt", {}).get("persona", "a helpful assistant")
+        dataset_description = self.runner.config.get("system_prompt", {}).get("dataset_description", "a collection of unstructured documents")
+        parethetical_op_instructions = "many inputs:one output" if op_type == "reduce" else "one input:one output"
+
+        system_prompt = f"You are a {persona}, intelligently transforming data. The dataset description is: {dataset_description}. You will be performing a {op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as accurately, precisely, and exhaustively as possible. The result should be a structured output that you will send back to the user."
         if scratchpad:
             system_prompt += f"""
 
-You are incrementally processing data across multiple batches. Maintain intermediate state between batches to accomplish this task effectively.
+You are incrementally processing data across multiple batches. You will see:
+1. The current batch of data to process
+2. The intermediate output so far (what you returned last time)
+3. A scratchpad for tracking additional state: {scratchpad}
 
-Current scratchpad: {scratchpad}
+The intermediate output contains the partial result that directly answers the user's task, just on a subset of the data.
+The scratchpad contains supporting information needed to process future batches correctly, but isn't part of the answer itself.
+
+Example for counting words that appear >2 times:
+- Intermediate output: {{"frequent_words": ["the", "and"]}} # Words seen 3+ times
+- Scratchpad: {{"pending": {{"cat": 2, "dog": 1}}}} # Track words seen 1-2 times
 
 As you process each batch:
-1. Update the scratchpad with crucial information for subsequent batches.
-2. This may include partial results, counters, or data that doesn't fit into {list(output_schema.keys())}.
-3. Example: For counting elements that appear more than twice, track all occurrences in the scratchpad until an item exceeds the threshold.
+1. Use both the intermediate output and scratchpad to inform your processing
+2. Update the scratchpad with any new information needed for future batches
+3. Return both your partial result (representing the answer on the current batch and the previous batches' intermediate output) and updated scratchpad
 
 Keep the scratchpad concise (~500 chars) and easily parsable. Use clear structures like:
-- Bullet points
+- Bullet points  
 - Key-value pairs
 - JSON-like format
 
 Update the 'updated_scratchpad' field in your output with the new scratchpad content.
 
 Remember: The scratchpad should contain information necessary for processing future batches, not the final result."""
+
 
         # Truncate messages if they exceed the model's context length
         messages = truncate_messages(messages, model)

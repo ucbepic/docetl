@@ -255,15 +255,34 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
         try {
           // @ts-ignore
           const allContent = data.pages.map((page) => page.content).join("");
-          const documents = JSON.parse(allContent) as Record<string, unknown>[];
+          let documents: Record<string, unknown>[] = [];
+
+          try {
+            documents = JSON.parse(allContent) as Record<string, unknown>[];
+            if (!Array.isArray(documents)) {
+              throw new Error("Content is not an array of documents");
+            }
+          } catch (parseError) {
+            console.error("Error parsing JSON:", parseError);
+            setDatasetStats((prev) => ({ ...prev, isCalculating: false }));
+            return;
+          }
 
           const wordCounts = documents.map((doc) => {
-            const text = Object.values(doc).join(" ");
+            const text =
+              typeof doc === "object"
+                ? JSON.stringify(doc, null, 2).replace(/[{}\[\]"]/g, "")
+                : String(doc);
             return text
               .trim()
               .split(/\s+/)
               .filter((word) => word.length > 0).length;
           });
+
+          if (wordCounts.length === 0) {
+            setDatasetStats((prev) => ({ ...prev, isCalculating: false }));
+            return;
+          }
 
           // Calculate histogram bins
           const binCount = Math.min(
@@ -283,12 +302,17 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
             })
           );
 
+          // Safely count documents in each bin
           wordCounts.forEach((count) => {
-            const binIndex = Math.min(
-              Math.floor((count - minCount) / binSize),
-              binCount - 1
-            );
-            histogram[binIndex].count++;
+            if (typeof count === "number") {
+              const binIndex = Math.min(
+                Math.floor((count - minCount) / binSize),
+                binCount - 1
+              );
+              if (binIndex >= 0 && binIndex < histogram.length) {
+                histogram[binIndex].count++;
+              }
+            }
           });
 
           const stats: DatasetStats = {

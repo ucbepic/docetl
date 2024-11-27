@@ -1,6 +1,8 @@
 export type File = {
   name: string;
   path: string;
+  type: "json" | "document";
+  parentFolder?: string;
 };
 
 export type Operation = {
@@ -15,7 +17,10 @@ export type Operation = {
     | "unnest"
     | "split"
     | "gather"
-    | "sample";
+    | "sample"
+    | "code_map"
+    | "code_reduce"
+    | "code_filter";
   name: string;
   prompt?: string;
   output?: { schema: SchemaItem[] };
@@ -25,6 +30,7 @@ export type Operation = {
   runIndex?: number;
   sample?: number;
   shouldOptimizeResult?: string;
+  visibility: boolean;
 };
 
 export type OutputRow = Record<string, string>;
@@ -90,6 +96,8 @@ export interface OptimizeResult {
   task_id: string;
   status: TaskStatus;
   should_optimize?: string;
+  input_data?: Array<Record<string, unknown>>;
+  output_data?: Array<Record<string, unknown>>;
   cost?: number;
   error?: string;
   created_at: string;

@@ -14,19 +14,19 @@ export async function POST(request: Request) {
     if (!name) {
       return NextResponse.json(
         { error: "Pipeline name is required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     if (!data) {
       return NextResponse.json(
         { error: "Data is required. Please select a file in the sidebar." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     // Create pipeline configuration based on tutorial.yaml example
-    const homeDir = os.homedir();
+    const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
 
     const datasets = {
       input: {
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
           if (item.type === "list") {
             if (!item.subType) {
               throw new Error(
-                `List type must specify its elements for field: ${item.key}`,
+                `List type must specify its elements for field: ${item.key}`
               );
             }
             const subType =
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
           } else if (item.type === "dict") {
             if (!item.subType) {
               throw new Error(
-                `Dict/Object type must specify its structure for field: ${item.key}`,
+                `Dict/Object type must specify its structure for field: ${item.key}`
               );
             }
             const subSchema = Object.entries(item.subType).reduce(
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
                 acc[key] = processSchemaItem(value as SchemaItem);
                 return acc;
               },
-              {} as Record<string, string>,
+              {} as Record<string, string>
             );
             return JSON.stringify(subSchema);
           } else {
@@ -94,17 +94,17 @@ export async function POST(request: Request) {
                 acc[item.key] = processSchemaItem(item);
                 return acc;
               },
-              {},
+              {}
             ),
           },
         };
-      },
+      }
     );
 
     // Fetch all operations up until and including the operation_id
     const operationsToRun = operations.slice(
       0,
-      operations.findIndex((op: Operation) => op.id === operation_id) + 1,
+      operations.findIndex((op: Operation) => op.id === operation_id) + 1
     );
 
     const pipelineConfig = {
@@ -126,14 +126,14 @@ export async function POST(request: Request) {
             ".docetl",
             "pipelines",
             "outputs",
-            `${name}.json`,
+            `${name}.json`
           ),
           intermediate_dir: path.join(
             homeDir,
             ".docetl",
             "pipelines",
             name,
-            "intermediates",
+            "intermediates"
           ),
         },
       },
@@ -163,9 +163,12 @@ export async function POST(request: Request) {
 
     // Submit the YAML config to the FastAPI endpoint
 
-    const response = await axios.post(`http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/run_pipeline`, {
-      yaml_config: filePath,
-    });
+    const response = await axios.post(
+      `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/run_pipeline`,
+      {
+        yaml_config: filePath,
+      }
+    );
 
     return NextResponse.json({
       message: "Pipeline YAML created and submitted successfully",
@@ -189,7 +192,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(
       { error: `Failed to run pipeline YAML: ${errorMessage}` },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

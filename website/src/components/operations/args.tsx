@@ -17,8 +17,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
+import Editor from "@monaco-editor/react";
+import PropTypes from "prop-types";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "../ui/hover-card";
 
 interface PromptInputProps {
   prompt: string;
@@ -40,7 +46,7 @@ export const PromptInput: React.FC<PromptInputProps> = React.memo(
           className={`mb-1 rounded-sm text-sm font-mono ${
             !validateJinjaTemplate(prompt) ? "border-red-500" : ""
           }`}
-          rows={3}
+          rows={Math.max(3, Math.ceil(prompt.split("\n").length))}
           value={prompt}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -57,6 +63,11 @@ export const PromptInput: React.FC<PromptInputProps> = React.memo(
 );
 
 PromptInput.displayName = "PromptInput";
+
+PromptInput.propTypes = {
+  prompt: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
+};
 
 interface SchemaFormProps {
   schema: SchemaItem[];
@@ -98,7 +109,9 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
                   updateItem(index, { ...item, key: e.target.value })
                 }
                 placeholder="Key"
-                className="w-1/3 min-w-[150px]"
+                className={`w-1/3 min-w-[150px] ${
+                  !item.key ? "border-red-500" : ""
+                }`}
               />
             )}
             <Select
@@ -164,6 +177,11 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
                 />
               </div>
             )}
+            {!isList && !item.key && (
+              <div className="w-full mt-1 text-red-500 text-sm">
+                Key is required
+              </div>
+            )}
           </div>
         ))}
         {!isList && (
@@ -183,6 +201,30 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
 
 SchemaForm.displayName = "SchemaForm";
 
+SchemaForm.propTypes = {
+  // @ts-expect-error - PropTypes schema doesn't match TypeScript SchemaItem[] type exactly
+  schema: PropTypes.arrayOf(
+    PropTypes.shape({
+      key: PropTypes.string,
+      type: PropTypes.oneOf([
+        "string",
+        "float",
+        "int",
+        "boolean",
+        "list",
+        "dict",
+      ]).isRequired,
+      subType: PropTypes.oneOfType([
+        PropTypes.object,
+        PropTypes.arrayOf(PropTypes.object),
+      ]),
+    })
+  ).isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  level: PropTypes.number,
+  isList: PropTypes.bool,
+};
+
 interface OutputSchemaProps {
   schema: SchemaItem[];
   onUpdate: (newSchema: SchemaItem[]) => void;
@@ -192,24 +234,75 @@ interface OutputSchemaProps {
 
 export const OutputSchema: React.FC<OutputSchemaProps> = React.memo(
   ({ schema, onUpdate, isExpanded, onToggle }) => {
+    const isEmpty = schema.length === 0;
+    const hasEmptyKeys = schema.some((item) => !item.key);
+
     return (
       <div>
-        <Button variant="ghost" size="sm" onClick={onToggle} className="p-0">
-          <ChevronDown
-            size={16}
-            className={`mr-1 transition-transform duration-200 ${
-              isExpanded ? "transform rotate-180" : ""
-            }`}
-          />
-          <h4 className="text-xs font-semibold">Output Schema</h4>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggle}
+            className={`p-0 ${isEmpty || hasEmptyKeys ? "text-red-500" : ""}`}
+          >
+            <ChevronDown
+              size={16}
+              className={`mr-1 transition-transform duration-200 ${
+                isExpanded ? "transform rotate-180" : ""
+              }`}
+            />
+            <h4 className="text-xs font-semibold">
+              Output Schema {isEmpty && "(Required)"}
+            </h4>
+          </Button>
+          <HoverCard>
+            <HoverCardTrigger>
+              <Info size={16} className="text-primary cursor-help" />
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">Output Column Naming</h4>
+                <p className="text-sm text-muted-foreground">
+                  Name your columns appropriately as they influence the
+                  LLM&apos;s output.
+                </p>
+                <div className="mt-2 rounded-md bg-muted p-2">
+                  <p className="text-sm font-medium">Example:</p>
+                  <p className="text-xs text-muted-foreground">
+                    If your prompt extracts names from a document, use
+                    &quot;names&quot; as your output column name instead of
+                    &quot;extracted_data&quot; or &quot;results&quot;.
+                  </p>
+                </div>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
         {isExpanded && <SchemaForm schema={schema} onUpdate={onUpdate} />}
+        {isEmpty && (
+          <div className="text-red-500 text-sm mt-1">
+            At least one output field is required
+          </div>
+        )}
+        {hasEmptyKeys && !isEmpty && (
+          <div className="text-red-500 text-sm mt-1">
+            All fields must have a key name
+          </div>
+        )}
       </div>
     );
   }
 );
 
 OutputSchema.displayName = "OutputSchema";
+
+OutputSchema.propTypes = {
+  schema: PropTypes.array.isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  isExpanded: PropTypes.bool.isRequired,
+  onToggle: PropTypes.func.isRequired,
+};
 
 export interface GleaningConfigProps {
   gleaning: { num_rounds: number; validation_prompt: string } | null;
@@ -306,6 +399,17 @@ export const GleaningConfig: React.FC<GleaningConfigProps> = React.memo(
 
 GleaningConfig.displayName = "GleaningConfig";
 
+GleaningConfig.propTypes = {
+  // @ts-expect-error - PropTypes null type doesn't match TypeScript optional type
+  gleaning: PropTypes.shape({
+    num_rounds: PropTypes.number,
+    validation_prompt: PropTypes.string,
+  }),
+  onUpdate: PropTypes.func.isRequired,
+  isExpanded: PropTypes.bool.isRequired,
+  onToggle: PropTypes.func.isRequired,
+};
+
 interface GuardrailsProps {
   guardrails: string[];
   onUpdate: (newGuardrails: string[]) => void;
@@ -348,8 +452,8 @@ export const Guardrails: React.FC<GuardrailsProps> = React.memo(
                 <TooltipContent className="max-w-md whitespace-normal break-words text-left">
                   <p>
                     Guardrails are Python statements to validate output.
-                    Example: "len(output["summary"]) {">"} 100" ensures a
-                    summary is at least 100 characters long.
+                    Example: &quot;len(output[&quot;summary&quot;]) &gt;
+                    100&quot; ensures a summary is at least 100 characters long.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -398,3 +502,133 @@ export const Guardrails: React.FC<GuardrailsProps> = React.memo(
 );
 
 Guardrails.displayName = "Guardrails";
+
+Guardrails.propTypes = {
+  guardrails: PropTypes.arrayOf(PropTypes.string).isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  isExpanded: PropTypes.bool.isRequired,
+  onToggle: PropTypes.func.isRequired,
+};
+
+interface CodeInputProps {
+  code: string;
+  operationType: "code_map" | "code_reduce" | "code_filter";
+  onChange: (value: string) => void;
+}
+
+export const CodeInput: React.FC<CodeInputProps> = React.memo(
+  ({ code, operationType, onChange }) => {
+    const getPlaceholder = () => {
+      switch (operationType) {
+        case "code_map":
+          return `def transform(doc: dict) -> dict:
+    # Transform a single document
+    # Return a dictionary with new key-value pairs
+    return {
+        'new_key': process(doc['existing_key'])
+    }`;
+        case "code_filter":
+          return `def transform(doc: dict) -> bool:
+    # Return True to keep the document, False to filter it out
+    return doc['score'] >= 0.5`;
+        case "code_reduce":
+          return `def transform(items: list) -> dict:
+    # Aggregate multiple items into a single result
+    # Return a dictionary with aggregated values
+    return {
+        'total': sum(item['value'] for item in items),
+        'count': len(items)
+    }`;
+      }
+    };
+
+    const validatePythonCode = (value: string) => {
+      return value.includes("def transform") && value.includes("return");
+    };
+
+    const getTooltipContent = () => {
+      switch (operationType) {
+        case "code_map":
+          return "Transform each document independently using Python code. The transform function takes a single document as input and returns a dictionary with new key-value pairs.";
+        case "code_filter":
+          return "Filter documents using Python code. The transform function takes a document as input and returns True to keep it or False to filter it out.";
+        case "code_reduce":
+          return "Aggregate multiple documents using Python code. The transform function takes a list of documents as input and returns a single aggregated result.";
+      }
+    };
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 mb-1">
+          <Label>Python Code</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Info className="h-4 w-4 text-gray-500" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-md">
+                <p className="text-sm">{getTooltipContent()}</p>
+                <p className="text-sm mt-2">
+                  Code operations allow you to use Python for:
+                  <ul className="list-disc ml-4 mt-1">
+                    <li>Deterministic processing</li>
+                    <li>Complex calculations</li>
+                    <li>Integration with Python libraries</li>
+                    <li>Structured data transformations</li>
+                  </ul>
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <div
+          className="border"
+          style={{
+            resize: "vertical",
+            overflow: "auto",
+            minHeight: "200px",
+            height: "200px", // Set initial height explicitly
+            backgroundColor: "var(--background)", // Match editor background
+          }}
+        >
+          <Editor
+            height="100%"
+            defaultLanguage="python"
+            value={code || getPlaceholder()}
+            onChange={(value) => onChange(value || "")}
+            options={{
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              wrappingIndent: "indent",
+              automaticLayout: true,
+              tabSize: 4,
+              fontSize: 14,
+              fontFamily: "monospace",
+              suggest: {
+                showKeywords: true,
+                showSnippets: true,
+              },
+            }}
+          />
+        </div>
+        {!validatePythonCode(code) && (
+          <div className="text-red-500 text-sm">
+            Code must define a transform function with a return statement
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+
+CodeInput.displayName = "CodeInput";
+
+CodeInput.propTypes = {
+  code: PropTypes.string.isRequired,
+  // @ts-expect-error - PropTypes string union doesn't match TypeScript type exactly
+  operationType: PropTypes.oneOf(["code_map", "code_reduce", "code_filter"])
+    .isRequired,
+  onChange: PropTypes.func.isRequired,
+};

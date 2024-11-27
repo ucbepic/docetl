@@ -1,8 +1,14 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import { ResizableBox } from "react-resizable";
-import { Eraser, RefreshCw, X, Copy } from "lucide-react";
+import { RefreshCw, X, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,6 +19,13 @@ import "react-resizable/css/styles.css";
 import { LLMContextPopover } from "@/components/LLMContextPopover";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import ReactMarkdown from "react-markdown";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { debounce } from "lodash";
 
 interface AIChatPanelProps {
   onClose: () => void;
@@ -45,7 +58,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
     initialMessages: [],
     id: "persistent-chat",
   });
-  const { serializeState } = usePipelineContext();
+  const { serializeState, highLevelGoal, setHighLevelGoal } =
+    usePipelineContext();
+  const [localGoal, setLocalGoal] = useState(highLevelGoal);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).classList.contains("drag-handle")) {
@@ -104,9 +119,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
         content: `You are the DocETL assistant, helping users build and refine data analysis pipelines. You are an expert at data analysis.
 
 Core Capabilities:
-- DocETL enables users to create sophisticated data processing workflows combining LLMs with traditional data operations
+- DocETL enables users to create sophisticated data processing workflows with LLM calls, like crowdsourcing pipelines
 - Each pipeline processes documents through a sequence of operations
-- Operations can be LLM-based (map, reduce, resolve, filter) or utility-based (unnest, split, gather, sample)
+- Operations can be LLM-based (map, reduce, resolve, filter) or utility-based (unnest, split, gather, sample) or code-based (python for map, reduce, and filter)
 
 Operation Details:
 - Every LLM operation has:
@@ -115,7 +130,13 @@ Operation Details:
 - Operation-specific templating:
   - Map/Filter: Access current doc with '{{ input.keyname }}'
   - Reduce: Loop through docs with '{% for doc in inputs %}...{% endfor %}'
-  - Resolve: Compare docs with '{{ input1 }}/{{ input2 }}' and canonicalize with 'inputs'
+  - Resolve: Compare docs with '{{ input1 }}/{{ input2 }}' and canonicalize with '{{ inputs }}'
+- Code-based operations:
+  - Map: Define a transform function (def transform(doc: dict) -> dict), where the returned dict will have key-value pairs that will be added to the output document
+  - Filter: Define a transform function (def transform(doc: dict) -> bool), where the function should return true if the document should be included in the output
+  - Reduce: Define a transform function (def transform(docs: list[dict]) -> dict), where the returned dict will have key-value pairs that will *be* the output document (unless "pass_through" is set to true, then the first original doc for every group will also be returned)
+  - Only do imports of common libraries, inside the function definition
+  - Only suggest code-based operations if the task is one that is easily expressed in code, and LLMs or crowd workers are incapable of doing it correctly (e.g., word count, simple regex, etc.)
 
 Your Role:
 - Help users optimize pipelines and overcome challenges
@@ -132,8 +153,20 @@ Best Practices:
 - Be specific, never vague or general
 - Be concise, don't repeat yourself
 
+When Reviewing Outputs:
+- All the output fields have been converted to strings, even if they were originally numbers, arrays, or other types. So NEVER COMMENT ON TYPES.
+- Actively analyze outputs for discrepancies in structure across the outputs, edge cases, and quality issues.
+- For discrepancies, describe how to standardize them.
+- Identify where outputs may not fully satisfy the intended goals
+- Never simply restate or summarize outputs - provide critical analysis
+- Provide 1 suggestion at a time
+
+Remember, you are only helping the user discover their analysis goal, and only suggest improvements that LLMs or crowd workers are capable of.
+
 Here's their current pipeline state:
-${pipelineState}`,
+${pipelineState}
+
+Remember, all the output fields have been converted to strings, even if they were originally numbers, arrays, or other types. So NEVER COMMENT ON TYPES. Steer the user towards their high-level goal, if specified.`,
       },
       ...messages.filter((m) => m.role !== "system"),
     ]);
@@ -166,6 +199,25 @@ ${pipelineState}`,
     );
   };
 
+  const debouncedSetHighLevelGoal = useMemo(
+    () => debounce((value: string) => setHighLevelGoal(value), 1000),
+    [setHighLevelGoal]
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedSetHighLevelGoal.cancel();
+    };
+  }, [debouncedSetHighLevelGoal]);
+
+  const handleGoalUpdate = useCallback(
+    (newGoal: string) => {
+      setLocalGoal(newGoal);
+      debouncedSetHighLevelGoal(newGoal);
+    },
+    [debouncedSetHighLevelGoal]
+  );
+
   return (
     <div
       style={{
@@ -192,6 +244,33 @@ ${pipelineState}`,
             <LLMContextPopover />
           </span>
           <div className="flex items-center gap-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <span className="text-s text-primary font-medium flex items-center gap-2 cursor-pointer">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 px-2 text-xs"
+                  >
+                    {highLevelGoal ? "Edit Analysis Goal" : "Set Analysis Goal"}
+                  </Button>
+                </span>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 z-[10000]" side="top" align="end">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Pipeline Goal</h4>
+                  <Textarea
+                    placeholder="Describe the high-level goal of your pipeline..."
+                    className="min-h-[100px]"
+                    value={localGoal}
+                    onChange={(e) => handleGoalUpdate(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This helps the assistant provide more relevant suggestions.
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button
               variant="ghost"
               size="sm"
@@ -224,8 +303,10 @@ ${pipelineState}`,
                     onClick={() => {
                       handleInputChange({
                         target: { value: suggestion },
-                      } as any);
-                      handleMessageSubmit({ preventDefault: () => {} } as any);
+                      } as React.ChangeEvent<HTMLInputElement>);
+                      handleMessageSubmit({
+                        preventDefault: () => {},
+                      } as React.FormEvent);
                     }}
                   >
                     {suggestion}

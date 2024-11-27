@@ -50,3 +50,6 @@ website/.vercel
 # typescript
 website/*.tsbuildinfo
 website/next-env.d.ts
+
+# Docker
+.docker/

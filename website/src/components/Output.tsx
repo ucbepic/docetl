@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
-import { Loader2, Download, ChevronDown } from "lucide-react";
+import { Loader2, Download, ChevronDown, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import BookmarkableText from "@/components/BookmarkableText";
@@ -18,6 +18,55 @@ import {
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import AnsiRenderer from "./AnsiRenderer";
 import clsx from "clsx";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+const TinyPieChart: React.FC<{ percentage: number }> = ({ percentage }) => {
+  const size = 16;
+  const radius = 6;
+  const strokeWidth = 2;
+  const center = size / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDasharray = `${
+    (percentage * circumference) / 100
+  } ${circumference}`;
+
+  return (
+    <div className="relative w-4 h-4 flex items-center justify-center">
+      <svg
+        className="w-4 h-4 -rotate-90"
+        viewBox={`0 0 ${size} ${size}`}
+        width={size}
+        height={size}
+      >
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          className="fill-none stroke-gray-200"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          className={clsx(
+            "fill-none transition-all duration-500 ease-out",
+            percentage > 100 ? "stroke-emerald-500" : "stroke-rose-500"
+          )}
+          strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
+        />
+      </svg>
+    </div>
+  );
+};
 
 export const ConsoleContent: React.FC = () => {
   const { terminalOutput, setTerminalOutput, optimizerProgress } =
@@ -126,6 +175,8 @@ export const Output: React.FC = () => {
   useEffect(() => {
     if (isLoadingOutputs) {
       setActiveTab("console");
+    } else {
+      setActiveTab("table");
     }
   }, [isLoadingOutputs]);
 
@@ -213,7 +264,7 @@ export const Output: React.FC = () => {
     };
 
     fetchData();
-  }, [output, operation, isLoadingOutputs]);
+  }, [output, isLoadingOutputs]);
 
   const columns: ColumnType<any>[] = React.useMemo(() => {
     const importantColumns = operation?.output?.schema
@@ -259,6 +310,7 @@ export const Output: React.FC = () => {
                 : []
             }
             startingRowHeight={180}
+            currentOperation={opName}
           />
         </BookmarkableText>
       ) : (
@@ -293,105 +345,199 @@ export const Output: React.FC = () => {
 
     if (operation.type === "reduce") {
       const reduceKeys = operation.otherKwargs?.reduce_key || [];
+      const chartData = outputs
+        .sort(
+          (a, b) =>
+            Number(b[visualizationColumn.name]) -
+            Number(a[visualizationColumn.name])
+        )
+        .map((row) => ({
+          name: reduceKeys.map((key: string) => `${row[key]}`).join(", "),
+          value: Number(row[visualizationColumn.name]),
+        }));
+
       return (
-        <div className="h-full overflow-auto p-4">
-          {outputs
-            .sort(
-              (a, b) =>
-                Number(b[visualizationColumn.name]) -
-                Number(a[visualizationColumn.name])
-            )
-            .map((row, index) => (
-              <div key={index} className="mb-2">
-                <h3 className="text-sm font-semibold mb-2">
-                  {reduceKeys
-                    .map((key: string) => `${key}: ${row[key]}`)
-                    .join(", ")}{" "}
-                  ({row[visualizationColumn.name]})
-                </h3>
-                <div className="flex">
-                  {Array.from({
-                    length: Number(row[visualizationColumn.name]),
-                  }).map((_, i) => (
-                    <div key={i} className="w-4 h-10 bg-primary mr-1" />
-                  ))}
-                </div>
-              </div>
-            ))}
+        <div className="h-full p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
+            >
+              <XAxis
+                type="number"
+                tickFormatter={(value) => value.toLocaleString()}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={100}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <RechartsTooltip
+                formatter={(value: number) => [value.toLocaleString(), "Count"]}
+                contentStyle={{
+                  backgroundColor: "hsl(var(--popover))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "var(--radius)",
+                  color: "hsl(var(--popover-foreground))",
+                  padding: "8px 12px",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                }}
+              />
+              <Bar
+                dataKey="value"
+                fill="hsl(var(--chart-2))"
+                name="Count"
+                radius={[0, 4, 4, 0]} // Adjusted for vertical layout
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       );
     } else if (operation.type === "resolve") {
       const groupedData = useMemo(() => {
         const intersectionKeys = new Set(
           outputs.flatMap((row) => {
-            const kvPairs = row[visualizationColumn.name];
+            // @ts-ignore
+            const kvPairs = row[visualizationColumn.name] as Record<
+              string,
+              unknown
+            >;
             return Object.keys(kvPairs).filter((key) => key in row);
           })
         );
 
-        const groupedByIntersection: { [key: string]: any[] } = {};
+        const groupedByIntersection: {
+          [key: string]: {
+            count: number;
+            oldValues: Record<string, unknown>[];
+          };
+        } = {};
+
         outputs.forEach((row) => {
-          const kvPairs = row[visualizationColumn.name];
+          // @ts-ignore
+          const kvPairs = row[visualizationColumn.name] as Record<
+            string,
+            unknown
+          >;
           const key = Array.from(intersectionKeys)
             .map((k) => row[k])
             .join("|");
+
           if (!groupedByIntersection[key]) {
-            groupedByIntersection[key] = [];
+            groupedByIntersection[key] = {
+              count: 0,
+              oldValues: [],
+            };
           }
-          groupedByIntersection[key].push({ row, oldValues: kvPairs });
+          groupedByIntersection[key].count++;
+          groupedByIntersection[key].oldValues.push(kvPairs);
         });
 
-        return groupedByIntersection;
+        return Object.entries(groupedByIntersection)
+          .map(([key, data]) => ({
+            name: key,
+            value: data.count,
+            oldValues: data.oldValues,
+          }))
+          .sort((a, b) => b.value - a.value);
       }, [outputs, visualizationColumn.name]);
 
       return (
-        <div className="h-full overflow-auto p-4">
-          {Object.entries(groupedData)
-            .sort(([, groupA], [, groupB]) => groupB.length - groupA.length)
-            .map(([key, group]: [string, any[]]) => (
-              <div key={key} className="mb-2">
-                <h3 className="text-sm font-semibold mb-2">
-                  {key} ({group.length})
-                </h3>
-                <div className="flex">
-                  {group.map((item, index) => (
-                    <TooltipProvider key={index}>
-                      <Tooltip delayDuration={0}>
-                        <TooltipTrigger>
-                          <Button
-                            className="w-4 h-10 p-0 mr-1"
-                            variant="default"
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="bottom"
-                          align="center"
-                          className="max-w-[300px] overflow-auto"
-                        >
-                          <p className="text-xs">
-                            Document values before resolution:
+        <div className="h-full p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={groupedData}
+              layout="vertical"
+              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
+            >
+              <XAxis
+                type="number"
+                tickFormatter={(value) => value.toLocaleString()}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={100}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+
+                    // Compute distinct values by stringifying and using Set
+                    const distinctValues = Array.from(
+                      new Set(
+                        data.oldValues.map((value) =>
+                          JSON.stringify(value, null, 2)
+                        )
+                      )
+                      // @ts-ignore
+                    ).map((str) => JSON.parse(str));
+
+                    // Calculate percentage of total documents
+                    const totalDocs = groupedData.reduce(
+                      (sum, item) => sum + item.value,
+                      0
+                    );
+                    const percentage = ((data.value / totalDocs) * 100).toFixed(
+                      1
+                    );
+
+                    return (
+                      <div className="bg-[hsl(var(--popover))] border border-[hsl(var(--border))] rounded-[var(--radius)] p-3 shadow-md max-h-[400px] overflow-y-auto w-[400px]">
+                        <p className="font-medium mb-2">
+                          {data.value.toLocaleString()} Documents ({percentage}
+                          %)
+                        </p>
+                        <div className="text-sm space-y-2">
+                          <p className="font-medium text-[hsl(var(--muted-foreground))]">
+                            {distinctValues.length} distinct value
+                            {distinctValues.length !== 1 ? "s" : ""} before
+                            resolution:
                           </p>
-                          <pre className="whitespace-pre-wrap break-words">
-                            {JSON.stringify(item.oldValues, null, 2)}
-                          </pre>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ))}
-                </div>
-              </div>
-            ))}
-        </div>
-      );
-    } else {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">
-            Visualization not supported for this operation type.
-          </p>
+                          {distinctValues.map((value, idx) => (
+                            <pre
+                              key={idx}
+                              className="text-xs bg-[hsl(var(--muted)/.1)] p-2 rounded overflow-x-auto whitespace-pre-wrap break-all"
+                            >
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar
+                dataKey="value"
+                fill="hsl(var(--chart-2))"
+                name="Documents"
+                radius={[0, 4, 4, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       );
     }
+
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">
+          Visualization not supported for this operation type.
+        </p>
+      </div>
+    );
   };
 
   const downloadCSV = () => {
@@ -431,37 +577,53 @@ export const Output: React.FC = () => {
           <div className="flex items-center space-x-2">
             <div className="flex items-center gap-2 text-sm">
               <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
-                <span className="text-gray-900 font-medium">{inputCount}</span>
+                <span className="text-gray-900 font-medium">
+                  {isLoadingOutputs ? "0" : inputCount}
+                </span>
                 <span className="text-gray-500 ml-1">in</span>
               </div>
               <span className="text-gray-400">→</span>
               <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
-                <span className="text-gray-900 font-medium">{outputCount}</span>
+                <span className="text-gray-900 font-medium">
+                  {isLoadingOutputs ? "0" : outputCount}
+                </span>
                 <span className="text-gray-500 ml-1">out</span>
               </div>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
+                    <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md cursor-help">
                       <span
                         className={clsx(
                           "font-medium",
-                          selectivityFactor !== "N/A" &&
+                          !isLoadingOutputs &&
+                            selectivityFactor !== "N/A" &&
                             Number(selectivityFactor) > 1 &&
                             "text-emerald-600",
-                          selectivityFactor !== "N/A" &&
+                          !isLoadingOutputs &&
+                            selectivityFactor !== "N/A" &&
                             Number(selectivityFactor) < 1 &&
                             "text-rose-600",
-                          selectivityFactor === "N/A" && "text-gray-900"
+                          (isLoadingOutputs || selectivityFactor === "N/A") &&
+                            "text-gray-900"
                         )}
                       >
-                        {selectivityFactor}×
+                        {isLoadingOutputs ? "N/A" : selectivityFactor}×
                       </span>
+                      {!isLoadingOutputs &&
+                        selectivityFactor !== "N/A" &&
+                        Number(selectivityFactor) < 1 && (
+                          <div className="ml-1">
+                            <TinyPieChart
+                              percentage={Number(selectivityFactor) * 100}
+                            />
+                          </div>
+                        )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="font-medium">Output to input ratio</p>
-                    {selectivityFactor !== "N/A" && (
+                    {!isLoadingOutputs && selectivityFactor !== "N/A" && (
                       <p className="text-xs mt-1">
                         {Number(selectivityFactor) > 1
                           ? "Operation increases data volume"

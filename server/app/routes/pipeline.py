@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from server.app.models import PipelineRequest
@@ -30,6 +30,8 @@ class OptimizeResult(BaseModel):
     task_id: str
     status: TaskStatus
     should_optimize: Optional[str] = None
+    input_data: Optional[List[Dict[str, Any]]] = None
+    output_data: Optional[List[Dict[str, Any]]] = None
     cost: Optional[float] = None
     error: Optional[str] = None
     created_at: datetime
@@ -76,7 +78,7 @@ async def run_optimization(task_id: str, yaml_config: str, step_name: str, op_na
         
         # Run the actual optimization in a separate thread to not block
         runner = DSLRunner.from_yaml(yaml_config)
-        should_optimize, cost = await asyncio.to_thread(
+        should_optimize, input_data, output_data, cost = await asyncio.to_thread(
             runner.should_optimize,
             step_name,
             op_name
@@ -85,6 +87,8 @@ async def run_optimization(task_id: str, yaml_config: str, step_name: str, op_na
         # Update task result
         tasks[task_id].status = TaskStatus.COMPLETED
         tasks[task_id].should_optimize = should_optimize
+        tasks[task_id].input_data = input_data
+        tasks[task_id].output_data = output_data
         tasks[task_id].cost = cost
         tasks[task_id].completed_at = datetime.now()
         

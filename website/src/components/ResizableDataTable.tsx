@@ -2,8 +2,8 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useRef,
   useMemo,
+  useRef,
 } from "react";
 import {
   flexRender,
@@ -16,6 +16,11 @@ import {
   Row,
   getPaginationRowModel,
   VisibilityState,
+  SortingState,
+  getSortedRowModel,
+  getFilteredRowModel,
+  FilterFn,
+  ColumnFiltersState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -26,7 +31,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Search,
+  Eye,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -36,12 +47,18 @@ import {
 import { TABLE_SETTINGS_KEY } from "@/app/localStorageKeys";
 import ReactMarkdown from "react-markdown";
 import debounce from "lodash/debounce";
-import { Progress } from "@/components/ui/progress";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { Input } from "@/components/ui/input";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 export type DataType = Record<string, unknown>;
 export type ColumnType<T extends DataType> = ColumnDef<T> & {
   initialWidth?: number;
+  accessorKey?: string;
 };
 
 interface ColumnStats {
@@ -50,16 +67,97 @@ interface ColumnStats {
   avg: number;
   distribution: number[];
   bucketSize: number;
+  type: "number" | "array" | "string-words" | "string-chars" | "boolean";
+  distinctCount: number;
+  totalCount: number;
+  isLowCardinality: boolean;
+  sortedValueCounts: { value: string; count: number }[];
+}
+
+function calculateDistinctValueCounts(
+  data: Record<string, unknown>[],
+  accessor: string
+): Map<string | number | boolean, number> {
+  const valueCounts = new Map<string | number | boolean, number>();
+
+  data.forEach((row) => {
+    const value = row[accessor];
+    if (value != null) {
+      const key =
+        typeof value === "object" ? JSON.stringify(value) : String(value);
+      valueCounts.set(
+        key as string | number | boolean,
+        (valueCounts.get(key as string | number | boolean) || 0) + 1
+      );
+    }
+  });
+
+  return valueCounts;
 }
 
 function calculateColumnStats(
   data: Record<string, unknown>[],
   accessor: string
 ): ColumnStats | null {
+  let type: ColumnStats["type"] = "string-words";
+  const firstValue = data.find((row) => row[accessor] != null)?.[accessor];
+
+  // Determine type based on first non-null value
+  if (typeof firstValue === "number") type = "number";
+  if (Array.isArray(firstValue)) type = "array";
+  if (typeof firstValue === "boolean") type = "boolean";
+
+  // For strings, check first 5 non-null values to determine if we should count chars
+  if (typeof firstValue === "string") {
+    const first5Values = data
+      .filter(
+        (row) => typeof row[accessor] === "string" && row[accessor] != null
+      )
+      .slice(0, 5)
+      .map((row) => row[accessor] as string);
+
+    // Use char count if all sampled values are single words
+    type =
+      first5Values.length > 0 &&
+      first5Values.every((val) => !/\s/.test(val.trim()))
+        ? "string-chars"
+        : "string-words";
+  }
+
   const values = data
     .map((row) => {
       const value = row[accessor];
-      return typeof value === "string" ? value.split(/\s+/).length : null;
+
+      if (value === null || value === undefined) {
+        return null;
+      }
+
+      // For booleans, convert to 0 or 1
+      if (typeof value === "boolean") {
+        return value ? 1 : 0;
+      }
+
+      // For numbers, use the value directly
+      if (typeof value === "number") {
+        return value;
+      }
+
+      // For arrays, count number of elements
+      if (Array.isArray(value)) {
+        return value.length;
+      }
+
+      // For strings, count either chars or words based on earlier determination
+      if (typeof value === "string") {
+        const trimmedValue = value.trim();
+        return type === "string-chars"
+          ? trimmedValue.length
+          : trimmedValue.split(/\s+/).length;
+      }
+
+      // For other types, convert to string and count words
+      const stringValue = JSON.stringify(value);
+      return stringValue.split(/\s+/).length;
     })
     .filter((length): length is number => length !== null);
 
@@ -69,8 +167,59 @@ function calculateColumnStats(
   const max = Math.max(...values);
   const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
 
-  // Create 7 buckets for distribution
-  const bucketSize = Math.ceil((max - min) / 7);
+  const valueCounts = calculateDistinctValueCounts(data, accessor);
+  const distinctCount = valueCounts.size;
+  const totalCount = data.filter((row) => row[accessor] != null).length;
+  const isLowCardinality = distinctCount < totalCount * 0.5;
+
+  // Convert value counts to sorted array for bar chart
+  const sortedValueCounts = Array.from(valueCounts.entries())
+    .sort((a, b) => b[1] - a[1]) // Sort by count in descending order
+    .map(([value, count]) => ({
+      value: String(value),
+      count,
+    }));
+
+  // For boolean values, create a special two-bucket distribution
+  if (type === "boolean") {
+    const distribution = [0, 0]; // [false count, true count]
+    values.forEach((value) => {
+      distribution[value]++;
+    });
+    return {
+      min,
+      max,
+      avg,
+      distribution,
+      bucketSize: 1,
+      type,
+      distinctCount,
+      totalCount,
+      isLowCardinality,
+      sortedValueCounts,
+    };
+  }
+
+  // Special handling for single distinct value
+  if (min === max) {
+    return {
+      min,
+      max,
+      avg,
+      distribution: [values.length], // Put all values in a single bucket
+      bucketSize: 1,
+      type,
+      distinctCount,
+      totalCount,
+      isLowCardinality,
+      sortedValueCounts,
+    };
+  }
+
+  // For numbers, use more precise bucketing
+  const bucketSize =
+    type === "number" ? (max - min) / 7 : Math.ceil((max - min) / 7);
+
   const distribution = new Array(7).fill(0);
 
   values.forEach((value) => {
@@ -87,6 +236,11 @@ function calculateColumnStats(
     avg,
     distribution,
     bucketSize,
+    type,
+    distinctCount,
+    totalCount,
+    isLowCardinality,
+    sortedValueCounts,
   };
 }
 
@@ -95,76 +249,317 @@ const WordCountHistogram = React.memo(
     histogramData,
   }: {
     histogramData: { range: string; count: number; fullRange: string }[];
-  }) => (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={histogramData} barCategoryGap={1}>
-        <XAxis
-          dataKey="range"
-          tick={{ fontSize: 10 }}
-          interval={2}
-          tickLine={false}
-          stroke="hsl(var(--muted-foreground))"
-        />
-        <Tooltip
-          formatter={(value: number) => [value.toLocaleString(), "Count"]}
-          labelFormatter={(label: string) => label}
-          contentStyle={{
-            backgroundColor: "hsl(var(--popover))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "var(--radius)",
-            color: "hsl(var(--popover-foreground))",
-            padding: "8px 12px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-          }}
-        />
-        <Bar
-          dataKey="count"
-          fill="hsl(var(--chart-2))"
-          radius={[4, 4, 0, 0]}
-          isAnimationActive={false}
-        />
-      </BarChart>
-    </ResponsiveContainer>
-  )
+  }) => {
+    // Calculate total count for fractions
+    const totalCount = useMemo(
+      () => histogramData.reduce((sum, item) => sum + item.count, 0),
+      [histogramData]
+    );
+
+    return (
+      <ResponsiveContainer width="100%" height={40}>
+        <BarChart data={histogramData} barCategoryGap={1}>
+          <XAxis
+            dataKey="range"
+            tick={{ fontSize: 8 }}
+            interval={2}
+            tickLine={false}
+            stroke="hsl(var(--muted-foreground))"
+            height={15}
+          />
+          <Tooltip
+            formatter={(value: number) => [
+              `${value.toLocaleString()} (${(
+                (value / totalCount) *
+                100
+              ).toFixed(1)}%)`,
+              "Count",
+            ]}
+            labelFormatter={(label: string) => label}
+            contentStyle={{
+              backgroundColor: "hsl(var(--popover))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "var(--radius)",
+              color: "hsl(var(--popover-foreground))",
+              padding: "8px 12px",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            }}
+            wrapperStyle={{ zIndex: 1000 }}
+          />
+          <Bar
+            dataKey="count"
+            fill="hsl(var(--chart-2))"
+            radius={[4, 4, 0, 0]}
+            isAnimationActive={false}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
 );
 WordCountHistogram.displayName = "WordCountHistogram";
 
-// Update the ColumnHeader to use the memoized histogram
-const ColumnHeader: React.FC<{
+const CategoricalBarChart = React.memo(
+  ({ data }: { data: { value: string; count: number }[] }) => {
+    const totalCount = useMemo(
+      () => data.reduce((sum, item) => sum + item.count, 0),
+      [data]
+    );
+
+    // Take top 10 values for visualization
+    const displayData = data.slice(0, 10);
+
+    return (
+      <ResponsiveContainer width="100%" height={40}>
+        <BarChart data={displayData} barCategoryGap={1}>
+          <XAxis
+            dataKey="value"
+            tick={{ fontSize: 8 }}
+            interval={0}
+            tickLine={false}
+            stroke="hsl(var(--muted-foreground))"
+            height={15}
+          />
+          <Tooltip
+            formatter={(value: number) => [
+              `${value.toLocaleString()} (${(
+                (value / totalCount) *
+                100
+              ).toFixed(1)}%)`,
+              "Count",
+            ]}
+            labelFormatter={(label: string) => label}
+            contentStyle={{
+              backgroundColor: "hsl(var(--popover))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "var(--radius)",
+              color: "hsl(var(--popover-foreground))",
+              padding: "8px 12px",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            }}
+            wrapperStyle={{ zIndex: 1000 }}
+          />
+          <Bar
+            dataKey="count"
+            fill="hsl(var(--chart-2))"
+            radius={[4, 4, 0, 0]}
+            isAnimationActive={false}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+);
+CategoricalBarChart.displayName = "CategoricalBarChart";
+
+interface ColumnHeaderProps {
   header: string;
   stats: ColumnStats | null;
   isBold: boolean;
-}> = React.memo(({ header, stats, isBold }) => {
-  const histogramData = useMemo(() => {
-    if (!stats) return [];
+  onFilter: (value: string) => void;
+  filterValue: string;
+  onSort: () => void;
+  sortDirection: false | "asc" | "desc";
+}
 
-    return stats.distribution.map((count, i) => ({
-      range: `${Math.round(stats.min + i * stats.bucketSize)}`,
-      count,
-      fullRange: `${Math.round(
-        stats.min + i * stats.bucketSize
-      )} - ${Math.round(stats.min + (i + 1) * stats.bucketSize)} words`,
-    }));
-  }, [stats]);
+const ColumnHeader = React.memo(
+  ({
+    header,
+    stats,
+    isBold,
+    onFilter,
+    filterValue,
+    onSort,
+    sortDirection,
+  }: ColumnHeaderProps) => {
+    const histogramData = useMemo(() => {
+      if (!stats) return [];
 
-  return (
-    <div className="space-y-2">
-      <div className={`${isBold ? "font-bold" : ""}`}>{header}</div>
-      {stats && (
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{stats.min} words</span>
-            <span>avg: {Math.round(stats.avg)}</span>
-            <span>{stats.max} words</span>
-          </div>
-          <div className="h-24 w-full">
-            <WordCountHistogram histogramData={histogramData} />
+      const getUnitLabel = () => {
+        switch (stats.type) {
+          case "number":
+            return "";
+          case "array":
+            return " items";
+          case "boolean":
+            return "";
+          case "string-chars":
+            return " chars";
+          case "string-words":
+            return " words";
+          default:
+            return " words";
+        }
+      };
+
+      // Special handling for boolean values
+      if (stats.type === "boolean") {
+        return [
+          {
+            range: "False",
+            count: stats.distribution[0],
+            fullRange: "False",
+          },
+          {
+            range: "True",
+            count: stats.distribution[1],
+            fullRange: "True",
+          },
+        ];
+      }
+
+      // Special handling for single distinct value
+      if (stats.min === stats.max) {
+        return [
+          {
+            range: `${Math.round(stats.min)}`,
+            count: stats.distribution[0],
+            fullRange: `${Math.round(stats.min)}${getUnitLabel()}`,
+          },
+        ];
+      }
+
+      return stats.distribution.map((count, i) => ({
+        range: `${Math.round(stats.min + i * stats.bucketSize)}`,
+        count,
+        fullRange: `${Math.round(
+          stats.min + i * stats.bucketSize
+        )} - ${Math.round(
+          stats.min + (i + 1) * stats.bucketSize
+        )}${getUnitLabel()}`,
+      }));
+    }, [stats]);
+
+    return (
+      <div className="space-y-1">
+        <div
+          className={`${
+            isBold ? "font-bold" : ""
+          } text-sm px-1 flex items-center gap-2`}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={onSort}
+          >
+            {sortDirection === false && (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-muted-foreground"
+              >
+                <path d="m3 16 4 4 4-4" />
+                <path d="M7 20V4" />
+                <path d="m21 8-4-4-4 4" />
+                <path d="M17 4v16" />
+              </svg>
+            )}
+            {sortDirection === "asc" && (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m3 8 4-4 4 4" />
+                <path d="M7 4v16" />
+              </svg>
+            )}
+            {sortDirection === "desc" && (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m3 16 4 4 4-4" />
+                <path d="M7 20V4" />
+              </svg>
+            )}
+          </Button>
+          {header}
+        </div>
+        <div
+          className={`${isBold ? "font-bold" : ""} space-y-2 ${
+            filterValue ? "bg-primary/5 rounded-md p-1" : ""
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Search className="h-3 w-3 text-muted-foreground" />
+            <Input
+              placeholder="Filter..."
+              value={filterValue}
+              onChange={(e) => onFilter(e.target.value)}
+              className={`h-6 text-xs border-none shadow-none focus-visible:ring-0 ${
+                filterValue ? "bg-primary/5" : ""
+              }`}
+            />
           </div>
         </div>
-      )}
-    </div>
-  );
-});
+        {stats && (
+          <div className="space-y-0.5">
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              {stats.isLowCardinality ? (
+                <span className="w-full text-center">
+                  {stats.distinctCount} distinct values
+                </span>
+              ) : (
+                <>
+                  <span>
+                    {stats.min}
+                    {stats.type === "array"
+                      ? " items"
+                      : stats.type === "string-words"
+                      ? " words"
+                      : stats.type === "string-chars"
+                      ? " chars"
+                      : ""}
+                  </span>
+                  <span>avg: {Math.round(stats.avg)}</span>
+                  <span>
+                    {stats.max}
+                    {stats.type === "array"
+                      ? " items"
+                      : stats.type === "string-words"
+                      ? " words"
+                      : stats.type === "string-chars"
+                      ? " chars"
+                      : ""}
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="h-10 w-full">
+              {stats.isLowCardinality ? (
+                <CategoricalBarChart data={stats.sortedValueCounts} />
+              ) : (
+                <WordCountHistogram histogramData={histogramData} />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+);
 ColumnHeader.displayName = "ColumnHeader";
 
 const ColumnResizer = <T extends DataType>({
@@ -229,6 +624,7 @@ interface ResizableDataTableProps<T extends DataType> {
   columns: ColumnType<T>[];
   boldedColumns: string[];
   startingRowHeight?: number;
+  currentOperation: string;
 }
 
 interface MarkdownCellProps {
@@ -321,11 +717,232 @@ const MarkdownCell = React.memo(({ content }: MarkdownCellProps) => {
 });
 MarkdownCell.displayName = "MarkdownCell";
 
+interface SearchableCellProps {
+  content: string;
+  isResizing: boolean;
+}
+
+const SearchableCell = React.memo(
+  ({ content, isResizing }: SearchableCellProps) => {
+    const [searchTerm, setSearchTerm] = useState("");
+    const [highlightedContent, setHighlightedContent] = useState(content);
+    const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+    const [matchCount, setMatchCount] = useState(0);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Search functionality
+    useEffect(() => {
+      if (!searchTerm) {
+        setHighlightedContent(content);
+        setMatchCount(0);
+        setCurrentMatchIndex(0);
+        return;
+      }
+
+      try {
+        const regex = new RegExp(`(${searchTerm})`, "gi");
+        const matches = content.match(regex);
+        const matchesCount = matches ? matches.length : 0;
+        setMatchCount(matchesCount);
+
+        if (matchesCount > 0) {
+          const highlighted = content.replace(
+            regex,
+            (match) => `<mark class="search-match">${match}</mark>`
+          );
+          setHighlightedContent(highlighted);
+
+          // Scroll to current match
+          setTimeout(() => {
+            if (containerRef.current) {
+              const marks =
+                containerRef.current.getElementsByClassName("search-match");
+              if (marks.length > 0 && currentMatchIndex < marks.length) {
+                marks[currentMatchIndex].scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+              }
+            }
+          }, 100);
+        } else {
+          setHighlightedContent(content);
+        }
+      } catch {
+        setHighlightedContent(content);
+        setMatchCount(0);
+      }
+    }, [searchTerm, content, currentMatchIndex]);
+
+    const navigateMatches = useCallback(
+      (direction: "next" | "prev") => {
+        if (matchCount === 0) return;
+
+        if (direction === "next") {
+          setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
+        } else {
+          setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
+        }
+      },
+      [matchCount]
+    );
+
+    // Style for search matches
+    useEffect(() => {
+      const styleId = "search-match-style";
+      let styleElement = document.getElementById(styleId) as HTMLStyleElement;
+
+      if (!styleElement) {
+        styleElement = document.createElement("style");
+        styleElement.id = styleId;
+        document.head.appendChild(styleElement);
+      }
+
+      styleElement.textContent = `
+        mark.search-match {
+          background-color: hsl(var(--primary) / 0.2);
+          color: inherit;
+          padding: 0;
+          border-radius: 2px;
+        }
+        mark.search-match:nth-of-type(${currentMatchIndex + 1}) {
+          background-color: hsl(var(--primary) / 0.5);
+        }
+      `;
+
+      return () => {
+        if (styleElement && styleElement.parentNode) {
+          styleElement.parentNode.removeChild(styleElement);
+        }
+      };
+    }, [currentMatchIndex]);
+
+    return (
+      <div className="relative">
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm rounded-md">
+          <div className="flex items-center gap-2 p-1">
+            <Search className="h-3 w-3 text-muted-foreground" />
+            <Input
+              placeholder="Search in cell..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentMatchIndex(0);
+              }}
+              className="h-6 text-xs border-none shadow-none focus-visible:ring-0"
+            />
+            {matchCount > 0 && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => navigateMatches("prev")}
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </Button>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {currentMatchIndex + 1}/{matchCount}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => navigateMatches("next")}
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div ref={containerRef}>
+          {isResizing ? (
+            <div>{content}</div>
+          ) : searchTerm ? (
+            <div
+              dangerouslySetInnerHTML={{ __html: highlightedContent }}
+              className="prose prose-sm max-w-none"
+            />
+          ) : (
+            <MarkdownCell content={content} />
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+SearchableCell.displayName = "SearchableCell";
+
+interface ObservabilityIndicatorProps {
+  row: Record<string, unknown>;
+  currentOperation: string;
+}
+
+const ObservabilityIndicator = React.memo(
+  ({ row, currentOperation }: ObservabilityIndicatorProps) => {
+    // Only show observability data for the current operation
+    const observabilityEntries = Object.entries(row).filter(
+      ([key]) => key === `_observability_${currentOperation}`
+    );
+
+    if (observabilityEntries.length === 0) return null;
+
+    return (
+      <HoverCard>
+        <HoverCardTrigger asChild>
+          <div className="cursor-help">
+            <Eye className="h-4 w-4 text-muted-foreground hover:text-primary" />
+          </div>
+        </HoverCardTrigger>
+        <HoverCardContent
+          className="w-[800px] max-h-[600px] overflow-auto"
+          side="right"
+          align="start"
+        >
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold border-b pb-2">
+              LLM Call(s) for {currentOperation}
+            </h3>
+            <div className="space-y-2">
+              {observabilityEntries.map(([key, value]) => (
+                <div key={key} className="flex flex-col gap-1">
+                  <div className="text-sm text-muted-foreground">
+                    {typeof value === "object"
+                      ? JSON.stringify(value, null, 2)
+                      : String(value)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </HoverCardContent>
+      </HoverCard>
+    );
+  }
+);
+ObservabilityIndicator.displayName = "ObservabilityIndicator";
+
+// Move the sortingFns definition outside of the table config
+const createSortingFns = <T extends DataType>(
+  data: T[],
+  originalIndices: number[]
+) => ({
+  preserveIndex: (rowA: Row<T>, rowB: Row<T>) => {
+    const a = rowA.original;
+    const b = rowB.original;
+    const aIndex = originalIndices[data.indexOf(a)];
+    const bIndex = originalIndices[data.indexOf(b)];
+    return aIndex - bIndex;
+  },
+});
+
 function ResizableDataTable<T extends DataType>({
   data,
   columns,
   boldedColumns,
-  startingRowHeight = 60, // Default starting height
+  startingRowHeight = 60,
+  currentOperation,
 }: ResizableDataTableProps<T>) {
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
     const savedSettings = localStorage.getItem(TABLE_SETTINGS_KEY);
@@ -350,6 +967,8 @@ function ResizableDataTable<T extends DataType>({
     return {};
   });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const saveSettings = useCallback(() => {
     localStorage.setItem(
@@ -403,13 +1022,76 @@ function ResizableDataTable<T extends DataType>({
     return stats;
   }, [data, columns]);
 
+  const fuzzyFilter: FilterFn<T> = (row, columnId, value) => {
+    const searchValue = value.toLowerCase();
+    const cellValue = row.getValue(columnId);
+
+    if (cellValue == null) return false;
+
+    // Handle different types of values
+    if (typeof cellValue === "number") {
+      return cellValue.toString().includes(searchValue);
+    }
+
+    if (Array.isArray(cellValue)) {
+      return cellValue.some((item) =>
+        String(item).toLowerCase().includes(searchValue)
+      );
+    }
+
+    return String(cellValue).toLowerCase().includes(searchValue);
+  };
+
+  // Add this state to store original row indices
+  const [originalIndices] = useState(() => data.map((_, index) => index));
+
+  // Create sorting functions
+  const sortingFns = useMemo(
+    () => createSortingFns(data, originalIndices),
+    [data, originalIndices]
+  );
+
+  // Modify the table configuration
   const table = useReactTable({
     data,
-    // Replace columns with sortedColumns here
-    columns: sortedColumns,
+    columns: sortedColumns
+      .filter((col) => {
+        const columnId = col.accessorKey || col.id;
+        return !columnId?.startsWith("_observability_");
+      })
+      .map((col) => ({
+        ...col,
+        enableSorting: true,
+        filterFn: fuzzyFilter,
+        sortingFn: (rowA: Row<T>, rowB: Row<T>) => {
+          const accessor = col.accessorKey;
+          if (!accessor) return 0;
+
+          const a = rowA.getValue(accessor);
+          const b = rowB.getValue(accessor);
+
+          // Handle null/undefined values
+          if (a == null) return -1;
+          if (b == null) return 1;
+
+          // Sort based on type
+          if (typeof a === "number" && typeof b === "number") {
+            return a - b;
+          }
+
+          if (Array.isArray(a) && Array.isArray(b)) {
+            return a.length - b.length;
+          }
+
+          // For strings, do alphabetical comparison
+          return String(a).localeCompare(String(b));
+        },
+      })),
     columnResizeMode: "onChange" as ColumnResizeMode,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     onColumnSizingChange: (newColumnSizing) => {
       setColumnSizing(newColumnSizing);
       setIsResizing(true);
@@ -417,184 +1099,276 @@ function ResizableDataTable<T extends DataType>({
       saveSettings();
     },
     onColumnVisibilityChange: setColumnVisibility,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
     state: {
       columnSizing,
       columnVisibility,
+      sorting,
+      columnFilters,
     },
+    enableSorting: true,
     enableColumnResizing: true,
     defaultColumn: {
       minSize: 30,
       size: 150,
-      maxSize: Number.MAX_SAFE_INTEGER,
     },
     initialState: {
       pagination: {
         pageSize: 5,
       },
     },
+    filterFns: {
+      fuzzy: fuzzyFilter,
+    },
+    sortingFns,
   });
+
+  const resetColumnWidths = useCallback(() => {
+    const initialSizing: ColumnSizingState = {};
+    columns.forEach((column) => {
+      if (column.initialWidth) {
+        initialSizing[column.id as string] = column.initialWidth;
+      } else {
+        // Get all values for this column
+        const values = data.map((row) => {
+          const value = row[column.accessorKey as string];
+          return value ? String(value) : "";
+        });
+
+        // Estimate width based on content (including header)
+        const header = column.header as string;
+        const maxContentLength = Math.max(
+          header.length,
+          ...values.map((v) => v.length)
+        );
+
+        // Estimate width: ~8px per character, with min 150px and max 400px
+        const estimatedWidth = Math.min(
+          Math.max(maxContentLength * 8, 150),
+          400
+        );
+
+        initialSizing[column.id as string] = estimatedWidth;
+      }
+    });
+
+    // Update the table's column sizing state
+    table.setColumnSizing(initialSizing);
+
+    // Update our local state and save settings
+    setColumnSizing(initialSizing);
+    saveSettings();
+  }, [columns, data, saveSettings, table]);
 
   return (
     <div className="w-full overflow-auto">
-      <div className="mb-4 flex justify-between items-center">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center ml-4">
-              Show/Hide Columns
-              <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56">
-            {table.getAllLeafColumns().map((column) => {
-              return (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  checked={column.getIsVisible()}
-                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                >
-                  {column.id}
-                </DropdownMenuCheckboxItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="mb-2 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center ml-2 h-7"
+              >
+                Show/Hide Columns
+                <ChevronDown className="ml-1 h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56">
+              {table.getAllLeafColumns().map((column) => {
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) =>
+                      column.toggleVisibility(!!value)
+                    }
+                  >
+                    {column.id}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7"
+            onClick={resetColumnWidths}
+          >
+            Reset Widths
+          </Button>
+        </div>
         <div className="flex items-center space-x-2">
           {data.length > 0 && (
-            <div className="flex items-center justify-end space-x-2 py-4 mr-4">
+            <div className="flex items-center justify-end space-x-2 py-1 mr-2">
               <Button
                 variant="outline"
                 size="sm"
+                className="h-7"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
               >
-                <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+                <ChevronLeft className="mr-1 h-3 w-3" /> Previous
               </Button>
-              <span className="text-sm text-gray-600">
+              <span className="text-xs text-gray-600">
                 Page {table.getState().pagination.pageIndex + 1} of{" "}
                 {table.getPageCount()}
               </span>
               <Button
                 variant="outline"
                 size="sm"
+                className="h-7"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
               >
-                Next <ChevronRight className="ml-2 h-4 w-4" />
+                Next <ChevronRight className="ml-1 h-3 w-3" />
               </Button>
             </div>
           )}
         </div>
       </div>
-      <Table style={{ width: "max-content", minWidth: "100%" }}>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              <TableHead style={{ width: "30px" }}>#</TableHead>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  style={{
-                    width: header.getSize(),
-                    position: "relative",
-                    minWidth: `${header.column.columnDef.minSize}px`,
-                    maxWidth: `${header.column.columnDef.maxSize}px`,
-                    fontWeight: boldedColumns.includes(
-                      header.column.columnDef.header as string
-                    )
-                      ? "bold"
-                      : "normal",
-                  }}
-                >
-                  {header.isPlaceholder ? null : (
-                    <ColumnHeader
-                      header={header.column.columnDef.header as string}
-                      stats={
-                        columnStats[
-                          (header.column.columnDef as { accessorKey?: string })
-                            .accessorKey || ""
-                        ]
-                      }
-                      isBold={boldedColumns.includes(
-                        header.column.columnDef.header as string
-                      )}
-                    />
-                  )}
-                  <ColumnResizer header={header} />
+      <div style={{ width: "100%", overflow: "auto" }}>
+        <Table
+          style={{
+            width: table.getTotalSize() + 100,
+            minWidth: "100%",
+          }}
+        >
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                <TableHead style={{ width: "30px", minWidth: "30px" }}>
+                  #
                 </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row, index) => (
-            <React.Fragment key={row.id}>
-              <TableRow>
-                <TableCell
-                  style={{
-                    width: "30px",
-                    padding: "0.25rem",
-                    textAlign: "center",
-                  }}
-                >
-                  <span style={{ fontSize: "0.75rem", color: "#888" }}>
-                    {table.getState().pagination.pageIndex *
-                      table.getState().pagination.pageSize +
-                      index +
-                      1}
-                  </span>
-                </TableCell>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
                     style={{
-                      width: cell.column.getSize(),
-                      minWidth: cell.column.columnDef.minSize,
-                      height: `${rowSizing[index] || startingRowHeight}px`,
-                      padding: "0",
-                      overflow: "hidden",
+                      width: header.getSize(),
+                      position: "relative",
+                      minWidth: `${header.column.columnDef.minSize}px`,
                     }}
                   >
-                    <div
-                      style={{
-                        height: "100%",
-                        overflowY: "auto",
-                        padding: "0.5rem",
-                        fontWeight: "normal",
-                      }}
-                    >
-                      {typeof cell.getValue() === "string" ? (
-                        isResizing ? (
-                          <div>{cell.getValue() as string}</div>
-                        ) : (
-                          <MarkdownCell content={cell.getValue() as string} />
-                        )
-                      ) : (
-                        flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )
-                      )}
-                    </div>
-                  </TableCell>
+                    {header.isPlaceholder ? null : (
+                      <ColumnHeader
+                        header={header.column.columnDef.header as string}
+                        stats={
+                          columnStats[
+                            (
+                              header.column.columnDef as {
+                                accessorKey?: string;
+                              }
+                            ).accessorKey || ""
+                          ]
+                        }
+                        isBold={boldedColumns.includes(
+                          header.column.columnDef.header as string
+                        )}
+                        onFilter={(value) =>
+                          header.column.setFilterValue(value)
+                        }
+                        filterValue={
+                          (header.column.getFilterValue() as string) ?? ""
+                        }
+                        onSort={() => {
+                          const currentSortDirection =
+                            header.column.getIsSorted();
+                          if (currentSortDirection === false) {
+                            setSorting([{ id: header.column.id, desc: false }]);
+                          } else if (currentSortDirection === "asc") {
+                            setSorting([{ id: header.column.id, desc: true }]);
+                          } else {
+                            setSorting([]);
+                          }
+                        }}
+                        sortDirection={header.column.getIsSorted()}
+                      />
+                    )}
+                    <ColumnResizer header={header} />
+                  </TableHead>
                 ))}
               </TableRow>
-              <RowResizer
-                row={{
-                  ...row,
-                  getSize: () => rowSizing[index] || startingRowHeight,
-                  setSize: (size: number) => {
-                    setRowSizing((prev) => {
-                      const newRowSizing = { ...prev, [index]: size };
-                      saveSettings();
-                      return newRowSizing;
-                    });
-                  },
-                }}
-              />
-            </React.Fragment>
-          ))}
-        </TableBody>
-      </Table>
+            ))}
+          </TableHeader>
+
+          <TableBody>
+            {table.getRowModel().rows.map((row, index) => (
+              <React.Fragment key={row.id}>
+                <TableRow>
+                  <TableCell
+                    style={{
+                      width: "30px",
+                      minWidth: "30px",
+                      padding: "0.25rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <span style={{ fontSize: "0.75rem", color: "#888" }}>
+                        {row.index + 1}
+                      </span>
+                      <ObservabilityIndicator
+                        row={row.original}
+                        currentOperation={currentOperation}
+                      />
+                    </div>
+                  </TableCell>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      style={{
+                        width: cell.column.getSize(),
+                        minWidth: cell.column.columnDef.minSize,
+                        height: `${rowSizing[index] || startingRowHeight}px`,
+                        padding: "0",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          overflowY: "auto",
+                          padding: "0.5rem",
+                          fontWeight: "normal",
+                        }}
+                      >
+                        {typeof cell.getValue() === "string" ? (
+                          <SearchableCell
+                            content={cell.getValue() as string}
+                            isResizing={isResizing}
+                          />
+                        ) : (
+                          flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )
+                        )}
+                      </div>
+                    </TableCell>
+                  ))}
+                </TableRow>
+                <RowResizer
+                  row={{
+                    ...row,
+                    getSize: () => rowSizing[index] || startingRowHeight,
+                    setSize: (size: number) => {
+                      setRowSizing((prev) => {
+                        const newRowSizing = { ...prev, [index]: size };
+                        saveSettings();
+                        return newRowSizing;
+                      });
+                    },
+                  }}
+                />
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
       {data.length > 0 && (
         <div className="flex items-center justify-end space-x-2 py-4">
           <Button

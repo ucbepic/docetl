@@ -37,6 +37,8 @@ interface PipelineState {
   defaultModel: string;
   optimizerModel: string;
   autoOptimizeCheck: boolean;
+  highLevelGoal: string;
+  systemPrompt: { datasetDescription: string | null; persona: string | null };
 }
 
 interface PipelineContextType extends PipelineState {
@@ -66,6 +68,13 @@ interface PipelineContextType extends PipelineState {
   clearPipelineState: () => void;
   serializeState: () => Promise<string>;
   setAutoOptimizeCheck: React.Dispatch<React.SetStateAction<boolean>>;
+  setHighLevelGoal: React.Dispatch<React.SetStateAction<string>>;
+  setSystemPrompt: React.Dispatch<
+    React.SetStateAction<{
+      datasetDescription: string | null;
+      persona: string | null;
+    }>
+  >;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -130,10 +139,24 @@ const serializeState = async (state: PipelineState): Promise<string> => {
           .map((row: Record<string, unknown>) => {
             const sampleRow: Record<string, unknown> = {};
 
+            // Helper function to safely stringify values
+            const safeStringify = (value: unknown): string => {
+              if (value === null) return "null";
+              if (value === undefined) return "undefined";
+              if (typeof value === "object") {
+                try {
+                  return JSON.stringify(value);
+                } catch {
+                  return "[Complex Object]";
+                }
+              }
+              return String(value);
+            };
+
             // Prioritize important columns
             importantColumns.forEach((col) => {
               if (col in row) {
-                const value = String(row[col]);
+                const value = safeStringify(row[col]);
                 if (value.length > 10000) {
                   sampleRow[`**${col}**`] =
                     `**${value.slice(0, 10000)}` +
@@ -148,7 +171,7 @@ const serializeState = async (state: PipelineState): Promise<string> => {
             Object.keys(row).forEach((key) => {
               if (!(key in sampleRow)) {
                 // Only add if not already added
-                const value = String(row[key]);
+                const value = safeStringify(row[key]);
                 if (value.length > 10000) {
                   sampleRow[key] =
                     value.slice(0, 10000) +
@@ -197,7 +220,7 @@ const serializeState = async (state: PipelineState): Promise<string> => {
 
   return `Current Pipeline State:
 Pipeline Name: "${state.pipelineName}"
-
+High-Level Goal: "${state.highLevelGoal || "unspecified"}"
 Input Dataset File: ${
     state.currentFile ? `"${state.currentFile.name}"` : "None"
   }
@@ -261,6 +284,14 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
       false
     ),
+    highLevelGoal: loadFromLocalStorage(
+      localStorageKeys.HIGH_LEVEL_GOAL_KEY,
+      ""
+    ),
+    systemPrompt: loadFromLocalStorage(localStorageKeys.SYSTEM_PROMPT_KEY, {
+      datasetDescription: null,
+      persona: null,
+    }),
   }));
 
   const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -323,6 +354,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.AUTO_OPTIMIZE_CHECK_KEY,
       JSON.stringify(stateRef.current.autoOptimizeCheck)
     );
+    localStorage.setItem(
+      localStorageKeys.HIGH_LEVEL_GOAL_KEY,
+      JSON.stringify(stateRef.current.highLevelGoal)
+    );
     setUnsavedChanges(false);
   }, []);
 
@@ -369,6 +404,8 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       optimizerModel: "gpt-4o-mini",
       optimizerProgress: null,
       autoOptimizeCheck: false,
+      highLevelGoal: "",
+      systemPrompt: { datasetDescription: null, persona: null },
     });
     setUnsavedChanges(false);
     console.log("Pipeline state cleared!");
@@ -449,6 +486,14 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     serializeState: useCallback(() => serializeState(stateRef.current), []),
     setAutoOptimizeCheck: useCallback(
       (value) => setStateAndUpdate("autoOptimizeCheck", value),
+      [setStateAndUpdate]
+    ),
+    setHighLevelGoal: useCallback(
+      (value) => setStateAndUpdate("highLevelGoal", value),
+      [setStateAndUpdate]
+    ),
+    setSystemPrompt: useCallback(
+      (value) => setStateAndUpdate("systemPrompt", value),
       [setStateAndUpdate]
     ),
   };

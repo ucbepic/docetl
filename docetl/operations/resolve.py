@@ -5,7 +5,9 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 import random
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, Union
+import json
+from datetime import datetime
 
 import jinja2
 from jinja2 import Template
@@ -45,6 +47,7 @@ class ResolveOperation(BaseOperation):
         optimize: Optional[bool] = None
         timeout: Optional[int] = None
         litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        enable_observability: bool = False
 
     def compare_pair(
         self,
@@ -55,7 +58,7 @@ class ResolveOperation(BaseOperation):
         blocking_keys: List[str] = [],
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
-    ) -> Tuple[bool, float]:
+    ) -> Tuple[bool, float, str]:
         """
         Compares two items using an LLM model to determine if they match.
 
@@ -66,7 +69,7 @@ class ResolveOperation(BaseOperation):
             item2 (Dict): The second item to compare.
 
         Returns:
-            Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
+            Tuple[bool, float, str]: A tuple containing a boolean indicating whether the items match, the cost of the comparison, and the prompt.
         """
         if blocking_keys:
             if all(
@@ -75,7 +78,7 @@ class ResolveOperation(BaseOperation):
                 and str(item1[key]).lower() == str(item2[key]).lower()
                 for key in blocking_keys
             ):
-                return True, 0
+                return True, 0, ""
 
         prompt_template = Template(comparison_prompt)
         prompt = prompt_template.render(input1=item1, input2=item2)
@@ -93,7 +96,8 @@ class ResolveOperation(BaseOperation):
             response.response,
             {"is_match": "bool"},
         )[0]
-        return output["is_match"], response.total_cost
+
+        return output["is_match"], response.total_cost, prompt
 
     def syntax_check(self) -> None:
         """
@@ -232,6 +236,16 @@ class ResolveOperation(BaseOperation):
         if len(input_data) == 0:
             return [], 0
 
+        # Initialize observability data for all items at the start
+        if self.config.get("enable_observability", False):
+            observability_key = f"_observability_{self.config['name']}"
+            for item in input_data:
+                if observability_key not in item:
+                    item[observability_key] = {
+                        "comparison_prompts": [],
+                        "resolution_prompt": None
+                    }
+
         blocking_keys = self.config.get("blocking_keys", [])
         blocking_threshold = self.config.get("blocking_threshold")
         blocking_conditions = self.config.get("blocking_conditions", [])
@@ -336,7 +350,7 @@ class ResolveOperation(BaseOperation):
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
-        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs))
+        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs)) if blocking_conditions else comparison_pairs
 
         # Apply limit_comparisons to blocked pairs
         if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
@@ -506,10 +520,20 @@ class ResolveOperation(BaseOperation):
 
                 for future in as_completed(future_to_pair):
                     pair = future_to_pair[future]
-                    is_match_result, cost = future.result()
+                    is_match_result, cost, prompt = future.result()
                     pair_costs += cost
                     if is_match_result:
                         merge_clusters(pair[0], pair[1])
+                        
+                    if self.config.get("enable_observability", False):
+                        observability_key = f"_observability_{self.config['name']}"
+                        for idx in (pair[0], pair[1]):
+                            if observability_key not in input_data[idx]:
+                                input_data[idx][observability_key] = {
+                                    "comparison_prompts": [],
+                                    "resolution_prompt": None
+                                }
+                            input_data[idx][observability_key]["comparison_prompts"].append(prompt)
 
                     pbar.update(last_processed//batch_size)
         total_cost += pair_costs
@@ -552,6 +576,16 @@ class ResolveOperation(BaseOperation):
                     litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
                 )
                 reduction_cost = reduction_response.total_cost
+
+                if self.config.get("enable_observability", False):
+                    for item in [input_data[i] for i in cluster]:
+                        observability_key = f"_observability_{self.config['name']}"
+                        if observability_key not in item:
+                            item[observability_key] = {
+                                "comparison_prompts": [],
+                                "resolution_prompt": None
+                            }
+                        item[observability_key]["resolution_prompt"] = resolution_prompt
 
                 if reduction_response.validated:
                     reduction_output = self.runner.api.parse_llm_response(
@@ -621,6 +655,8 @@ class ResolveOperation(BaseOperation):
                 for output_key, compare_key in key_mapping.items():
                     if compare_key in input_data[list(cluster)[0]]:
                         result[output_key] = input_data[list(cluster)[0]][compare_key]
+                    elif output_key in input_data[list(cluster)[0]]:
+                        result[output_key] = input_data[list(cluster)[0]][output_key]
                     else:
                         result[output_key] = None  # or some default value
 

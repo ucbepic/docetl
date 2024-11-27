@@ -46,6 +46,7 @@ class MapOperation(BaseOperation):
         gleaning: Optional[Dict[str, Any]] = None
         drop_keys: Optional[List[str]] = None
         timeout: Optional[int] = None
+        enable_observability: bool = False
         batch_size: Optional[int] = None
         clustering_method: Optional[str] = None
         batch_prompt: Optional[str] = None
@@ -228,9 +229,12 @@ class MapOperation(BaseOperation):
                     )[0]
                 else:
                     output = llm_result.response
+
                 
                 # Augment the output with the original item
                 output = {**item, **output}
+                if self.config.get("enable_observability", False):
+                    output[f"_observability_{self.config['name']}"] = {"prompt": prompt}
                 return output, llm_result.total_cost
 
             return None, llm_result.total_cost
@@ -317,6 +321,7 @@ class ParallelMapOperation(BaseOperation):
         type: str = "parallel_map"
         prompts: List[Dict[str, Any]]
         output: Dict[str, Any]
+        enable_observability: bool = False
 
     def __init__(
         self,
@@ -471,7 +476,7 @@ class ParallelMapOperation(BaseOperation):
                 tools=prompt_config.get("tools", None),
                 manually_fix_errors=self.manually_fix_errors,
             )[0]
-            return output, response.total_cost
+            return output, prompt, response.total_cost
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             if "prompts" in self.config:
@@ -488,7 +493,7 @@ class ParallelMapOperation(BaseOperation):
                     desc="Processing parallel map items",
                 ):
                     future = all_futures[i]
-                    output, cost = future.result()
+                    output, prompt, cost = future.result()
                     total_cost += cost
 
                     # Determine which item this future corresponds to
@@ -502,6 +507,11 @@ class ParallelMapOperation(BaseOperation):
 
                     # Fetch the item_result
                     item_result = results[item_index]
+
+                    if self.config.get("enable_observability", False):
+                        if f"_observability_{self.config['name']}" not in item_result:
+                            item_result[f"_observability_{self.config['name']}"] = {}
+                        item_result[f"_observability_{self.config['name']}"].update({f"prompt_{prompt_index}": prompt})
 
                     # Update the item_result with the output
                     item_result.update(output)

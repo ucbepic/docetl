@@ -25,6 +25,7 @@ import {
   Save,
   Loader2,
   StopCircle,
+  Brain,
 } from "lucide-react";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import {
@@ -57,6 +58,50 @@ import { v4 as uuidv4 } from "uuid";
 import { useOptimizeCheck } from "@/hooks/useOptimizeCheck";
 import { canBeOptimized } from "@/lib/utils";
 import { Switch } from "./ui/switch";
+import { Textarea } from "./ui/textarea";
+import { OptimizationDialog } from "@/components/OptimizationDialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+
+interface OperationMenuItemProps {
+  name: string;
+  description: string;
+  onClick: () => void;
+}
+
+const OperationMenuItem: React.FC<OperationMenuItemProps> = ({
+  name,
+  description,
+  onClick,
+}) => {
+  return (
+    <HoverCard openDelay={200}>
+      <HoverCardTrigger asChild>
+        <div className="relative w-full">
+          <DropdownMenuItem onClick={onClick} className="w-full cursor-help">
+            {name}
+          </DropdownMenuItem>
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="right" align="start" className="w-72 p-2">
+        <div className="space-y-1">
+          <h4 className="font-medium text-sm">{name} Operation</h4>
+          <p className="text-xs text-muted-foreground leading-snug">
+            {description}
+          </p>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +130,8 @@ const PipelineGUI: React.FC = () => {
     setOptimizerProgress,
     autoOptimizeCheck,
     setAutoOptimizeCheck,
+    systemPrompt,
+    setSystemPrompt,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
@@ -101,6 +148,23 @@ const PipelineGUI: React.FC = () => {
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
+  const [optimizationDialog, setOptimizationDialog] = useState<{
+    isOpen: boolean;
+    content: string;
+    prompt?: string;
+    inputData?: Array<Record<string, unknown>>;
+    outputData?: Array<Record<string, unknown>>;
+    operationName?: string;
+  }>({
+    isOpen: false,
+    content: "",
+    prompt: undefined,
+    operationName: undefined,
+  });
+  const [tempSystemPrompt, setTempSystemPrompt] = useState({
+    datasetDescription: systemPrompt.datasetDescription || "",
+    persona: systemPrompt.persona || "",
+  });
 
   const { submitTask } = useOptimizeCheck({
     onComplete: (result) => {
@@ -113,14 +177,30 @@ const PipelineGUI: React.FC = () => {
         return newOps;
       });
       setCost((prev) => prev + result.cost);
-      // Send toast with should optimize result
-      // If should_optimize string is not empty, send toast with should optimize result
+
       if (result.should_optimize) {
         toast({
-          title: `Hey! Consider optimizing ${
+          title: `Hey! Consider decomposing ${
             operations[operations.length - 1].name
           }`,
-          description: result.should_optimize,
+          description: (
+            <span
+              className="cursor-pointer text-blue-500 hover:text-blue-700"
+              onClick={() => {
+                const lastOp = operations[operations.length - 1];
+                setOptimizationDialog({
+                  isOpen: true,
+                  content: result.should_optimize,
+                  prompt: lastOp.prompt || "No prompt specified",
+                  operationName: lastOp.name,
+                  inputData: result.input_data,
+                  outputData: result.output_data,
+                });
+              }}
+            >
+              Click here to see why.
+            </span>
+          ),
           duration: Infinity,
         });
       }
@@ -264,9 +344,15 @@ const PipelineGUI: React.FC = () => {
 
   useEffect(() => {
     if (optimizerModel) {
-      setTempDefaultModel(tempOptimizerModel);
+      setTempOptimizerModel(optimizerModel);
     }
   }, [optimizerModel]);
+
+  useEffect(() => {
+    if (sampleSize) {
+      setTempSampleSize(sampleSize.toString());
+    }
+  }, [sampleSize]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -325,6 +411,7 @@ const PipelineGUI: React.FC = () => {
                   validate,
                   sample,
                   otherKwargs,
+                  visibility: true,
                 } as Operation;
               })
             );
@@ -342,21 +429,27 @@ const PipelineGUI: React.FC = () => {
               const newFiles = datasetPaths.map((filePath) => ({
                 name: path.basename(filePath),
                 path: filePath,
+                type: "json",
               }));
 
               setFiles((prevFiles: File[]) => {
-                const uniqueNewFiles = newFiles.filter(
-                  (newFile) =>
-                    !prevFiles.some(
-                      (prevFile) => prevFile.path === newFile.path
-                    )
-                );
+                const uniqueNewFiles = newFiles
+                  .filter(
+                    (newFile) =>
+                      !prevFiles.some(
+                        (prevFile) => prevFile.path === newFile.path
+                      )
+                  )
+                  .map((file) => ({
+                    ...file,
+                    type: "json" as const, // Explicitly type as literal "json"
+                  }));
                 return [...prevFiles, ...uniqueNewFiles];
               });
 
               // Set the first file as current if no current file exists
               if (!currentFile) {
-                setCurrentFile(newFiles[0]);
+                setCurrentFile({ ...newFiles[0], type: "json" });
               }
             }
 
@@ -464,6 +557,7 @@ const PipelineGUI: React.FC = () => {
             name: pipelineName,
             sample_size: sampleSize,
             clear_intermediate: clear_intermediate,
+            system_prompt: systemPrompt,
           }),
         });
 
@@ -521,6 +615,7 @@ const PipelineGUI: React.FC = () => {
       llmType,
       type: type as Operation["type"],
       name: `${name} ${numOpRun}`,
+      visibility: true,
     };
     setOperations([...operations, newOperation]);
   };
@@ -539,6 +634,7 @@ const PipelineGUI: React.FC = () => {
     setIsSettingsOpen(false);
     setOptimizerModel(tempOptimizerModel);
     setAutoOptimizeCheck(tempAutoOptimizeCheck);
+    setSystemPrompt(tempSystemPrompt);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -579,7 +675,7 @@ const PipelineGUI: React.FC = () => {
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger>
-                    <div className="flex items-center">
+                    <div className="flex items-center cursor-help">
                       <PieChart size={16} className="text-primary mr-2" />
                       <span className="text-xs text-primary">
                         {sampleSize} samples
@@ -595,7 +691,7 @@ const PipelineGUI: React.FC = () => {
                 </Tooltip>
               </TooltipProvider>
             )}
-            <div className="flex p-0 space-x-0">
+            <div className="flex items-center space-x-0">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -603,6 +699,7 @@ const PipelineGUI: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => fileInputRef.current?.click()}
+                      className="h-8 w-8"
                     >
                       <FileUp size={16} />
                     </Button>
@@ -626,6 +723,7 @@ const PipelineGUI: React.FC = () => {
                       size="icon"
                       variant="ghost"
                       onClick={() => handleExport()}
+                      className="h-8 w-8"
                     >
                       <Download size={16} />
                     </Button>
@@ -640,9 +738,82 @@ const PipelineGUI: React.FC = () => {
                 size="icon"
                 variant="ghost"
                 onClick={() => setIsSettingsOpen(true)}
+                className="h-8 w-8"
               >
                 <Settings size={16} />
               </Button>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 flex items-center gap-1"
+                  >
+                    <Brain size={14} className="text-primary" />
+                    <span className="text-xs text-primary">
+                      Set system prompts
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-88">
+                  <div className="grid gap-3">
+                    <div className="space-y-1">
+                      <h4 className="text-lg font-semibold">
+                        System Configuration
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        This will be in the system prompt for <b>every</b>{" "}
+                        operation!
+                      </p>
+                    </div>
+                    <div className="grid gap-3">
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="datasetDescription"
+                          className="text-sm font-medium"
+                        >
+                          Dataset Description
+                        </Label>
+                        <Textarea
+                          id="datasetDescription"
+                          placeholder="a collection of documents"
+                          value={tempSystemPrompt.datasetDescription}
+                          onChange={(e) =>
+                            setTempSystemPrompt((prev) => ({
+                              ...prev,
+                              datasetDescription: e.target.value,
+                            }))
+                          }
+                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          className="h-[3.5rem]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="persona"
+                          className="text-sm font-medium"
+                        >
+                          Persona
+                        </Label>
+                        <Textarea
+                          id="persona"
+                          placeholder="a helpful assistant"
+                          value={tempSystemPrompt.persona}
+                          onChange={(e) =>
+                            setTempSystemPrompt((prev) => ({
+                              ...prev,
+                              persona: e.target.value,
+                            }))
+                          }
+                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          className="h-[3.5rem]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div className="flex space-x-2">
@@ -655,35 +826,37 @@ const PipelineGUI: React.FC = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuLabel>LLM Operations</DropdownMenuLabel>
-                <DropdownMenuItem
+                <OperationMenuItem
+                  name="Map"
+                  description="Transforms each input item for complex data processing and insight extraction. 1 to 1 operation (each document gets one result, but the output of the operation can be any type, like a list)."
                   onClick={() =>
                     handleAddOperation("LLM", "map", "Untitled Map")
                   }
-                >
-                  Map
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Reduce"
+                  description="Aggregates data by key for summarization or folding. Many to 1 operation (many documents get combined into one result)."
                   onClick={() =>
                     handleAddOperation("LLM", "reduce", "Untitled Reduce")
                   }
-                >
-                  Reduce
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Resolve"
+                  description="Identifies and merges duplicate entities for data consistency. Keeps the same number of documents; just resolves values."
                   onClick={() =>
                     handleAddOperation("LLM", "resolve", "Untitled Resolve")
                   }
-                >
-                  Resolve
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Filter"
+                  description="Selectively includes or excludes data based on specific conditions. This is like a map operation, but with a boolean output schema. The size of your dataset may decrease, as documents that evaluate to false based on the prompt will be dropped from the dataset."
                   onClick={() =>
                     handleAddOperation("LLM", "filter", "Untitled Filter")
                   }
-                >
-                  Filter
-                </DropdownMenuItem>
-                <DropdownMenuItem
+                />
+                <OperationMenuItem
+                  name="Parallel Map"
+                  description="Like a Map operation, but processes multiple documents in parallel for improved performance. Best used when documents can be processed independently."
                   onClick={() =>
                     handleAddOperation(
                       "LLM",
@@ -691,9 +864,7 @@ const PipelineGUI: React.FC = () => {
                       "Untitled Parallel Map"
                     )
                   }
-                >
-                  Parallel Map
-                </DropdownMenuItem>
+                />
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Non-LLM Operations</DropdownMenuLabel>
                 <DropdownMenuItem
@@ -724,6 +895,41 @@ const PipelineGUI: React.FC = () => {
                 >
                   Sample
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Code Operations</DropdownMenuLabel>
+                <OperationMenuItem
+                  name="Code Map"
+                  description="Like the LLM Map operation, but uses a Python function instead of an LLM. Write custom Python code to transform each document."
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_map",
+                      "Untitled Code Map"
+                    )
+                  }
+                />
+                <OperationMenuItem
+                  name="Code Reduce"
+                  description="Like the LLM Reduce operation, but uses a Python function instead of an LLM. Write custom Python code to aggregate multiple documents into one."
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_reduce",
+                      "Untitled Code Reduce"
+                    )
+                  }
+                />
+                <OperationMenuItem
+                  name="Code Filter"
+                  description="Like the LLM Filter operation, but uses a Python function instead of an LLM. Write custom Python code to determine which documents to keep."
+                  onClick={() =>
+                    handleAddOperation(
+                      "non-LLM",
+                      "code_filter",
+                      "Untitled Code Filter"
+                    )
+                  }
+                />
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="flex space-x-2">
@@ -748,7 +954,7 @@ const PipelineGUI: React.FC = () => {
                 ) : (
                   <RefreshCw size={16} className="mr-2" />
                 )}
-                Clear and Run
+                Clear Cache and Run
               </Button>
               <Button
                 size="sm"
@@ -833,11 +1039,13 @@ const PipelineGUI: React.FC = () => {
                   <SelectValue placeholder="Select a file" />
                 </SelectTrigger>
                 <SelectContent>
-                  {files.map((file) => (
-                    <SelectItem key={file.path} value={file.path}>
-                      {file.name}
-                    </SelectItem>
-                  ))}
+                  {files
+                    .filter((file) => file.type === "json")
+                    .map((file) => (
+                      <SelectItem key={file.path} value={file.path}>
+                        {file.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -886,6 +1094,17 @@ const PipelineGUI: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <OptimizationDialog
+        isOpen={optimizationDialog.isOpen}
+        content={optimizationDialog.content}
+        prompt={optimizationDialog.prompt}
+        operationName={optimizationDialog.operationName}
+        inputData={optimizationDialog.inputData}
+        outputData={optimizationDialog.outputData}
+        onOpenChange={(open) =>
+          setOptimizationDialog((prev) => ({ ...prev, isOpen: open }))
+        }
+      />
     </div>
   );
 };

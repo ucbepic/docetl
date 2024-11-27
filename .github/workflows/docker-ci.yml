@@ -1,0 +1,59 @@
+name: Docker CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  docker-build-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Remove unnecessary files
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+    - uses: actions/checkout@v4
+    - name: Remove .env copy from Dockerfile
+      run: sed -i '/COPY .env/d' Dockerfile
+      
+    - name: Build Docker image
+      run: docker build -t docetl .
+      
+    - name: Create Docker volume
+      run: docker volume create docetl-data
+      
+    - name: Test Docker container
+      run: |
+        # Run the container in detached mode
+        docker run -d \
+          -p 3000:3000 \
+          -p 8000:8000 \
+          -v docetl-data:/docetl-data \
+          -e FRONTEND_HOST=0.0.0.0 \
+          -e FRONTEND_PORT=3000 \
+          -e BACKEND_HOST=0.0.0.0 \
+          -e BACKEND_PORT=8000 \
+          --name docetl-test \
+          docetl
+          
+        # Wait for container to start up
+        sleep 120
+        
+        # Check if container is still running
+        if [ "$(docker ps -q -f name=docetl-test)" ]; then
+          echo "Container is running successfully"
+        else
+          echo "Container failed to stay running"
+          docker logs docetl-test
+          exit 1
+        fi
+        
+        # Cleanup
+        docker stop docetl-test
+        docker rm docetl-test
+        
+    - name: Clean up Docker volume
+      run: docker volume rm docetl-data 

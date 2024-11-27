@@ -8,12 +8,6 @@ import React, {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -31,6 +25,8 @@ import {
   ListCollapse,
   Wand2,
   ChevronDown,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Operation, SchemaItem } from "@/app/types";
 import { usePipelineContext } from "@/contexts/PipelineContext";
@@ -48,6 +44,17 @@ import {
 } from "@/components/ui/popover";
 import { AIEditPopover } from "@/components/AIEditPopover";
 import { canBeOptimized } from "@/lib/utils";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 // Separate components
 const OperationHeader: React.FC<{
@@ -57,6 +64,7 @@ const OperationHeader: React.FC<{
   disabled: boolean;
   currOp: boolean;
   expanded: boolean;
+  visibility: boolean;
   optimizeResult?: string;
   onEdit: (name: string) => void;
   onDelete: () => void;
@@ -66,6 +74,7 @@ const OperationHeader: React.FC<{
   onOptimize: () => void;
   onAIEdit: (instruction: string) => void;
   onToggleExpand: () => void;
+  onToggleVisibility: () => void;
 }> = React.memo(
   ({
     name,
@@ -74,6 +83,7 @@ const OperationHeader: React.FC<{
     disabled,
     currOp,
     expanded,
+    visibility,
     optimizeResult,
     onEdit,
     onDelete,
@@ -83,6 +93,7 @@ const OperationHeader: React.FC<{
     onOptimize,
     onAIEdit,
     onToggleExpand,
+    onToggleVisibility,
   }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(name);
@@ -100,7 +111,11 @@ const OperationHeader: React.FC<{
     return (
       <div className="relative flex items-center justify-between py-3 px-4">
         {/* Left side buttons */}
-        <div className="flex space-x-1 absolute left-1">
+        <div
+          className={`flex space-x-1 absolute left-1 ${
+            !visibility ? "opacity-50" : ""
+          }`}
+        >
           <Button
             variant="ghost"
             size="sm"
@@ -128,41 +143,38 @@ const OperationHeader: React.FC<{
                       }`}
                     />
                   )}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="p-0.25 h-6 w-6"
-                          onClick={onOptimize}
-                          disabled={disabled}
-                        >
-                          <Zap
-                            size={14}
-                            className={
-                              optimizeResult === undefined ||
-                              optimizeResult === null ||
-                              optimizeResult === ""
-                                ? "text-gray-400"
-                                : "text-red-500"
-                            }
-                          />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p className="text-sm">
-                          {optimizeResult === undefined ||
-                          optimizeResult === null
-                            ? "Computing whether optimization is needed..."
-                            : optimizeResult === ""
-                            ? "No optimization recommended"
-                            : "Optimization recommended because: " +
-                              optimizeResult}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="p-0.25 h-6 w-6"
+                        onClick={onOptimize}
+                        disabled={disabled}
+                      >
+                        <Zap
+                          size={14}
+                          className={
+                            optimizeResult === undefined ||
+                            optimizeResult === null ||
+                            optimizeResult === ""
+                              ? "text-gray-400"
+                              : "text-red-500"
+                          }
+                        />
+                      </Button>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-80 p-2">
+                      <p className="text-sm">
+                        {optimizeResult === undefined || optimizeResult === null
+                          ? "Determining whether to recommend a decomposition..."
+                          : optimizeResult === ""
+                          ? "No decomposition recommended"
+                          : "Decomposition recommended because: " +
+                            optimizeResult}
+                      </p>
+                    </HoverCardContent>
+                  </HoverCard>
                 </div>
               )}
             </div>
@@ -175,28 +187,24 @@ const OperationHeader: React.FC<{
           >
             <Settings size={14} className="text-gray-500" />
           </Button>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-0.25 h-6 w-6"
-                  disabled={disabled}
-                  onClick={onShowOutput}
-                >
-                  <ListCollapse size={14} className="text-primary" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Show outputs</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex items-center gap-1 px-2 h-6"
+            disabled={disabled}
+            onClick={onShowOutput}
+          >
+            <ListCollapse size={14} className="text-primary" />
+            <span className="text-xs text-primary">Show outputs</span>
+          </Button>
         </div>
 
         {/* Centered title */}
-        <div className="flex-grow flex justify-center">
+        <div
+          className={`flex-grow flex justify-center ${
+            !visibility ? "opacity-50" : ""
+          }`}
+        >
           {isEditing ? (
             <Input
               value={editedName}
@@ -220,15 +228,43 @@ const OperationHeader: React.FC<{
           )}
         </div>
 
-        {/* Right side delete button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          className="hover:bg-red-100 absolute right-1 p-1 h-7 w-7"
-        >
-          <Trash2 size={15} className="text-red-500" />
-        </Button>
+        {/* Right side buttons */}
+        <div className="absolute right-1 flex items-center space-x-0">
+          <Button
+            variant={visibility ? "ghost" : "default"}
+            size="sm"
+            className={`flex items-center gap-1 px-2 h-6 ${
+              !visibility
+                ? "bg-green-100 hover:bg-green-200"
+                : "hover:bg-green-100"
+            }`}
+            onClick={onToggleVisibility}
+          >
+            {visibility ? (
+              <>
+                <EyeOff size={14} className="text-gray-500" />
+                <span className="text-xs text-gray-500">Skip operation</span>
+              </>
+            ) : (
+              <>
+                <Eye size={14} className="text-green-700" />
+                <span className="text-xs font-medium text-green-700">
+                  Include operation
+                </span>
+              </>
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDelete}
+            className={`hover:bg-red-100 p-1 h-7 w-7 ${
+              !visibility ? "opacity-50" : ""
+            }`}
+          >
+            <Trash2 size={15} className="text-red-500" />
+          </Button>
+        </div>
       </div>
     );
   }
@@ -473,7 +509,7 @@ function operationReducer(state: State, action: Action): State {
 const initialState: State = {
   operation: undefined,
   isEditing: false,
-  isSchemaExpanded: false,
+  isSchemaExpanded: true,
   isGuardrailsExpanded: false,
   isSettingsOpen: false,
   isExpanded: true,
@@ -796,6 +832,18 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     [debouncedUpdate]
   );
 
+  const handleVisibilityToggle = useCallback(() => {
+    if (!operation) return;
+
+    const updatedOperation = {
+      ...operation,
+      visibility:
+        operation.visibility === undefined ? false : !operation.visibility,
+    };
+
+    handleOperationUpdate(updatedOperation);
+  }, [operation, handleOperationUpdate]);
+
   if (!operation) {
     return <SkeletonCard />;
   }
@@ -820,7 +868,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
               pipelineOutput?.operationId === operation.id
                 ? "bg-white border-blue-500 border-2"
                 : "bg-white"
-            }`}
+            } ${!operation.visibility ? "opacity-50" : ""}`}
           >
             {/* Move the drag handle div outside of the ml-5 container */}
             <div
@@ -839,6 +887,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 disabled={isLoadingOutputs || pipelineOutput === undefined}
                 currOp={operation.id === pipelineOutput?.operationId}
                 expanded={isExpanded}
+                visibility={operation.visibility}
                 optimizeResult={operation.shouldOptimizeResult}
                 onEdit={(name) => {
                   dispatch({ type: "UPDATE_NAME", payload: name });
@@ -855,8 +904,9 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 onOptimize={onOptimize}
                 onAIEdit={handleAIEdit}
                 onToggleExpand={() => dispatch({ type: "TOGGLE_EXPAND" })}
+                onToggleVisibility={handleVisibilityToggle}
               />
-              {isExpanded && (
+              {isExpanded && operation.visibility !== false && (
                 <>
                   <CardContent className="py-2 px-3">
                     {createOperationComponent(

@@ -212,7 +212,7 @@ export function ColumnDialog<T extends Record<string, unknown>>({
 
   return (
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full flex flex-col p-0 bg-background">
+      <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full flex flex-col p-0 bg-background rounded-lg overflow-hidden">
         <div className="flex flex-col h-full">
           <div className="flex-none flex items-center px-6 py-3 border-b bg-background">
             <div className="flex items-center gap-4 flex-1">

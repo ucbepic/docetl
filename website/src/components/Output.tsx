@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
-import { Loader2, Download, ChevronDown, Circle } from "lucide-react";
+import { Loader2, Download, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Operation, OutputRow } from "@/app/types";
 import { Parser } from "json2csv";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -211,8 +210,8 @@ export const Output: React.FC = () => {
           if (parsedOutputs.length > 0) {
             if ("date" in parsedOutputs[0]) {
               parsedOutputs.sort((a, b) => {
-                const dateA = (a as any).date;
-                const dateB = (b as any).date;
+                const dateA = (a as OutputRow & { date?: string }).date;
+                const dateB = (b as OutputRow & { date?: string }).date;
                 if (dateA && dateB) {
                   return new Date(dateB).getTime() - new Date(dateA).getTime();
                 }
@@ -265,7 +264,7 @@ export const Output: React.FC = () => {
     fetchData();
   }, [output, isLoadingOutputs]);
 
-  const columns: ColumnType<any>[] = React.useMemo(() => {
+  const columns: ColumnType<OutputRow>[] = React.useMemo(() => {
     const importantColumns = operation?.output?.schema
       ? operation.output.schema.map((field) => field.key)
       : [];
@@ -274,7 +273,7 @@ export const Output: React.FC = () => {
       ? Object.keys(outputs[0]).map((key) => ({
           accessorKey: key,
           header: key,
-          cell: ({ getValue }: { getValue: () => any }) => {
+          cell: ({ getValue }: { getValue: () => unknown }) => {
             const value = getValue();
             const stringValue =
               typeof value === "object" && value !== null
@@ -293,7 +292,11 @@ export const Output: React.FC = () => {
 
   const TableContent = () => (
     <div className="flex-1 min-h-0">
-      {isLoadingOutputs ? (
+      {!opName ? (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-muted-foreground">No operation selected.</p>
+        </div>
+      ) : isLoadingOutputs ? (
         <div className="flex items-center justify-center h-full">
           <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           <span className="ml-2 text-muted-foreground">Loading outputs...</span>
@@ -401,7 +404,7 @@ export const Output: React.FC = () => {
       const groupedData = useMemo(() => {
         const intersectionKeys = new Set(
           outputs.flatMap((row) => {
-            // @ts-ignore
+            // @ts-expect-error Record type needs refinement
             const kvPairs = row[visualizationColumn.name] as Record<
               string,
               unknown
@@ -418,7 +421,7 @@ export const Output: React.FC = () => {
         } = {};
 
         outputs.forEach((row) => {
-          // @ts-ignore
+          // @ts-expect-error Record type needs refinement
           const kvPairs = row[visualizationColumn.name] as Record<
             string,
             unknown
@@ -479,7 +482,7 @@ export const Output: React.FC = () => {
                           JSON.stringify(value, null, 2)
                         )
                       )
-                      // @ts-ignore
+                      // @ts-expect-error
                     ).map((str) => JSON.parse(str));
 
                     // Calculate percentage of total documents

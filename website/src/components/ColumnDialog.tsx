@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +9,7 @@ import {
 import { SearchableCell } from "@/components/SearchableCell";
 import { PrettyJSON } from "@/components/PrettyJSON";
 import { RowNavigator } from "@/components/RowNavigator";
-import { ChevronDown, Eye } from "lucide-react";
+import { ChevronDown, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   HoverCard,
   HoverCardContent,
@@ -25,6 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 interface ObservabilityIndicatorProps {
   row: Record<string, unknown>;
@@ -101,6 +107,8 @@ export function ColumnDialog<T extends Record<string, unknown>>({
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
   const [expandedFields, setExpandedFields] = useState<string[]>([]);
   const [isAllExpanded, setIsAllExpanded] = useState(false);
+  const [feedbackColor, setFeedbackColor] = useState("#FF0000");
+  const [showPreviousNotes, setShowPreviousNotes] = useState(false);
 
   const currentRow = data[currentIndex];
   const compareRow = compareIndex !== null ? data[compareIndex] : null;
@@ -151,11 +159,32 @@ export function ColumnDialog<T extends Record<string, unknown>>({
     return String(value);
   };
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLInputElement
+      ) {
+        return; // Don't handle shortcuts when typing in inputs
+      }
+
+      if (e.key === "ArrowLeft") {
+        onNavigate("prev");
+      } else if (e.key === "ArrowRight") {
+        onNavigate("next");
+      }
+    },
+    [onNavigate]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
   const renderRowContent = (row: T | null, value: unknown) => {
     if (!row) return null;
     const { addBookmark, getNotesForRowAndColumn } = useBookmarkContext();
-    const [feedbackColor, setFeedbackColor] = useState("#FF0000");
-    const [showPreviousNotes, setShowPreviousNotes] = useState(false);
 
     const handleSubmitFeedback = (feedbackText: string) => {
       if (!feedbackText.trim()) return;
@@ -173,6 +202,7 @@ export function ColumnDialog<T extends Record<string, unknown>>({
             rowIndex: currentIndex,
             mainColumnValue: row[columnId],
             rowContent: filteredRowContent,
+            operationName: currentOperation,
           },
         },
       ];
@@ -189,8 +219,56 @@ export function ColumnDialog<T extends Record<string, unknown>>({
     return (
       <ResizablePanelGroup direction="horizontal" className="h-full">
         <ResizablePanel defaultSize={75} minSize={30}>
-          <div className="h-full overflow-auto">
-            <div className="px-4 py-2">{renderContent(value)}</div>
+          <div className="h-full flex">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex-none flex items-stretch w-8">
+                    <Button
+                      variant="ghost"
+                      onClick={() => onNavigate("prev")}
+                      className="h-full w-8 rounded-none hover:bg-muted/20 flex items-center justify-center bg-muted/5"
+                      disabled={currentIndex === 0}
+                      aria-label="Previous example (Left arrow key)"
+                    >
+                      <ChevronLeft className="h-12 w-12 absolute" />
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Previous example</p>
+                  <p className="text-xs text-muted-foreground">
+                    Left arrow key
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+
+              <div className="flex-1 overflow-auto">
+                <div className="px-4 py-2">{renderContent(value)}</div>
+              </div>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex-none flex items-stretch w-8">
+                    <Button
+                      variant="ghost"
+                      onClick={() => onNavigate("next")}
+                      className="h-full w-8 rounded-none hover:bg-muted/20 flex items-center justify-center bg-muted/5"
+                      disabled={currentIndex === data.length - 1}
+                      aria-label="Next example (Right arrow key)"
+                    >
+                      <ChevronRight className="h-12 w-12 absolute" />
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  <p>Next example</p>
+                  <p className="text-xs text-muted-foreground">
+                    Right arrow key
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
@@ -382,7 +460,7 @@ export function ColumnDialog<T extends Record<string, unknown>>({
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full flex flex-col p-0 bg-background rounded-lg overflow-hidden">
         <div className="flex flex-col h-full">
-          <div className="flex-none flex items-center px-6 py-3 border-b bg-background">
+          <div className="flex-none flex items-center justify-between px-6 py-3 border-b bg-background">
             <div className="flex items-center gap-4 flex-1">
               <h2 className="text-lg font-semibold">{columnHeader}</h2>
               <div className="flex items-center gap-4">
@@ -396,6 +474,9 @@ export function ColumnDialog<T extends Record<string, unknown>>({
                   onNavigate={onNavigate}
                   onJumpToRow={onJumpToRow}
                 />
+                <span className="text-sm text-muted-foreground">
+                  Use ← → arrow keys to navigate
+                </span>
                 <Button
                   variant="outline"
                   size="sm"

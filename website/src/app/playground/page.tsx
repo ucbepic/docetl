@@ -256,7 +256,7 @@ const CodeEditorPipelineApp: React.FC = () => {
     <BookmarkProvider>
       <div className="h-screen flex flex-col bg-gray-50">
         <div className="p-1 flex justify-between items-center border-b">
-          <div className="flex-1 flex">
+          <div className="flex-1 flex items-center">
             <Menubar className="border-none bg-transparent shadow-none">
               <MenubarMenu>
                 <MenubarTrigger>File</MenubarTrigger>
@@ -316,7 +316,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={() => {
                       saveProgress();
                       toast({
@@ -325,7 +325,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                         duration: 3000,
                       });
                     }}
-                    className={`relative ${
+                    className={`relative h-8 px-2 ${
                       unsavedChanges ? "border-orange-500" : ""
                     }`}
                   >

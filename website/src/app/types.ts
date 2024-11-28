@@ -57,6 +57,7 @@ export interface UserNote {
     rowIndex?: number;
     mainColumnValue?: unknown;
     rowContent?: Record<string, unknown>;
+    operationName?: string;
   };
 }
 

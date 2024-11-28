@@ -1,0 +1,780 @@
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useChat } from "ai/react";
+import { Operation } from "@/app/types";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, ArrowLeft } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { usePipelineContext } from "@/contexts/PipelineContext";
+import { useBookmarkContext } from "@/contexts/BookmarkContext";
+import { diffLines } from "diff";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+
+type Step = "select" | "analyze";
+
+interface PromptImprovementDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentOperation: Operation;
+  onSave: (newPrompt: string, schemaChanges?: Array<[string, string]>) => void;
+}
+
+interface Revision {
+  messages: {
+    id: string;
+    role: "system" | "user" | "assistant";
+    content: string;
+  }[];
+  prompt: string | null;
+  timestamp: number;
+}
+
+interface FeedbackConnection {
+  fromRevision: number;
+  toRevision: number;
+  feedback: string;
+}
+
+function extractTagContent(text: string, tag: string): string | null {
+  const regex = new RegExp(`<${tag}>(.*?)</${tag}>`, "s");
+  const match = text.match(regex);
+  return match ? match[1].trim() : null;
+}
+
+function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
+  const diff = diffLines(oldText, newText);
+
+  return (
+    <div className="font-mono text-sm whitespace-pre-wrap">
+      {diff.map((part, index) => (
+        <span
+          key={index}
+          className={
+            part.added
+              ? "bg-green-100 dark:bg-green-900/30"
+              : part.removed
+              ? "bg-red-100 dark:bg-red-900/30"
+              : ""
+          }
+        >
+          {part.value}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function removePromptAndSchemaTags(text: string): string {
+  return text
+    .replace(/<prompt>[\s\S]*?<\/prompt>/g, "")
+    .replace(/<schema>[\s\S]*?<\/schema>/g, "");
+}
+
+const getSystemContent = (
+  pipelineState: string,
+  selectedOperation: Operation
+) => `You are a prompt engineering expert. Analyze the current operation's prompt and suggest improvements based on the pipeline state.
+
+Current pipeline state:
+${pipelineState}
+
+Focus on the operation named "${selectedOperation.name}" with prompt:
+${selectedOperation.prompt}
+
+${
+  selectedOperation.output?.schema
+    ? `
+Current output schema keys:
+${selectedOperation.output.schema.map((item) => `- ${item.key}`).join("\n")}
+`
+    : ""
+}
+
+IMPORTANT: 
+1. You must ALWAYS include a complete revised prompt wrapped in <prompt></prompt> tags in your response, even if you're just responding to feedback.
+
+2. Only suggest schema key changes if absolutely necessary - when the current keys are misleading, incorrect, or ambiguous. If the schema keys are fine, don't suggest changes. Include changes in <schema> tags as a list of "oldkey,newkey" pairs, one per line. Example:
+<schema>
+misleading_key,accurate_key
+ambiguous_name,specific_name
+</schema>
+
+When responding:
+1. Briefly acknowledge/analyze any feedback (1-2 sentences)
+2. ALWAYS provide a complete revised prompt wrapped in <prompt></prompt> tags
+3. The prompt should include all previous improvements plus any new changes
+4. Make prompts specific and concise:
+   - For subjective terms like "detailed" or "comprehensive", provide examples or metrics (e.g. "include 3-5 key points per section")
+   - For qualitative instructions like "long output", specify length (e.g. "200-300 words") based on my feedback or provide examples
+   - When using adjectives, include a reference point (e.g. "technical like API documentation" vs "simple like a blog post")`;
+
+function extractSchemaChanges(text: string): Array<[string, string]> {
+  const schemaContent = extractTagContent(text, "schema");
+  if (!schemaContent) return [];
+
+  return schemaContent
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => {
+      const [oldKey, newKey] = line.split(",").map((k) => k.trim());
+      return [oldKey, newKey] as [string, string];
+    });
+}
+
+function AutosizeTextarea({
+  value,
+  onChange,
+  onBlur,
+}: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onBlur: () => void;
+}) {
+  const [height, setHeight] = useState("auto");
+  const hiddenRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (hiddenRef.current) {
+      setHeight(`${hiddenRef.current.scrollHeight}px`);
+    }
+  }, [value]);
+
+  return (
+    <div className="relative">
+      <div
+        ref={hiddenRef}
+        className="invisible absolute whitespace-pre-wrap break-words font-mono text-sm p-2"
+        style={{ width: "calc(100% - 4px)" }}
+      >
+        {value + "\n"}
+      </div>
+      <Textarea
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        className="font-mono text-sm resize-none"
+        style={{ height, minHeight: height }}
+        autoFocus
+      />
+    </div>
+  );
+}
+
+function buildRevisionTree(
+  revisions: Revision[],
+  connections: FeedbackConnection[]
+) {
+  type TreeNode = {
+    index: number;
+    revision: Revision;
+    children: TreeNode[];
+    feedback?: string;
+  };
+
+  const nodes: TreeNode[] = revisions.map((revision, index) => ({
+    index,
+    revision,
+    children: [],
+  }));
+
+  // Build the tree structure
+  connections.forEach((conn) => {
+    const parentNode = nodes[conn.fromRevision];
+    const childNode = nodes[conn.toRevision];
+    if (parentNode && childNode) {
+      childNode.feedback = conn.feedback;
+      parentNode.children.push(childNode);
+    }
+  });
+
+  // Return only root nodes (nodes without parents)
+  return nodes.filter(
+    (node) => !connections.some((conn) => conn.toRevision === node.index)
+  );
+}
+
+function RevisionTreeNode({
+  node,
+  depth = 0,
+  selectedIndex,
+  onSelect,
+}: {
+  node: ReturnType<typeof buildRevisionTree>[0];
+  depth?: number;
+  selectedIndex: number | null;
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <div className="flex flex-col">
+      <div
+        className="flex items-center relative"
+        style={{ paddingLeft: `${depth * 20}px` }}
+      >
+        {depth > 0 && (
+          <div
+            className="absolute left-0 top-1/2 w-4 h-px border-t-2 border-muted-foreground/20"
+            style={{ left: `${(depth - 1) * 20 + 10}px` }}
+          />
+        )}
+        <button
+          onClick={() => onSelect(node.index)}
+          className={`flex items-center gap-2 w-full text-left py-1.5 px-2 text-sm hover:bg-muted rounded-sm transition-colors ${
+            selectedIndex === node.index ? "bg-muted" : ""
+          }`}
+        >
+          <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+          <div className="min-w-0">
+            <div className="font-medium truncate">
+              {node.index === 0
+                ? "Initial version"
+                : node.feedback || `Revision ${node.index}`}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {new Date(node.revision.timestamp).toLocaleTimeString()}
+            </div>
+          </div>
+        </button>
+      </div>
+      {node.children.length > 0 && (
+        <div className="relative">
+          <div
+            className="absolute left-0 top-0 bottom-4 border-l-2 border-muted-foreground/20"
+            style={{ left: `${depth * 20 + 10}px` }}
+          />
+          <div className="flex flex-col">
+            {node.children.map((child, i) => (
+              <RevisionTreeNode
+                key={i}
+                node={child}
+                depth={depth + 1}
+                selectedIndex={selectedIndex}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Add new component for schema changes diff view
+function SchemaChangesDiff({ changes }: { changes: Array<[string, string]> }) {
+  if (changes.length === 0) return null;
+
+  return (
+    <div className="border rounded-md p-4">
+      <h3 className="font-medium mb-2">Schema Key Changes:</h3>
+      <div className="font-mono text-sm space-y-1">
+        {changes.map(([oldKey, newKey], index) => (
+          <div key={index}>
+            <span className="line-through text-red-500">{oldKey}</span>
+            <span className="mx-2">→</span>
+            <span className="text-green-500">{newKey}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function PromptImprovementDialog({
+  open,
+  onOpenChange,
+  currentOperation,
+  onSave,
+}: PromptImprovementDialogProps) {
+  const { operations, serializeState } = usePipelineContext();
+  const { bookmarks } = useBookmarkContext();
+  const [step, setStep] = useState<Step>("select");
+  const [selectedOperationId, setSelectedOperationId] = useState<string>(
+    currentOperation.id
+  );
+  const [newPrompt, setNewPrompt] = useState<string | null>(null);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [isDirectEditing, setIsDirectEditing] = useState(false);
+  const [directEditText, setDirectEditText] = useState("");
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [connections, setConnections] = useState<FeedbackConnection[]>([]);
+  const [selectedRevisionIndex, setSelectedRevisionIndex] = useState<
+    number | null
+  >(null);
+  const [expectingNewRevision, setExpectingNewRevision] = useState(false);
+  const [chatKey, setChatKey] = useState(0);
+
+  const selectedOperation = operations.find(
+    (op) => op.id === selectedOperationId
+  );
+
+  const relevantBookmarks = selectedOperation
+    ? bookmarks.flatMap((bookmark) =>
+        bookmark.notes.filter(
+          (note) => note.metadata?.operationName === selectedOperation.name
+        )
+      )
+    : [];
+
+  const { messages, isLoading, append, setMessages } = useChat({
+    api: "/api/chat",
+    id: `prompt-improvement-${chatKey}`,
+    onFinish: () => {
+      // Optional: handle completion
+    },
+  });
+
+  useEffect(() => {
+    if (!isLoading && messages.length > 0 && expectingNewRevision) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === "assistant") {
+        const extractedPrompt = extractTagContent(
+          lastMessage.content,
+          "prompt"
+        );
+
+        // Don't do anything if extractedPrompt is the same as the current prompt, or it's null
+        if (extractedPrompt === newPrompt || extractedPrompt === null) {
+          return;
+        }
+
+        if (extractedPrompt) {
+          setNewPrompt(extractedPrompt);
+
+          // Create new revision with deep copy of messages
+          const newRevision = {
+            messages: JSON.parse(JSON.stringify(messages)), // Deep copy
+            prompt: extractedPrompt,
+            timestamp: Date.now(),
+          };
+
+          // Add revision and update selected index
+          setRevisions((prev) => {
+            const newRevisions = [...prev, newRevision];
+            setSelectedRevisionIndex(newRevisions.length - 1);
+            return newRevisions;
+          });
+
+          // If this isn't the first revision, create a connection
+          if (revisions.length > 0) {
+            const parentIndex = selectedRevisionIndex ?? revisions.length - 1;
+            setConnections((prev) => [
+              ...prev,
+              {
+                fromRevision: parentIndex,
+                toRevision: revisions.length,
+                feedback: feedbackText,
+              },
+            ]);
+          }
+
+          setExpectingNewRevision(false);
+        }
+      }
+    }
+  }, [messages, isLoading, expectingNewRevision]);
+
+  useEffect(() => {
+    if (selectedRevisionIndex !== null && revisions[selectedRevisionIndex]) {
+      const revision = revisions[selectedRevisionIndex];
+      // Set messages to a deep copy of the revision's messages
+      setMessages(JSON.parse(JSON.stringify(revision.messages)));
+
+      // Update the prompt
+      if (revision.prompt) {
+        setNewPrompt(revision.prompt);
+      }
+    }
+  }, [selectedRevisionIndex, revisions]);
+
+  const handleImprove = useCallback(async () => {
+    setExpectingNewRevision(true); // Set flag before getting first response
+    setNewPrompt(null);
+    setStep("analyze");
+    setRevisions([]);
+    setConnections([]);
+    setSelectedRevisionIndex(null);
+
+    const selectedOperation = operations.find(
+      (op) => op.id === selectedOperationId
+    );
+    if (!selectedOperation) return;
+
+    const bookmarksSection =
+      relevantBookmarks.length > 0
+        ? `\nMake sure to reflect my Feedback for this operation:\n${relevantBookmarks
+            .map((note) => `- ${note.note}`)
+            .join("\n")}`
+        : "\nNo feedback found for this operation.";
+
+    const pipelineState = await serializeState();
+    const systemContent = getSystemContent(pipelineState, selectedOperation);
+
+    // First set the system message
+    setMessages([
+      {
+        role: "system",
+        content: systemContent,
+        id: "system-1",
+      },
+    ]);
+
+    // Then append the user message
+    await append({
+      role: "user",
+      content: `Please analyze and improve my prompt:\n${selectedOperation.prompt}\n${bookmarksSection}`,
+      id: "user-1",
+    });
+
+    // Create first revision after we get the response
+    // This will happen in the useEffect that watches messages
+  }, [
+    selectedOperationId,
+    operations,
+    serializeState,
+    append,
+    setMessages,
+    relevantBookmarks,
+  ]);
+
+  const handleBack = () => {
+    setStep("select");
+    // Clear messages when going back
+    setMessages([]);
+  };
+
+  const handleClose = () => {
+    onOpenChange(false);
+    // Reset state when dialog closes
+    setTimeout(() => {
+      setStep("select");
+      setMessages([]);
+    }, 200);
+  };
+
+  const handleFeedbackSubmit = useCallback(async () => {
+    if (!feedbackText.trim()) return;
+
+    setExpectingNewRevision(true); // Set flag before getting response
+
+    const sourceRevisionIndex = selectedRevisionIndex ?? revisions.length - 1;
+    const sourceRevision = revisions[sourceRevisionIndex];
+
+    // Create a new array with the source revision's messages
+    const newMessages = [...sourceRevision.messages];
+
+    // Add the feedback message
+    const feedbackMessage = {
+      role: "user" as const,
+      content: `Consider this feedback and provide an updated prompt: ${feedbackText}
+
+Remember to include the complete revised prompt in <prompt></prompt> tags, incorporating all previous improvements plus any new changes based on this feedback.`,
+      id: `user-feedback-${newMessages.length}`,
+    };
+
+    // Update messages with the feedback before sending to API
+    setMessages([...newMessages]);
+
+    // Send the feedback
+    await append(feedbackMessage);
+
+    setFeedbackText("");
+    setPopoverOpen(false);
+  }, [feedbackText, selectedRevisionIndex, revisions, messages, append]);
+
+  const handleDirectEditStart = () => {
+    setIsDirectEditing(true);
+    setDirectEditText(newPrompt || "");
+  };
+
+  const handleDirectEditComplete = () => {
+    setIsDirectEditing(false);
+    if (directEditText.trim()) {
+      setNewPrompt(directEditText);
+    }
+  };
+
+  const handleRevisionSelect = (index: number) => {
+    setSelectedRevisionIndex(index);
+    const revision = revisions[index];
+
+    // Increment the chat key to force a new instance
+    setChatKey((prev) => prev + 1);
+
+    // In the next tick, set up the new chat state
+    setTimeout(() => {
+      setMessages(JSON.parse(JSON.stringify(revision.messages)));
+      setNewPrompt(revision.prompt || "");
+    }, 0);
+
+    // Reset direct edit state if it was active
+    if (isDirectEditing) {
+      setIsDirectEditing(false);
+      setDirectEditText("");
+    }
+  };
+
+  const handleSave = () => {
+    if (newPrompt) {
+      const lastMessage = messages[messages.length - 1];
+      const schemaChanges = lastMessage
+        ? extractSchemaChanges(lastMessage.content)
+        : [];
+      onSave(newPrompt, schemaChanges);
+      setMessages([]);
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-7xl h-[90vh] flex flex-col gap-4">
+        <DialogHeader className="flex-none">
+          <div className="flex items-center gap-4 mb-2">
+            {step === "analyze" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBack}
+                className="h-6 w-6"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <DialogTitle>Rewrite Prompt</DialogTitle>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <div
+              className={`h-2 flex-1 rounded-full ${
+                step === "select" ? "bg-primary" : "bg-muted"
+              }`}
+            />
+            <div
+              className={`h-2 flex-1 rounded-full ${
+                step === "analyze" ? "bg-primary" : "bg-muted"
+              }`}
+            />
+          </div>
+          <DialogDescription className="mt-2">
+            {step === "select"
+              ? "Select an operation to improve its prompt"
+              : "AI is analyzing and suggesting improvements"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 w-full h-[calc(80vh-8rem)] overflow-y-auto">
+          {step === "select" ? (
+            <div className="flex flex-col gap-4 pr-4 pb-4">
+              <Select
+                value={selectedOperationId}
+                onValueChange={setSelectedOperationId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select operation" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operations
+                    .filter((op) => op.llmType === "LLM")
+                    .map((op) => (
+                      <SelectItem key={op.id} value={op.id}>
+                        {op.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+
+              {selectedOperation && (
+                <>
+                  <div className="text-sm">
+                    <div className="font-medium mb-2">Current Prompt:</div>
+                    <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                      {selectedOperation.prompt}
+                    </pre>
+                  </div>
+
+                  <div className="text-sm">
+                    <div className="font-medium mb-2">Feedback:</div>
+                    <div className="bg-muted p-2 rounded-md">
+                      {relevantBookmarks.length > 0 ? (
+                        <ul className="list-disc list-inside space-y-1">
+                          {relevantBookmarks.map((note, index) => (
+                            <li key={index}>{note.note}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No feedback or bookmarks found for this operation.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <Button
+                onClick={handleImprove}
+                disabled={isLoading || !selectedOperation}
+                className="mt-4"
+              >
+                Continue to Analysis
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 pr-4 pb-4">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mb-4" />
+                  <p className="text-sm text-muted-foreground">
+                    Starting analysis...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="border rounded-md p-4">
+                    {messages
+                      .filter((m) => m.role === "assistant")
+                      .slice(-1)
+                      .map((message, index) => (
+                        <div
+                          key={`${selectedRevisionIndex}-${index}`}
+                          className="prose prose-sm max-w-none relative"
+                        >
+                          <ReactMarkdown>
+                            {isLoading
+                              ? message.content
+                              : removePromptAndSchemaTags(message.content)}
+                          </ReactMarkdown>
+                          {isLoading && (
+                            <div className="absolute -right-2 -bottom-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+
+                  {!isLoading && newPrompt && selectedOperation && (
+                    <>
+                      <div className="border rounded-md p-4">
+                        <h3 className="font-medium mb-2">Prompt Changes:</h3>
+                        {isDirectEditing ? (
+                          <AutosizeTextarea
+                            value={directEditText}
+                            onChange={(e) => setDirectEditText(e.target.value)}
+                            onBlur={handleDirectEditComplete}
+                          />
+                        ) : (
+                          <DiffView
+                            oldText={selectedOperation.prompt}
+                            newText={newPrompt}
+                          />
+                        )}
+                      </div>
+
+                      {messages.length > 0 && (
+                        <SchemaChangesDiff
+                          changes={extractSchemaChanges(
+                            messages[messages.length - 1].content
+                          )}
+                        />
+                      )}
+
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="secondary"
+                          onClick={
+                            isDirectEditing
+                              ? handleDirectEditComplete
+                              : handleDirectEditStart
+                          }
+                        >
+                          {isDirectEditing ? "See diff" : "Directly edit"}
+                        </Button>
+
+                        <Popover
+                          open={popoverOpen}
+                          onOpenChange={setPopoverOpen}
+                          modal
+                        >
+                          <PopoverTrigger asChild>
+                            <Button variant="secondary">Add feedback</Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-[500px] max-h-[80vh]"
+                            side="left"
+                            align="start"
+                          >
+                            <div className="flex flex-col gap-2 h-full">
+                              <div className="flex-1 overflow-y-auto border-b max-h-[500px]">
+                                <div className="font-medium text-sm mb-1">
+                                  Revision History:
+                                </div>
+                                <div>
+                                  {buildRevisionTree(
+                                    revisions,
+                                    connections
+                                  ).map((node, index) => (
+                                    <RevisionTreeNode
+                                      key={index}
+                                      node={node}
+                                      selectedIndex={selectedRevisionIndex}
+                                      onSelect={handleRevisionSelect}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex-none pt-2">
+                                <Textarea
+                                  placeholder="What would you like to improve?"
+                                  value={feedbackText}
+                                  onChange={(e) =>
+                                    setFeedbackText(e.target.value)
+                                  }
+                                  className="min-h-[100px] mb-2"
+                                />
+                                <div className="flex justify-end">
+                                  <Button
+                                    onClick={handleFeedbackSubmit}
+                                    disabled={!feedbackText.trim()}
+                                  >
+                                    Submit Feedback
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+
+                        <Button onClick={handleSave} disabled={!newPrompt}>
+                          Save and Overwrite
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -540,6 +540,7 @@ Remember to include the complete revised prompt in <prompt></prompt> tags, incor
         : [];
       onSave(newPrompt, schemaChanges);
       setMessages([]);
+      setRevisions([]);
       onOpenChange(false);
     }
   };

@@ -212,9 +212,23 @@ const serializeState = async (state: PipelineState): Promise<string> => {
   const bookmarksDetails = bookmarks
     .map((bookmark: Bookmark) => {
       return `
-- Text: "${bookmark.text}"
-  Source: ${bookmark.source}
-  Context: ${bookmark.notes[0].note || "None"}`;
+- Color: ${bookmark.color}
+  Notes: ${bookmark.notes
+    .map(
+      (note) => `
+    "${note.note}"${
+        note.metadata?.columnId
+          ? `
+    Column: ${note.metadata.columnId}${
+              note.metadata.rowIndex !== undefined
+                ? `
+    Row: ${note.metadata.rowIndex}`
+                : ""
+            }`
+          : ""
+      }`
+    )
+    .join("\n")}`;
     })
     .join("\n");
 

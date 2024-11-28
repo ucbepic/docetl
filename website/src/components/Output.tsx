@@ -5,7 +5,6 @@ import { usePipelineContext } from "@/contexts/PipelineContext";
 import { Loader2, Download, ChevronDown, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import BookmarkableText from "@/components/BookmarkableText";
 import { Operation, OutputRow } from "@/app/types";
 import { Parser } from "json2csv";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -300,7 +299,7 @@ export const Output: React.FC = () => {
           <span className="ml-2 text-muted-foreground">Loading outputs...</span>
         </div>
       ) : outputs.length > 0 ? (
-        <BookmarkableText source="output" className="h-full">
+        <div className="h-full">
           <ResizableDataTable
             data={outputs}
             columns={columns}
@@ -312,7 +311,7 @@ export const Output: React.FC = () => {
             startingRowHeight={180}
             currentOperation={opName}
           />
-        </BookmarkableText>
+        </div>
       ) : (
         <div className="flex items-center justify-center h-full">
           <p className="text-muted-foreground">No outputs available.</p>

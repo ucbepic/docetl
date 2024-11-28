@@ -52,25 +52,25 @@ export interface SchemaItem {
 export interface UserNote {
   id: string;
   note: string;
+  metadata: {
+    columnId?: string;
+    rowIndex?: number;
+    mainColumnValue?: unknown;
+    rowContent?: Record<string, unknown>;
+  };
 }
 
 export interface Bookmark {
   id: string;
-  text: string;
-  source: string;
   color: string;
   notes: UserNote[];
 }
 
 export interface BookmarkContextType {
   bookmarks: Bookmark[];
-  addBookmark: (
-    text: string,
-    source: string,
-    color: string,
-    notes: UserNote[]
-  ) => void;
+  addBookmark: (color: string, notes: UserNote[]) => void;
   removeBookmark: (id: string) => void;
+  getNotesForRowAndColumn: (rowIndex: number, columnId: string) => UserNote[];
 }
 
 export interface OutputType {

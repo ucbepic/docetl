@@ -9,6 +9,7 @@ import {
   Trash2,
   X,
   MessageSquare,
+  Maximize2,
 } from "lucide-react";
 import {
   Select,
@@ -103,6 +104,14 @@ const BookmarksPanel: React.FC = () => {
           <X size={16} className="mr-1" />
           Clear All
         </Button>
+      </div>
+      <div className="text-xs mb-4 bg-muted/50 p-2 rounded-md flex items-center gap-2">
+        <span className="text-muted-foreground">Tip:</span>
+        <span>
+          Click{" "}
+          <Maximize2 className="h-3 w-3 inline-block mx-0.5 text-primary" /> in
+          any output column to leave feedback
+        </span>
       </div>
       <div className="flex mb-2">
         <Input

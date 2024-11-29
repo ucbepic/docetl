@@ -212,9 +212,28 @@ const serializeState = async (state: PipelineState): Promise<string> => {
   const bookmarksDetails = bookmarks
     .map((bookmark: Bookmark) => {
       return `
-- Text: "${bookmark.text}"
-  Source: ${bookmark.source}
-  Context: ${bookmark.notes[0].note || "None"}`;
+- Color: ${bookmark.color}
+  Notes: ${bookmark.notes
+    .map(
+      (note) => `
+    "${note.note}"${
+        note.metadata?.columnId
+          ? `
+    Column: ${note.metadata.columnId}${
+              note.metadata.rowIndex !== undefined
+                ? `
+    Row: ${note.metadata.rowIndex}`
+                : ""
+            }`
+          : ""
+      }${
+        note.metadata?.operationName
+          ? `
+    Operation: ${note.metadata.operationName}`
+          : ""
+      }`
+    )
+    .join("\n")}`;
     })
     .join("\n");
 
@@ -227,7 +246,9 @@ Input Dataset File: ${
 
 Pipeline operations:${operationsDetails}
 
-My notes:${bookmarks.length > 0 ? bookmarksDetails : "\nNo notes added yet"}
+My feedback:${
+    bookmarks.length > 0 ? bookmarksDetails : "\nNo feedback added yet"
+  }
 ${
   currentOperationName && outputSample
     ? `
@@ -357,6 +378,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     localStorage.setItem(
       localStorageKeys.HIGH_LEVEL_GOAL_KEY,
       JSON.stringify(stateRef.current.highLevelGoal)
+    );
+    localStorage.setItem(
+      localStorageKeys.SYSTEM_PROMPT_KEY,
+      JSON.stringify(stateRef.current.systemPrompt)
     );
     setUnsavedChanges(false);
   }, []);

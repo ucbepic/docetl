@@ -6,7 +6,7 @@ export const maxDuration = 60;
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.OPENAI_API_BASE,
-  compatibility: 'strict', // strict mode, enable when using the OpenAI API
+  compatibility: "strict", // strict mode, enable when using the OpenAI API
 });
 
 export async function POST(req: Request) {

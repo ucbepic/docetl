@@ -5,7 +5,6 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, Search } from "lucide-react";
-import BookmarkableText from "@/components/BookmarkableText";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
 import {
@@ -507,25 +506,21 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
             : "No matches"}
         </span>
       </form>
-      <BookmarkableText source="dataset">
-        <div ref={parentRef} className="flex-grow overflow-y-auto">
-          {lines.map((lineContent, index) => (
-            <div key={index} className="flex">
-              <span className="inline-block w-12 flex-shrink-0 text-gray-500 select-none text-right pr-2">
-                {index + 1}
-              </span>
-              <div className="flex-grow">
-                <pre className="whitespace-pre-wrap break-words font-mono text-sm">
-                  {highlightMatches(lineContent, index)}
-                </pre>
-              </div>
+      <div ref={parentRef} className="flex-grow overflow-y-auto">
+        {lines.map((lineContent, index) => (
+          <div key={index} className="flex">
+            <span className="inline-block w-12 flex-shrink-0 text-gray-500 select-none text-right pr-2">
+              {index + 1}
+            </span>
+            <div className="flex-grow">
+              <pre className="whitespace-pre-wrap break-words font-mono text-sm">
+                {highlightMatches(lineContent, index)}
+              </pre>
             </div>
-          ))}
-          {isFetching && (
-            <div className="text-center py-4">Loading more...</div>
-          )}
-        </div>
-      </BookmarkableText>
+          </div>
+        ))}
+        {isFetching && <div className="text-center py-4">Loading more...</div>}
+      </div>
     </div>
   );
 };

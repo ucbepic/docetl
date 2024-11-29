@@ -6,6 +6,8 @@ import random
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple, Optional
+import re
+from slugify import slugify
 
 import jinja2
 from jinja2 import Template
@@ -22,6 +24,14 @@ def find_cluster(item, cluster_map):
         cluster_map[item] = cluster_map[cluster_map[item]]
         item = cluster_map[item]
     return item
+
+def are_strings_similar(str1: Any, str2: Any) -> bool:
+    """Check if two strings are similar using basic normalization."""
+    if str1 is None or str2 is None:
+        return False
+    if str1.lower() == str2.lower() or slugify(str1) == slugify(str2):
+        return True
+    return False
 
 
 class ResolveOperation(BaseOperation):
@@ -54,7 +64,7 @@ class ResolveOperation(BaseOperation):
         max_retries_per_timeout: int = 2,
     ) -> Tuple[bool, float]:
         """
-        Compares two items using an LLM model to determine if they match.
+        Compares two items using basic string matching first, falling back to LLM for complex cases.
 
         Args:
             comparison_prompt (str): The prompt template for comparison.
@@ -65,6 +75,7 @@ class ResolveOperation(BaseOperation):
         Returns:
             Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
         """
+        # Check blocking keys first (case-insensitive exact match)
         if blocking_keys:
             if all(
                 key in item1
@@ -74,6 +85,22 @@ class ResolveOperation(BaseOperation):
             ):
                 return True, 0
 
+        # For each key that exists in both items, try basic string matching
+        common_keys = set(item1.keys()) & set(item2.keys())
+        if common_keys:
+            exact_matches = 0
+            for key in common_keys:
+                if are_strings_similar(item1[key], item2[key]):
+                    exact_matches += 1
+            
+            # If all common fields match exactly, return True
+            if exact_matches == len(common_keys):
+                return True, 0
+            # If no fields match at all, likely not a match
+            if exact_matches == 0 and len(common_keys) > 1:
+                return False, 0
+                
+        # For complex cases, fall back to LLM
         prompt_template = Template(comparison_prompt)
         prompt = prompt_template.render(input1=item1, input2=item2)
         response = self.runner.api.call_llm(

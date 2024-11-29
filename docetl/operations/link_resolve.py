@@ -1,10 +1,11 @@
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple
-
 import jinja2
 from jinja2 import Template
 from rich.prompt import Confirm
+import re
+from slugify import slugify
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed
@@ -139,6 +140,12 @@ class LinkResolveOperation(BaseOperation):
         return input_data, total_cost
                     
     def compare(self, link_idx, id_idx, link_value, id_value, item):
+        # Try basic string matching first
+        if isinstance(link_value, str) and isinstance(id_value, str):
+            if link_value.lower() == id_value.lower() or slugify(link_value) == slugify(id_value):
+                self.replacements[link_value] = id_value
+                return 0.0
+
         prompt = self.prompt_template.render(
             link_value = link_value,
             id_value = id_value,

@@ -824,26 +824,29 @@ You are incrementally processing data across multiple batches. You will see:
 2. The intermediate output so far (what you returned last time)
 3. A scratchpad for tracking additional state: {scratchpad}
 
-The intermediate output contains the partial result that directly answers the user's task, just on a subset of the data.
-The scratchpad contains supporting information needed to process future batches correctly, but isn't part of the answer itself.
+IMPORTANT: Only use the scratchpad if your task specifically requires tracking items that appear multiple times across batches. If you only need to track distinct/unique items, leave the scratchpad empty and set updated_scratchpad to null.
 
-Example for counting words that appear >2 times:
-- Intermediate output: {{"frequent_words": ["the", "and"]}} # Words seen 3+ times
-- Scratchpad: {{"pending": {{"cat": 2, "dog": 1}}}} # Track words seen 1-2 times
+The intermediate output contains the result that directly answers the user's task, for **all** the data processed so far, including the current batch. You must return this via the send_output function.
+
+Example task that NEEDS scratchpad - counting words that appear >2 times:
+- Call send_output with: {{"frequent_words": ["the", "and"]}} # Words seen 3+ times - this is your actual result
+- Set updated_scratchpad to: {{"pending": {{"cat": 2, "dog": 1}}}} # Must track words seen 1-2 times
+
+Example task that does NOT need scratchpad - collecting unique locations:
+- Call send_output with: {{"locations": ["New York", "Paris"]}} # Just the unique items
+- Set updated_scratchpad to: null # No need to track counts since we only want distinct items
 
 As you process each batch:
-1. Use both the intermediate output and scratchpad to inform your processing
-2. Update the scratchpad with any new information needed for future batches
-3. Return both your partial result (representing the answer on the current batch and the previous batches' intermediate output) and updated scratchpad
+1. Use both the previous output and scratchpad (if needed) to inform your processing
+2. Call send_output with your result that combines the current batch with previous output
+3. Set updated_scratchpad only if you need to track counts/frequencies between batches
 
-Keep the scratchpad concise (~500 chars) and easily parsable. Use clear structures like:
-- Bullet points  
+If you use the scratchpad, keep it concise (~500 chars) and easily parsable using:
 - Key-value pairs
 - JSON-like format
+- Simple counters/tallies
 
-Update the 'updated_scratchpad' field in your output with the new scratchpad content.
-
-Remember: The scratchpad should contain information necessary for processing future batches, not the final result."""
+Your main result must be sent via send_output. The updated_scratchpad is only for tracking state between batches, and should be null unless you specifically need to track frequencies."""
 
 
         # Truncate messages if they exceed the model's context length

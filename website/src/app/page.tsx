@@ -27,16 +27,16 @@ export default function Home() {
 
         <div className="max-w-lg mx-auto">
           <p className="text-sm sm:text-md mb-1 text-gray-600">
-            <em>New NotebookLM Podcast!</em>{" "}
+            <em>New IDE Released!</em>{" "}
             <a
-              href="https://notebooklm.google.com/notebook/ef73248b-5a43-49cd-9976-432d20f9fa4f/audio?pli=1"
+              href="https://ucbepic.github.io/docetl/playground/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-500 underline"
             >
-              Sept 28, 2024
+              Dec 2, 2024
             </a>
-            . Thanks to Shabie from our Discord community!
+            ! Try out our new web-based IDE.
           </p>
           <p className="text-sm sm:text-md mb-6 text-gray-600">
             <em>New blog post!</em>{" "}

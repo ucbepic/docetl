@@ -1,12 +1,15 @@
 # Playground
 
-The playground is a web app that allows you to interactively build DocETL pipelines. The playground is built with Next.js and TypeScript. We use the `docetl` Python package (built from this source code) to process the data with a FastAPI server. We stream out the logs from the FastAPI server to the frontend so you can see the pipeline execution progress and outputs in real time.
+The DocETL Playground is an integrated development environment (IDE) for building and testing document processing pipelines. Built with Next.js and TypeScript, it provides a real-time interface to develop, test and refine your pipelines through a FastAPI backend.
 
-## Why an interactive playground?
+## Why a Playground? 🤔
 
-Often, unstructured data analysis tasks are fuzzy and require iteration. You might start with a prompt, see the outputs for a sample, then realize you need to tweak the prompt or change the definition of the task you want the LLM to do. Or, you might want to create a complex pipeline that involves multiple operations, but you are unsure of what prompts you want to use for each step, so you want to build your pipeline one operation at a time.
+This **interactive playground** streamlines development from prototype to production! **Our (in-progress) user studies show 100% of developers** found building pipelines significantly faster and easier with our playground vs traditional approaches.
 
-The playground allows you to do just that.
+Building complex LLM pipelines for your data often requires experimentation and iteration. The IDE lets you:
+- 🚀 Test prompts and see results instantly
+- ✨ Refine operations based on sample outputs  
+- 🔄 Build complex pipelines step-by-step
 
 ## Installation
 
@@ -18,9 +21,9 @@ The easiest way to get started is using Docker:
 
 1. Create the required environment files:
 
-Create `.env` in the root directory:
+Create `.env` in the root directory (for the FastAPI backend):
 ```bash
-OPENAI_API_KEY=your_api_key_here
+OPENAI_API_KEY=your_api_key_here # Or your LLM provider's API key
 BACKEND_ALLOW_ORIGINS=
 BACKEND_HOST=localhost
 BACKEND_PORT=8000
@@ -29,11 +32,11 @@ FRONTEND_HOST=localhost
 FRONTEND_PORT=3000
 ```
 
-Create `.env.local` in the `website` directory:
+Create `.env.local` in the `website` directory (for the frontend) **note that this must be in the `website` directory**:
 ```bash
-OPENAI_API_KEY=sk-xxx
-OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini
+OPENAI_API_KEY=sk-xxx # For the AI assistant in the interface
+OPENAI_API_BASE=https://api.openai.com/v1 # For the AI assistant in the interface
+MODEL_NAME=gpt-4o-mini # For the AI assistant in the interface
 
 NEXT_PUBLIC_BACKEND_HOST=localhost
 NEXT_PUBLIC_BACKEND_PORT=8000

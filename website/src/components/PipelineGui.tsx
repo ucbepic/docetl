@@ -161,10 +161,6 @@ const PipelineGUI: React.FC = () => {
     prompt: undefined,
     operationName: undefined,
   });
-  const [tempSystemPrompt, setTempSystemPrompt] = useState({
-    datasetDescription: systemPrompt.datasetDescription || "",
-    persona: systemPrompt.persona || "",
-  });
 
   const { submitTask } = useOptimizeCheck({
     onComplete: (result) => {
@@ -634,7 +630,6 @@ const PipelineGUI: React.FC = () => {
     setIsSettingsOpen(false);
     setOptimizerModel(tempOptimizerModel);
     setAutoOptimizeCheck(tempAutoOptimizeCheck);
-    setSystemPrompt(tempSystemPrompt);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -778,14 +773,16 @@ const PipelineGUI: React.FC = () => {
                         <Textarea
                           id="datasetDescription"
                           placeholder="a collection of documents"
-                          value={tempSystemPrompt.datasetDescription}
-                          onChange={(e) =>
-                            setTempSystemPrompt((prev) => ({
-                              ...prev,
-                              datasetDescription: e.target.value,
-                            }))
-                          }
-                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          defaultValue={systemPrompt.datasetDescription}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            setTimeout(() => {
+                              setSystemPrompt((prev) => ({
+                                ...prev,
+                                datasetDescription: value,
+                              }));
+                            }, 0);
+                          }}
                           className="h-[3.5rem]"
                         />
                       </div>
@@ -799,14 +796,16 @@ const PipelineGUI: React.FC = () => {
                         <Textarea
                           id="persona"
                           placeholder="a helpful assistant"
-                          value={tempSystemPrompt.persona}
-                          onChange={(e) =>
-                            setTempSystemPrompt((prev) => ({
-                              ...prev,
-                              persona: e.target.value,
-                            }))
-                          }
-                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          defaultValue={systemPrompt.persona}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            setTimeout(() => {
+                              setSystemPrompt((prev) => ({
+                                ...prev,
+                                persona: value,
+                              }));
+                            }, 0);
+                          }}
                           className="h-[3.5rem]"
                         />
                       </div>

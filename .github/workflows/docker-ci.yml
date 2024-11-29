@@ -40,7 +40,7 @@ jobs:
           docetl
           
         # Wait for container to start up
-        sleep 120
+        sleep 240
         
         # Check if container is still running
         if [ "$(docker ps -q -f name=docetl-test)" ]; then

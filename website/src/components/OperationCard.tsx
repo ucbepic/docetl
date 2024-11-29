@@ -55,6 +55,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
+import { PromptImprovementDialog } from "@/components/PromptImprovementDialog";
 
 // Separate components
 const OperationHeader: React.FC<{
@@ -75,6 +76,7 @@ const OperationHeader: React.FC<{
   onAIEdit: (instruction: string) => void;
   onToggleExpand: () => void;
   onToggleVisibility: () => void;
+  onImprovePrompt: () => void;
 }> = React.memo(
   ({
     name,
@@ -94,6 +96,7 @@ const OperationHeader: React.FC<{
     onAIEdit,
     onToggleExpand,
     onToggleVisibility,
+    onImprovePrompt,
   }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(name);
@@ -197,11 +200,23 @@ const OperationHeader: React.FC<{
             <ListCollapse size={14} className="text-primary" />
             <span className="text-xs text-primary">Show outputs</span>
           </Button>
+          {llmType === "LLM" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1 px-2 h-6"
+              disabled={disabled}
+              onClick={onImprovePrompt}
+            >
+              <Wand2 size={14} className="text-primary" />
+              <span className="text-xs text-primary">Improve prompt</span>
+            </Button>
+          )}
         </div>
 
         {/* Centered title */}
         <div
-          className={`flex-grow flex justify-center ${
+          className={`flex-grow flex justify-center mx-20 ${
             !visibility ? "opacity-50" : ""
           }`}
         >
@@ -211,12 +226,12 @@ const OperationHeader: React.FC<{
               onChange={(e) => setEditedName(e.target.value)}
               onBlur={handleEditComplete}
               onKeyPress={(e) => e.key === "Enter" && handleEditComplete()}
-              className="text-sm font-medium w-1/2 font-mono text-center"
+              className="text-sm font-medium max-w-[200px] font-mono text-center"
               autoFocus
             />
           ) : (
             <span
-              className={`text-sm font-medium cursor-pointer ${
+              className={`text-sm font-medium cursor-pointer truncate max-w-[200px] ${
                 llmType === "LLM"
                   ? "bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text"
                   : ""
@@ -844,6 +859,60 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     handleOperationUpdate(updatedOperation);
   }, [operation, handleOperationUpdate]);
 
+  const [showPromptImprovement, setShowPromptImprovement] = useState(false);
+
+  const handlePromptSave = (
+    newPrompt:
+      | string
+      | { comparison_prompt: string; resolution_prompt: string },
+    schemaChanges?: Array<[string, string]>
+  ) => {
+    if (!operation) return;
+
+    let updatedOperation = { ...operation };
+
+    if (operation.type === "resolve") {
+      if (typeof newPrompt === "object") {
+        updatedOperation = {
+          ...updatedOperation,
+          otherKwargs: {
+            ...operation.otherKwargs,
+            comparison_prompt: newPrompt.comparison_prompt,
+            resolution_prompt: newPrompt.resolution_prompt,
+          },
+        };
+      }
+    } else {
+      if (typeof newPrompt === "string") {
+        updatedOperation.prompt = newPrompt;
+      }
+    }
+
+    // Handle schema changes
+    if (schemaChanges?.length && operation.output?.schema) {
+      const updatedSchema = operation.output.schema.map((item) => {
+        const change = schemaChanges.find(([oldKey]) => oldKey === item.key);
+        if (change) {
+          return { ...item, key: change[1] };
+        }
+        return item;
+      });
+
+      updatedOperation.output = {
+        ...operation.output,
+        schema: updatedSchema,
+      };
+    }
+
+    handleOperationUpdate(updatedOperation);
+    toast({
+      title: "Success",
+      description: `Prompt${
+        operation.type === "resolve" ? "s" : ""
+      } and schema updated successfully`,
+    });
+  };
+
   if (!operation) {
     return <SkeletonCard />;
   }
@@ -905,6 +974,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 onAIEdit={handleAIEdit}
                 onToggleExpand={() => dispatch({ type: "TOGGLE_EXPAND" })}
                 onToggleVisibility={handleVisibilityToggle}
+                onImprovePrompt={() => setShowPromptImprovement(true)}
               />
               {isExpanded && operation.visibility !== false && (
                 <>
@@ -946,6 +1016,14 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
                 otherKwargs={operation.otherKwargs || {}}
                 onSettingsSave={handleSettingsSave}
               />
+              {operation.llmType === "LLM" && (
+                <PromptImprovementDialog
+                  open={showPromptImprovement}
+                  onOpenChange={setShowPromptImprovement}
+                  currentOperation={operation}
+                  onSave={handlePromptSave}
+                />
+              )}
             </div>
           </Card>
         )}

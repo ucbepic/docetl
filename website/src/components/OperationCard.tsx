@@ -862,18 +862,33 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
   const [showPromptImprovement, setShowPromptImprovement] = useState(false);
 
   const handlePromptSave = (
-    newPrompt: string,
+    newPrompt:
+      | string
+      | { comparison_prompt: string; resolution_prompt: string },
     schemaChanges?: Array<[string, string]>
   ) => {
     if (!operation) return;
 
-    // First update the prompt
-    const updatedOperation = {
-      ...operation,
-      prompt: newPrompt,
-    };
+    let updatedOperation = { ...operation };
 
-    // Then update schema keys if changes were provided
+    if (operation.type === "resolve") {
+      if (typeof newPrompt === "object") {
+        updatedOperation = {
+          ...updatedOperation,
+          otherKwargs: {
+            ...operation.otherKwargs,
+            comparison_prompt: newPrompt.comparison_prompt,
+            resolution_prompt: newPrompt.resolution_prompt,
+          },
+        };
+      }
+    } else {
+      if (typeof newPrompt === "string") {
+        updatedOperation.prompt = newPrompt;
+      }
+    }
+
+    // Handle schema changes
     if (schemaChanges?.length && operation.output?.schema) {
       const updatedSchema = operation.output.schema.map((item) => {
         const change = schemaChanges.find(([oldKey]) => oldKey === item.key);
@@ -892,7 +907,9 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     handleOperationUpdate(updatedOperation);
     toast({
       title: "Success",
-      description: "Prompt and schema updated successfully",
+      description: `Prompt${
+        operation.type === "resolve" ? "s" : ""
+      } and schema updated successfully`,
     });
   };
 
@@ -1032,3 +1049,79 @@ const SkeletonCard: React.FC = () => (
     </Card>
   </div>
 );
+
+// Update the getSystemContent function to handle resolve operations
+const getSystemContent = (
+  pipelineState: string,
+  selectedOperation: Operation
+) => `You are a prompt engineering expert. Analyze the current operation's prompt${
+  selectedOperation.type === "resolve" ? "s" : ""
+} and suggest improvements based on the pipeline state.
+
+Current pipeline state:
+${pipelineState}
+
+Focus on the operation named "${selectedOperation.name}" ${
+  selectedOperation.type === "resolve"
+    ? `with comparison prompt:
+${selectedOperation.otherKwargs?.comparison_prompt || ""}
+
+and resolution prompt:
+${selectedOperation.otherKwargs?.resolution_prompt || ""}`
+    : `with prompt:
+${selectedOperation.prompt}`
+}
+
+${
+  selectedOperation.output?.schema
+    ? `
+Current output schema keys:
+${selectedOperation.output.schema.map((item) => `- ${item.key}`).join("\n")}
+`
+    : ""
+}
+
+IMPORTANT: 
+1. ${
+  selectedOperation.type === "resolve"
+    ? "You must ALWAYS include complete revised prompts wrapped in <comparison_prompt></comparison_prompt> AND <resolve_prompt></resolve_prompt> tags in your response"
+    : "You must ALWAYS include a complete revised prompt wrapped in <prompt></prompt> tags in your response"
+}, even if you're just responding to feedback.
+
+2. Only suggest schema key changes if absolutely necessary - when the current keys are misleading, incorrect, or ambiguous. If the schema keys are fine, don't suggest changes. Include changes in <schema> tags as a list of "oldkey,newkey" pairs, one per line. Example:
+<schema>
+misleading_key,accurate_key
+ambiguous_name,specific_name
+</schema>
+
+When responding:
+1. Briefly acknowledge/analyze any feedback (1-2 sentences)
+2. ALWAYS provide ${
+  selectedOperation.type === "resolve"
+    ? "complete revised prompts wrapped in <comparison_prompt></comparison_prompt> AND <resolve_prompt></resolve_prompt> tags"
+    : "a complete revised prompt wrapped in <prompt></prompt> tags"
+}
+3. The prompt${
+  selectedOperation.type === "resolve" ? "s" : ""
+} should include all previous improvements plus any new changes
+4. Make prompts specific and concise:
+   - For subjective terms like "detailed" or "comprehensive", provide examples or metrics (e.g. "include 3-5 key points per section")
+   - For qualitative instructions like "long output", specify length (e.g. "200-300 words") based on my feedback or provide examples
+   - When using adjectives, include a reference point (e.g. "technical like API documentation" vs "simple like a blog post")`;
+
+// Add helper function to extract both prompts for resolve operations
+function extractPrompts(text: string): {
+  comparisonPrompt?: string;
+  resolvePrompt?: string;
+  prompt?: string;
+} {
+  const comparisonPrompt = extractTagContent(text, "comparison_prompt");
+  const resolvePrompt = extractTagContent(text, "resolve_prompt");
+  const prompt = extractTagContent(text, "prompt");
+
+  return {
+    comparisonPrompt,
+    resolvePrompt,
+    prompt,
+  };
+}

@@ -35,7 +35,12 @@ interface PromptImprovementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentOperation: Operation;
-  onSave: (newPrompt: string, schemaChanges?: Array<[string, string]>) => void;
+  onSave: (
+    newPrompt:
+      | string
+      | { comparison_prompt: string; resolution_prompt: string },
+    schemaChanges?: Array<[string, string]>
+  ) => void;
 }
 
 interface Revision {
@@ -60,25 +65,42 @@ function extractTagContent(text: string, tag: string): string | null {
   return match ? match[1].trim() : null;
 }
 
-function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
+type PromptType = "comparison" | "resolve";
+
+function DiffView({
+  oldText,
+  newText,
+  type,
+}: {
+  oldText: string;
+  newText: string;
+  type?: PromptType;
+}) {
   const diff = diffLines(oldText, newText);
 
   return (
-    <div className="font-mono text-sm whitespace-pre-wrap">
-      {diff.map((part, index) => (
-        <span
-          key={index}
-          className={
-            part.added
-              ? "bg-green-100 dark:bg-green-900/30"
-              : part.removed
-              ? "bg-red-100 dark:bg-red-900/30"
-              : ""
-          }
-        >
-          {part.value}
-        </span>
-      ))}
+    <div>
+      {type && (
+        <div className="text-sm font-medium mb-2">
+          {type === "comparison" ? "Comparison Prompt:" : "Resolution Prompt:"}
+        </div>
+      )}
+      <div className="font-mono text-sm whitespace-pre-wrap">
+        {diff.map((part, index) => (
+          <span
+            key={index}
+            className={
+              part.added
+                ? "bg-green-100 dark:bg-green-900/30"
+                : part.removed
+                ? "bg-red-100 dark:bg-red-900/30"
+                : ""
+            }
+          >
+            {part.value}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -86,19 +108,31 @@ function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
 function removePromptAndSchemaTags(text: string): string {
   return text
     .replace(/<prompt>[\s\S]*?<\/prompt>/g, "")
-    .replace(/<schema>[\s\S]*?<\/schema>/g, "");
+    .replace(/<schema>[\s\S]*?<\/schema>/g, "")
+    .replace(/<comparison_prompt>[\s\S]*?<\/comparison_prompt>/g, "")
+    .replace(/<resolution_prompt>[\s\S]*?<\/resolution_prompt>/g, "");
 }
 
 const getSystemContent = (
   pipelineState: string,
   selectedOperation: Operation
-) => `You are a prompt engineering expert. Analyze the current operation's prompt and suggest improvements based on the pipeline state.
+) => `You are a prompt engineering expert. Analyze the current operation's prompt${
+  selectedOperation.type === "resolve" ? "s" : ""
+} and suggest improvements based on the pipeline state.
 
 Current pipeline state:
 ${pipelineState}
 
-Focus on the operation named "${selectedOperation.name}" with prompt:
-${selectedOperation.prompt}
+Focus on the operation named "${selectedOperation.name}" ${
+  selectedOperation.type === "resolve"
+    ? `with comparison prompt:
+${selectedOperation.otherKwargs?.comparison_prompt || ""}
+
+and resolution prompt:
+${selectedOperation.otherKwargs?.resolution_prompt || ""}`
+    : `with prompt:
+${selectedOperation.prompt}`
+}
 
 ${
   selectedOperation.output?.schema
@@ -110,7 +144,11 @@ ${selectedOperation.output.schema.map((item) => `- ${item.key}`).join("\n")}
 }
 
 IMPORTANT: 
-1. You must ALWAYS include a complete revised prompt wrapped in <prompt></prompt> tags in your response, even if you're just responding to feedback.
+1. ${
+  selectedOperation.type === "resolve"
+    ? "You must ALWAYS include complete revised prompts wrapped in <comparison_prompt></comparison_prompt> AND <resolution_prompt></resolution_prompt> tags in your response"
+    : "You must ALWAYS include a complete revised prompt wrapped in <prompt></prompt> tags in your response"
+}, even if you're just responding to feedback.
 
 2. Only suggest schema key changes if absolutely necessary - when the current keys are misleading, incorrect, or ambiguous. If the schema keys are fine, don't suggest changes. Include changes in <schema> tags as a list of "oldkey,newkey" pairs, one per line. Example:
 <schema>
@@ -120,8 +158,14 @@ ambiguous_name,specific_name
 
 When responding:
 1. Briefly acknowledge/analyze any feedback (1-2 sentences)
-2. ALWAYS provide a complete revised prompt wrapped in <prompt></prompt> tags
-3. The prompt should include all previous improvements plus any new changes
+2. ALWAYS provide ${
+  selectedOperation.type === "resolve"
+    ? "complete revised prompts wrapped in <comparison_prompt></comparison_prompt> AND <resolution_prompt></resolution_prompt> tags"
+    : "a complete revised prompt wrapped in <prompt></prompt> tags"
+}
+3. The prompt${
+  selectedOperation.type === "resolve" ? "s" : ""
+} should include all previous improvements plus any new changes
 4. Make prompts specific and concise:
    - For subjective terms like "detailed" or "comprehensive", provide examples or metrics (e.g. "include 3-5 key points per section")
    - For qualitative instructions like "long output", specify length (e.g. "200-300 words") based on my feedback or provide examples
@@ -144,10 +188,12 @@ function AutosizeTextarea({
   value,
   onChange,
   onBlur,
+  type,
 }: {
   value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  onBlur: () => void;
+  onBlur?: () => void;
+  type?: PromptType;
 }) {
   const [height, setHeight] = useState("auto");
   const hiddenRef = useRef<HTMLDivElement>(null);
@@ -160,6 +206,11 @@ function AutosizeTextarea({
 
   return (
     <div className="relative">
+      {type && (
+        <div className="text-sm font-medium mb-2">
+          {type === "comparison" ? "Comparison Prompt:" : "Resolution Prompt:"}
+        </div>
+      )}
       <div
         ref={hiddenRef}
         className="invisible absolute whitespace-pre-wrap break-words font-mono text-sm p-2"
@@ -173,7 +224,7 @@ function AutosizeTextarea({
         onBlur={onBlur}
         className="font-mono text-sm resize-none"
         style={{ height, minHeight: height }}
-        autoFocus
+        autoFocus={!type || type === "comparison"}
       />
     </div>
   );
@@ -297,6 +348,28 @@ function SchemaChangesDiff({ changes }: { changes: Array<[string, string]> }) {
   );
 }
 
+// Add helper function to extract both prompts for resolve operations
+function extractPrompts(text: string): {
+  comparisonPrompt?: string;
+  resolvePrompt?: string;
+  prompt?: string;
+} {
+  const comparisonPrompt = extractTagContent(text, "comparison_prompt");
+  const resolvePrompt = extractTagContent(text, "resolution_prompt");
+  const prompt = extractTagContent(text, "prompt");
+
+  return {
+    comparisonPrompt,
+    resolvePrompt,
+    prompt,
+  };
+}
+
+// Update the state to use a single editedPrompt
+type EditedPrompt =
+  | string
+  | { comparison_prompt: string; resolution_prompt: string };
+
 export function PromptImprovementDialog({
   open,
   onOpenChange,
@@ -309,11 +382,10 @@ export function PromptImprovementDialog({
   const [selectedOperationId, setSelectedOperationId] = useState<string>(
     currentOperation.id
   );
-  const [newPrompt, setNewPrompt] = useState<string | null>(null);
+  const [editedPrompt, setEditedPrompt] = useState<EditedPrompt | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [isDirectEditing, setIsDirectEditing] = useState(false);
-  const [directEditText, setDirectEditText] = useState("");
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [connections, setConnections] = useState<FeedbackConnection[]>([]);
   const [selectedRevisionIndex, setSelectedRevisionIndex] = useState<
@@ -342,55 +414,96 @@ export function PromptImprovementDialog({
     },
   });
 
+  // Update the effect that handles new messages
   useEffect(() => {
     if (!isLoading && messages.length > 0 && expectingNewRevision) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.role === "assistant") {
-        const extractedPrompt = extractTagContent(
-          lastMessage.content,
-          "prompt"
-        );
+        if (selectedOperation?.type === "resolve") {
+          const extractedPrompts = extractPrompts(lastMessage.content);
+          if (
+            extractedPrompts.comparisonPrompt &&
+            extractedPrompts.resolvePrompt
+          ) {
+            // Skip if the prompts are the same as what we have in editedPrompt
+            if (
+              typeof editedPrompt === "object" &&
+              editedPrompt?.comparison_prompt ===
+                extractedPrompts.comparisonPrompt &&
+              editedPrompt?.resolution_prompt === extractedPrompts.resolvePrompt
+            ) {
+              return;
+            }
 
-        // Don't do anything if extractedPrompt is the same as the current prompt, or it's null
-        if (extractedPrompt === newPrompt || extractedPrompt === null) {
-          return;
-        }
+            const newPrompt = {
+              comparison_prompt: extractedPrompts.comparisonPrompt,
+              resolution_prompt: extractedPrompts.resolvePrompt,
+            };
+            setEditedPrompt(newPrompt);
 
-        if (extractedPrompt) {
-          setNewPrompt(extractedPrompt);
+            // Create new revision
+            const newRevision = {
+              messages: JSON.parse(JSON.stringify(messages)),
+              prompt: newPrompt,
+              timestamp: Date.now(),
+            };
 
-          // Create new revision with deep copy of messages
-          const newRevision = {
-            messages: JSON.parse(JSON.stringify(messages)), // Deep copy
-            prompt: extractedPrompt,
-            timestamp: Date.now(),
-          };
-
-          // Add revision and update selected index
-          setRevisions((prev) => {
-            const newRevisions = [...prev, newRevision];
-            setSelectedRevisionIndex(newRevisions.length - 1);
-            return newRevisions;
-          });
-
-          // If this isn't the first revision, create a connection
-          if (revisions.length > 0) {
-            const parentIndex = selectedRevisionIndex ?? revisions.length - 1;
-            setConnections((prev) => [
-              ...prev,
-              {
-                fromRevision: parentIndex,
-                toRevision: revisions.length,
-                feedback: feedbackText,
-              },
-            ]);
+            // Add revision and update selected index
+            setRevisions((prev) => {
+              const newRevisions = [...prev, newRevision] as Revision[];
+              setSelectedRevisionIndex(newRevisions.length - 1);
+              return newRevisions;
+            });
           }
+        } else {
+          const extractedPrompt = extractTagContent(
+            lastMessage.content,
+            "prompt"
+          );
+          if (extractedPrompt) {
+            // Skip if the prompt is the same as what we have in editedPrompt
+            if (
+              typeof editedPrompt === "string" &&
+              editedPrompt === extractedPrompt
+            ) {
+              return;
+            }
 
-          setExpectingNewRevision(false);
+            setEditedPrompt(extractedPrompt);
+
+            // Create new revision
+            const newRevision = {
+              messages: JSON.parse(JSON.stringify(messages)),
+              prompt: extractedPrompt,
+              timestamp: Date.now(),
+            };
+
+            // Add revision and update selected index
+            setRevisions((prev) => {
+              const newRevisions = [...prev, newRevision];
+              setSelectedRevisionIndex(newRevisions.length - 1);
+              return newRevisions;
+            });
+          }
         }
+
+        // If this isn't the first revision, create a connection
+        if (revisions.length > 0) {
+          const parentIndex = selectedRevisionIndex ?? revisions.length - 1;
+          setConnections((prev) => [
+            ...prev,
+            {
+              fromRevision: parentIndex,
+              toRevision: revisions.length,
+              feedback: feedbackText,
+            },
+          ]);
+        }
+
+        setExpectingNewRevision(false);
       }
     }
-  }, [messages, isLoading, expectingNewRevision]);
+  }, [messages, isLoading, expectingNewRevision, selectedOperation?.type]);
 
   useEffect(() => {
     if (selectedRevisionIndex !== null && revisions[selectedRevisionIndex]) {
@@ -400,14 +513,14 @@ export function PromptImprovementDialog({
 
       // Update the prompt
       if (revision.prompt) {
-        setNewPrompt(revision.prompt);
+        setEditedPrompt(revision.prompt);
       }
     }
   }, [selectedRevisionIndex, revisions]);
 
   const handleImprove = useCallback(async () => {
     setExpectingNewRevision(true); // Set flag before getting first response
-    setNewPrompt(null);
+    setEditedPrompt(null);
     setStep("analyze");
     setRevisions([]);
     setConnections([]);
@@ -437,10 +550,20 @@ export function PromptImprovementDialog({
       },
     ]);
 
-    // Then append the user message
+    // Then append the user message with the appropriate prompt(s)
     await append({
       role: "user",
-      content: `Please analyze and improve my prompt:\n${selectedOperation.prompt}\n${bookmarksSection}`,
+      content: `Please analyze and improve my prompt${
+        selectedOperation.type === "resolve" ? "s" : ""
+      }:${
+        selectedOperation.type === "resolve"
+          ? `\nComparison prompt:\n${
+              selectedOperation.otherKwargs?.comparison_prompt || ""
+            }\n\nResolution prompt:\n${
+              selectedOperation.otherKwargs?.resolution_prompt || ""
+            }`
+          : `\n${selectedOperation.prompt}`
+      }${bookmarksSection}`,
       id: "user-1",
     });
 
@@ -481,12 +604,20 @@ export function PromptImprovementDialog({
     // Create a new array with the source revision's messages
     const newMessages = [...sourceRevision.messages];
 
-    // Add the feedback message
+    // Add the feedback message with appropriate prompt instructions based on operation type
     const feedbackMessage = {
       role: "user" as const,
-      content: `Consider this feedback and provide an updated prompt: ${feedbackText}
+      content: `Consider this feedback and provide ${
+        selectedOperation?.type === "resolve"
+          ? "updated prompts"
+          : "an updated prompt"
+      }: ${feedbackText}
 
-Remember to include the complete revised prompt in <prompt></prompt> tags, incorporating all previous improvements plus any new changes based on this feedback.`,
+Remember to ${
+        selectedOperation?.type === "resolve"
+          ? "include the complete revised prompts wrapped in <comparison_prompt></comparison_prompt> AND <resolution_prompt></resolution_prompt> tags"
+          : "include the complete revised prompt wrapped in <prompt></prompt> tags"
+      }, incorporating all previous improvements plus any new changes based on this feedback.`,
       id: `user-feedback-${newMessages.length}`,
     };
 
@@ -498,18 +629,22 @@ Remember to include the complete revised prompt in <prompt></prompt> tags, incor
 
     setFeedbackText("");
     setPopoverOpen(false);
-  }, [feedbackText, selectedRevisionIndex, revisions, messages, append]);
+  }, [
+    feedbackText,
+    selectedRevisionIndex,
+    revisions,
+    messages,
+    append,
+    selectedOperation,
+  ]);
 
+  // Update the direct edit handlers
   const handleDirectEditStart = () => {
     setIsDirectEditing(true);
-    setDirectEditText(newPrompt || "");
   };
 
   const handleDirectEditComplete = () => {
     setIsDirectEditing(false);
-    if (directEditText.trim()) {
-      setNewPrompt(directEditText);
-    }
   };
 
   const handleRevisionSelect = (index: number) => {
@@ -522,23 +657,23 @@ Remember to include the complete revised prompt in <prompt></prompt> tags, incor
     // In the next tick, set up the new chat state
     setTimeout(() => {
       setMessages(JSON.parse(JSON.stringify(revision.messages)));
-      setNewPrompt(revision.prompt || "");
+      setEditedPrompt(revision.prompt || "");
     }, 0);
 
     // Reset direct edit state if it was active
     if (isDirectEditing) {
       setIsDirectEditing(false);
-      setDirectEditText("");
     }
   };
 
+  // Update the save handler
   const handleSave = () => {
-    if (newPrompt) {
+    if (editedPrompt && selectedOperation) {
       const lastMessage = messages[messages.length - 1];
       const schemaChanges = lastMessage
         ? extractSchemaChanges(lastMessage.content)
         : [];
-      onSave(newPrompt, schemaChanges);
+      onSave(editedPrompt, schemaChanges);
       setMessages([]);
       setRevisions([]);
       onOpenChange(false);
@@ -605,10 +740,36 @@ Remember to include the complete revised prompt in <prompt></prompt> tags, incor
               {selectedOperation && (
                 <>
                   <div className="text-sm">
-                    <div className="font-medium mb-2">Current Prompt:</div>
-                    <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
-                      {selectedOperation.prompt}
-                    </pre>
+                    <div className="font-medium mb-2">
+                      Current Prompt
+                      {selectedOperation.type === "resolve" ? "s" : ""}:
+                    </div>
+                    {selectedOperation.type === "resolve" ? (
+                      <div className="space-y-4">
+                        <div>
+                          <div className="font-medium text-sm mb-1">
+                            Comparison Prompt:
+                          </div>
+                          <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                            {selectedOperation.otherKwargs?.comparison_prompt ||
+                              ""}
+                          </pre>
+                        </div>
+                        <div>
+                          <div className="font-medium text-sm mb-1">
+                            Resolution Prompt:
+                          </div>
+                          <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                            {selectedOperation.otherKwargs?.resolution_prompt ||
+                              ""}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                        {selectedOperation.prompt}
+                      </pre>
+                    )}
                   </div>
 
                   <div className="text-sm">
@@ -672,20 +833,88 @@ Remember to include the complete revised prompt in <prompt></prompt> tags, incor
                       ))}
                   </div>
 
-                  {!isLoading && newPrompt && selectedOperation && (
+                  {!isLoading && editedPrompt && selectedOperation && (
                     <>
                       <div className="border rounded-md p-4">
                         <h3 className="font-medium mb-2">Prompt Changes:</h3>
                         {isDirectEditing ? (
-                          <AutosizeTextarea
-                            value={directEditText}
-                            onChange={(e) => setDirectEditText(e.target.value)}
-                            onBlur={handleDirectEditComplete}
-                          />
+                          selectedOperation.type === "resolve" ? (
+                            <div className="space-y-4">
+                              <AutosizeTextarea
+                                value={
+                                  typeof editedPrompt === "object"
+                                    ? editedPrompt.comparison_prompt
+                                    : ""
+                                }
+                                onChange={(e) =>
+                                  setEditedPrompt((prev) =>
+                                    typeof prev === "object"
+                                      ? {
+                                          ...prev,
+                                          comparison_prompt: e.target.value,
+                                        }
+                                      : prev
+                                  )
+                                }
+                                type="comparison"
+                              />
+                              <AutosizeTextarea
+                                value={
+                                  typeof editedPrompt === "object"
+                                    ? editedPrompt.resolution_prompt
+                                    : ""
+                                }
+                                onChange={(e) =>
+                                  setEditedPrompt((prev) =>
+                                    typeof prev === "object"
+                                      ? {
+                                          ...prev,
+                                          resolution_prompt: e.target.value,
+                                        }
+                                      : prev
+                                  )
+                                }
+                                type="resolve"
+                              />
+                            </div>
+                          ) : (
+                            <AutosizeTextarea
+                              value={
+                                typeof editedPrompt === "string"
+                                  ? editedPrompt
+                                  : ""
+                              }
+                              onChange={(e) => setEditedPrompt(e.target.value)}
+                            />
+                          )
+                        ) : selectedOperation.type === "resolve" &&
+                          typeof editedPrompt === "object" ? (
+                          <div className="space-y-4">
+                            <DiffView
+                              oldText={
+                                selectedOperation.otherKwargs
+                                  ?.comparison_prompt || ""
+                              }
+                              newText={editedPrompt.comparison_prompt}
+                              type="comparison"
+                            />
+                            <DiffView
+                              oldText={
+                                selectedOperation.otherKwargs
+                                  ?.resolution_prompt || ""
+                              }
+                              newText={editedPrompt.resolution_prompt}
+                              type="resolve"
+                            />
+                          </div>
                         ) : (
                           <DiffView
-                            oldText={selectedOperation.prompt}
-                            newText={newPrompt}
+                            oldText={selectedOperation.prompt || ""}
+                            newText={
+                              typeof editedPrompt === "string"
+                                ? editedPrompt
+                                : ""
+                            }
                           />
                         )}
                       </div>
@@ -701,11 +930,14 @@ Remember to include the complete revised prompt in <prompt></prompt> tags, incor
                       <div className="flex gap-2 justify-end">
                         <Button
                           variant="secondary"
-                          onClick={
-                            isDirectEditing
-                              ? handleDirectEditComplete
-                              : handleDirectEditStart
-                          }
+                          onClick={() => {
+                            if (isDirectEditing) {
+                              // When switching to diff view, save the changes first
+                              handleDirectEditComplete();
+                            } else {
+                              handleDirectEditStart();
+                            }
+                          }}
                         >
                           {isDirectEditing ? "See diff" : "Directly edit"}
                         </Button>
@@ -764,7 +996,7 @@ Remember to include the complete revised prompt in <prompt></prompt> tags, incor
                           </PopoverContent>
                         </Popover>
 
-                        <Button onClick={handleSave} disabled={!newPrompt}>
+                        <Button onClick={handleSave} disabled={!editedPrompt}>
                           Save and Overwrite
                         </Button>
                       </div>

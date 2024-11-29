@@ -712,7 +712,7 @@ Remember to ${
           <DialogDescription className="mt-2">
             {step === "select"
               ? "Select an operation to improve its prompt"
-              : "AI is analyzing and suggesting improvements"}
+              : "DocETL is analyzing and suggesting improvements"}
           </DialogDescription>
         </DialogHeader>
 

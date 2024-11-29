@@ -21,9 +21,9 @@ The easiest way to get started is using Docker:
 
 1. Create the required environment files:
 
-Create `.env` in the root directory:
+Create `.env` in the root directory (for the FastAPI backend):
 ```bash
-OPENAI_API_KEY=your_api_key_here
+OPENAI_API_KEY=your_api_key_here # Or your LLM provider's API key
 BACKEND_ALLOW_ORIGINS=
 BACKEND_HOST=localhost
 BACKEND_PORT=8000
@@ -32,11 +32,11 @@ FRONTEND_HOST=localhost
 FRONTEND_PORT=3000
 ```
 
-Create `.env.local` in the `website` directory:
+Create `.env.local` in the `website` directory (for the frontend) **note that this must be in the `website` directory**:
 ```bash
-OPENAI_API_KEY=sk-xxx
-OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini
+OPENAI_API_KEY=sk-xxx # For the AI assistant in the interface
+OPENAI_API_BASE=https://api.openai.com/v1 # For the AI assistant in the interface
+MODEL_NAME=gpt-4o-mini # For the AI assistant in the interface
 
 NEXT_PUBLIC_BACKEND_HOST=localhost
 NEXT_PUBLIC_BACKEND_PORT=8000

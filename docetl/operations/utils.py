@@ -31,10 +31,10 @@ aeval = Interpreter()
 
 load_dotenv()
 # litellm.set_verbose = True
-DOCETL_HOME_DIR = os.path.expanduser("~/.docetl")
+DOCETL_HOME_DIR = os.path.expanduser("~/.cache/docetl")
 
-CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "cache")
-LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm_cache")
+CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "general")
+LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm")
 cache = Cache(LLM_CACHE_DIR)
 cache.close()
 

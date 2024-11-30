@@ -10,7 +10,7 @@ Operators in DocETL are designed for semantically processing unstructured data. 
 
 !!! tip "Caching in DocETL"
 
-    DocETL employs caching for all LLM calls and partially-optimized plans. The cache is stored in the `.docetl/cache` and `.docetl/llm_cache` directories within your home directory. This caching mechanism helps to improve performance and reduce redundant API calls when running similar operations or reprocessing data.
+    DocETL employs caching for all LLM calls and partially-optimized plans. The cache is stored in the `.cache/docetl/general` and `.cache/docetl/llm` directories within your home directory. This caching mechanism helps to improve performance and reduce redundant API calls when running similar operations or reprocessing data.
 
 ## Common Attributes
 

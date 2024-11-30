@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useMemo,
   useRef,
+  memo,
 } from "react";
 import {
   flexRender,
@@ -59,9 +60,12 @@ import { ColumnDialog } from "@/components/ColumnDialog";
 import { SearchableCell } from "@/components/SearchableCell";
 import { PrettyJSON } from "@/components/PrettyJSON";
 export type DataType = Record<string, unknown>;
-export type ColumnType<T extends DataType> = ColumnDef<T> & {
+export type ColumnType<T> = {
+  accessorKey: string;
+  header: string;
+  cell?: ({ getValue }: { getValue: () => unknown }) => React.ReactNode;
   initialWidth?: number;
-  accessorKey?: string;
+  id?: string;
 };
 
 interface ColumnStats {
@@ -247,21 +251,37 @@ function calculateColumnStats(
   };
 }
 
-const WordCountHistogram = React.memo(
+const truncateString = (str: string, maxLength: number = 20) => {
+  if (str.length <= maxLength) return str;
+  return str.slice(0, maxLength) + "...";
+};
+
+const WordCountHistogram = memo(
   ({
     histogramData,
   }: {
     histogramData: { range: string; count: number; fullRange: string }[];
   }) => {
-    // Calculate total count for fractions
+    // Memoize total count calculation
     const totalCount = useMemo(
       () => histogramData.reduce((sum, item) => sum + item.count, 0),
       [histogramData]
     );
 
+    // Memoize truncated data
+    const truncatedData = useMemo(
+      () =>
+        histogramData.map((item) => ({
+          ...item,
+          range: truncateString(item.range, 10),
+          fullRange: item.fullRange,
+        })),
+      [histogramData]
+    );
+
     return (
       <ResponsiveContainer width="100%" height={40}>
-        <BarChart data={histogramData} barCategoryGap={1}>
+        <BarChart data={truncatedData} barCategoryGap={1}>
           <XAxis
             dataKey="range"
             tick={{ fontSize: 8 }}
@@ -278,7 +298,9 @@ const WordCountHistogram = React.memo(
               ).toFixed(1)}%)`,
               "Count",
             ]}
-            labelFormatter={(label: string) => label}
+            labelFormatter={(_, payload) =>
+              payload[0]?.payload?.fullRange || ""
+            }
             contentStyle={{
               backgroundColor: "hsl(var(--popover))",
               border: "1px solid hsl(var(--border))",
@@ -298,25 +320,36 @@ const WordCountHistogram = React.memo(
         </BarChart>
       </ResponsiveContainer>
     );
-  }
+  },
+  // Deep comparison for histogramData
+  (prevProps, nextProps) =>
+    JSON.stringify(prevProps.histogramData) ===
+    JSON.stringify(nextProps.histogramData)
 );
 WordCountHistogram.displayName = "WordCountHistogram";
 
-const CategoricalBarChart = React.memo(
+const CategoricalBarChart = memo(
   ({ data }: { data: { value: string; count: number }[] }) => {
+    // Memoize total count calculation
     const totalCount = useMemo(
       () => data.reduce((sum, item) => sum + item.count, 0),
       [data]
     );
 
-    // Take top 10 values for visualization
-    const displayData = data.slice(0, 10);
+    // Memoize truncated and limited data
+    const displayData = useMemo(() => {
+      return data.slice(0, 10).map((item) => ({
+        ...item,
+        displayValue: truncateString(item.value, 10),
+        fullValue: item.value,
+      }));
+    }, [data]);
 
     return (
       <ResponsiveContainer width="100%" height={40}>
         <BarChart data={displayData} barCategoryGap={1}>
           <XAxis
-            dataKey="value"
+            dataKey="displayValue"
             tick={{ fontSize: 8 }}
             interval={0}
             tickLine={false}
@@ -331,7 +364,9 @@ const CategoricalBarChart = React.memo(
               ).toFixed(1)}%)`,
               "Count",
             ]}
-            labelFormatter={(label: string) => label}
+            labelFormatter={(_, payload) =>
+              payload[0]?.payload?.fullValue || ""
+            }
             contentStyle={{
               backgroundColor: "hsl(var(--popover))",
               border: "1px solid hsl(var(--border))",
@@ -351,7 +386,10 @@ const CategoricalBarChart = React.memo(
         </BarChart>
       </ResponsiveContainer>
     );
-  }
+  },
+  // Deep comparison for data
+  (prevProps, nextProps) =>
+    JSON.stringify(prevProps.data) === JSON.stringify(nextProps.data)
 );
 CategoricalBarChart.displayName = "CategoricalBarChart";
 
@@ -366,7 +404,7 @@ interface ColumnHeaderProps {
   onExpand: () => void;
 }
 
-const ColumnHeader = React.memo(
+const ColumnHeader = memo(
   ({
     header,
     stats,
@@ -460,7 +498,7 @@ const ColumnHeader = React.memo(
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="text-muted-foreground"
+                  className="text-primary"
                 >
                   <path d="m3 16 4 4 4-4" />
                   <path d="M7 20V4" />
@@ -479,6 +517,7 @@ const ColumnHeader = React.memo(
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className="text-primary"
                 >
                   <path d="m3 8 4-4 4 4" />
                   <path d="M7 4v16" />
@@ -495,6 +534,7 @@ const ColumnHeader = React.memo(
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className="text-primary"
                 >
                   <path d="m3 16 4 4 4-4" />
                   <path d="M7 20V4" />
@@ -507,7 +547,7 @@ const ColumnHeader = React.memo(
               className="h-6 w-6 p-0"
               onClick={onExpand}
             >
-              <Maximize2 className="h-3 w-3 text-muted-foreground" />
+              <Maximize2 className="h-3 w-3 text-primary" />
             </Button>
           </div>
           <span className="ml-2">{header}</span>
@@ -579,11 +619,7 @@ const ColumnHeader = React.memo(
 );
 ColumnHeader.displayName = "ColumnHeader";
 
-const ColumnResizer = <T extends DataType>({
-  header,
-}: {
-  header: Header<T, unknown>;
-}) => {
+const ColumnResizer = memo(({ header }: { header: Header<any, unknown> }) => {
   return (
     <div
       onMouseDown={header.getResizeHandler()}
@@ -595,14 +631,15 @@ const ColumnResizer = <T extends DataType>({
       }}
     />
   );
-};
+});
+ColumnResizer.displayName = "ColumnResizer";
 
 interface ResizableRow<T extends DataType> extends Row<T> {
   getSize: () => number;
   setSize: (size: number) => void;
 }
 
-const RowResizer = <T extends DataType>({ row }: { row: ResizableRow<T> }) => {
+const RowResizer = memo(({ row }: { row: ResizableRow<any> }) => {
   return (
     <tr>
       <td colSpan={100}>
@@ -634,21 +671,22 @@ const RowResizer = <T extends DataType>({ row }: { row: ResizableRow<T> }) => {
       </td>
     </tr>
   );
-};
+});
+RowResizer.displayName = "RowResizer";
 
-interface ResizableDataTableProps<T extends DataType> {
+interface ResizableDataTableProps<T extends Record<string, unknown>> {
   data: T[];
   columns: ColumnType<T>[];
-  boldedColumns: string[];
+  boldedColumns?: string[];
   startingRowHeight?: number;
-  currentOperation: string;
+  currentOperation?: string;
 }
 
 interface MarkdownCellProps {
   content: string;
 }
 
-const MarkdownCell = React.memo(({ content }: MarkdownCellProps) => {
+const MarkdownCell = memo(({ content }: MarkdownCellProps) => {
   return (
     <ReactMarkdown
       components={{
@@ -739,7 +777,7 @@ interface ObservabilityIndicatorProps {
   currentOperation: string;
 }
 
-const ObservabilityIndicator = React.memo(
+const ObservabilityIndicator = memo(
   ({ row, currentOperation }: ObservabilityIndicatorProps) => {
     // Only show observability data for the current operation
     const observabilityEntries = Object.entries(row).filter(
@@ -797,11 +835,11 @@ const createSortingFns = <T extends DataType>(
   },
 });
 
-function ResizableDataTable<T extends DataType>({
+export default function ResizableDataTable<T extends Record<string, unknown>>({
   data,
   columns,
-  boldedColumns,
-  startingRowHeight = 60,
+  boldedColumns = [],
+  startingRowHeight = 40,
   currentOperation,
 }: ResizableDataTableProps<T>) {
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
@@ -920,6 +958,7 @@ function ResizableDataTable<T extends DataType>({
       })
       .map((col) => ({
         ...col,
+        id: col.accessorKey,
         enableSorting: true,
         filterFn: fuzzyFilter,
         sortingFn: (rowA: Row<T>, rowB: Row<T>) => {
@@ -1305,5 +1344,3 @@ function ResizableDataTable<T extends DataType>({
     </div>
   );
 }
-
-export default ResizableDataTable;

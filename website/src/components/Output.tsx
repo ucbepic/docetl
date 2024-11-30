@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
@@ -24,6 +24,7 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from "recharts";
+import { memo } from "react";
 
 const TinyPieChart: React.FC<{ percentage: number }> = ({ percentage }) => {
   const size = 16;
@@ -66,9 +67,322 @@ const TinyPieChart: React.FC<{ percentage: number }> = ({ percentage }) => {
   );
 };
 
-export const ConsoleContent: React.FC = () => {
+// Create a custom hook to find the operation only when needed
+const useOperation = (operationId: string | undefined) => {
+  const { operations } = usePipelineContext();
+  return useMemo(
+    () => operations.find((op) => op.id === operationId),
+    [operationId] // Only depend on the ID, not the operations array
+  );
+};
+
+// Update the useOutputContext to not include operations
+const useOutputContext = () => {
+  const {
+    output,
+    isLoadingOutputs,
+    terminalOutput,
+    setTerminalOutput,
+    optimizerProgress,
+  } = usePipelineContext();
+
+  return {
+    output,
+    isLoadingOutputs,
+    terminalOutput,
+    setTerminalOutput,
+    optimizerProgress,
+  };
+};
+
+// First, move TableContent outside and give it a display name
+const TableContent = memo(
+  ({
+    opName,
+    isLoadingOutputs,
+    outputs,
+    operation,
+    columns,
+  }: {
+    opName: string | undefined;
+    isLoadingOutputs: boolean;
+    outputs: OutputRow[];
+    operation: Operation | undefined;
+    columns: ColumnType<OutputRow>[];
+  }) => {
+    return (
+      <div className="flex-1 min-h-0">
+        {!opName ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-muted-foreground">No operation selected.</p>
+          </div>
+        ) : isLoadingOutputs ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <span className="ml-2 text-muted-foreground">
+              Loading outputs...
+            </span>
+          </div>
+        ) : outputs.length > 0 ? (
+          <div className="h-full">
+            <ResizableDataTable
+              data={outputs}
+              columns={columns}
+              boldedColumns={
+                operation?.output?.schema
+                  ? operation.output.schema.map((field) => field.key)
+                  : []
+              }
+              startingRowHeight={180}
+              currentOperation={opName}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-muted-foreground">No outputs available.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+TableContent.displayName = "TableContent";
+
+// Move VisualizeContent outside
+const VisualizeContent = memo(
+  ({
+    opName,
+    outputs,
+    operation,
+  }: {
+    opName: string | undefined;
+    outputs: OutputRow[];
+    operation: Operation | undefined;
+  }) => {
+    const visualizationColumn = useMemo(() => {
+      if (!opName) return null;
+      const reduceColumnName = `_counts_prereduce_${opName}`;
+      const resolveColumnName = `_kv_pairs_preresolve_${opName}`;
+      return outputs.length > 0 && reduceColumnName in outputs[0]
+        ? { name: reduceColumnName, type: "reduce" }
+        : outputs.length > 0 && resolveColumnName in outputs[0]
+        ? { name: resolveColumnName, type: "resolve" }
+        : null;
+    }, [outputs, opName, operation]);
+
+    if (!visualizationColumn || !operation) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-muted-foreground">
+            No visualization data available.
+          </p>
+        </div>
+      );
+    }
+
+    if (operation.type === "reduce") {
+      const reduceKeys = operation.otherKwargs?.reduce_key || [];
+      const chartData = outputs
+        .sort(
+          (a, b) =>
+            Number(b[visualizationColumn.name]) -
+            Number(a[visualizationColumn.name])
+        )
+        .map((row) => ({
+          name: reduceKeys.map((key: string) => `${row[key]}`).join(", "),
+          value: Number(row[visualizationColumn.name]),
+        }));
+
+      return (
+        <div className="h-full p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
+            >
+              <XAxis
+                type="number"
+                tickFormatter={(value) => value.toLocaleString()}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={100}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <RechartsTooltip
+                formatter={(value: number) => [value.toLocaleString(), "Count"]}
+                contentStyle={{
+                  backgroundColor: "hsl(var(--popover))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "var(--radius)",
+                  color: "hsl(var(--popover-foreground))",
+                  padding: "8px 12px",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                }}
+              />
+              <Bar
+                dataKey="value"
+                fill="hsl(var(--chart-2))"
+                name="Count"
+                radius={[0, 4, 4, 0]} // Adjusted for vertical layout
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      );
+    } else if (operation.type === "resolve") {
+      const groupedData = useMemo(() => {
+        const intersectionKeys = new Set(
+          outputs.flatMap((row) => {
+            // @ts-expect-error - Record type needs refinement for kvPairs structure
+            const kvPairs = row[visualizationColumn.name] as Record<
+              string,
+              unknown
+            >;
+            return Object.keys(kvPairs).filter((key) => key in row);
+          })
+        );
+
+        const groupedByIntersection: {
+          [key: string]: {
+            count: number;
+            oldValues: Record<string, unknown>[];
+          };
+        } = {};
+
+        outputs.forEach((row) => {
+          // @ts-expect-error - Record type needs refinement for kvPairs structure
+          const kvPairs = row[visualizationColumn.name] as Record<
+            string,
+            unknown
+          >;
+          const key = Array.from(intersectionKeys)
+            .map((k) => row[k])
+            .join("|");
+
+          if (!groupedByIntersection[key]) {
+            groupedByIntersection[key] = {
+              count: 0,
+              oldValues: [],
+            };
+          }
+          groupedByIntersection[key].count++;
+          groupedByIntersection[key].oldValues.push(kvPairs);
+        });
+
+        return Object.entries(groupedByIntersection)
+          .map(([key, data]) => ({
+            name: key,
+            value: data.count,
+            oldValues: data.oldValues,
+          }))
+          .sort((a, b) => b.value - a.value);
+      }, [outputs, visualizationColumn.name]);
+
+      return (
+        <div className="h-full p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={groupedData}
+              layout="vertical"
+              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
+            >
+              <XAxis
+                type="number"
+                tickFormatter={(value) => value.toLocaleString()}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={100}
+                className="text-foreground text-xs"
+                stroke="currentColor"
+              />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+
+                    // Compute distinct values by stringifying and using Set
+                    const distinctValues = Array.from(
+                      new Set(
+                        data.oldValues.map((value) =>
+                          JSON.stringify(value, null, 2)
+                        )
+                      )
+                      // @ts-expect-error - Record type needs refinement for kvPairs structure
+                    ).map((str) => JSON.parse(str));
+
+                    // Calculate percentage of total documents
+                    const totalDocs = groupedData.reduce(
+                      (sum, item) => sum + item.value,
+                      0
+                    );
+                    const percentage = ((data.value / totalDocs) * 100).toFixed(
+                      1
+                    );
+
+                    return (
+                      <div className="bg-[hsl(var(--popover))] border border-[hsl(var(--border))] rounded-[var(--radius)] p-3 shadow-md max-h-[400px] overflow-y-auto w-[400px]">
+                        <p className="font-medium mb-2">
+                          {data.value.toLocaleString()} Documents ({percentage}
+                          %)
+                        </p>
+                        <div className="text-sm space-y-2">
+                          <p className="font-medium text-[hsl(var(--muted-foreground))]">
+                            {distinctValues.length} distinct value
+                            {distinctValues.length !== 1 ? "s" : ""} before
+                            resolution:
+                          </p>
+                          {distinctValues.map((value, idx) => (
+                            <pre
+                              key={idx}
+                              className="text-xs bg-[hsl(var(--muted)/.1)] p-2 rounded overflow-x-auto whitespace-pre-wrap break-all"
+                            >
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar
+                dataKey="value"
+                fill="hsl(var(--chart-2))"
+                name="Documents"
+                radius={[0, 4, 4, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">
+          Visualization not supported for this operation type.
+        </p>
+      </div>
+    );
+  }
+);
+VisualizeContent.displayName = "VisualizeContent";
+
+// Move ConsoleContent outside
+export const ConsoleContent = memo(() => {
   const { terminalOutput, setTerminalOutput, optimizerProgress } =
-    usePipelineContext();
+    useOutputContext();
   const { readyState } = useWebSocket();
 
   return (
@@ -155,40 +469,99 @@ export const ConsoleContent: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+ConsoleContent.displayName = "ConsoleContent";
 
-export const Output: React.FC = () => {
-  const { output, isLoadingOutputs, operations } = usePipelineContext();
+// Main Output component
+export const Output = memo(() => {
+  const { output, isLoadingOutputs } = useOutputContext();
+  const operation = useOperation(output?.operationId);
+
   const [outputs, setOutputs] = useState<OutputRow[]>([]);
   const [inputCount, setInputCount] = useState<number>(0);
   const [outputCount, setOutputCount] = useState<number>(0);
 
-  const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [opName, setOpName] = useState<string | undefined>(undefined);
   const [isResolveOrReduce, setIsResolveOrReduce] = useState<boolean>(false);
 
   const [activeTab, setActiveTab] = useState<string>("table");
   const { readyState } = useWebSocket();
 
+  // Effect for operation updates
   useEffect(() => {
-    if (isLoadingOutputs) {
-      setActiveTab("console");
-    } else {
-      setActiveTab("table");
-    }
+    setOpName(operation?.name);
+    setIsResolveOrReduce(
+      operation?.type === "resolve" || operation?.type === "reduce"
+    );
+  }, [operation]);
+
+  // Effect for tab changes
+  useEffect(() => {
+    setActiveTab(isLoadingOutputs ? "console" : "table");
   }, [isLoadingOutputs]);
 
-  useEffect(() => {
-    const foundOperation = operations.find(
-      (op: Operation) => op.id === output?.operationId
-    );
-    setOperation(foundOperation);
-    setOpName(foundOperation?.name);
-    setIsResolveOrReduce(
-      foundOperation?.type === "resolve" || foundOperation?.type === "reduce"
-    );
-  }, [operations, output]);
+  // Memoize columns
+  const columns = useMemo(() => {
+    const importantColumns = operation?.output?.schema
+      ? operation.output.schema.map((field) => field.key)
+      : [];
 
+    return outputs.length > 0
+      ? (Object.keys(outputs[0]).map((key) => ({
+          accessorKey: key,
+          header: key,
+          cell: ({ getValue }: { getValue: () => unknown }) => {
+            const value = getValue();
+            const stringValue =
+              typeof value === "object" && value !== null
+                ? JSON.stringify(value, null, 2)
+                : String(value);
+            return (
+              <pre className="whitespace-pre-wrap font-mono text-sm">
+                {stringValue}
+              </pre>
+            );
+          },
+          initialWidth: importantColumns?.includes(key) ? 300 : 150,
+        })) as ColumnType<OutputRow>[])
+      : [];
+  }, [outputs, operation?.output?.schema]);
+
+  // Memoize handlers
+  const downloadCSV = useCallback(() => {
+    if (outputs.length === 0) return;
+
+    try {
+      const parser = new Parser();
+      const csvContent = parser.parse(outputs);
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "output.csv");
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      console.error("Error converting to CSV:", err);
+    }
+  }, [outputs]);
+
+  const handleTabChange = useCallback((value: string) => {
+    setActiveTab(value);
+  }, []);
+
+  // Memoize computed values
+  const selectivityFactor = useMemo(
+    () => (inputCount > 0 ? (outputCount / inputCount).toFixed(2) : "N/A"),
+    [inputCount, outputCount]
+  );
+
+  // Add back the data fetching effect
   useEffect(() => {
     const fetchData = async () => {
       if (output) {
@@ -262,311 +635,7 @@ export const Output: React.FC = () => {
     };
 
     fetchData();
-  }, [output, isLoadingOutputs]);
-
-  const columns: ColumnType<OutputRow>[] = React.useMemo(() => {
-    const importantColumns = operation?.output?.schema
-      ? operation.output.schema.map((field) => field.key)
-      : [];
-
-    return outputs.length > 0
-      ? Object.keys(outputs[0]).map((key) => ({
-          accessorKey: key,
-          header: key,
-          cell: ({ getValue }: { getValue: () => unknown }) => {
-            const value = getValue();
-            const stringValue =
-              typeof value === "object" && value !== null
-                ? JSON.stringify(value, null, 2)
-                : String(value);
-            return (
-              <pre className="whitespace-pre-wrap font-mono text-sm">
-                {stringValue}
-              </pre>
-            );
-          },
-          initialWidth: importantColumns?.includes(key) ? 300 : 150,
-        }))
-      : [];
-  }, [outputs, operation?.output?.schema]);
-
-  const TableContent = () => (
-    <div className="flex-1 min-h-0">
-      {!opName ? (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">No operation selected.</p>
-        </div>
-      ) : isLoadingOutputs ? (
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          <span className="ml-2 text-muted-foreground">Loading outputs...</span>
-        </div>
-      ) : outputs.length > 0 ? (
-        <div className="h-full">
-          <ResizableDataTable
-            data={outputs}
-            columns={columns}
-            boldedColumns={
-              operation?.output?.schema
-                ? operation.output.schema.map((field) => field.key)
-                : []
-            }
-            startingRowHeight={180}
-            currentOperation={opName}
-          />
-        </div>
-      ) : (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">No outputs available.</p>
-        </div>
-      )}
-    </div>
-  );
-
-  const VisualizeContent = () => {
-    const visualizationColumn = useMemo(() => {
-      if (!opName) return null;
-      const reduceColumnName = `_counts_prereduce_${opName}`;
-      const resolveColumnName = `_kv_pairs_preresolve_${opName}`;
-      return outputs.length > 0 && reduceColumnName in outputs[0]
-        ? { name: reduceColumnName, type: "reduce" }
-        : outputs.length > 0 && resolveColumnName in outputs[0]
-        ? { name: resolveColumnName, type: "resolve" }
-        : null;
-    }, [outputs, opName, operation]);
-
-    if (!visualizationColumn || !operation) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">
-            No visualization data available.
-          </p>
-        </div>
-      );
-    }
-
-    if (operation.type === "reduce") {
-      const reduceKeys = operation.otherKwargs?.reduce_key || [];
-      const chartData = outputs
-        .sort(
-          (a, b) =>
-            Number(b[visualizationColumn.name]) -
-            Number(a[visualizationColumn.name])
-        )
-        .map((row) => ({
-          name: reduceKeys.map((key: string) => `${row[key]}`).join(", "),
-          value: Number(row[visualizationColumn.name]),
-        }));
-
-      return (
-        <div className="h-full p-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              layout="vertical"
-              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
-            >
-              <XAxis
-                type="number"
-                tickFormatter={(value) => value.toLocaleString()}
-                className="text-foreground text-xs"
-                stroke="currentColor"
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={100}
-                className="text-foreground text-xs"
-                stroke="currentColor"
-              />
-              <RechartsTooltip
-                formatter={(value: number) => [value.toLocaleString(), "Count"]}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "var(--radius)",
-                  color: "hsl(var(--popover-foreground))",
-                  padding: "8px 12px",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                }}
-              />
-              <Bar
-                dataKey="value"
-                fill="hsl(var(--chart-2))"
-                name="Count"
-                radius={[0, 4, 4, 0]} // Adjusted for vertical layout
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    } else if (operation.type === "resolve") {
-      const groupedData = useMemo(() => {
-        const intersectionKeys = new Set(
-          outputs.flatMap((row) => {
-            // @ts-expect-error Record type needs refinement
-            const kvPairs = row[visualizationColumn.name] as Record<
-              string,
-              unknown
-            >;
-            return Object.keys(kvPairs).filter((key) => key in row);
-          })
-        );
-
-        const groupedByIntersection: {
-          [key: string]: {
-            count: number;
-            oldValues: Record<string, unknown>[];
-          };
-        } = {};
-
-        outputs.forEach((row) => {
-          // @ts-expect-error Record type needs refinement
-          const kvPairs = row[visualizationColumn.name] as Record<
-            string,
-            unknown
-          >;
-          const key = Array.from(intersectionKeys)
-            .map((k) => row[k])
-            .join("|");
-
-          if (!groupedByIntersection[key]) {
-            groupedByIntersection[key] = {
-              count: 0,
-              oldValues: [],
-            };
-          }
-          groupedByIntersection[key].count++;
-          groupedByIntersection[key].oldValues.push(kvPairs);
-        });
-
-        return Object.entries(groupedByIntersection)
-          .map(([key, data]) => ({
-            name: key,
-            value: data.count,
-            oldValues: data.oldValues,
-          }))
-          .sort((a, b) => b.value - a.value);
-      }, [outputs, visualizationColumn.name]);
-
-      return (
-        <div className="h-full p-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={groupedData}
-              layout="vertical"
-              margin={{ left: 100, right: 20, top: 20, bottom: 20 }}
-            >
-              <XAxis
-                type="number"
-                tickFormatter={(value) => value.toLocaleString()}
-                className="text-foreground text-xs"
-                stroke="currentColor"
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={100}
-                className="text-foreground text-xs"
-                stroke="currentColor"
-              />
-              <RechartsTooltip
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const data = payload[0].payload;
-
-                    // Compute distinct values by stringifying and using Set
-                    const distinctValues = Array.from(
-                      new Set(
-                        data.oldValues.map((value) =>
-                          JSON.stringify(value, null, 2)
-                        )
-                      )
-                      // @ts-expect-error
-                    ).map((str) => JSON.parse(str));
-
-                    // Calculate percentage of total documents
-                    const totalDocs = groupedData.reduce(
-                      (sum, item) => sum + item.value,
-                      0
-                    );
-                    const percentage = ((data.value / totalDocs) * 100).toFixed(
-                      1
-                    );
-
-                    return (
-                      <div className="bg-[hsl(var(--popover))] border border-[hsl(var(--border))] rounded-[var(--radius)] p-3 shadow-md max-h-[400px] overflow-y-auto w-[400px]">
-                        <p className="font-medium mb-2">
-                          {data.value.toLocaleString()} Documents ({percentage}
-                          %)
-                        </p>
-                        <div className="text-sm space-y-2">
-                          <p className="font-medium text-[hsl(var(--muted-foreground))]">
-                            {distinctValues.length} distinct value
-                            {distinctValues.length !== 1 ? "s" : ""} before
-                            resolution:
-                          </p>
-                          {distinctValues.map((value, idx) => (
-                            <pre
-                              key={idx}
-                              className="text-xs bg-[hsl(var(--muted)/.1)] p-2 rounded overflow-x-auto whitespace-pre-wrap break-all"
-                            >
-                              {JSON.stringify(value, null, 2)}
-                            </pre>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Bar
-                dataKey="value"
-                fill="hsl(var(--chart-2))"
-                name="Documents"
-                radius={[0, 4, 4, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">
-          Visualization not supported for this operation type.
-        </p>
-      </div>
-    );
-  };
-
-  const downloadCSV = () => {
-    if (outputs.length === 0) return;
-
-    try {
-      const parser = new Parser();
-      const csvContent = parser.parse(outputs);
-
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", "output.csv");
-        link.style.visibility = "hidden";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    } catch (err) {
-      console.error("Error converting to CSV:", err);
-    }
-  };
-
-  const selectivityFactor =
-    inputCount > 0 ? (outputCount / inputCount).toFixed(2) : "N/A";
+  }, [output, operation?.otherKwargs?.prompts, isLoadingOutputs]);
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -662,7 +731,7 @@ export const Output: React.FC = () => {
 
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
         className="flex-1 flex flex-col min-h-0"
       >
         <div className="flex-none px-4">
@@ -687,7 +756,13 @@ export const Output: React.FC = () => {
             value="table"
             className="h-full data-[state=active]:flex flex-col"
           >
-            <TableContent />
+            <TableContent
+              opName={opName}
+              isLoadingOutputs={isLoadingOutputs}
+              outputs={outputs}
+              operation={operation}
+              columns={columns}
+            />
           </TabsContent>
           <TabsContent
             value="console"
@@ -699,10 +774,15 @@ export const Output: React.FC = () => {
             value="visualize"
             className="h-full data-[state=active]:flex flex-col"
           >
-            <VisualizeContent />
+            <VisualizeContent
+              opName={opName}
+              outputs={outputs}
+              operation={operation}
+            />
           </TabsContent>
         </div>
       </Tabs>
     </div>
   );
-};
+});
+Output.displayName = "Output";

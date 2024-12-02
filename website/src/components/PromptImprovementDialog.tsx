@@ -700,6 +700,7 @@ Remember to ${
       setMessages([]);
       setRevisions([]);
       onOpenChange(false);
+      setStep("select"); // Reset to first screen
     }
   };
 

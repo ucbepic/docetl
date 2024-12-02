@@ -7,6 +7,7 @@ The DocETL Playground is an integrated development environment (IDE) for buildin
 This **interactive playground** streamlines development from prototype to production! **Our (in-progress) user studies show 100% of developers** found building pipelines significantly faster and easier with our playground vs traditional approaches.
 
 Building complex LLM pipelines for your data often requires experimentation and iteration. The IDE lets you:
+
 - 🚀 Test prompts and see results instantly
 - ✨ Refine operations based on sample outputs  
 - 🔄 Build complex pipelines step-by-step
@@ -19,7 +20,7 @@ There are two ways to run the playground:
 
 The easiest way to get started is using Docker:
 
-1. Create the required environment files:
+#### a) Create the required environment files:
 
 Create `.env` in the root directory (for the FastAPI backend):
 ```bash
@@ -42,17 +43,19 @@ NEXT_PUBLIC_BACKEND_HOST=localhost
 NEXT_PUBLIC_BACKEND_PORT=8000
 ```
 
-2. Run Docker:
+#### b) Run Docker:
 ```bash
 make docker
 ```
 
 This will:
+
 - Create a Docker volume for persistent data
 - Build the DocETL image
 - Run the container with the UI accessible at http://localhost:3000 and API at http://localhost:8000
 
 To clean up Docker resources (note that this will delete the Docker volume):
+
 ```bash
 make docker-clean
 ```

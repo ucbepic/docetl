@@ -150,7 +150,9 @@ IMPORTANT:
     : "You must ALWAYS include a complete revised prompt wrapped in <prompt></prompt> tags in your response"
 }, even if you're just responding to feedback.
 
-2. Only suggest schema key changes if absolutely necessary - when the current keys are misleading, incorrect, or ambiguous. If the schema keys are fine, don't suggest changes. Include changes in <schema> tags as a list of "oldkey,newkey" pairs, one per line. Example:
+2. CRITICAL: Never modify or remove any placeholders wrapped in {{ }} brackets - these are essential template variables that must remain exactly as they are.
+
+3. Only suggest schema key changes if absolutely necessary - when the current keys are misleading, incorrect, or ambiguous. If the schema keys are fine, don't suggest changes. Include changes in <schema> tags as a list of "oldkey,newkey" pairs, one per line. Example:
 <schema>
 misleading_key,accurate_key
 ambiguous_name,specific_name
@@ -170,6 +172,7 @@ When responding:
    - For subjective terms like "detailed" or "comprehensive", provide examples or metrics (e.g. "include 3-5 key points per section")
    - For qualitative instructions like "long output", specify length (e.g. "200-300 words") based on my feedback or provide examples
    - When using adjectives, include a reference point (e.g. "technical like API documentation" vs "simple like a blog post")
+   - NEVER modify any {{placeholder}} variables - keep them exactly as they are
 5. IMPORTANT: When writing prompts that ask for specific types of analysis or output, ALWAYS include 1-2 brief examples of the expected output format. For instance:
 
 Instead of:

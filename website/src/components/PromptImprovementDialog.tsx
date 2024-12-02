@@ -169,7 +169,30 @@ When responding:
 4. Make prompts specific and concise:
    - For subjective terms like "detailed" or "comprehensive", provide examples or metrics (e.g. "include 3-5 key points per section")
    - For qualitative instructions like "long output", specify length (e.g. "200-300 words") based on my feedback or provide examples
-   - When using adjectives, include a reference point (e.g. "technical like API documentation" vs "simple like a blog post")`;
+   - When using adjectives, include a reference point (e.g. "technical like API documentation" vs "simple like a blog post")
+5. IMPORTANT: When writing prompts that ask for specific types of analysis or output, ALWAYS include 1-2 brief examples of the expected output format. For instance:
+
+Instead of:
+"Extract the key points about the company's financial performance"
+
+Write:
+"Extract the key points about the company's financial performance. Format each point like this:
+- Revenue: [Key metric] (with % change from previous period)
+Example: 'Revenue: $5.2M in Q2 2023 (+15% YoY)'
+- Profit margins: [Percentage] with brief context
+Example: 'Profit margin: 23% (improved due to cost optimization)'"
+
+Instead of:
+"Compare the technical specifications"
+
+Write:
+"Compare the technical specifications. For each component, provide a structured comparison like this:
+- Processing Power:
+  * Product A: 2.4GHz quad-core
+  * Product B: 3.1GHz octa-core
+  * Key difference: B offers 2.5x more processing threads"
+
+Your suggested prompt should follow this pattern of including concrete examples that demonstrate the expected format and level of detail.`;
 
 function extractSchemaChanges(text: string): Array<[string, string]> {
   const schemaContent = extractTagContent(text, "schema");

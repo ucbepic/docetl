@@ -779,7 +779,7 @@ class APIWrapper(object):
             parameters["required"] = list(props.keys())
 
             # TODO: this is a hack to get around the fact that gemini doesn't support additionalProperties
-            if "gemini" not in model:
+            if "gemini" not in model and "claude" not in model:
                 parameters["additionalProperties"] = False
 
             tools = [
@@ -788,12 +788,14 @@ class APIWrapper(object):
                     "function": {
                         "name": "send_output",
                         "description": "Send output back to the user",
-                        "strict": True,
                         "parameters": parameters,
-                        "additionalProperties": False,
                     },
                 }
             ]
+            if "claude" not in model:
+                tools[0]["additionalProperties"] = False
+                tools[0]["strict"] = True
+
             tool_choice = {"type": "function", "function": {"name": "send_output"}}
 
         elif tools is not None:

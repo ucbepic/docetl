@@ -483,6 +483,7 @@ const PipelineGUI: React.FC = () => {
           operation_id: operations[operations.length - 1].id,
           name: pipelineName,
           sample_size: sampleSize,
+          system_prompt: systemPrompt,
         }),
       });
 

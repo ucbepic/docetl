@@ -30,14 +30,14 @@ export async function POST(request: Request) {
 
     const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
     const { inputPath, outputPath } = generatePipelineConfig(
+      namespace,
       default_model,
       data,
       operations,
       operation_id,
       name,
       homeDir,
-      sample_size,
-      namespace
+      sample_size
     );
 
     // Check if inputPath exists

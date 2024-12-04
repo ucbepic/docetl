@@ -37,8 +37,7 @@ export async function POST(request: Request) {
       operation_id,
       name,
       homeDir,
-      sample_size,
-      namespace
+      sample_size
     );
 
     // Check if inputPath exists

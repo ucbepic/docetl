@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
 
     const { yamlString } = generatePipelineConfig(
+      namespace,
       default_model,
       data,
       operations,
@@ -38,7 +39,6 @@ export async function POST(request: Request) {
       name,
       homeDir,
       sample_size,
-      namespace,
       system_prompt
     );
 

@@ -10,11 +10,8 @@ export async function POST(request: Request) {
       operation_id,
       name,
       sample_size,
-<<<<<<< HEAD
       namespace,
-=======
       system_prompt,
->>>>>>> bd40799e0107677650c615d0e238ebe62794e6c3
     } = await request.json();
 
     if (!name) {
@@ -41,11 +38,8 @@ export async function POST(request: Request) {
       name,
       homeDir,
       sample_size,
-<<<<<<< HEAD
-      namespace
-=======
+      namespace,
       system_prompt
->>>>>>> bd40799e0107677650c615d0e238ebe62794e6c3
     );
 
     return NextResponse.json({ pipelineConfig: yamlString });

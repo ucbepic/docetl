@@ -3,8 +3,15 @@ import { generatePipelineConfig } from "@/app/api/utils";
 import os from "os";
 export async function POST(request: Request) {
   try {
-    const { default_model, data, operations, operation_id, name, sample_size } =
-      await request.json();
+    const {
+      default_model,
+      data,
+      operations,
+      operation_id,
+      name,
+      sample_size,
+      namespace,
+    } = await request.json();
 
     if (!name) {
       return NextResponse.json(
@@ -29,7 +36,8 @@ export async function POST(request: Request) {
       operation_id,
       name,
       homeDir,
-      sample_size
+      sample_size,
+      namespace
     );
 
     return NextResponse.json({ pipelineConfig: yamlString });

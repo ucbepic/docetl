@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       optimize = false,
       clear_intermediate = false,
       system_prompt,
+      namespace,
     } = await request.json();
 
     if (!name) {
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
     const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
 
     const { yamlString, inputPath, outputPath } = generatePipelineConfig(
+      namespace,
       default_model,
       data,
       operations,
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
     );
 
     // Save the YAML file in the user's home directory
-    const pipelineDir = path.join(homeDir, ".docetl", "pipelines");
+    const pipelineDir = path.join(homeDir, ".docetl", namespace, "pipelines");
     const configDir = path.join(pipelineDir, "configs");
     const nameDir = path.join(pipelineDir, name, "intermediates");
 

@@ -10,6 +10,7 @@ import {
   X,
   MessageSquare,
   Maximize2,
+  Wand2,
 } from "lucide-react";
 import {
   Select,
@@ -105,13 +106,16 @@ const BookmarksPanel: React.FC = () => {
           Clear All
         </Button>
       </div>
-      <div className="text-xs mb-4 bg-muted/50 p-2 rounded-md flex items-center gap-2">
-        <span className="text-muted-foreground">Tip:</span>
-        <span>
-          Click{" "}
-          <Maximize2 className="h-3 w-3 inline-block mx-0.5 text-primary" /> in
-          any output column to leave feedback
-        </span>
+      <div className="text-xs mb-2 bg-muted/50 p-2 rounded-md">
+        <span className="text-muted-foreground font-medium">Tip: </span>
+        Click <Maximize2 className="h-3 w-3 inline-block mx-0.5 text-primary" />{" "}
+        in any output column to leave feedback
+      </div>
+      <div className="text-xs mb-4 bg-yellow-100/50 p-2 rounded-md">
+        <span className="text-muted-foreground font-medium">Note: </span>
+        Notes are only used when clicking{" "}
+        <Wand2 className="h-3 w-3 inline-block mx-0.5 text-primary" /> Improve
+        Prompt, not in operation prompts
       </div>
       <div className="flex mb-2">
         <Input

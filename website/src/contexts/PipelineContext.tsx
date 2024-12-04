@@ -39,6 +39,7 @@ interface PipelineState {
   autoOptimizeCheck: boolean;
   highLevelGoal: string;
   systemPrompt: { datasetDescription: string | null; persona: string | null };
+  namespace: string | null;
 }
 
 interface PipelineContextType extends PipelineState {
@@ -75,6 +76,7 @@ interface PipelineContextType extends PipelineState {
       persona: string | null;
     }>
   >;
+  setNamespace: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -313,6 +315,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       datasetDescription: null,
       persona: null,
     }),
+    namespace: loadFromLocalStorage(localStorageKeys.NAMESPACE_KEY, null),
   }));
 
   const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -383,32 +386,12 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.SYSTEM_PROMPT_KEY,
       JSON.stringify(stateRef.current.systemPrompt)
     );
+    localStorage.setItem(
+      localStorageKeys.NAMESPACE_KEY,
+      JSON.stringify(stateRef.current.namespace)
+    );
     setUnsavedChanges(false);
   }, []);
-
-  const setStateAndUpdate = useCallback(
-    <K extends keyof PipelineState>(
-      key: K,
-      value:
-        | PipelineState[K]
-        | ((prevState: PipelineState[K]) => PipelineState[K])
-    ) => {
-      setState((prevState) => {
-        const newValue =
-          typeof value === "function"
-            ? (value as (prev: PipelineState[K]) => PipelineState[K])(
-                prevState[key]
-              )
-            : value;
-        if (newValue !== prevState[key]) {
-          setUnsavedChanges(true);
-          return { ...prevState, [key]: newValue };
-        }
-        return prevState;
-      });
-    },
-    []
-  );
 
   const clearPipelineState = useCallback(() => {
     Object.values(localStorageKeys).forEach((key) => {
@@ -431,10 +414,45 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       autoOptimizeCheck: false,
       highLevelGoal: "",
       systemPrompt: { datasetDescription: null, persona: null },
+      namespace: null,
     });
     setUnsavedChanges(false);
     console.log("Pipeline state cleared!");
   }, []);
+
+  const setStateAndUpdate = useCallback(
+    <K extends keyof PipelineState>(
+      key: K,
+      value:
+        | PipelineState[K]
+        | ((prevState: PipelineState[K]) => PipelineState[K])
+    ) => {
+      setState((prevState) => {
+        const newValue =
+          typeof value === "function"
+            ? (value as (prev: PipelineState[K]) => PipelineState[K])(
+                prevState[key]
+              )
+            : value;
+        if (newValue !== prevState[key]) {
+          if (key === "namespace") {
+            clearPipelineState();
+            localStorage.setItem(
+              localStorageKeys.NAMESPACE_KEY,
+              JSON.stringify(newValue)
+            );
+            window.location.reload();
+            return prevState;
+          } else {
+            setUnsavedChanges(true);
+            return { ...prevState, [key]: newValue };
+          }
+        }
+        return prevState;
+      });
+    },
+    [clearPipelineState]
+  );
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -519,6 +537,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     ),
     setSystemPrompt: useCallback(
       (value) => setStateAndUpdate("systemPrompt", value),
+      [setStateAndUpdate]
+    ),
+    setNamespace: useCallback(
+      (value) => setStateAndUpdate("namespace", value),
       [setStateAndUpdate]
     ),
   };

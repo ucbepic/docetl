@@ -10,6 +10,7 @@ export async function POST(request: Request) {
       operation_id,
       name,
       sample_size,
+      namespace,
       system_prompt,
     } = await request.json();
 
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       name,
       homeDir,
       sample_size,
+      namespace,
       system_prompt
     );
 

@@ -132,6 +132,7 @@ const PipelineGUI: React.FC = () => {
     setAutoOptimizeCheck,
     systemPrompt,
     setSystemPrompt,
+    namespace,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
@@ -483,6 +484,7 @@ const PipelineGUI: React.FC = () => {
           operation_id: operations[operations.length - 1].id,
           name: pipelineName,
           sample_size: sampleSize,
+          namespace,
           system_prompt: systemPrompt,
         }),
       });
@@ -555,6 +557,7 @@ const PipelineGUI: React.FC = () => {
             sample_size: sampleSize,
             clear_intermediate: clear_intermediate,
             system_prompt: systemPrompt,
+            namespace,
           }),
         });
 

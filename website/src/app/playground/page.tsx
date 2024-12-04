@@ -85,6 +85,13 @@ import {
 import * as localStorageKeys from "@/app/localStorageKeys";
 import { toast } from "@/hooks/use-toast";
 import AIChatPanel from "@/components/AIChatPanel";
+const NamespaceDialog = dynamic(
+  () =>
+    import("@/components/NamespaceDialog").then((mod) => mod.NamespaceDialog),
+  {
+    ssr: false,
+  }
+);
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg
@@ -158,15 +165,14 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   const {
-    operations,
     currentFile,
-    setOperations,
     setCurrentFile,
     cost,
     files,
@@ -174,7 +180,16 @@ const CodeEditorPipelineApp: React.FC = () => {
     clearPipelineState,
     saveProgress,
     unsavedChanges,
+    namespace,
+    setNamespace,
   } = usePipelineContext();
+
+  useEffect(() => {
+    const savedNamespace = localStorage.getItem(localStorageKeys.NAMESPACE_KEY);
+    if (!savedNamespace) {
+      setShowNamespaceDialog(true);
+    }
+  }, []);
 
   const handleSaveAs = async () => {
     try {
@@ -293,6 +308,9 @@ const CodeEditorPipelineApp: React.FC = () => {
                   </AlertDialog>
                   <MenubarItem onSelect={handleOpen}>Open</MenubarItem>
                   <MenubarItem onSelect={handleSaveAs}>Save As</MenubarItem>
+                  <MenubarItem onSelect={() => setShowNamespaceDialog(true)}>
+                    Change Namespace
+                  </MenubarItem>
                 </MenubarContent>
               </MenubarMenu>
               <MenubarMenu>
@@ -349,6 +367,9 @@ const CodeEditorPipelineApp: React.FC = () => {
           <div className="flex items-center">
             <Scroll className="mr-2 text-primary" size={20} />
             <h1 className="text-lg font-bold text-primary">DocETL</h1>
+            {isMounted && (
+              <span className="ml-2 text-sm text-gray-600">({namespace})</span>
+            )}
           </div>
           <div className="flex-1 flex justify-end items-center space-x-1">
             <TooltipProvider>
@@ -468,6 +489,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                     setCurrentFile={setCurrentFile}
                     setShowDatasetView={setShowDatasetView}
                     currentFile={currentFile}
+                    namespace={namespace}
                   />
                 </ResizablePanel>
                 <ResizableHandle
@@ -534,6 +556,16 @@ const CodeEditorPipelineApp: React.FC = () => {
             </>
           )}
         </ResizablePanelGroup>
+        <NamespaceDialog
+          open={showNamespaceDialog}
+          onOpenChange={setShowNamespaceDialog}
+          currentNamespace={namespace}
+          onSave={(newNamespace) => {
+            setNamespace(newNamespace);
+            setShowNamespaceDialog(false);
+            saveProgress();
+          }}
+        />
       </div>
     </BookmarkProvider>
   );

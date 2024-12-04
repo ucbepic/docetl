@@ -2,7 +2,7 @@ import copy
 import json
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from rich.console import Console
 
@@ -26,6 +26,7 @@ class PlanGenerator:
         ],
         max_threads: int,
         is_filter: bool = False,
+        depth: int = 1,
     ):
         self.llm_client = llm_client
         self.console = console
@@ -39,8 +40,11 @@ class PlanGenerator:
         )
         self.max_threads = max_threads
         self.config = config
-        self.reduce_optimizer_cost = 0.0
+        self.subplan_optimizer_cost = 0.0
         self.is_filter = is_filter
+        self.depth = depth
+        self.max_depth = 2
+        self.runner = runner
 
     def _generate_chunk_size_plans(
         self,
@@ -220,8 +224,11 @@ class PlanGenerator:
         # unnest_ops = self.operation_creator.create_unnest_operations(op_config)
         max_plan.extend(smg_ops + [map_op])
 
-        for op in max_plan:
-            sample_output = self._run_operation(op, sample_output, is_build=True)
+        sample_map_input = copy.deepcopy(input_data)
+        for smg_op in smg_ops:
+            sample_map_input = self._run_operation(smg_op, sample_map_input)
+
+        sample_output = self._run_operation(map_op, sample_map_input, is_build=True)
 
         # Generate the combine prompt using the sample output
         combine_prompt, is_associative = self.prompt_generator._get_combine_prompt(
@@ -236,6 +243,42 @@ class PlanGenerator:
         reduce_op = self.operation_creator.create_reduce_operation(
             op_config, combine_prompt, is_associative, doc_id_key
         )
+
+        # First optimize the map operation once
+        optimized_map_ops = [map_op]  # Default to original map op
+        if not self.is_filter and op_config.get("recursively_optimize", False):
+            try:
+                optimized_map_ops, cost = self._recursively_optimize_subtask(
+                    map_op,
+                    sample_map_input,
+                    "shared_submap",
+                    plan_types=["proj_synthesis", "glean"]
+                )
+                self.subplan_optimizer_cost += cost
+            except Exception as e:
+                self.console.log(
+                    f"[yellow]Warning: Failed to recursively optimize map operation: {e}. Using original map operation.[/yellow]"
+                )
+
+        # Then optimize the reduce operation once
+        optimized_reduce_ops = [reduce_op]  # Default to original reduce op
+        if not self.is_filter and op_config.get("recursively_optimize", False):
+            try:
+                optimized_reduce_ops, _, cost = ReduceOptimizer(
+                    self.runner,
+                    self.config,
+                    self.console,
+                    self.llm_client,
+                    self.max_threads,
+                    self._run_operation,
+                ).optimize(reduce_op, sample_output)
+                self.subplan_optimizer_cost += cost
+            except Exception as e:
+                import traceback    
+                self.console.log(
+                    f"[yellow]Warning: Failed to recursively optimize reduce operation: {e}. Using original reduce operation.[/yellow]"
+                )
+                self.console.log(f"[yellow]Traceback:[/yellow]\n{traceback.format_exc()}")
 
         # Create plans for each chunk size
         plans = {}
@@ -252,11 +295,10 @@ class PlanGenerator:
                 peripheral_config,
                 split_result,
                 info_extraction_prompt,
-                validator_prompt,
                 base_operations,
-                input_data,
                 plan_name,
-                reduce_op,
+                optimized_map_ops,
+                optimized_reduce_ops,
             ):
                 def task():
                     smg_ops = self.operation_creator.create_split_map_gather_operations(
@@ -266,87 +308,14 @@ class PlanGenerator:
                         split_key,
                         content_key,
                         info_extraction_prompt if peripheral_config[1] else None,
-                        "gpt-4o-mini",
+                        self.config.get("default_model", "gpt-4o-mini"),
                         header_extraction_prompt,
                         header_output_schema,
                     )
-                    map_op = self.operation_creator.create_map_operation(
-                        op_config,
-                        subprompt_output_schema,
-                        split_result["subprompt"] + " Only process the main chunk.",
-                    )
-
-                    # Run the plan on a sample of 2 docs in the input data
-                    sample_size = min(2, len(input_data))
-                    sample_input = copy.deepcopy(random.sample(input_data, sample_size))
-
-                    for op in base_operations:
-                        sample_input = self._run_operation(op, sample_input)
-
-                    for op in smg_ops:
-                        sample_input = self._run_operation(op, sample_input)
-
-                    map_output = self._run_operation(
-                        map_op, sample_input, is_build=True
-                    )
-
-                    # Evaluate the output using the validator prompt
-                    plan_evaluation_score = self._evaluate_partial_plan_output(
-                        plan_name,
-                        op_config,
-                        subprompt_output_schema,
-                        sample_input,
-                        map_output,
-                        split_result["subprompt"] + " Only process the main chunk.",
-                        validator_prompt,
-                    )
-
-                    self.console.log(
-                        f"[bold]Evaluation score for {plan_name}:[/bold] {plan_evaluation_score}"
-                    )
-
-                    if plan_evaluation_score >= 0.6:  # TODO: make this a parameter
-                        self.console.log(f"Keeping configuration: {plan_name}")
-                    else:
-                        self.console.log(f"Pruning configuration: {plan_name}")
-                        return plan_name, []
-
-                    # unnest_ops = self.operation_creator.create_unnest_operations(
-                    #     op_config
-                    # )
-                    # for uo in unnest_ops:
-                    #     map_output = self._run_operation(uo, map_output)
-
+                    
+                    # Create the plan by combining all operations
                     plan = copy.deepcopy(base_operations)
-                    if self.is_filter or not op_config.get(
-                        "recursively_optimize", False
-                    ):
-                        plan.extend(smg_ops + [map_op] + [reduce_op])
-                        return plan_name, plan
-
-                    # Optimize the reduce op for this current plan
-                    # TODO: enable this by default. it's just that
-                    # reduce drilldown decomposition is unreliable via the
-                    # agent, and I don't want users to have to confirm/interact
-                    # on every synthesized reduce op
-                    try:
-                        optimized_reduce_ops, _, cost = ReduceOptimizer(
-                            self.config,
-                            self.console,
-                            self.llm_client,
-                            self.max_threads,
-                            self._run_operation,
-                        ).optimize(reduce_op, map_output)
-                        self.reduce_optimizer_cost += cost
-
-                        plan.extend(smg_ops + [map_op] + optimized_reduce_ops)
-                    except Exception as e:
-                        raise e
-                        # self.console.log(
-                        #     f"[yellow]Error optimizing reduce operation: {e}. Skipping...[/yellow]"
-                        # )
-                        # return plan_name, []
-
+                    plan.extend(smg_ops + optimized_map_ops + optimized_reduce_ops)
                     return plan_name, plan
 
                 return task
@@ -356,7 +325,8 @@ class PlanGenerator:
             for peripheral_config_tuple in peripheral_configs:
                 # Create plan name
                 peripheral_config, _ = peripheral_config_tuple
-                plan_name = f"chunk_size_{chunk_size}_peripheral_"
+                multiplied_chunk_size = int(chunk_size * 1.5)
+                plan_name = f"chunk_size_{multiplied_chunk_size}_peripheral_"
                 if peripheral_config:
                     for direction in ["previous", "next"]:
                         if direction in peripheral_config:
@@ -373,11 +343,10 @@ class PlanGenerator:
                         peripheral_config_tuple,
                         split_result,
                         info_extraction_prompt,
-                        validator_prompt,
                         base_operations,
-                        input_data,
                         plan_name,
-                        reduce_op,
+                        optimized_map_ops,
+                        optimized_reduce_ops,
                     )
                 )
 
@@ -385,10 +354,9 @@ class PlanGenerator:
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 plan_results = list(executor.map(lambda f: f(), plan_tasks))
 
-            # Process results and add valid plans
+            # Add all plans to the candidates
             for plan_name, plan in plan_results:
-                if plan:
-                    plans[plan_name] = plan
+                plans[plan_name] = plan
 
         return plans
 
@@ -716,9 +684,10 @@ class PlanGenerator:
         missing_keys = output_schema_keys - covered_keys
 
         if missing_keys:
-            raise ValueError(
-                f"Trying to create a parallel map decomposition. The following output schema keys are not covered by any subtask: {missing_keys}"
+            self.console.log(
+                f"[bold red]Error in parallel map decomposition:[/bold red] Some output schema keys are not covered by subtasks: {missing_keys}"
             )
+            return {}
 
         # Update op_output_schema if there are keys in covered_keys that are not in the output schema
         new_keys = covered_keys - output_schema_keys
@@ -757,27 +726,10 @@ class PlanGenerator:
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Generate chain decomposition plans for the given operation.
-
-        This method analyzes the operation configuration and input data to create a
-        chain of subtasks that collectively accomplish the original task. It's particularly
-        useful for complex operations that can be broken down into simpler, sequential steps.
-
-        Args:
-            op_config (Dict[str, Any]): The configuration of the original operation.
-            input_data (List[Dict[str, Any]]): A sample of the input data.
-
-        Returns:
-            Dict[str, List[Dict[str, Any]]]: A dictionary containing the chain decomposition plan.
-            The key is 'chain_decomposition' and the value is a list of operation configurations
-            for each subtask in the chain.
-
-        Note:
-            - This method is most effective when the original task has multiple output keys
-              with dependencies between them.
-            - The method uses the LLM to generate the chain of subtasks, ensuring that
-              all output keys from the original task are covered.
+        
+        If recursively_optimize is True in the op_config, each subtask in the chain
+        will be recursively optimized using a new MapOptimizer instance.
         """
-
         output_schema = op_config["output"]["schema"]
         variables_in_prompt = extract_jinja_variables(op_config["prompt"])
         variables_in_prompt = [v.replace("input.", "") for v in variables_in_prompt]
@@ -874,9 +826,10 @@ class PlanGenerator:
             subtask_output_keys.update(subtask["output_keys"])
 
         if len(output_schema_keys - subtask_output_keys) > 0:
-            raise ValueError(
-                f"Not all output schema keys are covered by subtasks after correction attempt. Missing keys: {output_schema_keys - subtask_output_keys}"
+            self.console.log(
+                f"[bold red]Error in chain decomposition:[/bold red] Some output schema keys are not covered by subtasks: {output_schema_keys - subtask_output_keys}"
             )
+            return {}
 
         chain_plan = []
         for idx, subtask in enumerate(result["subtasks"]):
@@ -886,7 +839,25 @@ class PlanGenerator:
             subtask_config["output"]["schema"] = {
                 key: output_schema.get(key, "string") for key in subtask["output_keys"]
             }
-            chain_plan.append(subtask_config)
+
+            # If recursive optimization is enabled, optimize each subtask
+            if op_config.get("recursively_optimize", False):
+                try:
+                    optimized_subtask_plan, cost = self._recursively_optimize_subtask(
+                        subtask_config, 
+                        input_data,
+                        f"chain_subtask_{idx+1}",
+                        plan_types=["proj_synthesis", "glean"]
+                    )
+                    self.subplan_optimizer_cost += cost
+                    chain_plan.extend(optimized_subtask_plan)
+                except Exception as e:
+                    self.console.log(
+                        f"[yellow]Warning: Failed to recursively optimize subtask {idx+1}: {str(e)}. Using original subtask.[/yellow]"
+                    )
+                    chain_plan.append(subtask_config)
+            else:
+                chain_plan.append(subtask_config)
 
         # Log the chain decomposition
         self.console.log("[bold]Chain Decomposition Plan:[/bold]")
@@ -905,3 +876,48 @@ class PlanGenerator:
         self.console.log("\n")  # Add a newline for better readability
 
         return {"chain_decomposition": chain_plan}
+
+    def _recursively_optimize_subtask(
+        self,
+        subtask_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        subtask_name: str,
+        plan_types: List[str]
+    ) -> Tuple[List[Dict[str, Any]], float]:
+        """
+        Recursively optimize a subtask using a new MapOptimizer instance.
+        """
+        if self.depth >= self.max_depth:
+            self.console.log(
+                f"[yellow]Reached maximum recursion depth ({self.max_depth}) for {subtask_name}. Using original configuration.[/yellow]"
+            )
+            return [subtask_config], 0
+
+        from docetl.optimizers.map_optimizer.optimizer import MapOptimizer
+
+        self.console.log(f"[cyan]Recursively optimizing {subtask_name} (depth {self.depth})...[/cyan]")
+
+        subtask_optimizer = MapOptimizer(
+            self.runner,
+            self.config,
+            self.console,
+            self.llm_client,
+            self.max_threads,
+            self._run_operation,
+            is_filter=self.is_filter,
+            depth=self.depth + 1
+        )
+
+        try:
+            optimized_plan, _, cost = subtask_optimizer.optimize(
+                subtask_config,
+                input_data,
+                plan_types
+            )
+            return optimized_plan, cost
+
+        except Exception as e:
+            self.console.log(
+                f"[yellow]Warning: Failed to recursively optimize {subtask_name}: {str(e)}. Using original configuration.[/yellow]"
+            )
+            return [subtask_config], 0

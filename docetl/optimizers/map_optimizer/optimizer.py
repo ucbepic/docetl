@@ -3,7 +3,7 @@ import copy
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from jinja2 import Template
 from litellm import model_cost
@@ -47,6 +47,7 @@ class MapOptimizer:
         run_operation: Callable,
         timeout: int = 10,
         is_filter: bool = False,
+        depth: int = 1,
     ):
         """
         Initialize the MapOptimizer.
@@ -72,7 +73,7 @@ class MapOptimizer:
         self.k_to_pairwise_compare = 6
 
         self.plan_generator = PlanGenerator(
-            runner, llm_client, console, config, run_operation, max_threads, is_filter
+            runner, llm_client, console, config, run_operation, max_threads, is_filter, depth
         )
         self.evaluator = Evaluator(
             llm_client,
@@ -206,7 +207,7 @@ class MapOptimizer:
         
 
     def optimize(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]], plan_types: Optional[List[str]] = ["chunk", "proj_synthesis", "glean"]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize the given operation configuration for the input data.
@@ -260,7 +261,7 @@ class MapOptimizer:
                 self.console.log(
                     f"[green]No improvement needed for operation {op_config['name']}[/green]"
                 )
-                return [op_config], output_data, self.plan_generator.reduce_optimizer_cost
+                return [op_config], output_data, self.plan_generator.subplan_optimizer_cost
 
         candidate_plans = {}
 
@@ -274,15 +275,16 @@ class MapOptimizer:
 
         # Generate chunk size plans
         self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
-        self.console.log("[bold magenta]Generating chunking plans...[/bold magenta]")
-        chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
-            op_config, input_data, validator_prompt, model_input_context_length
-        )
-        for pname, plan in chunk_size_plans.items():
-            candidate_plans[pname] = plan
+        if "chunk" in plan_types:
+            self.console.log("[bold magenta]Generating chunking plans...[/bold magenta]")
+            chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
+                op_config, input_data, validator_prompt, model_input_context_length
+            )
+            for pname, plan in chunk_size_plans.items():
+                candidate_plans[pname] = plan
 
         # Generate gleaning plans
-        if not data_exceeds_limit:
+        if not data_exceeds_limit and "glean" in plan_types:
             self.console.log(
                 "[bold magenta]Generating gleaning plans...[/bold magenta]"
             )
@@ -293,7 +295,7 @@ class MapOptimizer:
                 candidate_plans[pname] = plan
 
         # Generate chain decomposition plans
-        if not data_exceeds_limit:
+        if not data_exceeds_limit and "proj_synthesis" in plan_types:
             if not self.is_filter:
                 self.console.log(
                     "[bold magenta]Generating chain projection synthesis plans...[/bold magenta]"
@@ -465,5 +467,5 @@ class MapOptimizer:
         return (
             candidate_plans[best_plan_name],
             best_output,
-            self.plan_generator.reduce_optimizer_cost,
+            self.plan_generator.subplan_optimizer_cost,
         )

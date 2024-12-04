@@ -210,6 +210,18 @@ function extractSchemaChanges(text: string): Array<[string, string]> {
     });
 }
 
+// Move the debounce function to the top, before any component definitions
+const debounce = <T extends (...args: unknown[]) => unknown>(
+  fn: T,
+  delay: number
+): ((...args: Parameters<T>) => void) => {
+  let timeoutId: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+};
+
 function AutosizeTextarea({
   value,
   onChange,
@@ -221,14 +233,22 @@ function AutosizeTextarea({
   onBlur?: () => void;
   type?: PromptType;
 }) {
-  const [height, setHeight] = useState("auto");
-  const hiddenRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    if (hiddenRef.current) {
-      setHeight(`${hiddenRef.current.scrollHeight}px`);
+  // Debounced resize function
+  const resize = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
     }
-  }, [value]);
+  }, []);
+
+  // Debounced resize with useEffect
+  useEffect(() => {
+    const timeoutId = setTimeout(resize, 10);
+    return () => clearTimeout(timeoutId);
+  }, [value, resize]);
 
   return (
     <div className="relative">
@@ -237,19 +257,13 @@ function AutosizeTextarea({
           {type === "comparison" ? "Comparison Prompt:" : "Resolution Prompt:"}
         </div>
       )}
-      <div
-        ref={hiddenRef}
-        className="invisible absolute whitespace-pre-wrap break-words font-mono text-sm p-2"
-        style={{ width: "calc(100% - 4px)" }}
-      >
-        {value + "\n"}
-      </div>
       <Textarea
+        ref={textareaRef}
         value={value}
         onChange={onChange}
         onBlur={onBlur}
         className="font-mono text-sm resize-none"
-        style={{ height, minHeight: height }}
+        style={{ minHeight: "100px" }}
         autoFocus={!type || type === "comparison"}
       />
     </div>
@@ -419,6 +433,7 @@ export function PromptImprovementDialog({
   >(null);
   const [expectingNewRevision, setExpectingNewRevision] = useState(false);
   const [chatKey, setChatKey] = useState(0);
+  const [localFeedbackText, setLocalFeedbackText] = useState("");
 
   const selectedOperation = operations.find(
     (op) => op.id === selectedOperationId
@@ -620,24 +635,22 @@ export function PromptImprovementDialog({
   };
 
   const handleFeedbackSubmit = useCallback(async () => {
-    if (!feedbackText.trim()) return;
+    if (!localFeedbackText.trim()) return;
 
-    setExpectingNewRevision(true); // Set flag before getting response
+    setExpectingNewRevision(true);
 
     const sourceRevisionIndex = selectedRevisionIndex ?? revisions.length - 1;
     const sourceRevision = revisions[sourceRevisionIndex];
 
-    // Create a new array with the source revision's messages
     const newMessages = [...sourceRevision.messages];
 
-    // Add the feedback message with appropriate prompt instructions based on operation type
     const feedbackMessage = {
       role: "user" as const,
       content: `Consider this feedback and provide ${
         selectedOperation?.type === "resolve"
           ? "updated prompts"
           : "an updated prompt"
-      }: ${feedbackText}
+      }: ${localFeedbackText}
 
 Remember to ${
         selectedOperation?.type === "resolve"
@@ -647,16 +660,14 @@ Remember to ${
       id: `user-feedback-${newMessages.length}`,
     };
 
-    // Update messages with the feedback before sending to API
     setMessages([...newMessages]);
-
-    // Send the feedback
     await append(feedbackMessage);
 
+    setLocalFeedbackText("");
     setFeedbackText("");
     setPopoverOpen(false);
   }, [
-    feedbackText,
+    localFeedbackText,
     selectedRevisionIndex,
     revisions,
     messages,
@@ -706,6 +717,14 @@ Remember to ${
       setStep("select"); // Reset to first screen
     }
   };
+
+  // Now debouncedSetFeedback can use the debounce function since it's defined above
+  const debouncedSetFeedback = useCallback(
+    debounce((value: string) => {
+      setFeedbackText(value);
+    }, 100),
+    []
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -1004,16 +1023,17 @@ Remember to ${
                               <div className="flex-none pt-2">
                                 <Textarea
                                   placeholder="What would you like to improve?"
-                                  value={feedbackText}
-                                  onChange={(e) =>
-                                    setFeedbackText(e.target.value)
-                                  }
+                                  value={localFeedbackText}
+                                  onChange={(e) => {
+                                    setLocalFeedbackText(e.target.value);
+                                    debouncedSetFeedback(e.target.value);
+                                  }}
                                   className="min-h-[100px] mb-2"
                                 />
                                 <div className="flex justify-end">
                                   <Button
                                     onClick={handleFeedbackSubmit}
-                                    disabled={!feedbackText.trim()}
+                                    disabled={!localFeedbackText.trim()}
                                   >
                                     Submit Feedback
                                   </Button>

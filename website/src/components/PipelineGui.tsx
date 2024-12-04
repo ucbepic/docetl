@@ -485,6 +485,7 @@ const PipelineGUI: React.FC = () => {
           name: pipelineName,
           sample_size: sampleSize,
           namespace,
+          system_prompt: systemPrompt,
         }),
       });
 

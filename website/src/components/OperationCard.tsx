@@ -560,6 +560,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
     defaultModel,
     optimizerModel,
     setTerminalOutput,
+    namespace,
   } = usePipelineContext();
   const { toast } = useToast();
 
@@ -626,6 +627,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           operation_id: operation.id,
           name: pipelineName,
           sample_size: sampleSize,
+          namespace,
         }),
       });
 
@@ -713,6 +715,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           name: pipelineName,
           sample_size: sampleSize,
           optimize: true,
+          namespace,
         }),
       });
 
@@ -759,6 +762,7 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
           operation_id: operation.id,
           name: pipelineName,
           sample_size: sampleSize,
+          namespace,
         }),
       });
 

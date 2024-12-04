@@ -47,6 +47,8 @@ jobs:
         echo "Waiting for container to start..."
         sleep 30
 
+        frontend_healthy=false
+
         # Check container health for up to 3 minutes
         for i in {1..6}; do
           if ! docker ps -q -f name=docetl-test > /dev/null 2>&1; then
@@ -56,8 +58,9 @@ jobs:
           fi
 
           # Try to curl the frontend
-          if curl -s -f http://localhost:3000 > /dev/null; then
+          if curl -s -f http://localhost:3000/playground > /dev/null; then
             echo "Frontend is responding"
+            frontend_healthy=true
             break
           fi
 
@@ -70,6 +73,13 @@ jobs:
           echo "Waiting for services to be ready... (attempt $i/6)"
           sleep 30
         done
+        
+        # Explicitly fail if frontend check never succeeded
+        if [ "$frontend_healthy" = false ]; then
+          echo "Frontend health check failed"
+          docker logs docetl-test
+          exit 1
+        fi
         
         # If we get here, container is running and healthy
         echo "Container is running successfully"

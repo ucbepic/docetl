@@ -63,6 +63,7 @@ interface FileExplorerProps {
   currentFile: File | null;
   setCurrentFile: (file: File | null) => void;
   setShowDatasetView: (show: boolean) => void;
+  namespace: string;
 }
 
 function mergeFileList(
@@ -200,6 +201,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   currentFile,
   setCurrentFile,
   setShowDatasetView,
+  namespace,
 }) => {
   const { toast } = useToast();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -258,6 +260,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
       const formData = new FormData();
       formData.append("file", uploadedFile);
+      formData.append("namespace", namespace);
 
       const response = await fetch("/api/uploadFile", {
         method: "POST",
@@ -377,6 +380,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         new File([file], file.name, { type: file.type })
       );
     });
+    originalDocsFormData.append("namespace", namespace);
 
     try {
       // First save the original documents
@@ -438,7 +442,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
       const jsonFormData = new FormData();
       jsonFormData.append("file", jsonFile);
-
+      jsonFormData.append("namespace", namespace);
       const uploadResponse = await fetch("/api/uploadFile", {
         method: "POST",
         body: jsonFormData,

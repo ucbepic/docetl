@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 interface NamespaceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentNamespace: string;
+  currentNamespace: string | null;
   onSave: (namespace: string) => void;
 }
 
@@ -28,21 +28,23 @@ export function NamespaceDialog({
   currentNamespace,
   onSave,
 }: NamespaceDialogProps) {
-  const [namespace, setNamespace] = useState(currentNamespace);
+  const [namespace, setNamespace] = useState(currentNamespace || "");
   const [isChecking, setIsChecking] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const [shake, setShake] = useState(false);
 
   useEffect(() => {
-    setNamespace(currentNamespace);
+    setNamespace(currentNamespace || "");
   }, [currentNamespace]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!namespace.trim()) {
+    const trimmedNamespace = namespace.trim();
+
+    if (!trimmedNamespace) {
       toast({
-        title: "Error",
+        title: "Invalid Namespace",
         description: "Namespace cannot be empty",
         variant: "destructive",
       });
@@ -56,7 +58,7 @@ export function NamespaceDialog({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ namespace }),
+        body: JSON.stringify({ namespace: trimmedNamespace }),
       });
 
       const data = await response.json();
@@ -66,7 +68,7 @@ export function NamespaceDialog({
         setShake(true);
         setTimeout(() => setShake(false), 500);
       } else {
-        onSave(namespace);
+        onSave(trimmedNamespace);
         setShowWarning(false);
         setShake(false);
       }
@@ -82,7 +84,9 @@ export function NamespaceDialog({
     }
   };
 
-  const hasNamespaceChanged = namespace.trim() !== currentNamespace.trim();
+  const hasNamespaceChanged =
+    namespace.trim() !== (currentNamespace || "").trim() &&
+    namespace.trim() !== "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,9 +99,11 @@ export function NamespaceDialog({
           <DialogDescription className="text-sm text-muted-foreground pt-2">
             Enter a namespace to organize your pipeline configurations. This
             helps keep your work separate from others on the same server.
-            <div className="mt-2 text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md p-2">
-              Note: Changing the namespace will clear your current workspace.
-            </div>
+            {currentNamespace && (
+              <div className="mt-2 text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md p-2">
+                Note: Changing the namespace will clear your current workspace.
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="py-2">
@@ -113,6 +119,7 @@ export function NamespaceDialog({
                 setNamespace(e.target.value);
                 setShowWarning(false);
               }}
+              onBlur={(e) => setNamespace(e.target.value.trim())}
               className={`w-full ${isChecking ? "border-red-500" : ""}`}
             />
             {isChecking && <p className="text-xs text-red-500">Checking...</p>}

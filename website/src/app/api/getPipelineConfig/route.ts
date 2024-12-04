@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       name,
       homeDir,
       sample_size,
+      namespace,
       system_prompt
     );
 

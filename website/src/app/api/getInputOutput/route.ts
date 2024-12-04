@@ -7,11 +7,11 @@ export async function POST(request: Request) {
     const {
       default_model,
       data,
-      namespace,
       operations,
       operation_id,
       name,
       sample_size,
+      namespace,
     } = await request.json();
 
     if (!name) {
@@ -37,7 +37,8 @@ export async function POST(request: Request) {
       operation_id,
       name,
       homeDir,
-      sample_size
+      sample_size,
+      namespace
     );
 
     // Check if inputPath exists

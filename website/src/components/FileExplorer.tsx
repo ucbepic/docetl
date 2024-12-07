@@ -542,15 +542,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   return (
     <div className="h-full flex flex-col p-4">
-      <div className="flex justify-between items-center mb-2 flex-shrink-0">
-        <h2 className="text-sm font-bold flex items-center uppercase whitespace-nowrap overflow-x-auto">
-          File Explorer
+      <div className="flex justify-between items-center mb-4 border-b pb-3">
+        <h2 className="text-base font-bold flex items-center">
+          <Folder className="mr-2" size={18} />
+          FILE EXPLORER
         </h2>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-sm">
-              <Upload size={16} />
+            <Button variant="outline" size="sm">
+              <Upload size={16} className="mr-1.5" />
+              Upload
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -583,18 +584,21 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         </DropdownMenu>
       </div>
 
+      <div className="text-xs mb-4 bg-muted/50 p-2 rounded-md">
+        <span className="text-muted-foreground font-medium">Tip: </span>
+        Right-click files to view, download or delete them
+      </div>
+
       <div className="overflow-y-auto flex-grow">
         {Object.entries(groupedFiles).map(([folder, folderFiles]) => (
           <div key={folder}>
             {folder !== "root" && (
               <ContextMenu>
-                <ContextMenuTrigger className="flex items-center p-1 text-xs text-gray-600 relative hover:bg-gray-100">
-                  <div className="absolute left-1">
+                <ContextMenuTrigger className="flex items-center p-2 text-sm text-gray-600 relative hover:bg-gray-100 rounded-md">
+                  <div className="absolute left-2">
                     <Folder className="h-4 w-4" />
                   </div>
-                  <span className="pl-5 whitespace-nowrap overflow-x-auto">
-                    {folder}
-                  </span>
+                  <span className="pl-6 font-medium">{folder}</span>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-64">
                   <ContextMenuItem
@@ -609,12 +613,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             {folderFiles.map((file) => (
               <ContextMenu key={file.path}>
                 <ContextMenuTrigger
-                  className={`group relative flex items-center w-full cursor-pointer hover:bg-gray-100 p-1 ${
-                    currentFile?.path === file.path ? "bg-blue-100" : ""
-                  } ${folder !== "root" ? "ml-4" : ""}`}
+                  className={`
+                    group relative flex items-center w-full cursor-pointer 
+                    hover:bg-gray-100 p-2 rounded-md
+                    ${currentFile?.path === file.path ? "bg-blue-100" : ""} 
+                    ${folder !== "root" ? "ml-4" : ""}
+                  `}
                   onClick={() => handleFileClick(file)}
                 >
-                  <div className="absolute left-1">
+                  <div className="absolute left-2">
                     {uploadingFiles.has(file.name) ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : file.type === "json" ? (
@@ -623,10 +630,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       <FileText className="h-4 w-4" />
                     )}
                   </div>
-                  <div className="w-full pl-5 pr-2 overflow-x-auto">
-                    <span className="block whitespace-nowrap text-xs">
-                      {file.name}
-                    </span>
+                  <div className="w-full pl-6 pr-2">
+                    <span className="block text-sm">{file.name}</span>
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-64">

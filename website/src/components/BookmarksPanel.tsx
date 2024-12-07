@@ -91,18 +91,18 @@ const BookmarksPanel: React.FC = () => {
 
   return (
     <div className="h-full p-4 flex flex-col">
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-sm font-bold flex items-center uppercase">
-          <Bookmark className="mr-2" size={16} />
-          Notes & Feedback
+      <div className="flex justify-between items-center mb-4 border-b pb-3">
+        <h2 className="text-base font-bold flex items-center">
+          <Bookmark className="mr-2" size={18} />
+          NOTES
         </h2>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={handleClearAll}
           className="text-gray-500 hover:text-gray-700"
         >
-          <X size={16} className="mr-1" />
+          <X size={16} className="mr-1.5" />
           Clear All
         </Button>
       </div>
@@ -167,36 +167,32 @@ const BookmarksPanel: React.FC = () => {
         {filteredBookmarks.map((bookmark) => (
           <div
             key={bookmark.id}
-            className="mb-1 rounded hover:bg-muted/50 transition-colors"
+            className="mb-2 border rounded-lg hover:border-primary transition-colors"
           >
             <div
-              className="flex items-start cursor-pointer px-1.5 py-1"
+              className="flex items-start p-3 cursor-pointer"
               onClick={() => toggleBookmarkExpansion(bookmark.id)}
             >
               <div
-                className="w-3 h-3 rounded-full mr-2 mt-1 flex-shrink-0"
+                className="w-4 h-4 rounded-full mr-3 mt-0.5 flex-shrink-0 border"
                 style={{
                   backgroundColor: bookmark.color,
-                  minWidth: "0.75rem",
-                  minHeight: "0.75rem",
                 }}
               />
-              <div className="flex-grow min-w-0 mr-1">
+              <div className="flex-grow min-w-0">
                 <div
-                  className={`text-sm italic ${
-                    expandedBookmarkId === bookmark.id
-                      ? "whitespace-normal"
-                      : "whitespace-nowrap overflow-hidden text-ellipsis"
+                  className={`text-base ${
+                    expandedBookmarkId === bookmark.id ? "" : "line-clamp-1"
                   }`}
                 >
-                  &quot;{bookmark.notes[0]?.note || "No notes"}&quot;
+                  {bookmark.notes[0]?.note || "No notes"}
                 </div>
               </div>
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 ml-2">
                 {expandedBookmarkId === bookmark.id ? (
-                  <ChevronUp className="text-muted-foreground" size={16} />
+                  <ChevronUp className="text-primary" size={20} />
                 ) : (
-                  <ChevronDown className="text-muted-foreground" size={16} />
+                  <ChevronDown className="text-muted-foreground" size={20} />
                 )}
               </div>
             </div>

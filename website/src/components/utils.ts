@@ -1,7 +1,7 @@
 import { SchemaItem, SchemaType } from "../app/types";
 
 export const schemaDictToItemSet = (
-  schema: Record<string, string>,
+  schema: Record<string, string>
 ): SchemaItem[] => {
   return Object.entries(schema).map(([key, type]): SchemaItem => {
     if (typeof type === "string") {

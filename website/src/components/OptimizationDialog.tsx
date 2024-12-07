@@ -24,6 +24,7 @@ interface OptimizationDialogProps {
   inputData?: Array<Record<string, unknown>>;
   outputData?: Array<Record<string, unknown>>;
   onOpenChange: (open: boolean) => void;
+  onDecompose?: () => void;
 }
 
 export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
@@ -34,6 +35,7 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
   outputData,
   operationName,
   onOpenChange,
+  onDecompose,
 }) => {
   const [currentPage, setCurrentPage] = React.useState(1);
   const rowsPerPage = 1;
@@ -59,7 +61,7 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
 
     return (
       <div className="space-y-2">
-        <div className="border">
+        <div className="border rounded-md">
           <div className="max-h-[300px] overflow-auto">
             <Table className="relative w-full border-collapse">
               <TableHeader>
@@ -94,17 +96,19 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
         </div>
 
         <div className="flex items-center justify-between px-2">
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm">
             Row {startIndex + 1} of {data.length}
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
+              className="px-2 py-1"
             >
-              <ChevronLeft className="h-4 w-4" />
+              Previous
+              <ChevronLeft className="h-4 w-4 ml-1" />
             </Button>
             <Button
               variant="outline"
@@ -113,8 +117,10 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages}
+              className="px-2 py-1"
             >
-              <ChevronRight className="h-4 w-4" />
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
         </div>
@@ -131,35 +137,32 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>Decomposition Suggestions</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            We&apos;ve detected that the operation you&apos;re trying to run
-            might be too complex for the LLM. Consider breaking it down into
-            smaller operations. You can use our decomposition tool (lightning
-            button) to do this.
+        <DialogHeader className="flex-shrink-0 border-b pb-4">
+          <DialogTitle className="text-xl">Operation Too Complex</DialogTitle>
+          <p className="text-base mt-2">
+            This operation might be too complex for the LLM to handle
+            efficiently. We recommend breaking it down into smaller, more
+            manageable steps.
           </p>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto py-4">
           {(operationName || prompt) && (
-            <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+            <div className="p-4 bg-muted rounded-lg space-y-2 mb-6">
               {operationName && (
                 <div className="flex items-center">
-                  <span className="font-semibold text-sm text-muted-foreground mr-2">
-                    Operation:
+                  <span className="font-medium text-base mr-2">
+                    Current Operation:
                   </span>
-                  <span className="bg-primary/15 text-primary hover:bg-primary/20 transition-colors rounded-md px-2 py-0.5 text-sm font-medium">
+                  <span className="bg-primary/15 text-primary rounded-md px-3 py-1 text-base">
                     {operationName}
                   </span>
                 </div>
               )}
               {prompt && (
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-sm text-muted-foreground">
-                    Prompt:
-                  </h3>
-                  <div className="bg-background/60 hover:bg-background/80 transition-colors duration-200 rounded-lg p-2.5 text-sm whitespace-pre-wrap leading-relaxed font-mono">
+                <div className="space-y-2">
+                  <h3 className="font-medium text-base">Original Prompt:</h3>
+                  <div className="bg-background rounded-lg p-3 text-base font-mono leading-relaxed">
                     {prompt}
                   </div>
                 </div>
@@ -167,30 +170,40 @@ export const OptimizationDialog: React.FC<OptimizationDialogProps> = ({
             </div>
           )}
 
-          <div className="mt-4 space-y-4">
+          <div className="space-y-6">
             {shouldShowInputData && inputData && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-bold uppercase">
-                  Sample Input Data
-                </h3>
+              <section className="space-y-3">
+                <h3 className="text-base font-medium">Input Data Sample</h3>
                 <div className="overflow-auto">{renderTable(inputData)}</div>
-              </div>
+              </section>
             )}
             {outputData && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-bold uppercase">
-                  Sample Output Data
-                </h3>
+              <section className="space-y-3">
+                <h3 className="text-base font-medium">Sample Output</h3>
                 <div className="overflow-auto">{renderTable(outputData)}</div>
-              </div>
+              </section>
             )}
+            <section className="space-y-3">
+              <h3 className="text-base font-medium">Suggested Improvements</h3>
+              <div className="whitespace-pre-wrap text-base leading-relaxed">
+                {content}
+              </div>
+            </section>
           </div>
-          <div className="space-y-2">
-            <h3 className="text-sm font-bold uppercase">
-              Decomposition Rationale and Feedback
-            </h3>
-            <div className="mt-4 whitespace-pre-wrap">{content}</div>
-          </div>
+        </div>
+
+        <div className="flex justify-end items-center gap-3 pt-4 border-t mt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Ignore
+          </Button>
+          <Button
+            onClick={() => {
+              onDecompose?.();
+              onOpenChange(false);
+            }}
+          >
+            Automatically Decompose
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

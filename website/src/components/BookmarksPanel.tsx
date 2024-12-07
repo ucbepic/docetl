@@ -93,7 +93,7 @@ const BookmarksPanel: React.FC = () => {
     <div className="h-full p-4 flex flex-col">
       <div className="flex justify-between items-center mb-4 border-b pb-3">
         <h2 className="text-base font-bold flex items-center">
-          <Bookmark className="mr-2" size={18} />
+          <Bookmark className="mr-2" size={14} />
           NOTES
         </h2>
         <Button
@@ -102,7 +102,7 @@ const BookmarksPanel: React.FC = () => {
           onClick={handleClearAll}
           className="text-gray-500 hover:text-gray-700"
         >
-          <X size={16} className="mr-1.5" />
+          <X size={14} className="mr-1.5" />
           Clear All
         </Button>
       </div>

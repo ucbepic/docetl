@@ -45,7 +45,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Tooltip,
@@ -53,6 +52,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface FileExplorerProps {
   files: File[];
@@ -145,7 +145,7 @@ async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
   return files;
 }
 
-type ConversionMethod = "docling" | "azure";
+type ConversionMethod = "local" | "azure" | "docetl";
 
 async function validateJsonDataset(file: Blob): Promise<void> {
   const text = await file.text();
@@ -212,7 +212,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
   const [conversionMethod, setConversionMethod] =
-    useState<ConversionMethod>("docling");
+    useState<ConversionMethod>("local");
   const [azureEndpoint, setAzureEndpoint] = useState("");
   const [azureKey, setAzureKey] = useState("");
 
@@ -381,6 +381,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       );
     });
     originalDocsFormData.append("namespace", namespace);
+    formData.append("conversion_method", conversionMethod);
 
     try {
       // First save the original documents
@@ -544,13 +545,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     <div className="h-full flex flex-col p-4">
       <div className="flex justify-between items-center mb-4 border-b pb-3">
         <h2 className="text-base font-bold flex items-center">
-          <Folder className="mr-2" size={18} />
+          <Folder className="mr-2" size={14} />
           FILE EXPLORER
         </h2>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
-              <Upload size={16} className="mr-1.5" />
+              <Upload size={14} className="mr-1.5" />
               Upload
             </Button>
           </DropdownMenuTrigger>
@@ -709,67 +710,131 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               <DialogTitle>Upload Documents</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-4 w-full flex-1 overflow-hidden flex flex-col">
-              <div className="flex flex-col space-y-2">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Switch
-                    id="conversion-method"
-                    checked={conversionMethod === "azure"}
-                    onCheckedChange={(checked) =>
-                      setConversionMethod(checked ? "azure" : "docling")
-                    }
-                  />
-                  <Label htmlFor="conversion-method">
-                    Use Azure Document Intelligence
-                  </Label>
-                </div>
+            <div className="space-y-3 w-full flex-1 overflow-hidden flex flex-col">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">
+                  Processing Method
+                </Label>
 
-                {conversionMethod === "azure" && (
-                  <div className="grid gap-3 animate-in fade-in slide-in-from-top-1">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="azure-endpoint" className="text-sm">
-                        Azure Endpoint
+                <RadioGroup
+                  value={conversionMethod}
+                  onValueChange={(value) =>
+                    setConversionMethod(value as ConversionMethod)
+                  }
+                  className="mt-2 grid grid-cols-3 gap-2"
+                >
+                  <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
+                    <div className="flex items-start space-x-2.5">
+                      <RadioGroupItem
+                        value="local"
+                        id="local-server"
+                        className="mt-0.5"
+                      />
+                      <Label
+                        htmlFor="local-server"
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        Local Server
                       </Label>
-                      <Input
-                        id="azure-endpoint"
-                        placeholder="https://your-resource.cognitiveservices.azure.com/"
-                        value={azureEndpoint}
-                        onChange={(e) => setAzureEndpoint(e.target.value)}
-                        className="h-8"
-                      />
                     </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Label htmlFor="azure-key" className="text-sm">
-                          Azure Key
-                        </Label>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <AlertTriangle className="h-4 w-4 text-amber-500" />
-                            </TooltipTrigger>
-                            <TooltipContent className="bg-amber-50 border-amber-200 text-amber-900 w-[150px]">
-                              <p>
-                                Warning: Key is passed in plaintext to your
-                                local server. Ensure no one is snooping on your
-                                network traffic and stealing your key.
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <Input
-                        id="azure-key"
-                        type="password"
-                        placeholder="Enter your Azure Document Intelligence key"
-                        value={azureKey}
-                        onChange={(e) => setAzureKey(e.target.value)}
-                        className="h-8"
-                      />
-                    </div>
+                    <p className="text-xs text-muted-foreground pl-6">
+                      Process documents privately on your machine (this can be
+                      slow for many documents)
+                    </p>
                   </div>
-                )}
+
+                  <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
+                    <div className="flex items-start space-x-2.5">
+                      <RadioGroupItem
+                        value="docetl"
+                        id="docetl-server"
+                        className="mt-0.5"
+                      />
+                      <Label
+                        htmlFor="docetl-server"
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        Docling Server{" "}
+                        <a
+                          href="https://github.com/DS4SD/docling"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          (GitHub ↗)
+                        </a>
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-6">
+                      Use our hosted server for optimal processing
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
+                    <div className="flex items-start space-x-2.5">
+                      <RadioGroupItem
+                        value="azure"
+                        id="azure-di"
+                        className="mt-0.5"
+                      />
+                      <Label
+                        htmlFor="azure-di"
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        Azure Document Intelligence
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-6">
+                      Enterprise-grade cloud processing
+                    </p>
+                  </div>
+                </RadioGroup>
               </div>
+
+              {conversionMethod === "azure" && (
+                <div className="grid gap-2 animate-in fade-in slide-in-from-top-1">
+                  <div className="space-y-1">
+                    <Label htmlFor="azure-endpoint" className="text-sm">
+                      Azure Endpoint
+                    </Label>
+                    <Input
+                      id="azure-endpoint"
+                      placeholder="https://your-resource.cognitiveservices.azure.com/"
+                      value={azureEndpoint}
+                      onChange={(e) => setAzureEndpoint(e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="azure-key" className="text-sm">
+                        Azure Key
+                      </Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-amber-50 border-amber-200 text-amber-900 w-[150px] text-xs">
+                            <p>
+                              Warning: Key is passed in plaintext to your local
+                              server
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <Input
+                      id="azure-key"
+                      type="password"
+                      placeholder="Enter your Azure Document Intelligence key"
+                      value={azureKey}
+                      onChange={(e) => setAzureKey(e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div
                 className={`

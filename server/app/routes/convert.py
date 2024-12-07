@@ -42,10 +42,10 @@ def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
         return f"Error processing document: {str(e)}"
 
 @router.post("/api/convert-documents")
-async def convert_documents(files: List[UploadFile] = File(...)):
-    # First try Modal endpoint if there are no txt files
+async def convert_documents(files: List[UploadFile] = File(...), use_docetl_server: bool = False):
+    # Only try Modal endpoint if use_docetl_server is true and there are no txt files
     all_txt_files = all(file.filename.lower().endswith('.txt') or file.filename.lower().endswith('.md') for file in files)
-    if not all_txt_files:
+    if use_docetl_server and not all_txt_files:
         try:
             async with aiohttp.ClientSession() as session:
                 # Prepare files for multipart upload
@@ -63,9 +63,24 @@ async def convert_documents(files: List[UploadFile] = File(...)):
         except Exception as e:
             print(f"Modal endpoint failed: {str(e)}. Falling back to local processing...")
     
-    # If Modal fails, fall back to local processing
-    from docling.document_converter import DocumentConverter
-    doc_converter = DocumentConverter()
+    # Process locally if Modal wasn't used or failed
+    from docling.datamodel.base_models import InputFormat
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.do_ocr = False
+    pipeline_options.do_table_structure = True
+    pipeline_options.table_structure_options.do_cell_matching = True
+
+    doc_converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=pipeline_options, backend=PyPdfiumDocumentBackend
+            )
+        }
+    )
     
     # Create a temporary directory to store uploaded files
     with tempfile.TemporaryDirectory() as temp_dir:

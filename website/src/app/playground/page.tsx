@@ -201,7 +201,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   const handleSaveAs = async () => {
     try {
       // Collect all localStorage data
-      const data: Record<string, any> = {};
+      const data: Record<string, unknown> = {};
       Object.values(localStorageKeys).forEach((key) => {
         const value = localStorage.getItem(key);
         if (value) {
@@ -554,7 +554,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           <ResizablePanel defaultSize={60} minSize={30} className="h-full">
             <ResizablePanelGroup direction="vertical" className="h-full">
               <ResizablePanel
-                defaultSize={70}
+                defaultSize={60}
                 minSize={5}
                 className="overflow-auto"
               >
@@ -565,7 +565,7 @@ const CodeEditorPipelineApp: React.FC = () => {
               )}
               {showOutput && (
                 <ResizablePanel
-                  defaultSize={105}
+                  defaultSize={40}
                   minSize={20}
                   className="overflow-auto"
                 >
@@ -583,7 +583,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                 minSize={10}
                 className="h-full overflow-auto"
               >
-                {/* @ts-ignore */}
+                {/* @ts-expect-error DatasetView expects a specific file type */}
                 <DatasetView file={currentFile} />
               </ResizablePanel>
             </>

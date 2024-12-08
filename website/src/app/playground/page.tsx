@@ -583,7 +583,6 @@ const CodeEditorPipelineApp: React.FC = () => {
                 minSize={10}
                 className="h-full overflow-auto"
               >
-                {/* @ts-expect-error DatasetView expects a specific file type */}
                 <DatasetView file={currentFile} />
               </ResizablePanel>
             </>

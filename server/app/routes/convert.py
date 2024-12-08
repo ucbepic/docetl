@@ -11,6 +11,11 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
+from docling.datamodel.base_models import InputFormat
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+
 # Load environment variables
 load_dotenv()
 
@@ -64,10 +69,6 @@ async def convert_documents(files: List[UploadFile] = File(...), use_docetl_serv
             print(f"Modal endpoint failed: {str(e)}. Falling back to local processing...")
     
     # Process locally if Modal wasn't used or failed
-    from docling.datamodel.base_models import InputFormat
-    from docling.document_converter import DocumentConverter, PdfFormatOption
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
-    from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_ocr = False

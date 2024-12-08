@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Wand2,
+  Trash2,
 } from "lucide-react";
 import {
   HoverCard,
@@ -190,7 +191,8 @@ export function ColumnDialog<T extends Record<string, unknown>>({
 
   const renderRowContent = (row: T | null, value: unknown) => {
     if (!row) return null;
-    const { addBookmark, getNotesForRowAndColumn } = useBookmarkContext();
+    const { addBookmark, getNotesForRowAndColumn, removeBookmark } =
+      useBookmarkContext();
 
     const handleSubmitFeedback = (feedbackText: string) => {
       if (!feedbackText.trim()) return;
@@ -342,10 +344,10 @@ export function ColumnDialog<T extends Record<string, unknown>>({
 
                 <div className="flex-1 overflow-auto p-4">
                   {existingNotes.length > 0 && (
-                    <div className="mb-4 bg-muted/10 rounded-lg p-3">
+                    <div className="mb-4 bg-muted/10 rounded-lg p-2">
                       <button
                         onClick={() => setShowPreviousNotes(!showPreviousNotes)}
-                        className="flex items-center justify-between w-full text-base font-medium mb-2"
+                        className="flex items-center justify-between w-full text-base font-medium mb-1"
                       >
                         <span>Previous Notes ({existingNotes.length})</span>
                         <ChevronDown
@@ -355,13 +357,23 @@ export function ColumnDialog<T extends Record<string, unknown>>({
                         />
                       </button>
                       {showPreviousNotes && (
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           {existingNotes.map((note) => (
                             <div
                               key={note.id}
-                              className="p-3 rounded-lg bg-background border text-base"
+                              className="flex items-start gap-2 p-2 rounded-lg bg-muted/30"
                             >
-                              {note.note}
+                              <div className="flex-1 text-sm text-muted-foreground italic">
+                                &ldquo;{note.note}&rdquo;
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 hover:bg-destructive/10"
+                                onClick={() => removeBookmark(note.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive hover:text-destructive" />
+                              </Button>
                             </div>
                           ))}
                         </div>

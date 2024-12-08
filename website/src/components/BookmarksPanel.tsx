@@ -170,18 +170,18 @@ const BookmarksPanel: React.FC = () => {
             className="mb-2 border rounded-lg hover:border-primary transition-colors"
           >
             <div
-              className="flex items-start p-3 cursor-pointer"
+              className="flex items-start p-2 cursor-pointer"
               onClick={() => toggleBookmarkExpansion(bookmark.id)}
             >
               <div
-                className="w-4 h-4 rounded-full mr-3 mt-0.5 flex-shrink-0 border"
+                className="w-3 h-3 rounded-full mr-2 mt-0.5 flex-shrink-0 border"
                 style={{
                   backgroundColor: bookmark.color,
                 }}
               />
               <div className="flex-grow min-w-0">
                 <div
-                  className={`text-base ${
+                  className={`text-sm ${
                     expandedBookmarkId === bookmark.id ? "" : "line-clamp-1"
                   }`}
                 >
@@ -190,14 +190,14 @@ const BookmarksPanel: React.FC = () => {
               </div>
               <div className="flex-shrink-0 ml-2">
                 {expandedBookmarkId === bookmark.id ? (
-                  <ChevronUp className="text-primary" size={20} />
+                  <ChevronUp className="text-primary" size={18} />
                 ) : (
-                  <ChevronDown className="text-muted-foreground" size={20} />
+                  <ChevronDown className="text-muted-foreground" size={18} />
                 )}
               </div>
             </div>
             {expandedBookmarkId === bookmark.id && (
-              <div className="mt-2 ml-5">
+              <div className="px-2 pb-2">
                 {bookmark.notes.map((note, index) => (
                   <div key={note.id || index} className="border-l-2 pl-2 mb-2">
                     {renderNoteContent(note)}
@@ -207,9 +207,9 @@ const BookmarksPanel: React.FC = () => {
                   variant="destructive"
                   size="sm"
                   onClick={(e) => handleDeleteBookmark(e, bookmark.id)}
-                  className="mt-2"
+                  className="mb-1"
                 >
-                  <Trash2 size={16} className="mr-2" />
+                  <Trash2 size={14} className="mr-2" />
                   Delete
                 </Button>
               </div>

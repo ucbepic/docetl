@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import Convert from "ansi-to-html";
 import { useWebSocket } from "@/contexts/WebSocketContext";
-import { useToast } from "@/hooks/use-toast";
 
 const convert = new Convert({
   fg: "#000",
@@ -26,7 +25,6 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [userInput, setUserInput] = useState("");
   const { sendMessage } = useWebSocket();
-  const { toast } = useToast();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -38,10 +36,7 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
     const trimmedInput = userInput.trim();
     if (trimmedInput) {
       sendMessage(trimmedInput);
-      toast({
-        title: "Terminal input received",
-        description: `You sent: ${trimmedInput}`,
-      });
+      setTerminalOutput(text + "\n$ " + trimmedInput);
       setUserInput("");
     }
   };
@@ -61,57 +56,49 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
         />
       </div>
       <div className="flex-none p-2 border-t border-gray-700">
-        <div className="flex mb-2">
+        <div className="flex items-center mb-2">
+          <span className="text-green-500 mr-2">$</span>
           <input
             type="text"
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-            className={`flex-grow bg-gray-800 text-white px-2 py-1 rounded-l ${
+            className={`flex-grow bg-transparent text-white outline-none ${
               isWebSocketClosed ? "cursor-not-allowed" : ""
             }`}
-            placeholder={
-              isWebSocketClosed
-                ? "WebSocket disconnected..."
-                : "Type a message..."
-            }
+            placeholder={isWebSocketClosed ? "WebSocket disconnected..." : ""}
             disabled={isWebSocketClosed}
           />
-          <button
-            onClick={handleSendMessage}
-            className={`bg-blue-500 text-white px-4 py-1 rounded-r ${
-              isWebSocketClosed ? "cursor-not-allowed opacity-50" : ""
-            }`}
-            disabled={isWebSocketClosed}
-          >
-            Send
-          </button>
+          {userInput.trim() && !isWebSocketClosed && (
+            <button
+              onClick={handleSendMessage}
+              className="ml-2 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+            >
+              ⏎
+            </button>
+          )}
         </div>
-        <div className="flex justify-between items-center">
-          <div
-            className={`text-xs ${
-              isWebSocketClosed ? "text-red-500" : "text-gray-500"
-            }`}
-          >
-            WebSocket State:{" "}
+        <div className="flex justify-between items-center text-xs text-gray-500">
+          <div className={isWebSocketClosed ? "text-red-500" : ""}>
+            Status:{" "}
             {readyState === WebSocket.CONNECTING
               ? "Connecting"
               : readyState === WebSocket.OPEN
-              ? "Open"
+              ? "Connected"
               : readyState === WebSocket.CLOSING
               ? "Closing"
               : readyState === WebSocket.CLOSED
-              ? "Closed"
+              ? "Disconnected"
               : "Unknown"}
           </div>
           <button
             onClick={() => setTerminalOutput("")}
-            className={`text-xs text-gray-500 ${
+            className={`hover:text-white transition-colors ${
               isWebSocketClosed ? "cursor-not-allowed opacity-50" : ""
             }`}
             disabled={isWebSocketClosed}
           >
-            Clear Output
+            Clear
           </button>
         </div>
       </div>

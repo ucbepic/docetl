@@ -100,7 +100,7 @@ export function NamespaceDialog({
             Enter a namespace to organize your pipeline configurations. This
             helps keep your work separate from others on the same server.
             {currentNamespace && (
-              <div className="mt-2 text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md p-2">
+              <div className="mt-2 text-orange-700 dark:text-orange-200 bg-orange-100 dark:bg-orange-950 border border-orange-300 dark:border-orange-800 rounded-md p-2 font-medium">
                 Note: Changing the namespace will clear your current workspace.
               </div>
             )}
@@ -124,7 +124,7 @@ export function NamespaceDialog({
             />
             {isChecking && <p className="text-xs text-red-500">Checking...</p>}
             {showWarning && (
-              <div className="text-sm text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md p-2">
+              <div className="text-sm text-orange-700 dark:text-orange-200 bg-orange-100 dark:bg-orange-950 border border-orange-300 dark:border-orange-800 rounded-md p-2 font-medium">
                 Warning: This namespace already exists. Saving will overwrite
                 existing configurations.
               </div>

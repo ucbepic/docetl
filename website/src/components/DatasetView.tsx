@@ -1,11 +1,9 @@
-import { File } from "@/app/types";
 import React, { useRef, useMemo, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, Search } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
 import {
   BarChart,
@@ -21,6 +19,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ChevronRight } from "lucide-react";
+import { Database } from "lucide-react";
+import { File } from "@/app/types";
 
 interface FileChunk {
   content: string;
@@ -79,22 +79,18 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
   };
 
   const { data, fetchNextPage, hasNextPage, isFetching, isError, error } =
-    // @ts-ignore
-    useInfiniteQuery({
-      // @ts-ignore
+    // @ts-expect-error Property 'initialPageParam' is missing in type
+    useInfiniteQuery<FileChunk>({
       queryKey: ["fileContent", file?.path],
-      // @ts-ignore
+      // @ts-expect-error Parameter 'pageParam' implicitly has an 'any' type
       queryFn: ({ pageParam = 0 }) => fetchFileContent({ pageParam }),
-      // @ts-ignore
       getNextPageParam: (lastPage) =>
-        // @ts-ignore
         lastPage.hasMore ? lastPage.page + 1 : undefined,
-      // @ts-ignore
       enabled: !!file?.path,
     });
 
   const lines = useMemo(() => {
-    // @ts-ignore
+    // @ts-expect-error Property 'content' does not exist on type 'unknown'
     return data?.pages.flatMap((page) => page.content.split("\n")) ?? [];
   }, [data]);
 
@@ -252,7 +248,7 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
 
       setTimeout(() => {
         try {
-          // @ts-ignore
+          // @ts-expect-error Property 'content' does not exist on type 'unknown'
           const allContent = data.pages.map((page) => page.content).join("");
           let documents: Record<string, unknown>[] = [];
 
@@ -270,7 +266,7 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
           const wordCounts = documents.map((doc) => {
             const text =
               typeof doc === "object"
-                ? JSON.stringify(doc, null, 2).replace(/[{}\[\]"]/g, "")
+                ? JSON.stringify(doc, null, 2).replace(/[{}[\]"]/g, "")
                 : String(doc);
             return text
               .trim()
@@ -342,28 +338,31 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
   if (isError) return <div>Error: {error.message}</div>;
 
   return (
-    <div className="h-full p-4 bg-white flex flex-col">
-      <h2 className="text-lg font-bold mb-2">{file?.name}</h2>
-      <div className="mb-4 p-2 rounded-lg border border-border bg-card/50">
-        <p className="mb-2 font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-          Available keys
-        </p>
-        <div className="flex flex-wrap gap-1">
+    <div className="h-full flex flex-col p-4">
+      <div className="flex justify-between items-center mb-4 border-b pb-3">
+        <h2 className="text-base font-bold flex items-center">
+          <Database className="mr-2" size={18} />
+          {file?.name}
+        </h2>
+      </div>
+
+      <div className="text-xs mb-4 bg-muted/50 p-2 rounded-md">
+        <span className="text-muted-foreground font-medium">
+          Available Keys:{" "}
+        </span>
+        <div className="flex flex-wrap gap-1 mt-2">
           {keys.map((key) => (
-            <Badge
-              key={key}
-              variant="secondary"
-              className="px-2 py-0.5 text-sm font-medium"
-            >
+            <Badge key={key} variant="default">
               {key}
             </Badge>
           ))}
         </div>
       </div>
+
       <Collapsible className="mb-4">
-        <CollapsibleTrigger className="flex items-center gap-2 hover:text-blue-500 transition-colors">
+        <CollapsibleTrigger className="flex items-center gap-2 hover:text-primary transition-colors">
           <ChevronRight className="h-4 w-4 transition-transform ui-expanded:rotate-90" />
-          <p className="font-semibold">Dataset Statistics</p>
+          <p className="text-sm font-medium">Dataset Statistics</p>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-4">
           {hasNextPage || datasetStats.isCalculating ? (
@@ -464,6 +463,7 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
           )}
         </CollapsibleContent>
       </Collapsible>
+
       <form onSubmit={handleSearch} className="flex items-center mb-4">
         <Input
           type="text"
@@ -500,16 +500,17 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
         >
           <ChevronDown className="h-4 w-4" />
         </Button>
-        <span className="ml-2">
+        <span className="ml-2 text-sm text-muted-foreground">
           {matches.length > 0
             ? `${currentMatchIndex + 1} of ${matches.length} matches`
             : "No matches"}
         </span>
       </form>
+
       <div ref={parentRef} className="flex-grow overflow-y-auto">
         {lines.map((lineContent, index) => (
-          <div key={index} className="flex">
-            <span className="inline-block w-12 flex-shrink-0 text-gray-500 select-none text-right pr-2">
+          <div key={index} className="flex hover:bg-gray-50">
+            <span className="inline-block w-12 flex-shrink-0 text-muted-foreground select-none text-right pr-2 text-sm">
               {index + 1}
             </span>
             <div className="flex-grow">
@@ -519,7 +520,11 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
             </div>
           </div>
         ))}
-        {isFetching && <div className="text-center py-4">Loading more...</div>}
+        {isFetching && (
+          <div className="text-center py-4 text-sm text-muted-foreground">
+            Loading more...
+          </div>
+        )}
       </div>
     </div>
   );

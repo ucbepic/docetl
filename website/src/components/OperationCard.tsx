@@ -27,6 +27,9 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  Menu,
+  Shield,
+  Sparkles,
 } from "lucide-react";
 import { Operation, SchemaItem } from "@/app/types";
 import { usePipelineContext } from "@/contexts/PipelineContext";
@@ -58,7 +61,7 @@ import {
 import { PromptImprovementDialog } from "@/components/PromptImprovementDialog";
 
 // Separate components
-const OperationHeader: React.FC<{
+interface OperationHeaderProps {
   name: string;
   type: string;
   llmType: string;
@@ -67,17 +70,22 @@ const OperationHeader: React.FC<{
   expanded: boolean;
   visibility: boolean;
   optimizeResult?: string;
+  isGuardrailsExpanded: boolean;
+  isGleaningsExpanded: boolean;
   onEdit: (name: string) => void;
   onDelete: () => void;
   onRunOperation: () => void;
   onToggleSettings: () => void;
   onShowOutput: () => void;
   onOptimize: () => void;
-  onAIEdit: (instruction: string) => void;
   onToggleExpand: () => void;
   onToggleVisibility: () => void;
   onImprovePrompt: () => void;
-}> = React.memo(
+  onToggleGuardrails: () => void;
+  onToggleGleanings: () => void;
+}
+
+const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
   ({
     name,
     type,
@@ -87,213 +95,247 @@ const OperationHeader: React.FC<{
     expanded,
     visibility,
     optimizeResult,
+    isGuardrailsExpanded,
+    isGleaningsExpanded,
     onEdit,
     onDelete,
-    onRunOperation,
     onToggleSettings,
     onShowOutput,
     onOptimize,
-    onAIEdit,
     onToggleExpand,
     onToggleVisibility,
     onImprovePrompt,
+    onToggleGuardrails,
+    onToggleGleanings,
   }) => {
+    const [menuOpen, setMenuOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(name);
 
-    const handleEditClick = () => {
-      setIsEditing(true);
-      setEditedName(name);
-    };
-
-    const handleEditComplete = () => {
-      setIsEditing(false);
-      onEdit(editedName);
-    };
-
     return (
-      <div className="relative flex items-center justify-between py-3 px-4">
-        {/* Left side buttons */}
-        <div
-          className={`flex space-x-1 absolute left-1 ${
-            !visibility ? "opacity-50" : ""
-          }`}
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-0.25 h-6 w-6"
-            onClick={onToggleExpand}
-          >
-            <ChevronDown
-              size={14}
-              className={`text-gray-500 transform transition-transform ${
-                expanded ? "rotate-180" : ""
-              }`}
-            />
-          </Button>
-          <div className="relative">
-            <div className="flex items-center space-x-1">
-              <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
-              {canBeOptimized(type) && (
-                <div className="relative">
-                  {optimizeResult !== undefined && (
-                    <div
-                      className={`absolute -top-1 -right-1 h-2 w-2 rounded-full ${
+      <div className="relative flex items-center py-2 px-4 border-b border-gray-100">
+        {/* Operation Type Badge and Optimization Status (The "Noun") */}
+        <div className="flex-1 flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
+
+            {canBeOptimized(type) && optimizeResult !== undefined && (
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div
+                    className={`w-2 h-2 rounded-full cursor-help transition-colors
+                      ${
                         optimizeResult === null || optimizeResult === ""
                           ? "bg-gray-300"
-                          : "bg-red-500"
+                          : "bg-amber-500 animate-pulse"
                       }`}
-                    />
-                  )}
-                  <HoverCard>
-                    <HoverCardTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="p-0.25 h-6 w-6"
-                        onClick={onOptimize}
-                        disabled={disabled}
-                      >
-                        <Zap
-                          size={14}
-                          className={
-                            optimizeResult === undefined ||
-                            optimizeResult === null ||
-                            optimizeResult === ""
-                              ? "text-gray-400"
-                              : "text-red-500"
-                          }
-                        />
-                      </Button>
-                    </HoverCardTrigger>
-                    <HoverCardContent className="w-80 p-2">
-                      <p className="text-sm">
-                        {optimizeResult === undefined || optimizeResult === null
-                          ? "Determining whether to recommend a decomposition..."
-                          : optimizeResult === ""
-                          ? "No decomposition recommended"
-                          : "Decomposition recommended because: " +
-                            optimizeResult}
-                      </p>
-                    </HoverCardContent>
-                  </HoverCard>
-                </div>
-              )}
-            </div>
+                  />
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72" side="bottom" align="start">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium">
+                      {optimizeResult === undefined || optimizeResult === null
+                        ? "Analyzing Operation"
+                        : optimizeResult === ""
+                        ? "Decomposition Status"
+                        : "Decomposition Recommended"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {optimizeResult === undefined || optimizeResult === null
+                        ? "Analyzing operation complexity..."
+                        : optimizeResult === ""
+                        ? "No decomposition needed for this operation"
+                        : "Recommended decomposition: " + optimizeResult}
+                    </p>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            )}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-0.25 h-6 w-6"
-            onClick={onToggleSettings}
-          >
-            <Settings size={14} className="text-gray-500" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex items-center gap-1 px-2 h-6"
-            disabled={disabled}
-            onClick={onShowOutput}
-          >
-            <ListCollapse size={14} className="text-primary" />
-            <span className="text-xs text-primary">Show outputs</span>
-          </Button>
-          {llmType === "LLM" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-1 px-2 h-6"
-              disabled={disabled}
-              onClick={onImprovePrompt}
-            >
-              <Wand2 size={14} className="text-primary" />
-              <span className="text-xs text-primary">Improve prompt</span>
-            </Button>
-          )}
-        </div>
 
-        {/* Centered title */}
-        <div
-          className={`flex-grow flex justify-center mx-20 ${
-            !visibility ? "opacity-50" : ""
-          }`}
-        >
           {isEditing ? (
             <Input
               value={editedName}
               onChange={(e) => setEditedName(e.target.value)}
-              onBlur={handleEditComplete}
-              onKeyPress={(e) => e.key === "Enter" && handleEditComplete()}
-              className="text-sm font-medium max-w-[200px] font-mono text-center"
+              onBlur={() => {
+                setIsEditing(false);
+                onEdit(editedName);
+              }}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  setIsEditing(false);
+                  onEdit(editedName);
+                }
+              }}
+              className="max-w-[200px] h-7 text-sm font-medium"
               autoFocus
             />
           ) : (
             <span
-              className={`text-sm font-medium cursor-pointer truncate max-w-[200px] ${
+              className={`text-sm font-medium cursor-default select-none ${
                 llmType === "LLM"
                   ? "bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text"
                   : ""
               }`}
-              onClick={handleEditClick}
+              onClick={() => setIsEditing(true)}
             >
               {name}
             </span>
           )}
         </div>
 
-        {/* Right side buttons */}
-        <div className="absolute right-1 flex items-center space-x-0">
-          <Button
-            variant={visibility ? "ghost" : "default"}
-            size="sm"
-            className={`flex items-center gap-1 px-2 h-6 ${
-              !visibility
-                ? "bg-green-100 hover:bg-green-200"
-                : "hover:bg-green-100"
+        {/* Action Menu (The "Verb") */}
+        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Menu className="h-4 w-4 text-gray-600" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-1" align="end">
+            <div className="space-y-0.5">
+              {/* Core Operation Actions */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                onClick={onShowOutput}
+                disabled={disabled}
+              >
+                <ListCollapse className="mr-2 h-4 w-4" />
+                Show Outputs
+              </Button>
+
+              {/* LLM-specific Actions */}
+              {llmType === "LLM" && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                    onClick={onToggleGuardrails}
+                  >
+                    <Shield className="mr-2 h-4 w-4" />
+                    {isGuardrailsExpanded
+                      ? "Hide Guardrails"
+                      : "Show Guardrails"}
+                  </Button>
+
+                  {(type === "map" ||
+                    type === "reduce" ||
+                    type === "filter") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                      onClick={onToggleGleanings}
+                    >
+                      <Shield className="mr-2 h-4 w-4" />
+                      {isGleaningsExpanded ? "Hide Gleaning" : "Show Gleaning"}
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                    onClick={onImprovePrompt}
+                  >
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    Improve Prompt
+                  </Button>
+                </>
+              )}
+
+              {/* Operation-specific Actions */}
+
+              {canBeOptimized(type) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                  onClick={onOptimize}
+                  disabled={disabled}
+                >
+                  <Zap className="mr-2 h-4 w-4" />
+                  Decompose Operation
+                </Button>
+              )}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                onClick={onToggleSettings}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Edit Other Args
+              </Button>
+
+              <div className="h-px bg-gray-100 my-1" />
+
+              {/* Visibility Toggle */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                onClick={onToggleVisibility}
+              >
+                {visibility ? (
+                  <>
+                    <EyeOff className="mr-2 h-4 w-4" />
+                    Skip Operation
+                  </>
+                ) : (
+                  <>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Include Operation
+                  </>
+                )}
+              </Button>
+
+              {/* Delete Operation */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-sm font-normal text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                onClick={onDelete}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Expand/Collapse Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-2 h-8 w-8 p-0 hover:bg-gray-100 rounded-full"
+          onClick={onToggleExpand}
+        >
+          <ChevronDown
+            className={`h-4 w-4 text-gray-600 transform transition-transform ${
+              expanded ? "rotate-180" : ""
             }`}
-            onClick={onToggleVisibility}
-          >
-            {visibility ? (
-              <>
-                <EyeOff size={14} className="text-gray-500" />
-                <span className="text-xs text-gray-500">Skip operation</span>
-              </>
-            ) : (
-              <>
-                <Eye size={14} className="text-green-700" />
-                <span className="text-xs font-medium text-green-700">
-                  Include operation
-                </span>
-              </>
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            className={`hover:bg-red-100 p-1 h-7 w-7 ${
-              !visibility ? "opacity-50" : ""
-            }`}
-          >
-            <Trash2 size={15} className="text-red-500" />
-          </Button>
-        </div>
+          />
+        </Button>
       </div>
     );
   }
 );
 OperationHeader.displayName = "OperationHeader";
 
-const SettingsModal: React.FC<{
+interface SettingsModalProps {
   opName: string;
   opType: string;
   isOpen: boolean;
   onClose: () => void;
   otherKwargs: Record<string, string>;
   onSettingsSave: (newSettings: Record<string, string>) => void;
-}> = React.memo(
+}
+
+const SettingsModal: React.FC<SettingsModalProps> = React.memo(
   ({ opName, opType, isOpen, onClose, otherKwargs, onSettingsSave }) => {
     const [localSettings, setLocalSettings] = React.useState<
       Array<{ id: number; key: string; value: string }>
@@ -413,6 +455,7 @@ const SettingsModal: React.FC<{
     );
   }
 );
+SettingsModal.displayName = "SettingsModal";
 
 // Action types
 type Action =
@@ -531,8 +574,14 @@ const initialState: State = {
   isGleaningsExpanded: false,
 };
 
+// Add id to the props interface
+interface Props {
+  index: number;
+  id?: string;
+}
+
 // Main component
-export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
+export const OperationCard: React.FC<Props> = ({ index, id }) => {
   const [state, dispatch] = useReducer(operationReducer, initialState);
   const {
     operation,
@@ -922,134 +971,125 @@ export const OperationCard: React.FC<{ index: number }> = ({ index }) => {
   }
 
   return (
-    <div className="flex items-start w-full">
-      <div className="mr-1 w-8 h-8 flex-shrink-0 flex items-center justify-center bg-gray-100 text-gray-600 font-mono text-xs rounded-sm shadow-sm">
-        {isLoadingOutputs ? (
-          <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-gray-900"></div>
-        ) : operation.runIndex ? (
-          <>[{operation.runIndex}]</>
-        ) : (
-          <>[ ]</>
-        )}
-      </div>
-      <Draggable draggableId={operation.id} index={index} key={operation.id}>
-        {(provided) => (
-          <Card
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            className={`mb-2 relative rounded-sm shadow-sm w-full ${
-              pipelineOutput?.operationId === operation.id
-                ? "bg-white border-blue-500 border-2"
-                : "bg-white"
-            } ${!operation.visibility ? "opacity-50" : ""}`}
+    <Draggable draggableId={operation.id} index={index} key={operation.id}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          id={id}
+          className={`mb-2 relative rounded-sm shadow-sm w-full ${
+            pipelineOutput?.operationId === operation.id
+              ? "bg-white border-primary border-2"
+              : "bg-white"
+          } ${!operation.visibility ? "opacity-50" : ""}`}
+        >
+          <div
+            {...provided.dragHandleProps}
+            className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-move hover:bg-gray-100 border-r border-gray-100"
           >
-            {/* Move the drag handle div outside of the ml-5 container */}
-            <div
-              {...provided.dragHandleProps}
-              className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-move hover:bg-gray-100 border-r border-gray-100"
-            >
-              <GripVertical size={14} className="text-gray-400" />
-            </div>
+            <GripVertical size={14} className="text-gray-400" />
+          </div>
 
-            {/* Adjust the left margin to accommodate the drag handle */}
-            <div className="ml-6">
-              <OperationHeader
-                name={operation.name}
-                type={operation.type}
-                llmType={operation.llmType}
-                disabled={isLoadingOutputs || pipelineOutput === undefined}
-                currOp={operation.id === pipelineOutput?.operationId}
-                expanded={isExpanded}
-                visibility={operation.visibility}
-                optimizeResult={operation.shouldOptimizeResult}
-                onEdit={(name) => {
-                  dispatch({ type: "UPDATE_NAME", payload: name });
-                  debouncedUpdate();
-                }}
-                onDelete={() =>
-                  setOperations((prev) =>
-                    prev.filter((op) => op.id !== operation.id)
-                  )
-                }
-                onRunOperation={handleRunOperation}
-                onToggleSettings={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-                onShowOutput={onShowOutput}
-                onOptimize={onOptimize}
-                onAIEdit={handleAIEdit}
-                onToggleExpand={() => dispatch({ type: "TOGGLE_EXPAND" })}
-                onToggleVisibility={handleVisibilityToggle}
-                onImprovePrompt={() => setShowPromptImprovement(true)}
-              />
-              {isExpanded && operation.visibility !== false && (
-                <>
-                  <CardContent className="py-2 px-3">
-                    {createOperationComponent(
-                      operation,
-                      handleOperationUpdate,
-                      isSchemaExpanded,
-                      () => dispatch({ type: "TOGGLE_SCHEMA" })
-                    )}
-                  </CardContent>
-                  {operation.llmType === "LLM" && (
-                    <>
-                      <Guardrails
-                        guardrails={operation.validate || []}
-                        onUpdate={handleGuardrailsUpdate}
-                        isExpanded={isGuardrailsExpanded}
-                        onToggle={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
-                      />
-                    </>
+          <div className="ml-6">
+            <OperationHeader
+              name={operation.name}
+              type={operation.type}
+              llmType={operation.llmType}
+              disabled={isLoadingOutputs || pipelineOutput === undefined}
+              currOp={operation.id === pipelineOutput?.operationId}
+              expanded={isExpanded}
+              visibility={operation.visibility}
+              optimizeResult={operation.shouldOptimizeResult}
+              isGuardrailsExpanded={isGuardrailsExpanded}
+              isGleaningsExpanded={isGleaningsExpanded}
+              onEdit={(name) => {
+                dispatch({ type: "UPDATE_NAME", payload: name });
+                debouncedUpdate();
+              }}
+              onDelete={() =>
+                setOperations((prev) =>
+                  prev.filter((op) => op.id !== operation.id)
+                )
+              }
+              onRunOperation={handleRunOperation}
+              onToggleSettings={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+              onShowOutput={onShowOutput}
+              onOptimize={onOptimize}
+              onToggleExpand={() => dispatch({ type: "TOGGLE_EXPAND" })}
+              onToggleVisibility={handleVisibilityToggle}
+              onImprovePrompt={() => setShowPromptImprovement(true)}
+              onToggleGuardrails={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
+              onToggleGleanings={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
+            />
+            {isExpanded && operation.visibility !== false && (
+              <>
+                <CardContent className="p-4">
+                  {createOperationComponent(
+                    operation,
+                    handleOperationUpdate,
+                    isSchemaExpanded,
+                    () => dispatch({ type: "TOGGLE_SCHEMA" })
                   )}
-                  {(operation.type === "map" ||
-                    operation.type === "reduce" ||
-                    operation.type === "filter") && (
-                    <GleaningConfig
-                      gleaning={operation.gleaning || null}
-                      onUpdate={handleGleaningsUpdate}
-                      isExpanded={isGleaningsExpanded}
-                      onToggle={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
+                </CardContent>
+
+                {operation.llmType === "LLM" && isGuardrailsExpanded && (
+                  <div className="px-4 pb-4">
+                    <Guardrails
+                      guardrails={operation.validate || []}
+                      onUpdate={handleGuardrailsUpdate}
+                      isExpanded={true}
+                      onToggle={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
                     />
+                  </div>
+                )}
+
+                {(operation.type === "map" ||
+                  operation.type === "reduce" ||
+                  operation.type === "filter") &&
+                  isGleaningsExpanded && (
+                    <div className="px-4 pb-4">
+                      <GleaningConfig
+                        gleaning={operation.gleaning || null}
+                        onUpdate={handleGleaningsUpdate}
+                        isExpanded={true}
+                        onToggle={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
+                      />
+                    </div>
                   )}
-                </>
-              )}
-              <SettingsModal
-                opName={operation.name}
-                opType={operation.type}
-                isOpen={isSettingsOpen}
-                onClose={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-                otherKwargs={operation.otherKwargs || {}}
-                onSettingsSave={handleSettingsSave}
+              </>
+            )}
+            <SettingsModal
+              opName={operation.name}
+              opType={operation.type}
+              isOpen={isSettingsOpen}
+              onClose={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+              otherKwargs={operation.otherKwargs || {}}
+              onSettingsSave={handleSettingsSave}
+            />
+            {operation.llmType === "LLM" && (
+              <PromptImprovementDialog
+                open={showPromptImprovement}
+                onOpenChange={setShowPromptImprovement}
+                currentOperation={operation}
+                onSave={handlePromptSave}
               />
-              {operation.llmType === "LLM" && (
-                <PromptImprovementDialog
-                  open={showPromptImprovement}
-                  onOpenChange={setShowPromptImprovement}
-                  currentOperation={operation}
-                  onSave={handlePromptSave}
-                />
-              )}
-            </div>
-          </Card>
-        )}
-      </Draggable>
-    </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Draggable>
   );
 };
 
 const SkeletonCard: React.FC = () => (
-  <div className="flex items-start w-full">
-    <div className="mr-1 w-8 h-8 flex-shrink-0 flex items-center justify-center bg-gray-200 rounded-sm">
-      <Skeleton className="h-3 w-3" />
-    </div>
-    <Card className="mb-2 relative rounded-sm bg-white shadow-sm w-full">
-      <CardHeader className="flex justify-between items-center py-2 px-3">
-        <Skeleton className="h-3 w-1/3" />
-        <Skeleton className="h-3 w-1/4" />
-      </CardHeader>
-      <CardContent>
-        <Skeleton className="h-16 w-full mb-1" />
-        <Skeleton className="h-3 w-2/3" />
-      </CardContent>
-    </Card>
-  </div>
+  <Card className="mb-2 relative rounded-sm bg-white shadow-sm w-full">
+    <CardHeader className="flex justify-between items-center py-2 px-3">
+      <Skeleton className="h-3 w-1/3" />
+      <Skeleton className="h-3 w-1/4" />
+    </CardHeader>
+    <CardContent>
+      <Skeleton className="h-16 w-full mb-1" />
+      <Skeleton className="h-3 w-2/3" />
+    </CardContent>
+  </Card>
 );

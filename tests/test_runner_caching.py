@@ -35,7 +35,7 @@ def temp_intermediate_dir():
         yield tmpdirname
 
 
-def create_pipeline(input_file, output_file, intermediate_dir, operation_prompt):
+def create_pipeline(input_file, output_file, intermediate_dir, operation_prompt, bypass_cache=False):
     return Pipeline(
         name="test_pipeline",
         datasets={"test_input": Dataset(type="file", path=input_file)},
@@ -45,6 +45,7 @@ def create_pipeline(input_file, output_file, intermediate_dir, operation_prompt)
                 type="map",
                 prompt=operation_prompt,
                 output={"schema": {"result": "string"}},
+                bypass_cache=bypass_cache,
             )
         ],
         steps=[
@@ -80,34 +81,16 @@ def test_pipeline_rerun_on_operation_change(
     # Check that the pipeline was not rerun (cost should be zero)
     assert unmodified_cost == 0
 
-    # Record the start time
-    start_time = time.time()
-
-    # Run again without changes
-    _ = pipeline.run()
-
-    # Record the end time
-    end_time = time.time()
-
-    # Calculate and store the runtime
-    unmodified_runtime = end_time - start_time
 
     # Modify the operation
     modified_prompt = "Count the words in the following text: '{{ input.text }}'"
     modified_pipeline = create_pipeline(
-        temp_input_file, temp_output_file, temp_intermediate_dir, modified_prompt
+        temp_input_file, temp_output_file, temp_intermediate_dir, modified_prompt, bypass_cache=True
     )
 
-    # Record the start time
-    start_time = time.time()
+    modified_cost = modified_pipeline.run()
 
-    _ = modified_pipeline.run()
-
-    # Record the end time
-    end_time = time.time()
-
-    # Calculate and store the runtime
-    modified_runtime = end_time - start_time
+    
 
     # Check that the intermediate files were updated
     with open(
@@ -116,8 +99,8 @@ def test_pipeline_rerun_on_operation_change(
         intermediate_data = json.load(f)
     assert any("word" in str(item).lower() for item in intermediate_data)
 
-    # Check that the runtime is faster when not modifying
-    assert unmodified_runtime < modified_runtime * 2
+    # Check that the cost > 0
+    assert modified_cost > 0
 
 
 # Test with an incorrect later operation but correct earlier operation

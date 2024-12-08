@@ -9,7 +9,14 @@ import {
 import { SearchableCell } from "@/components/SearchableCell";
 import { PrettyJSON } from "@/components/PrettyJSON";
 import { RowNavigator } from "@/components/RowNavigator";
-import { ChevronDown, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ChevronDown,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  Wand2,
+  Trash2,
+} from "lucide-react";
 import {
   HoverCard,
   HoverCardContent,
@@ -184,7 +191,8 @@ export function ColumnDialog<T extends Record<string, unknown>>({
 
   const renderRowContent = (row: T | null, value: unknown) => {
     if (!row) return null;
-    const { addBookmark, getNotesForRowAndColumn } = useBookmarkContext();
+    const { addBookmark, getNotesForRowAndColumn, removeBookmark } =
+      useBookmarkContext();
 
     const handleSubmitFeedback = (feedbackText: string) => {
       if (!feedbackText.trim()) return;
@@ -324,128 +332,133 @@ export function ColumnDialog<T extends Record<string, unknown>>({
             </ResizablePanel>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize={40} minSize={20}>
-              <div className="h-full bg-muted/10 flex flex-col">
-                <div className="flex-none p-2 border-b">
-                  <h3 className="text-sm font-medium">Feedback</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Share your thoughts on this output
+              <div className="h-full bg-muted/5 flex flex-col border-l">
+                <div className="flex-none p-4 border-b bg-muted/10">
+                  <h3 className="text-base font-medium mb-1">Add Notes</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Your notes will help improve prompts via the{" "}
+                    <Wand2 className="h-3 w-3 inline-block mx-0.5 text-primary" />{" "}
+                    Improve Prompt feature in operation settings
                   </p>
                 </div>
-                <div className="flex-1 overflow-auto p-2">
+
+                <div className="flex-1 overflow-auto p-4">
                   {existingNotes.length > 0 && (
-                    <div className="mb-2">
+                    <div className="mb-4 bg-muted/10 rounded-lg p-2">
                       <button
                         onClick={() => setShowPreviousNotes(!showPreviousNotes)}
-                        className="flex items-center justify-between w-full text-sm font-medium text-muted-foreground hover:text-foreground mb-2"
+                        className="flex items-center justify-between w-full text-base font-medium mb-1"
                       >
                         <span>Previous Notes ({existingNotes.length})</span>
                         <ChevronDown
-                          className={`h-4 w-4 transition-transform ${
+                          className={`h-5 w-5 text-primary transition-transform ${
                             showPreviousNotes ? "rotate-180" : ""
                           }`}
                         />
                       </button>
                       {showPreviousNotes && (
-                        <div className="space-y-2 mb-2">
+                        <div className="space-y-2">
                           {existingNotes.map((note) => (
                             <div
                               key={note.id}
-                              className="p-2 rounded-lg bg-muted/20 text-sm"
+                              className="flex items-start gap-2 p-2 rounded-lg bg-muted/30"
                             >
-                              <span className="italic">"{note.note}"</span>
+                              <div className="flex-1 text-sm text-muted-foreground italic">
+                                &ldquo;{note.note}&rdquo;
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 hover:bg-destructive/10"
+                                onClick={() => removeBookmark(note.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive hover:text-destructive" />
+                              </Button>
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
                   )}
-                  <div className="flex-none">
+
+                  <div className="space-y-4">
                     <Textarea
-                      placeholder="e.g., I don't like how short these outputs are"
-                      className="min-h-[80px] bg-transparent resize-none"
+                      placeholder="What do you think about this output?"
+                      className="min-h-[100px] text-base bg-background border resize-none p-3"
                     />
-                  </div>
-                  <div className="flex-none mt-2">
-                    <Select
-                      value={feedbackColor}
-                      onValueChange={setFeedbackColor}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue>
-                          <div className="flex items-center">
-                            <div
-                              className="w-4 h-4 rounded-full mr-2"
-                              style={{ backgroundColor: feedbackColor }}
-                            />
-                            {feedbackColor === "#FF0000"
-                              ? "Red"
-                              : feedbackColor === "#00FF00"
-                              ? "Green"
-                              : feedbackColor === "#0000FF"
-                              ? "Blue"
-                              : feedbackColor === "#FFFF00"
-                              ? "Yellow"
-                              : feedbackColor === "#FF00FF"
-                              ? "Magenta"
-                              : "Cyan"}
-                          </div>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="#FF0000">
-                          <div className="flex items-center">
-                            <div className="w-4 h-4 rounded-full bg-[#FF0000] mr-2" />
-                            Red
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="#00FF00">
-                          <div className="flex items-center">
-                            <div className="w-4 h-4 rounded-full bg-[#00FF00] mr-2" />
-                            Green
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="#0000FF">
-                          <div className="flex items-center">
-                            <div className="w-4 h-4 rounded-full bg-[#0000FF] mr-2" />
-                            Blue
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="#FFFF00">
-                          <div className="flex items-center">
-                            <div className="w-4 h-4 rounded-full bg-[#FFFF00] mr-2" />
-                            Yellow
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="#FF00FF">
-                          <div className="flex items-center">
-                            <div className="w-4 h-4 rounded-full bg-[#FF00FF] mr-2" />
-                            Magenta
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="#00FFFF">
-                          <div className="flex items-center">
-                            <div className="w-4 h-4 rounded-full bg-[#00FFFF] mr-2" />
-                            Cyan
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex-none mt-2">
-                    <Button
-                      className="w-full"
-                      onClick={(e) => {
-                        const textarea = (e.target as HTMLElement)
-                          .closest(".flex-col")
-                          ?.querySelector("textarea");
-                        if (textarea) {
-                          handleSubmitFeedback(textarea.value);
-                          textarea.value = "";
-                        }
-                      }}
-                    >
-                      Submit Feedback
-                    </Button>
+
+                    <div className="flex items-center gap-3">
+                      <Select
+                        value={feedbackColor}
+                        onValueChange={setFeedbackColor}
+                      >
+                        <SelectTrigger className="w-[140px] bg-background">
+                          <SelectValue>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-4 h-4 rounded-full border"
+                                style={{ backgroundColor: feedbackColor }}
+                              />
+                              <span>Category</span>
+                            </div>
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="#FF0000">
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 rounded-full bg-[#FF0000] mr-2" />
+                              Red
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="#00FF00">
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 rounded-full bg-[#00FF00] mr-2" />
+                              Green
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="#0000FF">
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 rounded-full bg-[#0000FF] mr-2" />
+                              Blue
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="#FFFF00">
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 rounded-full bg-[#FFFF00] mr-2" />
+                              Yellow
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="#FF00FF">
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 rounded-full bg-[#FF00FF] mr-2" />
+                              Magenta
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="#00FFFF">
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 rounded-full bg-[#00FFFF] mr-2" />
+                              Cyan
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        className="flex-1"
+                        size="lg"
+                        onClick={(e) => {
+                          const textarea = e.currentTarget
+                            .closest(".space-y-4")
+                            ?.querySelector("textarea");
+                          if (textarea) {
+                            handleSubmitFeedback(textarea.value);
+                            textarea.value = "";
+                          }
+                        }}
+                      >
+                        Add Note
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>

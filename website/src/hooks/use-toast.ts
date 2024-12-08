@@ -6,7 +6,7 @@ import * as React from "react";
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
 const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_REMOVE_DELAY = 5000;
 
 type ToasterToast = ToastProps & {
   id: string;
@@ -153,13 +153,6 @@ function toast({ ...props }: Toast) {
       ...props,
       id,
       open: true,
-      style: {
-        wordWrap: "break-word",
-        maxWidth: "100%",
-        maxHeight: "80vh",
-        overflow: "auto",
-        padding: "8px",
-      },
       onOpenChange: (open) => {
         if (!open) dismiss();
       },

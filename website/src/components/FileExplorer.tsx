@@ -766,7 +766,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       </Label>
                     </div>
                     <p className="text-xs text-muted-foreground pl-6">
-                      Use our hosted server for optimal processing
+                      Use our hosted server for fast and accurate processing
+                      across many documents
                     </p>
                   </div>
 

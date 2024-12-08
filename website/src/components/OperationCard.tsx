@@ -220,6 +220,20 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                       : "Show Guardrails"}
                   </Button>
 
+                  {(type === "map" ||
+                    type === "reduce" ||
+                    type === "filter") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                      onClick={onToggleGleanings}
+                    >
+                      <Shield className="mr-2 h-4 w-4" />
+                      {isGleaningsExpanded ? "Hide Gleaning" : "Show Gleaning"}
+                    </Button>
+                  )}
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -233,17 +247,6 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
               )}
 
               {/* Operation-specific Actions */}
-              {(type === "map" || type === "reduce" || type === "filter") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                  onClick={onToggleGleanings}
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {isGleaningsExpanded ? "Hide Gleaning" : "Show Gleaning"}
-                </Button>
-              )}
 
               {canBeOptimized(type) && (
                 <Button
@@ -976,7 +979,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
           id={id}
           className={`mb-2 relative rounded-sm shadow-sm w-full ${
             pipelineOutput?.operationId === operation.id
-              ? "bg-white border-blue-500 border-2"
+              ? "bg-white border-primary border-2"
               : "bg-white"
           } ${!operation.visibility ? "opacity-50" : ""}`}
         >

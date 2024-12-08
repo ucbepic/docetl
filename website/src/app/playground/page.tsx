@@ -64,6 +64,11 @@ import {
   MenubarItem,
   MenubarMenu,
   MenubarTrigger,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
+  MenubarRadioGroup,
+  MenubarRadioItem,
 } from "@/components/ui/menubar";
 import {
   AlertDialog,
@@ -92,6 +97,7 @@ const NamespaceDialog = dynamic(
     ssr: false,
   }
 );
+import { ThemeProvider, useTheme, Theme } from "@/contexts/ThemeContext";
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg
@@ -166,6 +172,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showDatasetView, setShowDatasetView] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     setIsMounted(true);
@@ -325,9 +332,40 @@ const CodeEditorPipelineApp: React.FC = () => {
                   </AlertDialog>
                   <MenubarItem onSelect={handleOpen}>Open</MenubarItem>
                   <MenubarItem onSelect={handleSaveAs}>Save As</MenubarItem>
+                </MenubarContent>
+              </MenubarMenu>
+              <MenubarMenu>
+                <MenubarTrigger>Edit</MenubarTrigger>
+                <MenubarContent>
                   <MenubarItem onSelect={() => setShowNamespaceDialog(true)}>
                     Change Namespace
                   </MenubarItem>
+                  <MenubarSub>
+                    <MenubarSubTrigger>Change Theme</MenubarSubTrigger>
+                    <MenubarSubContent>
+                      <MenubarRadioGroup
+                        value={theme}
+                        onValueChange={(value) => setTheme(value as Theme)}
+                      >
+                        <MenubarRadioItem value="default">
+                          Default
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="forest">
+                          Forest
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="magestic">
+                          Magestic
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="sunset">
+                          Sunset
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="ruby">Ruby</MenubarRadioItem>
+                        <MenubarRadioItem value="monochrome">
+                          Monochrome
+                        </MenubarRadioItem>
+                      </MenubarRadioGroup>
+                    </MenubarSubContent>
+                  </MenubarSub>
                 </MenubarContent>
               </MenubarMenu>
               <MenubarMenu>
@@ -356,7 +394,8 @@ const CodeEditorPipelineApp: React.FC = () => {
                       saveProgress();
                       toast({
                         title: "Progress Saved",
-                        description: "Your pipeline progress has been saved.",
+                        description:
+                          "Your pipeline progress has been saved to browser storage.",
                         duration: 3000,
                       });
                     }}
@@ -368,13 +407,13 @@ const CodeEditorPipelineApp: React.FC = () => {
                         unsavedChanges ? "text-orange-500 mr-2" : "mr-2"
                       }
                     />
-                    {unsavedChanges ? "Save Changes" : "Save"}
+                    {unsavedChanges ? "Quick Save" : "Quick Save"}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   {unsavedChanges
-                    ? "Save changes to avoid losing progress!"
-                    : "No unsaved changes"}
+                    ? "Save changes to browser storage (use File > Save As to save to disk)"
+                    : "No changes compared to the version in browser storage"}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -633,11 +672,13 @@ const WrappedCodeEditorPipelineApp: React.FC = () => {
   }
 
   return (
-    <WebSocketProvider>
-      <PipelineProvider>
-        <CodeEditorPipelineApp />
-      </PipelineProvider>
-    </WebSocketProvider>
+    <ThemeProvider>
+      <WebSocketProvider>
+        <PipelineProvider>
+          <CodeEditorPipelineApp />
+        </PipelineProvider>
+      </WebSocketProvider>
+    </ThemeProvider>
   );
 };
 

@@ -456,7 +456,7 @@ export function ColumnDialog<T extends Record<string, unknown>>({
                           }
                         }}
                       >
-                        Submit Feedback
+                        Add Note
                       </Button>
                     </div>
                   </div>

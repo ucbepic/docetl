@@ -750,7 +750,7 @@ const PipelineGUI: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-none p-3 bg-white border-b sticky top-0 z-10 shadow-sm">
+      <div className="flex-none p-3 bg-background border-b sticky top-0 z-10 shadow-sm">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
             {isEditingName ? (
@@ -779,92 +779,137 @@ const PipelineGUI: React.FC = () => {
               </h2>
             )}
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 flex items-center gap-2"
+            <div className="flex items-center space-x-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 flex items-center gap-2"
+                  >
+                    <GitBranch size={14} />
+                    <span className="text-xs">Overview</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="bottom"
+                  align="start"
+                  className="w-96 p-4"
                 >
-                  <GitBranch size={14} />
-                  <span className="text-xs">Overview</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent side="bottom" align="start" className="w-96 p-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-medium">Pipeline Flow</h4>
-                    <span className="text-xs text-muted-foreground">
-                      {operations.filter((op) => op.visibility).length}{" "}
-                      operations
-                    </span>
-                  </div>
-                  <div className="bg-muted p-3 rounded-md space-y-2">
-                    {operations.length > 0 ? (
-                      operations
-                        .filter((op) => op.visibility)
-                        .map((op, index, arr) => (
-                          <div key={op.id} className="flex items-center">
-                            <div className="flex-1 bg-background p-2 rounded-md text-sm">
-                              <div className="font-medium">{op.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {op.type}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium">Pipeline Flow</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {operations.filter((op) => op.visibility).length}{" "}
+                        operations
+                      </span>
+                    </div>
+                    <div className="bg-muted p-3 rounded-md space-y-2">
+                      {operations.length > 0 ? (
+                        operations
+                          .filter((op) => op.visibility)
+                          .map((op, index, arr) => (
+                            <div key={op.id} className="flex items-center">
+                              <div className="flex-1 bg-background p-2 rounded-md text-sm">
+                                <div className="font-medium">{op.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {op.type}
+                                </div>
                               </div>
+                              {index < arr.length - 1 && (
+                                <div className="mx-2 text-muted-foreground">
+                                  ↓
+                                </div>
+                              )}
                             </div>
-                            {index < arr.length - 1 && (
-                              <div className="mx-2 text-muted-foreground">
-                                ↓
-                              </div>
-                            )}
-                          </div>
-                        ))
-                    ) : (
-                      <div className="text-sm text-muted-foreground">
-                        No operations in the pipeline
-                      </div>
-                    )}
+                          ))
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          No operations in the pipeline
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
 
-            <div className="flex items-center space-x-2 border-l pl-3">
-              <TooltipProvider>
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3 flex items-center gap-2"
-                    >
-                      <PieChart size={14} />
-                      <Input
-                        type="number"
-                        value={sampleSize || ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setSampleSize(
-                            value === "" ? null : parseInt(value, 10)
-                          );
-                        }}
-                        placeholder="All docs"
-                        className="w-20 h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                      />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="w-72 p-3">
-                    <div className="space-y-2">
-                      <div className="font-medium">Sample Size</div>
-                      <div className="text-xs">
-                        Number of random documents to process. Use this for
-                        quick testing.
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 flex items-center gap-2"
+                  >
+                    <Brain size={14} />
+                    <span className="text-xs">System Prompts</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-88">
+                  <div className="grid gap-3">
+                    <div className="space-y-1">
+                      <h4 className="text-lg font-semibold">
+                        System Configuration
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        This will be in the system prompt for <b>every</b>{" "}
+                        operation!
+                      </p>
+                    </div>
+                    <div className="grid gap-3">
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="datasetDescription"
+                          className="text-sm font-medium"
+                        >
+                          Dataset Description
+                        </Label>
+                        <Textarea
+                          id="datasetDescription"
+                          placeholder="a collection of documents"
+                          defaultValue={systemPrompt.datasetDescription}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            setTimeout(() => {
+                              setSystemPrompt((prev) => ({
+                                ...prev,
+                                datasetDescription: value,
+                              }));
+                            }, 0);
+                          }}
+                          className="h-[3.5rem]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="persona"
+                          className="text-sm font-medium"
+                        >
+                          Persona
+                        </Label>
+                        <Textarea
+                          id="persona"
+                          placeholder="a helpful assistant"
+                          defaultValue={systemPrompt.persona}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            setTimeout(() => {
+                              setSystemPrompt((prev) => ({
+                                ...prev,
+                                persona: value,
+                              }));
+                            }, 0);
+                          }}
+                          className="h-[3.5rem]"
+                        />
                       </div>
                     </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
 
-              <div className="flex items-center space-x-1 border-l pl-2">
+            <div className="flex items-center border-l pl-2">
+              <div className="flex items-center space-x-1">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -906,9 +951,6 @@ const PipelineGUI: React.FC = () => {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-              </div>
-
-              <div className="flex items-center space-x-1 border-l pl-2">
                 <Button
                   size="icon"
                   variant="ghost"
@@ -917,80 +959,6 @@ const PipelineGUI: React.FC = () => {
                 >
                   <Settings size={16} />
                 </Button>
-
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 flex items-center gap-1"
-                    >
-                      <Brain size={14} />
-                      <span className="text-xs">System Prompts</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-88">
-                    <div className="grid gap-3">
-                      <div className="space-y-1">
-                        <h4 className="text-lg font-semibold">
-                          System Configuration
-                        </h4>
-                        <p className="text-sm text-muted-foreground">
-                          This will be in the system prompt for <b>every</b>{" "}
-                          operation!
-                        </p>
-                      </div>
-                      <div className="grid gap-3">
-                        <div className="space-y-1">
-                          <Label
-                            htmlFor="datasetDescription"
-                            className="text-sm font-medium"
-                          >
-                            Dataset Description
-                          </Label>
-                          <Textarea
-                            id="datasetDescription"
-                            placeholder="a collection of documents"
-                            defaultValue={systemPrompt.datasetDescription}
-                            onBlur={(e) => {
-                              const value = e.target.value;
-                              setTimeout(() => {
-                                setSystemPrompt((prev) => ({
-                                  ...prev,
-                                  datasetDescription: value,
-                                }));
-                              }, 0);
-                            }}
-                            className="h-[3.5rem]"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label
-                            htmlFor="persona"
-                            className="text-sm font-medium"
-                          >
-                            Persona
-                          </Label>
-                          <Textarea
-                            id="persona"
-                            placeholder="a helpful assistant"
-                            defaultValue={systemPrompt.persona}
-                            onBlur={(e) => {
-                              const value = e.target.value;
-                              setTimeout(() => {
-                                setSystemPrompt((prev) => ({
-                                  ...prev,
-                                  persona: value,
-                                }));
-                              }, 0);
-                            }}
-                            className="h-[3.5rem]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
               </div>
             </div>
           </div>
@@ -1171,7 +1139,7 @@ const PipelineGUI: React.FC = () => {
                 {...provided.droppableProps}
                 ref={provided.innerRef}
                 className={`space-y-2 ${
-                  snapshot.isDraggingOver ? "bg-gray-50" : ""
+                  snapshot.isDraggingOver ? "bg-accent" : ""
                 }`}
               >
                 {operations.map((op, index) => (

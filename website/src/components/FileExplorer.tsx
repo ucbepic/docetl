@@ -542,11 +542,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col p-4">
+    <div className="h-full flex flex-col p-4 bg-background">
       <div className="flex justify-between items-center mb-4 border-b pb-3">
         <h2 className="text-base font-bold flex items-center">
           <Folder className="mr-2" size={14} />
-          FILE EXPLORER
+          FILES
         </h2>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -616,8 +616,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 <ContextMenuTrigger
                   className={`
                     group relative flex items-center w-full cursor-pointer 
-                    hover:bg-gray-100 p-2 rounded-md
-                    ${currentFile?.path === file.path ? "bg-blue-100" : ""} 
+                    hover:bg-accent p-2 rounded-md
+                    ${currentFile?.path === file.path ? "bg-primary/10" : ""} 
                     ${folder !== "root" ? "ml-4" : ""}
                   `}
                   onClick={() => handleFileClick(file)}
@@ -842,8 +842,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   border-2 border-dashed rounded-lg transition-colors relative flex-shrink-0
                   ${
                     selectedFiles && selectedFiles.length > 0
-                      ? "border-gray-200 bg-gray-50/50 p-6"
-                      : "border-gray-300 p-8 hover:border-gray-400"
+                      ? "border-border bg-accent/50 p-6"
+                      : "border-border p-8 hover:border-primary"
                   }
                 `}
                 onDragOver={(e) => {

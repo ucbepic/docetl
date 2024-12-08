@@ -90,7 +90,7 @@ const BookmarksPanel: React.FC = () => {
   };
 
   return (
-    <div className="h-full p-4 flex flex-col">
+    <div className="h-full p-4 flex flex-col bg-background">
       <div className="flex justify-between items-center mb-4 border-b pb-3">
         <h2 className="text-base font-bold flex items-center">
           <Bookmark className="mr-2" size={14} />
@@ -167,7 +167,7 @@ const BookmarksPanel: React.FC = () => {
         {filteredBookmarks.map((bookmark) => (
           <div
             key={bookmark.id}
-            className="mb-2 border rounded-lg hover:border-primary transition-colors"
+            className="mb-2 border rounded-lg hover:bg-accent transition-colors"
           >
             <div
               className="flex items-start p-2 cursor-pointer"

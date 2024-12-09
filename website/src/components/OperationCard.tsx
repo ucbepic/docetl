@@ -257,7 +257,7 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                   disabled={disabled}
                 >
                   <Zap className="mr-2 h-4 w-4" />
-                  Decompose Operation
+                  Optimize Operation
                 </Button>
               )}
 

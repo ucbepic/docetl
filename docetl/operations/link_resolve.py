@@ -9,6 +9,7 @@ from rich.prompt import Confirm
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, rich_as_completed
 from docetl.utils import completion_cost, extract_jinja_variables
+from docetl.operations.utils import strict_render
 from .clustering_utils import get_embeddings_for_clustering
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
@@ -139,11 +140,11 @@ class LinkResolveOperation(BaseOperation):
         return input_data, total_cost
                     
     def compare(self, link_idx, id_idx, link_value, id_value, item):
-        prompt = self.prompt_template.render(
-            link_value = link_value,
-            id_value = id_value,
-            item = item
-        )
+        prompt = strict_render(self.prompt_template, {
+            "link_value": link_value,
+            "id_value": id_value,
+            "item": item
+        })
 
         schema = {"is_same": "bool"}
 

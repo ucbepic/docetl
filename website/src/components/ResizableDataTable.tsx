@@ -68,7 +68,7 @@ export type ColumnType<T> = {
   id?: string;
 };
 
-interface ColumnStats {
+export interface ColumnStats {
   min: number;
   max: number;
   avg: number;
@@ -102,7 +102,7 @@ function calculateDistinctValueCounts(
   return valueCounts;
 }
 
-function calculateColumnStats(
+export function calculateColumnStats(
   data: Record<string, unknown>[],
   accessor: string
 ): ColumnStats | null {
@@ -256,7 +256,7 @@ const truncateString = (str: string, maxLength: number = 20) => {
   return str.slice(0, maxLength) + "...";
 };
 
-const WordCountHistogram = memo(
+export const WordCountHistogram = memo(
   ({
     histogramData,
   }: {
@@ -328,7 +328,7 @@ const WordCountHistogram = memo(
 );
 WordCountHistogram.displayName = "WordCountHistogram";
 
-const CategoricalBarChart = memo(
+export const CategoricalBarChart = memo(
   ({ data }: { data: { value: string; count: number }[] }) => {
     // Memoize total count calculation
     const totalCount = useMemo(
@@ -1339,6 +1339,7 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
           }}
           onJumpToRow={(index) => setCurrentValueIndex(index)}
           currentOperation={currentOperation}
+          columnStats={columnStats[activeColumn]}
         />
       )}
     </div>

@@ -5,7 +5,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 export type Theme =
   | "default"
   | "forest"
-  | "magestic"
+  | "majestic"
   | "sunset"
   | "ruby"
   | "monochrome";
@@ -65,12 +65,12 @@ const themes = {
     input: "150 30% 18%",
     ring: "150 100% 50%",
     chart1: "150 70% 40%",
-    chart2: "120 65% 45%",
-    chart3: "180 60% 35%",
-    chart4: "90 55% 45%",
-    chart5: "165 70% 40%",
+    chart2: "35 85% 50%",
+    chart3: "195 65% 40%",
+    chart4: "105 60% 45%",
+    chart5: "270 45% 45%",
   },
-  magestic: {
+  majestic: {
     background: "270 30% 99%",
     foreground: "270 10% 5%",
     card: "270 20% 97%",
@@ -91,10 +91,10 @@ const themes = {
     input: "270 30% 18%",
     ring: "270 100% 50%",
     chart1: "270 70% 60%",
-    chart2: "290 65% 55%",
-    chart3: "250 60% 50%",
-    chart4: "310 70% 45%",
-    chart5: "230 65% 55%",
+    chart2: "330 65% 55%",
+    chart3: "210 60% 50%",
+    chart4: "30 70% 55%",
+    chart5: "150 55% 45%",
   },
   sunset: {
     background: "30 30% 99%",
@@ -143,10 +143,10 @@ const themes = {
     input: "345 30% 18%",
     ring: "345 100% 50%",
     chart1: "345 85% 55%",
-    chart2: "375 80% 50%",
-    chart3: "315 75% 45%",
-    chart4: "0 70% 50%",
-    chart5: "330 80% 55%",
+    chart2: "195 70% 50%",
+    chart3: "45 75% 55%",
+    chart4: "315 65% 45%",
+    chart5: "165 60% 50%",
   },
   monochrome: {
     background: "0 0% 98%",

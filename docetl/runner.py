@@ -344,6 +344,14 @@ class DSLRunner(ConfigWrapper):
                 )
                 continue
 
+            # Delete existing intermediate file before running operation
+            if self.intermediate_dir:
+                checkpoint_path = os.path.join(
+                    self.intermediate_dir, step["name"], f"{operation_name}.json"
+                )
+                if os.path.exists(checkpoint_path):
+                    os.remove(checkpoint_path)
+
             op_object = self.find_operation(operation_name).copy()
             op_object.update(operation_config)
 

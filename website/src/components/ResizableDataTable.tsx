@@ -102,7 +102,7 @@ function calculateDistinctValueCounts(
   return valueCounts;
 }
 
-function calculateColumnStats(
+export function calculateColumnStats(
   data: Record<string, unknown>[],
   accessor: string
 ): ColumnStats | null {
@@ -256,7 +256,7 @@ const truncateString = (str: string, maxLength: number = 20) => {
   return str.slice(0, maxLength) + "...";
 };
 
-const WordCountHistogram = memo(
+export const WordCountHistogram = memo(
   ({
     histogramData,
   }: {
@@ -328,7 +328,7 @@ const WordCountHistogram = memo(
 );
 WordCountHistogram.displayName = "WordCountHistogram";
 
-const CategoricalBarChart = memo(
+export const CategoricalBarChart = memo(
   ({ data }: { data: { value: string; count: number }[] }) => {
     // Memoize total count calculation
     const totalCount = useMemo(

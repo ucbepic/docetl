@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +38,11 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { calculateColumnStats } from "@/components/ResizableDataTable";
+import {
+  WordCountHistogram,
+  CategoricalBarChart,
+} from "@/components/ResizableDataTable";
 
 interface ObservabilityIndicatorProps {
   row: Record<string, unknown>;
@@ -98,6 +103,133 @@ export interface ColumnDialogProps<T extends Record<string, unknown>> {
   onJumpToRow: (index: number) => void;
   currentOperation: string;
 }
+
+function calculatePercentile(value: number, values: number[]): number {
+  const sortedValues = [...values].sort((a, b) => a - b);
+  const index = sortedValues.findIndex((v) => v >= value);
+  return Math.round((index / sortedValues.length) * 100);
+}
+
+interface ValueStatsProps {
+  value: unknown;
+  columnId: string;
+  data: Record<string, unknown>[];
+}
+
+const ValueStats = React.memo(({ value, columnId, data }: ValueStatsProps) => {
+  const stats = useMemo(
+    () => calculateColumnStats(data, columnId),
+    [data, columnId]
+  );
+
+  if (!stats) return null;
+
+  const currentValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+      ? stats.type === "string-chars"
+        ? value.length
+        : value.split(/\s+/).length
+      : Array.isArray(value)
+      ? value.length
+      : typeof value === "boolean"
+      ? value
+        ? 1
+        : 0
+      : null;
+
+  const values = data
+    .map((row) => {
+      const val = row[columnId];
+      if (val == null) return null;
+      if (typeof val === "number") return val;
+      if (typeof val === "string")
+        return stats.type === "string-chars"
+          ? val.length
+          : val.split(/\s+/).length;
+      if (Array.isArray(val)) return val.length;
+      if (typeof val === "boolean") return val ? 1 : 0;
+      return null;
+    })
+    .filter((v): v is number => v !== null);
+
+  const percentile =
+    currentValue !== null ? calculatePercentile(currentValue, values) : null;
+
+  return (
+    <div className="p-4 border-b bg-muted/5">
+      <div className="flex items-center gap-4 mb-2">
+        {percentile !== null && (
+          <div className="flex-none">
+            <div className="text-3xl font-bold text-primary">
+              {percentile}
+              <span className="text-lg">th</span>
+            </div>
+            <div className="text-xs text-muted-foreground">percentile</div>
+          </div>
+        )}
+
+        <div className="flex-1 h-12">
+          {stats.isLowCardinality ? (
+            <CategoricalBarChart data={stats.sortedValueCounts} />
+          ) : (
+            <WordCountHistogram
+              histogramData={stats.distribution.map((count, i) => ({
+                range: String(Math.round(stats.min + i * stats.bucketSize)),
+                count,
+                fullRange: `${Math.round(
+                  stats.min + i * stats.bucketSize
+                )} - ${Math.round(stats.min + (i + 1) * stats.bucketSize)}${
+                  stats.type === "array"
+                    ? " items"
+                    : stats.type === "string-chars"
+                    ? " chars"
+                    : stats.type === "string-words"
+                    ? " words"
+                    : ""
+                }`,
+              }))}
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2 text-xs">
+        <div className="space-y-0.5">
+          <div className="font-medium">Type</div>
+          <div className="text-muted-foreground">{stats.type}</div>
+        </div>
+        <div className="space-y-0.5">
+          <div className="font-medium">Distinct Values</div>
+          <div className="text-muted-foreground">
+            {stats.distinctCount} / {stats.totalCount}
+          </div>
+        </div>
+        <div className="space-y-0.5">
+          <div className="font-medium">Current</div>
+          <div className="text-muted-foreground">
+            {currentValue}
+            {stats.type === "array"
+              ? " items"
+              : stats.type === "string-chars"
+              ? " chars"
+              : stats.type === "string-words"
+              ? " words"
+              : ""}
+          </div>
+        </div>
+        <div className="space-y-0.5">
+          <div className="font-medium">Range</div>
+          <div className="text-muted-foreground">
+            {stats.min} - {stats.max}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+ValueStats.displayName = "ValueStats";
 
 export function ColumnDialog<T extends Record<string, unknown>>({
   isOpen,
@@ -252,6 +384,7 @@ export function ColumnDialog<T extends Record<string, unknown>>({
               </Tooltip>
 
               <div className="flex-1 overflow-auto">
+                <ValueStats value={value} columnId={columnId} data={data} />
                 <div className="px-4 py-2">{renderContent(value)}</div>
               </div>
 

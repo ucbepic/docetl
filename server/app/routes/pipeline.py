@@ -300,6 +300,6 @@ async def websocket_run_pipeline(websocket: WebSocket):
 
         error_traceback = traceback.format_exc()
         print(f"Error occurred:\n{error_traceback}")
-        await websocket.send_json({"type": "error", "data": str(e) + "\n" + error_traceback})
+        await websocket.send_json({"type": "error", "data": str(e), "traceback": error_traceback})
     finally:
         await websocket.close()

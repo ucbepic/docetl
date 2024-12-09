@@ -5,6 +5,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from docetl.operations.utils import strict_render
 from jinja2 import Environment, Template
 from tqdm import tqdm
 
@@ -16,17 +17,6 @@ from pydantic import Field, field_validator
 from litellm.utils import ModelResponse
 
 
-def render_jinja_template(template_string: str, data: Dict[str, Any]) -> str:
-    """
-    Render a Jinja2 template with the given data, ensuring protection against template injection vulnerabilities.
-    If the data is empty, return an empty string.
-    """
-    if not data:
-        return ""
-
-    env = Environment(autoescape=True)
-    template = env.from_string(template_string)
-    return template.render(input=data)
 
 
 class MapOperation(BaseOperation):
@@ -175,8 +165,8 @@ class MapOperation(BaseOperation):
             self.status.stop()
 
         def _process_map_item(item: Dict, initial_result: Optional[Dict] = None) -> Tuple[Optional[Dict], float]:
-            prompt_template = Template(self.config["prompt"])
-            prompt = prompt_template.render(input=item)
+
+            prompt = strict_render(self.config["prompt"], {"input": item})
 
             def validation_fn(response: Union[Dict[str, Any], ModelResponse]):
                 output = self.runner.api.parse_llm_response(
@@ -243,8 +233,7 @@ class MapOperation(BaseOperation):
         def _process_map_batch(items: List[Dict]) -> Tuple[List[Dict], float]:
             total_cost = 0
             if len(items) > 1 and self.config.get("batch_prompt", None):
-                batch_prompt_template = Template(self.config["batch_prompt"])
-                batch_prompt = batch_prompt_template.render(inputs=items)
+                batch_prompt = strict_render(self.config["batch_prompt"], {"inputs": items})
 
                 # Issue the batch call
                 llm_result = self.runner.api.call_llm_batch(
@@ -449,7 +438,7 @@ class ParallelMapOperation(BaseOperation):
             self.status.stop()
 
         def process_prompt(item, prompt_config):
-            prompt = render_jinja_template(prompt_config["prompt"], item)
+            prompt = strict_render(prompt_config["prompt"], {"input": item})
             local_output_schema = {
                 key: output_schema[key] for key in prompt_config["output_keys"]
             }

@@ -68,7 +68,7 @@ export type ColumnType<T> = {
   id?: string;
 };
 
-interface ColumnStats {
+export interface ColumnStats {
   min: number;
   max: number;
   avg: number;
@@ -1339,6 +1339,7 @@ export default function ResizableDataTable<T extends Record<string, unknown>>({
           }}
           onJumpToRow={(index) => setCurrentValueIndex(index)}
           currentOperation={currentOperation}
+          columnStats={columnStats[activeColumn]}
         />
       )}
     </div>

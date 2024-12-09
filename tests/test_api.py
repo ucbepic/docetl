@@ -159,9 +159,9 @@ def resolve_sample_data(temp_input_file):
 @pytest.fixture
 def left_data(temp_input_file):
     data = [
-        {"user_id": "1", "name": "John Doe"},
-        {"user_id": "2", "name": "Jane Smith"},
-        {"user_id": "3", "name": "Bob Johnson"},
+        {"id": "1", "name": "John Doe"},
+        {"id": "2", "name": "Jane Smith"},
+        {"id": "3", "name": "Bob Johnson"},
     ]
     with open(temp_input_file, "w") as f:
         json.dump(data, f)
@@ -372,7 +372,7 @@ def test_equijoin_pipeline(
                 type="equijoin",
                 left="left",
                 right="right",
-                comparison_prompt="Compare the following two entries and determine if they are the same id: Left: {{ left.id }} Right: {{ right.user_id }}",
+                comparison_prompt="Compare the following two entries and determine if they are the same id: Left: {{ left.id }} Right: {{ right.id }}",
                 embedding_model="text-embedding-3-small",
                 comparison_model="gpt-4o-mini",
             )

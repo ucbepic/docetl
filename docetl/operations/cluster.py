@@ -3,8 +3,9 @@ from jinja2 import Environment, Template
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 from .base import BaseOperation
-from .utils import RichLoopBar
+from .utils import RichLoopBar, strict_render
 from .clustering_utils import get_embeddings_for_clustering
+
 
 
 class ClusterOperation(BaseOperation):
@@ -187,9 +188,7 @@ class ClusterOperation(BaseOperation):
                     total_cost += futures[i].result()
                     pbar.update(i)
 
-            prompt = self.prompt_template.render(
-                inputs=t["children"]
-            )
+            prompt = strict_render(self.prompt_template, {"inputs": t["children"]})
 
             def validation_fn(response: Dict[str, Any]):
                 output = self.runner.api.parse_llm_response(

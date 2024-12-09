@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Tuple, Optional, Union
 import json
 from datetime import datetime
 
+from docetl.operations.utils import strict_render
 import jinja2
 from jinja2 import Template
 from rich.prompt import Confirm
@@ -80,8 +81,11 @@ class ResolveOperation(BaseOperation):
             ):
                 return True, 0, ""
 
-        prompt_template = Template(comparison_prompt)
-        prompt = prompt_template.render(input1=item1, input2=item2)
+
+        prompt = strict_render(comparison_prompt, {
+            "input1": item1,
+            "input2": item2
+        })
         response = self.runner.api.call_llm(
             model,
             "compare",
@@ -543,14 +547,16 @@ class ResolveOperation(BaseOperation):
         def process_cluster(cluster):
             if len(cluster) > 1:
                 cluster_items = [input_data[i] for i in cluster]
-                reduction_template = Template(self.config["resolution_prompt"])
                 if input_schema:
                     cluster_items = [
                         {k: item[k] for k in input_schema.keys() if k in item}
                         for item in cluster_items
                     ]
 
-                resolution_prompt = reduction_template.render(inputs=cluster_items)
+
+                resolution_prompt = strict_render(self.config["resolution_prompt"], {
+                    "inputs": cluster_items
+                })
                 reduction_response = self.runner.api.call_llm(
                     self.config.get("resolution_model", self.default_model),
                     "reduce",

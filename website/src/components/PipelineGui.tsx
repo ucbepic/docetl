@@ -330,7 +330,7 @@ const PipelineGUI: React.FC = () => {
         setIsLoadingOutputs(false);
       } else if (lastMessage.type === "error") {
         toast({
-          title: "Error",
+          title: "Execution Error",
           description: lastMessage.data,
           variant: "destructive",
           duration: Infinity,
@@ -921,60 +921,6 @@ const PipelineGUI: React.FC = () => {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            </div>
-
-            <div className="flex items-center border-l pl-2">
-              <div className="flex items-center space-x-1">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="h-8 w-8"
-                      >
-                        <FileUp size={16} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Load from YAML</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <Input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  accept=".yaml,.yml"
-                  className="hidden"
-                />
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleExport()}
-                        className="h-8 w-8"
-                      >
-                        <Download size={16} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Save to YAML</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setIsSettingsOpen(true)}
-                  className="h-8 w-8"
-                >
-                  <Settings size={16} />
-                </Button>
-              </div>
             </div>
 
             <div className="flex items-center border-l pl-2">

@@ -165,9 +165,6 @@ const PipelineGUI: React.FC = () => {
   const [tempAutoOptimizeCheck, setTempAutoOptimizeCheck] =
     useState(autoOptimizeCheck);
   const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
-  const [tempSampleSize, setTempSampleSize] = useState(
-    sampleSize?.toString() || ""
-  );
   const [tempCurrentFile, setTempCurrentFile] = useState<File | null>(
     currentFile
   );
@@ -376,12 +373,6 @@ const PipelineGUI: React.FC = () => {
       setTempOptimizerModel(optimizerModel);
     }
   }, [optimizerModel]);
-
-  useEffect(() => {
-    if (sampleSize) {
-      setTempSampleSize(sampleSize.toString());
-    }
-  }, [sampleSize]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -659,13 +650,6 @@ const PipelineGUI: React.FC = () => {
 
   const handleSettingsSave = () => {
     setPipelineName(tempPipelineName);
-    setSampleSize(
-      tempSampleSize === ""
-        ? null
-        : tempSampleSize === null
-        ? null
-        : parseInt(tempSampleSize, 10)
-    );
     setCurrentFile(tempCurrentFile);
     setDefaultModel(tempDefaultModel);
     setIsSettingsOpen(false);
@@ -906,6 +890,91 @@ const PipelineGUI: React.FC = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 flex items-center gap-2"
+                      >
+                        <PieChart size={14} />
+                        <Input
+                          type="number"
+                          value={sampleSize || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setSampleSize(
+                              value === "" ? null : parseInt(value, 10)
+                            );
+                          }}
+                          className="w-16 h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                          placeholder="All docs"
+                        />
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Set sample size for operations</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            <div className="flex items-center border-l pl-2">
+              <div className="flex items-center space-x-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="h-8 w-8"
+                      >
+                        <FileUp size={16} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Load from YAML</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".yaml,.yml"
+                  className="hidden"
+                />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleExport()}
+                        className="h-8 w-8"
+                      >
+                        <Download size={16} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Save to YAML</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="h-8 w-8"
+                >
+                  <Settings size={16} />
+                </Button>
+              </div>
             </div>
 
             <div className="flex items-center border-l pl-2">

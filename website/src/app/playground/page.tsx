@@ -353,8 +353,8 @@ const CodeEditorPipelineApp: React.FC = () => {
                         <MenubarRadioItem value="forest">
                           Forest
                         </MenubarRadioItem>
-                        <MenubarRadioItem value="magestic">
-                          Magestic
+                        <MenubarRadioItem value="majestic">
+                          Majestic
                         </MenubarRadioItem>
                         <MenubarRadioItem value="sunset">
                           Sunset

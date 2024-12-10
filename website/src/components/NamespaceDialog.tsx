@@ -20,6 +20,7 @@ interface NamespaceDialogProps {
   onOpenChange: (open: boolean) => void;
   currentNamespace: string | null;
   onSave: (namespace: string) => void;
+  clearPipelineState: () => void;
 }
 
 export function NamespaceDialog({
@@ -27,6 +28,7 @@ export function NamespaceDialog({
   onOpenChange,
   currentNamespace,
   onSave,
+  clearPipelineState,
 }: NamespaceDialogProps) {
   const [namespace, setNamespace] = useState(currentNamespace || "");
   const [isChecking, setIsChecking] = useState(false);
@@ -72,8 +74,11 @@ export function NamespaceDialog({
         setTimeout(() => setShake(false), 500);
       } else {
         onSave(trimmedNamespace);
+        console.log(localStorage);
         setShowWarning(false);
         setShake(false);
+        clearPipelineState();
+        window.location.reload();
       }
     } catch (error) {
       console.error("Error checking namespace:", error);

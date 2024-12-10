@@ -166,18 +166,6 @@ const RightPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
 );
 
 const CodeEditorPipelineApp: React.FC = () => {
-  const [isMounted, setIsMounted] = useState(false);
-  const [showFileExplorer, setShowFileExplorer] = useState(true);
-  const [showOutput, setShowOutput] = useState(true);
-  const [showDatasetView, setShowDatasetView] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
-  const { theme, setTheme } = useTheme();
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   const {
     currentFile,
     setCurrentFile,
@@ -190,6 +178,18 @@ const CodeEditorPipelineApp: React.FC = () => {
     namespace,
     setNamespace,
   } = usePipelineContext();
+
+  const [isMounted, setIsMounted] = useState(false);
+  const [showFileExplorer, setShowFileExplorer] = useState(true);
+  const [showOutput, setShowOutput] = useState(true);
+  const [showDatasetView, setShowDatasetView] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
+  const { theme, setTheme } = useTheme();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, [namespace]);
 
   useEffect(() => {
     const savedNamespace = localStorage.getItem(localStorageKeys.NAMESPACE_KEY);
@@ -445,7 +445,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           <div className="flex items-center gap-2">
             <Scroll className="text-primary" size={20} />
             <h1 className="text-lg font-bold text-primary">DocETL</h1>
-            {isMounted && (
+            {namespace && (
               <span className="text-sm text-gray-600">({namespace})</span>
             )}
           </div>
@@ -595,8 +595,8 @@ const CodeEditorPipelineApp: React.FC = () => {
           onSave={(newNamespace) => {
             setNamespace(newNamespace);
             setShowNamespaceDialog(false);
-            saveProgress();
           }}
+          clearPipelineState={clearPipelineState}
         />
       </div>
     </BookmarkProvider>

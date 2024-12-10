@@ -325,7 +325,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     stateRef.current = state;
   }, [state]);
 
-  const saveProgress = useCallback(() => {
+  const saveProgress = () => {
     localStorage.setItem(
       localStorageKeys.OPERATIONS_KEY,
       JSON.stringify(stateRef.current.operations)
@@ -391,12 +391,16 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       JSON.stringify(stateRef.current.namespace)
     );
     setUnsavedChanges(false);
-  }, []);
+  };
 
-  const clearPipelineState = useCallback(() => {
+  const clearPipelineState = () => {
+    // Clear all localStorage items
     Object.values(localStorageKeys).forEach((key) => {
-      localStorage.removeItem(key);
+      if (key !== localStorageKeys.NAMESPACE_KEY) {
+        localStorage.removeItem(key);
+      }
     });
+
     setState({
       operations: initialOperations,
       currentFile: null,
@@ -414,45 +418,41 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       autoOptimizeCheck: false,
       highLevelGoal: "",
       systemPrompt: { datasetDescription: null, persona: null },
-      namespace: null,
+      namespace: state.namespace || null,
     });
     setUnsavedChanges(false);
-    console.log("Pipeline state cleared!");
-  }, []);
+  };
 
-  const setStateAndUpdate = useCallback(
-    <K extends keyof PipelineState>(
-      key: K,
-      value:
-        | PipelineState[K]
-        | ((prevState: PipelineState[K]) => PipelineState[K])
-    ) => {
-      setState((prevState) => {
-        const newValue =
-          typeof value === "function"
-            ? (value as (prev: PipelineState[K]) => PipelineState[K])(
-                prevState[key]
-              )
-            : value;
-        if (newValue !== prevState[key]) {
-          if (key === "namespace") {
-            clearPipelineState();
-            localStorage.setItem(
-              localStorageKeys.NAMESPACE_KEY,
-              JSON.stringify(newValue)
-            );
-            window.location.reload();
-            return prevState;
-          } else {
-            setUnsavedChanges(true);
-            return { ...prevState, [key]: newValue };
-          }
+  const setStateAndUpdate = <K extends keyof PipelineState>(
+    key: K,
+    value:
+      | PipelineState[K]
+      | ((prevState: PipelineState[K]) => PipelineState[K])
+  ) => {
+    setState((prevState) => {
+      const newValue =
+        typeof value === "function"
+          ? (value as (prev: PipelineState[K]) => PipelineState[K])(
+              prevState[key]
+            )
+          : value;
+      if (newValue !== prevState[key]) {
+        if (key === "namespace") {
+          localStorage.setItem(
+            localStorageKeys.NAMESPACE_KEY,
+            JSON.stringify(newValue)
+          );
+          const newVal = localStorage.getItem(localStorageKeys.NAMESPACE_KEY);
+          console.log(`Namespace changed to ${newVal}`);
+          return { ...prevState, [key]: newValue };
+        } else {
+          setUnsavedChanges(true);
+          return { ...prevState, [key]: newValue };
         }
-        return prevState;
-      });
-    },
-    [clearPipelineState]
-  );
+      }
+      return prevState;
+    });
+  };
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {

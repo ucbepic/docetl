@@ -147,8 +147,9 @@ export function NamespaceDialog({
             {isChecking && <p className="text-xs text-red-500">Checking...</p>}
             {showWarning && (
               <div className="text-sm text-orange-700 dark:text-orange-200 bg-orange-100 dark:bg-orange-950 border border-orange-300 dark:border-orange-800 rounded-md p-2 font-medium">
-                Warning: This namespace already exists. Saving will overwrite
-                existing configurations.
+                Warning: This namespace already exists. Setting this namespace
+                may overwrite another user's existing caches, but feel free to
+                ignore this message if this is your namespace.
               </div>
             )}
             <p className="text-xs text-muted-foreground">

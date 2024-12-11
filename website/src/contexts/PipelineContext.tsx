@@ -386,10 +386,6 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.SYSTEM_PROMPT_KEY,
       JSON.stringify(stateRef.current.systemPrompt)
     );
-    localStorage.setItem(
-      localStorageKeys.NAMESPACE_KEY,
-      JSON.stringify(stateRef.current.namespace)
-    );
     setUnsavedChanges(false);
   }, []);
 
@@ -417,7 +413,6 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       namespace: null,
     });
     setUnsavedChanges(false);
-    console.log("Pipeline state cleared!");
   }, []);
 
   const setStateAndUpdate = useCallback(

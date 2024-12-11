@@ -42,12 +42,15 @@ export function NamespaceDialog({
 
     const trimmedNamespace = namespace.trim();
 
-    if (!trimmedNamespace) {
+    if (!trimmedNamespace || trimmedNamespace.length === 0) {
       toast({
         title: "Invalid Namespace",
-        description: "Namespace cannot be empty",
+        description:
+          "Namespace cannot be empty. Please enter a valid namespace.",
         variant: "destructive",
       });
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
       return;
     }
 
@@ -71,6 +74,7 @@ export function NamespaceDialog({
         onSave(trimmedNamespace);
         setShowWarning(false);
         setShake(false);
+        window.location.reload();
       }
     } catch (error) {
       console.error("Error checking namespace:", error);
@@ -86,10 +90,24 @@ export function NamespaceDialog({
 
   const hasNamespaceChanged =
     namespace.trim() !== (currentNamespace || "").trim() &&
-    namespace.trim() !== "";
+    namespace.trim().length > 0;
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen && !currentNamespace?.trim()) {
+      toast({
+        title: "Namespace Required",
+        description: "Please set a namespace before continuing.",
+        variant: "destructive",
+      });
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+    onOpenChange(newOpen);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className={cn("sm:max-w-lg", shake && "animate-shake")}>
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -109,24 +127,30 @@ export function NamespaceDialog({
         <div className="py-2">
           <div className="space-y-2">
             <Label htmlFor="namespace" className="text-sm font-medium">
-              Namespace
+              Namespace <span className="text-red-500">*</span>
             </Label>
             <Input
               id="namespace"
-              placeholder="default"
+              placeholder="Enter namespace (e.g., johndoe)"
               value={namespace}
               onChange={(e) => {
                 setNamespace(e.target.value);
                 setShowWarning(false);
               }}
               onBlur={(e) => setNamespace(e.target.value.trim())}
-              className={`w-full ${isChecking ? "border-red-500" : ""}`}
+              className={cn(
+                "w-full",
+                isChecking ? "border-red-500" : "",
+                !namespace.trim() && "border-red-300"
+              )}
+              required
             />
             {isChecking && <p className="text-xs text-red-500">Checking...</p>}
             {showWarning && (
               <div className="text-sm text-orange-700 dark:text-orange-200 bg-orange-100 dark:bg-orange-950 border border-orange-300 dark:border-orange-800 rounded-md p-2 font-medium">
-                Warning: This namespace already exists. Saving will overwrite
-                existing configurations.
+                Warning: This namespace already exists. Setting this namespace
+                may overwrite another user's existing caches, but feel free to
+                ignore this message if this is your namespace.
               </div>
             )}
             <p className="text-xs text-muted-foreground">
@@ -136,7 +160,11 @@ export function NamespaceDialog({
           </div>
         </div>
         <DialogFooter className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => handleOpenChange(false)}
+            disabled={!currentNamespace?.trim()}
+          >
             Cancel
           </Button>
           <Button

@@ -74,6 +74,7 @@ export function NamespaceDialog({
         onSave(trimmedNamespace);
         setShowWarning(false);
         setShake(false);
+        window.location.reload();
       }
     } catch (error) {
       console.error("Error checking namespace:", error);

@@ -550,9 +550,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         </h2>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Upload size={14} className="mr-1.5" />
-              Upload
+            <Button variant="outline" size="icon" className="h-8 w-8">
+              <Upload size={14} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

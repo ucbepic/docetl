@@ -26,6 +26,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { UserNote } from "@/app/types";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const BookmarksPanel: React.FC = () => {
   const { bookmarks, removeBookmark } = useBookmarkContext();
@@ -96,15 +102,23 @@ const BookmarksPanel: React.FC = () => {
           <Bookmark className="mr-2" size={14} />
           NOTES
         </h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleClearAll}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          <X size={14} className="mr-1.5" />
-          Clear All
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleClearAll}
+                className="h-8 w-8 text-gray-500 hover:text-gray-700"
+              >
+                <X size={14} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Clear all notes</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <div className="text-xs mb-2 bg-muted/50 p-2 rounded-md">
         <span className="text-muted-foreground font-medium">Tip: </span>

@@ -564,7 +564,7 @@ export const Output = memo(() => {
   // Add back the data fetching effect
   useEffect(() => {
     const fetchData = async () => {
-      if (output) {
+      if (output && !isLoadingOutputs) {
         const importantColumns =
           operation?.otherKwargs?.prompts?.[0]?.output_keys;
         try {

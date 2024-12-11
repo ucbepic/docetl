@@ -441,8 +441,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
               localStorageKeys.NAMESPACE_KEY,
               JSON.stringify(newValue)
             );
-            window.location.reload();
-            return prevState;
+            return { ...prevState, [key]: newValue };
           } else {
             setUnsavedChanges(true);
             return { ...prevState, [key]: newValue };

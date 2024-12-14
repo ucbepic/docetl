@@ -233,8 +233,6 @@ export function generatePipelineConfig(
 
   const yamlString = yaml.dump(pipelineConfig);
 
-  console.log(yamlString);
-
   return {
     yamlString,
     inputPath,

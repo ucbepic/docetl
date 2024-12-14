@@ -551,10 +551,13 @@ const PipelineGUI: React.FC = () => {
 
   const onRunAll = useCallback(
     async (clear_intermediate: boolean) => {
-      const lastOpIndex = operations.length - 1;
-      if (lastOpIndex < 0) return;
+      // Find the last visible operation
+      const lastVisibleOpIndex = operations.findLastIndex(
+        (op) => op.visibility !== false
+      );
+      if (lastVisibleOpIndex < 0) return;
 
-      const lastOperation = operations[lastOpIndex];
+      const lastOperation = operations[lastVisibleOpIndex];
       setOptimizerProgress(null);
       setIsLoadingOutputs(true);
       setNumOpRun((prevNum) => {

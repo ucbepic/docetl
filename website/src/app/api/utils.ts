@@ -104,7 +104,6 @@ export function generatePipelineConfig(
               : processSchemaItem(item.subType as SchemaItem);
           return `list[${subType}]`;
         } else if (item.type === "dict") {
-          console.log(item);
           if (!item.subType) {
             throw new Error(
               `Dict/Object type must specify its structure for field: ${item.key}`
@@ -233,6 +232,8 @@ export function generatePipelineConfig(
   outputPath = path.join(outputBase, "data_processing", outputOpName + ".json");
 
   const yamlString = yaml.dump(pipelineConfig);
+
+  console.log(yamlString);
 
   return {
     yamlString,

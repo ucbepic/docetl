@@ -90,3 +90,4 @@ The transform function should return True for items to keep and False for items 
 | drop_keys | List of keys to remove from output (code_map only) | None |
 | reduce_key | Key(s) to group by (code_reduce only) | "_all" |
 | pass_through | Pass through unmodified keys from first item in group (code_reduce only) | false |
+| concurrent_thread_count | The number of threads to start | the number of logical CPU cores (os.cpu_count()) |

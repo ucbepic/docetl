@@ -19,6 +19,7 @@ import numpy as np
 from jinja2 import Template
 
 from docetl.operations.base import BaseOperation
+from docetl.operations.utils import strict_render
 from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
@@ -509,10 +510,8 @@ class ReduceOperation(BaseOperation):
         self, key: Tuple, group_list: List[Dict], value_sampling: Dict, sample_size: int
     ) -> Tuple[List[Dict], float]:
         embedding_model = value_sampling["embedding_model"]
-        query_text_template = Template(value_sampling["query_text"])
-        query_text = query_text_template.render(
-            reduce_key=dict(zip(self.config["reduce_key"], key))
-        )
+        query_text = strict_render(value_sampling["query_text"], {"reduce_key": dict(zip(self.config["reduce_key"], key))})
+
 
         embeddings, cost = get_embeddings_for_clustering(
             group_list, value_sampling, self.runner.api
@@ -794,12 +793,11 @@ class ReduceOperation(BaseOperation):
             return self._batch_reduce(key, batch, scratchpad)
 
         start_time = time.time()
-        fold_prompt_template = Template(self.config["fold_prompt"])
-        fold_prompt = fold_prompt_template.render(
-            inputs=batch,
-            output=current_output,
-            reduce_key=dict(zip(self.config["reduce_key"], key)),
-        )
+        fold_prompt = strict_render(self.config["fold_prompt"], {
+            "inputs": batch,
+            "output": current_output,
+            "reduce_key": dict(zip(self.config["reduce_key"], key))
+        })
 
         response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
@@ -857,10 +855,10 @@ class ReduceOperation(BaseOperation):
             the prompt used, and the cost of the merge operation.
         """
         start_time = time.time()
-        merge_prompt_template = Template(self.config["merge_prompt"])
-        merge_prompt = merge_prompt_template.render(
-            outputs=outputs, reduce_key=dict(zip(self.config["reduce_key"], key))
-        )
+        merge_prompt = strict_render(self.config["merge_prompt"], {
+            "outputs": outputs,
+            "reduce_key": dict(zip(self.config["reduce_key"], key))
+        })
         response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
             "merge",
@@ -963,10 +961,10 @@ class ReduceOperation(BaseOperation):
             Tuple[Optional[Dict], str, float]: A tuple containing the reduced output (or None if processing failed),
             the prompt used, and the cost of the reduce operation.
         """
-        prompt_template = Template(self.config["prompt"])
-        prompt = prompt_template.render(
-            reduce_key=dict(zip(self.config["reduce_key"], key)), inputs=group_list
-        )
+        prompt = strict_render(self.config["prompt"], {
+            "reduce_key": dict(zip(self.config["reduce_key"], key)),
+            "inputs": group_list
+        })
         item_cost = 0
 
         response = self.runner.api.call_llm(

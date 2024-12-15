@@ -4,8 +4,15 @@ import fs from "fs/promises";
 import os from "os";
 export async function POST(request: Request) {
   try {
-    const { default_model, data, operations, operation_id, name, sample_size } =
-      await request.json();
+    const {
+      default_model,
+      data,
+      operations,
+      operation_id,
+      name,
+      sample_size,
+      namespace,
+    } = await request.json();
 
     if (!name) {
       return NextResponse.json(
@@ -23,6 +30,7 @@ export async function POST(request: Request) {
 
     const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
     const { inputPath, outputPath } = generatePipelineConfig(
+      namespace,
       default_model,
       data,
       operations,

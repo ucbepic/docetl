@@ -42,3 +42,36 @@ To contribute code:
 If you're encountering a KeyError, it's often due to missing an unnest operation in your workflow. The unnest operation is crucial for flattening nested data structures.
 
 **Solution**: Add an [unnest operation](../operators/unnest.md) to your pipeline before accessing nested keys. If you're still having trouble, don't hesitate to open an issue on GitHub or ask for help on our Discord server.
+
+
+### Browser freezing because of stale client storage
+
+Run the following script:
+!!! note "Browser Storage Cleanup Script"
+    ```js
+    // Function to delete all localStorage items with prefix 'docetl_'
+    function cleanupDocETLStorage() {
+        const prefix = 'docetl_';
+        const itemsToDelete = [];
+        
+        // First, collect all matching keys
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(prefix)) {
+                itemsToDelete.push(key);
+            }
+        }
+        
+        // Then delete them and keep count
+        const deletedCount = itemsToDelete.length;
+        itemsToDelete.forEach(key => {
+            localStorage.removeItem(key);
+            console.log(`Deleted key: ${key}`);
+        });
+        
+        console.log(`Cleanup complete. Deleted ${deletedCount} items with prefix "${prefix}"`);
+    }
+
+    // Execute the cleanup
+    cleanupDocETLStorage();
+    ```

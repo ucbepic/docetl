@@ -9,14 +9,14 @@ import { Bookmark, BookmarkContextType, UserNote } from "@/app/types";
 import { BOOKMARKS_STORAGE_KEY } from "@/app/localStorageKeys";
 
 const BookmarkContext = createContext<BookmarkContextType | undefined>(
-  undefined,
+  undefined
 );
 
 export const useBookmarkContext = () => {
   const context = useContext(BookmarkContext);
   if (!context) {
     throw new Error(
-      "useBookmarkContext must be used within a BookmarkProvider",
+      "useBookmarkContext must be used within a BookmarkProvider"
     );
   }
   return context;
@@ -37,16 +37,9 @@ export const BookmarkProvider: React.FC<{ children: ReactNode }> = ({
     localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(bookmarks));
   }, [bookmarks]);
 
-  const addBookmark = (
-    text: string,
-    source: string,
-    color: string,
-    notes: UserNote[],
-  ) => {
+  const addBookmark = (color: string, notes: UserNote[]) => {
     const newBookmark: Bookmark = {
       id: Date.now().toString(),
-      text,
-      source,
       color,
       notes,
     };
@@ -55,13 +48,31 @@ export const BookmarkProvider: React.FC<{ children: ReactNode }> = ({
 
   const removeBookmark = (id: string) => {
     setBookmarks((prevBookmarks) =>
-      prevBookmarks.filter((bookmark) => bookmark.id !== id),
+      prevBookmarks.filter((bookmark) => bookmark.id !== id)
+    );
+  };
+
+  const getNotesForRowAndColumn = (
+    rowIndex: number,
+    columnId: string
+  ): UserNote[] => {
+    return bookmarks.flatMap((bookmark) =>
+      bookmark.notes.filter(
+        (note) =>
+          note.metadata?.rowIndex === rowIndex &&
+          note.metadata?.columnId === columnId
+      )
     );
   };
 
   return (
     <BookmarkContext.Provider
-      value={{ bookmarks, addBookmark, removeBookmark }}
+      value={{
+        bookmarks,
+        addBookmark,
+        removeBookmark,
+        getNotesForRowAndColumn,
+      }}
     >
       {children}
     </BookmarkContext.Provider>

@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useMemo,
   useRef,
+  memo,
 } from "react";
 import {
   flexRender,
@@ -37,6 +38,7 @@ import {
   ChevronDown,
   Search,
   Eye,
+  Maximize2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -54,14 +56,19 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-
+import { ColumnDialog } from "@/components/ColumnDialog";
+import { SearchableCell } from "@/components/SearchableCell";
+import { PrettyJSON } from "@/components/PrettyJSON";
 export type DataType = Record<string, unknown>;
-export type ColumnType<T extends DataType> = ColumnDef<T> & {
+export type ColumnType<T> = {
+  accessorKey: string;
+  header: string;
+  cell?: ({ getValue }: { getValue: () => unknown }) => React.ReactNode;
   initialWidth?: number;
-  accessorKey?: string;
+  id?: string;
 };
 
-interface ColumnStats {
+export interface ColumnStats {
   min: number;
   max: number;
   avg: number;
@@ -95,7 +102,7 @@ function calculateDistinctValueCounts(
   return valueCounts;
 }
 
-function calculateColumnStats(
+export function calculateColumnStats(
   data: Record<string, unknown>[],
   accessor: string
 ): ColumnStats | null {
@@ -244,21 +251,37 @@ function calculateColumnStats(
   };
 }
 
-const WordCountHistogram = React.memo(
+const truncateString = (str: string, maxLength: number = 20) => {
+  if (str.length <= maxLength) return str;
+  return str.slice(0, maxLength) + "...";
+};
+
+export const WordCountHistogram = memo(
   ({
     histogramData,
   }: {
     histogramData: { range: string; count: number; fullRange: string }[];
   }) => {
-    // Calculate total count for fractions
+    // Memoize total count calculation
     const totalCount = useMemo(
       () => histogramData.reduce((sum, item) => sum + item.count, 0),
       [histogramData]
     );
 
+    // Memoize truncated data
+    const truncatedData = useMemo(
+      () =>
+        histogramData.map((item) => ({
+          ...item,
+          range: truncateString(item.range, 10),
+          fullRange: item.fullRange,
+        })),
+      [histogramData]
+    );
+
     return (
       <ResponsiveContainer width="100%" height={40}>
-        <BarChart data={histogramData} barCategoryGap={1}>
+        <BarChart data={truncatedData} barCategoryGap={1}>
           <XAxis
             dataKey="range"
             tick={{ fontSize: 8 }}
@@ -275,7 +298,9 @@ const WordCountHistogram = React.memo(
               ).toFixed(1)}%)`,
               "Count",
             ]}
-            labelFormatter={(label: string) => label}
+            labelFormatter={(_, payload) =>
+              payload[0]?.payload?.fullRange || ""
+            }
             contentStyle={{
               backgroundColor: "hsl(var(--popover))",
               border: "1px solid hsl(var(--border))",
@@ -295,25 +320,36 @@ const WordCountHistogram = React.memo(
         </BarChart>
       </ResponsiveContainer>
     );
-  }
+  },
+  // Deep comparison for histogramData
+  (prevProps, nextProps) =>
+    JSON.stringify(prevProps.histogramData) ===
+    JSON.stringify(nextProps.histogramData)
 );
 WordCountHistogram.displayName = "WordCountHistogram";
 
-const CategoricalBarChart = React.memo(
+export const CategoricalBarChart = memo(
   ({ data }: { data: { value: string; count: number }[] }) => {
+    // Memoize total count calculation
     const totalCount = useMemo(
       () => data.reduce((sum, item) => sum + item.count, 0),
       [data]
     );
 
-    // Take top 10 values for visualization
-    const displayData = data.slice(0, 10);
+    // Memoize truncated and limited data
+    const displayData = useMemo(() => {
+      return data.slice(0, 10).map((item) => ({
+        ...item,
+        displayValue: truncateString(item.value, 10),
+        fullValue: item.value,
+      }));
+    }, [data]);
 
     return (
       <ResponsiveContainer width="100%" height={40}>
         <BarChart data={displayData} barCategoryGap={1}>
           <XAxis
-            dataKey="value"
+            dataKey="displayValue"
             tick={{ fontSize: 8 }}
             interval={0}
             tickLine={false}
@@ -328,7 +364,9 @@ const CategoricalBarChart = React.memo(
               ).toFixed(1)}%)`,
               "Count",
             ]}
-            labelFormatter={(label: string) => label}
+            labelFormatter={(_, payload) =>
+              payload[0]?.payload?.fullValue || ""
+            }
             contentStyle={{
               backgroundColor: "hsl(var(--popover))",
               border: "1px solid hsl(var(--border))",
@@ -348,7 +386,10 @@ const CategoricalBarChart = React.memo(
         </BarChart>
       </ResponsiveContainer>
     );
-  }
+  },
+  // Deep comparison for data
+  (prevProps, nextProps) =>
+    JSON.stringify(prevProps.data) === JSON.stringify(nextProps.data)
 );
 CategoricalBarChart.displayName = "CategoricalBarChart";
 
@@ -360,9 +401,10 @@ interface ColumnHeaderProps {
   filterValue: string;
   onSort: () => void;
   sortDirection: false | "asc" | "desc";
+  onExpand: () => void;
 }
 
-const ColumnHeader = React.memo(
+const ColumnHeader = memo(
   ({
     header,
     stats,
@@ -371,6 +413,7 @@ const ColumnHeader = React.memo(
     filterValue,
     onSort,
     sortDirection,
+    onExpand,
   }: ColumnHeaderProps) => {
     const histogramData = useMemo(() => {
       if (!stats) return [];
@@ -435,75 +478,89 @@ const ColumnHeader = React.memo(
         <div
           className={`${
             isBold ? "font-bold" : ""
-          } text-sm px-1 flex items-center gap-2`}
+          } text-sm px-1 flex items-center`}
         >
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            onClick={onSort}
-          >
-            {sortDirection === false && (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-muted-foreground"
-              >
-                <path d="m3 16 4 4 4-4" />
-                <path d="M7 20V4" />
-                <path d="m21 8-4-4-4 4" />
-                <path d="M17 4v16" />
-              </svg>
-            )}
-            {sortDirection === "asc" && (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m3 8 4-4 4 4" />
-                <path d="M7 4v16" />
-              </svg>
-            )}
-            {sortDirection === "desc" && (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m3 16 4 4 4-4" />
-                <path d="M7 20V4" />
-              </svg>
-            )}
-          </Button>
-          {header}
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={onSort}
+            >
+              {sortDirection === false && (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-primary"
+                >
+                  <path d="m3 16 4 4 4-4" />
+                  <path d="M7 20V4" />
+                  <path d="m21 8-4-4-4 4" />
+                  <path d="M17 4v16" />
+                </svg>
+              )}
+              {sortDirection === "asc" && (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-primary"
+                >
+                  <path d="m3 8 4-4 4 4" />
+                  <path d="M7 4v16" />
+                </svg>
+              )}
+              {sortDirection === "desc" && (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-primary"
+                >
+                  <path d="m3 16 4 4 4-4" />
+                  <path d="M7 20V4" />
+                </svg>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={onExpand}
+            >
+              <Maximize2 className="h-3 w-3 text-primary" />
+            </Button>
+          </div>
+          <span className="ml-2">{header}</span>
         </div>
         <div
           className={`${isBold ? "font-bold" : ""} space-y-2 ${
-            filterValue ? "bg-primary/5 rounded-md p-1" : ""
+            filterValue ? "bg-primary/5 rounded-md" : ""
           }`}
         >
-          <div className="flex items-center gap-2">
-            <Search className="h-3 w-3 text-muted-foreground" />
+          <div className="flex items-center h-6">
+            <div className="flex items-center w-6">
+              <Search className="h-3 w-3 text-muted-foreground ml-1.5" />
+            </div>
             <Input
               placeholder="Filter..."
               value={filterValue}
@@ -562,11 +619,7 @@ const ColumnHeader = React.memo(
 );
 ColumnHeader.displayName = "ColumnHeader";
 
-const ColumnResizer = <T extends DataType>({
-  header,
-}: {
-  header: Header<T, unknown>;
-}) => {
+const ColumnResizer = memo(({ header }: { header: Header<any, unknown> }) => {
   return (
     <div
       onMouseDown={header.getResizeHandler()}
@@ -578,14 +631,15 @@ const ColumnResizer = <T extends DataType>({
       }}
     />
   );
-};
+});
+ColumnResizer.displayName = "ColumnResizer";
 
 interface ResizableRow<T extends DataType> extends Row<T> {
   getSize: () => number;
   setSize: (size: number) => void;
 }
 
-const RowResizer = <T extends DataType>({ row }: { row: ResizableRow<T> }) => {
+const RowResizer = memo(({ row }: { row: ResizableRow<any> }) => {
   return (
     <tr>
       <td colSpan={100}>
@@ -617,21 +671,22 @@ const RowResizer = <T extends DataType>({ row }: { row: ResizableRow<T> }) => {
       </td>
     </tr>
   );
-};
+});
+RowResizer.displayName = "RowResizer";
 
-interface ResizableDataTableProps<T extends DataType> {
+interface ResizableDataTableProps<T extends Record<string, unknown>> {
   data: T[];
   columns: ColumnType<T>[];
-  boldedColumns: string[];
+  boldedColumns?: string[];
   startingRowHeight?: number;
-  currentOperation: string;
+  currentOperation?: string;
 }
 
 interface MarkdownCellProps {
   content: string;
 }
 
-const MarkdownCell = React.memo(({ content }: MarkdownCellProps) => {
+const MarkdownCell = memo(({ content }: MarkdownCellProps) => {
   return (
     <ReactMarkdown
       components={{
@@ -717,169 +772,12 @@ const MarkdownCell = React.memo(({ content }: MarkdownCellProps) => {
 });
 MarkdownCell.displayName = "MarkdownCell";
 
-interface SearchableCellProps {
-  content: string;
-  isResizing: boolean;
-}
-
-const SearchableCell = React.memo(
-  ({ content, isResizing }: SearchableCellProps) => {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [highlightedContent, setHighlightedContent] = useState(content);
-    const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
-    const [matchCount, setMatchCount] = useState(0);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    // Search functionality
-    useEffect(() => {
-      if (!searchTerm) {
-        setHighlightedContent(content);
-        setMatchCount(0);
-        setCurrentMatchIndex(0);
-        return;
-      }
-
-      try {
-        const regex = new RegExp(`(${searchTerm})`, "gi");
-        const matches = content.match(regex);
-        const matchesCount = matches ? matches.length : 0;
-        setMatchCount(matchesCount);
-
-        if (matchesCount > 0) {
-          const highlighted = content.replace(
-            regex,
-            (match) => `<mark class="search-match">${match}</mark>`
-          );
-          setHighlightedContent(highlighted);
-
-          // Scroll to current match
-          setTimeout(() => {
-            if (containerRef.current) {
-              const marks =
-                containerRef.current.getElementsByClassName("search-match");
-              if (marks.length > 0 && currentMatchIndex < marks.length) {
-                marks[currentMatchIndex].scrollIntoView({
-                  behavior: "smooth",
-                  block: "center",
-                });
-              }
-            }
-          }, 100);
-        } else {
-          setHighlightedContent(content);
-        }
-      } catch {
-        setHighlightedContent(content);
-        setMatchCount(0);
-      }
-    }, [searchTerm, content, currentMatchIndex]);
-
-    const navigateMatches = useCallback(
-      (direction: "next" | "prev") => {
-        if (matchCount === 0) return;
-
-        if (direction === "next") {
-          setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
-        } else {
-          setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
-        }
-      },
-      [matchCount]
-    );
-
-    // Style for search matches
-    useEffect(() => {
-      const styleId = "search-match-style";
-      let styleElement = document.getElementById(styleId) as HTMLStyleElement;
-
-      if (!styleElement) {
-        styleElement = document.createElement("style");
-        styleElement.id = styleId;
-        document.head.appendChild(styleElement);
-      }
-
-      styleElement.textContent = `
-        mark.search-match {
-          background-color: hsl(var(--primary) / 0.2);
-          color: inherit;
-          padding: 0;
-          border-radius: 2px;
-        }
-        mark.search-match:nth-of-type(${currentMatchIndex + 1}) {
-          background-color: hsl(var(--primary) / 0.5);
-        }
-      `;
-
-      return () => {
-        if (styleElement && styleElement.parentNode) {
-          styleElement.parentNode.removeChild(styleElement);
-        }
-      };
-    }, [currentMatchIndex]);
-
-    return (
-      <div className="relative">
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm rounded-md">
-          <div className="flex items-center gap-2 p-1">
-            <Search className="h-3 w-3 text-muted-foreground" />
-            <Input
-              placeholder="Search in cell..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentMatchIndex(0);
-              }}
-              className="h-6 text-xs border-none shadow-none focus-visible:ring-0"
-            />
-            {matchCount > 0 && (
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 w-5 p-0"
-                  onClick={() => navigateMatches("prev")}
-                >
-                  <ChevronLeft className="h-3 w-3" />
-                </Button>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {currentMatchIndex + 1}/{matchCount}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 w-5 p-0"
-                  onClick={() => navigateMatches("next")}
-                >
-                  <ChevronRight className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-        <div ref={containerRef}>
-          {isResizing ? (
-            <div>{content}</div>
-          ) : searchTerm ? (
-            <div
-              dangerouslySetInnerHTML={{ __html: highlightedContent }}
-              className="prose prose-sm max-w-none"
-            />
-          ) : (
-            <MarkdownCell content={content} />
-          )}
-        </div>
-      </div>
-    );
-  }
-);
-SearchableCell.displayName = "SearchableCell";
-
 interface ObservabilityIndicatorProps {
   row: Record<string, unknown>;
   currentOperation: string;
 }
 
-const ObservabilityIndicator = React.memo(
+const ObservabilityIndicator = memo(
   ({ row, currentOperation }: ObservabilityIndicatorProps) => {
     // Only show observability data for the current operation
     const observabilityEntries = Object.entries(row).filter(
@@ -937,11 +835,11 @@ const createSortingFns = <T extends DataType>(
   },
 });
 
-function ResizableDataTable<T extends DataType>({
+export default function ResizableDataTable<T extends Record<string, unknown>>({
   data,
   columns,
-  boldedColumns,
-  startingRowHeight = 60,
+  boldedColumns = [],
+  startingRowHeight = 40,
   currentOperation,
 }: ResizableDataTableProps<T>) {
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
@@ -1028,18 +926,17 @@ function ResizableDataTable<T extends DataType>({
 
     if (cellValue == null) return false;
 
-    // Handle different types of values
-    if (typeof cellValue === "number") {
-      return cellValue.toString().includes(searchValue);
+    // Convert the cell value to a searchable string based on its type
+    let searchableString = "";
+
+    if (typeof cellValue === "object") {
+      // Handle both arrays and objects by converting to JSON string
+      searchableString = JSON.stringify(cellValue);
+    } else {
+      searchableString = String(cellValue);
     }
 
-    if (Array.isArray(cellValue)) {
-      return cellValue.some((item) =>
-        String(item).toLowerCase().includes(searchValue)
-      );
-    }
-
-    return String(cellValue).toLowerCase().includes(searchValue);
+    return searchableString.toLowerCase().includes(searchValue);
   };
 
   // Add this state to store original row indices
@@ -1061,6 +958,7 @@ function ResizableDataTable<T extends DataType>({
       })
       .map((col) => ({
         ...col,
+        id: col.accessorKey,
         enableSorting: true,
         filterFn: fuzzyFilter,
         sortingFn: (rowA: Row<T>, rowB: Row<T>) => {
@@ -1160,6 +1058,16 @@ function ResizableDataTable<T extends DataType>({
     setColumnSizing(initialSizing);
     saveSettings();
   }, [columns, data, saveSettings, table]);
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [activeColumn, setActiveColumn] = useState<string | null>(null);
+  const [currentValueIndex, setCurrentValueIndex] = useState(0);
+
+  const handleColumnExpand = (columnId: string) => {
+    setActiveColumn(columnId);
+    setCurrentValueIndex(0);
+    setDialogOpen(true);
+  };
 
   return (
     <div className="w-full overflow-auto">
@@ -1285,6 +1193,7 @@ function ResizableDataTable<T extends DataType>({
                           }
                         }}
                         sortDirection={header.column.getIsSorted()}
+                        onExpand={() => handleColumnExpand(header.column.id)}
                       />
                     )}
                     <ColumnResizer header={header} />
@@ -1340,6 +1249,17 @@ function ResizableDataTable<T extends DataType>({
                             content={cell.getValue() as string}
                             isResizing={isResizing}
                           />
+                        ) : typeof cell.getValue() === "object" ? (
+                          <SearchableCell
+                            content={JSON.stringify(cell.getValue(), null, 2)}
+                            isResizing={isResizing}
+                          >
+                            {(searchTerm) =>
+                              searchTerm ? null : (
+                                <PrettyJSON data={cell.getValue()} />
+                              )
+                            }
+                          </SearchableCell>
                         ) : (
                           flexRender(
                             cell.column.columnDef.cell,
@@ -1393,8 +1313,35 @@ function ResizableDataTable<T extends DataType>({
           </Button>
         </div>
       )}
+
+      {activeColumn && (
+        <ColumnDialog
+          isOpen={dialogOpen}
+          onClose={() => {
+            setDialogOpen(false);
+            setActiveColumn(null);
+          }}
+          columnId={activeColumn}
+          columnHeader={
+            columns.find((col) => (col.accessorKey || col.id) === activeColumn)
+              ?.header as string
+          }
+          data={data}
+          currentIndex={currentValueIndex}
+          onNavigate={(direction) => {
+            if (direction === "next") {
+              setCurrentValueIndex((prev) =>
+                Math.min(prev + 1, data.length - 1)
+              );
+            } else {
+              setCurrentValueIndex((prev) => Math.max(prev - 1, 0));
+            }
+          }}
+          onJumpToRow={(index) => setCurrentValueIndex(index)}
+          currentOperation={currentOperation}
+          columnStats={columnStats[activeColumn]}
+        />
+      )}
     </div>
   );
 }
-
-export default ResizableDataTable;

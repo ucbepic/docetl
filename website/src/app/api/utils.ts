@@ -2,7 +2,12 @@ import yaml from "js-yaml";
 import path from "path";
 import { Operation, SchemaItem } from "@/app/types";
 
+export function getNamespaceDir(homeDir: string, namespace: string) {
+  return path.join(homeDir, ".docetl", namespace);
+}
+
 export function generatePipelineConfig(
+  namespace: string,
   default_model: string,
   data: { path: string },
   operations: Operation[],
@@ -99,7 +104,6 @@ export function generatePipelineConfig(
               : processSchemaItem(item.subType as SchemaItem);
           return `list[${subType}]`;
         } else if (item.type === "dict") {
-          console.log(item);
           if (!item.subType) {
             throw new Error(
               `Dict/Object type must specify its structure for field: ${item.key}`
@@ -178,6 +182,7 @@ export function generatePipelineConfig(
         path: path.join(
           homeDir,
           ".docetl",
+          namespace,
           "pipelines",
           "outputs",
           `${name}.json`
@@ -185,6 +190,7 @@ export function generatePipelineConfig(
         intermediate_dir: path.join(
           homeDir,
           ".docetl",
+          namespace,
           "pipelines",
           name,
           "intermediates"

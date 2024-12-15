@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, List, Tuple, Optional
 
+from docetl.operations.utils import strict_render
 import numpy as np
 from jinja2 import Template
 from litellm import model_cost
@@ -94,8 +95,8 @@ class EquijoinOperation(BaseOperation):
             Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
         """
 
-        prompt_template = Template(comparison_prompt)
-        prompt = prompt_template.render(left=item1, right=item2)
+
+        prompt = strict_render(comparison_prompt, {"left": item1, "right": item2})
         response = self.runner.api.call_llm(
             model,
             "compare",

@@ -64,6 +64,11 @@ import {
   MenubarItem,
   MenubarMenu,
   MenubarTrigger,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
+  MenubarRadioGroup,
+  MenubarRadioItem,
 } from "@/components/ui/menubar";
 import {
   AlertDialog,
@@ -85,6 +90,14 @@ import {
 import * as localStorageKeys from "@/app/localStorageKeys";
 import { toast } from "@/hooks/use-toast";
 import AIChatPanel from "@/components/AIChatPanel";
+const NamespaceDialog = dynamic(
+  () =>
+    import("@/components/NamespaceDialog").then((mod) => mod.NamespaceDialog),
+  {
+    ssr: false,
+  }
+);
+import { ThemeProvider, useTheme, Theme } from "@/contexts/ThemeContext";
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg
@@ -158,15 +171,15 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   const {
-    operations,
     currentFile,
-    setOperations,
     setCurrentFile,
     cost,
     files,
@@ -174,12 +187,21 @@ const CodeEditorPipelineApp: React.FC = () => {
     clearPipelineState,
     saveProgress,
     unsavedChanges,
+    namespace,
+    setNamespace,
   } = usePipelineContext();
+
+  useEffect(() => {
+    const savedNamespace = localStorage.getItem(localStorageKeys.NAMESPACE_KEY);
+    if (!savedNamespace) {
+      setShowNamespaceDialog(true);
+    }
+  }, []);
 
   const handleSaveAs = async () => {
     try {
       // Collect all localStorage data
-      const data: Record<string, any> = {};
+      const data: Record<string, unknown> = {};
       Object.values(localStorageKeys).forEach((key) => {
         const value = localStorage.getItem(key);
         if (value) {
@@ -252,11 +274,28 @@ const CodeEditorPipelineApp: React.FC = () => {
     }
   };
 
+  const topBarStyles =
+    "p-2 flex justify-between items-center border-b bg-white shadow-sm";
+  const controlGroupStyles = "flex items-center gap-2";
+  const panelControlsStyles = "flex items-center gap-1 px-2 border-l";
+  const saveButtonStyles = `relative h-8 px-3 ${
+    unsavedChanges
+      ? "bg-orange-100 border-orange-500 hover:bg-orange-200"
+      : "hover:bg-gray-100"
+  }`;
+  const costDisplayStyles =
+    "px-3 py-1.5 text-sm text-gray-600 flex items-center gap-1";
+  const panelToggleStyles =
+    "flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors duration-200";
+  const mainContentStyles = "flex-grow overflow-hidden bg-gray-50";
+  const resizeHandleStyles =
+    "w-2 bg-gray-100 hover:bg-blue-200 transition-colors duration-200";
+
   return (
     <BookmarkProvider>
       <div className="h-screen flex flex-col bg-gray-50">
-        <div className="p-1 flex justify-between items-center border-b">
-          <div className="flex-1 flex">
+        <div className={topBarStyles}>
+          <div className={controlGroupStyles}>
             <Menubar className="border-none bg-transparent shadow-none">
               <MenubarMenu>
                 <MenubarTrigger>File</MenubarTrigger>
@@ -296,6 +335,40 @@ const CodeEditorPipelineApp: React.FC = () => {
                 </MenubarContent>
               </MenubarMenu>
               <MenubarMenu>
+                <MenubarTrigger>Edit</MenubarTrigger>
+                <MenubarContent>
+                  <MenubarItem onSelect={() => setShowNamespaceDialog(true)}>
+                    Change Namespace
+                  </MenubarItem>
+                  <MenubarSub>
+                    <MenubarSubTrigger>Change Theme</MenubarSubTrigger>
+                    <MenubarSubContent>
+                      <MenubarRadioGroup
+                        value={theme}
+                        onValueChange={(value) => setTheme(value as Theme)}
+                      >
+                        <MenubarRadioItem value="default">
+                          Default
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="forest">
+                          Forest
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="majestic">
+                          Majestic
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="sunset">
+                          Sunset
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="ruby">Ruby</MenubarRadioItem>
+                        <MenubarRadioItem value="monochrome">
+                          Monochrome
+                        </MenubarRadioItem>
+                      </MenubarRadioGroup>
+                    </MenubarSubContent>
+                  </MenubarSub>
+                </MenubarContent>
+              </MenubarMenu>
+              <MenubarMenu>
                 <MenubarTrigger>Help</MenubarTrigger>
                 <MenubarContent>
                   <MenubarItem
@@ -316,133 +389,125 @@ const CodeEditorPipelineApp: React.FC = () => {
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={() => {
                       saveProgress();
                       toast({
                         title: "Progress Saved",
-                        description: "Your pipeline progress has been saved.",
+                        description:
+                          "Your pipeline progress has been saved to browser storage.",
                         duration: 3000,
                       });
                     }}
-                    className={`relative ${
-                      unsavedChanges ? "border-orange-500" : ""
-                    }`}
+                    className={saveButtonStyles}
                   >
                     <Save
                       size={16}
-                      className={unsavedChanges ? "text-orange-500" : ""}
+                      className={
+                        unsavedChanges ? "text-orange-500 mr-2" : "mr-2"
+                      }
                     />
-                    {unsavedChanges && (
-                      <span className="absolute top-0 right-0 w-2 h-2 bg-orange-500 rounded-full" />
-                    )}
+                    {unsavedChanges ? "Quick Save" : "Quick Save"}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   {unsavedChanges
-                    ? "Save changes to avoid losing progress!"
-                    : "No unsaved changes"}
+                    ? "Save changes to browser storage (use File > Save As to save to disk)"
+                    : "No changes compared to the version in browser storage"}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="px-2">
+                  <Info size={16} className="mr-2" />
+                  Info
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <h3 className="font-semibold mb-2">About DocETL</h3>
+                <p className="text-sm text-gray-600">
+                  This is a research project from the EPIC Data Lab at the
+                  University of California, Berkeley. To learn more, visit{" "}
+                  <a
+                    href="https://docetl.org"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    docetl.org
+                  </a>
+                  .
+                </p>
+              </PopoverContent>
+            </Popover>
           </div>
-          <div className="flex items-center">
-            <Scroll className="mr-2 text-primary" size={20} />
+          <div className="flex items-center gap-2">
+            <Scroll className="text-primary" size={20} />
             <h1 className="text-lg font-bold text-primary">DocETL</h1>
-          </div>
-          <div className="flex-1 flex justify-end items-center space-x-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Info size={20} />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                      <h3 className="font-semibold mb-2">About DocETL</h3>
-                      <p className="text-sm text-gray-600">
-                        This is a research project from the EPIC Data Lab at the
-                        University of California, Berkeley. To learn more, visit{" "}
-                        <a
-                          href="https://docetl.org"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline"
-                        >
-                          docetl.org
-                        </a>
-                        .
-                      </p>
-                    </PopoverContent>
-                  </Popover>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>About DocETL</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {/* Only render the cost when client-side */}
             {isMounted && (
-              <span className="text-sm font-medium text-gray-600">
-                Cost: ${cost.toFixed(2)}
-              </span>
+              <span className="text-sm text-gray-600">({namespace})</span>
             )}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowFileExplorer(!showFileExplorer)}
-                    className="w-10 h-10"
-                  >
-                    <LeftPanelIcon isActive={showFileExplorer} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Toggle File Explorer</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowOutput(!showOutput)}
-                    className="w-10 h-10"
-                  >
-                    <BottomPanelIcon isActive={showOutput} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Toggle Output Panel</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowDatasetView(!showDatasetView)}
-                    className="w-10 h-10"
-                  >
-                    <RightPanelIcon isActive={showDatasetView} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Toggle Dataset View</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+          </div>
+          <div className={controlGroupStyles}>
+            {isMounted && (
+              <div className={costDisplayStyles}>
+                <span className="text-gray-500">Cost:</span>
+                <span className="font-medium">${cost.toFixed(2)}</span>
+              </div>
+            )}
+            <div className={panelControlsStyles}>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setShowFileExplorer(!showFileExplorer)}
+                      className={panelToggleStyles}
+                    >
+                      <LeftPanelIcon isActive={showFileExplorer} />
+                      Files
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Toggle File Explorer</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setShowOutput(!showOutput)}
+                      className={panelToggleStyles}
+                    >
+                      <BottomPanelIcon isActive={showOutput} />
+                      Output
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Toggle Output Panel</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setShowDatasetView(!showDatasetView)}
+                      className={panelToggleStyles}
+                    >
+                      <RightPanelIcon isActive={showDatasetView} />
+                      Dataset
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Toggle Dataset View</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
         </div>
         {showChat && <AIChatPanel onClose={() => setShowChat(false)} />}
         {/* Main content */}
         <ResizablePanelGroup
           direction="horizontal"
-          className="flex-grow overflow-hidden"
+          className={mainContentStyles}
         >
           {showFileExplorer && (
             <ResizablePanel defaultSize={10} minSize={6} className="h-full">
@@ -468,12 +533,10 @@ const CodeEditorPipelineApp: React.FC = () => {
                     setCurrentFile={setCurrentFile}
                     setShowDatasetView={setShowDatasetView}
                     currentFile={currentFile}
+                    namespace={namespace}
                   />
                 </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  className="h-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
-                />
+                <ResizableHandle withHandle className={resizeHandleStyles} />
                 <ResizablePanel
                   defaultSize={60}
                   minSize={20}
@@ -485,30 +548,24 @@ const CodeEditorPipelineApp: React.FC = () => {
             </ResizablePanel>
           )}
           {showFileExplorer && (
-            <ResizableHandle
-              withHandle
-              className="w-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
-            />
+            <ResizableHandle withHandle className={resizeHandleStyles} />
           )}
 
           <ResizablePanel defaultSize={60} minSize={30} className="h-full">
             <ResizablePanelGroup direction="vertical" className="h-full">
               <ResizablePanel
-                defaultSize={70}
+                defaultSize={60}
                 minSize={5}
                 className="overflow-auto"
               >
                 <PipelineGUI />
               </ResizablePanel>
               {showOutput && (
-                <ResizableHandle
-                  withHandle
-                  className="h-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
-                />
+                <ResizableHandle withHandle className={resizeHandleStyles} />
               )}
               {showOutput && (
                 <ResizablePanel
-                  defaultSize={105}
+                  defaultSize={40}
                   minSize={20}
                   className="overflow-auto"
                 >
@@ -520,10 +577,7 @@ const CodeEditorPipelineApp: React.FC = () => {
 
           {showDatasetView && currentFile && (
             <>
-              <ResizableHandle
-                withHandle
-                className="w-2 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
-              />
+              <ResizableHandle withHandle className={resizeHandleStyles} />
               <ResizablePanel
                 defaultSize={20}
                 minSize={10}
@@ -534,6 +588,16 @@ const CodeEditorPipelineApp: React.FC = () => {
             </>
           )}
         </ResizablePanelGroup>
+        <NamespaceDialog
+          open={showNamespaceDialog}
+          onOpenChange={setShowNamespaceDialog}
+          currentNamespace={namespace}
+          onSave={(newNamespace) => {
+            setNamespace(newNamespace);
+            setShowNamespaceDialog(false);
+            saveProgress();
+          }}
+        />
       </div>
     </BookmarkProvider>
   );
@@ -607,11 +671,13 @@ const WrappedCodeEditorPipelineApp: React.FC = () => {
   }
 
   return (
-    <WebSocketProvider>
-      <PipelineProvider>
-        <CodeEditorPipelineApp />
-      </PipelineProvider>
-    </WebSocketProvider>
+    <ThemeProvider>
+      <WebSocketProvider>
+        <PipelineProvider>
+          <CodeEditorPipelineApp />
+        </PipelineProvider>
+      </WebSocketProvider>
+    </ThemeProvider>
   );
 };
 

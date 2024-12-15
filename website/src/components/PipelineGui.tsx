@@ -14,7 +14,6 @@ import {
 import { OperationCard } from "@/components/OperationCard";
 import { Button } from "@/components/ui/button";
 import {
-  Plus,
   ChevronDown,
   Play,
   Settings,
@@ -22,10 +21,10 @@ import {
   RefreshCw,
   Download,
   FileUp,
-  Save,
   Loader2,
   StopCircle,
   Brain,
+  GitBranch,
 } from "lucide-react";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import {
@@ -86,7 +85,10 @@ const OperationMenuItem: React.FC<OperationMenuItemProps> = ({
     <HoverCard openDelay={200}>
       <HoverCardTrigger asChild>
         <div className="relative w-full">
-          <DropdownMenuItem onClick={onClick} className="w-full cursor-help">
+          <DropdownMenuItem
+            onClick={onClick}
+            className="w-full cursor-help font-medium hover:bg-primary/10"
+          >
             {name}
           </DropdownMenuItem>
         </div>
@@ -102,6 +104,30 @@ const OperationMenuItem: React.FC<OperationMenuItemProps> = ({
     </HoverCard>
   );
 };
+
+interface YAMLOperation {
+  id?: string;
+  type: string;
+  name?: string;
+  prompt?: string;
+  output?: {
+    schema: Record<string, unknown>;
+  };
+  validate?: unknown;
+  sample?: unknown;
+  [key: string]: unknown;
+}
+
+interface YAMLContent {
+  operations?: YAMLOperation[];
+  datasets?: Record<string, { type: string; path: string }>;
+  default_model?: string;
+}
+
+interface Dataset {
+  type: string;
+  path: string;
+}
 
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,15 +158,13 @@ const PipelineGUI: React.FC = () => {
     setAutoOptimizeCheck,
     systemPrompt,
     setSystemPrompt,
+    namespace,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
   const [tempAutoOptimizeCheck, setTempAutoOptimizeCheck] =
     useState(autoOptimizeCheck);
   const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
-  const [tempSampleSize, setTempSampleSize] = useState(
-    sampleSize?.toString() || ""
-  );
   const [tempCurrentFile, setTempCurrentFile] = useState<File | null>(
     currentFile
   );
@@ -155,16 +179,16 @@ const PipelineGUI: React.FC = () => {
     inputData?: Array<Record<string, unknown>>;
     outputData?: Array<Record<string, unknown>>;
     operationName?: string;
+    operationId?: string;
   }>({
     isOpen: false,
     content: "",
     prompt: undefined,
     operationName: undefined,
+    operationId: undefined,
   });
-  const [tempSystemPrompt, setTempSystemPrompt] = useState({
-    datasetDescription: systemPrompt.datasetDescription || "",
-    persona: systemPrompt.persona || "",
-  });
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedPipelineName, setEditedPipelineName] = useState(pipelineName);
 
   const { submitTask } = useOptimizeCheck({
     onComplete: (result) => {
@@ -193,6 +217,7 @@ const PipelineGUI: React.FC = () => {
                   content: result.should_optimize,
                   prompt: lastOp.prompt || "No prompt specified",
                   operationName: lastOp.name,
+                  operationId: lastOp.id,
                   inputData: result.input_data,
                   outputData: result.output_data,
                 });
@@ -272,6 +297,7 @@ const PipelineGUI: React.FC = () => {
               sample: sample,
               otherKwargs: otherKwargs || {},
               ...(existingOp?.runIndex && { runIndex: existingOp.runIndex }),
+              visibility: true,
             } as Operation;
           });
 
@@ -304,7 +330,7 @@ const PipelineGUI: React.FC = () => {
         setIsLoadingOutputs(false);
       } else if (lastMessage.type === "error") {
         toast({
-          title: "Error",
+          title: "Execution Error",
           description: lastMessage.data,
           variant: "destructive",
           duration: Infinity,
@@ -348,12 +374,6 @@ const PipelineGUI: React.FC = () => {
     }
   }, [optimizerModel]);
 
-  useEffect(() => {
-    if (sampleSize) {
-      setTempSampleSize(sampleSize.toString());
-    }
-  }, [sampleSize]);
-
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -365,15 +385,14 @@ const PipelineGUI: React.FC = () => {
         if (typeof content === "string") {
           try {
             const yamlFileName = file.name.split("/").pop()?.split(".")[0];
-            const yamlContent = yaml.load(content) as any;
+            const yamlContent = yaml.load(content) as YAMLContent;
             setOperations([]);
 
             // Update PipelineContext with the loaded YAML data
             setOperations(
-              (yamlContent.operations || []).map((op: any) => {
+              (yamlContent.operations || []).map((op) => {
                 const {
                   id,
-                  llmType,
                   type,
                   name,
                   prompt,
@@ -405,7 +424,9 @@ const PipelineGUI: React.FC = () => {
                   prompt,
                   output: output
                     ? {
-                        schema: schemaDictToItemSet(output.schema),
+                        schema: schemaDictToItemSet(
+                          output.schema as Record<string, string>
+                        ),
                       }
                     : undefined,
                   validate,
@@ -416,14 +437,18 @@ const PipelineGUI: React.FC = () => {
               })
             );
             setPipelineName(yamlFileName || "Untitled Pipeline");
-            setSampleSize(yamlContent.operations?.[0]?.sample || null);
+            setSampleSize(
+              (yamlContent.operations?.[0]?.sample as number) || null
+            );
             setDefaultModel(yamlContent.default_model || "gpt-4o-mini");
 
             // Set current file if it exists in the YAML
             // Look for paths in all datasets
             const datasetPaths = Object.values(yamlContent.datasets || {})
-              .filter((dataset: any) => dataset.type === "file" && dataset.path)
-              .map((dataset: any) => dataset.path);
+              .filter(
+                (dataset: Dataset) => dataset.type === "file" && dataset.path
+              )
+              .map((dataset: Dataset) => dataset.path);
 
             if (datasetPaths.length > 0) {
               const newFiles = datasetPaths.map((filePath) => ({
@@ -487,6 +512,8 @@ const PipelineGUI: React.FC = () => {
           operation_id: operations[operations.length - 1].id,
           name: pipelineName,
           sample_size: sampleSize,
+          namespace,
+          system_prompt: systemPrompt,
         }),
       });
 
@@ -524,10 +551,13 @@ const PipelineGUI: React.FC = () => {
 
   const onRunAll = useCallback(
     async (clear_intermediate: boolean) => {
-      const lastOpIndex = operations.length - 1;
-      if (lastOpIndex < 0) return;
+      // Find the last visible operation
+      const lastVisibleOpIndex = operations.findLastIndex(
+        (op) => op.visibility !== false
+      );
+      if (lastVisibleOpIndex < 0) return;
 
-      const lastOperation = operations[lastOpIndex];
+      const lastOperation = operations[lastVisibleOpIndex];
       setOptimizerProgress(null);
       setIsLoadingOutputs(true);
       setNumOpRun((prevNum) => {
@@ -558,6 +588,7 @@ const PipelineGUI: React.FC = () => {
             sample_size: sampleSize,
             clear_intermediate: clear_intermediate,
             system_prompt: systemPrompt,
+            namespace,
           }),
         });
 
@@ -622,19 +653,11 @@ const PipelineGUI: React.FC = () => {
 
   const handleSettingsSave = () => {
     setPipelineName(tempPipelineName);
-    setSampleSize(
-      tempSampleSize === ""
-        ? null
-        : tempSampleSize === null
-        ? null
-        : parseInt(tempSampleSize, 10)
-    );
     setCurrentFile(tempCurrentFile);
     setDefaultModel(tempDefaultModel);
     setIsSettingsOpen(false);
     setOptimizerModel(tempOptimizerModel);
     setAutoOptimizeCheck(tempAutoOptimizeCheck);
-    setSystemPrompt(tempSystemPrompt);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -663,97 +686,149 @@ const PipelineGUI: React.FC = () => {
     }
   };
 
+  const handleOptimizeFromDialog = async () => {
+    if (!optimizationDialog.operationId) return;
+
+    try {
+      setTerminalOutput("");
+      setIsLoadingOutputs(true);
+
+      const response = await fetch("/api/writePipelineConfig", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          default_model: defaultModel,
+          data: { path: currentFile?.path || "" },
+          operations,
+          operation_id: optimizationDialog.operationId,
+          name: pipelineName,
+          sample_size: sampleSize,
+          optimize: true,
+          namespace,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const { filePath } = await response.json();
+
+      await connect();
+
+      sendMessage({
+        yaml_config: filePath,
+        optimize: true,
+        optimizer_model: optimizerModel,
+      });
+    } catch (error) {
+      console.error("Error optimizing operation:", error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      disconnect();
+      setIsLoadingOutputs(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-none p-2 bg-white border-b sticky top-0 z-10">
+      <div className="flex-none p-3 bg-background border-b sticky top-0 z-10 shadow-sm">
         <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <h2 className="text-sm font-bold uppercase">
-              {pipelineName.toUpperCase()}
-            </h2>
-            {sampleSize && (
-              <TooltipProvider delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <div className="flex items-center cursor-help">
-                      <PieChart size={16} className="text-primary mr-2" />
-                      <span className="text-xs text-primary">
-                        {sampleSize} samples
+          <div className="flex items-center space-x-3">
+            {isEditingName ? (
+              <Input
+                value={editedPipelineName}
+                onChange={(e) => setEditedPipelineName(e.target.value)}
+                onBlur={() => {
+                  setIsEditingName(false);
+                  setPipelineName(editedPipelineName);
+                }}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    setIsEditingName(false);
+                    setPipelineName(editedPipelineName);
+                  }
+                }}
+                className="max-w-[200px] h-7 text-sm font-bold"
+                autoFocus
+              />
+            ) : (
+              <h2
+                className="text-base font-bold cursor-default select-none"
+                onClick={() => setIsEditingName(true)}
+              >
+                {pipelineName}
+              </h2>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 flex items-center gap-2"
+                  >
+                    <GitBranch size={14} />
+                    <span className="text-xs">Overview</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="bottom"
+                  align="start"
+                  className="w-96 p-4"
+                >
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium">Pipeline Flow</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {operations.filter((op) => op.visibility).length}{" "}
+                        operations
                       </span>
                     </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-[200px]">
-                    <p>
-                      Pipeline will run on a sample of {sampleSize} random
-                      documents.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            <div className="flex items-center space-x-0">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="h-8 w-8"
-                    >
-                      <FileUp size={16} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Initialize from config file</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <Input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".yaml,.yml"
-                className="hidden"
-              />
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleExport()}
-                      className="h-8 w-8"
-                    >
-                      <Download size={16} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Download pipeline config file</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setIsSettingsOpen(true)}
-                className="h-8 w-8"
-              >
-                <Settings size={16} />
-              </Button>
+                    <div className="bg-muted p-3 rounded-md space-y-2">
+                      {operations.length > 0 ? (
+                        operations
+                          .filter((op) => op.visibility)
+                          .map((op, index, arr) => (
+                            <div key={op.id} className="flex items-center">
+                              <div className="flex-1 bg-background p-2 rounded-md text-sm">
+                                <div className="font-medium">{op.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {op.type}
+                                </div>
+                              </div>
+                              {index < arr.length - 1 && (
+                                <div className="mx-2 text-muted-foreground">
+                                  ↓
+                                </div>
+                              )}
+                            </div>
+                          ))
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          No operations in the pipeline
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
 
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="h-8 flex items-center gap-1"
+                    className="h-8 px-3 flex items-center gap-2"
                   >
-                    <Brain size={14} className="text-primary" />
-                    <span className="text-xs text-primary">
-                      Set system prompts
-                    </span>
+                    <Brain size={14} />
+                    <span className="text-xs">System Prompts</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-88">
@@ -778,14 +853,16 @@ const PipelineGUI: React.FC = () => {
                         <Textarea
                           id="datasetDescription"
                           placeholder="a collection of documents"
-                          value={tempSystemPrompt.datasetDescription}
-                          onChange={(e) =>
-                            setTempSystemPrompt((prev) => ({
-                              ...prev,
-                              datasetDescription: e.target.value,
-                            }))
-                          }
-                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          defaultValue={systemPrompt.datasetDescription}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            setTimeout(() => {
+                              setSystemPrompt((prev) => ({
+                                ...prev,
+                                datasetDescription: value,
+                              }));
+                            }, 0);
+                          }}
                           className="h-[3.5rem]"
                         />
                       </div>
@@ -799,14 +876,16 @@ const PipelineGUI: React.FC = () => {
                         <Textarea
                           id="persona"
                           placeholder="a helpful assistant"
-                          value={tempSystemPrompt.persona}
-                          onChange={(e) =>
-                            setTempSystemPrompt((prev) => ({
-                              ...prev,
-                              persona: e.target.value,
-                            }))
-                          }
-                          onBlur={() => setSystemPrompt(tempSystemPrompt)}
+                          defaultValue={systemPrompt.persona}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            setTimeout(() => {
+                              setSystemPrompt((prev) => ({
+                                ...prev,
+                                persona: value,
+                              }));
+                            }, 0);
+                          }}
                           className="h-[3.5rem]"
                         />
                       </div>
@@ -814,18 +893,103 @@ const PipelineGUI: React.FC = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 flex items-center gap-2"
+                      >
+                        <PieChart size={14} />
+                        <Input
+                          type="number"
+                          value={sampleSize || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setSampleSize(
+                              value === "" ? null : parseInt(value, 10)
+                            );
+                          }}
+                          className="w-16 h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                          placeholder="All docs"
+                        />
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Set sample size for operations</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            <div className="flex items-center border-l pl-2">
+              <div className="flex items-center space-x-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="h-8 w-8"
+                      >
+                        <FileUp size={16} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Load from YAML</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".yaml,.yml"
+                  className="hidden"
+                />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleExport()}
+                        className="h-8 w-8"
+                      >
+                        <Download size={16} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Save to YAML</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="h-8 w-8"
+                >
+                  <Settings size={16} />
+                </Button>
+              </div>
             </div>
           </div>
-          <div className="flex space-x-2">
+
+          <div className="flex space-x-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" className="rounded-sm">
-                  <Plus size={16} className="mr-2" /> Add Operation{" "}
-                  <ChevronDown size={16} className="ml-2" />
+                <Button size="sm" variant="outline" className="rounded-sm">
+                  Add Operation <ChevronDown size={16} className="ml-2" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuLabel>LLM Operations</DropdownMenuLabel>
+                <DropdownMenuLabel>Add LLM Operation</DropdownMenuLabel>
                 <OperationMenuItem
                   name="Map"
                   description="Transforms each input item for complex data processing and insight extraction. 1 to 1 operation (each document gets one result, but the output of the operation can be any type, like a list)."
@@ -866,7 +1030,7 @@ const PipelineGUI: React.FC = () => {
                   }
                 />
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Non-LLM Operations</DropdownMenuLabel>
+                <DropdownMenuLabel>Add Non-LLM Operation</DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={() =>
                     handleAddOperation("non-LLM", "unnest", "Untitled Unnest")
@@ -932,7 +1096,8 @@ const PipelineGUI: React.FC = () => {
                 />
               </DropdownMenuContent>
             </DropdownMenu>
-            <div className="flex space-x-2">
+
+            <div className="flex space-x-2 border-l pl-3">
               <Button
                 size="sm"
                 variant="destructive"
@@ -941,23 +1106,34 @@ const PipelineGUI: React.FC = () => {
                 disabled={!isLoadingOutputs}
               >
                 <StopCircle size={16} className="mr-2" />
-                Stop Pipeline
+                Stop
               </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-sm bg-secondary hover:bg-secondary/90 text-secondary-foreground font-medium"
+                      onClick={() => onRunAll(true)}
+                      disabled={isLoadingOutputs}
+                    >
+                      {isLoadingOutputs ? (
+                        <Loader2 size={16} className="mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw size={16} className="mr-2" />
+                      )}
+                      Run Fresh
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="w-72">
+                    <p>Run pipeline after clearing all cached results</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Button
                 size="sm"
-                className="rounded-sm"
-                onClick={() => onRunAll(true)}
-                disabled={isLoadingOutputs}
-              >
-                {isLoadingOutputs ? (
-                  <Loader2 size={16} className="mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw size={16} className="mr-2" />
-                )}
-                Clear Cache and Run
-              </Button>
-              <Button
-                size="sm"
+                variant="default"
                 className="rounded-sm"
                 disabled={isLoadingOutputs}
                 onClick={() => onRunAll(false)}
@@ -981,11 +1157,11 @@ const PipelineGUI: React.FC = () => {
                 {...provided.droppableProps}
                 ref={provided.innerRef}
                 className={`space-y-2 ${
-                  snapshot.isDraggingOver ? "bg-gray-50" : ""
+                  snapshot.isDraggingOver ? "bg-accent" : ""
                 }`}
               >
                 {operations.map((op, index) => (
-                  <OperationCard key={op.id} index={index} />
+                  <OperationCard key={op.id} index={index} id={op.id} />
                 ))}
                 {provided.placeholder}
               </div>
@@ -999,30 +1175,6 @@ const PipelineGUI: React.FC = () => {
             <DialogTitle>Pipeline Settings</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="name"
-                value={tempPipelineName}
-                onChange={(e) => setTempPipelineName(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="sampling" className="text-right">
-                Sample Size
-              </Label>
-              <Input
-                id="sampling"
-                type="number"
-                value={tempSampleSize}
-                onChange={(e) => setTempSampleSize(e.target.value)}
-                placeholder="None"
-                className="col-span-3"
-              />
-            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="currentFile" className="text-right">
                 Dataset JSON
@@ -1104,6 +1256,7 @@ const PipelineGUI: React.FC = () => {
         onOpenChange={(open) =>
           setOptimizationDialog((prev) => ({ ...prev, isOpen: open }))
         }
+        onDecompose={handleOptimizeFromDialog}
       />
     </div>
   );

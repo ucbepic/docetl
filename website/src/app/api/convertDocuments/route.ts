@@ -6,6 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const files = formData.getAll("files");
+    const conversionMethod = formData.get("conversion_method");
 
     if (!files || files.length === 0) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
@@ -16,6 +17,12 @@ export async function POST(request: NextRequest) {
     files.forEach((file) => {
       backendFormData.append("files", file);
     });
+
+    // Add conversion method to form data
+    backendFormData.append(
+      "use_docetl_server",
+      conversionMethod === "docetl" ? "true" : "false"
+    );
 
     // Get Azure credentials from headers if they exist
     const azureEndpoint = request.headers.get("azure-endpoint");

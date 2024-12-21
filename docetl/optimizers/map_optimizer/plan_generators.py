@@ -218,7 +218,7 @@ class PlanGenerator:
         map_op = self.operation_creator.create_map_operation(
             op_config,
             subprompt_output_schema,
-            split_result["subprompt"] + " Only process the main chunk.",
+            split_result["subprompt"] ,
         )
 
         # unnest_ops = self.operation_creator.create_unnest_operations(op_config)

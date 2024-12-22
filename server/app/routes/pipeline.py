@@ -108,6 +108,7 @@ async def run_optimization(task_id: str, yaml_config: str, step_name: str, op_na
     finally:
         if task_id in asyncio_tasks:
             del asyncio_tasks[task_id]
+        runner.reset_env()
 
 @router.on_event("startup")
 async def startup_event():
@@ -181,6 +182,7 @@ def run_pipeline(request: PipelineRequest) -> Dict[str, Any]:
     try:
         runner = DSLRunner.from_yaml(request.yaml_config)
         cost = runner.load_run_save()
+        runner.reset_env()
         return {"cost": cost, "message": "Pipeline executed successfully"}
     except Exception as e:
         import traceback
@@ -294,6 +296,7 @@ async def websocket_run_pipeline(websocket: WebSocket):
                 }
             )
     except WebSocketDisconnect:
+        runner.reset_env()
         print("Client disconnected")
     except Exception as e:
         import traceback
@@ -302,4 +305,5 @@ async def websocket_run_pipeline(websocket: WebSocket):
         print(f"Error occurred:\n{error_traceback}")
         await websocket.send_json({"type": "error", "data": str(e), "traceback": error_traceback})
     finally:
+        runner.reset_env()
         await websocket.close()

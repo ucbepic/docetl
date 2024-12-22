@@ -129,9 +129,7 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
                 });
               }}
             >
-              <SelectTrigger
-                className={`w-1/3 min-w-[150px] ${isList ? "flex-grow" : ""}`}
-              >
+              <SelectTrigger className={`w-32 ${isList ? "flex-grow" : ""}`}>
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>

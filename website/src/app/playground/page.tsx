@@ -98,6 +98,7 @@ const NamespaceDialog = dynamic(
   }
 );
 import { ThemeProvider, useTheme, Theme } from "@/contexts/ThemeContext";
+import { APIKeysDialog } from "@/components/APIKeysDialog";
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg
@@ -172,6 +173,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showDatasetView, setShowDatasetView] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
+  const [showAPIKeysDialog, setShowAPIKeysDialog] = useState(false);
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -339,6 +341,9 @@ const CodeEditorPipelineApp: React.FC = () => {
                 <MenubarContent>
                   <MenubarItem onSelect={() => setShowNamespaceDialog(true)}>
                     Change Namespace
+                  </MenubarItem>
+                  <MenubarItem onSelect={() => setShowAPIKeysDialog(true)}>
+                    Edit API Keys
                   </MenubarItem>
                   <MenubarSub>
                     <MenubarSubTrigger>Change Theme</MenubarSubTrigger>
@@ -575,7 +580,7 @@ const CodeEditorPipelineApp: React.FC = () => {
             </ResizablePanelGroup>
           </ResizablePanel>
 
-          {showDatasetView && currentFile && (
+          {showDatasetView && (
             <>
               <ResizableHandle withHandle className={resizeHandleStyles} />
               <ResizablePanel
@@ -598,78 +603,16 @@ const CodeEditorPipelineApp: React.FC = () => {
             saveProgress();
           }}
         />
+        <APIKeysDialog
+          open={showAPIKeysDialog}
+          onOpenChange={setShowAPIKeysDialog}
+        />
       </div>
     </BookmarkProvider>
   );
 };
 
 const WrappedCodeEditorPipelineApp: React.FC = () => {
-  const [isLocalhost, setIsLocalhost] = useState(true);
-
-  useEffect(() => {
-    setIsLocalhost(
-      window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1"
-    );
-  }, []);
-
-  if (!isLocalhost) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="max-w-2xl p-6 bg-card rounded-lg shadow-md">
-          <h1 className="text-2xl font-bold text-primary mb-4">
-            DocETL Playground
-          </h1>
-          <p className="mb-4 text-foreground">
-            The DocETL playground is designed to run locally. To use it, please
-            follow these steps:
-          </p>
-          <ol className="list-decimal list-inside mb-4 text-foreground">
-            <li>
-              Clone the GitHub repo:{" "}
-              <a
-                href="https://github.com/ucbepic/docetl"
-                className="text-primary hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                https://github.com/ucbepic/docetl
-              </a>
-            </li>
-            <li>
-              Set up the project by running:
-              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
-                make install
-              </pre>
-              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
-                make install-ui
-              </pre>
-            </li>
-            <li>
-              Start the application:
-              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
-                make run-ui-prod
-              </pre>
-            </li>
-            <li>
-              Navigate to{" "}
-              <a
-                href="http://localhost:3000/playground"
-                className="text-primary hover:underline"
-              >
-                http://localhost:3000/playground
-              </a>
-            </li>
-          </ol>
-          <p className="text-foreground">
-            Once you&apos;ve completed these steps, you&apos;ll be able to use
-            the DocETL playground locally.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <ThemeProvider>
       <WebSocketProvider>

@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
-import { Operation, File, OutputType, Bookmark } from "@/app/types";
+import { Operation, File, OutputType, Bookmark, APIKey } from "@/app/types";
 import {
   mockFiles,
   initialOperations,
@@ -15,6 +15,7 @@ import {
 } from "@/mocks/mockData";
 import * as localStorageKeys from "@/app/localStorageKeys";
 import { BOOKMARKS_STORAGE_KEY } from "@/app/localStorageKeys";
+import { toast } from "@/hooks/use-toast";
 
 interface PipelineState {
   operations: Operation[];
@@ -40,6 +41,7 @@ interface PipelineState {
   highLevelGoal: string;
   systemPrompt: { datasetDescription: string | null; persona: string | null };
   namespace: string | null;
+  apiKeys: APIKey[];
 }
 
 interface PipelineContextType extends PipelineState {
@@ -77,6 +79,7 @@ interface PipelineContextType extends PipelineState {
     }>
   >;
   setNamespace: React.Dispatch<React.SetStateAction<string | null>>;
+  setApiKeys: React.Dispatch<React.SetStateAction<APIKey[]>>;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -316,14 +319,20 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       persona: null,
     }),
     namespace: loadFromLocalStorage(localStorageKeys.NAMESPACE_KEY, null),
+    apiKeys: [],
   }));
 
   const [unsavedChanges, setUnsavedChanges] = useState(false);
   const stateRef = useRef(state);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const saveProgress = useCallback(() => {
     localStorage.setItem(
@@ -411,6 +420,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       highLevelGoal: "",
       systemPrompt: { datasetDescription: null, persona: null },
       namespace: null,
+      apiKeys: stateRef.current.apiKeys,
     });
     setUnsavedChanges(false);
   }, []);
@@ -438,7 +448,9 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
             );
             return { ...prevState, [key]: newValue };
           } else {
-            setUnsavedChanges(true);
+            if (key === "apiKeys") {
+              setUnsavedChanges(true);
+            }
             return { ...prevState, [key]: newValue };
           }
         }
@@ -462,6 +474,18 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [unsavedChanges]);
+
+  useEffect(() => {
+    if (isMounted && state.apiKeys.length === 0) {
+      toast({
+        title: "No API Keys Found",
+        description:
+          "If you are accessing the playground using docetl.org, please add your API keys using Edit > Edit API Keys in the menu bar. Disregard this message if you are running DocETL locally.",
+        duration: 5000,
+        variant: "destructive",
+      });
+    }
+  }, [isMounted, state.apiKeys]);
 
   const contextValue: PipelineContextType = {
     ...state,
@@ -535,6 +559,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     ),
     setNamespace: useCallback(
       (value) => setStateAndUpdate("namespace", value),
+      [setStateAndUpdate]
+    ),
+    setApiKeys: useCallback(
+      (value) => setStateAndUpdate("apiKeys", value),
       [setStateAndUpdate]
     ),
   };

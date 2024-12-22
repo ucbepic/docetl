@@ -7,6 +7,36 @@ import yaml
 from jinja2 import Environment, meta
 from litellm import completion_cost as lcc
 
+from lzstring import LZString
+
+class Decryptor:
+    def __init__(self, secret_key: str):
+        self.key = secret_key
+        self.lz = LZString()
+    
+    def decrypt(self, encrypted_data: str) -> str:
+        try:
+            # First decompress the data
+            compressed = self.lz.decompressFromBase64(encrypted_data)
+            if not compressed:
+                raise ValueError("Invalid compressed data")
+            
+            # Then decode using the key
+            result = ''
+            for i in range(len(compressed)):
+                char_code = ord(compressed[i]) - ord(self.key[i % len(self.key)])
+                result += chr(char_code)
+            
+            return result
+            
+        except Exception as e:
+            print(f"Decryption failed: {str(e)}")
+            return None
+
+def decrypt(encrypted_data: str, secret_key: str) -> str:
+    if not secret_key:
+        return encrypted_data
+    return Decryptor(secret_key).decrypt(encrypted_data)
 
 class StageType(Enum):
     SAMPLE_RUN = "sample_run"

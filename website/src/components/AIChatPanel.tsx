@@ -8,7 +8,7 @@ import React, {
   useCallback,
 } from "react";
 import { ResizableBox } from "react-resizable";
-import { RefreshCw, X, Copy } from "lucide-react";
+import { RefreshCw, X, Copy, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { debounce } from "lodash";
+import { toast } from "@/hooks/use-toast";
 
 interface AIChatPanelProps {
   onClose: () => void;
@@ -39,6 +40,8 @@ const DEFAULT_SUGGESTIONS = [
 ];
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
+  const { serializeState, highLevelGoal, setHighLevelGoal, apiKeys } =
+    usePipelineContext();
   const [position, setPosition] = useState({
     x: window.innerWidth - 400,
     y: 80,
@@ -46,6 +49,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   const isDragging = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const {
     messages,
     setMessages,
@@ -53,14 +58,33 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
     handleInputChange,
     handleSubmit,
     isLoading,
+    error: chatError,
   } = useChat({
     api: "/api/chat",
     initialMessages: [],
     id: "persistent-chat",
+    headers: useMemo(() => {
+      const openAiKey = apiKeys.find(
+        (key) => key.name === "OPENAI_API_KEY"
+      )?.value;
+      return openAiKey ? { "x-openai-key": openAiKey } : {};
+    }, [apiKeys]),
+    onError: (error) => {
+      setError(error.message);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
-  const { serializeState, highLevelGoal, setHighLevelGoal } =
-    usePipelineContext();
+
   const [localGoal, setLocalGoal] = useState(highLevelGoal);
+  const [isLocalMode, setIsLocalMode] = useState(false);
+
+  const hasOpenAIKey = useMemo(() => {
+    return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
+  }, [apiKeys]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).classList.contains("drag-handle")) {
@@ -109,6 +133,17 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   const handleMessageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    setError(null);
+
+    if (!hasOpenAIKey && !isLocalMode) {
+      toast({
+        title: "OpenAI API Key Required",
+        description: "Please add your OpenAI API key in Edit > Edit API Keys",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const pipelineState = await serializeState();
 
@@ -292,9 +327,40 @@ Remember, all the output fields have been converted to strings, even if they wer
         </div>
         <div className="flex flex-col h-[calc(100%-24px)]">
           <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
+            {error && (
+              <div className="bg-destructive/10 text-destructive rounded-md p-3 mb-2 text-xs">
+                <div className="flex gap-2">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Error</p>
+                    <p className="mt-1">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             {messages.filter((message) => message.role !== "system").length ===
             0 ? (
               <div className="flex flex-col gap-2">
+                {!hasOpenAIKey && !isLocalMode && (
+                  <div className="bg-destructive/10 text-destructive rounded-md p-3 mb-2 text-xs">
+                    <div className="flex gap-2">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">OpenAI API Key Required</p>
+                        <p className="mt-1">
+                          To use the AI assistant, please add your OpenAI API
+                          key in Edit {">"} Edit API Keys.
+                        </p>
+                        <button
+                          className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
+                          onClick={() => setIsLocalMode(true)}
+                        >
+                          Skip if running locally with environment variables
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {DEFAULT_SUGGESTIONS.map((suggestion, index) => (
                   <Button
                     key={index}
@@ -374,13 +440,20 @@ Remember, all the output fields have been converted to strings, even if they wer
             <Input
               value={input}
               onChange={handleInputChange}
-              placeholder="Ask a question..."
+              placeholder={
+                error
+                  ? "Try again..."
+                  : !hasOpenAIKey && !isLocalMode
+                  ? "Add OpenAI API key to continue..."
+                  : "Ask a question..."
+              }
               className="flex-1 text-s h-7"
+              disabled={!hasOpenAIKey && !isLocalMode}
             />
             <Button
               type="submit"
               size="sm"
-              disabled={isLoading}
+              disabled={isLoading || (!hasOpenAIKey && !isLocalMode)}
               className="h-7 text-s text-white"
             >
               Send

@@ -39,6 +39,7 @@ uvicorn = { version = "^0.31.0", optional = true }
 websockets = "^13.1"
 docling = { version  = "^2.5.2", optional = true }
 azure-ai-formrecognizer = { version = "^3.3.3", optional = true }
+lzstring = "^1.0.4"
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]

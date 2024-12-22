@@ -446,7 +446,7 @@ class APIWrapper(object):
         dataset_description = self.runner.config.get("system_prompt", {}).get("dataset_description", "a collection of unstructured documents")
         parethetical_op_instructions = "many inputs:one output" if op_type == "reduce" else "one input:one output"
 
-        system_prompt = f"You are a {persona}, intelligently transforming data. The dataset description is: {dataset_description}. You will be performing a {op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as accurately, precisely, and exhaustively as possible. The result should be a structured output that you will send back to the user."
+        system_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. The result should be a structured output that you will send back to the user, with the `send_output` function. Do not influence your answers too much based on the `send_output` function parameter names; just use them to send the result back to the user."
         if scratchpad:
             system_prompt += f"""
 

@@ -113,6 +113,15 @@ The UI offers an optional chat-based assistant that can help you iteratively dev
 
 To use the assistant, you need to set your OpenAI API key in the `.env.local` file in the website directory. You can get an API key [here](https://platform.openai.com/api-keys). The API key should be in the following format: `sk-proj-...`. We only support the openai models for the assistant.
 
+!!! tip "Self-hosting with UI API key management"
+
+    If you want to host your own version of DocETL for your organization while allowing users to set their API keys through the UI, you'll need to set up encryption. Add the following to both `.env` and `website/.env.local`:
+    ```bash
+    DOCETL_ENCRYPTION_KEY=your_secret_key_here
+    ```
+    This shared encryption key allows API keys to be securely encrypted when sent to your server. Make sure to use the same value in both files.
+
+
 ## Complex Tutorial
 
 See this [YouTube video](https://www.youtube.com/watch?v=IlgueVqtHGo) for a more in depth tutorial on how to use the playground.

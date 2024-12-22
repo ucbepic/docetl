@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { ColumnType } from "@/components/ResizableDataTable";
 import ResizableDataTable from "@/components/ResizableDataTable";
 import { usePipelineContext } from "@/contexts/PipelineContext";
-import { Loader2, Download, ChevronDown } from "lucide-react";
+import { Loader2, Download, ChevronDown, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Operation, OutputRow } from "@/app/types";
 import { Parser } from "json2csv";
@@ -639,116 +639,118 @@ export const Output = memo(() => {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="flex-none p-4 pb-2">
-        <div className="flex justify-between items-center">
-          <h2 className="text-sm font-bold flex items-center uppercase">
-            Output{" "}
-            {opName && <span className="text-gray-500 ml-1">- {opName}</span>}
-          </h2>
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center gap-2 text-sm">
-              <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
-                <span className="text-gray-900 font-medium">
-                  {isLoadingOutputs ? "0" : inputCount}
-                </span>
-                <span className="text-gray-500 ml-1">in</span>
-              </div>
-              <span className="text-gray-400">→</span>
-              <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
-                <span className="text-gray-900 font-medium">
-                  {isLoadingOutputs ? "0" : outputCount}
-                </span>
-                <span className="text-gray-500 ml-1">out</span>
-              </div>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md cursor-help">
-                      <span
-                        className={clsx(
-                          "font-medium",
-                          !isLoadingOutputs &&
-                            selectivityFactor !== "N/A" &&
-                            Number(selectivityFactor) > 1 &&
-                            "text-emerald-600",
-                          !isLoadingOutputs &&
-                            selectivityFactor !== "N/A" &&
-                            Number(selectivityFactor) < 1 &&
-                            "text-rose-600",
-                          (isLoadingOutputs || selectivityFactor === "N/A") &&
-                            "text-gray-900"
-                        )}
-                      >
-                        {isLoadingOutputs ? "N/A" : selectivityFactor}×
-                      </span>
-                      {!isLoadingOutputs &&
-                        selectivityFactor !== "N/A" &&
-                        Number(selectivityFactor) < 1 && (
-                          <div className="ml-1">
-                            <TinyPieChart
-                              percentage={Number(selectivityFactor) * 100}
-                            />
-                          </div>
-                        )}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="font-medium">Output to input ratio</p>
-                    {!isLoadingOutputs && selectivityFactor !== "N/A" && (
-                      <p className="text-xs mt-1">
-                        {Number(selectivityFactor) > 1
-                          ? "Operation increases data volume"
-                          : Number(selectivityFactor) < 1
-                          ? "Operation reduces data volume"
-                          : "Operation maintains data volume"}
-                      </p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="p-1"
-                    onClick={downloadCSV}
-                    disabled={outputs.length === 0}
-                  >
-                    <Download size={16} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Download as CSV</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </div>
-      </div>
-
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
         className="flex-1 flex flex-col min-h-0"
       >
-        <div className="flex-none px-4">
-          <TabsList>
-            <TabsTrigger value="console" className="flex items-center">
-              Console
-              {readyState === WebSocket.OPEN && (
-                <span className="ml-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="table">Table</TabsTrigger>
-            <TabsTrigger value="visualize" disabled={!isResolveOrReduce}>
-              Visualize Input Distribution
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex-none px-4 pt-4">
+          <div className="flex justify-between items-center border-b pb-3">
+            <div className="flex items-center gap-4">
+              <h2 className="text-base font-bold flex items-center">
+                <Terminal className="mr-2" size={14} />
+                OUTPUT
+                {opName && (
+                  <span className="text-gray-500 ml-1">- {opName}</span>
+                )}
+              </h2>
+              <TabsList>
+                <TabsTrigger value="console" className="flex items-center">
+                  Console
+                  {readyState === WebSocket.OPEN && (
+                    <span className="ml-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="table">Table</TabsTrigger>
+                <TabsTrigger value="visualize" disabled={!isResolveOrReduce}>
+                  Visualize Input Distribution
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
+                  <span className="text-gray-900 font-medium">
+                    {isLoadingOutputs ? "0" : inputCount}
+                  </span>
+                  <span className="text-gray-500 ml-1">in</span>
+                </div>
+                <span className="text-gray-400">→</span>
+                <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md">
+                  <span className="text-gray-900 font-medium">
+                    {isLoadingOutputs ? "0" : outputCount}
+                  </span>
+                  <span className="text-gray-500 ml-1">out</span>
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="flex items-center px-2 py-1 border border-gray-200 rounded-md cursor-help">
+                        <span
+                          className={clsx(
+                            "font-medium",
+                            !isLoadingOutputs &&
+                              selectivityFactor !== "N/A" &&
+                              Number(selectivityFactor) > 1 &&
+                              "text-emerald-600",
+                            !isLoadingOutputs &&
+                              selectivityFactor !== "N/A" &&
+                              Number(selectivityFactor) < 1 &&
+                              "text-rose-600",
+                            (isLoadingOutputs || selectivityFactor === "N/A") &&
+                              "text-gray-900"
+                          )}
+                        >
+                          {isLoadingOutputs ? "N/A" : selectivityFactor}×
+                        </span>
+                        {!isLoadingOutputs &&
+                          selectivityFactor !== "N/A" &&
+                          Number(selectivityFactor) < 1 && (
+                            <div className="ml-1">
+                              <TinyPieChart
+                                percentage={Number(selectivityFactor) * 100}
+                              />
+                            </div>
+                          )}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-medium">Output to input ratio</p>
+                      {!isLoadingOutputs && selectivityFactor !== "N/A" && (
+                        <p className="text-xs mt-1">
+                          {Number(selectivityFactor) > 1
+                            ? "Operation increases data volume"
+                            : Number(selectivityFactor) < 1
+                            ? "Operation reduces data volume"
+                            : "Operation maintains data volume"}
+                        </p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      // className="h-8 w-8 text-gray-500 hover:text-gray-700"
+                      onClick={downloadCSV}
+                      disabled={outputs.length === 0}
+                    >
+                      <Download size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Download as CSV</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 min-h-0">

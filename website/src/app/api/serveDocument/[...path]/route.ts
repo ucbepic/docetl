@@ -1,10 +1,11 @@
 // app/api/documents/[...path]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { readFile } from "fs/promises";
-import path from "path";
-import { lookup } from "mime-types";
 
-export const dynamic = "force-dynamic";
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
 
 export async function GET(
   request: NextRequest,
@@ -14,22 +15,32 @@ export async function GET(
     // Join the path segments and decode any URL encoding
     const filePath = decodeURIComponent(params.path.join("/"));
 
-    // Basic security check to prevent directory traversal
-    const normalizedPath = path.normalize(filePath);
-    if (normalizedPath.includes("..")) {
-      return NextResponse.json({ error: "Invalid file path" }, { status: 400 });
+    // Forward the request to FastAPI's serve-document endpoint
+    const response = await fetch(
+      `${FASTAPI_URL}/fs/serve-document/${filePath}`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      return NextResponse.json(
+        { error: error.detail },
+        { status: response.status }
+      );
     }
 
-    const fileBuffer = await readFile(normalizedPath);
-    const mimeType = lookup(normalizedPath) || "application/octet-stream";
-
-    return new NextResponse(fileBuffer, {
+    // Stream the response from FastAPI
+    const data = await response.blob();
+    return new NextResponse(data, {
       headers: {
-        "Content-Type": mimeType,
-        "Content-Disposition": `inline; filename="${path.basename(
-          normalizedPath
-        )}"`,
-        "Cache-Control": "public, max-age=3600",
+        "Content-Type":
+          response.headers.get("Content-Type") || "application/octet-stream",
+        "Content-Disposition":
+          response.headers.get("Content-Disposition") || "inline",
+        "Cache-Control":
+          response.headers.get("Cache-Control") || "public, max-age=3600",
       },
     });
   } catch (error) {

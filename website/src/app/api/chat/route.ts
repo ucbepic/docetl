@@ -3,20 +3,38 @@ import { streamText } from "ai";
 
 // Allow streaming responses up to 60 seconds
 export const maxDuration = 60;
-const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_API_BASE,
-  compatibility: "strict", // strict mode, enable when using the OpenAI API
-});
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  try {
+    const { messages } = await req.json();
+    const apiKey =
+      req.headers.get("x-openai-key") || process.env.OPENAI_API_KEY;
 
-  const result = await streamText({
-    model: openai(process.env.MODEL_NAME),
-    system: "You are a helpful assistant.",
-    messages,
-  });
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "OpenAI API key is required" }),
+        { status: 400 }
+      );
+    }
 
-  return result.toDataStreamResponse();
+    const openai = createOpenAI({
+      apiKey,
+      baseURL: process.env.OPENAI_API_BASE,
+      compatibility: "strict",
+    });
+
+    const result = await streamText({
+      model: openai(process.env.MODEL_NAME),
+      system: "You are a helpful assistant.",
+      messages,
+    });
+
+    return result.toDataStreamResponse();
+  } catch (error) {
+    console.error("Chat API error:", error);
+    return new Response(
+      error instanceof Error ? error.message : "An error occurred",
+      { status: 500 }
+    );
+  }
 }

@@ -104,3 +104,8 @@ export interface OptimizeResult {
   created_at: string;
   completed_at?: string;
 }
+
+export interface APIKey {
+  name: string;
+  value: string;
+}

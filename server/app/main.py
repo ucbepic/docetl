@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from server.app.routes import pipeline, convert
+from server.app.routes import pipeline, convert, filesystem
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,26 +17,24 @@ allow_origins = os.getenv("BACKEND_ALLOW_ORIGINS", "http://localhost:3000").spli
 app = FastAPI()
 os.environ["USE_FRONTEND"] = "true"
 
-
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,  # Adjust this to your Next.js app's URL
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Include all routers
 app.include_router(pipeline.router)
 app.include_router(convert.router)
-
+app.include_router(filesystem.router, prefix="/fs")
 
 @app.get("/")
 async def root():
     return {"message": "DocETL API is running"}
 
-
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("server.app.main:app", host=host, port=port, reload=reload)

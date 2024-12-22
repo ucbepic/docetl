@@ -29,7 +29,6 @@ openpyxl = { version = "^3.1.5", optional = true }
 python-docx = { version = "^1.1.2", optional = true }
 pydub = { version = "^0.25.1", optional = true }
 python-pptx = { version = "^1.0.2", optional = true }
-azure-ai-documentintelligence = { version = "^1.0.0b4", optional = true }
 paddlepaddle = { version = "^2.6.2", optional = true }
 pymupdf = { version = "^1.24.10", optional = true }
 jsonschema = "^4.23.0"
@@ -39,6 +38,8 @@ uvicorn = { version = "^0.31.0", optional = true }
 websockets = "^13.1"
 docling = { version  = "^2.5.2", optional = true }
 azure-ai-formrecognizer = { version = "^3.3.3", optional = true }
+lzstring = "^1.0.4"
+azure-ai-documentintelligence = { version = "^1.0.0b4", optional = true }
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]

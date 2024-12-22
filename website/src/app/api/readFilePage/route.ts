@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs/promises";
 
-const CHUNK_SIZE = 500000; // Number of characters to read at a time
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
+const CHUNK_SIZE = 1000000; // Number of characters to read at a time (roughly 1MB of text)
 
 export async function GET(req: NextRequest) {
   const filePath = req.nextUrl.searchParams.get("path");
@@ -12,27 +16,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const fileHandle = await fs.open(filePath, "r");
-    const stats = await fileHandle.stat();
-    const fileSize = stats.size;
-
-    const start = page * CHUNK_SIZE;
-    const buffer = Buffer.alloc(CHUNK_SIZE);
-    const { bytesRead } = await fileHandle.read(buffer, 0, CHUNK_SIZE, start);
-
-    await fileHandle.close();
-
-    const content = buffer.toString("utf-8", 0, bytesRead);
-
-    return NextResponse.json(
-      {
-        content,
-        totalSize: fileSize,
-        page,
-        hasMore: start + bytesRead < fileSize,
-      },
-      { status: 200 }
+    const response = await fetch(
+      `${FASTAPI_URL}/fs/read-file-page?path=${encodeURIComponent(
+        filePath
+      )}&page=${page}&chunk_size=${CHUNK_SIZE}`
     );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    return NextResponse.json(data, { status: 200 });
   } catch (error) {
     console.error("Error reading file:", error);
     return NextResponse.json({ error: "Failed to read file" }, { status: 500 });

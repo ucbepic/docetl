@@ -11,6 +11,7 @@ import {
   Folder,
   Database,
   AlertTriangle,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -740,6 +741,29 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       Process documents privately on your machine (this can be
                       slow for many documents)
                     </p>
+                    {conversionMethod === "local" && (
+                      <div className="bg-destructive/10 text-destructive rounded-md p-2 mt-1 text-xs">
+                        <div className="flex gap-2">
+                          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-medium">Local Server Required</p>
+                            <p className="mt-1">
+                              This option requires running the application
+                              locally with the server component.
+                            </p>
+                            <button
+                              className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                            >
+                              Continue anyway if running locally
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">

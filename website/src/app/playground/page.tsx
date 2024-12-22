@@ -612,14 +612,26 @@ const CodeEditorPipelineApp: React.FC = () => {
   );
 };
 
+const WebSocketWrapper: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { namespace } = usePipelineContext();
+
+  return (
+    <WebSocketProvider namespace={namespace || ""}>
+      {children}
+    </WebSocketProvider>
+  );
+};
+
 const WrappedCodeEditorPipelineApp: React.FC = () => {
   return (
     <ThemeProvider>
-      <WebSocketProvider>
-        <PipelineProvider>
+      <PipelineProvider>
+        <WebSocketWrapper>
           <CodeEditorPipelineApp />
-        </PipelineProvider>
-      </WebSocketProvider>
+        </WebSocketWrapper>
+      </PipelineProvider>
     </ThemeProvider>
   );
 };

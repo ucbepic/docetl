@@ -166,8 +166,8 @@ def run_pipeline(request: PipelineRequest) -> Dict[str, Any]:
         print(f"Error occurred:\n{e}\n{error_traceback}")
         raise HTTPException(status_code=500, detail=str(e) + "\n" + error_traceback)
 
-@router.websocket("/ws/run_pipeline")
-async def websocket_run_pipeline(websocket: WebSocket):
+@router.websocket("/ws/run_pipeline/{client_id}")
+async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
     await websocket.accept()
     runner = None
     try:

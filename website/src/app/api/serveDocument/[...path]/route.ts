@@ -1,7 +1,11 @@
 // app/api/documents/[...path]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
-const FASTAPI_URL = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
 
 export async function GET(
   request: NextRequest,

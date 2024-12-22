@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -22,6 +28,8 @@ export async function POST(request: NextRequest) {
       conversionMethod === "docetl" ? "true" : "false"
     );
 
+    console.log(backendFormData);
+
     // Get Azure credentials from headers if they exist
     const azureEndpoint = request.headers.get("azure-endpoint");
     const azureKey = request.headers.get("azure-key");
@@ -40,14 +48,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward the request to the Python backend
-    const response = await fetch(
-      `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}${endpoint}`,
-      {
-        method: "POST",
-        body: backendFormData,
-        headers,
-      }
-    );
+    const response = await fetch(`${FASTAPI_URL}${endpoint}`, {
+      method: "POST",
+      body: backendFormData,
+      headers,
+    });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

@@ -65,6 +65,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { OperationHelpButton } from "./OperationHelpButton";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 // Separate components
 interface OperationHeaderProps {

@@ -1,15 +1,14 @@
 from typing import Any, Dict, List, Optional
 import uuid
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from server.app.models import PipelineRequest
 from docetl.runner import DSLRunner
 import asyncio
 from asyncio import Task
 from rich.logging import RichHandler
 import logging
-from pydantic import BaseModel
 from datetime import datetime, timedelta
 from enum import Enum
+from server.app.models import OptimizeResult, TaskStatus, OptimizeRequest, PipelineRequest
 
 # Setup logging
 FORMAT = "%(message)s"
@@ -18,29 +17,6 @@ logging.basicConfig(
 )
 
 router = APIRouter()
-
-class TaskStatus(str, Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-class OptimizeResult(BaseModel):
-    task_id: str
-    status: TaskStatus
-    should_optimize: Optional[str] = None
-    input_data: Optional[List[Dict[str, Any]]] = None
-    output_data: Optional[List[Dict[str, Any]]] = None
-    cost: Optional[float] = None
-    error: Optional[str] = None
-    created_at: datetime
-    completed_at: Optional[datetime] = None
-
-class OptimizeRequest(BaseModel):
-    yaml_config: str
-    step_name: str
-    op_name: str
 
 # Task storage
 tasks: Dict[str, OptimizeResult] = {}
@@ -208,7 +184,6 @@ async def websocket_run_pipeline(websocket: WebSocket):
                 return await asyncio.to_thread(runner.optimize, return_pipeline=False, model=config.get("optimizer_model", "gpt-4o"))
 
         else:
-
             async def run_pipeline():
                 return await asyncio.to_thread(runner.load_run_save)
 

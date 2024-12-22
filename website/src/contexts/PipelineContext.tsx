@@ -448,7 +448,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
             );
             return { ...prevState, [key]: newValue };
           } else {
-            if (key === "apiKeys") {
+            if (key !== "apiKeys") {
               setUnsavedChanges(true);
             }
             return { ...prevState, [key]: newValue };

@@ -98,35 +98,53 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
 
   // Extract keys from the first valid JSON object in the data
   useMemo(() => {
-    let jsonString = "";
-    let braceCount = 0;
-    let inObject = false;
+    if (!lines.length) return;
 
-    for (const line of lines) {
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === "{") {
-          if (!inObject) inObject = true;
-          braceCount++;
-        } else if (char === "}") {
-          braceCount--;
+    try {
+      // Try to parse the entire content as JSON first
+      const content = lines.join("\n");
+      const parsed = JSON.parse(content);
+
+      if (Array.isArray(parsed)) {
+        // If it's an array, get keys from the first object
+        if (parsed.length > 0 && typeof parsed[0] === "object") {
+          setKeys(Object.keys(parsed[0]));
         }
+      } else if (typeof parsed === "object" && parsed !== null) {
+        // If it's a single object, get its keys
+        setKeys(Object.keys(parsed));
+      }
+    } catch (error) {
+      // Fallback to the original line-by-line approach
+      let jsonString = "";
+      let braceCount = 0;
+      let inObject = false;
 
-        if (inObject) {
-          jsonString += char;
-        }
-
-        if (inObject && braceCount === 0) {
-          try {
-            const parsedObject = JSON.parse(jsonString);
-            setKeys(Object.keys(parsedObject));
-            return; // Exit after finding the first valid object
-          } catch (error) {
-            console.error("Error parsing JSON:", error);
+      for (const line of lines) {
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === "{") {
+            if (!inObject) inObject = true;
+            braceCount++;
+          } else if (char === "}") {
+            braceCount--;
           }
-          // Reset for next attempt
-          jsonString = "";
-          inObject = false;
+
+          if (inObject) {
+            jsonString += char;
+          }
+
+          if (inObject && braceCount === 0) {
+            try {
+              const parsedObject = JSON.parse(jsonString);
+              setKeys(Object.keys(parsedObject));
+              return;
+            } catch (error) {
+              console.error("Error parsing JSON:", error);
+            }
+            jsonString = "";
+            inObject = false;
+          }
         }
       }
     }

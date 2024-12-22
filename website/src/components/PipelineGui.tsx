@@ -602,6 +602,9 @@ const PipelineGUI: React.FC = () => {
       setTerminalOutput("");
 
       try {
+        // Get the latest API keys from context
+        const currentApiKeys = apiKeys;
+
         const response = await fetch("/api/writePipelineConfig", {
           method: "POST",
           headers: {
@@ -617,7 +620,7 @@ const PipelineGUI: React.FC = () => {
             clear_intermediate: clear_intermediate,
             system_prompt: systemPrompt,
             namespace,
-            apiKeys,
+            apiKeys: currentApiKeys, // Use the latest API keys
           }),
         });
 
@@ -662,6 +665,9 @@ const PipelineGUI: React.FC = () => {
       defaultModel,
       pipelineName,
       sampleSize,
+      apiKeys, // Add apiKeys to the dependency array
+      systemPrompt,
+      namespace,
     ]
   );
 

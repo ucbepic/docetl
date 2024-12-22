@@ -16,20 +16,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
 
-    // Create a new FormData to forward to the Python backend
-    const backendFormData = new FormData();
-    files.forEach((file) => {
-      backendFormData.append("files", file);
-    });
-
-    // Add conversion method to form data
-    backendFormData.append(
-      "use_docetl_server",
-      conversionMethod === "docetl" ? "true" : "false"
-    );
-
-    console.log(backendFormData);
-
     // Get Azure credentials from headers if they exist
     const azureEndpoint = request.headers.get("azure-endpoint");
     const azureKey = request.headers.get("azure-key");
@@ -47,12 +33,23 @@ export async function POST(request: NextRequest) {
       headers["azure-key"] = azureKey;
     }
 
+    // Create FormData since FastAPI expects multipart/form-data
+    const backendFormData = new FormData();
+    for (const file of files) {
+      backendFormData.append("files", file);
+    }
+
     // Forward the request to the Python backend
-    const response = await fetch(`${FASTAPI_URL}${endpoint}`, {
-      method: "POST",
-      body: backendFormData,
-      headers,
-    });
+    const response = await fetch(
+      `${FASTAPI_URL}${endpoint}?use_docetl_server=${
+        conversionMethod === "docetl" ? "true" : "false"
+      }`,
+      {
+        method: "POST",
+        body: backendFormData,
+        headers,
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

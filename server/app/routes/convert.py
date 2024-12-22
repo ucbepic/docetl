@@ -47,7 +47,8 @@ def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
         return f"Error processing document: {str(e)}"
 
 @router.post("/api/convert-documents")
-async def convert_documents(files: List[UploadFile] = File(...), use_docetl_server: bool = False):
+async def convert_documents(files: List[UploadFile] = File(...), use_docetl_server: str = "false"):
+    use_docetl_server = use_docetl_server.lower() == "true" # TODO: make this a boolean
     # Only try Modal endpoint if use_docetl_server is true and there are no txt files
     all_txt_files = all(file.filename.lower().endswith('.txt') or file.filename.lower().endswith('.md') for file in files)
     if use_docetl_server and not all_txt_files:

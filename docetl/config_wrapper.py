@@ -1,7 +1,7 @@
 import datetime
 import os
 from docetl.console import get_console
-from docetl.utils import load_config
+from docetl.utils import decrypt, load_config
 from typing import Any, Dict, List, Optional, Tuple, Union
 from docetl.operations.utils import APIWrapper
 import pyrate_limiter
@@ -71,6 +71,19 @@ class ConfigWrapper(object):
             self.console = DOCETL_CONSOLE
         self.max_threads = max_threads or (os.cpu_count() or 1) * 4
         self.status = None
+        encrypted_llm_api_keys = self.config.get("llm_api_keys", {})
+        if encrypted_llm_api_keys:
+            self.llm_api_keys = {
+                key: decrypt(value, os.environ.get("DOCETL_ENCRYPTION_KEY", ""))
+                for key, value in encrypted_llm_api_keys.items()
+            }
+        else:
+            self.llm_api_keys = {}
+
+        # Temporarily set environment variables for API keys
+        self._original_env = os.environ.copy()
+        for key, value in self.llm_api_keys.items():
+            os.environ[key] = value
 
         buckets = {
             param: pyrate_limiter.InMemoryBucket(
@@ -95,3 +108,6 @@ class ConfigWrapper(object):
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=math.inf)
 
         self.api = APIWrapper(self)
+    
+    def reset_env(self):
+        os.environ = self._original_env

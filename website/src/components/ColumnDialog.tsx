@@ -172,8 +172,8 @@ const ValueStats = React.memo(
         : null;
 
     return (
-      <div className="p-4 border-b bg-muted/5">
-        <div className="flex items-center gap-4 mb-2">
+      <div className="p-6 border-b bg-muted/5">
+        <div className="flex items-center gap-6 mb-2">
           {percentile !== null && (
             <div className="flex-none">
               <div className="text-3xl font-bold text-primary">
@@ -184,9 +184,12 @@ const ValueStats = React.memo(
             </div>
           )}
 
-          <div className="flex-1 h-12">
+          <div className="flex-1 h-[120px]">
             {columnStats.isLowCardinality ? (
-              <CategoricalBarChart data={columnStats.sortedValueCounts} />
+              <CategoricalBarChart
+                data={columnStats.sortedValueCounts}
+                height={120}
+              />
             ) : (
               <WordCountHistogram
                 histogramData={columnStats.distribution.map((count, i) => ({
@@ -208,6 +211,7 @@ const ValueStats = React.memo(
                       : ""
                   }`,
                 }))}
+                height={120}
               />
             )}
           </div>
@@ -341,7 +345,11 @@ export function ColumnDialog<T extends Record<string, unknown>>({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const renderRowContent = (row: T | null, value: unknown) => {
+  const renderRowContent = (
+    row: T | null,
+    value: unknown,
+    isCompareView: boolean = false
+  ) => {
     if (!row) return null;
     const { addBookmark, getNotesForRowAndColumn, removeBookmark } =
       useBookmarkContext();
@@ -440,7 +448,7 @@ export function ColumnDialog<T extends Record<string, unknown>>({
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={25} minSize={20}>
           <ResizablePanelGroup direction="vertical">
-            <ResizablePanel defaultSize={60} minSize={30}>
+            <ResizablePanel defaultSize={isCompareView ? 100 : 60} minSize={30}>
               <div className="h-full overflow-auto bg-muted/10">
                 <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 p-2 border-b">
                   <div className="flex items-center justify-between">
@@ -488,139 +496,148 @@ export function ColumnDialog<T extends Record<string, unknown>>({
                 </div>
               </div>
             </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={40} minSize={20}>
-              <div className="h-full bg-muted/5 flex flex-col border-l">
-                <div className="flex-none p-4 border-b bg-muted/10">
-                  <h3 className="text-base font-medium mb-1">Add Notes</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Your notes will help improve prompts via the{" "}
-                    <Wand2 className="h-3 w-3 inline-block mx-0.5 text-primary" />{" "}
-                    Improve Prompt feature in operation settings
-                  </p>
-                </div>
 
-                <div className="flex-1 overflow-auto p-4">
-                  {existingNotes.length > 0 && (
-                    <div className="mb-4 bg-muted/10 rounded-lg p-2">
-                      <button
-                        onClick={() => setShowPreviousNotes(!showPreviousNotes)}
-                        className="flex items-center justify-between w-full text-base font-medium mb-1"
-                      >
-                        <span>Previous Notes ({existingNotes.length})</span>
-                        <ChevronDown
-                          className={`h-5 w-5 text-primary transition-transform ${
-                            showPreviousNotes ? "rotate-180" : ""
-                          }`}
-                        />
-                      </button>
-                      {showPreviousNotes && (
-                        <div className="space-y-2">
-                          {existingNotes.map((note) => (
-                            <div
-                              key={note.id}
-                              className="flex items-start gap-2 p-2 rounded-lg bg-muted/30"
-                            >
-                              <div className="flex-1 text-sm text-muted-foreground italic">
-                                &ldquo;{note.note}&rdquo;
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 hover:bg-destructive/10"
-                                onClick={() => removeBookmark(note.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive hover:text-destructive" />
-                              </Button>
+            {!isCompareView && (
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={40} minSize={20}>
+                  <div className="h-full bg-muted/5 flex flex-col border-l">
+                    <div className="flex-none p-3 bg-muted/10">
+                      <h3 className="text-base font-medium mb-0.5">
+                        Add Notes
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Your notes will help improve prompts via the{" "}
+                        <Wand2 className="h-3 w-3 inline-block mx-0.5 text-primary" />{" "}
+                        Improve Prompt feature in operation settings
+                      </p>
+                    </div>
+
+                    <div className="flex-1 overflow-auto p-2">
+                      {existingNotes.length > 0 && (
+                        <div className="mb-1 bg-muted/10 rounded-lg p-3">
+                          <button
+                            onClick={() =>
+                              setShowPreviousNotes(!showPreviousNotes)
+                            }
+                            className="flex items-center justify-between w-full text-base font-medium"
+                          >
+                            <span>Previous Notes ({existingNotes.length})</span>
+                            <ChevronDown
+                              className={`h-5 w-5 text-primary transition-transform ${
+                                showPreviousNotes ? "rotate-180" : ""
+                              }`}
+                            />
+                          </button>
+                          {showPreviousNotes && (
+                            <div className="space-y-2">
+                              {existingNotes.map((note) => (
+                                <div
+                                  key={note.id}
+                                  className="flex items-start gap-2 p-2 rounded-lg bg-muted/30"
+                                >
+                                  <div className="flex-1 text-sm text-muted-foreground italic">
+                                    &ldquo;{note.note}&rdquo;
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 hover:bg-destructive/10"
+                                    onClick={() => removeBookmark(note.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive hover:text-destructive" />
+                                  </Button>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
 
-                  <div className="space-y-4">
-                    <Textarea
-                      placeholder="What do you think about this output?"
-                      className="min-h-[100px] text-base bg-background border resize-none p-3"
-                    />
+                      <div className="space-y-4">
+                        <Textarea
+                          placeholder="What do you think about this output?"
+                          className="min-h-[100px] text-base bg-background border resize-none p-3"
+                        />
 
-                    <div className="flex items-center gap-3">
-                      <Select
-                        value={feedbackColor}
-                        onValueChange={setFeedbackColor}
-                      >
-                        <SelectTrigger className="w-[140px] bg-background">
-                          <SelectValue>
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-4 h-4 rounded-full border"
-                                style={{ backgroundColor: feedbackColor }}
-                              />
-                              <span>Category</span>
-                            </div>
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="#FF0000">
-                            <div className="flex items-center">
-                              <div className="w-4 h-4 rounded-full bg-[#FF0000] mr-2" />
-                              Red
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#00FF00">
-                            <div className="flex items-center">
-                              <div className="w-4 h-4 rounded-full bg-[#00FF00] mr-2" />
-                              Green
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#0000FF">
-                            <div className="flex items-center">
-                              <div className="w-4 h-4 rounded-full bg-[#0000FF] mr-2" />
-                              Blue
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#FFFF00">
-                            <div className="flex items-center">
-                              <div className="w-4 h-4 rounded-full bg-[#FFFF00] mr-2" />
-                              Yellow
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#FF00FF">
-                            <div className="flex items-center">
-                              <div className="w-4 h-4 rounded-full bg-[#FF00FF] mr-2" />
-                              Magenta
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="#00FFFF">
-                            <div className="flex items-center">
-                              <div className="w-4 h-4 rounded-full bg-[#00FFFF] mr-2" />
-                              Cyan
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <div className="flex items-center gap-3">
+                          <Select
+                            value={feedbackColor}
+                            onValueChange={setFeedbackColor}
+                          >
+                            <SelectTrigger className="w-[140px] bg-background">
+                              <SelectValue>
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="w-4 h-4 rounded-full border"
+                                    style={{ backgroundColor: feedbackColor }}
+                                  />
+                                  <span>Category</span>
+                                </div>
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="#FF0000">
+                                <div className="flex items-center">
+                                  <div className="w-4 h-4 rounded-full bg-[#FF0000] mr-2" />
+                                  Red
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="#00FF00">
+                                <div className="flex items-center">
+                                  <div className="w-4 h-4 rounded-full bg-[#00FF00] mr-2" />
+                                  Green
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="#0000FF">
+                                <div className="flex items-center">
+                                  <div className="w-4 h-4 rounded-full bg-[#0000FF] mr-2" />
+                                  Blue
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="#FFFF00">
+                                <div className="flex items-center">
+                                  <div className="w-4 h-4 rounded-full bg-[#FFFF00] mr-2" />
+                                  Yellow
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="#FF00FF">
+                                <div className="flex items-center">
+                                  <div className="w-4 h-4 rounded-full bg-[#FF00FF] mr-2" />
+                                  Magenta
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="#00FFFF">
+                                <div className="flex items-center">
+                                  <div className="w-4 h-4 rounded-full bg-[#00FFFF] mr-2" />
+                                  Cyan
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
 
-                      <Button
-                        className="flex-1"
-                        size="lg"
-                        onClick={(e) => {
-                          const textarea = e.currentTarget
-                            .closest(".space-y-4")
-                            ?.querySelector("textarea");
-                          if (textarea) {
-                            handleSubmitFeedback(textarea.value);
-                            textarea.value = "";
-                          }
-                        }}
-                      >
-                        Add Note
-                      </Button>
+                          <Button
+                            className="flex-1"
+                            size="lg"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget
+                                .closest(".space-y-4")
+                                ?.querySelector("textarea");
+                              if (textarea) {
+                                handleSubmitFeedback(textarea.value);
+                                textarea.value = "";
+                              }
+                            }}
+                          >
+                            Add Note
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </ResizablePanel>
+                </ResizablePanel>
+              </>
+            )}
           </ResizablePanelGroup>
         </ResizablePanel>
       </ResizablePanelGroup>
@@ -670,7 +687,7 @@ export function ColumnDialog<T extends Record<string, unknown>>({
             {splitView ? (
               <ResizablePanelGroup direction="vertical" className="h-full">
                 <ResizablePanel defaultSize={50} minSize={20}>
-                  {renderRowContent(currentRow, currentValue)}
+                  {renderRowContent(currentRow, currentValue, false)}
                 </ResizablePanel>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={50} minSize={20}>
@@ -698,14 +715,14 @@ export function ColumnDialog<T extends Record<string, unknown>>({
                       </div>
                     </div>
                     <div className="flex-1 min-h-0">
-                      {renderRowContent(compareRow, compareValue)}
+                      {renderRowContent(compareRow, compareValue, true)}
                     </div>
                   </div>
                 </ResizablePanel>
               </ResizablePanelGroup>
             ) : (
               <div className="h-full">
-                {renderRowContent(currentRow, currentValue)}
+                {renderRowContent(currentRow, currentValue, false)}
               </div>
             )}
           </div>

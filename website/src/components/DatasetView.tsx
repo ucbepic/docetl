@@ -46,6 +46,7 @@ interface DatasetStats {
   averageWords: number;
   minWords: number;
   maxWords: number;
+  standardDeviation: number;
   isCalculating: boolean;
   wordCounts: number[];
   histogram: HistogramBin[];
@@ -62,6 +63,7 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
     averageWords: 0,
     minWords: 0,
     maxWords: 0,
+    standardDeviation: 0,
     isCalculating: false,
     wordCounts: [],
     histogram: [],
@@ -96,35 +98,53 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
 
   // Extract keys from the first valid JSON object in the data
   useMemo(() => {
-    let jsonString = "";
-    let braceCount = 0;
-    let inObject = false;
+    if (!lines.length) return;
 
-    for (const line of lines) {
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === "{") {
-          if (!inObject) inObject = true;
-          braceCount++;
-        } else if (char === "}") {
-          braceCount--;
+    try {
+      // Try to parse the entire content as JSON first
+      const content = lines.join("\n");
+      const parsed = JSON.parse(content);
+
+      if (Array.isArray(parsed)) {
+        // If it's an array, get keys from the first object
+        if (parsed.length > 0 && typeof parsed[0] === "object") {
+          setKeys(Object.keys(parsed[0]));
         }
+      } else if (typeof parsed === "object" && parsed !== null) {
+        // If it's a single object, get its keys
+        setKeys(Object.keys(parsed));
+      }
+    } catch (error) {
+      // Fallback to the original line-by-line approach
+      let jsonString = "";
+      let braceCount = 0;
+      let inObject = false;
 
-        if (inObject) {
-          jsonString += char;
-        }
-
-        if (inObject && braceCount === 0) {
-          try {
-            const parsedObject = JSON.parse(jsonString);
-            setKeys(Object.keys(parsedObject));
-            return; // Exit after finding the first valid object
-          } catch (error) {
-            console.error("Error parsing JSON:", error);
+      for (const line of lines) {
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === "{") {
+            if (!inObject) inObject = true;
+            braceCount++;
+          } else if (char === "}") {
+            braceCount--;
           }
-          // Reset for next attempt
-          jsonString = "";
-          inObject = false;
+
+          if (inObject) {
+            jsonString += char;
+          }
+
+          if (inObject && braceCount === 0) {
+            try {
+              const parsedObject = JSON.parse(jsonString);
+              setKeys(Object.keys(parsedObject));
+              return;
+            } catch (error) {
+              console.error("Error parsing JSON:", error);
+            }
+            jsonString = "";
+            inObject = false;
+          }
         }
       }
     }
@@ -279,48 +299,67 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
             return;
           }
 
-          // Calculate histogram bins
+          // Modified histogram calculation
           const binCount = Math.min(
             20,
             Math.ceil(Math.sqrt(wordCounts.length))
           );
           const minCount = Math.min(...wordCounts);
           const maxCount = Math.max(...wordCounts);
-          const binSize = Math.ceil((maxCount - minCount) / binCount);
 
-          const histogram: HistogramBin[] = Array.from(
-            { length: binCount },
-            (_, i) => ({
-              start: minCount + i * binSize,
-              end: minCount + (i + 1) * binSize,
-              count: 0,
-            })
+          // Handle single document case
+          const effectiveRange =
+            maxCount === minCount ? maxCount : maxCount - minCount;
+          const binSize = Math.max(
+            1,
+            Math.ceil(effectiveRange / (binCount || 1))
           );
 
-          // Safely count documents in each bin
-          wordCounts.forEach((count) => {
-            if (typeof count === "number") {
-              const binIndex = Math.min(
-                Math.floor((count - minCount) / binSize),
-                binCount - 1
-              );
-              if (binIndex >= 0 && binIndex < histogram.length) {
-                histogram[binIndex].count++;
+          const histogram: HistogramBin[] =
+            maxCount === minCount
+              ? [{ start: minCount, end: maxCount, count: wordCounts.length }]
+              : Array.from({ length: binCount }, (_, i) => ({
+                  start: minCount + i * binSize,
+                  end: minCount + (i + 1) * binSize,
+                  count: 0,
+                }));
+
+          // Count documents in each bin
+          if (maxCount !== minCount) {
+            wordCounts.forEach((count) => {
+              if (typeof count === "number") {
+                const binIndex = Math.min(
+                  Math.floor((count - minCount) / binSize),
+                  binCount - 1
+                );
+                if (binIndex >= 0 && binIndex < histogram.length) {
+                  histogram[binIndex].count++;
+                }
               }
-            }
-          });
+            });
+          }
+
+          const average =
+            wordCounts.reduce((sum, count) => sum + count, 0) /
+            documents.length;
+
+          // Calculate standard deviation
+          const squareDiffs = wordCounts.map((count) =>
+            Math.pow(count - average, 2)
+          );
+          const standardDeviation = Math.round(
+            Math.sqrt(
+              squareDiffs.reduce((sum, diff) => sum + diff, 0) /
+                documents.length
+            )
+          );
 
           const stats: DatasetStats = {
             documentCount: documents.length,
-            averageWords:
-              wordCounts.length > 0
-                ? Math.round(
-                    wordCounts.reduce((sum, count) => sum + count, 0) /
-                      documents.length
-                  )
-                : 0,
+            averageWords: Math.round(average),
             minWords: wordCounts.length > 0 ? Math.min(...wordCounts) : 0,
             maxWords: wordCounts.length > 0 ? Math.max(...wordCounts) : 0,
+            standardDeviation,
             isCalculating: false,
             wordCounts,
             histogram,
@@ -334,6 +373,23 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
       }, 0);
     }
   }, [hasNextPage, isFetching, data]);
+
+  if (!file) {
+    return (
+      <div className="h-full flex flex-col p-4">
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center">
+          <Database className="h-12 w-12 text-muted-foreground/50" />
+          <h3 className="font-medium text-muted-foreground">
+            No Dataset Selected
+          </h3>
+          <p className="text-sm text-muted-foreground/80">
+            Please select or upload a file from the left panel to view its
+            contents.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isError) return <div>Error: {error.message}</div>;
 
@@ -374,32 +430,40 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
             </div>
           ) : (
             <div className="p-4 rounded-lg border border-border bg-card/50">
-              <div className="flex gap-12">
-                <div className="flex flex-col justify-center space-y-3 w-[20%]">
+              <div className="flex gap-8">
+                <div className="flex flex-col justify-center space-y-2 w-[20%]">
                   <div>
-                    <p className="text-sm text-muted-foreground">Documents</p>
-                    <p className="text-2xl font-bold">
+                    <p className="text-xs text-muted-foreground">Documents</p>
+                    <p className="text-xl font-semibold">
                       {datasetStats.documentCount.toLocaleString()}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Average Words
                     </p>
-                    <p className="text-2xl font-bold">
+                    <p className="text-xl font-semibold">
                       {datasetStats.averageWords.toLocaleString()}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Min Words</p>
-                    <p className="text-2xl font-bold">
+                    <p className="text-xs text-muted-foreground">Min Words</p>
+                    <p className="text-xl font-semibold">
                       {datasetStats.minWords.toLocaleString()}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Max Words</p>
-                    <p className="text-2xl font-bold">
+                    <p className="text-xs text-muted-foreground">Max Words</p>
+                    <p className="text-xl font-semibold">
                       {datasetStats.maxWords.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Std Deviation
+                    </p>
+                    <p className="text-xl font-semibold">
+                      {datasetStats.standardDeviation.toLocaleString()}
                     </p>
                   </div>
                 </div>

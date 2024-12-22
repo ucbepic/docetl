@@ -28,9 +28,10 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
-export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const WebSocketProvider: React.FC<{
+  children: React.ReactNode;
+  namespace: string;
+}> = ({ children, namespace }) => {
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [readyState, setReadyState] = useState<number>(WebSocket.CLOSED);
   const ws = useRef<WebSocket | null>(null);
@@ -42,8 +43,17 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
+      if (!namespace) {
+        reject(new Error("Namespace is required for WebSocket connection"));
+        return;
+      }
+
       ws.current = new WebSocket(
-        `ws://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/ws/run_pipeline`
+        `${
+          process.env.NEXT_PUBLIC_BACKEND_HTTPS === "true" ? "wss://" : "ws://"
+        }${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+          process.env.NEXT_PUBLIC_BACKEND_PORT
+        }/ws/run_pipeline/${namespace}`
       );
 
       ws.current.onopen = () => {
@@ -85,7 +95,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       };
     });
-  }, []);
+  }, [namespace]);
 
   const disconnect = useCallback(() => {
     if (ws.current) {

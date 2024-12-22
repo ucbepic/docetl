@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
-import path from "path";
-import { mkdir } from "fs/promises";
-import os from "os";
 
-interface SavedFile {
-  name: string;
-  path: string;
-}
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,32 +16,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
 
-    const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
+    // Create a new FormData object to send to the backend
+    const backendFormData = new FormData();
+    files.forEach((file) => {
+      backendFormData.append("files", file);
+    });
+    backendFormData.append("namespace", namespace);
 
-    // Create uploads directory in user's home directory if it doesn't exist
-    const uploadsDir = path.join(homeDir, ".docetl", namespace, "documents");
-    await mkdir(uploadsDir, { recursive: true });
+    // Send to FastAPI backend
+    const response = await fetch(`${FASTAPI_URL}/fs/save-documents`, {
+      method: "POST",
+      body: backendFormData,
+    });
 
-    const savedFiles = await Promise.all(
-      files.map(async (file) => {
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
+    if (!response.ok) {
+      throw new Error(`Backend responded with status ${response.status}`);
+    }
 
-        // Create a safe filename
-        const fileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-        const filePath = path.join(uploadsDir, fileName);
-
-        // Save the file
-        await writeFile(filePath, buffer);
-
-        return {
-          name: file.name,
-          path: filePath,
-        } as SavedFile;
-      })
-    );
-
-    return NextResponse.json({ files: savedFiles }, { status: 200 });
+    const result = await response.json();
+    return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error("Error saving documents:", error);
     return NextResponse.json(

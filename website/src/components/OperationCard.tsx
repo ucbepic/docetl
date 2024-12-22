@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useRef,
   useState,
+  useMemo,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +48,6 @@ import {
 } from "@/components/ui/popover";
 import { canBeOptimized } from "@/lib/utils";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -68,6 +64,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { OperationHelpButton } from "./OperationHelpButton";
 
 // Separate components
 interface OperationHeaderProps {
@@ -252,154 +249,164 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
         </div>
 
         {/* Action Menu (The "Verb") */}
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <Menu className="h-4 w-4 text-gray-600" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-1" align="end">
-            <div className="space-y-0.5">
-              {/* Add Move Up/Down buttons before other actions */}
-              {!isFirst && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                  onClick={onMoveUp}
-                >
-                  <MoveUp className="mr-2 h-4 w-4" />
-                  Move Up
-                </Button>
-              )}
-              {!isLast && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                  onClick={onMoveDown}
-                >
-                  <MoveDown className="mr-2 h-4 w-4" />
-                  Move Down
-                </Button>
-              )}
-              {(!isFirst || !isLast) && (
-                <div className="h-px bg-gray-100 my-1" />
-              )}
+        <div className="flex items-center gap-1">
+          {/* Add help button for LLM operations */}
+          {llmType === "LLM" &&
+            (type === "map" || type === "reduce" || type === "filter") && (
+              <OperationHelpButton type={type} />
+            )}
 
-              {/* Core Operation Actions */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                onClick={onShowOutput}
-                disabled={disabled}
-              >
-                <ListCollapse className="mr-2 h-4 w-4" />
-                Show Outputs
+          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <Menu className="h-4 w-4 text-gray-600" />
               </Button>
-
-              {/* LLM-specific Actions */}
-              {llmType === "LLM" && (
-                <>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" align="end">
+              <div className="space-y-0.5">
+                {/* Add Move Up/Down buttons before other actions */}
+                {!isFirst && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                    onClick={onToggleGuardrails}
+                    onClick={onMoveUp}
                   >
-                    <Shield className="mr-2 h-4 w-4" />
-                    {isGuardrailsExpanded
-                      ? "Hide Guardrails"
-                      : "Show Guardrails"}
+                    <MoveUp className="mr-2 h-4 w-4" />
+                    Move Up
                   </Button>
+                )}
+                {!isLast && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                    onClick={onMoveDown}
+                  >
+                    <MoveDown className="mr-2 h-4 w-4" />
+                    Move Down
+                  </Button>
+                )}
+                {(!isFirst || !isLast) && (
+                  <div className="h-px bg-gray-100 my-1" />
+                )}
 
-                  {(type === "map" ||
-                    type === "reduce" ||
-                    type === "filter") && (
+                {/* Core Operation Actions */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                  onClick={onShowOutput}
+                  disabled={disabled}
+                >
+                  <ListCollapse className="mr-2 h-4 w-4" />
+                  Show Outputs
+                </Button>
+
+                {/* LLM-specific Actions */}
+                {llmType === "LLM" && (
+                  <>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                      onClick={onToggleGleanings}
+                      onClick={onToggleGuardrails}
                     >
                       <Shield className="mr-2 h-4 w-4" />
-                      {isGleaningsExpanded ? "Hide Gleaning" : "Show Gleaning"}
+                      {isGuardrailsExpanded
+                        ? "Hide Guardrails"
+                        : "Show Guardrails"}
                     </Button>
-                  )}
 
+                    {(type === "map" ||
+                      type === "reduce" ||
+                      type === "filter") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                        onClick={onToggleGleanings}
+                      >
+                        <Shield className="mr-2 h-4 w-4" />
+                        {isGleaningsExpanded
+                          ? "Hide Gleaning"
+                          : "Show Gleaning"}
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                      onClick={onImprovePrompt}
+                    >
+                      <Wand2 className="mr-2 h-4 w-4" />
+                      Improve Prompt
+                    </Button>
+                  </>
+                )}
+
+                {/* Operation-specific Actions */}
+
+                {canBeOptimized(type) && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                    onClick={onImprovePrompt}
+                    onClick={onOptimize}
+                    disabled={disabled}
                   >
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    Improve Prompt
+                    <Zap className="mr-2 h-4 w-4" />
+                    Optimize Operation
                   </Button>
-                </>
-              )}
+                )}
 
-              {/* Operation-specific Actions */}
-
-              {canBeOptimized(type) && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                  onClick={onOptimize}
-                  disabled={disabled}
+                  onClick={onToggleSettings}
                 >
-                  <Zap className="mr-2 h-4 w-4" />
-                  Optimize Operation
+                  <Settings className="mr-2 h-4 w-4" />
+                  Edit Other Args
                 </Button>
-              )}
 
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                onClick={onToggleSettings}
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Edit Other Args
-              </Button>
+                <div className="h-px bg-gray-100 my-1" />
 
-              <div className="h-px bg-gray-100 my-1" />
+                {/* Visibility Toggle */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                  onClick={onToggleVisibility}
+                >
+                  {visibility ? (
+                    <>
+                      <EyeOff className="mr-2 h-4 w-4" />
+                      Skip Operation
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="mr-2 h-4 w-4" />
+                      Include Operation
+                    </>
+                  )}
+                </Button>
 
-              {/* Visibility Toggle */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                onClick={onToggleVisibility}
-              >
-                {visibility ? (
-                  <>
-                    <EyeOff className="mr-2 h-4 w-4" />
-                    Skip Operation
-                  </>
-                ) : (
-                  <>
-                    <Eye className="mr-2 h-4 w-4" />
-                    Include Operation
-                  </>
-                )}
-              </Button>
-
-              {/* Delete Operation */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm font-normal text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                onClick={onDelete}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+                {/* Delete Operation */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-sm font-normal text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
 
         {/* Expand/Collapse Button */}
         <Button
@@ -704,6 +711,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     optimizerModel,
     setTerminalOutput,
     namespace,
+    apiKeys,
   } = usePipelineContext();
   const { toast } = useToast();
 
@@ -836,7 +844,19 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     debouncedUpdate();
   };
 
+  const hasOpenAIKey = useMemo(() => {
+    return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
+  }, [apiKeys]);
+
+  const [showOptimizeDialog, setShowOptimizeDialog] = useState(false);
+  const [isLocalMode, setIsLocalMode] = useState(false);
+
   const onOptimize = useCallback(async () => {
+    if (!operation) return;
+    setShowOptimizeDialog(true);
+  }, [operation]);
+
+  const handleOptimizeConfirm = useCallback(async () => {
     if (!operation) return;
 
     try {
@@ -886,8 +906,20 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
       });
       // Close the WebSocket connection
       disconnect();
+    } finally {
+      setShowOptimizeDialog(false);
     }
-  }, [operation]);
+  }, [
+    operation,
+    defaultModel,
+    currentFile,
+    operations,
+    pipelineName,
+    sampleSize,
+    optimizerModel,
+    connect,
+    sendMessage,
+  ]);
 
   const onShowOutput = useCallback(async () => {
     if (!operation) return;
@@ -1207,9 +1239,10 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the
-              operation "{operation.name}" and remove it from the pipeline. If
-              you only want to hide the operation from the next run, you can
-              toggle the visibility of the operation in the operation menu.
+              operation &quot;{operation.name}&quot; and remove it from the
+              pipeline. If you only want to hide the operation from the next
+              run, you can toggle the visibility of the operation in the
+              operation menu.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1224,6 +1257,53 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
               }}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={showOptimizeDialog}
+        onOpenChange={setShowOptimizeDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Optimize Operation</AlertDialogTitle>
+            <AlertDialogDescription>
+              {!hasOpenAIKey && !isLocalMode ? (
+                <div className="space-y-2">
+                  <p className="text-destructive font-medium">
+                    OpenAI API Key Required
+                  </p>
+                  <p>
+                    To use the optimizer, please add your OpenAI API key in Edit{" "}
+                    {">"}
+                    Edit API Keys.
+                  </p>
+                  <button
+                    className="text-destructive underline hover:opacity-80 font-medium"
+                    onClick={() => setIsLocalMode(true)}
+                  >
+                    Ignore if running locally with environment variables
+                  </button>
+                </div>
+              ) : (
+                <p>
+                  This will analyze the operation and replace it with another
+                  pipeline that has higher accuracy (as determined by an
+                  LLM-as-a-judge), if it can be found. Do you want to proceed?
+                  The process may take between 2 and 10 minutes, depending on
+                  how complex your data is.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleOptimizeConfirm}
+              disabled={!hasOpenAIKey && !isLocalMode}
+            >
+              Proceed
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

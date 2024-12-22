@@ -680,7 +680,7 @@ const PipelineGUI: React.FC = () => {
       id: String(Date.now()),
       llmType,
       type: type as Operation["type"],
-      name: `${name} ${numOpRun}`,
+      name: `${name} ${operations.length}`,
       visibility: true,
     };
     setOperations([...operations, newOperation]);
@@ -927,7 +927,7 @@ const PipelineGUI: React.FC = () => {
                 </Popover>
 
                 <TooltipProvider>
-                  <Tooltip>
+                  <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>
                       <div className="flex items-center flex-shrink-0">
                         <Button

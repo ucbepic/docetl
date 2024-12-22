@@ -39,7 +39,7 @@ websockets = "^13.1"
 docling = { version  = "^2.5.2", optional = true }
 azure-ai-formrecognizer = { version = "^3.3.3", optional = true }
 lzstring = "^1.0.4"
-azure-ai-documentintelligence = { version = "^1.0.0", optional = true }
+azure-ai-documentintelligence = { version = "^1.0.0b4", optional = true }
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]

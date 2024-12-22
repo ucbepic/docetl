@@ -4,7 +4,7 @@ import tempfile
 import os
 import aiohttp
 from pathlib import Path
-from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, ContentFormat, AnalyzeResult
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, AnalyzeResult, DocumentContentFormat
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 import asyncio
@@ -37,7 +37,7 @@ def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
 
         with open(file_path, "rb") as f:
             poller = document_analysis_client.begin_analyze_document(
-                "prebuilt-layout", AnalyzeDocumentRequest(bytes_source=f.read()), output_content_format=ContentFormat.MARKDOWN,
+                "prebuilt-layout", AnalyzeDocumentRequest(bytes_source=f.read()), output_content_format=DocumentContentFormat.MARKDOWN,
             )
         result = poller.result()
 

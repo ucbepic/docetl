@@ -152,95 +152,172 @@ async def cancel_optimize_task(task_id: str):
     
     return {"message": "Task cancelled successfully"}
 
-# Keep the original run_pipeline endpoint
-@router.post("/run_pipeline")
-def run_pipeline(request: PipelineRequest) -> Dict[str, Any]:
-    try:
-        runner = DSLRunner.from_yaml(request.yaml_config)
-        cost = runner.load_run_save()
-        runner.reset_env()
-        return {"cost": cost, "message": "Pipeline executed successfully"}
-    except Exception as e:
-        import traceback
-        error_traceback = traceback.format_exc()
-        print(f"Error occurred:\n{e}\n{error_traceback}")
-        raise HTTPException(status_code=500, detail=str(e) + "\n" + error_traceback)
 
-@router.websocket("/ws/run_pipeline/{client_id}")
-async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
-    await websocket.accept()
+
+# @router.websocket("/ws/run_pipeline")
+# async def websocket_run_pipeline(websocket: WebSocket):
+#     await websocket.accept()
+#     runner = None
+#     try:
+#         config = await websocket.receive_json()
+#         runner = DSLRunner.from_yaml(config["yaml_config"])
+
+#         if config.get("clear_intermediate", False):
+#             runner.clear_intermediate()
+
+#         if config.get("optimize", False):
+#             logging.info(f"Optimizing pipeline with model {config.get('optimizer_model', 'gpt-4o')}")
+            
+#             async def run_pipeline():
+#                 return await asyncio.to_thread(runner.optimize, return_pipeline=False, model=config.get("optimizer_model", "gpt-4o"))
+
+#         else:
+#             async def run_pipeline():
+#                 return await asyncio.to_thread(runner.load_run_save)
+
+#         pipeline_task = asyncio.create_task(run_pipeline())
+
+#         while not pipeline_task.done():
+#             console_output = runner.console.file.getvalue()
+#             await websocket.send_json({"type": "output", "data": console_output})
+
+#             if config.get("optimize", False):
+#                 optimizer_progress = runner.console.get_optimizer_progress()
+#                 rationale = runner.console.optimizer_rationale
+#                 await websocket.send_json({
+#                     "type": "optimizer_progress", 
+#                     "status": optimizer_progress[0], 
+#                     "progress": optimizer_progress[1],
+#                     "rationale": rationale[1] if rationale is not None else "",
+#                     "should_optimize": rationale[0] if rationale is not None else False,
+#                     "validator_prompt": rationale[2] if rationale is not None else ""
+#                 })
+
+#             # Check for incoming messages from the user
+#             try:
+#                 user_message = await asyncio.wait_for(
+#                     websocket.receive_json(), timeout=0.1
+#                 )
+
+#                 if user_message == "kill":
+#                     runner.console.print("Stopping process...")
+#                     await websocket.send_json({
+#                         "type": "error",
+#                         "message": "Process stopped by user request"
+#                     })
+#                     raise Exception("Process stopped by user request")
+
+#                 # Process the user message and send it to the runner
+#                 runner.console.post_input(user_message)
+#             except asyncio.TimeoutError:
+#                 pass  # No message received, continue with the loop
+
+#             await asyncio.sleep(0.5)
+
+#         # Final check to send any remaining output
+#         result = await pipeline_task
+
+#         console_output = runner.console.file.getvalue()
+#         if console_output:
+#             await websocket.send_json({"type": "output", "data": console_output})
+
+#         # Sleep for a short duration to ensure all output is captured
+#         await asyncio.sleep(3)
+
+#         # If optimize is true, send back the optimized operations
+#         if config.get("optimize", False):
+#             optimized_config, cost = result
+
+#             # Send the operations back in order
+#             new_pipeline_steps = optimized_config["pipeline"]["steps"]
+#             new_pipeline_op_name_to_op_map = {op["name"]: op for op in optimized_config["operations"]}
+#             new_ops_in_order = []
+#             for new_step in new_pipeline_steps:
+#                 for op in new_step.get("operations", []):
+#                     if op not in new_ops_in_order:
+#                         new_ops_in_order.append(new_pipeline_op_name_to_op_map[op])
+
+#             await websocket.send_json(
+#                 {
+#                     "type": "result",
+#                     "data": {
+#                         "message": "Pipeline executed successfully",
+#                         "cost": cost,
+#                         "optimized_ops": new_ops_in_order,
+#                         "yaml_config": config["yaml_config"],
+#                     },
+#                 }
+#             )
+#         else:
+#             await websocket.send_json(
+#                 {
+#                     "type": "result",
+#                     "data": {
+#                         "message": "Pipeline executed successfully",
+#                         "cost": result,
+#                         "yaml_config": config["yaml_config"],
+#                     },
+#                 }
+#             )
+#     except WebSocketDisconnect:
+#         if runner is not None:
+#             runner.reset_env()
+#         print("Client disconnected")
+#     except Exception as e:
+#         import traceback
+
+#         error_traceback = traceback.format_exc()
+#         print(f"Error occurred:\n{error_traceback}")
+#         await websocket.send_json({"type": "error", "data": str(e), "traceback": error_traceback})
+#     finally:
+#         if runner is not None:
+#             runner.reset_env()
+#         await websocket.close()
+
+import modal
+
+# Modal queue setup
+pipeline_queue = modal.Queue.from_name("docetl-message-queue", create_if_missing=True)
+
+async def process_pipeline(config: Dict[str, Any], client_id: str, task_id: str):
+    """Process a pipeline task"""
     runner = None
+    last_console_output = ""
+    last_output_time = 0
+    
     try:
-        config = await websocket.receive_json()
         runner = DSLRunner.from_yaml(config["yaml_config"])
 
         if config.get("clear_intermediate", False):
             runner.clear_intermediate()
 
+        # Start console output monitoring task
+        async def monitor_console_output():
+            nonlocal last_console_output
+            while True:
+                current_output = runner.console.file.getvalue()
+                if current_output != last_console_output:
+                    pipeline_queue.put({
+                        "type": "output",
+                        "task_id": task_id,
+                        "data": current_output
+                    }, partition=client_id)
+                    last_console_output = current_output
+                await asyncio.sleep(1)  # Check every second
+
+        # Start the monitoring task
+        monitor_task = asyncio.create_task(monitor_console_output())
+
         if config.get("optimize", False):
             logging.info(f"Optimizing pipeline with model {config.get('optimizer_model', 'gpt-4o')}")
-            
-            async def run_pipeline():
-                return await asyncio.to_thread(runner.optimize, return_pipeline=False, model=config.get("optimizer_model", "gpt-4o"))
-
-        else:
-            async def run_pipeline():
-                return await asyncio.to_thread(runner.load_run_save)
-
-        pipeline_task = asyncio.create_task(run_pipeline())
-
-        while not pipeline_task.done():
-            console_output = runner.console.file.getvalue()
-            await websocket.send_json({"type": "output", "data": console_output})
-
-            if config.get("optimize", False):
-                optimizer_progress = runner.console.get_optimizer_progress()
-                rationale = runner.console.optimizer_rationale
-                await websocket.send_json({
-                    "type": "optimizer_progress", 
-                    "status": optimizer_progress[0], 
-                    "progress": optimizer_progress[1],
-                    "rationale": rationale[1] if rationale is not None else "",
-                    "should_optimize": rationale[0] if rationale is not None else False,
-                    "validator_prompt": rationale[2] if rationale is not None else ""
-                })
-
-            # Check for incoming messages from the user
-            try:
-                user_message = await asyncio.wait_for(
-                    websocket.receive_json(), timeout=0.1
-                )
-
-                if user_message == "kill":
-                    runner.console.print("Stopping process...")
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "Process stopped by user request"
-                    })
-                    raise Exception("Process stopped by user request")
-
-                # Process the user message and send it to the runner
-                runner.console.post_input(user_message)
-            except asyncio.TimeoutError:
-                pass  # No message received, continue with the loop
-
-            await asyncio.sleep(0.5)
-
-        # Final check to send any remaining output
-        result = await pipeline_task
-
-        console_output = runner.console.file.getvalue()
-        if console_output:
-            await websocket.send_json({"type": "output", "data": console_output})
-
-        # Sleep for a short duration to ensure all output is captured
-        await asyncio.sleep(3)
-
-        # If optimize is true, send back the optimized operations
-        if config.get("optimize", False):
+            result = await asyncio.to_thread(
+                runner.optimize,
+                return_pipeline=False,
+                model=config.get("optimizer_model", "gpt-4o")
+            )
             optimized_config, cost = result
-
-            # Send the operations back in order
+            
+            # Process optimized operations
             new_pipeline_steps = optimized_config["pipeline"]["steps"]
             new_pipeline_op_name_to_op_map = {op["name"]: op for op in optimized_config["operations"]}
             new_ops_in_order = []
@@ -248,40 +325,160 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
                 for op in new_step.get("operations", []):
                     if op not in new_ops_in_order:
                         new_ops_in_order.append(new_pipeline_op_name_to_op_map[op])
-
-            await websocket.send_json(
-                {
-                    "type": "result",
-                    "data": {
-                        "message": "Pipeline executed successfully",
-                        "cost": cost,
-                        "optimized_ops": new_ops_in_order,
-                        "yaml_config": config["yaml_config"],
-                    },
-                }
-            )
+            
+            final_result = {
+                "cost": cost,
+                "optimized_ops": new_ops_in_order,
+                "yaml_config": config["yaml_config"]
+            }
         else:
-            await websocket.send_json(
-                {
-                    "type": "result",
-                    "data": {
-                        "message": "Pipeline executed successfully",
-                        "cost": result,
-                        "yaml_config": config["yaml_config"],
-                    },
-                }
-            )
-    except WebSocketDisconnect:
-        if runner is not None:
-            runner.reset_env()
-        print("Client disconnected")
+            cost = await asyncio.to_thread(runner.load_run_save)
+            final_result = {
+                "cost": cost,
+                "yaml_config": config["yaml_config"]
+            }
+
+        # Send final result
+        pipeline_queue.put({
+            "type": "result",
+            "task_id": task_id,
+            "data": {
+                "message": "Pipeline executed successfully",
+                **final_result
+            }
+        }, partition=client_id)
+
     except Exception as e:
         import traceback
-
         error_traceback = traceback.format_exc()
-        print(f"Error occurred:\n{error_traceback}")
-        await websocket.send_json({"type": "error", "data": str(e), "traceback": error_traceback})
+        pipeline_queue.put({
+            "type": "error",
+            "task_id": task_id,
+            "data": str(e),
+            "traceback": error_traceback
+        }, partition=client_id)
     finally:
+        # Cancel the console monitoring task
+        if 'monitor_task' in locals():
+            monitor_task.cancel()
+            try:
+                await monitor_task
+            except asyncio.CancelledError:
+                pass
+            
+        if runner is not None:
+            runner.reset_env()
+
+async def message_send_loop(websocket: WebSocket, client_id: str, task_id: str, runner: DSLRunner, config: Dict[str, Any]):
+    """Loop to continuously send messages from queue and process user input"""
+    while True:
+        try:
+            # All output now comes through the queue
+            # Check for messages from queue
+            if config.get("optimize", False) and hasattr(runner.console, 'get_optimizer_progress'):
+                optimizer_progress = runner.console.get_optimizer_progress()
+                rationale = runner.console.optimizer_rationale
+                if optimizer_progress:
+                    await websocket.send_json({
+                        "type": "optimizer_progress",
+                        "status": optimizer_progress[0],
+                        "progress": optimizer_progress[1],
+                        "rationale": rationale[1] if rationale is not None else "",
+                        "should_optimize": rationale[0] if rationale is not None else False,
+                        "validator_prompt": rationale[2] if rationale is not None else ""
+                    })
+
+            # Check for messages from queue
+            try:
+                message = await asyncio.wait_for(
+                    pipeline_queue.get.aio(partition=client_id),
+                    timeout=0.1
+                )
+                
+                if message["task_id"] == task_id:
+                    await websocket.send_json(message)
+                    if message["type"] in ["result", "error"]:
+                        break
+            except asyncio.TimeoutError:
+                pass
+
+            # Check for user messages
+            try:
+                user_message = await asyncio.wait_for(
+                    websocket.receive_json(),
+                    timeout=0.1
+                )
+
+                if user_message == "kill":
+                    runner.console.print("Stopping process...")
+                    await websocket.send_json({
+                        "type": "error",
+                        "task_id": task_id,
+                        "message": "Process stopped by user request"
+                    })
+                    raise Exception("Process stopped by user request")
+
+                # Process user message
+                runner.console.post_input(user_message)
+            except asyncio.TimeoutError:
+                pass
+
+            await asyncio.sleep(0.5)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logging.error(f"Error in message loop: {e}")
+            break
+
+@router.websocket("/ws/run_pipeline/{client_id}")
+async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
+    task_id = str(uuid.uuid4())
+    runner = None
+    send_task = None
+
+    try:
+        await websocket.accept()
+        
+        # Get configuration
+        config = await websocket.receive_json()
+        
+        # Initialize runner
+        runner = DSLRunner.from_yaml(config["yaml_config"])
+        
+        # Start message send loop
+        send_task = asyncio.create_task(
+            message_send_loop(websocket, client_id, task_id, runner, config)
+        )
+        
+        # Start pipeline processing
+        process_task = asyncio.create_task(
+            process_pipeline(config, client_id, task_id)
+        )
+        
+        # Wait for both tasks to complete
+        await asyncio.gather(send_task, process_task)
+        
+    except WebSocketDisconnect:
+        logging.info(f"Client {client_id} disconnected")
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        logging.error(f"Error occurred:\n{error_traceback}")
+        if websocket.client_state.connected:
+            await websocket.send_json({
+                "type": "error",
+                "task_id": task_id,
+                "data": str(e),
+                "traceback": error_traceback
+            })
+    finally:
+        if send_task and not send_task.done():
+            send_task.cancel()
+            try:
+                await send_task
+            except asyncio.CancelledError:
+                pass
         if runner is not None:
             runner.reset_env()
         await websocket.close()

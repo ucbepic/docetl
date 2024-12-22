@@ -193,6 +193,7 @@ def run_pipeline(request: PipelineRequest) -> Dict[str, Any]:
 @router.websocket("/ws/run_pipeline")
 async def websocket_run_pipeline(websocket: WebSocket):
     await websocket.accept()
+    runner = None
     try:
         config = await websocket.receive_json()
         runner = DSLRunner.from_yaml(config["yaml_config"])
@@ -296,7 +297,8 @@ async def websocket_run_pipeline(websocket: WebSocket):
                 }
             )
     except WebSocketDisconnect:
-        runner.reset_env()
+        if runner is not None:
+            runner.reset_env()
         print("Client disconnected")
     except Exception as e:
         import traceback
@@ -305,5 +307,6 @@ async def websocket_run_pipeline(websocket: WebSocket):
         print(f"Error occurred:\n{error_traceback}")
         await websocket.send_json({"type": "error", "data": str(e), "traceback": error_traceback})
     finally:
-        runner.reset_env()
+        if runner is not None:
+            runner.reset_env()
         await websocket.close()

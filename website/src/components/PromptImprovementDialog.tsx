@@ -469,6 +469,12 @@ export function PromptImprovementDialog({
   const { messages, isLoading, append, setMessages } = useChat({
     api: "/api/chat",
     id: `prompt-improvement-${chatKey}`,
+    headers: useMemo(() => {
+      const openAiKey = apiKeys.find(
+        (key) => key.name === "OPENAI_API_KEY"
+      )?.value;
+      return openAiKey ? { "x-openai-key": openAiKey } : {};
+    }, [apiKeys]),
     onFinish: () => {
       // Optional: handle completion
     },

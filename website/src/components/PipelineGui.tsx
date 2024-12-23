@@ -88,7 +88,7 @@ const OperationMenuItem: React.FC<OperationMenuItemProps> = ({
   onClick,
 }) => {
   return (
-    <HoverCard openDelay={200}>
+    <HoverCard openDelay={0} closeDelay={0}>
       <HoverCardTrigger asChild>
         <div className="relative w-full">
           <DropdownMenuItem
@@ -153,7 +153,6 @@ const PipelineGUI: React.FC = () => {
     setPipelineName,
     sampleSize,
     setSampleSize,
-    numOpRun,
     setNumOpRun,
     currentFile,
     setCurrentFile,
@@ -1025,7 +1024,9 @@ const PipelineGUI: React.FC = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuLabel>Add LLM Operation</DropdownMenuLabel>
+                  <DropdownMenuLabel className="font-bold text-sm bg-muted/50 py-2">
+                    Add LLM Operation
+                  </DropdownMenuLabel>
                   <OperationMenuItem
                     name="Map"
                     description="Transforms each input item for complex data processing and insight extraction. 1 to 1 operation (each document gets one result, but the output of the operation can be any type, like a list)."
@@ -1066,37 +1067,41 @@ const PipelineGUI: React.FC = () => {
                     }
                   />
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Add Non-LLM Operation</DropdownMenuLabel>
-                  <DropdownMenuItem
+                  <DropdownMenuLabel className="font-bold text-sm bg-muted/50 py-2">
+                    Add Non-LLM Operation
+                  </DropdownMenuLabel>
+                  <OperationMenuItem
+                    name="Unnest"
+                    description="Flattens nested arrays or objects in your documents, creating new documents for each nested item."
                     onClick={() =>
                       handleAddOperation("non-LLM", "unnest", "Untitled Unnest")
                     }
-                  >
-                    Unnest
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
+                  />
+                  <OperationMenuItem
+                    name="Split"
+                    description="Divides documents into multiple parts based on specified criteria, creating new documents for each part."
                     onClick={() =>
                       handleAddOperation("non-LLM", "split", "Untitled Split")
                     }
-                  >
-                    Split
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
+                  />
+                  <OperationMenuItem
+                    name="Gather"
+                    description="Collects and groups related data from multiple documents into a single document based on a common key."
                     onClick={() =>
                       handleAddOperation("non-LLM", "gather", "Untitled Gather")
                     }
-                  >
-                    Gather
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
+                  />
+                  <OperationMenuItem
+                    name="Sample"
+                    description="Randomly selects a subset of documents from your dataset for testing or analysis."
                     onClick={() =>
                       handleAddOperation("non-LLM", "sample", "Untitled Sample")
                     }
-                  >
-                    Sample
-                  </DropdownMenuItem>
+                  />
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Code Operations</DropdownMenuLabel>
+                  <DropdownMenuLabel className="font-bold text-sm bg-muted/50 py-2">
+                    Code Operations
+                  </DropdownMenuLabel>
                   <OperationMenuItem
                     name="Code Map"
                     description="Like the LLM Map operation, but uses a Python function instead of an LLM. Write custom Python code to transform each document."

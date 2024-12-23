@@ -49,7 +49,8 @@ export function generatePipelineConfig(
     persona: string | null;
   } | null = null,
   apiKeys: APIKey[] = [],
-  docetl_encryption_key: string = ""
+  docetl_encryption_key: string = "",
+  enable_observability: boolean = true
 ) {
   const datasets = {
     input: {
@@ -166,7 +167,7 @@ export function generatePipelineConfig(
 
       return {
         ...newOp,
-        enable_observability: true,
+        ...(enable_observability && { enable_observability }),
         output: {
           schema: op.output.schema.reduce(
             (acc: Record<string, string>, item: SchemaItem) => {

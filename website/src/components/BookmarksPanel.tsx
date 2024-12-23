@@ -123,7 +123,7 @@ const BookmarksPanel: React.FC = () => {
       <div className="text-xs mb-2 bg-muted/50 p-2 rounded-md">
         <span className="text-muted-foreground font-medium">Tip: </span>
         Click <Maximize2 className="h-3 w-3 inline-block mx-0.5 text-primary" />{" "}
-        in any output column to leave feedback
+        in any output column to leave notes on outputs
       </div>
       <div className="text-xs mb-4 bg-yellow-100/50 p-2 rounded-md">
         <span className="text-muted-foreground font-medium">Note: </span>

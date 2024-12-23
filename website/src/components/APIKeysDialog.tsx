@@ -190,7 +190,6 @@ export function APIKeysDialog({ open, onOpenChange }: APIKeysDialogProps) {
                     </Label>
                     <Input
                       id={`key-value-${index}`}
-                      type="password"
                       value={key.value}
                       onChange={(e) =>
                         handleInputChange(index, "value", e.target.value)

@@ -37,19 +37,9 @@ export default function Home() {
   const [showVision, setShowVision] = useState(false);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 640) {
-        setShowDemo(true);
-      } else {
-        setShowDemo(false);
-      }
-    };
-
-    handleResize();
-
-    window.addEventListener("resize", handleResize);
-
-    return () => window.removeEventListener("resize", handleResize);
+    if (window.innerWidth >= 640) {
+      setShowDemo(true);
+    }
   }, []);
 
   const toggleDemo = () => {
@@ -114,7 +104,7 @@ export default function Home() {
             <span className="logo-text text-2xl sm:text-3xl">docetl</span>
           </div>
           <p className="text-lg sm:text-xl mb-4 sm:mb-6">
-            Powering complex document processing pipelines
+            A system for LLM-powered data processing
           </p>
 
           <div className="max-w-lg mx-auto flex flex-col items-center mb-6">

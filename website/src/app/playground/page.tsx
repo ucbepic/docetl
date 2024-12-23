@@ -245,6 +245,12 @@ const CodeEditorPipelineApp: React.FC = () => {
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
+  useEffect(() => {
+    if (isMounted && !namespace) {
+      setShowNamespaceDialog(true);
+    }
+  }, [isMounted, namespace]);
+
   if (isLoading) {
     return <LoadingScreen />;
   }
@@ -329,6 +335,15 @@ const CodeEditorPipelineApp: React.FC = () => {
     }
   };
 
+  const handleNew = () => {
+    clearPipelineState();
+    if (!namespace) {
+      setShowNamespaceDialog(true);
+    } else {
+      window.location.reload();
+    }
+  };
+
   const topBarStyles =
     "p-2 flex justify-between items-center border-b bg-white shadow-sm";
   const controlGroupStyles = "flex items-center gap-2";
@@ -374,12 +389,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => {
-                            clearPipelineState();
-                            window.location.reload();
-                          }}
-                        >
+                        <AlertDialogAction onClick={handleNew}>
                           Clear
                         </AlertDialogAction>
                       </AlertDialogFooter>

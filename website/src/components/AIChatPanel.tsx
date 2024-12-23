@@ -32,6 +32,12 @@ interface AIChatPanelProps {
   onClose: () => void;
 }
 
+interface Message {
+  role: "user" | "assistant" | "system";
+  content: string;
+  id: string;
+}
+
 const DEFAULT_SUGGESTIONS = [
   "Go over current outputs",
   "Help me refine my current operation prompt",
@@ -51,6 +57,20 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const openAiKey = useMemo(() => {
+    const key = apiKeys.find((key) => key.name === "OPENAI_API_KEY")?.value;
+    console.log("Chat Panel: OpenAI key present:", !!key);
+    return key;
+  }, [apiKeys]);
+
+  const chatHeaders = useMemo(() => {
+    const headers: Record<string, string> = {};
+    if (openAiKey) {
+      headers["x-openai-key"] = openAiKey;
+    }
+    return headers;
+  }, [openAiKey]);
+
   const {
     messages,
     setMessages,
@@ -63,13 +83,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
     api: "/api/chat",
     initialMessages: [],
     id: "persistent-chat",
-    headers: useMemo(() => {
-      const openAiKey = apiKeys.find(
-        (key) => key.name === "OPENAI_API_KEY"
-      )?.value;
-      return openAiKey ? { "x-openai-key": openAiKey } : {};
-    }, [apiKeys]),
+    headers: chatHeaders,
     onError: (error) => {
+      console.error("Chat error:", error);
       setError(error.message);
       toast({
         title: "Error",
@@ -133,6 +149,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   const handleMessageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    console.log("📝 Submitting message with API key present:", !!openAiKey);
 
     setError(null);
 

@@ -4,6 +4,21 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import PresidentialDebateDemo from "@/components/PresidentialDebateDemo";
+import { Button } from "@/components/ui/button";
+import { sendGAEvent } from "@next/third-parties/google";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Scroll,
   ChevronDown,
   ChevronUp,
@@ -16,16 +31,6 @@ import {
   Gamepad2,
   Menu,
 } from "lucide-react";
-import PresidentialDebateDemo from "@/components/PresidentialDebateDemo";
-import { Button } from "@/components/ui/button";
-import { sendGAEvent } from "@next/third-parties/google";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 export default function Home() {
   const [showDemo, setShowDemo] = useState(false);
@@ -63,6 +68,40 @@ export default function Home() {
     sendGAEvent("event", "buttonClicked", { value: "vision" });
   };
 
+  const newsItems = [
+    {
+      highlight: "Launched our IDE!",
+      content:
+        "Making prompt engineering easier than ever with our new interactive playground.",
+      link: "/playground",
+      linkText: "Try it now",
+      date: "Dec 2024",
+    },
+    {
+      highlight: "Gave talks on DocETL!",
+      content: "Check out our presentation slides.",
+      link: "/docetl-50m-fall-2024.pdf",
+      linkText: "View slides",
+      date: "Nov 2024",
+    },
+    {
+      highlight: "New paper on agentic query optimization!",
+      content:
+        "Improving LLM reliability through intelligent task decomposition.",
+      link: "https://arxiv.org/abs/2410.12189",
+      linkText: "Read paper",
+      date: "Oct 2024",
+    },
+    {
+      highlight: "New blog post!",
+      content:
+        "Learn how DocETL is transforming document processing pipelines.",
+      link: "https://data-people-group.github.io/blogs/2024/09/24/docetl/",
+      linkText: "Read post",
+      date: "Sep 2024",
+    },
+  ];
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
       <div className="max-w-4xl w-full">
@@ -78,37 +117,124 @@ export default function Home() {
             Powering complex document processing pipelines
           </p>
 
-          <div className="max-w-lg mx-auto flex flex-col items-center">
-            <div className="inline-block text-left">
-              <p className="text-sm sm:text-md mb-1 text-gray-600">
-                <em>Launched our IDE!</em>{" "}
-                <a href="/playground" className="text-blue-500 underline">
-                  Dec 2024
-                </a>
-              </p>
-              <p className="text-sm sm:text-md mb-1 text-gray-600">
-                <em>New paper on agentic query optimization!</em>{" "}
-                <a
-                  href="https://arxiv.org/abs/2410.12189"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 underline"
-                >
-                  Oct 2024
-                </a>
-              </p>
-              <p className="text-sm sm:text-md mb-6 text-gray-600">
-                <em>New blog post!</em>{" "}
-                <a
-                  href="https://data-people-group.github.io/blogs/2024/09/24/docetl/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 underline"
-                >
-                  Sep 2024
-                </a>
-              </p>
-            </div>
+          <div className="max-w-lg mx-auto flex flex-col items-center mb-6">
+            <Popover>
+              <PopoverTrigger asChild>
+                <div className="w-full overflow-hidden bg-primary/5 rounded-lg cursor-pointer hover:bg-primary/10 transition-colors">
+                  <div className="news-ticker py-2">
+                    <div className="news-ticker-content">
+                      <div className="ticker-item">
+                        {newsItems.map((item, i) => (
+                          <React.Fragment key={i}>
+                            <em>{item.highlight}</em> {item.content}{" "}
+                            <span className="text-muted-foreground">
+                              ({item.date})
+                            </span>{" "}
+                            <a
+                              href={item.link}
+                              className="text-blue-500 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                              target={
+                                item.link.startsWith("http")
+                                  ? "_blank"
+                                  : undefined
+                              }
+                              rel={
+                                item.link.startsWith("http")
+                                  ? "noopener noreferrer"
+                                  : undefined
+                              }
+                            >
+                              {item.linkText} →
+                            </a>
+                            <span className="ticker-space" />
+                          </React.Fragment>
+                        ))}
+                      </div>
+                      <div className="ticker-item">
+                        <em>Launched our IDE!</em> Making prompt engineering
+                        easier than ever with our new interactive playground{" "}
+                        <a
+                          href="/playground"
+                          className="text-blue-500 hover:underline"
+                        >
+                          Dec 2024
+                        </a>
+                        <span className="ticker-space" />
+                        <em>Gave talks on DocETL!</em> Check out our
+                        presentation slides{" "}
+                        <a
+                          href="/docetl-50m-fall-2024.pdf"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline"
+                        >
+                          Nov 2024
+                        </a>
+                        <span className="ticker-space" />
+                        <em>New paper on agentic query optimization!</em>{" "}
+                        Improving LLM reliability through intelligent task
+                        decomposition{" "}
+                        <a
+                          href="https://arxiv.org/abs/2410.12189"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline"
+                        >
+                          Oct 2024
+                        </a>
+                        <span className="ticker-space" />
+                        <em>New blog post!</em> Learn how DocETL is transforming
+                        data processing{" "}
+                        <a
+                          href="https://data-people-group.github.io/blogs/2024/09/24/docetl/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline"
+                        >
+                          Sep 2024
+                        </a>
+                        <span className="ticker-space" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[500px] max-h-[400px] overflow-y-auto p-4">
+                <div className="space-y-4">
+                  {newsItems.map((item, i) => (
+                    <div
+                      key={i}
+                      className="space-y-2 border-b last:border-b-0 pb-3 last:pb-0"
+                    >
+                      <div className="font-medium text-base">
+                        <em className="text-primary">{item.highlight}</em>{" "}
+                        <span className="text-muted-foreground text-sm">
+                          ({item.date})
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {item.content}{" "}
+                        <a
+                          href={item.link}
+                          className="text-blue-500 hover:underline inline-flex items-center gap-1"
+                          target={
+                            item.link.startsWith("http") ? "_blank" : undefined
+                          }
+                          rel={
+                            item.link.startsWith("http")
+                              ? "noopener noreferrer"
+                              : undefined
+                          }
+                        >
+                          {item.linkText} →
+                        </a>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="flex flex-col items-center gap-6 mb-6 sm:mb-8">

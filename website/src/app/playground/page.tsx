@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import React, { useEffect, useState } from "react";
-import { Scroll, Info, Save } from "lucide-react";
+import { Scroll, Info, Save, Monitor, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
@@ -166,7 +166,49 @@ const RightPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   </svg>
 );
 
+const MobileWarning: React.FC = () => (
+  <div className="h-screen flex items-center justify-center p-4 bg-background">
+    <div className="max-w-md text-center p-8 bg-card rounded-[var(--radius)] shadow-lg border border-border">
+      <div className="flex justify-center mb-6">
+        <div className="relative">
+          <Monitor className="w-16 h-16 text-primary" />
+          <div className="absolute -top-1 -right-1">
+            <AlertCircle className="w-6 h-6 text-destructive" />
+          </div>
+        </div>
+      </div>
+      <h2 className="text-2xl font-bold text-foreground mb-4">
+        Desktop Required
+      </h2>
+      <p className="text-muted-foreground mb-6 leading-relaxed">
+        DocETL requires a larger screen for the best experience. Please switch
+        to a desktop or laptop computer to access all features.
+      </p>
+      <div className="text-sm text-muted-foreground/80 bg-muted px-4 py-2 rounded-[var(--radius)] mb-6">
+        Recommended minimum screen width: 768px
+      </div>
+      <Button
+        variant="default"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+        onClick={() => {
+          window.location.href = "/";
+        }}
+      >
+        Back to DocETL Home
+      </Button>
+    </div>
+  </div>
+);
+
+const LoadingScreen: React.FC = () => (
+  <div className="h-screen flex items-center justify-center bg-background">
+    <div className="text-primary">Loading...</div>
+  </div>
+);
+
 const CodeEditorPipelineApp: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMobileView, setIsMobileView] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [showOutput, setShowOutput] = useState(true);
@@ -175,10 +217,6 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
   const [showAPIKeysDialog, setShowAPIKeysDialog] = useState(false);
   const { theme, setTheme } = useTheme();
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const {
     currentFile,
@@ -194,11 +232,26 @@ const CodeEditorPipelineApp: React.FC = () => {
   } = usePipelineContext();
 
   useEffect(() => {
-    const savedNamespace = localStorage.getItem(localStorageKeys.NAMESPACE_KEY);
-    if (!savedNamespace) {
-      setShowNamespaceDialog(true);
-    }
+    const checkScreenSize = () => {
+      const isMobile = window.innerWidth < 768;
+      setIsMobileView(isMobile);
+      setIsLoading(false);
+    };
+
+    checkScreenSize();
+    setIsMounted(true);
+    window.addEventListener("resize", checkScreenSize);
+
+    return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (isMobileView) {
+    return <MobileWarning />;
+  }
 
   const handleSaveAs = async () => {
     try {

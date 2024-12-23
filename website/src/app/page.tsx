@@ -37,19 +37,9 @@ export default function Home() {
   const [showVision, setShowVision] = useState(false);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 640) {
-        setShowDemo(true);
-      } else {
-        setShowDemo(false);
-      }
-    };
-
-    handleResize();
-
-    window.addEventListener("resize", handleResize);
-
-    return () => window.removeEventListener("resize", handleResize);
+    if (window.innerWidth >= 640) {
+      setShowDemo(true);
+    }
   }, []);
 
   const toggleDemo = () => {

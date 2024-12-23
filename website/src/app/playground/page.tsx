@@ -190,7 +190,9 @@ const MobileWarning: React.FC = () => (
       <Button
         variant="default"
         className="bg-primary hover:bg-primary/90 text-primary-foreground"
-        onClick={() => (window.location.href = "https://docetl.org")}
+        onClick={() => {
+          window.location.href = "/";
+        }}
       >
         Back to DocETL Home
       </Button>

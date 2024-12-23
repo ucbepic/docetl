@@ -78,6 +78,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
     handleInputChange,
     handleSubmit,
     isLoading,
+    error: chatError,
   } = useChat({
     api: "/api/chat",
     initialMessages: [],
@@ -154,7 +155,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
     setError(null);
 
     if (!hasOpenAIKey && !isLocalMode) {
-      console.log("❌ No API key available and not in local mode");
       toast({
         title: "OpenAI API Key Required",
         description: "Please add your OpenAI API key in Edit > Edit API Keys",

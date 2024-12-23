@@ -54,7 +54,8 @@ export async function POST(request: Request) {
       clear_intermediate,
       system_prompt,
       apiKeys,
-      docetl_encryption_key
+      docetl_encryption_key,
+      true
     );
 
     // Use the FastAPI endpoint to write the pipeline config

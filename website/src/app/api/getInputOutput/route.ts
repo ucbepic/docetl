@@ -43,7 +43,13 @@ export async function POST(request: Request) {
       operation_id,
       name,
       homeDir,
-      sample_size
+      sample_size,
+      false,
+      false,
+      { datasetDescription: null, persona: null },
+      [],
+      "",
+      false
     );
 
     // Check if files exist using FastAPI endpoints

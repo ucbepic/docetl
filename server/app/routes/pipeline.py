@@ -297,6 +297,16 @@ async def process_pipeline(config: Dict[str, Any], client_id: str, task_id: str)
             while True:
                 current_output = runner.console.file.getvalue()
                 if current_output != last_console_output:
+                    # Take last 200KB (204,800 bytes) of output if it exceeds that size
+                    if len(current_output.encode('utf-8')) > 204800:
+                        # Find the first newline after the cutoff point to avoid breaking mid-line
+                        cutoff_point = len(current_output.encode('utf-8')) - 204800
+                        truncated_output = current_output.encode('utf-8')[cutoff_point:].decode('utf-8', errors='ignore')
+                        first_newline = truncated_output.find('\n')
+                        if first_newline != -1:
+                            truncated_output = truncated_output[first_newline + 1:]
+                        current_output = truncated_output
+
                     pipeline_queue.put({
                         "type": "output",
                         "task_id": task_id,

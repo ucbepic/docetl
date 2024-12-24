@@ -28,13 +28,9 @@ vol = modal.Volume.from_name("docetl-backend-api", create_if_missing=True)
         modal.Secret.from_name("docetl-secrets"),
     ],
     keep_warm=1,
-    # mounts=[
-    #     modal.Mount.from_local_python_packages("docetl"),
-    #     modal.Mount.from_local_python_packages("server"),
-    # ]
 )
 @modal.asgi_app()
-def docetl_server():
+def main():
     web_app = FastAPI()
 
     # Include all routers

@@ -253,6 +253,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       return;
     }
 
+    // Add loading indicator immediately
+    toast({
+      title: "Uploading dataset...",
+      description: "This may take a few seconds",
+    });
+
+    // Add to uploading files set to show spinner in file list
     setUploadingFiles((prev) => new Set(prev).add(uploadedFile.name));
 
     try {
@@ -567,13 +574,26 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   }}
                   className="hidden"
                   id="file-upload"
+                  disabled={uploadingFiles.size > 0}
                 />
                 <label
                   htmlFor="file-upload"
-                  className="flex items-center w-full cursor-pointer"
+                  className={`flex items-center w-full cursor-pointer ${
+                    uploadingFiles.size > 0
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
+                  }`}
                 >
-                  <Database className="mr-2 h-4 w-4" />
-                  <span>Upload dataset.json</span>
+                  {uploadingFiles.size > 0 ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Database className="mr-2 h-4 w-4" />
+                  )}
+                  <span>
+                    {uploadingFiles.size > 0
+                      ? "Uploading dataset..."
+                      : "Upload dataset.json"}
+                  </span>
                 </label>
               </div>
             </DropdownMenuItem>

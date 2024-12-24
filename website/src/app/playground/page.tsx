@@ -104,6 +104,7 @@ const NamespaceDialog = dynamic(
 );
 import { ThemeProvider, useTheme, Theme } from "@/contexts/ThemeContext";
 import { APIKeysDialog } from "@/components/APIKeysDialog";
+import { TutorialsDialog, TUTORIALS } from "@/components/TutorialsDialog";
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg
@@ -258,6 +259,9 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showChat, setShowChat] = useState(false);
   const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
   const [showAPIKeysDialog, setShowAPIKeysDialog] = useState(false);
+  const [showTutorialsDialog, setShowTutorialsDialog] = useState(false);
+  const [selectedTutorial, setSelectedTutorial] =
+    useState<(typeof TUTORIALS)[0]>();
   const { theme, setTheme } = useTheme();
 
   const {
@@ -271,6 +275,10 @@ const CodeEditorPipelineApp: React.FC = () => {
     unsavedChanges,
     namespace,
     setNamespace,
+    setOperations,
+    setPipelineName,
+    setSampleSize,
+    setDefaultModel,
   } = usePipelineContext();
 
   useEffect(() => {
@@ -490,6 +498,22 @@ const CodeEditorPipelineApp: React.FC = () => {
                   >
                     Show Documentation
                   </MenubarItem>
+                  <MenubarSub>
+                    <MenubarSubTrigger>Tutorials</MenubarSubTrigger>
+                    <MenubarSubContent>
+                      {TUTORIALS.map((tutorial) => (
+                        <MenubarItem
+                          key={tutorial.id}
+                          onSelect={() => {
+                            setSelectedTutorial(tutorial);
+                            setShowTutorialsDialog(true);
+                          }}
+                        >
+                          {tutorial.title}
+                        </MenubarItem>
+                      ))}
+                    </MenubarSubContent>
+                  </MenubarSub>
                   <MenubarItem onSelect={() => setShowChat(!showChat)}>
                     Show Chat
                   </MenubarItem>
@@ -739,6 +763,23 @@ const CodeEditorPipelineApp: React.FC = () => {
         <APIKeysDialog
           open={showAPIKeysDialog}
           onOpenChange={setShowAPIKeysDialog}
+        />
+        <TutorialsDialog
+          open={showTutorialsDialog}
+          onOpenChange={setShowTutorialsDialog}
+          selectedTutorial={selectedTutorial}
+          namespace={namespace}
+          onFileUpload={(file: File) =>
+            setFiles((prevFiles) => [...prevFiles, file])
+          }
+          setCurrentFile={setCurrentFile}
+          setOperations={setOperations}
+          setPipelineName={setPipelineName}
+          setSampleSize={setSampleSize}
+          setDefaultModel={setDefaultModel}
+          setFiles={setFiles}
+          currentFile={currentFile}
+          files={files}
         />
       </div>
     </BookmarkProvider>

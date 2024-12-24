@@ -54,6 +54,7 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useDatasetUpload } from "@/hooks/useDatasetUpload";
 
 interface FileExplorerProps {
   files: File[];
@@ -211,11 +212,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const [draggedFiles, setDraggedFiles] = useState<number>(0);
   const [viewingDocument, setViewingDocument] = useState<File | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
-  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
   const [conversionMethod, setConversionMethod] =
     useState<ConversionMethod>("local");
   const [azureEndpoint, setAzureEndpoint] = useState("");
   const [azureKey, setAzureKey] = useState("");
+
+  const { uploadingFiles, uploadDataset } = useDatasetUpload({
+    namespace,
+    onFileUpload,
+    setCurrentFile,
+  });
 
   // Group files by folder
   const groupedFiles = files.reduce((acc: { [key: string]: File[] }, file) => {
@@ -243,73 +249,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       console.log("No file selected");
       return;
     }
-
-    if (!uploadedFile.name.toLowerCase().endsWith(".json")) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please upload a JSON file",
-      });
-      return;
-    }
-
-    // Add loading indicator immediately
-    toast({
-      title: "Uploading dataset...",
-      description: "This may take a few seconds",
-    });
-
-    // Add to uploading files set to show spinner in file list
-    setUploadingFiles((prev) => new Set(prev).add(uploadedFile.name));
-
-    try {
-      // Validate JSON structure before uploading
-      await validateJsonDataset(uploadedFile);
-
-      const formData = new FormData();
-      formData.append("file", uploadedFile);
-      formData.append("namespace", namespace);
-
-      const response = await fetch("/api/uploadFile", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
-      const data = await response.json();
-
-      const newFile = {
-        name: uploadedFile.name,
-        path: data.path,
-        type: "json" as const,
-        parentFolder: "root",
-      };
-
-      onFileUpload(newFile);
-      setCurrentFile(newFile);
-
-      toast({
-        title: "Success",
-        description: "Dataset uploaded successfully",
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to upload file",
-      });
-    } finally {
-      setUploadingFiles((prev) => {
-        const next = new Set(prev);
-        next.delete(uploadedFile.name);
-        return next;
-      });
-    }
+    const fileToUpload: File = {
+      name: uploadedFile.name,
+      path: uploadedFile.name,
+      type: "json",
+      blob: uploadedFile,
+    };
+    await uploadDataset(fileToUpload);
   };
 
   const handleFileSelection = (file: File) => {

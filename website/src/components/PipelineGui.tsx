@@ -77,6 +77,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { useRestorePipeline } from "@/hooks/useRestorePipeline";
 
 interface OperationMenuItemProps {
   name: string;
@@ -365,6 +366,17 @@ const PipelineGUI: React.FC = () => {
     },
   });
 
+  const { restoreFromYAML } = useRestorePipeline({
+    setOperations,
+    setPipelineName,
+    setSampleSize,
+    setDefaultModel,
+    setFiles,
+    setCurrentFile,
+    currentFile,
+    files,
+  });
+
   useEffect(() => {
     if (lastMessage) {
       if (lastMessage.type === "output") {
@@ -531,122 +543,17 @@ const PipelineGUI: React.FC = () => {
   ) => {
     const file = event.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const content = e.target?.result;
-        if (typeof content === "string") {
-          try {
-            const yamlFileName = file.name.split("/").pop()?.split(".")[0];
-            const yamlContent = yaml.load(content) as YAMLContent;
-            setOperations([]);
-
-            // Update PipelineContext with the loaded YAML data
-            setOperations(
-              (yamlContent.operations || []).map((op) => {
-                const {
-                  id,
-                  type,
-                  name,
-                  prompt,
-                  output,
-                  validate,
-                  sample,
-                  ...otherKwargs
-                } = op;
-
-                // If the operation type is 'reduce', ensure reduce_key is a list
-                if (type === "reduce" && otherKwargs.reduce_key) {
-                  otherKwargs.reduce_key = Array.isArray(otherKwargs.reduce_key)
-                    ? otherKwargs.reduce_key
-                    : [otherKwargs.reduce_key];
-                }
-
-                return {
-                  id: id || uuidv4(),
-                  llmType:
-                    type === "map" ||
-                    type === "reduce" ||
-                    type === "resolve" ||
-                    type === "filter" ||
-                    type === "parallel_map"
-                      ? "LLM"
-                      : "non-LLM",
-                  type: type as Operation["type"],
-                  name: name || "Untitled Operation",
-                  prompt,
-                  output: output
-                    ? {
-                        schema: schemaDictToItemSet(
-                          output.schema as Record<string, string>
-                        ),
-                      }
-                    : undefined,
-                  validate,
-                  sample,
-                  otherKwargs,
-                  visibility: true,
-                } as Operation;
-              })
-            );
-            setPipelineName(yamlFileName || "Untitled Pipeline");
-            setSampleSize(
-              (yamlContent.operations?.[0]?.sample as number) || null
-            );
-            setDefaultModel(yamlContent.default_model || "gpt-4o-mini");
-
-            // Set current file if it exists in the YAML
-            // Look for paths in all datasets
-            const datasetPaths = Object.values(yamlContent.datasets || {})
-              .filter(
-                (dataset: Dataset) => dataset.type === "file" && dataset.path
-              )
-              .map((dataset: Dataset) => dataset.path);
-
-            if (datasetPaths.length > 0) {
-              const newFiles = datasetPaths.map((filePath) => ({
-                name: path.basename(filePath),
-                path: filePath,
-                type: "json",
-              }));
-
-              setFiles((prevFiles: File[]) => {
-                const uniqueNewFiles = newFiles
-                  .filter(
-                    (newFile) =>
-                      !prevFiles.some(
-                        (prevFile) => prevFile.path === newFile.path
-                      )
-                  )
-                  .map((file) => ({
-                    ...file,
-                    type: "json" as const, // Explicitly type as literal "json"
-                  }));
-                return [...prevFiles, ...uniqueNewFiles];
-              });
-
-              // Set the first file as current if no current file exists
-              if (!currentFile) {
-                setCurrentFile({ ...newFiles[0], type: "json" });
-              }
-            }
-
-            toast({
-              title: "Pipeline Loaded",
-              description:
-                "Your pipeline configuration has been loaded successfully.",
-              duration: 3000,
-            });
-          } catch (error) {
-            console.error("Error parsing YAML:", error);
-            toast({
-              title: "Error",
-              description: "Failed to parse the uploaded YAML file.",
-              variant: "destructive",
-            });
-          }
-        }
-      };
-      reader.readAsText(file);
+      try {
+        const fileToUpload: File = {
+          name: file.name,
+          path: file.name,
+          type: "pipeline-yaml",
+          blob: file,
+        };
+        await restoreFromYAML(fileToUpload);
+      } catch (error) {
+        console.error("Error handling file upload:", error);
+      }
     }
   };
 

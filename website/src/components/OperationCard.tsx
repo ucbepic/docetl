@@ -138,7 +138,7 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
     const [editedModel, setEditedModel] = useState(model);
 
     return (
-      <div className="relative flex items-center py-2 px-4 border-b border-gray-100">
+      <div className="relative flex items-center py-3 px-4 border-b border-border/30 bg-muted/5">
         {/* Left side - Operation info */}
         <div className="flex-1 flex items-center gap-2">
           <div className="flex items-center gap-2">
@@ -1152,10 +1152,10 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
   return (
     <div
       id={id}
-      className={`mb-2 relative rounded-sm shadow-sm w-full pl-6 ${
+      className={`mb-2 relative rounded-md border shadow-[0_1px_3px_0_rgb(0,0,0,0.05)] w-full pl-6 hover:shadow-md transition-shadow ${
         pipelineOutput?.operationId === operation.id
           ? "bg-white border-primary border-2"
-          : "bg-white"
+          : "bg-white border-border/40"
       } ${!operation.visibility ? "opacity-50" : ""}`}
     >
       <OperationHeader
@@ -1323,7 +1323,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
 };
 
 const SkeletonCard: React.FC = () => (
-  <Card className="mb-2 relative rounded-sm bg-white shadow-sm w-full">
+  <Card className="mb-2 relative rounded-md border border-border/40 shadow-[0_1px_3px_0_rgb(0,0,0,0.05)] w-full hover:shadow-md transition-shadow">
     <CardHeader className="flex justify-between items-center py-2 px-3">
       <Skeleton className="h-3 w-1/3" />
       <Skeleton className="h-3 w-1/4" />

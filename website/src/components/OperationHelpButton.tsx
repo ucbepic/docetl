@@ -1,7 +1,7 @@
 import React from "react";
 import { HelpCircle, Copy, Check } from "lucide-react";
 import { Button } from "./ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
 
 interface OperationHelpButtonProps {
   type: string;
@@ -57,7 +57,7 @@ export const OperationHelpButton: React.FC<OperationHelpButtonProps> = ({
                 />
                 <p>
                   Or reference specific fields (e.g., if your document has a
-                  "text" field):
+                  &ldquo;text&rdquo; field):
                 </p>
                 <PromptBlock
                   text={"Analyze this text: {{ input.text }}"}
@@ -105,7 +105,7 @@ export const OperationHelpButton: React.FC<OperationHelpButtonProps> = ({
                 />
                 <p>
                   Or reference specific fields (e.g., if your document has a
-                  "content" field):
+                  &ldquo;content&rdquo; field):
                 </p>
                 <PromptBlock
                   text={"Is this content relevant? {{ input.content }}"}
@@ -141,8 +141,18 @@ export const OperationHelpButton: React.FC<OperationHelpButtonProps> = ({
           <div className="space-y-4">
             <div>
               <p className="mb-2 text-sm text-muted-foreground">
-                The prompt runs once per group of documents. Each document in
-                the group is available in the{" "}
+                The reduce operation groups documents by a &ldquo;reduce
+                key&rdquo; (like a SQL GROUP BY), then runs the prompt once per
+                group. The reduce key can be one or more columns - documents
+                with the same values for these columns will be processed
+                together.
+              </p>
+              <p className="mb-2 text-sm text-muted-foreground">
+                Use &ldquo;_all&rdquo; as the reduce key to process all
+                documents in a single group.
+              </p>
+              <p className="mb-2 text-sm text-muted-foreground">
+                Each document in the group is available in the{" "}
                 <span className="font-mono">inputs</span> list, and you can
                 reference specific fields with dot notation:
               </p>
@@ -156,7 +166,7 @@ export const OperationHelpButton: React.FC<OperationHelpButtonProps> = ({
                 />
                 <p>
                   Or reference specific fields (e.g., if your documents have a
-                  "title" field):
+                  &ldquo;title&rdquo; field):
                 </p>
                 <PromptBlock
                   text={
@@ -173,7 +183,8 @@ export const OperationHelpButton: React.FC<OperationHelpButtonProps> = ({
               <div className="border rounded p-3">
                 <p className="text-sm">
                   The schema defines the columns for a new row that represents
-                  the entire group:
+                  the entire group. Each group (determined by the reduce key)
+                  will produce one new row containing these output columns:
                 </p>
                 <div className="mt-2 pl-4 text-sm text-muted-foreground">
                   Column: <span className="font-mono">combined_analysis</span>
@@ -181,8 +192,9 @@ export const OperationHelpButton: React.FC<OperationHelpButtonProps> = ({
                   Type: <span className="font-mono">string</span>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Each group will produce one new row containing just these
-                  output columns.
+                  For example, if you group by &ldquo;category&rdquo;,
+                  you&apos;ll get one output row for each unique category value,
+                  summarizing all documents in that category.
                 </p>
               </div>
             </div>
@@ -194,15 +206,15 @@ export const OperationHelpButton: React.FC<OperationHelpButtonProps> = ({
   };
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+    <HoverCard openDelay={0} closeDelay={0}>
+      <HoverCardTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 cursor-help">
           <HelpCircle className="h-4 w-4 text-gray-600" />
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[450px]" align="start">
+      </HoverCardTrigger>
+      <HoverCardContent className="w-[750px]">
         <div className="space-y-4">
-          <h4 className="font-medium">Example Prompts</h4>
+          <h4 className="font-medium">Operator Guide</h4>
           {getExamplePrompt()}
           <div className="text-sm text-muted-foreground">
             <p>
@@ -223,7 +235,7 @@ export const OperationHelpButton: React.FC<OperationHelpButtonProps> = ({
             </p>
           </div>
         </div>
-      </PopoverContent>
-    </Popover>
+      </HoverCardContent>
+    </HoverCard>
   );
 };

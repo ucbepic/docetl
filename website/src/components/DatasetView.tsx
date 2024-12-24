@@ -21,6 +21,7 @@ import {
 import { ChevronRight } from "lucide-react";
 import { Database } from "lucide-react";
 import { File } from "@/app/types";
+import { cn } from "@/lib/utils";
 
 interface FileChunk {
   content: string;
@@ -408,7 +409,11 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
         </span>
         <div className="flex flex-wrap gap-1 mt-2">
           {keys.map((key) => (
-            <Badge key={key} variant="default">
+            <Badge
+              key={key}
+              variant="default"
+              className="transition-none hover:bg-primary hover:text-primary-foreground"
+            >
               {key}
             </Badge>
           ))}

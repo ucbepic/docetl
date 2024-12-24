@@ -1,8 +1,9 @@
 export type File = {
   name: string;
   path: string;
-  type: "json" | "document";
+  type: "json" | "document" | "pipeline-yaml";
   parentFolder?: string;
+  blob?: Blob;
 };
 
 export type Operation = {

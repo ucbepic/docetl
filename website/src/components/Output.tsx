@@ -84,6 +84,8 @@ const useOutputContext = () => {
     terminalOutput,
     setTerminalOutput,
     optimizerProgress,
+    sampleSize,
+    operations,
   } = usePipelineContext();
 
   return {
@@ -92,6 +94,8 @@ const useOutputContext = () => {
     terminalOutput,
     setTerminalOutput,
     optimizerProgress,
+    sampleSize,
+    operations,
   };
 };
 
@@ -474,7 +478,8 @@ ConsoleContent.displayName = "ConsoleContent";
 
 // Main Output component
 export const Output = memo(() => {
-  const { output, isLoadingOutputs } = useOutputContext();
+  const { output, isLoadingOutputs, sampleSize, operations } =
+    useOutputContext();
   const operation = useOperation(output?.operationId);
 
   const [outputs, setOutputs] = useState<OutputRow[]>([]);
@@ -561,7 +566,7 @@ export const Output = memo(() => {
     [inputCount, outputCount]
   );
 
-  // Add back the data fetching effect
+  // Update the data fetching effect
   useEffect(() => {
     const fetchData = async () => {
       if (output && !isLoadingOutputs) {
@@ -612,8 +617,13 @@ export const Output = memo(() => {
 
           setOutputs(parsedOutputs);
 
-          // Fetch input data if inputPath exists
-          if (output.inputPath) {
+          // Check if this is the first operation
+          const isFirstOperation = operation?.id === operations[0]?.id;
+
+          // Set input count based on whether it's the first operation
+          if (isFirstOperation && sampleSize !== null) {
+            setInputCount(sampleSize);
+          } else if (output.inputPath) {
             const inputResponse = await fetch(
               `/api/readFile?path=${output.inputPath}`
             );
@@ -635,7 +645,14 @@ export const Output = memo(() => {
     };
 
     fetchData();
-  }, [output, operation?.otherKwargs?.prompts, isLoadingOutputs]);
+  }, [
+    output,
+    operation?.otherKwargs?.prompts,
+    isLoadingOutputs,
+    operations,
+    operation?.id,
+    sampleSize,
+  ]);
 
   return (
     <div className="flex flex-col h-full bg-white">

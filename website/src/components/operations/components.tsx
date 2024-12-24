@@ -173,36 +173,48 @@ export const ReduceOperationComponent: React.FC<OperationComponentProps> = ({
                 (key: string, index: number) => (
                   <div
                     key={index}
-                    className="relative flex-shrink-0 flex items-center"
+                    className="relative flex-shrink-0"
                     style={{ minWidth: "150px" }}
                   >
-                    <Input
-                      id={`reduce-key-${index}`}
-                      value={key}
-                      onChange={(e) => {
-                        const newKeys = [
-                          ...(operation.otherKwargs?.reduce_key || [""]),
-                        ];
-                        newKeys[index] = e.target.value;
-                        handleReduceKeysChange(newKeys);
-                      }}
-                      placeholder="Enter reduce key"
-                      className="w-full pr-8"
-                    />
-                    <Button
-                      onClick={() => {
-                        const newKeys = [
-                          ...(operation.otherKwargs?.reduce_key || [""]),
-                        ];
-                        newKeys.splice(index, 1);
-                        handleReduceKeysChange(newKeys);
-                      }}
-                      size="sm"
-                      variant="ghost"
-                      className="absolute right-0 top-0 h-full"
-                    >
-                      <X size={12} />
-                    </Button>
+                    <div className="flex items-center">
+                      <Input
+                        id={`reduce-key-${index}`}
+                        value={key}
+                        onChange={(e) => {
+                          const newKeys = [
+                            ...(operation.otherKwargs?.reduce_key || [""]),
+                          ];
+                          newKeys[index] = e.target.value;
+                          handleReduceKeysChange(newKeys);
+                        }}
+                        placeholder="Enter reduce key"
+                        className={`w-full pr-8 ${
+                          !key.trim() ? "border-red-500 focus:ring-red-500" : ""
+                        }`}
+                      />
+                      {(operation.otherKwargs?.reduce_key?.length || 0) > 1 && (
+                        <Button
+                          onClick={() => {
+                            const newKeys = [
+                              ...(operation.otherKwargs?.reduce_key || [""]),
+                            ];
+                            newKeys.splice(index, 1);
+                            handleReduceKeysChange(newKeys);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                          className="absolute right-0 top-0 h-full"
+                        >
+                          <X size={12} />
+                        </Button>
+                      )}
+                    </div>
+                    {!key.trim() && (
+                      <p className="text-red-500 text-sm mt-1">
+                        There must be a reduce key. Set "_all" if you want all
+                        documents in a group.
+                      </p>
+                    )}
                   </div>
                 )
               )}
@@ -1320,36 +1332,51 @@ export const CodeOperationComponent: React.FC<OperationComponentProps> = ({
                   (key: string, index: number) => (
                     <div
                       key={index}
-                      className="relative flex-shrink-0 flex items-center"
+                      className="relative flex-shrink-0"
                       style={{ minWidth: "150px" }}
                     >
-                      <Input
-                        id={`reduce-key-${index}`}
-                        value={key}
-                        onChange={(e) => {
-                          const newKeys = [
-                            ...(operation.otherKwargs?.reduce_key || [""]),
-                          ];
-                          newKeys[index] = e.target.value;
-                          handleReduceKeysChange(newKeys);
-                        }}
-                        placeholder="Enter reduce key"
-                        className="w-full pr-8"
-                      />
-                      <Button
-                        onClick={() => {
-                          const newKeys = [
-                            ...(operation.otherKwargs?.reduce_key || [""]),
-                          ];
-                          newKeys.splice(index, 1);
-                          handleReduceKeysChange(newKeys);
-                        }}
-                        size="sm"
-                        variant="ghost"
-                        className="absolute right-0 top-0 bottom-0"
-                      >
-                        <X size={12} />
-                      </Button>
+                      <div className="flex items-center">
+                        <Input
+                          id={`reduce-key-${index}`}
+                          value={key}
+                          onChange={(e) => {
+                            const newKeys = [
+                              ...(operation.otherKwargs?.reduce_key || [""]),
+                            ];
+                            newKeys[index] = e.target.value;
+                            handleReduceKeysChange(newKeys);
+                          }}
+                          placeholder="Enter reduce key"
+                          className={`w-full pr-8 ${
+                            !key.trim()
+                              ? "border-red-500 focus:ring-red-500"
+                              : ""
+                          }`}
+                        />
+                        {(operation.otherKwargs?.reduce_key?.length || 0) >
+                          1 && (
+                          <Button
+                            onClick={() => {
+                              const newKeys = [
+                                ...(operation.otherKwargs?.reduce_key || [""]),
+                              ];
+                              newKeys.splice(index, 1);
+                              handleReduceKeysChange(newKeys);
+                            }}
+                            size="sm"
+                            variant="ghost"
+                            className="absolute right-0 top-0 h-full"
+                          >
+                            <X size={12} />
+                          </Button>
+                        )}
+                      </div>
+                      {!key.trim() && (
+                        <p className="text-red-500 text-sm mt-1">
+                          There must be a reduce key. Set "_all" if you want all
+                          documents in a group.
+                        </p>
+                      )}
                     </div>
                   )
                 )}

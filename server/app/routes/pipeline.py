@@ -275,6 +275,30 @@ async def cancel_optimize_task(task_id: str):
 #         await websocket.close()
 
 import modal
+from supabase import create_client
+import os
+import yaml
+
+
+async def log_pipeline_run(yaml_config: str, namespace: str):
+    # Initialize Supabase client
+    supabase = create_client(
+        supabase_url=os.environ.get("SUPABASE_URL"),
+        supabase_key=os.environ.get("SUPABASE_KEY")
+    )
+
+    try:
+        data = {
+            "pipeline_yaml": yaml_config,
+            "namespace": namespace
+            # created_at will be automatically set by Supabase
+        }
+        
+        result = supabase.table("pipelines").insert(data).execute()
+        return result.data[0]["id"]  # Return the inserted row's ID
+    except Exception as e:
+        logging.error(f"Failed to log pipeline run: {e}")
+        return None
 
 # Modal queue setup
 pipeline_queue = modal.Queue.from_name("docetl-message-queue", create_if_missing=True)
@@ -452,6 +476,19 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
         
         # Get configuration
         config = await websocket.receive_json()
+
+        try:
+            with open(config["yaml_config"]) as f:
+                yaml_config_str = yaml.safe_load(f)
+
+            # Log the pipeline run
+            await log_pipeline_run(
+                namespace=client_id,
+                yaml_config=yaml_config_str,
+            )
+
+        except Exception as e:
+            logging.error(f"Failed to parse YAML config and log pipeline run: {e}")
         
         # Initialize runner
         runner = DSLRunner.from_yaml(config["yaml_config"])

@@ -233,7 +233,7 @@ tomli = {version = ">=2.0.1", markers = "python_version < \"3.11\""}
 name = "azure-ai-documentintelligence"
 version = "1.0.0"
 description = "Microsoft Azure AI Document Intelligence Client Library for Python"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "azure_ai_documentintelligence-1.0.0-py3-none-any.whl", hash = "sha256:cdedb1a67c075f58f47a413ec5846bf8d532a83a71f0c51ec49ce9b5bfe2a519"},
@@ -277,7 +277,7 @@ files = [
 name = "azure-core"
 version = "1.32.0"
 description = "Microsoft Azure Core Library for Python"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "azure_core-1.32.0-py3-none-any.whl", hash = "sha256:eac191a0efb23bfa83fddf321b27b122b4ec847befa3091fa736a5c32c50d7b4"},
@@ -1275,7 +1275,7 @@ files = [
 name = "isodate"
 version = "0.7.2"
 description = "An ISO 8601 date/time/duration parser and formatter"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "isodate-0.7.2-py3-none-any.whl", hash = "sha256:28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15"},
@@ -5422,10 +5422,10 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 type = ["pytest-mypy"]
 
 [extras]
-parsing = ["azure-ai-documentintelligence", "openpyxl", "paddlepaddle", "pydub", "pymupdf", "python-docx", "python-pptx"]
-server = ["azure-ai-documentintelligence", "azure-ai-formrecognizer", "docling", "fastapi", "uvicorn"]
+parsing = ["openpyxl", "paddlepaddle", "pydub", "pymupdf", "python-docx", "python-pptx"]
+server = ["azure-ai-formrecognizer", "docling", "fastapi", "uvicorn"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "a7ff2aeefcd400baf5f7204c1a0875b9c4aa010014b3c8a0c73300db984387d6"
+content-hash = "e791c7ea4b60ba0f1c3fdc32d14206cdd9fc1fe304a07a43cea25c6ac267e059"

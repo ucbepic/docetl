@@ -193,27 +193,14 @@ export function generatePipelineConfig(
   );
 
   // Fix type errors by asserting the pipeline config type
-  const pipelineConfig: {
-    datasets: any;
-    default_model: string;
-    optimizer_config: any;
-    operations: any[];
-    pipeline: {
-      steps: any[];
-      output: {
-        type: string;
-        path: string;
-        intermediate_dir: string;
-      };
-    };
-    system_prompt: Record<string, unknown>;
-    llm_api_keys?: Record<string, string>;
-  } = {
+  const pipelineConfig: any = {
     datasets,
     default_model,
-    optimizer_config: {
-      force_decompose: true,
-    },
+    ...(enable_observability && {
+      optimizer_config: {
+        force_decompose: true,
+      },
+    }),
     operations: updatedOperations,
     pipeline: {
       steps: [

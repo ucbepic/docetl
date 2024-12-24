@@ -190,3 +190,31 @@
 .news-ticker:hover {
   cursor: pointer;
 }
+
+/* Add these styles */
+[data-panel] {
+  transition: none; /* Remove transition during resize */
+}
+
+[data-panel-group] {
+  transition: width 50ms ease, height 50ms ease;
+}
+
+/* Replace the resize handle styles with these cleaner versions */
+[data-resize-handle] {
+  position: relative;
+}
+
+[data-resize-handle][data-dragging="true"] {
+  background-color: rgb(96 165 250); /* blue-400 */
+}
+
+[data-dragging="true"] {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Remove the previous ::before pseudo-element styles */
+[data-dragging="true"]::before {
+  display: none;
+}

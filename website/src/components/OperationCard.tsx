@@ -138,11 +138,17 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
     const [editedModel, setEditedModel] = useState(model);
 
     return (
-      <div className="relative flex items-center py-1 px-4 border-b border-gray-100">
-        {/* Operation Type Badge and Optimization Status (The "Noun") */}
+      <div className="relative flex items-center py-3 px-4 border-b border-border/30 bg-muted/5">
+        {/* Left side - Operation info */}
         <div className="flex-1 flex items-center gap-2">
           <div className="flex items-center gap-2">
             <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
+
+            {/* Add help button for LLM operations */}
+            {llmType === "LLM" &&
+              (type === "map" || type === "reduce" || type === "filter") && (
+                <OperationHelpButton type={type} />
+              )}
 
             {canBeOptimized(type) && optimizeResult !== undefined && (
               <HoverCard openDelay={200}>
@@ -253,28 +259,48 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
           )}
         </div>
 
-        {/* Action Menu (The "Verb") */}
-        <div className="flex items-center gap-1">
-          {/* Add help button for LLM operations */}
-          {llmType === "LLM" &&
-            (type === "map" || type === "reduce" || type === "filter") && (
-              <OperationHelpButton type={type} />
-            )}
+        {/* Action Bar - Keep only the most essential actions */}
+        <div className="flex items-center gap-2 mr-2">
+          {/* Show Outputs Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1"
+            onClick={onShowOutput}
+            disabled={disabled}
+          >
+            <ListCollapse className="h-4 w-4" />
+            <span className="hidden sm:inline">Show Outputs</span>
+          </Button>
 
+          {/* LLM-specific Actions */}
+          {llmType === "LLM" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1"
+              onClick={onImprovePrompt}
+            >
+              <Wand2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Improve Prompt</span>
+            </Button>
+          )}
+
+          {/* More Options Menu */}
           <Popover open={menuOpen} onOpenChange={setMenuOpen}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <Menu className="h-4 w-4 text-gray-600" />
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                <Menu className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-1" align="end">
               <div className="space-y-0.5">
-                {/* Add Move Up/Down buttons before other actions */}
+                {/* Move operation actions */}
                 {!isFirst && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                    className="w-full justify-start"
                     onClick={onMoveUp}
                   >
                     <MoveUp className="mr-2 h-4 w-4" />
@@ -285,7 +311,7 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                    className="w-full justify-start"
                     onClick={onMoveDown}
                   >
                     <MoveDown className="mr-2 h-4 w-4" />
@@ -296,25 +322,13 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                   <div className="h-px bg-gray-100 my-1" />
                 )}
 
-                {/* Core Operation Actions */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                  onClick={onShowOutput}
-                  disabled={disabled}
-                >
-                  <ListCollapse className="mr-2 h-4 w-4" />
-                  Show Outputs
-                </Button>
-
-                {/* LLM-specific Actions */}
+                {/* LLM-specific menu items */}
                 {llmType === "LLM" && (
                   <>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                      className="w-full justify-start"
                       onClick={onToggleGuardrails}
                     >
                       <Shield className="mr-2 h-4 w-4" />
@@ -329,7 +343,7 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                        className="w-full justify-start"
                         onClick={onToggleGleanings}
                       >
                         <Shield className="mr-2 h-4 w-4" />
@@ -338,26 +352,16 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                           : "Show Gleaning"}
                       </Button>
                     )}
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                      onClick={onImprovePrompt}
-                    >
-                      <Wand2 className="mr-2 h-4 w-4" />
-                      Improve Prompt
-                    </Button>
+                    <div className="h-px bg-gray-100 my-1" />
                   </>
                 )}
 
-                {/* Operation-specific Actions */}
-
+                {/* Optimization in menu for supported types */}
                 {canBeOptimized(type) && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                    className="w-full justify-start"
                     onClick={onOptimize}
                     disabled={disabled}
                   >
@@ -366,23 +370,22 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                   </Button>
                 )}
 
+                {/* Settings */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                  className="w-full justify-start"
                   onClick={onToggleSettings}
                 >
                   <Settings className="mr-2 h-4 w-4" />
-                  Edit Other Args
+                  Other Arguments
                 </Button>
-
-                <div className="h-px bg-gray-100 my-1" />
 
                 {/* Visibility Toggle */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
+                  className="w-full justify-start"
                   onClick={onToggleVisibility}
                 >
                   {visibility ? (
@@ -398,11 +401,13 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                   )}
                 </Button>
 
+                <div className="h-px bg-gray-100 my-1" />
+
                 {/* Delete Operation */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-sm font-normal text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  className="w-full justify-start text-destructive hover:bg-destructive hover:text-destructive-foreground"
                   onClick={onDelete}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -411,21 +416,21 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
               </div>
             </PopoverContent>
           </Popover>
-        </div>
 
-        {/* Expand/Collapse Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-2 h-8 w-8 p-0 hover:bg-gray-100 rounded-full"
-          onClick={onToggleExpand}
-        >
-          <ChevronDown
-            className={`h-4 w-4 text-gray-600 transform transition-transform ${
-              expanded ? "rotate-180" : ""
-            }`}
-          />
-        </Button>
+          {/* Expand/Collapse Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 hover:bg-gray-100 rounded-full"
+            onClick={onToggleExpand}
+          >
+            <ChevronDown
+              className={`h-4 w-4 text-gray-600 transform transition-transform ${
+                expanded ? "rotate-180" : ""
+              }`}
+            />
+          </Button>
+        </div>
       </div>
     );
   }
@@ -1147,10 +1152,10 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
   return (
     <div
       id={id}
-      className={`mb-2 relative rounded-sm shadow-sm w-full pl-6 ${
+      className={`mb-2 relative rounded-md border shadow-[0_1px_3px_0_rgb(0,0,0,0.05)] w-full pl-6 hover:shadow-md transition-shadow ${
         pipelineOutput?.operationId === operation.id
           ? "bg-white border-primary border-2"
-          : "bg-white"
+          : "bg-white border-border/40"
       } ${!operation.visibility ? "opacity-50" : ""}`}
     >
       <OperationHeader
@@ -1318,7 +1323,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
 };
 
 const SkeletonCard: React.FC = () => (
-  <Card className="mb-2 relative rounded-sm bg-white shadow-sm w-full">
+  <Card className="mb-2 relative rounded-md border border-border/40 shadow-[0_1px_3px_0_rgb(0,0,0,0.05)] w-full hover:shadow-md transition-shadow">
     <CardHeader className="flex justify-between items-center py-2 px-3">
       <Skeleton className="h-3 w-1/3" />
       <Skeleton className="h-3 w-1/4" />

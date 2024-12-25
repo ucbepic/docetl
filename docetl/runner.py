@@ -299,8 +299,9 @@ class DSLRunner(ConfigWrapper):
 
                 with open(output_config["path"], "w", newline="") as file:
                     writer = csv.DictWriter(file, fieldnames=data[0].keys())
+                    limited_data = [{k: d.get(k, None) for k in data[0].keys()} for d in data]
                     writer.writeheader()
-                    writer.writerows(data)
+                    writer.writerows(limited_data)
             self.console.print(
                 f"[green italic]💾 Output saved to {output_config['path']}[/green italic]"
             )

@@ -2,7 +2,14 @@
 
 import dynamic from "next/dynamic";
 import React, { useEffect, useState, useRef, Suspense } from "react";
-import { Scroll, Info, Save, Monitor, AlertCircle } from "lucide-react";
+import {
+  Scroll,
+  Info,
+  Save,
+  Monitor,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
@@ -205,10 +212,22 @@ const MobileWarning: React.FC = () => (
     </div>
   </div>
 );
-
 const LoadingScreen: React.FC = () => (
-  <div className="h-screen flex items-center justify-center bg-background">
-    <div className="text-primary">Loading...</div>
+  <div className="h-screen flex flex-col items-center justify-center gap-6 bg-background">
+    <div className="relative">
+      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+    </div>
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex items-center gap-2">
+        <Scroll className="h-6 w-6 text-primary" />
+        <h2 className="text-2xl font-bold text-primary tracking-tight">
+          DocETL
+        </h2>
+      </div>
+      <div className="text-muted-foreground text-lg">
+        <span className="inline-block animate-pulse">Loading...</span>
+      </div>
+    </div>
   </div>
 );
 

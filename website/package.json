@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@agbishop/react-ansi-18": "^4.0.6",
+    "@ai-sdk/azure": "^1.0.13",
     "@ai-sdk/openai": "^0.0.70",
     "@cyntler/react-doc-viewer": "^1.17.0",
     "@hookform/resolvers": "^3.9.0",
@@ -36,6 +37,7 @@
     "@radix-ui/react-tabs": "^1.1.0",
     "@radix-ui/react-toast": "^1.2.1",
     "@radix-ui/react-tooltip": "^1.1.2",
+    "@supabase/supabase-js": "^2.47.10",
     "@tanstack/react-query": "^5.59.15",
     "@tanstack/react-table": "^8.20.5",
     "@tanstack/react-virtual": "^3.10.9",

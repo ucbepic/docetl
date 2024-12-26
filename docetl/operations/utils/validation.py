@@ -103,6 +103,10 @@ def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
         if "gemini" not in model:
             result["additionalProperties"] = False
         return result
+    elif value.startswith("enum[") and value.endswith("]"):
+        enum_values = value[5:-1].strip().split(",")
+        enum_values = [v.strip() for v in enum_values]
+        return {"type": "string", "enum": enum_values}
     else:
         raise ValueError(f"Unsupported value type: {value}")
 

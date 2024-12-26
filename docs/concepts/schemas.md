@@ -22,6 +22,7 @@ Schemas are defined in the `output` section of an operator. They support various
 | `integer` | `int`                    | For whole numbers                                            |
 | `number`  | `float`, `decimal`       | For decimal numbers                                          |
 | `boolean` | `bool`                   | For true/false values                                        |
+| `enum`    | -                        | For a set of possible values                                |
 | `list`    | -                        | For arrays or sequences of items (must specify element type) |
 | Objects   | -                        | Using notation `{field: type}`                               |
 
@@ -71,6 +72,24 @@ Objects are defined using curly braces and must have typed fields:
     ```
 
     Make sure that you put the type in quotation marks, if it references an object type (i.e., has curly braces)! Otherwise the yaml won't compile!
+
+## Enum Types
+
+You can also specify enum types, which will be validated against a set of possible values. Suppose we have an operation to extract sentiments from a document, and we want to ensure that the sentiment is one of the three possible values. Our schema would look like this:
+
+```yaml
+output:
+  schema:
+    sentiment: "enum[positive, negative, neutral]"
+```
+
+You can also specify a list of enum types (say, if we wanted to extract _multiple_ sentiments from a document):
+
+```yaml
+output:
+  schema:
+    possible_sentiments: "list[enum[positive, negative, neutral]]"
+```
 
 ## Structured Outputs and Tool API
 

@@ -218,6 +218,44 @@ def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wra
         any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
 
+def test_map_with_enum_output(simple_map_config, map_sample_data, api_wrapper):
+    map_config_with_enum_output = {
+        **simple_map_config,
+        "output": {"schema": {"sentiment": "enum[positive, negative, neutral]"}},
+        "bypass_cache": True,
+    }
+
+    operation = MapOperation(api_wrapper, map_config_with_enum_output, "gpt-4o-mini", 4)
+    results, cost = operation.execute(map_sample_data)
+
+    assert len(results) == len(map_sample_data)
+    assert all("sentiment" in result for result in results)
+    assert all(result["sentiment"] in ["positive", "negative", "neutral"] for result in results)
+
+    # # Try gemini model
+    # map_config_with_enum_output["model"] = "gemini/gemini-1.5-flash"
+    # operation = MapOperation(api_wrapper, map_config_with_enum_output, "gemini/gemini-1.5-flash", 4)
+    # results, cost = operation.execute(map_sample_data)
+
+    # assert len(results) == len(map_sample_data)
+    # assert all("sentiment" in result for result in results)
+    # assert all(result["sentiment"] in ["positive", "negative", "neutral"] for result in results)
+    # assert cost > 0
+
+    # Try list of enum types
+    map_config_with_enum_output["output"] = {"schema": {"possible_sentiments": "list[enum[positive, negative, neutral]]"}}
+    operation = MapOperation(api_wrapper, map_config_with_enum_output, "gpt-4o-mini", 4)
+    results, cost = operation.execute(map_sample_data)
+    assert cost > 0
+
+    assert len(results) == len(map_sample_data)
+    assert all("possible_sentiments" in result for result in results)
+    for result in results:
+        for ps in result["possible_sentiments"]:
+            assert ps in ["positive", "negative", "neutral"]
+
+    
+
 def test_map_operation_with_batch_processing(simple_map_config, map_sample_data, api_wrapper):
     # Add batch processing configuration
     map_config_with_batch = {

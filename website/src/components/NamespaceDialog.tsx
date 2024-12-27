@@ -15,6 +15,59 @@ import { FolderKanban } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
+const adjectives = [
+  "swift",
+  "bright",
+  "clever",
+  "gentle",
+  "happy",
+  "noble",
+  "brave",
+  "calm",
+  "wise",
+  "kind",
+  "quick",
+  "silent",
+  "cosmic",
+  "azure",
+  "golden",
+  "silver",
+  "crystal",
+  "autumn",
+  "spring",
+  "winter",
+];
+
+const nouns = [
+  "fox",
+  "eagle",
+  "wolf",
+  "bear",
+  "hawk",
+  "lion",
+  "tiger",
+  "deer",
+  "owl",
+  "dove",
+  "raven",
+  "phoenix",
+  "dragon",
+  "falcon",
+  "panda",
+  "koala",
+  "lynx",
+  "shark",
+  "whale",
+  "dolphin",
+];
+
+function generateRandomNamespace(): string {
+  const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const randomStr = Math.random().toString(36).substring(2, 10);
+  return `${adjective}-${noun}-${randomStr}`;
+}
+
 interface NamespaceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,7 +87,7 @@ export function NamespaceDialog({
   const [shake, setShake] = useState(false);
 
   useEffect(() => {
-    setNamespace(currentNamespace || "");
+    setNamespace(currentNamespace || generateRandomNamespace());
   }, [currentNamespace]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,7 +184,7 @@ export function NamespaceDialog({
             </Label>
             <Input
               id="namespace"
-              placeholder="Enter namespace (e.g., johndoe)"
+              placeholder="e.g., swift-fox-1234"
               value={namespace}
               onChange={(e) => {
                 setNamespace(e.target.value);
@@ -149,13 +202,12 @@ export function NamespaceDialog({
             {showWarning && (
               <div className="text-sm text-orange-700 dark:text-orange-200 bg-orange-100 dark:bg-orange-950 border border-orange-300 dark:border-orange-800 rounded-md p-2 font-medium">
                 Warning: This namespace already exists. Setting this namespace
-                may overwrite another user's existing caches, but feel free to
-                ignore this message if this is your namespace.
+                may overwrite another user&apos;s existing caches, but feel free
+                to ignore this message if this is your namespace.
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Use your username like &quot;johndoe&quot; or
-              &quot;jsmith123&quot;
+              Use your username or keep the randomly generated namespace
             </p>
           </div>
         </div>

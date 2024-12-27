@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useRef,
   useState,
+  useMemo,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Draggable } from "react-beautiful-dnd";
 import {
-  GripVertical,
   Trash2,
   Zap,
   Settings,
@@ -29,7 +28,9 @@ import {
   EyeOff,
   Menu,
   Shield,
-  Sparkles,
+  Pencil,
+  MoveUp,
+  MoveDown,
 } from "lucide-react";
 import { Operation, SchemaItem } from "@/app/types";
 import { usePipelineContext } from "@/contexts/PipelineContext";
@@ -45,13 +46,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { AIEditPopover } from "@/components/AIEditPopover";
 import { canBeOptimized } from "@/lib/utils";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
 import {
   Tooltip,
   TooltipContent,
@@ -59,6 +54,22 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import { PromptImprovementDialog } from "@/components/PromptImprovementDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { OperationHelpButton } from "./OperationHelpButton";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 // Separate components
 interface OperationHeaderProps {
@@ -83,6 +94,12 @@ interface OperationHeaderProps {
   onImprovePrompt: () => void;
   onToggleGuardrails: () => void;
   onToggleGleanings: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
+  model?: string;
+  onModelChange?: (newModel: string) => void;
 }
 
 const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
@@ -107,17 +124,31 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
     onImprovePrompt,
     onToggleGuardrails,
     onToggleGleanings,
+    onMoveUp,
+    onMoveDown,
+    isFirst,
+    isLast,
+    model,
+    onModelChange,
   }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(name);
+    const [isEditingModel, setIsEditingModel] = useState(false);
+    const [editedModel, setEditedModel] = useState(model);
 
     return (
-      <div className="relative flex items-center py-2 px-4 border-b border-gray-100">
-        {/* Operation Type Badge and Optimization Status (The "Noun") */}
-        <div className="flex-1 flex items-center gap-3">
+      <div className="relative flex items-center py-3 px-4 border-b border-border/30 bg-muted/5">
+        {/* Left side - Operation info */}
+        <div className="flex-1 flex items-center gap-2">
           <div className="flex items-center gap-2">
             <Badge variant={currOp ? "default" : "secondary"}>{type}</Badge>
+
+            {/* Add help button for LLM operations */}
+            {llmType === "LLM" &&
+              (type === "map" || type === "reduce" || type === "filter") && (
+                <OperationHelpButton type={type} />
+              )}
 
             {canBeOptimized(type) && optimizeResult !== undefined && (
               <HoverCard openDelay={200}>
@@ -151,6 +182,42 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                 </HoverCardContent>
               </HoverCard>
             )}
+
+            {llmType === "LLM" && (
+              <div className="flex items-center">
+                {isEditingModel ? (
+                  <Input
+                    value={editedModel}
+                    onChange={(e) => setEditedModel(e.target.value)}
+                    onBlur={() => {
+                      setIsEditingModel(false);
+                      onModelChange?.(editedModel || "");
+                    }}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        setIsEditingModel(false);
+                        onModelChange?.(editedModel || "");
+                      }
+                    }}
+                    className="max-w-[150px] h-6 text-xs font-mono"
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className="flex items-center gap-1 group cursor-pointer"
+                    onClick={() => setIsEditingModel(true)}
+                  >
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {model}
+                    </span>
+                    <Pencil
+                      size={11}
+                      className="opacity-0 group-hover:opacity-70 transition-opacity text-muted-foreground"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {isEditing ? (
@@ -167,159 +234,203 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
                   onEdit(editedName);
                 }
               }}
-              className="max-w-[200px] h-7 text-sm font-medium"
+              className="max-w-[200px] h-6 text-sm font-medium"
               autoFocus
             />
           ) : (
-            <span
-              className={`text-sm font-medium cursor-default select-none ${
-                llmType === "LLM"
-                  ? "bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text"
-                  : ""
-              }`}
+            <div
+              className="flex items-center gap-1.5 group cursor-pointer"
               onClick={() => setIsEditing(true)}
             >
-              {name}
-            </span>
+              <span
+                className={`text-sm font-medium select-none ${
+                  llmType === "LLM"
+                    ? "bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text"
+                    : ""
+                }`}
+              >
+                {name}
+              </span>
+              <Pencil
+                size={13}
+                className="opacity-0 group-hover:opacity-70 transition-opacity text-muted-foreground"
+              />
+            </div>
           )}
         </div>
 
-        {/* Action Menu (The "Verb") */}
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <Menu className="h-4 w-4 text-gray-600" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-1" align="end">
-            <div className="space-y-0.5">
-              {/* Core Operation Actions */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                onClick={onShowOutput}
-                disabled={disabled}
-              >
-                <ListCollapse className="mr-2 h-4 w-4" />
-                Show Outputs
-              </Button>
+        {/* Action Bar - Keep only the most essential actions */}
+        <div className="flex items-center gap-2 mr-2">
+          {/* Show Outputs Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1"
+            onClick={onShowOutput}
+            disabled={disabled}
+          >
+            <ListCollapse className="h-4 w-4" />
+            <span className="hidden sm:inline">Show Outputs</span>
+          </Button>
 
-              {/* LLM-specific Actions */}
-              {llmType === "LLM" && (
-                <>
+          {/* LLM-specific Actions */}
+          {llmType === "LLM" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1"
+              onClick={onImprovePrompt}
+            >
+              <Wand2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Improve Prompt</span>
+            </Button>
+          )}
+
+          {/* More Options Menu */}
+          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                <Menu className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" align="end">
+              <div className="space-y-0.5">
+                {/* Move operation actions */}
+                {!isFirst && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                    onClick={onToggleGuardrails}
+                    className="w-full justify-start"
+                    onClick={onMoveUp}
                   >
-                    <Shield className="mr-2 h-4 w-4" />
-                    {isGuardrailsExpanded
-                      ? "Hide Guardrails"
-                      : "Show Guardrails"}
+                    <MoveUp className="mr-2 h-4 w-4" />
+                    Move Up
                   </Button>
+                )}
+                {!isLast && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={onMoveDown}
+                  >
+                    <MoveDown className="mr-2 h-4 w-4" />
+                    Move Down
+                  </Button>
+                )}
+                {(!isFirst || !isLast) && (
+                  <div className="h-px bg-gray-100 my-1" />
+                )}
 
-                  {(type === "map" ||
-                    type === "reduce" ||
-                    type === "filter") && (
+                {/* LLM-specific menu items */}
+                {llmType === "LLM" && (
+                  <>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                      onClick={onToggleGleanings}
+                      className="w-full justify-start"
+                      onClick={onToggleGuardrails}
                     >
                       <Shield className="mr-2 h-4 w-4" />
-                      {isGleaningsExpanded ? "Hide Gleaning" : "Show Gleaning"}
+                      {isGuardrailsExpanded
+                        ? "Hide Guardrails"
+                        : "Show Guardrails"}
                     </Button>
-                  )}
 
+                    {(type === "map" ||
+                      type === "reduce" ||
+                      type === "filter") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={onToggleGleanings}
+                      >
+                        <Shield className="mr-2 h-4 w-4" />
+                        {isGleaningsExpanded
+                          ? "Hide Gleaning"
+                          : "Show Gleaning"}
+                      </Button>
+                    )}
+                    <div className="h-px bg-gray-100 my-1" />
+                  </>
+                )}
+
+                {/* Optimization in menu for supported types */}
+                {canBeOptimized(type) && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                    onClick={onImprovePrompt}
+                    className="w-full justify-start"
+                    onClick={onOptimize}
+                    disabled={disabled}
                   >
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    Improve Prompt
+                    <Zap className="mr-2 h-4 w-4" />
+                    Optimize Operation
                   </Button>
-                </>
-              )}
+                )}
 
-              {/* Operation-specific Actions */}
-
-              {canBeOptimized(type) && (
+                {/* Settings */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                  onClick={onOptimize}
-                  disabled={disabled}
+                  className="w-full justify-start"
+                  onClick={onToggleSettings}
                 >
-                  <Zap className="mr-2 h-4 w-4" />
-                  Optimize Operation
+                  <Settings className="mr-2 h-4 w-4" />
+                  Other Arguments
                 </Button>
-              )}
 
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                onClick={onToggleSettings}
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Edit Other Args
-              </Button>
+                {/* Visibility Toggle */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={onToggleVisibility}
+                >
+                  {visibility ? (
+                    <>
+                      <EyeOff className="mr-2 h-4 w-4" />
+                      Skip Operation
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="mr-2 h-4 w-4" />
+                      Include Operation
+                    </>
+                  )}
+                </Button>
 
-              <div className="h-px bg-gray-100 my-1" />
+                <div className="h-px bg-gray-100 my-1" />
 
-              {/* Visibility Toggle */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm font-normal hover:bg-accent hover:text-accent-foreground"
-                onClick={onToggleVisibility}
-              >
-                {visibility ? (
-                  <>
-                    <EyeOff className="mr-2 h-4 w-4" />
-                    Skip Operation
-                  </>
-                ) : (
-                  <>
-                    <Eye className="mr-2 h-4 w-4" />
-                    Include Operation
-                  </>
-                )}
-              </Button>
+                {/* Delete Operation */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
 
-              {/* Delete Operation */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm font-normal text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                onClick={onDelete}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        {/* Expand/Collapse Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-2 h-8 w-8 p-0 hover:bg-gray-100 rounded-full"
-          onClick={onToggleExpand}
-        >
-          <ChevronDown
-            className={`h-4 w-4 text-gray-600 transform transition-transform ${
-              expanded ? "rotate-180" : ""
-            }`}
-          />
-        </Button>
+          {/* Expand/Collapse Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 hover:bg-gray-100 rounded-full"
+            onClick={onToggleExpand}
+          >
+            <ChevronDown
+              className={`h-4 w-4 text-gray-600 transform transition-transform ${
+                expanded ? "rotate-180" : ""
+              }`}
+            />
+          </Button>
+        </div>
       </div>
     );
   }
@@ -610,6 +721,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     optimizerModel,
     setTerminalOutput,
     namespace,
+    apiKeys,
   } = usePipelineContext();
   const { toast } = useToast();
 
@@ -742,7 +854,19 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     debouncedUpdate();
   };
 
+  const hasOpenAIKey = useMemo(() => {
+    return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
+  }, [apiKeys]);
+
+  const [showOptimizeDialog, setShowOptimizeDialog] = useState(false);
+  const [isLocalMode, setIsLocalMode] = useState(false);
+
   const onOptimize = useCallback(async () => {
+    if (!operation) return;
+    setShowOptimizeDialog(true);
+  }, [operation]);
+
+  const handleOptimizeConfirm = useCallback(async () => {
     if (!operation) return;
 
     try {
@@ -792,8 +916,20 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
       });
       // Close the WebSocket connection
       disconnect();
+    } finally {
+      setShowOptimizeDialog(false);
     }
-  }, [operation]);
+  }, [
+    operation,
+    defaultModel,
+    currentFile,
+    operations,
+    pipelineName,
+    sampleSize,
+    optimizerModel,
+    connect,
+    sendMessage,
+  ]);
 
   const onShowOutput = useCallback(async () => {
     if (!operation) return;
@@ -966,123 +1102,228 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     });
   };
 
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleMoveUp = useCallback(() => {
+    if (index > 0) {
+      setOperations((prevOperations) => {
+        const newOperations = [...prevOperations];
+        [newOperations[index - 1], newOperations[index]] = [
+          newOperations[index],
+          newOperations[index - 1],
+        ];
+        return newOperations;
+      });
+    }
+  }, [index, setOperations]);
+
+  const handleMoveDown = useCallback(() => {
+    if (index < operations.length - 1) {
+      setOperations((prevOperations) => {
+        const newOperations = [...prevOperations];
+        [newOperations[index], newOperations[index + 1]] = [
+          newOperations[index + 1],
+          newOperations[index],
+        ];
+        return newOperations;
+      });
+    }
+  }, [index, operations.length, setOperations]);
+
+  const handleModelChange = useCallback(
+    (newModel: string) => {
+      if (!operation) return;
+      const updatedOperation = {
+        ...operation,
+        otherKwargs: {
+          ...operation.otherKwargs,
+          model: newModel,
+        },
+      };
+      handleOperationUpdate(updatedOperation);
+    },
+    [operation, handleOperationUpdate]
+  );
+
   if (!operation) {
     return <SkeletonCard />;
   }
 
   return (
-    <Draggable draggableId={operation.id} index={index} key={operation.id}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          id={id}
-          className={`mb-2 relative rounded-sm shadow-sm w-full ${
-            pipelineOutput?.operationId === operation.id
-              ? "bg-white border-primary border-2"
-              : "bg-white"
-          } ${!operation.visibility ? "opacity-50" : ""}`}
-        >
-          <div
-            {...provided.dragHandleProps}
-            className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-move hover:bg-gray-100 border-r border-gray-100"
-          >
-            <GripVertical size={14} className="text-gray-400" />
-          </div>
+    <div
+      id={id}
+      className={`mb-2 relative rounded-md border shadow-[0_1px_3px_0_rgb(0,0,0,0.05)] w-full pl-6 hover:shadow-md transition-shadow ${
+        pipelineOutput?.operationId === operation.id
+          ? "bg-white border-primary border-2"
+          : "bg-white border-border/40"
+      } ${!operation.visibility ? "opacity-50" : ""}`}
+    >
+      <OperationHeader
+        name={operation.name}
+        type={operation.type}
+        llmType={operation.llmType}
+        disabled={isLoadingOutputs || pipelineOutput === undefined}
+        currOp={operation.id === pipelineOutput?.operationId}
+        expanded={isExpanded}
+        visibility={operation.visibility}
+        optimizeResult={operation.shouldOptimizeResult}
+        isGuardrailsExpanded={isGuardrailsExpanded}
+        isGleaningsExpanded={isGleaningsExpanded}
+        onEdit={(name) => {
+          dispatch({ type: "UPDATE_NAME", payload: name });
+          debouncedUpdate();
+        }}
+        onDelete={() => setShowDeleteDialog(true)}
+        onRunOperation={handleRunOperation}
+        onToggleSettings={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+        onShowOutput={onShowOutput}
+        onOptimize={onOptimize}
+        onToggleExpand={() => dispatch({ type: "TOGGLE_EXPAND" })}
+        onToggleVisibility={handleVisibilityToggle}
+        onImprovePrompt={() => setShowPromptImprovement(true)}
+        onToggleGuardrails={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
+        onToggleGleanings={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
+        onMoveUp={handleMoveUp}
+        onMoveDown={handleMoveDown}
+        isFirst={index === 0}
+        isLast={index === operations.length - 1}
+        model={operation.otherKwargs?.model || defaultModel}
+        onModelChange={handleModelChange}
+      />
+      {isExpanded && operation.visibility !== false && (
+        <>
+          <CardContent className="p-4">
+            {createOperationComponent(
+              operation,
+              handleOperationUpdate,
+              isSchemaExpanded,
+              () => dispatch({ type: "TOGGLE_SCHEMA" })
+            )}
+          </CardContent>
 
-          <div className="ml-6">
-            <OperationHeader
-              name={operation.name}
-              type={operation.type}
-              llmType={operation.llmType}
-              disabled={isLoadingOutputs || pipelineOutput === undefined}
-              currOp={operation.id === pipelineOutput?.operationId}
-              expanded={isExpanded}
-              visibility={operation.visibility}
-              optimizeResult={operation.shouldOptimizeResult}
-              isGuardrailsExpanded={isGuardrailsExpanded}
-              isGleaningsExpanded={isGleaningsExpanded}
-              onEdit={(name) => {
-                dispatch({ type: "UPDATE_NAME", payload: name });
-                debouncedUpdate();
-              }}
-              onDelete={() =>
+          {operation.llmType === "LLM" && isGuardrailsExpanded && (
+            <div className="px-4 pb-4">
+              <Guardrails
+                guardrails={operation.validate || []}
+                onUpdate={handleGuardrailsUpdate}
+                isExpanded={true}
+                onToggle={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
+              />
+            </div>
+          )}
+
+          {(operation.type === "map" ||
+            operation.type === "reduce" ||
+            operation.type === "filter") &&
+            isGleaningsExpanded && (
+              <div className="px-4 pb-4">
+                <GleaningConfig
+                  gleaning={operation.gleaning || null}
+                  onUpdate={handleGleaningsUpdate}
+                  isExpanded={true}
+                  onToggle={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
+                />
+              </div>
+            )}
+        </>
+      )}
+      <SettingsModal
+        opName={operation.name}
+        opType={operation.type}
+        isOpen={isSettingsOpen}
+        onClose={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+        otherKwargs={operation.otherKwargs || {}}
+        onSettingsSave={handleSettingsSave}
+      />
+      {operation.llmType === "LLM" && (
+        <PromptImprovementDialog
+          open={showPromptImprovement}
+          onOpenChange={setShowPromptImprovement}
+          currentOperation={operation}
+          onSave={handlePromptSave}
+        />
+      )}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              operation &quot;{operation.name}&quot; and remove it from the
+              pipeline. If you only want to hide the operation from the next
+              run, you can toggle the visibility of the operation in the
+              operation menu.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
                 setOperations((prev) =>
                   prev.filter((op) => op.id !== operation.id)
-                )
-              }
-              onRunOperation={handleRunOperation}
-              onToggleSettings={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-              onShowOutput={onShowOutput}
-              onOptimize={onOptimize}
-              onToggleExpand={() => dispatch({ type: "TOGGLE_EXPAND" })}
-              onToggleVisibility={handleVisibilityToggle}
-              onImprovePrompt={() => setShowPromptImprovement(true)}
-              onToggleGuardrails={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
-              onToggleGleanings={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
-            />
-            {isExpanded && operation.visibility !== false && (
-              <>
-                <CardContent className="p-4">
-                  {createOperationComponent(
-                    operation,
-                    handleOperationUpdate,
-                    isSchemaExpanded,
-                    () => dispatch({ type: "TOGGLE_SCHEMA" })
-                  )}
-                </CardContent>
-
-                {operation.llmType === "LLM" && isGuardrailsExpanded && (
-                  <div className="px-4 pb-4">
-                    <Guardrails
-                      guardrails={operation.validate || []}
-                      onUpdate={handleGuardrailsUpdate}
-                      isExpanded={true}
-                      onToggle={() => dispatch({ type: "TOGGLE_GUARDRAILS" })}
-                    />
-                  </div>
-                )}
-
-                {(operation.type === "map" ||
-                  operation.type === "reduce" ||
-                  operation.type === "filter") &&
-                  isGleaningsExpanded && (
-                    <div className="px-4 pb-4">
-                      <GleaningConfig
-                        gleaning={operation.gleaning || null}
-                        onUpdate={handleGleaningsUpdate}
-                        isExpanded={true}
-                        onToggle={() => dispatch({ type: "TOGGLE_GLEANINGS" })}
-                      />
-                    </div>
-                  )}
-              </>
-            )}
-            <SettingsModal
-              opName={operation.name}
-              opType={operation.type}
-              isOpen={isSettingsOpen}
-              onClose={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-              otherKwargs={operation.otherKwargs || {}}
-              onSettingsSave={handleSettingsSave}
-            />
-            {operation.llmType === "LLM" && (
-              <PromptImprovementDialog
-                open={showPromptImprovement}
-                onOpenChange={setShowPromptImprovement}
-                currentOperation={operation}
-                onSave={handlePromptSave}
-              />
-            )}
-          </div>
-        </div>
-      )}
-    </Draggable>
+                );
+                setShowDeleteDialog(false);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={showOptimizeDialog}
+        onOpenChange={setShowOptimizeDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Optimize Operation</AlertDialogTitle>
+            <AlertDialogDescription>
+              {!hasOpenAIKey && !isLocalMode ? (
+                <div className="space-y-2">
+                  <p className="text-destructive font-medium">
+                    OpenAI API Key Required
+                  </p>
+                  <p>
+                    To use the optimizer, please add your OpenAI API key in Edit{" "}
+                    {">"}
+                    Edit API Keys.
+                  </p>
+                  <button
+                    className="text-destructive underline hover:opacity-80 font-medium"
+                    onClick={() => setIsLocalMode(true)}
+                  >
+                    Ignore if running locally with environment variables
+                  </button>
+                </div>
+              ) : (
+                <p>
+                  This will analyze the operation and replace it with another
+                  pipeline that has higher accuracy (as determined by an
+                  LLM-as-a-judge), if it can be found. Do you want to proceed?
+                  The process may take between 2 and 10 minutes, depending on
+                  how complex your data is.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleOptimizeConfirm}
+              disabled={!hasOpenAIKey && !isLocalMode}
+            >
+              Proceed
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 };
 
 const SkeletonCard: React.FC = () => (
-  <Card className="mb-2 relative rounded-sm bg-white shadow-sm w-full">
+  <Card className="mb-2 relative rounded-md border border-border/40 shadow-[0_1px_3px_0_rgb(0,0,0,0.05)] w-full hover:shadow-md transition-shadow">
     <CardHeader className="flex justify-between items-center py-2 px-3">
       <Skeleton className="h-3 w-1/3" />
       <Skeleton className="h-3 w-1/4" />

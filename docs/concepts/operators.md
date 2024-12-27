@@ -88,7 +88,7 @@ prompt: |
 
 ## Output Schema
 
-The `output` attribute defines the structure of the LLM's response. It supports various data types:
+The `output` attribute defines the structure of the LLM's response. It supports various data types (see [schemas](../concepts/schemas.md) for more details):
 
 - `string` (or `str`, `text`, `varchar`): For text data
 - `integer` (or `int`): For whole numbers
@@ -96,6 +96,7 @@ The `output` attribute defines the structure of the LLM's response. It supports 
 - `boolean` (or `bool`): For true/false values
 - `list`: For arrays or sequences of items
 - objects: Using notation `{field: type}`
+- `enum`: For a set of possible values
 
 Example:
 

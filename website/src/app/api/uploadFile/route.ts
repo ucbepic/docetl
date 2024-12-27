@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
-import path from "path";
-import { mkdir } from "fs/promises";
-import os from "os";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,23 +9,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    // Convert the file to buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    // Construct FastAPI URL from environment variables
+    const FASTAPI_URL = `${
+      process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+    }://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+      process.env.NEXT_PUBLIC_BACKEND_PORT
+    }`;
+    const apiFormData = new FormData();
+    apiFormData.append("file", file);
+    apiFormData.append("namespace", namespace);
 
-    // Create uploads directory in user's home directory if it doesn't exist
-    const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
-    const uploadDir = path.join(homeDir, ".docetl", namespace, "files");
-    await mkdir(uploadDir, { recursive: true });
+    const response = await fetch(`${FASTAPI_URL}/fs/upload-file`, {
+      method: "POST",
+      body: apiFormData,
+    });
 
-    // Create full file path
-    const filePath = path.join(uploadDir, file.name);
+    if (!response.ok) {
+      throw new Error(`API responded with status ${response.status}`);
+    }
 
-    // Write the file
-    await writeFile(filePath, buffer);
-
-    // Return the absolute path
-    return NextResponse.json({ path: filePath });
+    const data = await response.json();
+    return NextResponse.json({ path: data.path });
   } catch (error) {
     console.error("Error uploading file:", error);
     return NextResponse.json(

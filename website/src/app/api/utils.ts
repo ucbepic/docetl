@@ -1,6 +1,33 @@
 import yaml from "js-yaml";
 import path from "path";
-import { Operation, SchemaItem } from "@/app/types";
+import { Operation, SchemaItem, APIKey } from "@/app/types";
+import * as LZString from "lz-string";
+
+class Encryptor {
+  private key: string;
+
+  constructor(secretKey: string) {
+    this.key = secretKey;
+  }
+
+  encrypt(text: string): string {
+    // First, encode the text using the key
+    let encoded = "";
+    for (let i = 0; i < text.length; i++) {
+      const charCode =
+        text.charCodeAt(i) + this.key.charCodeAt(i % this.key.length);
+      encoded += String.fromCharCode(charCode);
+    }
+
+    // Then compress the encoded text
+    return LZString.compressToBase64(encoded);
+  }
+}
+
+function encrypt(value: string, key: string): string {
+  const encryptor = new Encryptor(key);
+  return encryptor.encrypt(value);
+}
 
 export function getNamespaceDir(homeDir: string, namespace: string) {
   return path.join(homeDir, ".docetl", namespace);
@@ -20,7 +47,10 @@ export function generatePipelineConfig(
   system_prompt: {
     datasetDescription: string | null;
     persona: string | null;
-  } | null = null
+  } | null = null,
+  apiKeys: APIKey[] = [],
+  docetl_encryption_key: string = "",
+  enable_observability: boolean = true
 ) {
   const datasets = {
     input: {
@@ -137,7 +167,7 @@ export function generatePipelineConfig(
 
       return {
         ...newOp,
-        enable_observability: true,
+        ...(enable_observability && { enable_observability }),
         output: {
           schema: op.output.schema.reduce(
             (acc: Record<string, string>, item: SchemaItem) => {
@@ -162,18 +192,21 @@ export function generatePipelineConfig(
     operations.findIndex((op: Operation) => op.id === operation_id) + 1
   );
 
-  const pipelineConfig = {
+  // Fix type errors by asserting the pipeline config type
+  const pipelineConfig: any = {
     datasets,
     default_model,
-    optimizer_config: {
-      force_decompose: true,
-    },
+    ...(enable_observability && {
+      optimizer_config: {
+        force_decompose: true,
+      },
+    }),
     operations: updatedOperations,
     pipeline: {
       steps: [
         {
           name: "data_processing",
-          input: Object.keys(datasets)[0], // Assuming the first dataset is the input
+          input: Object.keys(datasets)[0],
           operations: operationsToRun.map((op) => op.name),
         },
       ],
@@ -199,6 +232,21 @@ export function generatePipelineConfig(
     },
     system_prompt: {},
   };
+
+  if (apiKeys.length > 0) {
+    if (docetl_encryption_key) {
+      pipelineConfig.llm_api_keys = apiKeys.reduce((acc, key) => {
+        // Encrypt the API key value using the encryption key
+        const encryptedValue = encrypt(key.value, docetl_encryption_key);
+        return { ...acc, [key.name]: encryptedValue };
+      }, {});
+    } else {
+      pipelineConfig.llm_api_keys = apiKeys.reduce(
+        (acc, key) => ({ ...acc, [key.name]: key.value }),
+        {}
+      );
+    }
+  }
 
   if (system_prompt) {
     if (system_prompt.datasetDescription) {

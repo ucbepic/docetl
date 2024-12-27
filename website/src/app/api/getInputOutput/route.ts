@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { generatePipelineConfig } from "@/app/api/utils";
-import fs from "fs/promises";
 import os from "os";
+
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
+
 export async function POST(request: Request) {
   try {
     const {
@@ -37,13 +43,33 @@ export async function POST(request: Request) {
       operation_id,
       name,
       homeDir,
-      sample_size
+      sample_size,
+      false,
+      false,
+      { datasetDescription: null, persona: null },
+      [],
+      "",
+      false
     );
 
-    // Check if inputPath exists
-    try {
-      await fs.access(inputPath);
-    } catch (error) {
+    // Check if files exist using FastAPI endpoints
+    const checkInputResponse = await fetch(
+      `${FASTAPI_URL}/fs/check-file?path=${encodeURIComponent(inputPath)}`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!checkInputResponse.ok) {
+      console.error(`Failed to check input path: ${inputPath}`);
+      return NextResponse.json(
+        { error: "Failed to check input path" },
+        { status: 500 }
+      );
+    }
+
+    const inputResult = await checkInputResponse.json();
+    if (!inputResult.exists) {
       console.error(`Input path does not exist: ${inputPath}`);
       return NextResponse.json(
         { error: "Input path does not exist" },
@@ -51,10 +77,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if outputPath exists
-    try {
-      await fs.access(outputPath);
-    } catch (error) {
+    const checkOutputResponse = await fetch(
+      `${FASTAPI_URL}/fs/check-file?path=${encodeURIComponent(outputPath)}`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!checkOutputResponse.ok) {
+      console.error(`Failed to check output path: ${outputPath}`);
+      return NextResponse.json(
+        { error: "Failed to check output path" },
+        { status: 500 }
+      );
+    }
+
+    const outputResult = await checkOutputResponse.json();
+    if (!outputResult.exists) {
       console.error(`Output path does not exist: ${outputPath}`);
       return NextResponse.json(
         { error: "Output path does not exist" },

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
 import { generatePipelineConfig } from "@/app/api/utils";
+import os from "os";
+
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
 
 export async function POST(request: Request) {
   try {
@@ -17,6 +21,7 @@ export async function POST(request: Request) {
       clear_intermediate = false,
       system_prompt,
       namespace,
+      apiKeys,
     } = await request.json();
 
     if (!name) {
@@ -34,6 +39,7 @@ export async function POST(request: Request) {
     }
 
     const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
+    const docetl_encryption_key = process.env.DOCETL_ENCRYPTION_KEY || "";
 
     const { yamlString, inputPath, outputPath } = generatePipelineConfig(
       namespace,
@@ -46,28 +52,38 @@ export async function POST(request: Request) {
       sample_size,
       optimize,
       clear_intermediate,
-      system_prompt
+      system_prompt,
+      apiKeys,
+      docetl_encryption_key,
+      true
     );
 
-    // Save the YAML file in the user's home directory
-    const pipelineDir = path.join(homeDir, ".docetl", namespace, "pipelines");
-    const configDir = path.join(pipelineDir, "configs");
-    const nameDir = path.join(pipelineDir, name, "intermediates");
+    // Use the FastAPI endpoint to write the pipeline config
+    const response = await fetch(`${FASTAPI_URL}/fs/write-pipeline-config`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        namespace,
+        name,
+        config: yamlString,
+        input_path: inputPath,
+        output_path: outputPath,
+      }),
+    });
 
-    try {
-      await fs.mkdir(configDir, { recursive: true });
-      await fs.mkdir(nameDir, { recursive: true });
-      const filePath = path.join(configDir, `${name}.yaml`);
-      await fs.writeFile(filePath, yamlString, "utf8");
-
-      return NextResponse.json({ filePath, inputPath, outputPath });
-    } catch (fsError) {
-      console.error("File system error:", fsError);
-      return NextResponse.json(
-        `Failed to write pipeline configuration: ${fsError.message}`,
-        { status: 500 }
-      );
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to write pipeline configuration: ${error}`);
     }
+
+    const result = await response.json();
+    return NextResponse.json({
+      filePath: result.filePath,
+      inputPath: result.inputPath,
+      outputPath: result.outputPath,
+    });
   } catch (error) {
     console.error("Pipeline configuration error:", error);
     return NextResponse.json(

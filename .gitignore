@@ -15,6 +15,7 @@ workloads/*
 *pytest_cache*
 *ruff_cache*
 motion-old*
+venv/
 
 # dependencies
 website/node_modules

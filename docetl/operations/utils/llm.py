@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, List, Optional
 import tiktoken
 from jinja2 import Template
-from litellm import completion, RateLimitError
+from litellm import model_cost
 from pydantic import BaseModel
 from rich import print as rprint
 
@@ -69,7 +69,9 @@ def truncate_messages(
     from_agent: bool = False
 ) -> List[Dict[str, str]]:
     """Truncate messages to fit within model's context length."""
-    model_input_context_length = 8192  # Default
+    model_input_context_length = model_cost.get(model.split("/")[-1], {}).get(
+        "max_input_tokens", 8192
+    )
     total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
 
     if total_tokens <= model_input_context_length - 100:

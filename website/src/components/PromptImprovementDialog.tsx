@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "react";
 import { useChat } from "ai/react";
 import { Operation } from "@/app/types";
 import { Button } from "@/components/ui/button";
@@ -17,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { usePipelineContext } from "@/contexts/PipelineContext";
 import { useBookmarkContext } from "@/contexts/BookmarkContext";
@@ -38,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "@/hooks/use-toast";
 
 type Step = "select" | "analyze";
 
@@ -426,7 +433,7 @@ export function PromptImprovementDialog({
   currentOperation,
   onSave,
 }: PromptImprovementDialogProps) {
-  const { operations, serializeState } = usePipelineContext();
+  const { operations, serializeState, apiKeys } = usePipelineContext();
   const { bookmarks, removeBookmark } = useBookmarkContext();
   const [step, setStep] = useState<Step>("select");
   const [selectedOperationId, setSelectedOperationId] = useState<string>(
@@ -445,6 +452,7 @@ export function PromptImprovementDialog({
   const [chatKey, setChatKey] = useState(0);
   const [localFeedbackText, setLocalFeedbackText] = useState("");
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [isLocalMode, setIsLocalMode] = useState(false);
 
   const selectedOperation = operations.find(
     (op) => op.id === selectedOperationId
@@ -461,10 +469,20 @@ export function PromptImprovementDialog({
   const { messages, isLoading, append, setMessages } = useChat({
     api: "/api/chat",
     id: `prompt-improvement-${chatKey}`,
+    headers: useMemo(() => {
+      const openAiKey = apiKeys.find(
+        (key) => key.name === "OPENAI_API_KEY"
+      )?.value;
+      return openAiKey ? { "x-openai-key": openAiKey } : {};
+    }, [apiKeys]),
     onFinish: () => {
       // Optional: handle completion
     },
   });
+
+  const hasOpenAIKey = useMemo(() => {
+    return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
+  }, [apiKeys]);
 
   // Update the effect that handles new messages
   useEffect(() => {
@@ -571,7 +589,16 @@ export function PromptImprovementDialog({
   }, [selectedRevisionIndex, revisions]);
 
   const handleImprove = useCallback(async () => {
-    setExpectingNewRevision(true); // Set flag before getting first response
+    if (!hasOpenAIKey && !isLocalMode) {
+      toast({
+        title: "OpenAI API Key Required",
+        description: "Please add your OpenAI API key in Edit > Edit API Keys",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setExpectingNewRevision(true);
     setEditedPrompt(null);
     setStep("analyze");
     setRevisions([]);
@@ -628,6 +655,8 @@ export function PromptImprovementDialog({
     append,
     setMessages,
     relevantBookmarks,
+    hasOpenAIKey,
+    isLocalMode,
   ]);
 
   const handleBack = () => {
@@ -800,6 +829,27 @@ Remember to ${
           <ScrollArea className="flex-1 w-full h-[calc(80vh-8rem)] overflow-y-auto">
             {step === "select" ? (
               <div className="flex flex-col gap-4 pr-4 pb-4">
+                {!hasOpenAIKey && !isLocalMode && (
+                  <div className="bg-destructive/10 text-destructive rounded-md p-3 mb-2 text-xs">
+                    <div className="flex gap-2">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">OpenAI API Key Required</p>
+                        <p className="mt-1">
+                          To use the AI assistant, please add your OpenAI API
+                          key in Edit {">"} Edit API Keys.
+                        </p>
+                        <button
+                          className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
+                          onClick={() => setIsLocalMode(true)}
+                        >
+                          Ignore if running locally with environment variables
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <Select
                   value={selectedOperationId}
                   onValueChange={setSelectedOperationId}
@@ -874,7 +924,11 @@ Remember to ${
 
                 <Button
                   onClick={handleImprove}
-                  disabled={isLoading || !selectedOperation}
+                  disabled={
+                    isLoading ||
+                    !selectedOperation ||
+                    (!hasOpenAIKey && !isLocalMode)
+                  }
                   className="mt-4"
                 >
                   Continue to Analysis

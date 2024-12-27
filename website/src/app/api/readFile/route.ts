@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs/promises";
-import axios from "axios";
+
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
 
 export async function GET(req: NextRequest) {
   const filePath = req.nextUrl.searchParams.get("path");
@@ -10,14 +14,20 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    let fileContent;
-    if (filePath.startsWith("http")) {
-      const response = await axios.get(filePath);
-      fileContent = response.data;
-    } else {
-      fileContent = await fs.readFile(filePath, "utf-8");
+    const response = await fetch(
+      `${FASTAPI_URL}/fs/read-file?path=${encodeURIComponent(filePath)}`
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      return NextResponse.json(
+        { error: error.detail || "Failed to read file" },
+        { status: response.status }
+      );
     }
-    return new NextResponse(fileContent, { status: 200 });
+
+    const content = await response.text();
+    return new NextResponse(content, { status: 200 });
   } catch (error) {
     console.error("Error reading file:", error);
     return NextResponse.json({ error: "Failed to read file" }, { status: 500 });

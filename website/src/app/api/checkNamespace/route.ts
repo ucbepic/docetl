@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import { getNamespaceDir } from "@/app/api/utils";
-import os from "os";
+
+const FASTAPI_URL = `${
+  process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
+}://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
+  process.env.NEXT_PUBLIC_BACKEND_PORT
+}`;
 
 export async function POST(request: Request) {
   try {
     const { namespace } = await request.json();
-    const homeDir = process.env.DOCETL_HOME_DIR || os.homedir();
 
     if (!namespace) {
       return NextResponse.json(
@@ -15,18 +17,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const namespaceDir = getNamespaceDir(homeDir, namespace);
-    const exists = fs.existsSync(namespaceDir);
+    console.log(FASTAPI_URL);
+    const response = await fetch(
+      `${FASTAPI_URL}/fs/check-namespace?namespace=${namespace}`,
+      {
+        method: "POST",
+      }
+    );
 
-    if (!exists) {
-      fs.mkdirSync(namespaceDir, { recursive: true });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to check namespace");
     }
 
-    return NextResponse.json({ exists });
+    const data = await response.json();
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Error checking/creating namespace:", error);
+    console.error("Error checking namespace:", error);
     return NextResponse.json(
-      { error: "Failed to check/create namespace" },
+      { error: "Failed to check namespace" },
       { status: 500 }
     );
   }

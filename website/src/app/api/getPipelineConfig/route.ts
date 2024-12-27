@@ -39,7 +39,12 @@ export async function POST(request: Request) {
       name,
       homeDir,
       sample_size,
-      system_prompt
+      false,
+      false,
+      system_prompt,
+      [],
+      "",
+      false
     );
 
     return NextResponse.json({ pipelineConfig: yamlString });

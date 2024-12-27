@@ -116,3 +116,105 @@
 .animate-shake {
   animation: shake 0.3s ease-in-out;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slide-in {
+  opacity: 0;
+  animation: slideIn 0.5s ease-out forwards;
+}
+
+/* Replace the news ticker styles with these */
+.news-ticker {
+  position: relative;
+  width: 100%;
+  height: 2rem;
+  overflow: hidden;
+}
+
+.news-ticker-content {
+  position: absolute;
+  white-space: nowrap;
+  will-change: transform;
+  display: flex;
+  animation: tickerHorizontal 35s linear infinite;
+}
+
+.news-ticker-content:hover {
+  animation-play-state: paused;
+}
+
+.ticker-space {
+  display: inline-block;
+  width: 4rem;
+}
+
+.ticker-item {
+  flex-shrink: 0;
+  padding: 0 2rem;
+  font-size: 0.875rem;
+  color: rgb(var(--foreground));
+}
+
+@keyframes tickerHorizontal {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.news-ticker:hover {
+  cursor: pointer;
+}
+
+/* Add these styles */
+[data-panel] {
+  transition: none; /* Remove transition during resize */
+}
+
+[data-panel-group] {
+  transition: width 50ms ease, height 50ms ease;
+}
+
+/* Replace the resize handle styles with these cleaner versions */
+[data-resize-handle] {
+  position: relative;
+}
+
+[data-resize-handle][data-dragging="true"] {
+  background-color: rgb(96 165 250); /* blue-400 */
+}
+
+[data-dragging="true"] {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Remove the previous ::before pseudo-element styles */
+[data-dragging="true"]::before {
+  display: none;
+}

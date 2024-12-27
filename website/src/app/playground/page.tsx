@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useEffect, useState } from "react";
-import { Scroll, Info, Save } from "lucide-react";
+import React, { useEffect, useState, useRef, Suspense } from "react";
+import { Scroll, Info, Save, Monitor, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
@@ -30,6 +30,11 @@ const DatasetView = dynamic(
   () => import("@/components/DatasetView").then((mod) => mod.default),
   {
     ssr: false,
+    loading: () => (
+      <div className="h-full flex items-center justify-center">
+        <div className="animate-spin h-6 w-6 border-2 border-primary border-r-transparent rounded-full" />
+      </div>
+    ),
   }
 );
 const PipelineGUI = dynamic(
@@ -98,6 +103,8 @@ const NamespaceDialog = dynamic(
   }
 );
 import { ThemeProvider, useTheme, Theme } from "@/contexts/ThemeContext";
+import { APIKeysDialog } from "@/components/APIKeysDialog";
+import { TutorialsDialog, TUTORIALS } from "@/components/TutorialsDialog";
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg
@@ -165,18 +172,97 @@ const RightPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   </svg>
 );
 
+const MobileWarning: React.FC = () => (
+  <div className="h-screen flex items-center justify-center p-4 bg-background">
+    <div className="max-w-md text-center p-8 bg-card rounded-[var(--radius)] shadow-lg border border-border">
+      <div className="flex justify-center mb-6">
+        <div className="relative">
+          <Monitor className="w-16 h-16 text-primary" />
+          <div className="absolute -top-1 -right-1">
+            <AlertCircle className="w-6 h-6 text-destructive" />
+          </div>
+        </div>
+      </div>
+      <h2 className="text-2xl font-bold text-foreground mb-4">
+        Desktop Required
+      </h2>
+      <p className="text-muted-foreground mb-6 leading-relaxed">
+        DocETL requires a larger screen for the best experience. Please switch
+        to a desktop or laptop computer to access all features.
+      </p>
+      <div className="text-sm text-muted-foreground/80 bg-muted px-4 py-2 rounded-[var(--radius)] mb-6">
+        Recommended minimum screen width: 768px
+      </div>
+      <Button
+        variant="default"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+        onClick={() => {
+          window.location.href = "/";
+        }}
+      >
+        Back to DocETL Home
+      </Button>
+    </div>
+  </div>
+);
+
+const LoadingScreen: React.FC = () => (
+  <div className="h-screen flex items-center justify-center bg-background">
+    <div className="text-primary">Loading...</div>
+  </div>
+);
+
+const PerformanceWrapper: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+}> = ({ children, className }) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [size, setSize] = useState<{ width: number; height: number }>();
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Capture size on mount and resize
+  useEffect(() => {
+    if (ref.current) {
+      const observer = new ResizeObserver((entries) => {
+        if (!isDragging) {
+          const { width, height } = entries[0].contentRect;
+          setSize({ width, height });
+        }
+      });
+
+      observer.observe(ref.current);
+      return () => observer.disconnect();
+    }
+  }, [isDragging]);
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        visibility: isDragging ? "hidden" : "visible",
+      }}
+      data-dragging={isDragging}
+    >
+      {children}
+    </div>
+  );
+};
+
 const CodeEditorPipelineApp: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMobileView, setIsMobileView] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [showOutput, setShowOutput] = useState(true);
   const [showDatasetView, setShowDatasetView] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showNamespaceDialog, setShowNamespaceDialog] = useState(false);
+  const [showAPIKeysDialog, setShowAPIKeysDialog] = useState(false);
+  const [showTutorialsDialog, setShowTutorialsDialog] = useState(false);
+  const [selectedTutorial, setSelectedTutorial] =
+    useState<(typeof TUTORIALS)[0]>();
   const { theme, setTheme } = useTheme();
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const {
     currentFile,
@@ -189,14 +275,39 @@ const CodeEditorPipelineApp: React.FC = () => {
     unsavedChanges,
     namespace,
     setNamespace,
+    setOperations,
+    setPipelineName,
+    setSampleSize,
+    setDefaultModel,
   } = usePipelineContext();
 
   useEffect(() => {
-    const savedNamespace = localStorage.getItem(localStorageKeys.NAMESPACE_KEY);
-    if (!savedNamespace) {
+    const checkScreenSize = () => {
+      const isMobile = window.innerWidth < 768;
+      setIsMobileView(isMobile);
+      setIsLoading(false);
+    };
+
+    checkScreenSize();
+    setIsMounted(true);
+    window.addEventListener("resize", checkScreenSize);
+
+    return () => window.removeEventListener("resize", checkScreenSize);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted && !namespace) {
       setShowNamespaceDialog(true);
     }
-  }, []);
+  }, [isMounted, namespace]);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (isMobileView) {
+    return <MobileWarning />;
+  }
 
   const handleSaveAs = async () => {
     try {
@@ -274,6 +385,15 @@ const CodeEditorPipelineApp: React.FC = () => {
     }
   };
 
+  const handleNew = () => {
+    clearPipelineState();
+    if (!namespace) {
+      setShowNamespaceDialog(true);
+    } else {
+      window.location.reload();
+    }
+  };
+
   const topBarStyles =
     "p-2 flex justify-between items-center border-b bg-white shadow-sm";
   const controlGroupStyles = "flex items-center gap-2";
@@ -288,8 +408,10 @@ const CodeEditorPipelineApp: React.FC = () => {
   const panelToggleStyles =
     "flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors duration-200";
   const mainContentStyles = "flex-grow overflow-hidden bg-gray-50";
-  const resizeHandleStyles =
-    "w-2 bg-gray-100 hover:bg-blue-200 transition-colors duration-200";
+  const resizeHandleStyles = `
+    w-2 bg-gray-100 hover:bg-blue-200 transition-colors duration-200
+    data-[dragging=true]:bg-blue-400
+  `;
 
   return (
     <BookmarkProvider>
@@ -319,12 +441,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => {
-                            clearPipelineState();
-                            window.location.reload();
-                          }}
-                        >
+                        <AlertDialogAction onClick={handleNew}>
                           Clear
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -339,6 +456,9 @@ const CodeEditorPipelineApp: React.FC = () => {
                 <MenubarContent>
                   <MenubarItem onSelect={() => setShowNamespaceDialog(true)}>
                     Change Namespace
+                  </MenubarItem>
+                  <MenubarItem onSelect={() => setShowAPIKeysDialog(true)}>
+                    Edit API Keys
                   </MenubarItem>
                   <MenubarSub>
                     <MenubarSubTrigger>Change Theme</MenubarSubTrigger>
@@ -378,6 +498,22 @@ const CodeEditorPipelineApp: React.FC = () => {
                   >
                     Show Documentation
                   </MenubarItem>
+                  <MenubarSub>
+                    <MenubarSubTrigger>Tutorials</MenubarSubTrigger>
+                    <MenubarSubContent>
+                      {TUTORIALS.map((tutorial) => (
+                        <MenubarItem
+                          key={tutorial.id}
+                          onSelect={() => {
+                            setSelectedTutorial(tutorial);
+                            setShowTutorialsDialog(true);
+                          }}
+                        >
+                          {tutorial.title}
+                        </MenubarItem>
+                      ))}
+                    </MenubarSubContent>
+                  </MenubarSub>
                   <MenubarItem onSelect={() => setShowChat(!showChat)}>
                     Show Chat
                   </MenubarItem>
@@ -508,10 +644,17 @@ const CodeEditorPipelineApp: React.FC = () => {
         <ResizablePanelGroup
           direction="horizontal"
           className={mainContentStyles}
+          onDragStart={() => (document.body.style.cursor = "col-resize")}
+          onDragEnd={() => (document.body.style.cursor = "default")}
         >
           {showFileExplorer && (
             <ResizablePanel defaultSize={10} minSize={6} className="h-full">
-              <ResizablePanelGroup direction="vertical" className="h-full">
+              <ResizablePanelGroup
+                direction="vertical"
+                className="h-full"
+                onDragStart={() => (document.body.style.cursor = "row-resize")}
+                onDragEnd={() => (document.body.style.cursor = "default")}
+              >
                 <ResizablePanel
                   defaultSize={40}
                   minSize={20}
@@ -552,13 +695,20 @@ const CodeEditorPipelineApp: React.FC = () => {
           )}
 
           <ResizablePanel defaultSize={60} minSize={30} className="h-full">
-            <ResizablePanelGroup direction="vertical" className="h-full">
+            <ResizablePanelGroup
+              direction="vertical"
+              className="h-full"
+              onDragStart={() => (document.body.style.cursor = "row-resize")}
+              onDragEnd={() => (document.body.style.cursor = "default")}
+            >
               <ResizablePanel
                 defaultSize={60}
                 minSize={5}
                 className="overflow-auto"
               >
-                <PipelineGUI />
+                <PerformanceWrapper className="h-full">
+                  <PipelineGUI />
+                </PerformanceWrapper>
               </ResizablePanel>
               {showOutput && (
                 <ResizableHandle withHandle className={resizeHandleStyles} />
@@ -569,13 +719,15 @@ const CodeEditorPipelineApp: React.FC = () => {
                   minSize={20}
                   className="overflow-auto"
                 >
-                  <Output />
+                  <PerformanceWrapper className="h-full">
+                    <Output />
+                  </PerformanceWrapper>
                 </ResizablePanel>
               )}
             </ResizablePanelGroup>
           </ResizablePanel>
 
-          {showDatasetView && currentFile && (
+          {showDatasetView && (
             <>
               <ResizableHandle withHandle className={resizeHandleStyles} />
               <ResizablePanel
@@ -583,7 +735,17 @@ const CodeEditorPipelineApp: React.FC = () => {
                 minSize={10}
                 className="h-full overflow-auto"
               >
-                <DatasetView file={currentFile} />
+                <PerformanceWrapper className="h-full">
+                  <Suspense
+                    fallback={
+                      <div className="h-full flex items-center justify-center">
+                        <div className="animate-spin h-6 w-6 border-2 border-primary border-r-transparent rounded-full" />
+                      </div>
+                    }
+                  >
+                    <DatasetView file={currentFile} />
+                  </Suspense>
+                </PerformanceWrapper>
               </ResizablePanel>
             </>
           )}
@@ -598,85 +760,52 @@ const CodeEditorPipelineApp: React.FC = () => {
             saveProgress();
           }}
         />
+        <APIKeysDialog
+          open={showAPIKeysDialog}
+          onOpenChange={setShowAPIKeysDialog}
+        />
+        <TutorialsDialog
+          open={showTutorialsDialog}
+          onOpenChange={setShowTutorialsDialog}
+          selectedTutorial={selectedTutorial}
+          namespace={namespace}
+          onFileUpload={(file: File) =>
+            setFiles((prevFiles) => [...prevFiles, file])
+          }
+          setCurrentFile={setCurrentFile}
+          setOperations={setOperations}
+          setPipelineName={setPipelineName}
+          setSampleSize={setSampleSize}
+          setDefaultModel={setDefaultModel}
+          setFiles={setFiles}
+          currentFile={currentFile}
+          files={files}
+        />
       </div>
     </BookmarkProvider>
   );
 };
 
-const WrappedCodeEditorPipelineApp: React.FC = () => {
-  const [isLocalhost, setIsLocalhost] = useState(true);
-
-  useEffect(() => {
-    setIsLocalhost(
-      window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1"
-    );
-  }, []);
-
-  if (!isLocalhost) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="max-w-2xl p-6 bg-card rounded-lg shadow-md">
-          <h1 className="text-2xl font-bold text-primary mb-4">
-            DocETL Playground
-          </h1>
-          <p className="mb-4 text-foreground">
-            The DocETL playground is designed to run locally. To use it, please
-            follow these steps:
-          </p>
-          <ol className="list-decimal list-inside mb-4 text-foreground">
-            <li>
-              Clone the GitHub repo:{" "}
-              <a
-                href="https://github.com/ucbepic/docetl"
-                className="text-primary hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                https://github.com/ucbepic/docetl
-              </a>
-            </li>
-            <li>
-              Set up the project by running:
-              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
-                make install
-              </pre>
-              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
-                make install-ui
-              </pre>
-            </li>
-            <li>
-              Start the application:
-              <pre className="bg-muted text-muted-foreground p-2 rounded mt-2 mb-2">
-                make run-ui-prod
-              </pre>
-            </li>
-            <li>
-              Navigate to{" "}
-              <a
-                href="http://localhost:3000/playground"
-                className="text-primary hover:underline"
-              >
-                http://localhost:3000/playground
-              </a>
-            </li>
-          </ol>
-          <p className="text-foreground">
-            Once you&apos;ve completed these steps, you&apos;ll be able to use
-            the DocETL playground locally.
-          </p>
-        </div>
-      </div>
-    );
-  }
+const WebSocketWrapper: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { namespace } = usePipelineContext();
 
   return (
+    <WebSocketProvider namespace={namespace || ""}>
+      {children}
+    </WebSocketProvider>
+  );
+};
+
+const WrappedCodeEditorPipelineApp: React.FC = () => {
+  return (
     <ThemeProvider>
-      <WebSocketProvider>
-        <PipelineProvider>
+      <PipelineProvider>
+        <WebSocketWrapper>
           <CodeEditorPipelineApp />
-        </PipelineProvider>
-      </WebSocketProvider>
+        </WebSocketWrapper>
+      </PipelineProvider>
     </ThemeProvider>
   );
 };

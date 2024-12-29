@@ -261,15 +261,27 @@ class MapOperation(BaseOperation):
                 with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
                     futures = [executor.submit(_process_map_item, items_and_outputs[i][0], items_and_outputs[i][1]) for i in range(len(items_and_outputs))]
                     for i in range(len(futures)):
-                        result, item_cost = futures[i].result()
-                        if result is not None:
-                            all_results.append(result)
-                        total_cost += item_cost
+                        try:
+                            result, item_cost = futures[i].result()
+                            if result is not None:
+                                all_results.append(result)
+                            total_cost += item_cost
+                        except Exception as e:
+                            if self.config.get("skip_on_error", False):
+                               continue
+                            else:
+                                raise e
             else:
-                result, item_cost = _process_map_item(items_and_outputs[0][0], items_and_outputs[0][1])
-                if result is not None:
-                    all_results.append(result)
-                total_cost += item_cost
+                try:
+                    result, item_cost = _process_map_item(items_and_outputs[0][0], items_and_outputs[0][1])
+                    if result is not None:
+                        all_results.append(result)
+                    total_cost += item_cost
+                except Exception as e:
+                    if self.config.get("skip_on_error", False):
+                        pass
+                    else:
+                        raise e
 
             # Return items and cost
             return all_results, total_cost

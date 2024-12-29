@@ -306,7 +306,7 @@ class DSLRunner(ConfigWrapper):
                 f"[green italic]💾 Output saved to {output_config['path']}[/green italic]"
             )
         else:
-            raise ValueError(f"Unsupported output type: {output_config['type']}")
+            raise ValueError(f"Unsupported output type: {output_config['type']}. Supported types: file")
 
     def execute_step(
         self, step: Dict, input_data: Optional[List[Dict]]

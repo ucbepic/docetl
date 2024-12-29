@@ -251,11 +251,7 @@ class ConfigGenerator:
         Full input sample:
         {json.dumps(random.choice(input_data_sample), indent=2)[:1000]}
 
-        Determine if metadata is needed to perform the subtask.
-
-        Consider:
-        1. Does the input sample have any structural metadata that might be relevant to the subtask?
-        2. Is the sample chunk or full input missing any crucial information that could be in this metadata?
+        Determine if the beginning of the document has any metadata that might help with performing the subtask. For example, if there's a header, or a table of contents, or a table of information in the beginning of the document.
 
         Provide your response in the following format:
         """

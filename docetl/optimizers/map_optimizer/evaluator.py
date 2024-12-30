@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from litellm import model_cost
 from rich.console import Console
+from rich.panel import Panel
 
 from docetl.optimizers.utils import LLMClient
 from docetl.utils import count_tokens, extract_jinja_variables, truncate_sample_data
@@ -157,20 +158,32 @@ class Evaluator:
         plan2_wins = sum(1 for comp in comparisons if comp["better_plan"] == "plan_2")
         ties = sum(1 for comp in comparisons if comp["better_plan"] == "tie")
 
-        comparison_details = "\n".join(
-            [
-                f"Input {i+1}: \"{comp['better_plan']}\" because {comp['reason']}"
-                for i, comp in enumerate(comparisons)
-            ]
+        # Create detailed comparison content for the panel
+        comparison_content = (
+            f"[bold]Results Summary[/bold]\n"
+            f"[cyan]{plan1_name} wins:[/cyan] {plan1_wins}\n"
+            f"[green]{plan2_name} wins:[/green] {plan2_wins}\n"
+            f"[yellow]Ties:[/yellow] {ties}\n\n"
+            "[bold]Detailed Comparisons:[/bold]\n"
         )
 
-        self.console.log(
-            f"[bold magenta]Pairwise Comparison: {plan1_name} vs {plan2_name}[/bold magenta]\n"
-            f"[cyan]{plan1_name} wins: {plan1_wins}[/cyan]\n"
-            f"[green]{plan2_name} wins: {plan2_wins}[/green]\n"
-            f"[yellow]Ties: {ties}[/yellow]\n\n"
-            f"Comparison Details:\n{comparison_details}"
-        )
+        for i, comp in enumerate(comparisons):
+            winner = {
+                "plan_1": f"[cyan]{plan1_name}[/cyan]",
+                "plan_2": f"[green]{plan2_name}[/green]",
+                "tie": "[yellow]Tie[/yellow]"
+            }[comp["better_plan"]]
+            
+            comparison_content += (
+                f"[bold]Sample {i+1}:[/bold]\n"
+                f"Winner: {winner}\n"
+                f"Reason: {comp['reason']}\n\n"
+            )
+
+        self.console.print(Panel.fit(
+            comparison_content,
+            title=f"[bold magenta]Pairwise Comparison: {plan1_name} vs {plan2_name}[/bold magenta]"
+        ))
 
         if plan1_wins > plan2_wins:
             return plan1_name

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import yaml
 from docetl.utils import CapturedOutput
 from rich.console import Console
+from rich.panel import Panel
 from rich.status import Status
 from rich.traceback import install
 
@@ -205,11 +206,14 @@ class Optimizer:
         The output is color-coded and formatted for easy readability, with a header and
         separator lines to clearly delineate the configuration information.
         """
-        self.console.rule("[bold cyan]Optimizer Configuration[/bold cyan]")
-        self.console.log(f"[yellow]Sample Size:[/yellow] {self.sample_size_map}")
-        self.console.log(f"[yellow]Max Threads:[/yellow] {self.max_threads}")
-        self.console.log(f"[yellow]Model:[/yellow] {self.llm_client.model}")
-        self.console.log(f"[yellow]Timeout:[/yellow] {self.timeout} seconds")
+        self.console.print(Panel.fit(
+            "[bold cyan]Optimizer Configuration[/bold cyan]\n"
+            f"[yellow]Sample Size:[/yellow] {self.sample_size_map}\n"
+            f"[yellow]Max Threads:[/yellow] {self.max_threads}\n" 
+            f"[yellow]Model:[/yellow] {self.llm_client.model}\n"
+            f"[yellow]Timeout:[/yellow] {self.timeout} seconds",
+            title="Optimizer Configuration"
+        ))
 
     def compute_sample_size(
         self,
@@ -462,20 +466,25 @@ class Optimizer:
             self.console.log("[green]Finished loading optimized operations[/green]")
 
             # Print out the operations for each step
-            self.console.log("[bold blue]Operations for each step:[/bold blue]")
+            step_operations = []
             for step in self.config["pipeline"]["steps"]:
                 step_name = step.get("name")
                 operations = step.get("operations", [])
-                self.console.log(f"[cyan]Step: {step_name}[/cyan]")
+                step_info = f"[cyan]Step: {step_name}[/cyan]\n"
+                
                 for op in operations:
                     if isinstance(op, dict):
-                        # Handle the case where the operation is a dictionary (e.g., for equijoin)
                         op_name = list(op.keys())[0]
                         op_details = op[op_name]
-                        self.console.log(f"  - {op_name}: {op_details}")
+                        step_info += f"  - {op_name}: {op_details}\n"
                     else:
-                        self.console.log(f"  - {op}")
-                self.console.log("")  # Add a blank line between steps
+                        step_info += f"  - {op}\n"
+                step_operations.append(step_info)
+
+            self.console.print(Panel.fit(
+                "\n".join(step_operations),
+                title="[bold blue]Operations for each step"
+            ))
         else:
             self.console.log("[yellow]No optimized operations found[/yellow]")
 
@@ -846,10 +855,32 @@ class Optimizer:
                 optimized_operation_names.append(operation_name)
 
                 selectivity = len(output_data) / len(input_data)
-
                 self.selectivities[step.get("name")][operation_name] = selectivity
                 self.samples_taken[step.get("name")][operation_name] = sample_size
             else:
+                sample_info = []
+                if op_object.get("type") == "equijoin":
+                    sample_info.extend([
+                        f"[yellow]Sample size (left): {len(input_data['left'])}",
+                        f"[yellow]Sample size (right): {len(input_data['right'])}"
+                    ])
+                else:
+                    sample_info.append(f"[yellow]Sample size: {len(input_data)}")
+
+                # Get optimizer config for this operation type if it exists
+                optimizer_config = self.config.get("optimizer_config", {}).get(op_object["type"], {})
+                
+                panel_content = "\n".join(sample_info)
+                if optimizer_config:
+                    panel_content += "\n\n[cyan]Optimizer Config:[/cyan]"
+                    for key, value in optimizer_config.items():
+                        panel_content += f"\n[cyan]{key}:[/cyan] {value}"
+                
+                self.console.print(Panel.fit(
+                    panel_content,
+                    title=f"[yellow]Optimizing {operation_name} (Type: {op_object['type']})"
+                ))
+
                 # Use rich console status to indicate optimization of the operation
                 with self.console.status(
                     f"[bold blue]Optimizing operation: {operation_name} (Type: {op_object['type']})[/bold blue]"
@@ -960,12 +991,16 @@ class Optimizer:
                     ]
 
                     # Print new operator configs
-                    self.console.log("[bold green]New op configurations:[/bold green]")
-                    for op_name, op_config in optimized_operations.items():
-                        if op_name in [o["name"] for o in optimized_ops]:
-                            self.console.log(
-                                f"[cyan]{op_name}:[/cyan] {json.dumps(op_config, indent=2)}"
-                            )
+                    if optimized_ops:
+                        config_content = "[bold green]New op configurations:[/bold green]\n"
+                        for op_name, op_config in optimized_operations.items():
+                            if op_name in [o["name"] for o in optimized_ops]:
+                                config_content += f"[cyan]{op_name}:[/cyan] {json.dumps(op_config, indent=2)}\n"
+                        
+                        self.console.print(Panel.fit(
+                            config_content,
+                            title="Optimized Operations"
+                        ))
 
                     # Save the optimized operations to disk
                     os.makedirs(self.optimized_ops_path, exist_ok=True)
@@ -1168,14 +1203,15 @@ class Optimizer:
         # Sort the sizes for a more readable output
         sorted_sizes = sorted(size_counts.items())
 
-        # Print the histogram
-        self.console.log("\n[bold]Histogram of Group Sizes:[/bold]")
+        # Replace the histogram logging with a panel
+        histogram_content = "[bold]Histogram of Group Sizes:[/bold]\n"
         max_bar_width, max_count = 2, max(size_counts.values())
         for size, count in sorted_sizes[:5]:
             normalized_count = int(count / max_count * max_bar_width)
             bar = "█" * normalized_count
-            self.console.log(f"{size:3d}: {bar} ({count})")
-        self.console.log("\n")
+            histogram_content += f"{size:3d}: {bar} ({count})\n"
+        
+        self.console.print(Panel.fit(histogram_content, title="Group Size Distribution"))
 
         return sample
 
@@ -1374,7 +1410,8 @@ class Optimizer:
             timeout=self.timeout,
             is_filter=is_filter,
         )
-        optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data)
+        
+        optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data, self.config.get("optimizer_config", {}).get("map", {}).get("plan_types", ["chunk", "proj_synthesis", "glean"]))
         self.operations_cost += cost
         return optimized_ops
 
@@ -1500,6 +1537,10 @@ class Optimizer:
             for op_config in resolved_config["operations"]:
                 if "_intermediates" in op_config:
                     del op_config["_intermediates"]
+                if "recursively_optimize" in op_config:
+                    del op_config["recursively_optimize"]
+                if "optimize" in op_config:
+                    del op_config["optimize"]
 
         return resolved_config
 

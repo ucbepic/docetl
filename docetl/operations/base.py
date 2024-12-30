@@ -70,6 +70,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
     class schema(BaseModel, extra="allow"):
         name: str
         type: str
+        skip_on_error: bool = False
 
     @classproperty
     def json_schema(cls):

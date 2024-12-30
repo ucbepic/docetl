@@ -81,6 +81,7 @@ class PlanGenerator:
         subprompt_output_schema = split_result.get("subprompt_output_schema", {})
         if not subprompt_output_schema:
             subprompt_output_schema = op_config["output"]["schema"]
+        split_subprompt = split_result["subprompt"]
 
         chunk_sizes = self.config_generator._generate_chunk_sizes(
             split_key, input_data, token_limit
@@ -98,7 +99,7 @@ class PlanGenerator:
             try:
                 metadata_info = self.config_generator._determine_metadata_needs(
                     op_config,
-                    split_result["subprompt"],
+                    split_subprompt,
                     avg_chunk_size,
                     split_key,
                     input_data,
@@ -112,7 +113,7 @@ class PlanGenerator:
                     # Retry once
                     return self.config_generator._determine_metadata_needs(
                         op_config,
-                        split_result["subprompt"],
+                        split_subprompt,
                         avg_chunk_size,
                         split_key,
                         input_data,
@@ -129,6 +130,7 @@ class PlanGenerator:
                 f"Metadata prompt and output schema: {metadata_info.get('metadata_prompt', 'N/A')}; {metadata_info.get('output_schema', 'N/A')}"
             )
             self.console.log(f"Reason: {metadata_info.get('reason', 'N/A')}")
+            split_subprompt = "Given the following metadata about the document:\n{{ input.metadata }}\n\n" + split_subprompt
 
         # Create header extraction prompt
         header_extraction_prompt, header_output_schema = (
@@ -187,7 +189,7 @@ class PlanGenerator:
 
         # Generate the info extraction prompt
         info_extraction_prompt = self.generate_info_extraction_prompt(
-            split_result["subprompt"],
+            split_subprompt,
             split_result["split_key"],
             sample_chunks[0],
             sample_chunks[1],
@@ -218,7 +220,7 @@ class PlanGenerator:
         map_op = self.operation_creator.create_map_operation(
             op_config,
             subprompt_output_schema,
-            split_result["subprompt"] ,
+            split_subprompt ,
         )
 
         # unnest_ops = self.operation_creator.create_unnest_operations(op_config)
@@ -745,10 +747,18 @@ class PlanGenerator:
 
         Input data sample:
         {json.dumps({k: v for k, v in input_data[0].items() if k in variables_in_prompt} if input_data else {}, indent=2)}
+        Think step by step to decompose the original task into a chain of subtasks, even if the steps are not explicitly outlined in the original task prompt. Break down the task into logical steps by:
+        1. Analyzing the original task and output schema carefully to identify the key components and dependencies
+        2. Breaking down the task into logical steps, where each step produces one or more output keys or helpful intermediate results
+        3. Considering what information each step needs from previous steps
+        4. Arranging the steps in a sequence that satisfies all dependencies
 
-        Decompose the original task into a chain of subtasks, where each subtask produces one or more keys of the output schema or synthesizes new intermediate keys.
-        Analyze dependencies between output keys and arrange subtasks in a logical order. You can create new intermediate keys that don't exist in the given output schema if they help break down the task into simpler steps. For example, the first chain step can generate a helpful intermediate result that subsequent steps can build upon.
-        To access the output of a previous subtask, use the syntax {{ input.key }}. Each prompt should be a Jinja2 template.
+        Each subtask should produce one or more keys of the output schema or synthesize new intermediate keys. You can create new intermediate keys that don't exist in the given output schema if they help break down the task into simpler steps. For example, the first chain step can generate a helpful intermediate result that subsequent steps can build upon.
+
+        To access the output of a previous subtask, use the syntax {{{{ input.key }}}}. Each prompt should be a Jinja2 template.
+
+        Every variable you use in the prompt must be defined in the input data or the output of a previous subtask, and should be accessed like this: {{{{ input.key }}}}. You may need to reference the data for all the subtasks in the chain.
+
         Ensure that all keys in the original output schema are produced by the end of the chain, even if some subtasks create additional intermediate keys.
 
         Provide your response in the following format:

@@ -268,6 +268,7 @@ class MapOperation(BaseOperation):
                             total_cost += item_cost
                         except Exception as e:
                             if self.config.get("skip_on_error", False):
+                               self.console.log(f"[bold red]Error in map operation {self.config['name']}, skipping item:[/bold red] {e}")
                                continue
                             else:
                                 raise e
@@ -279,7 +280,7 @@ class MapOperation(BaseOperation):
                     total_cost += item_cost
                 except Exception as e:
                     if self.config.get("skip_on_error", False):
-                        pass
+                        self.console.log(f"[bold red]Error in map operation {self.config['name']}, skipping item:[/bold red] {e}")
                     else:
                         raise e
 

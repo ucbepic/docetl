@@ -867,8 +867,17 @@ class Optimizer:
                 else:
                     sample_info.append(f"[yellow]Sample size: {len(input_data)}")
 
+                # Get optimizer config for this operation type if it exists
+                optimizer_config = self.config.get("optimizer_config", {}).get(op_object["type"], {})
+                
+                panel_content = "\n".join(sample_info)
+                if optimizer_config:
+                    panel_content += "\n\n[cyan]Optimizer Config:[/cyan]"
+                    for key, value in optimizer_config.items():
+                        panel_content += f"\n[cyan]{key}:[/cyan] {value}"
+                
                 self.console.print(Panel.fit(
-                    "\n".join(sample_info),
+                    panel_content,
                     title=f"[yellow]Optimizing {operation_name} (Type: {op_object['type']})"
                 ))
 
@@ -1401,7 +1410,8 @@ class Optimizer:
             timeout=self.timeout,
             is_filter=is_filter,
         )
-        optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data)
+        
+        optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data, self.config.get("optimizer_config", {}).get("map", {}).get("plan_types", ["chunk", "proj_synthesis", "glean"]))
         self.operations_cost += cost
         return optimized_ops
 
@@ -1527,6 +1537,10 @@ class Optimizer:
             for op_config in resolved_config["operations"]:
                 if "_intermediates" in op_config:
                     del op_config["_intermediates"]
+                if "recursively_optimize" in op_config:
+                    del op_config["recursively_optimize"]
+                if "optimize" in op_config:
+                    del op_config["optimize"]
 
         return resolved_config
 

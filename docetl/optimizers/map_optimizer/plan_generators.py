@@ -755,7 +755,9 @@ class PlanGenerator:
 
         Each subtask should produce one or more keys of the output schema or synthesize new intermediate keys. You can create new intermediate keys that don't exist in the given output schema if they help break down the task into simpler steps. For example, the first chain step can generate a helpful intermediate result that subsequent steps can build upon.
 
-        To access the output of a previous subtask, use the syntax {{ input.key }}. Each prompt should be a Jinja2 template.
+        To access the output of a previous subtask, use the syntax {{{{ input.key }}}}. Each prompt should be a Jinja2 template.
+
+        Every variable you use in the prompt must be defined in the input data or the output of a previous subtask, and should be accessed like this: {{{{ input.key }}}}. You may need to reference the data for all the subtasks in the chain.
 
         Ensure that all keys in the original output schema are produced by the end of the chain, even if some subtasks create additional intermediate keys.
 

@@ -16,6 +16,8 @@ app = modal.App(
     .add_local_python_source("docetl", "server", copy=True)
     # .poetry_install_from_file("/root/pyproject.toml", force_build=True)
     .pip_install("poetry")
+    .pip_install("pyyaml")
+    .pip_install("supabase")
     .run_commands(["poetry config virtualenvs.create false", "poetry install --all-extras --no-root && poetry install --all-extras"])
 )
 vol = modal.Volume.from_name("docetl-backend-api", create_if_missing=True)
@@ -26,8 +28,10 @@ vol = modal.Volume.from_name("docetl-backend-api", create_if_missing=True)
     secrets=[
         modal.Secret.from_dict({"DOCETL_HOME_DIR": "/modal", "USE_FRONTEND": "true"}),
         modal.Secret.from_name("docetl-secrets"),
+        modal.Secret.from_name("supabase-secret"),
     ],
     keep_warm=1,
+    timeout=3600
 )
 @modal.asgi_app()
 def main():

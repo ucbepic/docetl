@@ -45,6 +45,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 type Step = "select" | "analyze";
 
@@ -433,7 +435,8 @@ export function PromptImprovementDialog({
   currentOperation,
   onSave,
 }: PromptImprovementDialogProps) {
-  const { operations, serializeState, apiKeys } = usePipelineContext();
+  const { operations, serializeState, apiKeys, namespace } =
+    usePipelineContext();
   const { bookmarks, removeBookmark } = useBookmarkContext();
   const [step, setStep] = useState<Step>("select");
   const [selectedOperationId, setSelectedOperationId] = useState<string>(
@@ -452,7 +455,8 @@ export function PromptImprovementDialog({
   const [chatKey, setChatKey] = useState(0);
   const [localFeedbackText, setLocalFeedbackText] = useState("");
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-  const [isLocalMode, setIsLocalMode] = useState(false);
+  const [usePersonalOpenAI, setUsePersonalOpenAI] = useState(false);
+  const [ignoreMissingKey, setIgnoreMissingKey] = useState(false);
 
   const selectedOperation = operations.find(
     (op) => op.id === selectedOperationId
@@ -466,23 +470,51 @@ export function PromptImprovementDialog({
       )
     : [];
 
-  const { messages, isLoading, append, setMessages } = useChat({
-    api: "/api/chat",
-    id: `prompt-improvement-${chatKey}`,
-    headers: useMemo(() => {
+  const chatHeaders = useMemo(() => {
+    const headers: Record<string, string> = {};
+    if (usePersonalOpenAI) {
       const openAiKey = apiKeys.find(
         (key) => key.name === "OPENAI_API_KEY"
       )?.value;
-      return openAiKey ? { "x-openai-key": openAiKey } : {};
-    }, [apiKeys]),
-    onFinish: () => {
-      // Optional: handle completion
+      // Add the use-openai header even if no personal key is found
+      headers["x-use-openai"] = "true";
+      if (openAiKey) {
+        headers["x-openai-key"] = openAiKey;
+      }
+    }
+    headers["x-namespace"] = namespace;
+    return headers;
+  }, [apiKeys, usePersonalOpenAI, namespace]);
+
+  const {
+    messages,
+    setMessages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    isLoading,
+    append,
+    error: chatError,
+  } = useChat({
+    api: "/api/chat",
+    headers: {
+      ...chatHeaders,
+      "x-source": "prompt_improvement",
+    },
+    onError: (error) => {
+      console.error("Chat error:", error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
   const hasOpenAIKey = useMemo(() => {
+    if (!usePersonalOpenAI) return true;
     return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
-  }, [apiKeys]);
+  }, [apiKeys, usePersonalOpenAI]);
 
   // Update the effect that handles new messages
   useEffect(() => {
@@ -589,7 +621,7 @@ export function PromptImprovementDialog({
   }, [selectedRevisionIndex, revisions]);
 
   const handleImprove = useCallback(async () => {
-    if (!hasOpenAIKey && !isLocalMode) {
+    if (!hasOpenAIKey && !usePersonalOpenAI) {
       toast({
         title: "OpenAI API Key Required",
         description: "Please add your OpenAI API key in Edit > Edit API Keys",
@@ -656,7 +688,7 @@ export function PromptImprovementDialog({
     setMessages,
     relevantBookmarks,
     hasOpenAIKey,
-    isLocalMode,
+    usePersonalOpenAI,
   ]);
 
   const handleBack = () => {
@@ -806,7 +838,23 @@ Remember to ${
                 </Button>
               )}
               <DialogTitle>Rewrite Prompt</DialogTitle>
+
+              <div className="flex items-center gap-1.5 ml-auto">
+                <Switch
+                  id="use-personal-openai"
+                  checked={usePersonalOpenAI}
+                  onCheckedChange={setUsePersonalOpenAI}
+                  className="h-4 w-7 data-[state=checked]:bg-primary"
+                />
+                <Label
+                  htmlFor="use-personal-openai"
+                  className="text-[10px] text-muted-foreground whitespace-nowrap"
+                >
+                  Use Personal OpenAI API Key
+                </Label>
+              </div>
             </div>
+
             <div className="flex items-center gap-2 mt-2">
               <div
                 className={`h-2 flex-1 rounded-full ${
@@ -829,7 +877,7 @@ Remember to ${
           <ScrollArea className="flex-1 w-full h-[calc(80vh-8rem)] overflow-y-auto">
             {step === "select" ? (
               <div className="flex flex-col gap-4 pr-4 pb-4">
-                {!hasOpenAIKey && !isLocalMode && (
+                {!hasOpenAIKey && usePersonalOpenAI && !ignoreMissingKey && (
                   <div className="bg-destructive/10 text-destructive rounded-md p-3 mb-2 text-xs">
                     <div className="flex gap-2">
                       <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -841,7 +889,7 @@ Remember to ${
                         </p>
                         <button
                           className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
-                          onClick={() => setIsLocalMode(true)}
+                          onClick={() => setIgnoreMissingKey(true)}
                         >
                           Ignore if running locally with environment variables
                         </button>
@@ -927,7 +975,7 @@ Remember to ${
                   disabled={
                     isLoading ||
                     !selectedOperation ||
-                    (!hasOpenAIKey && !isLocalMode)
+                    (!hasOpenAIKey && usePersonalOpenAI && !ignoreMissingKey)
                   }
                   className="mt-4"
                 >

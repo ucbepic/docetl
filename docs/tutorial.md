@@ -74,6 +74,10 @@ Create a file named `pipeline.yaml` with the following structure:
 
     default_model: gpt-4o-mini
 
+    system_prompt: # This is optional, but recommended for better performance. It is applied to all operations in the pipeline.
+      dataset_description: a collection of transcripts of doctor visits
+      persona: a medical practitioner analyzing patient symptoms and reactions to medications
+
     operations:
       - name: extract_medications
         type: map

@@ -44,6 +44,10 @@ pipeline:
     ```yaml
     default_model: gpt-4o-mini
 
+    system_prompt:
+      dataset_description: a collection of reviews for video games
+      persona: a marketing analyst analyzing player opinions and themes
+
     datasets:
       steam_reviews:
         type: file

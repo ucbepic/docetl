@@ -32,6 +32,10 @@ Let's create a pipeline that classifies medical documents into categories such a
 
     default_model: ollama/llama3
 
+    system_prompt:
+      dataset_description: a collection of medical records
+      persona: a medical practitioner analyzing patient symptoms and reactions to medications
+
     operations:
       - name: classify_medical_record
         type: map

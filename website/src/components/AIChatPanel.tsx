@@ -27,6 +27,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { debounce } from "lodash";
 import { toast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface AIChatPanelProps {
   onClose: () => void;
@@ -46,16 +48,22 @@ const DEFAULT_SUGGESTIONS = [
 ];
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
-  const { serializeState, highLevelGoal, setHighLevelGoal, apiKeys } =
-    usePipelineContext();
+  const {
+    serializeState,
+    highLevelGoal,
+    setHighLevelGoal,
+    apiKeys,
+    namespace,
+  } = usePipelineContext();
   const [position, setPosition] = useState({
-    x: window.innerWidth - 400,
+    x: window.innerWidth - 600,
     y: 80,
   });
   const isDragging = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usePersonalOpenAI, setUsePersonalOpenAI] = useState(false);
 
   const openAiKey = useMemo(() => {
     const key = apiKeys.find((key) => key.name === "OPENAI_API_KEY")?.value;
@@ -65,11 +73,15 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
 
   const chatHeaders = useMemo(() => {
     const headers: Record<string, string> = {};
-    if (openAiKey) {
-      headers["x-openai-key"] = openAiKey;
+    if (usePersonalOpenAI) {
+      headers["x-use-openai"] = "true";
+      if (openAiKey) {
+        headers["x-openai-key"] = openAiKey;
+      }
     }
+    headers["x-namespace"] = namespace;
     return headers;
-  }, [openAiKey]);
+  }, [openAiKey, usePersonalOpenAI, namespace]);
 
   const {
     messages,
@@ -83,7 +95,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
     api: "/api/chat",
     initialMessages: [],
     id: "persistent-chat",
-    headers: chatHeaders,
+    headers: {
+      ...chatHeaders,
+      "x-source": "ai_chat",
+    },
     onError: (error) => {
       console.error("Chat error:", error);
       setError(error.message);
@@ -96,11 +111,11 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
   });
 
   const [localGoal, setLocalGoal] = useState(highLevelGoal);
-  const [isLocalMode, setIsLocalMode] = useState(false);
 
   const hasOpenAIKey = useMemo(() => {
+    if (!usePersonalOpenAI) return true;
     return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
-  }, [apiKeys]);
+  }, [apiKeys, usePersonalOpenAI]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).classList.contains("drag-handle")) {
@@ -117,7 +132,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
       setPosition({
         x: Math.max(
           0,
-          Math.min(window.innerWidth - 400, e.clientX - dragOffset.current.x)
+          Math.min(window.innerWidth - 600, e.clientX - dragOffset.current.x)
         ),
         y: Math.max(
           0,
@@ -154,7 +169,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
 
     setError(null);
 
-    if (!hasOpenAIKey && !isLocalMode) {
+    if (!hasOpenAIKey && !usePersonalOpenAI) {
       toast({
         title: "OpenAI API Key Required",
         description: "Please add your OpenAI API key in Edit > Edit API Keys",
@@ -281,22 +296,38 @@ Remember, all the output fields have been converted to strings, even if they wer
       }}
     >
       <ResizableBox
-        width={400}
+        width={600}
         height={500}
-        minConstraints={[300, 400]}
-        maxConstraints={[800, 800]}
+        minConstraints={[400, 400]}
+        maxConstraints={[1000, 800]}
         resizeHandles={["sw", "se"]}
         className="bg-white rounded-lg shadow-lg border overflow-hidden text-s"
       >
         <div
-          className="h-6 bg-gray-100 drag-handle flex justify-between items-center px-2 cursor-move"
+          className="h-8 bg-gray-100 drag-handle flex justify-between items-center px-3 cursor-move select-none"
           onMouseDown={handleMouseDown}
         >
-          <span className="text-s text-primary font-medium flex items-center gap-2">
-            <Scroll size={12} />
+          <span className="text-s text-primary font-medium flex items-center gap-3">
+            <span className="pointer-events-none">
+              <Scroll size={14} />
+            </span>
             <LLMContextPopover />
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <div className="flex items-center gap-1.5 border-r pr-2">
+              <Switch
+                id="use-personal-openai"
+                checked={usePersonalOpenAI}
+                onCheckedChange={setUsePersonalOpenAI}
+                className="h-4 w-7 data-[state=checked]:bg-primary"
+              />
+              <Label
+                htmlFor="use-personal-openai"
+                className="text-[10px] text-muted-foreground whitespace-nowrap"
+              >
+                Personal OpenAI Key
+              </Label>
+            </div>
             <Popover>
               <PopoverTrigger asChild>
                 <span className="text-s text-primary font-medium flex items-center gap-2 cursor-pointer">
@@ -359,22 +390,16 @@ Remember, all the output fields have been converted to strings, even if they wer
             {messages.filter((message) => message.role !== "system").length ===
             0 ? (
               <div className="flex flex-col gap-2">
-                {!hasOpenAIKey && !isLocalMode && (
+                {usePersonalOpenAI && !hasOpenAIKey && (
                   <div className="bg-destructive/10 text-destructive rounded-md p-3 mb-2 text-xs">
                     <div className="flex gap-2">
                       <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                       <div>
                         <p className="font-medium">OpenAI API Key Required</p>
                         <p className="mt-1">
-                          To use the AI assistant, please add your OpenAI API
-                          key in Edit {">"} Edit API Keys.
+                          To use your personal OpenAI account, please add your
+                          OpenAI API key in Edit {">"} Edit API Keys.
                         </p>
-                        <button
-                          className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
-                          onClick={() => setIsLocalMode(true)}
-                        >
-                          Skip if running locally with environment variables
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -461,17 +486,17 @@ Remember, all the output fields have been converted to strings, even if they wer
               placeholder={
                 error
                   ? "Try again..."
-                  : !hasOpenAIKey && !isLocalMode
+                  : !hasOpenAIKey && !usePersonalOpenAI
                   ? "Add OpenAI API key to continue..."
                   : "Ask a question..."
               }
               className="flex-1 text-s h-7"
-              disabled={!hasOpenAIKey && !isLocalMode}
+              disabled={!hasOpenAIKey && !usePersonalOpenAI}
             />
             <Button
               type="submit"
               size="sm"
-              disabled={isLoading || (!hasOpenAIKey && !isLocalMode)}
+              disabled={isLoading || (!hasOpenAIKey && !usePersonalOpenAI)}
               className="h-7 text-s text-white"
             >
               Send

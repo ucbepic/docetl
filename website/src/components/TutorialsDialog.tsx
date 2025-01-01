@@ -147,7 +147,9 @@ pipeline:
     type: file
     path: DATASET_PATH_PLACEHOLDER_OUTPUT
     intermediate_dir: DATASET_PATH_PLACEHOLDER_INTERMEDIATES
-system_prompt: {}`,
+system_prompt:
+  dataset_description: "a collection of Supreme Court oral argument transcripts"
+  persona: "a legal analyst skilled at breaking down complex legal concepts for general audiences. You have extensive experience studying Supreme Court arguments and can identify key patterns while explaining them in clear, engaging language that helps non-lawyers understand the fascinating dynamics at play"`,
   },
 ];
 
@@ -163,6 +165,10 @@ interface TutorialsDialogProps {
   setSampleSize: (size: number | null) => void;
   setDefaultModel: (model: string) => void;
   setFiles: (files: FileType[]) => void;
+  setSystemPrompt: (prompt: {
+    datasetDescription: string | null;
+    persona: string | null;
+  }) => void;
   currentFile: FileType | null;
   files: FileType[];
 }
@@ -179,6 +185,7 @@ export function TutorialsDialog({
   setSampleSize,
   setDefaultModel,
   setFiles,
+  setSystemPrompt,
   currentFile,
   files,
 }: TutorialsDialogProps) {
@@ -195,6 +202,7 @@ export function TutorialsDialog({
     setDefaultModel,
     setFiles,
     setCurrentFile,
+    setSystemPrompt,
     currentFile,
     files,
   });

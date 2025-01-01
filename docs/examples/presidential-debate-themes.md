@@ -32,6 +32,10 @@ pipeline:
         type: file
         path: "data.json"
 
+    system_prompt:
+      dataset_description: a collection of transcripts of presidential debates
+      persona: a political analyst
+
     default_model: gpt-4o-mini
 
     operations:

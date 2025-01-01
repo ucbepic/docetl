@@ -111,6 +111,7 @@ async def read_file(path: str):
             
         return FileResponse(path)
     except Exception as e:
+        print(f"Failed to read file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
 
 @router.get("/read-file-page")

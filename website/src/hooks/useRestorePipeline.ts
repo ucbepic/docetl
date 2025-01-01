@@ -41,6 +41,10 @@ interface RestorePipelineConfig {
   setDefaultModel: (model: string) => void;
   setFiles: (files: File[]) => void;
   setCurrentFile: (file: File | null) => void;
+  setSystemPrompt: (prompt: {
+    datasetDescription: string | null;
+    persona: string | null;
+  }) => void;
   currentFile: File | null;
   files: File[];
 }
@@ -52,8 +56,8 @@ export const useRestorePipeline = ({
   setDefaultModel,
   setFiles,
   setCurrentFile,
-  currentFile,
   setSystemPrompt,
+  currentFile,
   files,
 }: RestorePipelineConfig) => {
   const { toast } = useToast();

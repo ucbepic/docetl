@@ -298,6 +298,7 @@ const CodeEditorPipelineApp: React.FC = () => {
     setPipelineName,
     setSampleSize,
     setDefaultModel,
+    setSystemPrompt,
   } = usePipelineContext();
 
   useEffect(() => {
@@ -581,19 +582,39 @@ const CodeEditorPipelineApp: React.FC = () => {
               </PopoverTrigger>
               <PopoverContent className="w-80">
                 <h3 className="font-semibold mb-2">About DocETL</h3>
-                <p className="text-sm text-gray-600">
-                  This is a research project from the EPIC Data Lab at the
-                  University of California, Berkeley. To learn more, visit{" "}
-                  <a
-                    href="https://docetl.org"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:underline"
-                  >
-                    docetl.org
-                  </a>
-                  .
-                </p>
+                <div className="space-y-4 text-sm text-gray-600">
+                  <p>
+                    DocETL is a research project by the EPIC Data Lab at UC
+                    Berkeley. Learn more at{" "}
+                    <a
+                      href="https://docetl.org"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:underline"
+                    >
+                      docetl.org
+                    </a>
+                    .
+                  </p>
+                  <p>
+                    The AI Chat and Improve Prompt features use our system and
+                    log usage data by default. For privacy, you can use your own
+                    OpenAI key: Go to Edit &gt; Edit API keys and enable
+                    &quot;use personal openai key&quot; in these features.
+                  </p>
+                  <p>
+                    Want to run DocETL or the playground locally? Check out our{" "}
+                    <a
+                      href="https://ucbepic.github.io/docetl/playground/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:underline"
+                    >
+                      self-hosted version
+                    </a>
+                    .
+                  </p>
+                </div>
               </PopoverContent>
             </Popover>
           </div>
@@ -797,6 +818,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           setSampleSize={setSampleSize}
           setDefaultModel={setDefaultModel}
           setFiles={setFiles}
+          setSystemPrompt={setSystemPrompt}
           currentFile={currentFile}
           files={files}
         />

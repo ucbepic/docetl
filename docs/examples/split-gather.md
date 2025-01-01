@@ -111,6 +111,10 @@ Here is the full pipeline configuration, with the split and gather operations hi
 
     default_model: gpt-4o-mini
 
+    system_prompt:
+      dataset_description: the Trump vs. United States case
+      persona: a legal analyst
+
     operations:
       - name: extract_metadata_find_people_and_involvements
         type: map

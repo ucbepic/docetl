@@ -62,7 +62,18 @@ This guide outlines best practices for using DocETL effectively, focusing on the
 
 ## Schema and Prompt Design
 
-1. **Keep Schemas Simple**: Use simple output schemas whenever possible. Complex nested structures can be difficult for LLMs to produce consistently.
+1. **Configure System Prompts**: Set up system prompts to provide context and establish the LLM's role for each operation. This helps generate more accurate and relevant responses.
+
+   Example:
+   ```yaml
+   system_prompt:
+     dataset_description: a collection of transcripts of doctor visits
+     persona: a medical practitioner analyzing patient symptoms and reactions to medications
+   ```
+
+  The system prompt will be used as a system prompt for all operations in the pipeline.
+
+2. **Keep Schemas Simple**: Use simple output schemas whenever possible. Complex nested structures can be difficult for LLMs to produce consistently.
 
    Good Example (Simple Schema):
 
@@ -80,7 +91,7 @@ This guide outlines best practices for using DocETL effectively, focusing on the
        medications: "list[{name: str, dosage: {amount: float, unit: str, frequency: str}}]"
    ```
 
-2. **Clear and Concise Prompts**: Write clear, concise prompts for LLM operations, providing relevant context from input data. Instruct quantities (e.g., 2-3 insights, one summary) to guide the LLM.
+3. **Clear and Concise Prompts**: Write clear, concise prompts for LLM operations, providing relevant context from input data. Instruct quantities (e.g., 2-3 insights, one summary) to guide the LLM.
 
    Example: The `summarize_prescriptions` operation in the [tutorial](tutorial.md) demonstrates a clear prompt with specific instructions:
 
@@ -106,7 +117,7 @@ This guide outlines best practices for using DocETL effectively, focusing on the
      - Includes quotes from the transcripts
    ```
 
-3. **Take advantage of Jinja Templating**: Use Jinja templating to dynamically generate prompts and provide context to the LLM. Feel free to use if statements, loops, and other Jinja features to customize prompts.
+4. **Take advantage of Jinja Templating**: Use Jinja templating to dynamically generate prompts and provide context to the LLM. Feel free to use if statements, loops, and other Jinja features to customize prompts.
 
    Example: Using Jinja conditionals and loops in a prompt (note that age is a made-up field for this example):
 
@@ -125,7 +136,7 @@ This guide outlines best practices for using DocETL effectively, focusing on the
      {% endfor %}
    ```
 
-4. **Validate Outputs**: Use the `validate` field to ensure the quality and correctness of processed data. This consists of Python statements that validate the output and optionally retry the LLM if one or more statements fail. To learn more about validation, see the [validation documentation](concepts/operators.md#validation).
+5. **Validate Outputs**: Use the `validate` field to ensure the quality and correctness of processed data. This consists of Python statements that validate the output and optionally retry the LLM if one or more statements fail. To learn more about validation, see the [validation documentation](concepts/operators.md#validation).
 
    Example: Adding validation to the `extract_medications` operation:
 

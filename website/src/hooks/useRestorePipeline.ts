@@ -28,6 +28,10 @@ interface YAMLContent {
   operations?: YAMLOperation[];
   datasets?: Record<string, { type: string; path: string }>;
   default_model?: string;
+  system_prompt?: {
+    dataset_description: string | null;
+    persona: string | null;
+  };
 }
 
 interface RestorePipelineConfig {
@@ -49,6 +53,7 @@ export const useRestorePipeline = ({
   setFiles,
   setCurrentFile,
   currentFile,
+  setSystemPrompt,
   files,
 }: RestorePipelineConfig) => {
   const { toast } = useToast();
@@ -122,6 +127,11 @@ export const useRestorePipeline = ({
                 (yamlContent.operations?.[0]?.sample as number) || null
               );
               setDefaultModel(yamlContent.default_model || "gpt-4o-mini");
+              setSystemPrompt({
+                datasetDescription:
+                  yamlContent.system_prompt?.dataset_description || null,
+                persona: yamlContent.system_prompt?.persona || null,
+              });
 
               // Look for paths in all datasets
               const datasetPaths = Object.values(yamlContent.datasets || {})

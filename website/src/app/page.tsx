@@ -62,7 +62,7 @@ export default function Home() {
     {
       highlight: "Launched our IDE!",
       content:
-        "Making prompt engineering easier than ever with our new interactive playground.",
+        "Making prompt engineering easier than ever with DocWrangler, our new interactive playground.",
       link: "/playground",
       linkText: "Try it now",
       date: "Dec 2024",
@@ -143,7 +143,8 @@ export default function Home() {
                       </div>
                       <div className="ticker-item">
                         <em>Launched our IDE!</em> Making prompt engineering
-                        easier than ever with our new interactive playground{" "}
+                        easier than ever with our new interactive playground,
+                        DocWrangler{" "}
                         <a
                           href="/playground"
                           className="text-blue-500 hover:underline"
@@ -458,10 +459,10 @@ export default function Home() {
                     <p className="text-sm text-muted-foreground">
                       Prompts are the primary interface between humans and
                       LLM-powered data systems, but crafting them is more art
-                      than science. Our IDE explores new ways to make prompt
-                      engineering systematic and intuitive, with interactive
-                      tools that help users express their intent clearly and
-                      debug unexpected behaviors.{" "}
+                      than science. DocWrangler, our IDE, explores new ways to
+                      make prompt engineering systematic and intuitive, with
+                      interactive tools that help users express their intent
+                      clearly and debug unexpected behaviors.{" "}
                       <a
                         href="/playground"
                         className="text-blue-500 hover:underline inline-flex items-center"

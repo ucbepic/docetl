@@ -194,8 +194,8 @@ const MobileWarning: React.FC = () => (
         Desktop Required
       </h2>
       <p className="text-muted-foreground mb-6 leading-relaxed">
-        DocETL requires a larger screen for the best experience. Please switch
-        to a desktop or laptop computer to access all features.
+        DocWrangler requires a larger screen for the best experience. Please
+        switch to a desktop or laptop computer to access all features.
       </p>
       <div className="text-sm text-muted-foreground/80 bg-muted px-4 py-2 rounded-[var(--radius)] mb-6">
         Recommended minimum screen width: 768px
@@ -620,7 +620,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <Scroll className="text-primary" size={20} />
-            <h1 className="text-lg font-bold text-primary">DocETL</h1>
+            <h1 className="text-lg font-bold text-primary">DocWrangler</h1>
             {isMounted && (
               <span className="text-sm text-gray-600">({namespace})</span>
             )}

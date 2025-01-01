@@ -870,7 +870,7 @@ Remember to ${
             <DialogDescription className="mt-2">
               {step === "select"
                 ? "Select an operation to improve its prompt"
-                : "DocETL is analyzing and suggesting improvements"}
+                : "DocWrangler is analyzing and suggesting improvements"}
             </DialogDescription>
           </DialogHeader>
 

@@ -245,7 +245,7 @@ export default function Home() {
                   <DropdownMenuItem asChild>
                     <Link href="/playground">
                       <Gamepad2 className="mr-2 h-4 w-4" />
-                      DocWrangler
+                      Playground
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -327,7 +327,7 @@ export default function Home() {
                 >
                   <Link href="/playground">
                     <Gamepad2 className="mr-2 h-4 w-4" />
-                    DocWrangler
+                    Playground
                   </Link>
                 </Button>
 

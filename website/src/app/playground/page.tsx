@@ -221,7 +221,7 @@ const LoadingScreen: React.FC = () => (
       <div className="flex items-center gap-2">
         <Scroll className="h-6 w-6 text-primary" />
         <h2 className="text-2xl font-bold text-primary tracking-tight">
-          DocETL
+          DocWrangler
         </h2>
       </div>
       <div className="text-muted-foreground text-lg">
@@ -518,6 +518,16 @@ const CodeEditorPipelineApp: React.FC = () => {
                   >
                     Show Documentation
                   </MenubarItem>
+                  <MenubarItem
+                    onSelect={() =>
+                      window.open(
+                        "https://discord.com/invite/fHp7B2X3xx",
+                        "_blank"
+                      )
+                    }
+                  >
+                    Ask a Question on Discord
+                  </MenubarItem>
                   <MenubarSub>
                     <MenubarSubTrigger>Tutorials</MenubarSubTrigger>
                     <MenubarSubContent>
@@ -580,37 +590,62 @@ const CodeEditorPipelineApp: React.FC = () => {
                   Info
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <h3 className="font-semibold mb-2">About DocETL</h3>
-                <div className="space-y-4 text-sm text-gray-600">
-                  <p>
-                    DocETL is a research project by the EPIC Data Lab at UC
-                    Berkeley. Learn more at{" "}
+              <PopoverContent className="w-[32rem]">
+                <h3 className="text-lg font-semibold mb-4 text-foreground">
+                  About DocWrangler and DocETL
+                </h3>
+                <div className="space-y-4 text-sm">
+                  <p className="text-foreground/90 leading-relaxed">
+                    DocWrangler and DocETL are research projects from UC
+                    Berkeley's EPIC Data Lab. DocWrangler provides an
+                    interactive playground for building data processing
+                    pipelines, powered by DocETL - our system that combines a
+                    domain-specific language, query optimizer, and execution
+                    engine. Learn more at{" "}
                     <a
                       href="https://docetl.org"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-500 hover:underline"
+                      className="text-primary hover:underline font-medium"
                     >
                       docetl.org
                     </a>
                     .
                   </p>
-                  <p>
-                    The AI Chat and Improve Prompt features use our system and
-                    log usage data by default. For privacy, you can use your own
-                    OpenAI key: Go to Edit &gt; Edit API keys and enable
-                    &quot;use personal openai key&quot; in these features.
+                  <p className="text-foreground/90 leading-relaxed">
+                    DocWrangler's AI Chat and Improve Prompt features use our
+                    experimental LLM and log usage data. For privacy, you can
+                    use your own API key instead by going to Edit &gt; Edit API
+                    keys and enabling &quot;Use personal API key&quot; in the
+                    features.
                   </p>
-                  <p>
+                  <p className="text-foreground/90 leading-relaxed">
                     Want to run DocETL or the playground locally? Check out our{" "}
                     <a
                       href="https://ucbepic.github.io/docetl/playground/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-500 hover:underline"
+                      className="text-primary hover:underline font-medium"
                     >
                       self-hosted version
+                    </a>
+                    . For DocETL documentation, visit{" "}
+                    <a
+                      href="https://ucbepic.github.io/docetl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      our docs
+                    </a>
+                    . Have questions? Join our{" "}
+                    <a
+                      href="https://discord.com/invite/fHp7B2X3xx"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      Discord community
                     </a>
                     .
                   </p>

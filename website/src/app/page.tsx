@@ -60,7 +60,7 @@ export default function Home() {
 
   const newsItems = [
     {
-      highlight: "Launched our IDE!",
+      highlight: "Launched DocWrangler!",
       content:
         "Making prompt engineering easier than ever with DocWrangler, our new interactive playground.",
       link: "/playground",
@@ -101,7 +101,7 @@ export default function Home() {
               className="w-12 h-12 sm:w-16 sm:h-16 mr-2 text-primary"
               strokeWidth={1.5}
             />
-            <span className="logo-text text-2xl sm:text-3xl">docetl</span>
+            <span className="logo-text text-2xl sm:text-3xl">DocETL</span>
           </div>
           <p className="text-lg sm:text-xl mb-4 sm:mb-6">
             A system for LLM-powered data processing
@@ -142,9 +142,8 @@ export default function Home() {
                         ))}
                       </div>
                       <div className="ticker-item">
-                        <em>Launched our IDE!</em> Making prompt engineering
-                        easier than ever with our new interactive playground,
-                        DocWrangler{" "}
+                        <em>Launched DocWrangler!</em> Making prompt engineering
+                        easier than ever with our new interactive playground{" "}
                         <a
                           href="/playground"
                           className="text-blue-500 hover:underline"
@@ -246,7 +245,7 @@ export default function Home() {
                   <DropdownMenuItem asChild>
                     <Link href="/playground">
                       <Gamepad2 className="mr-2 h-4 w-4" />
-                      Playground
+                      DocWrangler
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -328,7 +327,7 @@ export default function Home() {
                 >
                   <Link href="/playground">
                     <Gamepad2 className="mr-2 h-4 w-4" />
-                    Playground
+                    DocWrangler
                   </Link>
                 </Button>
 

@@ -457,6 +457,7 @@ export function PromptImprovementDialog({
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [usePersonalOpenAI, setUsePersonalOpenAI] = useState(false);
   const [ignoreMissingKey, setIgnoreMissingKey] = useState(false);
+  const [additionalInstructions, setAdditionalInstructions] = useState("");
 
   const selectedOperation = operations.find(
     (op) => op.id === selectedOperationId
@@ -649,6 +650,10 @@ export function PromptImprovementDialog({
             .join("\n")}`
         : "\nNo feedback found for this operation.";
 
+    const instructionsSection = additionalInstructions
+      ? `\nAdditional Instructions:\n${additionalInstructions}`
+      : "";
+
     const pipelineState = await serializeState();
     const systemContent = getSystemContent(pipelineState, selectedOperation);
 
@@ -666,7 +671,18 @@ export function PromptImprovementDialog({
       role: "user",
       content: `Please analyze and improve my prompt${
         selectedOperation.type === "resolve" ? "s" : ""
-      }:${
+      } following these best practices:
+
+1. Be specific and unambiguous in instructions
+2. Break down complex tasks into steps
+3. Include examples where helpful
+4. Use clear formatting and structure
+5. Specify the desired output format
+6. Include relevant context and constraints
+7. Use consistent terminology
+8. Avoid vague or subjective language
+
+Here is the current prompt to improve:${
         selectedOperation.type === "resolve"
           ? `\nComparison prompt:\n${
               selectedOperation.otherKwargs?.comparison_prompt || ""
@@ -674,7 +690,7 @@ export function PromptImprovementDialog({
               selectedOperation.otherKwargs?.resolution_prompt || ""
             }`
           : `\n${selectedOperation.prompt}`
-      }${bookmarksSection}`,
+      }${bookmarksSection}${instructionsSection}`,
       id: "user-1",
     });
 
@@ -689,6 +705,7 @@ export function PromptImprovementDialog({
     relevantBookmarks,
     hasOpenAIKey,
     usePersonalOpenAI,
+    additionalInstructions,
   ]);
 
   const handleBack = () => {
@@ -818,6 +835,7 @@ Remember to ${
       onOpenChange(false);
       setStep("select");
       setShowSaveConfirm(false);
+      setAdditionalInstructions("");
     }
   };
 
@@ -837,7 +855,7 @@ Remember to ${
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               )}
-              <DialogTitle>Rewrite Prompt</DialogTitle>
+              <DialogTitle>Improve Prompt</DialogTitle>
 
               <div className="flex items-center gap-1.5 ml-auto">
                 <Switch
@@ -869,7 +887,7 @@ Remember to ${
             </div>
             <DialogDescription className="mt-2">
               {step === "select"
-                ? "Select an operation to improve its prompt"
+                ? "Select the operation you want to improve the prompt for"
                 : "DocWrangler is analyzing and suggesting improvements"}
             </DialogDescription>
           </DialogHeader>
@@ -918,69 +936,98 @@ Remember to ${
 
                 {selectedOperation && (
                   <>
-                    <div className="text-sm">
-                      <div className="font-medium mb-2">
-                        Current Prompt
-                        {selectedOperation.type === "resolve" ? "s" : ""}:
-                      </div>
-                      {selectedOperation.type === "resolve" ? (
-                        <div className="space-y-4">
-                          <div>
-                            <div className="font-medium text-sm mb-1">
-                              Comparison Prompt:
-                            </div>
-                            <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
-                              {selectedOperation.otherKwargs
-                                ?.comparison_prompt || ""}
-                            </pre>
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm mb-1">
-                              Resolution Prompt:
-                            </div>
-                            <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
-                              {selectedOperation.otherKwargs
-                                ?.resolution_prompt || ""}
-                            </pre>
-                          </div>
+                    <div className="space-y-6">
+                      <div className="text-sm">
+                        <div className="font-medium mb-2 text-foreground">
+                          Current Prompt
+                          {selectedOperation.type === "resolve" ? "s" : ""}:
                         </div>
-                      ) : (
-                        <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
-                          {selectedOperation.prompt}
-                        </pre>
-                      )}
-                    </div>
-
-                    <div className="text-sm">
-                      <div className="font-medium mb-2">Feedback:</div>
-                      <div className="bg-muted p-2 rounded-md">
-                        {relevantBookmarks.length > 0 ? (
-                          <ul className="list-disc list-inside space-y-1">
-                            {relevantBookmarks.map((note, index) => (
-                              <li key={index}>{note.note}</li>
-                            ))}
-                          </ul>
+                        {selectedOperation.type === "resolve" ? (
+                          <div className="space-y-4">
+                            <div>
+                              <div className="text-sm mb-1 text-muted-foreground">
+                                Comparison Prompt:
+                              </div>
+                              <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                                {selectedOperation.otherKwargs
+                                  ?.comparison_prompt || ""}
+                              </pre>
+                            </div>
+                            <div>
+                              <div className="text-sm mb-1 text-muted-foreground">
+                                Resolution Prompt:
+                              </div>
+                              <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                                {selectedOperation.otherKwargs
+                                  ?.resolution_prompt || ""}
+                              </pre>
+                            </div>
+                          </div>
                         ) : (
-                          <p className="text-muted-foreground">
-                            No feedback or bookmarks found for this operation.
+                          <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                            {selectedOperation.prompt}
+                          </pre>
+                        )}
+                      </div>
+
+                      <div className="text-sm">
+                        <div className="font-medium mb-2 text-foreground">
+                          Your Notes:
+                        </div>
+                        <div className="bg-muted p-3 rounded-md">
+                          {relevantBookmarks.length > 0 ? (
+                            <ul className="list-disc list-inside space-y-1">
+                              {relevantBookmarks.map((note, index) => (
+                                <li key={index}>{note.note}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-muted-foreground">
+                              No feedback or bookmarks found for this operation.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-sm">
+                        <div className="font-medium mb-2 text-muted-foreground flex items-center gap-2">
+                          Additional Instructions
+                          <span className="text-xs font-normal">
+                            (optional)
+                          </span>
+                        </div>
+                        <Textarea
+                          placeholder="Add specific instructions for improving the prompt (e.g., 'Make it more concise', 'Add more examples')"
+                          value={additionalInstructions}
+                          onChange={(e) =>
+                            setAdditionalInstructions(e.target.value)
+                          }
+                          className="h-24 resize-none"
+                        />
+                        {!additionalInstructions && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Leave blank to let the AI follow default improvement
+                            guidelines
                           </p>
                         )}
                       </div>
                     </div>
+
+                    <Button
+                      onClick={handleImprove}
+                      disabled={
+                        isLoading ||
+                        !selectedOperation ||
+                        (!hasOpenAIKey &&
+                          usePersonalOpenAI &&
+                          !ignoreMissingKey)
+                      }
+                      className="mt-4"
+                    >
+                      Continue to Analysis
+                    </Button>
                   </>
                 )}
-
-                <Button
-                  onClick={handleImprove}
-                  disabled={
-                    isLoading ||
-                    !selectedOperation ||
-                    (!hasOpenAIKey && usePersonalOpenAI && !ignoreMissingKey)
-                  }
-                  className="mt-4"
-                >
-                  Continue to Analysis
-                </Button>
               </div>
             ) : (
               <div className="flex flex-col gap-4 pr-4 pb-4">

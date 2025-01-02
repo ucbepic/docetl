@@ -220,17 +220,18 @@ class PlanGenerator:
         map_op = self.operation_creator.create_map_operation(
             op_config,
             subprompt_output_schema,
-            split_subprompt ,
+            split_subprompt,
         )
 
         # unnest_ops = self.operation_creator.create_unnest_operations(op_config)
-        max_plan.extend(smg_ops + [map_op])
+        max_plan.extend(smg_ops)
 
         sample_map_input = copy.deepcopy(input_data)
-        for smg_op in smg_ops:
+        for smg_op in max_plan:
             sample_map_input = self._run_operation(smg_op, sample_map_input)
 
         sample_output = self._run_operation(map_op, sample_map_input, is_build=True)
+        max_plan.append(map_op)
 
         # Generate the combine prompt using the sample output
         combine_prompt, is_associative = self.prompt_generator._get_combine_prompt(

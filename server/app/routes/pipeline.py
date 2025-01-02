@@ -319,6 +319,20 @@ async def process_pipeline(config: Dict[str, Any], client_id: str, task_id: str)
         async def monitor_console_output():
             nonlocal last_console_output
             while True:
+                if config.get("optimize", False) and hasattr(runner.console, 'get_optimizer_progress'):
+                    optimizer_progress = runner.console.get_optimizer_progress()
+                    rationale = runner.console.optimizer_rationale
+                    if optimizer_progress:
+                        pipeline_queue.put({
+                            "type": "optimizer_progress",
+                            "task_id": task_id,
+                            "status": optimizer_progress[0],
+                            "progress": optimizer_progress[1],
+                            "rationale": rationale[1] if rationale is not None else "",
+                            "should_optimize": rationale[0] if rationale is not None else False,
+                            "validator_prompt": rationale[2] if rationale is not None else ""
+                        }, partition=client_id)
+
                 current_output = runner.console.file.getvalue()
                 if current_output != last_console_output:
                     # Take last 200KB (204,800 bytes) of output if it exceeds that size
@@ -407,21 +421,6 @@ async def message_send_loop(websocket: WebSocket, client_id: str, task_id: str, 
     """Loop to continuously send messages from queue and process user input"""
     while True:
         try:
-            # All output now comes through the queue
-            # Check for messages from queue
-            if config.get("optimize", False) and hasattr(runner.console, 'get_optimizer_progress'):
-                optimizer_progress = runner.console.get_optimizer_progress()
-                rationale = runner.console.optimizer_rationale
-                if optimizer_progress:
-                    await websocket.send_json({
-                        "type": "optimizer_progress",
-                        "status": optimizer_progress[0],
-                        "progress": optimizer_progress[1],
-                        "rationale": rationale[1] if rationale is not None else "",
-                        "should_optimize": rationale[0] if rationale is not None else False,
-                        "validator_prompt": rationale[2] if rationale is not None else ""
-                    })
-
             # Check for messages from queue
             try:
                 message = await asyncio.wait_for(

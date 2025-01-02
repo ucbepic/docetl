@@ -29,16 +29,16 @@ DocETL is a tool for creating and executing data processing pipelines, especiall
 
 There are two main ways to use DocETL:
 
-### 1. 🎮 Interactive UI Playground (Recommended for Development)
+### 1. 🎮 DocWrangler, the Interactive UI Playground (Recommended for Development)
 
-The [UI Playground](https://ucbepic.github.io/docetl/playground/) helps you iteratively develop your pipeline:
+[DocWrangler](https://docetl.org/playground) helps you iteratively develop your pipeline:
 - Experiment with different prompts and see results in real-time
 - Build your pipeline step by step
 - Export your finalized pipeline configuration for production use
 
-![DocETL Playground](docs/assets/tutorial/playground-screenshot.png)
+![DocWrangler](docs/assets/tutorial/one-operation.png)
 
-To run the playground locally, you can either:
+DocWrangler is hosted at [docetl.org/playground](https://docetl.org/playground). But to run the playground locally, you can either:
 - Use Docker (recommended for quick start): `make docker`
 - Set up the development environment manually
 
@@ -63,13 +63,13 @@ OPENAI_API_KEY=your_api_key_here  # Required for LLM operations (or the key for 
 
 To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
 
-### 2. 🎮 UI Playground Setup
+### 2. 🎮 DocWrangler Setup
 
-To run the UI playground locally, you have two options:
+To run DocWrangler locally, you have two options:
 
 #### Option A: Using Docker (Recommended for Quick Start)
 
-The easiest way to get the playground running:
+The easiest way to get the DocWrangler playground running:
 
 1. Create the required environment files:
 

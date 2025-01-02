@@ -60,9 +60,9 @@ export default function Home() {
 
   const newsItems = [
     {
-      highlight: "Launched our IDE!",
+      highlight: "Launched DocWrangler!",
       content:
-        "Making prompt engineering easier than ever with our new interactive playground.",
+        "Making prompt engineering easier than ever with DocWrangler, our new interactive playground.",
       link: "/playground",
       linkText: "Try it now",
       date: "Dec 2024",
@@ -101,7 +101,7 @@ export default function Home() {
               className="w-12 h-12 sm:w-16 sm:h-16 mr-2 text-primary"
               strokeWidth={1.5}
             />
-            <span className="logo-text text-2xl sm:text-3xl">docetl</span>
+            <span className="logo-text text-2xl sm:text-3xl">DocETL</span>
           </div>
           <p className="text-lg sm:text-xl mb-4 sm:mb-6">
             A system for LLM-powered data processing
@@ -142,7 +142,7 @@ export default function Home() {
                         ))}
                       </div>
                       <div className="ticker-item">
-                        <em>Launched our IDE!</em> Making prompt engineering
+                        <em>Launched DocWrangler!</em> Making prompt engineering
                         easier than ever with our new interactive playground{" "}
                         <a
                           href="/playground"
@@ -458,10 +458,10 @@ export default function Home() {
                     <p className="text-sm text-muted-foreground">
                       Prompts are the primary interface between humans and
                       LLM-powered data systems, but crafting them is more art
-                      than science. Our IDE explores new ways to make prompt
-                      engineering systematic and intuitive, with interactive
-                      tools that help users express their intent clearly and
-                      debug unexpected behaviors.{" "}
+                      than science. DocWrangler, our IDE, explores new ways to
+                      make prompt engineering systematic and intuitive, with
+                      interactive tools that help users express their intent
+                      clearly and debug unexpected behaviors.{" "}
                       <a
                         href="/playground"
                         className="text-blue-500 hover:underline inline-flex items-center"

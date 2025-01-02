@@ -26,6 +26,7 @@ AZURE_KEY = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
 router = APIRouter()
 
 MODAL_ENDPOINT = "https://ucbepic--docling-converter-convert-documents.modal.run"
+# MODAL_ENDPOINT = "https://ucbepic--docling-converter-convert-documents-dev.modal.run"
 
 def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
     """Process a single document with Azure Document Intelligence"""

@@ -724,6 +724,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     setTerminalOutput,
     namespace,
     apiKeys,
+    systemPrompt,
   } = usePipelineContext();
   const { toast } = useToast();
 
@@ -890,7 +891,10 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
           name: pipelineName,
           sample_size: sampleSize,
           optimize: true,
-          namespace,
+          clear_intermediate: false,
+          system_prompt: systemPrompt,
+          namespace: namespace,
+          apiKeys: apiKeys,
         }),
       });
 
@@ -931,6 +935,9 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     optimizerModel,
     connect,
     sendMessage,
+    systemPrompt,
+    namespace,
+    apiKeys,
   ]);
 
   const onShowOutput = useCallback(async () => {

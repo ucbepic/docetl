@@ -375,7 +375,8 @@ class DSLRunner(ConfigWrapper):
                 else:
                     input_data, cost = operation_instance.execute(input_data)
                 total_cost += cost
-                step_content += f"[green]✓[/green] Operation [cyan]{operation_name}[/cyan] completed (Cost: [green]${cost:.2f}[/green])\n"
+                step_content += f"[green]✓[/green] Operation [cyan]{operation_name}[/cyan] (Cost: [green]${cost:.2f}[/green])\n"
+                self.console.print(f"[green]✓[/green] Operation [cyan]{operation_name}[/cyan] completed (Cost: [green]${cost:.2f}[/green])")
 
             # Checkpoint after each operation
             if self.intermediate_dir:
@@ -442,7 +443,12 @@ class DSLRunner(ConfigWrapper):
                 self.datasets[f"{step_name}_{operation_name}"] = Dataset(
                     self, "file", checkpoint_path, "local"
                 )
-            return self.datasets[f"{step_name}_{operation_name}"].load()
+
+                self.console.print(
+                    f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' from {checkpoint_path}[/italic]"
+                )
+
+                return self.datasets[f"{step_name}_{operation_name}"].load()
         return None
 
     def clear_intermediate(self) -> None:

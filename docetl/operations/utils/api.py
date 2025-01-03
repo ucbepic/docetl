@@ -612,7 +612,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             for tool_call in tool_calls:
                 if response.choices[0].finish_reason == "content_filter":
                     raise InvalidOutputError(
-                        "Content filter triggered in LLM response",
+                        "Content filter triggered by LLM provider.",
                         "",
                         schema,
                         response.choices,

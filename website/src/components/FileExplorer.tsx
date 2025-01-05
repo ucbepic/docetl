@@ -876,11 +876,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
               <div
                 className={`
-                  border-2 border-dashed rounded-lg transition-colors relative flex-shrink-0
+                  border border-dashed rounded-lg transition-colors relative flex-shrink-0
                   ${
                     selectedFiles && selectedFiles.length > 0
-                      ? "border-border bg-accent/50 p-6"
-                      : "border-border p-8 hover:border-primary"
+                      ? "border-border bg-accent/50 p-3"
+                      : "border-border p-3 hover:border-primary"
                   }
                 `}
                 onDragOver={(e) => {
@@ -931,32 +931,29 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 )}
 
                 <div className="text-center">
-                  <Upload className="w-10 h-10 mx-auto text-gray-400 mb-4" />
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-600">
-                      Drag and drop your documents here or
-                    </p>
-                    <label>
-                      <input
-                        type="file"
-                        multiple
-                        className="hidden"
-                        accept={SUPPORTED_EXTENSIONS.join(",")}
-                        onChange={(e) => {
-                          if (e.target.files) {
-                            handleFolderUpload(e.target.files);
-                          }
-                        }}
-                      />
-                      <span className="text-sm text-primary hover:text-blue-600 cursor-pointer">
-                        browse files
-                      </span>
-                    </label>
-                    <p className="text-xs text-gray-500">
+                  <Upload className="w-5 h-5 mx-auto text-gray-400 mb-1" />
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center text-sm text-gray-500">
+                      <span>Drag and drop your documents here or</span>
+                      <label className="ml-0.5">
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          accept={SUPPORTED_EXTENSIONS.join(",")}
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              handleFolderUpload(e.target.files);
+                            }
+                          }}
+                        />
+                        <span className="text-primary hover:text-blue-600 cursor-pointer">
+                          browse files
+                        </span>
+                      </label>
+                    </div>
+                    <p className="mt-0.5 text-[10px] text-gray-400">
                       Supported formats: PDF, DOCX, DOC, TXT, HTML, PPTX, MD
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Processing may take up to 2 minutes
                     </p>
                   </div>
                 </div>

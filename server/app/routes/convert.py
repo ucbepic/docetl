@@ -91,7 +91,7 @@ async def convert_documents(
                     ) as response:
                         if response.status == 200:
                             result = await response.json()
-                            if result["status"] == "success":
+                            if result["status"] in ("success", '4'):
                                 results.append({
                                     "filename": file.filename,
                                     "markdown": result["document"]["markdown"]

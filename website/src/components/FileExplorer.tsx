@@ -691,7 +691,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   onValueChange={(value) =>
                     setConversionMethod(value as ConversionMethod)
                   }
-                  className="mt-2 grid grid-cols-3 gap-2"
+                  className="mt-2 grid grid-cols-4 gap-2"
                 >
                   <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
                     <div className="flex items-start space-x-2.5">

@@ -4,6 +4,7 @@ import tempfile
 import os
 import aiohttp
 from pathlib import Path
+from urllib.parse import urljoin
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, AnalyzeResult, DocumentContentFormat
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
@@ -84,7 +85,7 @@ async def convert_documents(
                     }
                     
                     async with session.post(
-                        f"{custom_docling_url}/convert",
+                        urljoin(custom_docling_url, 'convert'),
                         json=payload,
                         timeout=120
                     ) as response:

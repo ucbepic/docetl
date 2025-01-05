@@ -55,6 +55,7 @@ async def convert_documents(
     custom_docling_url: Optional[str] = Header(None)
 ):
     use_docetl_server = use_docetl_server.lower() == "true" # TODO: make this a boolean
+
     
     # If custom Docling URL is provided, forward the request there
     if custom_docling_url:
@@ -78,7 +79,7 @@ async def convert_documents(
                             "output_html": False,
                             "do_ocr": True,
                             "do_table_structure": True,
-                            "include_images": True
+                            "include_images": False
                         }
                     }
                     

@@ -2,7 +2,14 @@
 
 import dynamic from "next/dynamic";
 import React, { useEffect, useState, useRef, Suspense } from "react";
-import { Scroll, Info, Save, Monitor, AlertCircle } from "lucide-react";
+import {
+  Scroll,
+  Info,
+  Save,
+  Monitor,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
@@ -187,8 +194,8 @@ const MobileWarning: React.FC = () => (
         Desktop Required
       </h2>
       <p className="text-muted-foreground mb-6 leading-relaxed">
-        DocETL requires a larger screen for the best experience. Please switch
-        to a desktop or laptop computer to access all features.
+        DocWrangler requires a larger screen for the best experience. Please
+        switch to a desktop or laptop computer to access all features.
       </p>
       <div className="text-sm text-muted-foreground/80 bg-muted px-4 py-2 rounded-[var(--radius)] mb-6">
         Recommended minimum screen width: 768px
@@ -205,10 +212,22 @@ const MobileWarning: React.FC = () => (
     </div>
   </div>
 );
-
 const LoadingScreen: React.FC = () => (
-  <div className="h-screen flex items-center justify-center bg-background">
-    <div className="text-primary">Loading...</div>
+  <div className="h-screen flex flex-col items-center justify-center gap-6 bg-background">
+    <div className="relative">
+      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+    </div>
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex items-center gap-2">
+        <Scroll className="h-6 w-6 text-primary" />
+        <h2 className="text-2xl font-bold text-primary tracking-tight">
+          DocWrangler
+        </h2>
+      </div>
+      <div className="text-muted-foreground text-lg">
+        <span className="inline-block animate-pulse">Loading...</span>
+      </div>
+    </div>
   </div>
 );
 
@@ -279,6 +298,7 @@ const CodeEditorPipelineApp: React.FC = () => {
     setPipelineName,
     setSampleSize,
     setDefaultModel,
+    setSystemPrompt,
   } = usePipelineContext();
 
   useEffect(() => {
@@ -498,6 +518,16 @@ const CodeEditorPipelineApp: React.FC = () => {
                   >
                     Show Documentation
                   </MenubarItem>
+                  <MenubarItem
+                    onSelect={() =>
+                      window.open(
+                        "https://discord.com/invite/fHp7B2X3xx",
+                        "_blank"
+                      )
+                    }
+                  >
+                    Ask a Question on Discord
+                  </MenubarItem>
                   <MenubarSub>
                     <MenubarSubTrigger>Tutorials</MenubarSubTrigger>
                     <MenubarSubContent>
@@ -560,27 +590,72 @@ const CodeEditorPipelineApp: React.FC = () => {
                   Info
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <h3 className="font-semibold mb-2">About DocETL</h3>
-                <p className="text-sm text-gray-600">
-                  This is a research project from the EPIC Data Lab at the
-                  University of California, Berkeley. To learn more, visit{" "}
-                  <a
-                    href="https://docetl.org"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:underline"
-                  >
-                    docetl.org
-                  </a>
-                  .
-                </p>
+              <PopoverContent className="w-[32rem]">
+                <h3 className="text-lg font-semibold mb-4 text-foreground">
+                  About DocWrangler and DocETL
+                </h3>
+                <div className="space-y-4 text-sm">
+                  <p className="text-foreground/90 leading-relaxed">
+                    DocWrangler and DocETL are research projects from UC
+                    Berkeley's EPIC Data Lab. DocWrangler provides an
+                    interactive playground for building data processing
+                    pipelines, powered by DocETL - our system that combines a
+                    domain-specific language, query optimizer, and execution
+                    engine. Learn more at{" "}
+                    <a
+                      href="https://docetl.org"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      docetl.org
+                    </a>
+                    .
+                  </p>
+                  <p className="text-foreground/90 leading-relaxed">
+                    DocWrangler's AI Chat and Improve Prompt features use our
+                    experimental LLM and log usage data. For privacy, you can
+                    use your own API key instead by going to Edit &gt; Edit API
+                    keys and enabling &quot;Use personal API key&quot; in the
+                    features.
+                  </p>
+                  <p className="text-foreground/90 leading-relaxed">
+                    Want to run DocETL or the playground locally? Check out our{" "}
+                    <a
+                      href="https://ucbepic.github.io/docetl/playground/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      self-hosted version
+                    </a>
+                    . For DocETL documentation, visit{" "}
+                    <a
+                      href="https://ucbepic.github.io/docetl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      our docs
+                    </a>
+                    . Have questions? Join our{" "}
+                    <a
+                      href="https://discord.com/invite/fHp7B2X3xx"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      Discord community
+                    </a>
+                    .
+                  </p>
+                </div>
               </PopoverContent>
             </Popover>
           </div>
           <div className="flex items-center gap-2">
             <Scroll className="text-primary" size={20} />
-            <h1 className="text-lg font-bold text-primary">DocETL</h1>
+            <h1 className="text-lg font-bold text-primary">DocWrangler</h1>
             {isMounted && (
               <span className="text-sm text-gray-600">({namespace})</span>
             )}
@@ -778,6 +853,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           setSampleSize={setSampleSize}
           setDefaultModel={setDefaultModel}
           setFiles={setFiles}
+          setSystemPrompt={setSystemPrompt}
           currentFile={currentFile}
           files={files}
         />

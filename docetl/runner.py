@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 import hashlib
 from rich.console import Console
 from rich.prompt import Confirm
+from rich.panel import Panel
 
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation, get_operations
@@ -133,26 +134,17 @@ class DSLRunner(ConfigWrapper):
     def syntax_check(self):
         """
         Perform a syntax check on all operations defined in the configuration.
-
-        This method validates each operation by attempting to instantiate it.
-        If any operation fails to instantiate, a ValueError is raised.
-
-        Raises:
-            ValueError: If any operation fails the syntax check.
         """
-        self.console.rule("[yellow]Syntax Check[/yellow]")
-        self.console.print(
-            "[yellow]Performing syntax check on all operations...[/yellow]"
-        )
-
+        syntax_content = "[yellow]Performing syntax check on all operations...[/yellow]\n\n"
+        
         # Just validate that it's a json file if specified
         self.get_output_path()
 
-        for operation_config in self.config["operations"]:
-            operation = operation_config["name"]
-            operation_type = operation_config["type"]
+        try:
+            for operation_config in self.config["operations"]:
+                operation = operation_config["name"]
+                operation_type = operation_config["type"]
 
-            try:
                 operation_class = get_operation(operation_type)
                 operation_class(
                     self,
@@ -161,12 +153,14 @@ class DSLRunner(ConfigWrapper):
                     self.max_threads,
                     self.console,
                 )
-            except Exception as e:
-                raise ValueError(
-                    f"Syntax check failed for operation '{operation}': {str(e)}"
-                )
+                syntax_content += f"[green]✓[/green] Operation '{operation}' ({operation_type})\n"
+        except Exception as e:
+            raise ValueError(
+                f"Syntax check failed for operation '{operation}': {str(e)}"
+            )
 
-        self.console.print("[green]Syntax check passed for all operations.[/green]")
+        syntax_content += "\n[green]Syntax check passed for all operations.[/green]"
+        self.console.print(Panel.fit(syntax_content, title="[yellow]Syntax Check[/yellow]"))
 
     def find_operation(self, op_name: str) -> Dict:
         for operation_config in self.config["operations"]:
@@ -186,7 +180,7 @@ class DSLRunner(ConfigWrapper):
         """
 
         # Fail early if we can't save the output...
-        self.get_output_path(require=True)
+        output_path = self.get_output_path(require=True)
 
         self.console.rule("[bold blue]Pipeline Execution[/bold blue]")
         start_time = time.time()
@@ -194,11 +188,15 @@ class DSLRunner(ConfigWrapper):
         output, total_cost = self.run(self.load())
         self.save(output)
 
-        self.console.rule("[bold green]Execution Summary[/bold green]")
-        self.console.print(f"[bold green]Total cost: [green]${total_cost:.2f}[/green]")
-        self.console.print(
-            f"[bold green]Total time: [green]{time.time() - start_time:.2f} seconds[/green]"
+        execution_time = time.time() - start_time
+        summary_content = (
+            "[bold]Pipeline Execution Complete[/bold]\n\n"
+            f"[bold green]Total cost:[/bold green] [green]${total_cost:.2f}[/green]\n"
+            f"[bold green]Total time:[/bold green] [green]{execution_time:.2f} seconds[/green]\n"
+            f"[bold green]Intermediate directory:[/bold green]\n[green]{self.intermediate_dir}[/green]\n"
+            f"[bold green]Saved output to:[/bold green]\n[green]{output_path}[/green]"
         )
+        self.console.print(Panel.fit(summary_content, title="[bold green]Execution Summary[/bold green]"))
 
         return total_cost
 
@@ -236,6 +234,7 @@ class DSLRunner(ConfigWrapper):
 
         # Save the self.step_op_hashes to a file if self.intermediate_dir exists
         if self.intermediate_dir:
+            os.makedirs(self.intermediate_dir, exist_ok=True)
             with open(
                 os.path.join(self.intermediate_dir, ".docetl_intermediate_config.json"),
                 "w",
@@ -256,8 +255,9 @@ class DSLRunner(ConfigWrapper):
         Raises:
             ValueError: If an unsupported dataset type is encountered.
         """
-        self.console.rule("[cyan]Loading Datasets[/cyan]")
+        dataset_content = ""
         datasets = {}
+        
         for name, dataset_config in self.config["datasets"].items():
             if dataset_config["type"] == "file":
                 datasets[name] = Dataset(
@@ -268,9 +268,11 @@ class DSLRunner(ConfigWrapper):
                     parsing=dataset_config.get("parsing", []),
                     user_defined_parsing_tool_map=self.parsing_tool_map,
                 )
-                self.console.print(f"Loaded dataset: [bold]{name}[/bold]")
+                dataset_content += f"[green]✓[/green] Loaded dataset: [bold]{name}[/bold]\n"
             else:
                 raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
+        
+        self.console.print(Panel.fit(dataset_content, title="[cyan]Loading Datasets[/cyan]"))
         return datasets
 
     def save(self, data: List[Dict]):
@@ -306,26 +308,17 @@ class DSLRunner(ConfigWrapper):
                 f"[green italic]💾 Output saved to {output_config['path']}[/green italic]"
             )
         else:
-            raise ValueError(f"Unsupported output type: {output_config['type']}")
+            raise ValueError(f"Unsupported output type: {output_config['type']}. Supported types: file")
 
     def execute_step(
         self, step: Dict, input_data: Optional[List[Dict]]
     ) -> Tuple[List[Dict], float]:
         """
         Execute a single step in the pipeline.
-
-        This method runs all operations defined for a step, updating the progress
-        and calculating the cost.
-
-        Args:
-            step (Dict): The step configuration.
-            input_data (Optional[List[Dict]]): Input data for the step.
-
-        Returns:
-            Tuple[List[Dict], float]: A tuple containing the output data and the total cost of the step.
         """
-        self.console.rule(f"[bold blue]Executing Step: {step['name']}[/bold blue]")
+        step_content = f"[bold blue]Step: {step['name']}[/bold blue]\n\n"
         total_cost = 0
+
         for operation in step["operations"]:
             if isinstance(operation, dict):
                 operation_name = list(operation.keys())[0]
@@ -334,15 +327,13 @@ class DSLRunner(ConfigWrapper):
                 operation_name = operation
                 operation_config = {}
 
-            # Load from checkpoint if it exists
+            # Load from checkpoint if exists
             attempted_input_data = self._load_from_checkpoint_if_exists(
                 step["name"], operation_name
             )
             if attempted_input_data is not None:
                 input_data = attempted_input_data
-                self.console.print(
-                    f"[green]✓ [italic]Loaded saved data for operation '{operation_name}' in step '{step['name']}'[/italic][/green]"
-                )
+                step_content += f"[green]✓[/green] [italic]Loaded saved data for operation '{operation_name}'[/italic]\n"
                 continue
 
             # Delete existing intermediate file before running operation
@@ -384,9 +375,8 @@ class DSLRunner(ConfigWrapper):
                 else:
                     input_data, cost = operation_instance.execute(input_data)
                 total_cost += cost
-                self.console.log(
-                    f"\tOperation [cyan]{operation_name}[/cyan] completed. Cost: [green]${cost:.2f}[/green]"
-                )
+                step_content += f"[green]✓[/green] Operation [cyan]{operation_name}[/cyan] (Cost: [green]${cost:.2f}[/green])\n"
+                self.console.print(f"[green]✓[/green] Operation [cyan]{operation_name}[/cyan] completed (Cost: [green]${cost:.2f}[/green])")
 
             # Checkpoint after each operation
             if self.intermediate_dir:
@@ -413,6 +403,12 @@ class DSLRunner(ConfigWrapper):
                 with open(intermediate_config_path, "w") as f:
                     json.dump(existing_config, f, indent=2)
 
+                step_content += f"[green]✓[/green] [italic]Saved checkpoint for operation '{operation_name}'[/italic]\n"
+
+        self.console.print(Panel.fit(
+            step_content,
+            title=f"[bold blue]Step Execution: {step['name']}[/bold blue]"
+        ))
         return input_data, total_cost
 
     def _load_from_checkpoint_if_exists(
@@ -447,7 +443,12 @@ class DSLRunner(ConfigWrapper):
                 self.datasets[f"{step_name}_{operation_name}"] = Dataset(
                     self, "file", checkpoint_path, "local"
                 )
-            return self.datasets[f"{step_name}_{operation_name}"].load()
+
+                self.console.print(
+                    f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' from {checkpoint_path}[/italic]"
+                )
+
+                return self.datasets[f"{step_name}_{operation_name}"].load()
         return None
 
     def clear_intermediate(self) -> None:

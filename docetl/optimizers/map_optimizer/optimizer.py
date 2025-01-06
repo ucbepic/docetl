@@ -253,6 +253,12 @@ class MapOptimizer:
             The cost is the cost of the optimizer (from possibly synthesizing resolves).
 
         """
+        # Verify that the plan types are valid
+        for plan_type in plan_types:
+            if plan_type not in ["chunk", "proj_synthesis", "glean"]:
+                raise ValueError(f"Invalid plan type: {plan_type}. Valid plan types are: chunk, proj_synthesis, glean.")
+
+        
         input_data, output_data, model_input_context_length, no_change_runtime, validator_prompt, assessment, data_exceeds_limit = self._should_optimize_helper(op_config, input_data)
 
         # Check if improvement is needed based on the assessment

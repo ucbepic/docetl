@@ -220,43 +220,45 @@ const OperationHeader: React.FC<OperationHeaderProps> = React.memo(
             )}
           </div>
 
-          {isEditing ? (
-            <Input
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onBlur={() => {
-                setIsEditing(false);
-                onEdit(editedName);
-              }}
-              onKeyPress={(e) => {
-                if (e.key === "Enter") {
+          <div className="flex items-center">
+            {isEditing ? (
+              <Input
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onBlur={() => {
                   setIsEditing(false);
                   onEdit(editedName);
-                }
-              }}
-              className="max-w-[200px] h-6 text-sm font-medium"
-              autoFocus
-            />
-          ) : (
-            <div
-              className="flex items-center gap-1.5 group cursor-pointer"
-              onClick={() => setIsEditing(true)}
-            >
-              <span
-                className={`text-sm font-medium select-none ${
-                  llmType === "LLM"
-                    ? "bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text"
-                    : ""
-                }`}
-              >
-                {name}
-              </span>
-              <Pencil
-                size={13}
-                className="opacity-0 group-hover:opacity-70 transition-opacity text-muted-foreground"
+                }}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    setIsEditing(false);
+                    onEdit(editedName);
+                  }
+                }}
+                className="max-w-[200px] h-6 text-sm font-medium"
+                autoFocus
               />
-            </div>
-          )}
+            ) : (
+              <div
+                className="flex items-center gap-1 group cursor-pointer"
+                onClick={() => setIsEditing(true)}
+              >
+                <span
+                  className={`text-sm font-medium select-none ${
+                    llmType === "LLM"
+                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text font-semibold"
+                      : ""
+                  }`}
+                >
+                  {name}
+                </span>
+                <Pencil
+                  size={13}
+                  className="opacity-0 group-hover:opacity-70 transition-opacity text-muted-foreground"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Action Bar - Keep only the most essential actions */}
@@ -722,6 +724,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     setTerminalOutput,
     namespace,
     apiKeys,
+    systemPrompt,
   } = usePipelineContext();
   const { toast } = useToast();
 
@@ -888,7 +891,10 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
           name: pipelineName,
           sample_size: sampleSize,
           optimize: true,
-          namespace,
+          clear_intermediate: false,
+          system_prompt: systemPrompt,
+          namespace: namespace,
+          apiKeys: apiKeys,
         }),
       });
 
@@ -929,6 +935,9 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     optimizerModel,
     connect,
     sendMessage,
+    systemPrompt,
+    namespace,
+    apiKeys,
   ]);
 
   const onShowOutput = useCallback(async () => {

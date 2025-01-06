@@ -45,6 +45,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 type Step = "select" | "analyze";
 
@@ -433,7 +435,8 @@ export function PromptImprovementDialog({
   currentOperation,
   onSave,
 }: PromptImprovementDialogProps) {
-  const { operations, serializeState, apiKeys } = usePipelineContext();
+  const { operations, serializeState, apiKeys, namespace } =
+    usePipelineContext();
   const { bookmarks, removeBookmark } = useBookmarkContext();
   const [step, setStep] = useState<Step>("select");
   const [selectedOperationId, setSelectedOperationId] = useState<string>(
@@ -452,7 +455,9 @@ export function PromptImprovementDialog({
   const [chatKey, setChatKey] = useState(0);
   const [localFeedbackText, setLocalFeedbackText] = useState("");
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-  const [isLocalMode, setIsLocalMode] = useState(false);
+  const [usePersonalOpenAI, setUsePersonalOpenAI] = useState(false);
+  const [ignoreMissingKey, setIgnoreMissingKey] = useState(false);
+  const [additionalInstructions, setAdditionalInstructions] = useState("");
 
   const selectedOperation = operations.find(
     (op) => op.id === selectedOperationId
@@ -466,23 +471,51 @@ export function PromptImprovementDialog({
       )
     : [];
 
-  const { messages, isLoading, append, setMessages } = useChat({
-    api: "/api/chat",
-    id: `prompt-improvement-${chatKey}`,
-    headers: useMemo(() => {
+  const chatHeaders = useMemo(() => {
+    const headers: Record<string, string> = {};
+    if (usePersonalOpenAI) {
       const openAiKey = apiKeys.find(
         (key) => key.name === "OPENAI_API_KEY"
       )?.value;
-      return openAiKey ? { "x-openai-key": openAiKey } : {};
-    }, [apiKeys]),
-    onFinish: () => {
-      // Optional: handle completion
+      // Add the use-openai header even if no personal key is found
+      headers["x-use-openai"] = "true";
+      if (openAiKey) {
+        headers["x-openai-key"] = openAiKey;
+      }
+    }
+    headers["x-namespace"] = namespace;
+    return headers;
+  }, [apiKeys, usePersonalOpenAI, namespace]);
+
+  const {
+    messages,
+    setMessages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    isLoading,
+    append,
+    error: chatError,
+  } = useChat({
+    api: "/api/chat",
+    headers: {
+      ...chatHeaders,
+      "x-source": "prompt_improvement",
+    },
+    onError: (error) => {
+      console.error("Chat error:", error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
   const hasOpenAIKey = useMemo(() => {
+    if (!usePersonalOpenAI) return true;
     return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
-  }, [apiKeys]);
+  }, [apiKeys, usePersonalOpenAI]);
 
   // Update the effect that handles new messages
   useEffect(() => {
@@ -589,7 +622,7 @@ export function PromptImprovementDialog({
   }, [selectedRevisionIndex, revisions]);
 
   const handleImprove = useCallback(async () => {
-    if (!hasOpenAIKey && !isLocalMode) {
+    if (!hasOpenAIKey && !usePersonalOpenAI) {
       toast({
         title: "OpenAI API Key Required",
         description: "Please add your OpenAI API key in Edit > Edit API Keys",
@@ -617,6 +650,10 @@ export function PromptImprovementDialog({
             .join("\n")}`
         : "\nNo feedback found for this operation.";
 
+    const instructionsSection = additionalInstructions
+      ? `\nAdditional Instructions:\n${additionalInstructions}`
+      : "";
+
     const pipelineState = await serializeState();
     const systemContent = getSystemContent(pipelineState, selectedOperation);
 
@@ -634,7 +671,18 @@ export function PromptImprovementDialog({
       role: "user",
       content: `Please analyze and improve my prompt${
         selectedOperation.type === "resolve" ? "s" : ""
-      }:${
+      } following these best practices:
+
+1. Be specific and unambiguous in instructions
+2. Break down complex tasks into steps
+3. Include examples where helpful
+4. Use clear formatting and structure
+5. Specify the desired output format
+6. Include relevant context and constraints
+7. Use consistent terminology
+8. Avoid vague or subjective language
+
+Here is the current prompt to improve:${
         selectedOperation.type === "resolve"
           ? `\nComparison prompt:\n${
               selectedOperation.otherKwargs?.comparison_prompt || ""
@@ -642,7 +690,7 @@ export function PromptImprovementDialog({
               selectedOperation.otherKwargs?.resolution_prompt || ""
             }`
           : `\n${selectedOperation.prompt}`
-      }${bookmarksSection}`,
+      }${bookmarksSection}${instructionsSection}`,
       id: "user-1",
     });
 
@@ -656,7 +704,8 @@ export function PromptImprovementDialog({
     setMessages,
     relevantBookmarks,
     hasOpenAIKey,
-    isLocalMode,
+    usePersonalOpenAI,
+    additionalInstructions,
   ]);
 
   const handleBack = () => {
@@ -786,6 +835,7 @@ Remember to ${
       onOpenChange(false);
       setStep("select");
       setShowSaveConfirm(false);
+      setAdditionalInstructions("");
     }
   };
 
@@ -805,8 +855,24 @@ Remember to ${
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               )}
-              <DialogTitle>Rewrite Prompt</DialogTitle>
+              <DialogTitle>Improve Prompt</DialogTitle>
+
+              <div className="flex items-center gap-1.5 ml-auto">
+                <Switch
+                  id="use-personal-openai"
+                  checked={usePersonalOpenAI}
+                  onCheckedChange={setUsePersonalOpenAI}
+                  className="h-4 w-7 data-[state=checked]:bg-primary"
+                />
+                <Label
+                  htmlFor="use-personal-openai"
+                  className="text-[10px] text-muted-foreground whitespace-nowrap"
+                >
+                  Use Personal OpenAI API Key
+                </Label>
+              </div>
             </div>
+
             <div className="flex items-center gap-2 mt-2">
               <div
                 className={`h-2 flex-1 rounded-full ${
@@ -821,15 +887,15 @@ Remember to ${
             </div>
             <DialogDescription className="mt-2">
               {step === "select"
-                ? "Select an operation to improve its prompt"
-                : "DocETL is analyzing and suggesting improvements"}
+                ? "Select the operation you want to improve the prompt for"
+                : "DocWrangler is analyzing and suggesting improvements"}
             </DialogDescription>
           </DialogHeader>
 
           <ScrollArea className="flex-1 w-full h-[calc(80vh-8rem)] overflow-y-auto">
             {step === "select" ? (
               <div className="flex flex-col gap-4 pr-4 pb-4">
-                {!hasOpenAIKey && !isLocalMode && (
+                {!hasOpenAIKey && usePersonalOpenAI && !ignoreMissingKey && (
                   <div className="bg-destructive/10 text-destructive rounded-md p-3 mb-2 text-xs">
                     <div className="flex gap-2">
                       <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -841,7 +907,7 @@ Remember to ${
                         </p>
                         <button
                           className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
-                          onClick={() => setIsLocalMode(true)}
+                          onClick={() => setIgnoreMissingKey(true)}
                         >
                           Ignore if running locally with environment variables
                         </button>
@@ -870,69 +936,98 @@ Remember to ${
 
                 {selectedOperation && (
                   <>
-                    <div className="text-sm">
-                      <div className="font-medium mb-2">
-                        Current Prompt
-                        {selectedOperation.type === "resolve" ? "s" : ""}:
-                      </div>
-                      {selectedOperation.type === "resolve" ? (
-                        <div className="space-y-4">
-                          <div>
-                            <div className="font-medium text-sm mb-1">
-                              Comparison Prompt:
-                            </div>
-                            <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
-                              {selectedOperation.otherKwargs
-                                ?.comparison_prompt || ""}
-                            </pre>
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm mb-1">
-                              Resolution Prompt:
-                            </div>
-                            <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
-                              {selectedOperation.otherKwargs
-                                ?.resolution_prompt || ""}
-                            </pre>
-                          </div>
+                    <div className="space-y-6">
+                      <div className="text-sm">
+                        <div className="font-medium mb-2 text-foreground">
+                          Current Prompt
+                          {selectedOperation.type === "resolve" ? "s" : ""}:
                         </div>
-                      ) : (
-                        <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
-                          {selectedOperation.prompt}
-                        </pre>
-                      )}
-                    </div>
-
-                    <div className="text-sm">
-                      <div className="font-medium mb-2">Feedback:</div>
-                      <div className="bg-muted p-2 rounded-md">
-                        {relevantBookmarks.length > 0 ? (
-                          <ul className="list-disc list-inside space-y-1">
-                            {relevantBookmarks.map((note, index) => (
-                              <li key={index}>{note.note}</li>
-                            ))}
-                          </ul>
+                        {selectedOperation.type === "resolve" ? (
+                          <div className="space-y-4">
+                            <div>
+                              <div className="text-sm mb-1 text-muted-foreground">
+                                Comparison Prompt:
+                              </div>
+                              <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                                {selectedOperation.otherKwargs
+                                  ?.comparison_prompt || ""}
+                              </pre>
+                            </div>
+                            <div>
+                              <div className="text-sm mb-1 text-muted-foreground">
+                                Resolution Prompt:
+                              </div>
+                              <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                                {selectedOperation.otherKwargs
+                                  ?.resolution_prompt || ""}
+                              </pre>
+                            </div>
+                          </div>
                         ) : (
-                          <p className="text-muted-foreground">
-                            No feedback or bookmarks found for this operation.
+                          <pre className="bg-muted p-2 rounded-md whitespace-pre-wrap">
+                            {selectedOperation.prompt}
+                          </pre>
+                        )}
+                      </div>
+
+                      <div className="text-sm">
+                        <div className="font-medium mb-2 text-foreground">
+                          Your Notes:
+                        </div>
+                        <div className="bg-muted p-3 rounded-md">
+                          {relevantBookmarks.length > 0 ? (
+                            <ul className="list-disc list-inside space-y-1">
+                              {relevantBookmarks.map((note, index) => (
+                                <li key={index}>{note.note}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-muted-foreground">
+                              No feedback or bookmarks found for this operation.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-sm">
+                        <div className="font-medium mb-2 text-muted-foreground flex items-center gap-2">
+                          Additional Instructions
+                          <span className="text-xs font-normal">
+                            (optional)
+                          </span>
+                        </div>
+                        <Textarea
+                          placeholder="Add specific instructions for improving the prompt (e.g., 'Make it more concise', 'Add more examples')"
+                          value={additionalInstructions}
+                          onChange={(e) =>
+                            setAdditionalInstructions(e.target.value)
+                          }
+                          className="h-24 resize-none"
+                        />
+                        {!additionalInstructions && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Leave blank to let the AI follow default improvement
+                            guidelines
                           </p>
                         )}
                       </div>
                     </div>
+
+                    <Button
+                      onClick={handleImprove}
+                      disabled={
+                        isLoading ||
+                        !selectedOperation ||
+                        (!hasOpenAIKey &&
+                          usePersonalOpenAI &&
+                          !ignoreMissingKey)
+                      }
+                      className="mt-4"
+                    >
+                      Continue to Analysis
+                    </Button>
                   </>
                 )}
-
-                <Button
-                  onClick={handleImprove}
-                  disabled={
-                    isLoading ||
-                    !selectedOperation ||
-                    (!hasOpenAIKey && !isLocalMode)
-                  }
-                  className="mt-4"
-                >
-                  Continue to Analysis
-                </Button>
               </div>
             ) : (
               <div className="flex flex-col gap-4 pr-4 pb-4">

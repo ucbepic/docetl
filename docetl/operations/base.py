@@ -1,19 +1,16 @@
 """
-The BaseOperation class is an abstract base class for all operations in the docetl framework. It provides a common structure and interface for various data processing operations.
+The BaseOperation class is an abstract base class for all operations in the docetl framework.
 """
 
 from abc import ABC, ABCMeta, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
-from docetl.operations.utils import APIWrapper
-from docetl.console import DOCETL_CONSOLE
 from rich.console import Console
 from rich.status import Status
 import jsonschema
 from pydantic import BaseModel
 
 
-# FIXME: This should probably live in some utils module?
 class classproperty(object):
     def __init__(self, f):
         self.f = f
@@ -32,7 +29,7 @@ class BaseOperationMeta(ABCMeta):
 class BaseOperation(ABC, metaclass=BaseOperationMeta):
     def __init__(
         self,
-        runner: "ConfigWrapper",
+        runner: "ConfigWrapper",  # Type hint as string to avoid circular import
         config: Dict,
         default_model: str,
         max_threads: int,
@@ -41,23 +38,13 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         is_build: bool = False,
         **kwargs,
     ):
-        """
-        Initialize the BaseOperation.
-
-        Args:
-            config (Dict): Configuration dictionary for the operation.
-            default_model (str): Default language model to use.
-            max_threads (int): Maximum number of threads for parallel processing.
-            console (Optional[Console]): Rich console for outputting logs. Defaults to None.
-            status (Optional[Status]): Rich status for displaying progress. Defaults to None.
-        """
         assert "name" in config, "Operation must have a name"
         assert "type" in config, "Operation must have a type"
         self.runner = runner
         self.config = config
         self.default_model = default_model
         self.max_threads = max_threads
-        self.console = console or DOCETL_CONSOLE
+        self.console = console or Console()
         self.manually_fix_errors = self.config.get("manually_fix_errors", False)
         self.status = status
         self.num_retries_on_validate_failure = self.config.get(
@@ -70,7 +57,6 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
     class schema(BaseModel, extra="allow"):
         name: str
         type: str
-        skip_on_error: bool = False
 
     @classproperty
     def json_schema(cls):
@@ -84,45 +70,16 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
 
     @abstractmethod
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
-        """
-        Execute the operation on the input data.
-
-        This method should be implemented by subclasses to perform the
-        actual operation on the input data.
-
-        Args:
-            input_data (List[Dict]): List of input data items.
-
-        Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed data
-            and the total cost of the operation.
-        """
+        """Execute the operation on the input data."""
         pass
 
     @abstractmethod
     def syntax_check(self) -> None:
-        """
-        Perform syntax checks on the operation configuration.
-
-        This method should be implemented by subclasses to validate the
-        configuration specific to each operation type.
-
-        Raises:
-            ValueError: If the configuration is invalid.
-        """
+        """Perform syntax checks on the operation configuration."""
         jsonschema.validate(instance=self.config, schema=self.json_schema)
 
     def gleaning_check(self) -> None:
-        """
-        Perform checks on the gleaning configuration.
-
-        This method validates the gleaning configuration if it's present
-        in the operation config.
-
-        Raises:
-            ValueError: If the gleaning configuration is invalid.
-            TypeError: If the gleaning configuration has incorrect types.
-        """
+        """Perform checks on the gleaning configuration."""
         if "gleaning" not in self.config:
             return
         if "num_rounds" not in self.config["gleaning"]:

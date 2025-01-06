@@ -1,4 +1,6 @@
+from .base import BaseOperation
 import importlib.metadata
+
 from docetl.operations.cluster import ClusterOperation
 from docetl.operations.code_operations import CodeFilterOperation, CodeMapOperation, CodeReduceOperation
 from docetl.operations.equijoin import EquijoinOperation
@@ -11,6 +13,22 @@ from docetl.operations.split import SplitOperation
 from docetl.operations.sample import SampleOperation
 from docetl.operations.unnest import UnnestOperation
 
+__all__ = [
+    'BaseOperation',
+    'ClusterOperation',
+    'CodeFilterOperation',
+    'CodeMapOperation',
+    'CodeReduceOperation',
+    'EquijoinOperation',
+    'FilterOperation',
+    'GatherOperation',
+    'MapOperation',
+    'ReduceOperation',
+    'ResolveOperation',
+    'SplitOperation',
+    'SampleOperation',
+    'UnnestOperation',
+]
 
 mapping = {
     "cluster": ClusterOperation,

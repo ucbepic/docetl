@@ -55,6 +55,7 @@ import {
 } from "./ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useDatasetUpload } from "@/hooks/useDatasetUpload";
+import { getBackendUrl } from "@/lib/api-config";
 
 interface FileExplorerProps {
   files: File[];
@@ -326,7 +327,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     setIsConverting(true);
     const formData = new FormData();
 
-    // First, save all original documents and collect their paths
+    // First, save all original documents
     const originalDocsFormData = new FormData();
     Array.from(selectedFiles).forEach((file) => {
       formData.append("files", file);
@@ -336,23 +337,22 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       );
     });
     originalDocsFormData.append("namespace", namespace);
-    formData.append("conversion_method", conversionMethod);
 
     try {
-      // First save the original documents
-      const saveDocsResponse = await fetch("/api/saveDocuments", {
-        method: "POST",
-        body: originalDocsFormData,
-      });
+      // Save original documents directly to FastAPI
+      const saveDocsResponse = await fetch(
+        `${getBackendUrl()}/fs/save-documents`,
+        {
+          method: "POST",
+          body: originalDocsFormData,
+        }
+      );
 
       if (!saveDocsResponse.ok) {
         throw new Error("Failed to save original documents");
       }
 
       const savedDocs = await saveDocsResponse.json();
-
-      // Choose endpoint based on conversion method
-      const conversionEndpoint = "/api/convertDocuments";
 
       // Prepare headers for Azure if needed
       const headers: HeadersInit = {};
@@ -363,21 +363,29 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         headers["custom-docling-url"] = customDoclingUrl;
       }
 
-      // Then proceed with conversion
-      const response = await fetch(conversionEndpoint, {
+      // Determine conversion endpoint
+      let targetUrl = `${getBackendUrl()}/api/convert-documents`;
+      if (conversionMethod === "azure") {
+        targetUrl = `${getBackendUrl()}/api/azure-convert-documents`;
+      } else if (conversionMethod === "docetl") {
+        targetUrl = `${getBackendUrl()}/api/convert-documents?use_docetl_server=true`;
+      }
+
+      // Convert documents
+      const response = await fetch(targetUrl, {
         method: "POST",
         body: formData,
         headers,
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Internal Server Error");
       }
 
       const result = await response.json();
 
-      // Create a folder name based on timestamp
+      // Create folder and upload files
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const folderName = `converted_${timestamp}`;
 
@@ -402,7 +410,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       const jsonFormData = new FormData();
       jsonFormData.append("file", jsonFile);
       jsonFormData.append("namespace", namespace);
-      const uploadResponse = await fetch("/api/uploadFile", {
+
+      const uploadResponse = await fetch(`${getBackendUrl()}/fs/upload-file`, {
         method: "POST",
         body: jsonFormData,
       });
@@ -444,7 +453,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleFileDownload = async (file: File) => {
     try {
       const response = await fetch(
-        `/api/readFile?path=${encodeURIComponent(file.path)}`
+        `${getBackendUrl()}/fs/read-file?path=${encodeURIComponent(file.path)}`
       );
       if (!response.ok) {
         throw new Error("Failed to download file");

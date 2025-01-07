@@ -49,7 +49,6 @@ export async function POST(request: NextRequest) {
       }`;
     }
 
-
     // Forward the request to the appropriate backend
     const response = await fetch(targetUrl, {
       method: "POST",

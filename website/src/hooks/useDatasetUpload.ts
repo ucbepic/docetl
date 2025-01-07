@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { File } from "@/app/types";
+import { getBackendUrl } from "@/lib/api-config";
 
 interface UseDatasetUploadOptions {
   namespace: string;
@@ -71,24 +72,21 @@ export function useDatasetUpload({
       return;
     }
 
-    // Add loading indicator immediately
     toast({
       title: "Uploading dataset...",
       description: "This may take a few seconds",
     });
 
-    // Add to uploading files set to show spinner in file list
     setUploadingFiles((prev) => new Set(prev).add(file.name));
 
     try {
-      // Validate JSON structure before uploading
       await validateJsonDataset(file.blob);
 
       const formData = new FormData();
       formData.append("file", file.blob);
       formData.append("namespace", namespace);
 
-      const response = await fetch("/api/uploadFile", {
+      const response = await fetch(`${getBackendUrl()}/fs/upload-file`, {
         method: "POST",
         body: formData,
       });

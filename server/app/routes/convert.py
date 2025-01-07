@@ -4,12 +4,14 @@ import tempfile
 import os
 import aiohttp
 from pathlib import Path
+from urllib.parse import urljoin
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, AnalyzeResult, DocumentContentFormat
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
+import base64
 
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -48,8 +50,63 @@ def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
         return f"Error processing document: {str(e)}"
 
 @router.post("/api/convert-documents")
-async def convert_documents(files: List[UploadFile] = File(...), use_docetl_server: str = "false"):
+async def convert_documents(
+    files: List[UploadFile] = File(...), 
+    use_docetl_server: str = "false",
+    custom_docling_url: Optional[str] = Header(None)
+):
     use_docetl_server = use_docetl_server.lower() == "true" # TODO: make this a boolean
+
+    
+    # If custom Docling URL is provided, forward the request there
+    if custom_docling_url:
+        try:
+            async with aiohttp.ClientSession() as session:
+                results = []
+                for file in files:
+                    # Read file content and encode as base64
+                    content = await file.read()
+                    base64_content = base64.b64encode(content).decode('utf-8')
+                    
+                    # Prepare request payload according to Docling server spec
+                    payload = {
+                        "file_source": {
+                            "base64_string": base64_content,
+                            "filename": file.filename
+                        },
+                        "options": {
+                            "output_docling_document": False,
+                            "output_markdown": True,
+                            "output_html": False,
+                            "do_ocr": True,
+                            "do_table_structure": True,
+                            "include_images": False
+                        }
+                    }
+                    
+                    async with session.post(
+                        urljoin(custom_docling_url, 'convert'),
+                        json=payload,
+                        timeout=120
+                    ) as response:
+                        if response.status == 200:
+                            result = await response.json()
+                            if result["status"] in ("success", '4'):
+                                results.append({
+                                    "filename": file.filename,
+                                    "markdown": result["document"]["markdown"]
+                                })
+                            else:
+                                return {"error": f"Docling server failed to convert {file.filename}: {result.get('errors', [])}"}
+                        else:
+                            error_msg = await response.text()
+                            return {"error": f"Custom Docling server returned error for {file.filename}: {error_msg}"}
+                
+                return {"documents": results}
+            
+        except Exception as e:
+            print(f"Custom Docling server failed: {str(e)}. Falling back to local processing...")
+    
     # Only try Modal endpoint if use_docetl_server is true and there are no txt files
     all_txt_files = all(file.filename.lower().endswith('.txt') or file.filename.lower().endswith('.md') for file in files)
     if use_docetl_server and not all_txt_files:
@@ -58,6 +115,8 @@ async def convert_documents(files: List[UploadFile] = File(...), use_docetl_serv
                 # Prepare files for multipart upload
                 data = aiohttp.FormData()
                 for file in files:
+                    # Reset file position since we might have read it in the custom Docling attempt
+                    await file.seek(0)
                     data.add_field('files',
                                 await file.read(),
                                 filename=file.filename,

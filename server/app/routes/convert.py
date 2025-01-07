@@ -106,7 +106,6 @@ async def convert_documents(
             
         except Exception as e:
             print(f"Custom Docling server failed: {str(e)}. Falling back to local processing...")
-            return {"error": f"Failed to connect to custom Docling server: {str(e)}"}
     
     # Only try Modal endpoint if use_docetl_server is true and there are no txt files
     all_txt_files = all(file.filename.lower().endswith('.txt') or file.filename.lower().endswith('.md') for file in files)

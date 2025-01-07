@@ -76,7 +76,7 @@ The easiest way to get the DocWrangler playground running:
 Create `.env` in the root directory:
 ```bash
 OPENAI_API_KEY=your_api_key_here
-BACKEND_ALLOW_ORIGINS=
+BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000
 BACKEND_RELOAD=True
@@ -122,7 +122,7 @@ cd docetl
 2. Set up environment variables in `.env` in the root/top-level directory:
 ```bash
 OPENAI_API_KEY=your_api_key_here
-BACKEND_ALLOW_ORIGINS=
+BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 BACKEND_HOST=localhost
 BACKEND_PORT=8000
 BACKEND_RELOAD=True

@@ -4,6 +4,7 @@ import tempfile
 import os
 import aiohttp
 from pathlib import Path
+from urllib.parse import urljoin
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, AnalyzeResult, DocumentContentFormat
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
@@ -55,6 +56,7 @@ async def convert_documents(
     custom_docling_url: Optional[str] = Header(None)
 ):
     use_docetl_server = use_docetl_server.lower() == "true" # TODO: make this a boolean
+
     
     # If custom Docling URL is provided, forward the request there
     if custom_docling_url:
@@ -78,18 +80,18 @@ async def convert_documents(
                             "output_html": False,
                             "do_ocr": True,
                             "do_table_structure": True,
-                            "include_images": True
+                            "include_images": False
                         }
                     }
                     
                     async with session.post(
-                        f"{custom_docling_url}/convert",
+                        urljoin(custom_docling_url, 'convert'),
                         json=payload,
                         timeout=120
                     ) as response:
                         if response.status == 200:
                             result = await response.json()
-                            if result["status"] == "success":
+                            if result["status"] in ("success", '4'):
                                 results.append({
                                     "filename": file.filename,
                                     "markdown": result["document"]["markdown"]

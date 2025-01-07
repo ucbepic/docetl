@@ -42,12 +42,13 @@ export async function POST(request: NextRequest) {
     if (azureEndpoint && azureKey) {
       targetUrl = `${FASTAPI_URL}/api/azure-convert-documents`;
     } else if (customDoclingUrl) {
-      targetUrl = `${customDoclingUrl}/convert`;
+      targetUrl = `${FASTAPI_URL}/api/convert-documents`;
     } else {
       targetUrl = `${FASTAPI_URL}/api/convert-documents${
         conversionMethod === "docetl" ? "?use_docetl_server=true" : ""
       }`;
     }
+
 
     // Forward the request to the appropriate backend
     const response = await fetch(targetUrl, {

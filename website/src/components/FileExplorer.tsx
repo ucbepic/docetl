@@ -147,7 +147,7 @@ async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
   return files;
 }
 
-type ConversionMethod = "local" | "azure" | "docetl";
+type ConversionMethod = "local" | "azure" | "docetl" | "custom-docling";
 
 async function validateJsonDataset(file: Blob): Promise<void> {
   const text = await file.text();
@@ -216,6 +216,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     useState<ConversionMethod>("local");
   const [azureEndpoint, setAzureEndpoint] = useState("");
   const [azureKey, setAzureKey] = useState("");
+  const [customDoclingUrl, setCustomDoclingUrl] = useState("");
 
   const { uploadingFiles, uploadDataset } = useDatasetUpload({
     namespace,
@@ -358,6 +359,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       if (conversionMethod === "azure") {
         headers["azure-endpoint"] = azureEndpoint;
         headers["azure-key"] = azureKey;
+      } else if (conversionMethod === "custom-docling") {
+        headers["custom-docling-url"] = customDoclingUrl;
       }
 
       // Then proceed with conversion
@@ -368,7 +371,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to convert documents");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Internal Server Error");
       }
 
       const result = await response.json();
@@ -430,7 +434,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to process files. Please try again.",
+        description: error instanceof Error ? error.message : String(error),
       });
     } finally {
       setIsConverting(false);
@@ -687,7 +691,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   onValueChange={(value) =>
                     setConversionMethod(value as ConversionMethod)
                   }
-                  className="mt-2 grid grid-cols-3 gap-2"
+                  className="mt-2 grid grid-cols-4 gap-2"
                 >
                   <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
                     <div className="flex items-start space-x-2.5">
@@ -778,6 +782,33 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       Enterprise-grade cloud processing
                     </p>
                   </div>
+
+                  <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
+                    <div className="flex items-start space-x-2.5">
+                      <RadioGroupItem
+                        value="custom-docling"
+                        id="custom-docling"
+                        className="mt-0.5"
+                      />
+                      <Label
+                        htmlFor="custom-docling"
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        Custom Docling Server{" "}
+                        <a
+                          href="https://github.com/DS4SD/docling-serve"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          (GitHub ↗)
+                        </a>
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-6">
+                      Connect to your own Docling server instance
+                    </p>
+                  </div>
                 </RadioGroup>
               </div>
 
@@ -826,13 +857,30 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 </div>
               )}
 
+              {conversionMethod === "custom-docling" && (
+                <div className="grid gap-2 animate-in fade-in slide-in-from-top-1">
+                  <div className="space-y-1">
+                    <Label htmlFor="docling-url" className="text-sm">
+                      Docling Server URL
+                    </Label>
+                    <Input
+                      id="docling-url"
+                      placeholder="http://hostname:port"
+                      value={customDoclingUrl}
+                      onChange={(e) => setCustomDoclingUrl(e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div
                 className={`
-                  border-2 border-dashed rounded-lg transition-colors relative flex-shrink-0
+                  border border-dashed rounded-lg transition-colors relative flex-shrink-0
                   ${
                     selectedFiles && selectedFiles.length > 0
-                      ? "border-border bg-accent/50 p-6"
-                      : "border-border p-8 hover:border-primary"
+                      ? "border-border bg-accent/50 p-3"
+                      : "border-border p-3 hover:border-primary"
                   }
                 `}
                 onDragOver={(e) => {
@@ -883,32 +931,29 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 )}
 
                 <div className="text-center">
-                  <Upload className="w-10 h-10 mx-auto text-gray-400 mb-4" />
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-600">
-                      Drag and drop your documents here or
-                    </p>
-                    <label>
-                      <input
-                        type="file"
-                        multiple
-                        className="hidden"
-                        accept={SUPPORTED_EXTENSIONS.join(",")}
-                        onChange={(e) => {
-                          if (e.target.files) {
-                            handleFolderUpload(e.target.files);
-                          }
-                        }}
-                      />
-                      <span className="text-sm text-primary hover:text-blue-600 cursor-pointer">
-                        browse files
-                      </span>
-                    </label>
-                    <p className="text-xs text-gray-500">
+                  <Upload className="w-5 h-5 mx-auto text-gray-400 mb-1" />
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center text-sm text-gray-500">
+                      <span>Drag and drop your documents here or</span>
+                      <label className="ml-0.5">
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          accept={SUPPORTED_EXTENSIONS.join(",")}
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              handleFolderUpload(e.target.files);
+                            }
+                          }}
+                        />
+                        <span className="text-primary hover:text-blue-600 cursor-pointer">
+                          browse files
+                        </span>
+                      </label>
+                    </div>
+                    <p className="mt-0.5 text-[10px] text-gray-400">
                       Supported formats: PDF, DOCX, DOC, TXT, HTML, PPTX, MD
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Processing may take up to 2 minutes
                     </p>
                   </div>
                 </div>
@@ -978,7 +1023,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       disabled={
                         isConverting ||
                         (conversionMethod === "azure" &&
-                          (!azureEndpoint || !azureKey))
+                          (!azureEndpoint || !azureKey)) ||
+                        (conversionMethod === "custom-docling" &&
+                          !customDoclingUrl)
                       }
                       className="min-w-[100px]"
                     >

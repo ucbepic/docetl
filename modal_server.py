@@ -13,7 +13,11 @@ load_dotenv()
 app = modal.App(
     "docetl-server", 
     image=modal.Image.debian_slim().add_local_file("pyproject.toml", "/pyproject.toml", copy=True)
-    .add_local_python_source("docetl", "server", copy=True)
+    .add_local_file("poetry.lock", "/poetry.lock", copy=True)
+    .add_local_file("README.md", "/README.md", copy=True)
+    # .add_local_python_source("docetl", "server", copy=True)
+    .add_local_dir("docetl", remote_path="/docetl", copy=True)
+    .add_local_dir("server", remote_path="/server", copy=True)
     # .poetry_install_from_file("/root/pyproject.toml", force_build=True)
     .pip_install("poetry")
     .pip_install("pyyaml")

@@ -12,7 +12,7 @@ port = int(os.getenv("BACKEND_PORT", 8000))
 reload = os.getenv("BACKEND_RELOAD", "False").lower() == "true"
 
 # Set default allow_origins if BACKEND_ALLOW_ORIGINS is not provided
-allow_origins = os.getenv("BACKEND_ALLOW_ORIGINS", "http://localhost:3000").split(",")
+allow_origins = os.getenv("BACKEND_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,https://docetl.org,http://192.168.4.201:3000").split(",")
 
 app = FastAPI()
 os.environ["USE_FRONTEND"] = "true"

@@ -9,12 +9,14 @@ from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, List, Tuple, Optional
 
+from docetl import console
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.progress import RichLoopBar
 import numpy as np
 from jinja2 import Template
 from litellm import model_cost
 from rich.prompt import Confirm
+from rich.console import Console
 
 from docetl.operations.base import BaseOperation
 from docetl.utils import completion_cost
@@ -254,7 +256,8 @@ class EquijoinOperation(BaseOperation):
             sampled_pairs = stratified_length_sample(
                 blocked_pairs,
                 limit_comparisons,
-                sample_size=1000
+                sample_size=1000,
+                console=self.console
             )
 
             # Calculate number of dropped pairs
@@ -492,21 +495,48 @@ class EquijoinOperation(BaseOperation):
         return results, total_cost
 
 
-def estimate_cardinality(items: List[Dict], sample_size: int = 1000) -> float:
+def estimate_length(items: List[Dict], sample_size: int = 1000) -> float:
     """
-    Estimates cardinality by sampling items and checking uniqueness ratio.
-    Returns estimated uniqueness ratio (0-1).
+    Estimates average document length in the relation.
+    Returns a normalized score (0-1) representing relative document size.
+    
+    Args:
+        items: List of dictionary items to analyze
+        sample_size: Number of items to sample for estimation
+        
+    Returns:
+        float: Normalized score based on average document length
     """
+    if not items:
+        return 0.0
+        
     sample_size = min(len(items), sample_size)
     sample = random.sample(items, sample_size)
-    unique_items = {get_hashable_key(item) for item in sample}
-    return len(unique_items) / sample_size
+    
+    def get_doc_length(doc: Dict) -> int:
+        """Calculate total length of all string values in document"""
+        total_len = 0
+        for value in doc.values():
+            if isinstance(value, str):
+                total_len += len(value)
+            elif isinstance(value, (list, dict)):
+                # For nested structures, use their string representation
+                total_len += len(str(value))
+        return total_len
+    
+    lengths = [get_doc_length(item) for item in sample]
+    if not lengths:
+        return 0.0
+        
+    avg_length = sum(lengths) / len(lengths)
+    return avg_length
 
 
 def stratified_length_sample(
     blocked_pairs: List[Tuple[Dict, Dict]], 
     limit_comparisons: int,
-    sample_size: int = 1000
+    sample_size: int = 1000,
+    console: Console = None
 ) -> List[Tuple[Dict, Dict]]:
     """
     Samples pairs stratified by the smaller cardinality relation,
@@ -516,12 +546,16 @@ def stratified_length_sample(
     left_items = [left for left, _ in blocked_pairs]
     right_items = [right for _, right in blocked_pairs]
     
-    # Estimate cardinality for both relations
-    left_uniqueness = estimate_cardinality(left_items, sample_size)
-    right_uniqueness = estimate_cardinality(right_items, sample_size)
+    # Estimate length for both relations
+    left_length = estimate_length(left_items, sample_size)
+    right_length = estimate_length(right_items, sample_size)
     
-    # Group by the relation with estimated lower cardinality
-    use_left_as_key = left_uniqueness < right_uniqueness
+    # Group by the relation with estimated lower length
+    use_left_as_key = left_length > right_length
+    if console:
+        longer_length = max(left_length, right_length)
+        longer_side = "left" if left_length > right_length else "right"
+        console.log(f"Longer length is {longer_length:.2f} ({longer_side} side). Using {longer_side} to sample matches.")
     groups = defaultdict(list)
     
     for left, right in blocked_pairs:

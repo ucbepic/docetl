@@ -1,0 +1,980 @@
+# DocETL System Description and LLM Instructions (Full)
+
+DocETL is a system for creating and executing LLM-powered data processing pipelines, designed for complex document processing tasks. It provides a low-code, declarative YAML interface to define complex data operations on unstructured datasets.
+
+DocETL is built and maintained by the EPIC lab at UC Berkeley. Learn more at https://www.docetl.org.
+
+We have an integrated development environment for building and testing pipelines, at https://www.docetl.org/playground. Our IDE is called DocWrangler.
+
+## Docs
+
+- [Website](https://www.docetl.org)
+- [DocWrangler Playground](https://www.docetl.org/playground)
+- [Main Documentation](https://ucbepic.github.io/docetl)
+- [GitHub Repository](https://github.com/ucbepic/docetl)
+- [Agentic Optimization Research Paper](https://arxiv.org/abs/2410.12189)
+- [Discord Community](https://discord.gg/fHp7B2X3xx)
+
+### Core Operators
+- [Map Operation](https://ucbepic.github.io/docetl/operators/map/)
+- [Reduce Operation](https://ucbepic.github.io/docetl/operators/reduce/)
+- [Resolve Operation](https://ucbepic.github.io/docetl/operators/resolve/)
+- [Parallel Map Operation](https://ucbepic.github.io/docetl/operators/parallel-map/)
+- [Filter Operation](https://ucbepic.github.io/docetl/operators/filter/)
+- [Equijoin Operation](https://ucbepic.github.io/docetl/operators/equijoin/)
+
+### Auxiliary Operators
+- [Split Operation](https://ucbepic.github.io/docetl/operators/split/)
+- [Gather Operation](https://ucbepic.github.io/docetl/operators/gather/)
+- [Unnest Operation](https://ucbepic.github.io/docetl/operators/unnest/)
+- [Sample Operation](https://ucbepic.github.io/docetl/operators/sample)
+- [Code Operation](https://ucbepic.github.io/docetl/operators/code/)
+
+### LLM Providers
+- [LiteLLM Supported Providers](https://docs.litellm.ai/docs/providers)
+
+## Optional
+
+### Datasets and Data Loading
+
+DocETL supports both standard and dynamic data loading. Input data must be in one of two formats:
+
+1. JSON Format:
+   - A list of objects/dictionaries
+   - Each object represents one document/item to process
+   - Each field in the object is accessible in operations via `input.field_name`
+
+   Example JSON:
+   ```json
+   [
+     {
+       "text": "First document content",
+       "date": "2024-03-20",
+       "metadata": {"source": "email"}
+     },
+     {
+       "text": "Second document content",
+       "date": "2024-03-21",
+       "metadata": {"source": "chat"}
+     }
+   ]
+   ```
+
+2. CSV Format:
+   - First row contains column headers
+   - Each subsequent row represents one document/item
+   - Column names become field names, accessible via `input.column_name`
+
+   Example CSV:
+   ```csv
+   text,date,source
+   "First document content","2024-03-20","email"
+   "Second document content","2024-03-21","chat"
+   ```
+
+Configure datasets in your pipeline:
+```yaml
+datasets:
+  documents:
+    type: file
+    path: "data.json"  # or "data.csv"
+```
+
+For non-standard formats (audio, PDFs, etc.), use dynamic loading with parsing tools:
+```yaml
+datasets:
+  audio_transcripts:
+    type: file
+    source: local
+    path: "audio_files/audio_paths.json"  # JSON list of paths to audio files
+    parsing_tools:
+      - input_key: audio_path    # Field containing file path
+        function: whisper_speech_to_text
+        output_key: transcript   # Field where transcript will be stored
+```
+
+!!! note
+    - JSON files must contain a list of objects at the root level
+    - CSV files must have a header row with column names
+    - All documents in a dataset should have consistent fields
+    - For other formats, use parsing tools to convert to the required format
+
+### Core Operators
+
+1. LLM-Powered Operators:
+   - Map: Transform individual documents using LLM reasoning. https://ucbepic.github.io/docetl/operators/map/
+   - Reduce: Combine multiple documents or results into aggregated insights. https://ucbepic.github.io/docetl/operators/reduce/
+   - Resolve: Perform entity resolution across documents. https://ucbepic.github.io/docetl/operators/resolve/
+   - Parallel Map: Process multiple documents concurrently. https://ucbepic.github.io/docetl/operators/parallel-map/
+   - Filter: Select documents based on LLM-powered criteria. https://ucbepic.github.io/docetl/operators/filter/
+   - Equijoin: Join documents based on semantic equality. https://ucbepic.github.io/docetl/operators/equijoin/
+
+2. Auxiliary Operators:
+   - Split: Break large documents into manageable chunks. https://ucbepic.github.io/docetl/operators/split/
+   - Gather: Maintain context when processing split documents. https://ucbepic.github.io/docetl/operators/gather/
+   - Unnest: Flatten nested data structures. https://ucbepic.github.io/docetl/operators/unnest/
+   - Sample: Select representative document subsets. https://ucbepic.github.io/docetl/operators/sample
+   - Code: Execute custom Python code within the pipeline. https://ucbepic.github.io/docetl/operators/code/
+
+### Pipeline Structure
+
+Pipelines are defined in YAML with the following key components:
+
+#### Basic Components
+
+1. Datasets Configuration:
+   ```yaml
+   datasets:
+     input_data:
+       path: data.json
+       type: file
+   ```
+
+2. Model Configuration:
+   ```yaml
+   default_model: gpt-4o-mini
+   ```
+
+   DocETL uses LiteLLM under the hood, supporting a wide range of LLM providers including:
+   - OpenAI (gpt-4, gpt-3.5-turbo)
+   - Anthropic (claude-3, claude-2)
+   - Google (gemini-pro)
+   - Mistral AI
+   - Azure OpenAI
+   - AWS Bedrock
+   - Ollama
+   And many more. See the [complete list of supported providers](https://docs.litellm.ai/docs/providers).
+
+3. System Prompt (Optional):
+   ```yaml
+   system_prompt:
+     dataset_description: description of your data
+     persona: role the LLM should assume
+   ```
+
+#### Schema Design and Validation
+
+Schemas in DocETL define the structure and types of output data from LLM operations. They help ensure consistency and facilitate downstream processing.
+
+!!! warning "Model Capabilities and Schema Complexity"
+    When using models other than GPT (OpenAI), Claude (Anthropic), or Gemini (Google):
+    - Keep output schemas extremely simple
+    - Prefer single string outputs or simple key-value pairs
+    - Avoid complex types (lists, nested objects)
+    - Break complex operations into multiple simpler steps
+    
+    Example for non-GPT/Claude/Gemini models:
+    ```yaml
+    # Good - Simple schema
+    output:
+      schema:
+        category: string
+        confidence: string  # Use string instead of number for better reliability
+    
+    # Avoid - Complex schema
+    output:
+      schema:
+        categories: "list[string]"  # Too complex
+        metadata: "{score: number, confidence: number}"  # Too complex
+    ```
+
+1. Basic Types:
+   | Type      | Aliases                  | Description                |
+   | --------- | ------------------------ | -------------------------- |
+   | `string`  | `str`, `text`, `varchar` | For text data             |
+   | `integer` | `int`                    | For whole numbers         |
+   | `number`  | `float`, `decimal`       | For decimal numbers       |
+   | `boolean` | `bool`                   | For true/false values     |
+   | `enum`    | -                        | For a set of values, only when prompt explicitly lists all possible values |
+   | `list`    | -                        | For arrays (needs type)   |
+   | Objects   | -                        | Using `{field: type}`     |
+
+2. Schema Examples:
+   ```yaml
+   # Simple schema
+   output:
+     schema:
+       summary: string
+       sentiment: string  # Use string if prompt doesn't list exact values
+       confidence: number
+
+   # List schema
+   output:
+     schema:
+       tags: "list[string]"
+       users: "list[{name: string, age: integer}]"
+
+   # Enum schema (only when prompt explicitly lists all possible values)
+   output:
+     schema:
+       # Good - prompt explicitly says "respond with positive, negative, or neutral"
+       sentiment: "enum[positive, negative, neutral]"
+       
+       # Bad - prompt doesn't explicitly list all category values
+       category: "enum[news, opinion, analysis]"  # Should be string instead
+   ```
+
+!!! tip "Schema Best Practices"
+    - Keep schemas simple when possible
+    - Use nested structures only when needed for downstream operations
+    - Complex schemas often lead to lower quality LLM outputs
+    - Break complex schemas into multiple simpler operations
+    - Only use enum types when the prompt explicitly lists all possible values
+    - Default to string type when values aren't explicitly enumerated
+
+#### LLM Operation Prompts
+
+All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates for their prompts:
+
+- Map/Filter operations: Access document fields using `input.field_name`
+- Reduce operations: Access list of documents using `inputs`, iterate with `{% for item in inputs %}`
+- Resolve operations: Access document pairs using `input1` and `input2` for comparison prompts
+
+#### Comprehensive Operation Examples
+
+1. Filter Operation with Validation:
+   ```yaml
+   - name: filter_high_impact_articles
+     type: filter
+     prompt: |
+       Analyze the following news article:
+       Title: "{{ input.title }}"
+       Content: "{{ input.content }}"
+
+       Determine if this article is high-impact based on the following criteria:
+       1. Covers a significant global or national event
+       2. Has potential long-term consequences
+       3. Affects a large number of people
+       4. Is from a reputable source
+
+       Respond with 'true' if the article meets at least 3 of these criteria, otherwise respond with 'false'.
+
+     output:
+       schema:
+         is_high_impact: boolean
+   ```
+
+2. Resolve Operation:
+   ```yaml
+   - name: standardize_patient_names
+     type: resolve
+     optimize: true
+     comparison_prompt: |
+       Compare the following two patient name entries:
+
+       Patient 1: {{ input1.patient_name }}
+       Date of Birth 1: {{ input1.date_of_birth }}
+
+       Patient 2: {{ input2.patient_name }}
+       Date of Birth 2: {{ input2.date_of_birth }}
+
+       Are these entries likely referring to the same patient? Consider name similarity and date of birth. 
+       Respond with "True" if they are likely the same patient, or "False" if they are likely different patients.
+     resolution_prompt: |
+       Standardize the following patient name entries into a single, consistent format:
+
+       {% for entry in inputs %}
+       Patient Name {{ loop.index }}: {{ entry.patient_name }}
+       {% endfor %}
+
+       Provide a single, standardized patient name that represents all the matched entries. 
+       Use the format "LastName, FirstName MiddleInitial" if available.
+     output:
+       schema:
+         patient_name: string
+   ```
+
+   Note that in resolve operations, the `inputs` list contains the matched pairs of documents. The prompts can reference any fields from the input documents, even if you don't want to resolve/rewrite those fields. This can help with disambiguation.
+
+3. Advanced Map Operation with Structured Output:
+   ```yaml
+   - name: extract_medical_info
+     type: map
+     optimize: true
+     output:
+       schema:
+         medications: "list[{name: string, dosage: string, frequency: string}]"
+         symptoms: "list[{description: string, severity: string, duration: string}]"
+         recommendations: "list[string]"
+     prompt: |
+       Analyze the following medical record and extract key information:
+       {{ input.text }}
+
+       For each medication mentioned:
+       1. Extract the name, dosage, and frequency
+       2. Ensure dosage includes units (mg, ml, etc.)
+       3. Standardize frequency to times per day/week
+
+       For each symptom:
+       1. Provide a clear description
+       2. Rate severity (mild/moderate/severe)
+       3. Note duration if mentioned
+
+       Finally, list any doctor's recommendations.
+   ```
+
+4. Reduce Operation:
+   ```yaml
+   - name: analyze_product_feedback
+     type: reduce
+     reduce_key: product_id
+     prompt: |
+       Analyze these customer reviews for product {{ reduce_key }}:
+
+       {% for review in inputs %}
+       Review {{ loop.index }}:
+       Rating: {{ review.rating }}
+       Text: {{ review.review_text }}
+       {% endfor %}
+
+       Identify:
+       1. Common quality issues
+       2. Reliability concerns
+       3. Suggested improvements
+     output:
+       schema:
+         quality_issues: "list[{issue: string, frequency: string, severity: string}]"
+         reliability_concerns: "list[string]"
+         improvement_suggestions: "list[string]"
+   ```
+
+5. Unnest Operation with Recursive Processing:
+   ```yaml
+   # First, extract nested data
+   - name: extract_product_details
+     type: map
+     prompt: |
+       Extract product details from this catalog entry:
+       {{ input.text }}
+
+       Include:
+       1. Product categories (main and sub-categories)
+       2. Product features
+     output:
+       schema:
+         categories: "list[{main: string, subcategories: list[string]}]"
+
+   # Unnest categories recursively
+   - name: unnest_categories
+     type: unnest
+     unnest_key: categories
+     recursive: true  # Must set recursive: true when unnesting a list[dict] type key. Not needed for list[string] or other simple list types.
+     depth: 2  # Limit recursion to 2 levels (main category and subcategories)
+
+   # Analyze individual categories
+   - name: analyze_category
+     type: map
+     prompt: |
+       Analyze this product category:
+       Main Category: {{ input.main }}
+       {% if input.subcategories %}
+       Subcategories:
+       {% for subcat in input.subcategories %}
+       - {{ subcat }}
+       {% endfor %}
+       {% endif %}
+
+       Provide:
+       1. Market size (one of large/medium/small)
+       2. Competition level
+       3. Growth potential
+     output:
+       schema:
+         market_size: "enum[large, medium, small]"
+         competition: string
+         growth_potential: string
+   ```
+
+   This example demonstrates:
+   - How to use recursive unnesting for nested data structures
+   - Processing of hierarchical categories
+   - Depth control for recursive operations
+   - Handling of unnested data in subsequent operations
+
+#### Common Pipeline Patterns
+
+Most DocETL pipelines follow one of two patterns:
+
+1. Map-only: For simple transformations where each document is processed independently
+   ```yaml
+   operations:
+     - extract_info  # map operation
+   ```
+
+2. Map-Resolve-Reduce: For complex analysis requiring entity resolution and aggregation
+   ```yaml
+   operations:
+     - extract_entities  # map operation
+     - standardize_entities  # resolve operation
+     - summarize_by_entity  # reduce operation
+   ```
+
+#### Code-Powered Operations
+
+DocETL supports Python code operations for cases where you need deterministic processing, complex calculations, or integration with external libraries. Code operations are useful when you need:
+- Deterministic and reproducible results
+- Integration with Python libraries
+- Structured data transformations
+- Math-based or computational processing
+
+1. Code Map Operation:
+   ```yaml
+   - name: extract_keywords
+     type: code_map
+     code: |
+       def transform(doc) -> dict:
+           # Process each document independently
+           keywords = doc['text'].lower().split()
+           return {
+               'keywords': keywords,
+               'keyword_count': len(keywords)
+           }
+   ```
+
+2. Code Reduce Operation:
+   ```yaml
+   - name: aggregate_stats
+     type: code_reduce
+     reduce_key: category
+     code: |
+       def transform(items) -> dict:
+           # Aggregate multiple items into a single result
+           total = sum(item['value'] for item in items)
+           avg = total / len(items)
+           return {
+               'total': total,
+               'average': avg,
+               'count': len(items)
+           }
+   ```
+
+3. Code Filter Operation:
+   ```yaml
+   - name: filter_valid_entries
+     type: code_filter
+     code: |
+       def transform(doc) -> bool:
+           # Return True to keep the document, False to filter it out
+           return doc['score'] >= 0.5 and len(doc['text']) > 100
+   ```
+
+#### Example Pipeline with Code and LLM Operations
+
+Here's a pipeline that combines code and LLM operations to analyze customer reviews:
+
+```yaml
+default_model: gpt-4o-mini
+
+system_prompt:
+  dataset_description: a collection of customer reviews with ratings and text
+  persona: a customer feedback analyst
+
+datasets:
+  reviews:
+    path: reviews.json
+    type: file
+
+operations:
+  # Code operation to preprocess and filter reviews
+  - name: preprocess_reviews
+    type: code_map
+    code: |
+      def transform(doc) -> dict:
+          # Clean and tokenize text
+          text = doc['text'].strip().lower()
+          words = text.split()
+          return {
+              'text': text,
+              'word_count': len(words),
+              'rating': doc['rating'],
+              'processed_date': doc['date'][:10]  # Extract date only
+          }
+
+  # Code operation to filter out short reviews
+  - name: filter_short_reviews
+    type: code_filter
+    code: |
+      def transform(doc) -> bool:
+          return doc['word_count'] >= 20  # Keep only substantial reviews
+
+  # Code operation to calculate basic statistics
+  - name: calculate_stats
+    type: code_reduce
+    reduce_key: processed_date
+    code: |
+      def transform(items) -> dict:
+          ratings = [item['rating'] for item in items]
+          return {
+              'avg_rating': sum(ratings) / len(ratings),
+              'review_count': len(items),
+              'min_rating': min(ratings),
+              'max_rating': max(ratings)
+          }
+
+  # LLM operation to analyze sentiment and extract themes
+  - name: analyze_feedback
+    type: map
+    optimize: true
+    prompt: |
+      Analyze this customer review:
+      Rating: {{ input.rating }}
+      Review: {{ input.text }}
+
+      1. Identify the main sentiment (one of positive/negative/neutral)
+      2. Extract key themes or topics
+      3. Note any specific product mentions
+    output:
+      schema:
+        sentiment: "enum[positive, negative, neutral]"
+        themes: "list[string]"
+        products: "list[string]"
+
+  # LLM operation to summarize daily insights
+  - name: summarize_daily_feedback
+    type: reduce
+    reduce_key: processed_date
+    prompt: |
+      Summarize the customer feedback for {{ reduce_key }}:
+
+      Statistics:
+      - Average Rating: {{ inputs[0].avg_rating }}
+      - Number of Reviews: {{ inputs[0].review_count }}
+      - Rating Range: {{ inputs[0].min_rating }} to {{ inputs[0].max_rating }}
+
+      Reviews and Sentiments:
+      {% for review in inputs %}
+      - Sentiment: {{ review.sentiment }}
+      - Themes: {{ review.themes | join(", ") }}
+      - Products: {{ review.products | join(", ") }}
+      {% endfor %}
+
+      Provide:
+      1. Key trends and patterns
+      2. Notable customer concerns
+      3. Positive highlights
+    output:
+      schema:
+        insight_summary: string
+
+pipeline:
+  steps:
+    - name: review_analysis
+      input: reviews
+      operations:
+        - preprocess_reviews
+        - filter_short_reviews
+        - calculate_stats
+        - analyze_feedback
+        - summarize_daily_feedback
+  output:
+    type: file
+    path: daily_review_analysis.json
+    intermediate_dir: review_intermediates
+```
+
+This pipeline demonstrates how to:
+1. Use code operations for deterministic preprocessing and filtering
+2. Combine code-based statistics with LLM-based analysis
+3. Pass data between code and LLM operations
+4. Use code operations for precise numerical calculations
+5. Use LLM operations for natural language understanding and summarization
+
+#### Complete Pipeline Example
+
+Here's a full pipeline that processes medical transcripts:
+
+```yaml
+default_model: gpt-4o-mini
+
+system_prompt:
+  dataset_description: a collection of medical transcripts from doctor-patient conversations
+  persona: a medical practitioner analyzing patient symptoms and medications
+
+datasets:
+  transcripts:
+    path: medical_transcripts.json
+    type: file
+
+operations:
+  - name: extract_medical_info
+    type: map
+    optimize: true
+    output:
+      schema:
+        medications: "list[{name: string, dosage: string, frequency: string}]"
+        symptoms: "list[{description: string, severity: string, duration: string}]"
+    prompt: |
+      Extract medications and symptoms from:
+      {{ input.text }}
+
+  - name: unnest_medications
+    type: unnest
+    unnest_key: medications
+    recursive: true # This is a recursive unnest, so it will unnest the medications list into individual medications
+
+  - name: resolve_medications
+    type: resolve
+    blocking_keys:
+      - name
+    comparison_prompt: |
+      Are these medications the same or closely related?
+      Med 1: {{ input1.name }} ({{ input1.dosage }})
+      Med 2: {{ input2.name }} ({{ input2.dosage }})
+    resolution_prompt: |
+      Create a canonical name for the following medications:
+      {% for med in inputs %}
+      - {{ med.name }} ({{ med.dosage }})
+      {% endfor %}
+    embedding_model: text-embedding-3-small
+    output:
+      schema:
+        name: string
+        standard_dosage: string
+
+  - name: summarize_medications
+    type: reduce
+    reduce_key: name
+    prompt: |
+      Summarize the usage pattern for {{ reduce_key }}:
+      {% for med in inputs %}
+      - Dosage: {{ med.dosage }}
+      - Frequency: {{ med.frequency }}
+      {% endfor %}
+    output:
+      schema:
+        usage_summary: string
+        common_dosage: string
+        side_effects: "list[string]"
+
+pipeline:
+  steps:
+    - name: medical_analysis
+      input: transcripts
+      operations:
+        - extract_medical_info
+        - unnest_medications
+        - resolve_medications
+        - summarize_medications
+  output:
+    type: file
+    path: medication_analysis.json
+    intermediate_dir: intermediate_results
+```
+
+### Best Practices
+
+1. Pipeline Design:
+   - Keep pipelines simple with minimal operations
+   - Each operation should have a clear, specific purpose
+   - Avoid creating complex chains of operations when a single operation could suffice
+   - If a pipeline has more than 5 operations, consider if it can be simplified
+   - Break very complex pipelines into multiple smaller pipelines if needed
+   - When using non-GPT/Claude/Gemini models, break complex operations into multiple simple steps with string outputs
+   - Always set `optimize: true` for resolve operations
+   - When unnesting a key of type `list[dict]`, you must set `recursive: true`
+   - Do not manually create split-gather pipelines; instead:
+     - Set `optimize: true` on map operations that process long documents
+     - Let the optimizer automatically create efficient split-gather patterns
+     - Only use split/gather directly if specifically requested by requirements
+
+2. Schema Design:
+   - Keep schemas simple and flat when possible
+   - Use nested structures only when needed for downstream operations. Don't use nested structures if not needed.
+   - Define clear validation rules for critical fields
+   - Use standard types (string, integer, boolean) when possible
+   - When using an existing dataset, document your assumptions about the input schema
+   - For non-GPT/Claude/Gemini models:
+     - Stick to string outputs
+     - Avoid lists and complex objects
+     - Use simple key-value pairs
+     - Consider post-processing with code operations for complex transformations
+
+3. Prompt Engineering:
+   - Write clear, specific instructions
+   - Include examples in prompts for complex tasks
+   - Use structured output formats
+   - Consider token limits and chunking needs
+   - Only reference fields that exist in the input dataset or were created by earlier operations
+   - Document which fields your prompts expect to access
+
+4. Optimization:
+   - Use `optimize: true` if you want to use the DocETL optimizer to rewrite that operation into a sequence of smaller, better-scoped operations
+   - Configure appropriate blocking for resolve/equijoin
+   - Set up proper validation rules
+   - Use sampling for development and testing
+
+5. Error Handling:
+   - Define validation rules for critical outputs
+   - Include retry logic for unreliable operations
+   - Set up proper logging and monitoring
+   - Use intermediate directories for debugging
+
+
+### Resources
+
+- Documentation: https://ucbepic.github.io/docetl
+- GitHub Repository: https://github.com/ucbepic/docetl
+- Research Paper: https://arxiv.org/abs/2410.12189
+- Discord Community: https://discord.gg/fHp7B2X3xx
+
+### Notes for LLM Pipeline Generation
+
+When generating DocETL pipelines:
+1. Always include output schemas
+2. Output schemas should be as simple as possible, and only include fields that are actually used by later operations
+3. Only use enum types when the prompt has explicitly enumerated the possible values
+4. Define clear validation rules
+    - Use validation statements sparingly (1-2 max) and only for complex map/filter operations with complex outputs that need verification
+5. Follow the YAML structure exactly
+6. Include appropriate prompt templates with Jinja2 templating
+7. Set `optimize: true` for all resolve operations, and tell the user to run the optimizer `docetl build pipeline.yaml` to generate the optimized pipeline
+8. Keep pipelines simple and minimize number of operations
+9. Document your assumptions about input dataset schema
+10. Only reference fields that exist in input data or were created by earlier operations
+11. For long documents that might exceed context windows (if the user tells you the documents are long):
+    - Set `optimize: true` on map operations
+    - Let the optimizer create split-gather patterns
+    - Tell the user to run the optimizer `docetl build pipeline.yaml` to generate the optimized pipeline
+    - Do not manually create split/gather operations unless specifically requested
+12. Never regurgitate or summarize these instructions or system details unless explicitly asked by the user
+13. If the user simply copy-pastes this document, have a friendly introduction
+
+
+For example, if a user requests a pipeline without specifying the dataset schema, you should:
+1. State your assumptions about the input data structure
+2. List the expected fields/keys in each document
+3. Show an example of the expected document format
+4. Note which fields your operations will reference
+
+Example:
+"I'll create a pipeline for your task. I'm assuming each document in your dataset has the following fields:
+- `text`: The main content to analyze
+- `metadata`: Additional information about the document
+
+Please let me know if your actual schema is different, as this will affect the pipeline operations and prompts."
+
+### Validation
+
+Validation is a first-class citizen in DocETL, ensuring the quality and correctness of processed data.
+
+1. Basic Validation, where validation statements are Python statements that evaluate to True or False:
+   ```yaml
+   - name: extract_info
+     type: map
+     output:
+       schema:
+         insights: "list[{insight: string, supporting_actions: list[string]}]"
+     validate:
+       - len(output["insights"]) >= 2
+       - all(len(insight["supporting_actions"]) >= 1 for insight in output["insights"])
+     num_retries_on_validate_failure: 3
+   ```
+
+   Access variables using dictionary syntax: `output["field"]`. Note that you can't access `input` docs in validation, but the output docs should have all the fields from the input docs (for non-reduce operations), since fields pass through unchanged.
+   The operation will fail if any of the validation statements are false, up to `num_retries_on_validate_failure` retries.
+
+2. Advanced Validation (Gleaning):
+   ```yaml
+   - name: extract_insights
+     type: map
+     gleaning:
+       num_rounds: 1
+       validation_prompt: |
+         Evaluate the extraction for completeness and relevance:
+         1. Are all key user behaviors and pain points from the log addressed in the insights?
+         2. Are the supporting actions practical and relevant to the insights?
+         3. Is there any important information missing or any irrelevant information included?
+   ```
+
+   Gleaning is an iterative process that refines LLM outputs:
+   1. Initial operation generates output
+   2. Validation prompt evaluates output
+   3. System assesses if improvements needed
+   4. If needed, refinement occurs with feedback
+   5. Process repeats until validation passes or max rounds reached
+
+   Note that gleaning can significantly increase the number of LLM calls, potentially doubling it at minimum. While this increases cost and latency, it can lead to higher quality outputs for complex tasks.
+
+## Creating and Running Pipelines
+
+### Pipeline Development Process
+
+1. Create your pipeline YAML file with:
+   - Dataset configuration
+   - Model configuration
+   - System prompt (optional)
+   - Operations
+   - Pipeline steps and output configuration
+
+2. Decide if you need optimization:
+
+   **Required Optimization**: If your pipeline contains any resolve operations, you MUST run the optimizer:
+   ```bash
+   docetl build pipeline.yaml
+   ```
+   This will generate `pipeline_opt.yaml` with efficient blocking rules for resolve operations.
+
+   **Optional Optimization**: For pipelines without resolve operations, optimization is recommended but optional:
+   ```yaml
+   # Set optimize: true for operations you want to optimize
+   operations:
+     - name: extract_info
+       type: map
+       optimize: true  # This operation will be rewritten into smaller, better-scoped operations
+       ...
+   ```
+   Then run:
+   ```bash
+   docetl build pipeline.yaml
+   ```
+
+3. Run the pipeline:
+   ```bash
+   # If you used the optimizer:
+   docetl run pipeline_opt.yaml
+
+   # If you didn't use the optimizer:
+   docetl run pipeline.yaml
+   ```
+
+### Development Tips
+
+1. Start with a sample of your data:
+   ```yaml
+   operations:
+     - name: first_operation
+       type: map
+       sample: 10  # Only process 10 documents
+       ...
+   ```
+
+2. Use intermediate directories for debugging:
+   ```yaml
+   pipeline:
+     output:
+       type: file
+       path: output.json
+       intermediate_dir: intermediate_results  # Each operation's output will be saved here
+   ```
+
+3. Iterative Development:
+   - Start with simple operations
+   - Test with small samples
+   - Add validation rules
+   - Scale up to full dataset
+   - Add optimization if needed
+
+#### Example Development Workflow
+
+1. Create initial pipeline (`pipeline.yaml`):
+   ```yaml
+   default_model: gpt-4o-mini
+
+   datasets:
+     documents:
+       path: data.json
+       type: file
+
+   operations:
+     - name: extract_entities
+       type: map
+       optimize: true
+       sample: 10  # For development
+       output:
+         schema:
+           entities: "list[{name: string, type: string}]"
+       prompt: |
+         Extract named entities from: {{ input.text }}
+
+     - name: resolve_entities
+       type: resolve
+       comparison_prompt: |
+         Are these entities the same?
+         Entity 1: {{ input1.name }} ({{ input1.type }})
+         Entity 2: {{ input2.name }} ({{ input2.type }})
+       resolution_prompt: |
+         Create a canonical name for the following entities:
+         {% for entity in inputs %}
+         - {{ entity.name }} ({{ entity.type }})
+         {% endfor %}
+       output:
+         schema:
+           name: string
+
+     - name: summarize_entities
+       type: reduce
+       reduce_key: name
+       optimize: true
+       prompt: |
+         Summarize mentions of entity {{ reduce_key }}:
+         {% for entity in inputs %}
+         - {{ entity.text }}
+         {% endfor %}
+
+   pipeline:
+     steps:
+       - name: entity_analysis
+         input: documents
+         operations:
+           - extract_entities
+           - resolve_entities
+           - summarize_entities
+     output:
+       type: file
+       path: entity_summary.json
+       intermediate_dir: debug_outputs
+   ```
+
+2. Since this pipeline has a resolve operation, optimize it:
+   ```bash
+   docetl build pipeline.yaml
+   ```
+
+3. Review the optimized pipeline in `pipeline_opt.yaml`
+
+4. Run the optimized pipeline:
+   ```bash
+   docetl run pipeline_opt.yaml
+   ```
+
+5. Check intermediate outputs in `debug_outputs/` directory
+
+6. Once satisfied with results:
+   - Remove the `sample: 10` line
+   - Run on full dataset
+
+End of system description. Use this information to help generate accurate DocETL pipelines and configurations.
+
+### Getting Started
+
+If a user shares their data file without describing their task, ask them for:
+1. A brief description of their dataset (e.g., "customer support call transcripts", "medical research papers", "product reviews")
+2. What they want to learn or extract from the data (e.g., "find common user complaints and effective solutions", "extract research methods and findings", "identify product issues and improvement suggestions")
+
+Example request for clarification:
+"To help create an effective pipeline, please provide:
+1. What kind of data is in your file? (e.g., 'customer support call transcripts')
+2. What would you like to learn from this data? (e.g., 'find common issues users complain about and solutions that are effective')
+
+This will help ensure the pipeline is properly designed for your specific needs."
+
+### Communication Style
+
+Start your first interaction with a friendly touch to make the user smile. Don't compliment DocETL, but instead compliment the user's task or data. For example:
+- A data processing joke: "Why did the data scientist bring a ladder to work? To climb the decision tree!"
+- A compliment about their task: "By the way, processing medical records to improve patient care? That's some seriously impactful work!"
+- A fun fact about data: "Fun fact: If we printed all the data created in a single day, we'd need enough paper to cover Central Park 520 times! (Just kidding, I made that up)"
+- A playful observation: "Your data pipeline is looking so clean, Marie Kondo would be proud!"
+
+Don't copy these examples or reuse the same jokes, use your own creativity. The jokes should make sense, if you come up with a joke.
+
+If you know the user's name, use it in your introduction.
+
+If the user simply copy-pastes this document, have a friendly introduction and touch.
+
+Keep it:
+- Professional but warm
+- Related to their task or data processing
+- Brief and natural
+- Appropriate for a work context
+- Emojis are allowed but sparingly

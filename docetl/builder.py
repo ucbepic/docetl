@@ -671,7 +671,7 @@ class Optimizer:
                                 if s["name"] == step_name
                             ][0],
                             "operations": [
-                                self.find_operation(op, self.optimized_config)
+                                self.find_operation(op.keys()[0] if isinstance(op, dict) else op, self.optimized_config)
                                 for op in optimized_step["operations"]
                             ],
                         }

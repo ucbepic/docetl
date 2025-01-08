@@ -855,7 +855,10 @@ class Optimizer:
                 # If optimize is False or operation type is not supported, just use the operation without optimization
                 output_data = self._run_operation(op_object, input_data)
                 optimized_operations[operation_name] = op_object
-                optimized_operation_names.append(operation_name)
+                if op_object.get("type") == "equijoin":
+                    optimized_operation_names.append(operation)
+                else:
+                    optimized_operation_names.append(operation_name)
 
                 selectivity = len(output_data) / len(input_data)
                 self.selectivities[step.get("name")][operation_name] = selectivity
@@ -1036,6 +1039,7 @@ class Optimizer:
                     output_data = input_data
 
         optimized_step = step.copy()
+
         optimized_step["operations"] = optimized_operation_names
         return optimized_step, optimized_operations, output_data
 
@@ -1078,7 +1082,7 @@ class Optimizer:
                         {
                             "step": step,
                             "operations": [
-                                self.find_operation(list(op.keys())[0] if isinstance(op, dict) else op) for op in step["operations"]
+                                self.find_operation(list(op.keys())[0] if isinstance(op, dict) else op, self.optimized_config) for op in step["operations"]
                             ],
                         }
                     ).encode()

@@ -671,7 +671,7 @@ class Optimizer:
                                 if s["name"] == step_name
                             ][0],
                             "operations": [
-                                self.find_operation(op.keys()[0] if isinstance(op, dict) else op, self.optimized_config)
+                                self.find_operation(list(op.keys())[0] if isinstance(op, dict) else op, self.optimized_config)
                                 for op in optimized_step["operations"]
                             ],
                         }
@@ -1078,7 +1078,7 @@ class Optimizer:
                         {
                             "step": step,
                             "operations": [
-                                self.find_operation(op) for op in step["operations"]
+                                self.find_operation(list(op.keys())[0] if isinstance(op, dict) else op) for op in step["operations"]
                             ],
                         }
                     ).encode()

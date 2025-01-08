@@ -645,12 +645,13 @@ class Optimizer:
 
             for op in optimized_step["operations"]:
                 changed_op = False
+                op_name = list(op.keys())[0] if isinstance(op, dict) else op
                 for i, op_config in enumerate(self.optimized_config["operations"]):
-                    if op_config["name"] == op:
-                        self.optimized_config["operations"][i] = step_operations[op]
+                    if op_config["name"] == op_name:
+                        self.optimized_config["operations"][i] = step_operations[op_name]
                         changed_op = True
                 if not changed_op:
-                    self.optimized_config["operations"].append(step_operations[op])
+                    self.optimized_config["operations"].append(step_operations[op_name])
 
             self.optimized_config["pipeline"]["steps"] = [
                 step

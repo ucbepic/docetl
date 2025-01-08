@@ -40,7 +40,7 @@ class MapOperation(BaseOperation):
         batch_size: Optional[int] = None
         clustering_method: Optional[str] = None
         batch_prompt: Optional[str] = None
-        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        litellm_completion_kwargs: Dict[str, Any] = {}
         @field_validator("drop_keys")
         def validate_drop_keys(cls, v):
             if isinstance(v, str):

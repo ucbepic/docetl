@@ -645,12 +645,13 @@ class Optimizer:
 
             for op in optimized_step["operations"]:
                 changed_op = False
+                op_name = list(op.keys())[0] if isinstance(op, dict) else op
                 for i, op_config in enumerate(self.optimized_config["operations"]):
-                    if op_config["name"] == op:
-                        self.optimized_config["operations"][i] = step_operations[op]
+                    if op_config["name"] == op_name:
+                        self.optimized_config["operations"][i] = step_operations[op_name]
                         changed_op = True
                 if not changed_op:
-                    self.optimized_config["operations"].append(step_operations[op])
+                    self.optimized_config["operations"].append(step_operations[op_name])
 
             self.optimized_config["pipeline"]["steps"] = [
                 step
@@ -670,7 +671,7 @@ class Optimizer:
                                 if s["name"] == step_name
                             ][0],
                             "operations": [
-                                self.find_operation(op, self.optimized_config)
+                                self.find_operation(list(op.keys())[0] if isinstance(op, dict) else op, self.optimized_config)
                                 for op in optimized_step["operations"]
                             ],
                         }
@@ -830,8 +831,10 @@ class Optimizer:
             # Run the pipeline
             step_ops = []
             for step_op in step.get("operations"):
-                if step_op in replacement_operations:
-                    step_ops.extend(replacement_operations[step_op])
+                step_op_name = list(step_op.keys())[0] if isinstance(step_op, dict) else step_op
+
+                if step_op_name in replacement_operations:
+                    step_ops.extend(replacement_operations[step_op_name])
                 else:
                     step_ops.append(step_op)
 
@@ -852,7 +855,10 @@ class Optimizer:
                 # If optimize is False or operation type is not supported, just use the operation without optimization
                 output_data = self._run_operation(op_object, input_data)
                 optimized_operations[operation_name] = op_object
-                optimized_operation_names.append(operation_name)
+                if op_object.get("type") == "equijoin":
+                    optimized_operation_names.append(operation)
+                else:
+                    optimized_operation_names.append(operation_name)
 
                 selectivity = len(output_data) / len(input_data)
                 self.selectivities[step.get("name")][operation_name] = selectivity
@@ -934,8 +940,8 @@ class Optimizer:
                                     new_right_name,
                                 ) = self._optimize_equijoin(
                                     op_object,
-                                    operation["left"],
-                                    operation["right"],
+                                    next(iter(operation.values()))["left"],
+                                    next(iter(operation.values()))["right"],
                                     input_data["left"],
                                     input_data["right"],
                                     status,
@@ -1033,6 +1039,7 @@ class Optimizer:
                     output_data = input_data
 
         optimized_step = step.copy()
+
         optimized_step["operations"] = optimized_operation_names
         return optimized_step, optimized_operations, output_data
 
@@ -1075,7 +1082,7 @@ class Optimizer:
                         {
                             "step": step,
                             "operations": [
-                                self.find_operation(op) for op in step["operations"]
+                                self.find_operation(list(op.keys())[0] if isinstance(op, dict) else op, self.optimized_config) for op in step["operations"]
                             ],
                         }
                     ).encode()

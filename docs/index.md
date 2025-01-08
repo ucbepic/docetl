@@ -31,7 +31,7 @@ DocETL is a tool for creating and executing LLM-powered data processing pipeline
 To get started with DocETL:
 
 1. Install the package (see [installation](installation.md) for detailed instructions)
-2. Define your pipeline in a YAML file
+2. Define your pipeline in a YAML file. Want to use an LLM like ChatGPT or Claude to help you write your pipeline? See [docetl.org/llms.txt](https://docetl.org/llms.txt) for a big prompt you can copy paste into ChatGPT or Claude, before describing your task.
 3. Run your pipeline using the DocETL command-line interface
 
 ## 🏛️ Project Origin

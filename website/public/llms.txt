@@ -156,7 +156,7 @@ Schemas in DocETL define the structure and types of output data from LLM operati
    | `integer` | `int`                    | For whole numbers         |
    | `number`  | `float`, `decimal`       | For decimal numbers       |
    | `boolean` | `bool`                   | For true/false values     |
-   | `enum`    | -                        | For set of values         |
+   | `enum`    | -                        | For a set of values, only when prompt explicitly lists all possible values |
    | `list`    | -                        | For arrays (needs type)   |
    | Objects   | -                        | Using `{field: type}`     |
 
@@ -166,7 +166,7 @@ Schemas in DocETL define the structure and types of output data from LLM operati
    output:
      schema:
        summary: string
-       sentiment: string
+       sentiment: string  # Use string if prompt doesn't list exact values
        confidence: number
 
    # List schema
@@ -175,11 +175,14 @@ Schemas in DocETL define the structure and types of output data from LLM operati
        tags: "list[string]"
        users: "list[{name: string, age: integer}]"
 
-   # Enum schema
+   # Enum schema (only when prompt explicitly lists all possible values)
    output:
      schema:
+       # Good - prompt explicitly says "respond with positive, negative, or neutral"
        sentiment: "enum[positive, negative, neutral]"
-       categories: "list[enum[news, opinion, analysis]]"
+       
+       # Bad - prompt doesn't explicitly list all category values
+       category: "enum[news, opinion, analysis]"  # Should be string instead
    ```
 
 !!! tip "Schema Best Practices"
@@ -187,6 +190,8 @@ Schemas in DocETL define the structure and types of output data from LLM operati
     - Use nested structures only when needed for downstream operations
     - Complex schemas often lead to lower quality LLM outputs
     - Break complex schemas into multiple simpler operations
+    - Only use enum types when the prompt explicitly lists all possible values
+    - Default to string type when values aren't explicitly enumerated
 
 ### LLM Operation Prompts
 
@@ -341,7 +346,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
        {% endif %}
 
        Provide:
-       1. Market size (large/medium/small)
+       1. Market size (one of large/medium/small)
        2. Competition level
        3. Growth potential
      output:
@@ -486,7 +491,7 @@ operations:
       Rating: {{ input.rating }}
       Review: {{ input.text }}
 
-      1. Identify the main sentiment
+      1. Identify the main sentiment (one of positive/negative/neutral)
       2. Extract key themes or topics
       3. Note any specific product mentions
     output:
@@ -687,14 +692,17 @@ pipeline:
 
 When generating DocETL pipelines:
 1. Always include output schemas
-2. Define clear validation rules
-3. Follow the YAML structure exactly
-4. Include appropriate prompt templates with Jinja2 templating
-5. Set `optimize: true` for all resolve operations, and tell the user to run the optimizer `docetl build pipeline.yaml` to generate the optimized pipeline
-6. Keep pipelines simple and minimize number of operations
-7. Document your assumptions about input dataset schema
-8. Only reference fields that exist in input data or were created by earlier operations
-9. For long documents that might exceed context windows (if the user tells you the documents are long):
+2. Output schemas should be as simple as possible, and only include fields that are actually used by later operations
+3. Only use enum types when the prompt has explicitly enumerated the possible values
+4. Define clear validation rules
+    - Use validation statements sparingly (1-2 max) and only for complex map/filter operations with complex outputs that need verification
+5. Follow the YAML structure exactly
+6. Include appropriate prompt templates with Jinja2 templating
+7. Set `optimize: true` for all resolve operations, and tell the user to run the optimizer `docetl build pipeline.yaml` to generate the optimized pipeline
+8. Keep pipelines simple and minimize number of operations
+9. Document your assumptions about input dataset schema
+10. Only reference fields that exist in input data or were created by earlier operations
+11. For long documents that might exceed context windows (if the user tells you the documents are long):
     - Set `optimize: true` on map operations
     - Let the optimizer create split-gather patterns
     - Tell the user to run the optimizer `docetl build pipeline.yaml` to generate the optimized pipeline
@@ -904,3 +912,16 @@ Validation is a first-class citizen in DocETL, ensuring the quality and correctn
    - Run on full dataset
 
 End of system description. Use this information to help generate accurate DocETL pipelines and configurations.
+
+## Getting Started
+
+If a user shares their data file without describing their task, ask them for:
+1. A brief description of their dataset (e.g., "customer support call transcripts", "medical research papers", "product reviews")
+2. What they want to learn or extract from the data (e.g., "find common user complaints and effective solutions", "extract research methods and findings", "identify product issues and improvement suggestions")
+
+Example request for clarification:
+"To help create an effective pipeline, please provide:
+1. What kind of data is in your file? (e.g., 'customer support call transcripts')
+2. What would you like to learn from this data? (e.g., 'find common issues users complain about and solutions that are effective')
+
+This will help ensure the pipeline is properly designed for your specific needs."

@@ -139,7 +139,7 @@ def test_synth_gather(config_yaml):
     ), "No synthesized gather operation found in the optimized config"
 
     # Run the optimized pipeline
-    optimized_pipeline.run()
+    optimized_pipeline.load_run_save()
 
     # Check if the output file was created
     assert os.path.exists(output_path), "Output file was not created"

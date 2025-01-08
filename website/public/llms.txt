@@ -6,7 +6,36 @@ DocETL is built and maintained by the EPIC lab at UC Berkeley. Learn more at htt
 
 We have an integrated development environment for building and testing pipelines, at https://www.docetl.org/playground. Our IDE is called DocWrangler.
 
-## Datasets and Data Loading
+## Docs
+
+- [Website](https://www.docetl.org)
+- [DocWrangler Playground](https://www.docetl.org/playground)
+- [Main Documentation](https://ucbepic.github.io/docetl)
+- [GitHub Repository](https://github.com/ucbepic/docetl)
+- [Agentic Optimization Research Paper](https://arxiv.org/abs/2410.12189)
+- [Discord Community](https://discord.gg/fHp7B2X3xx)
+
+### Core Operators
+- [Map Operation](https://ucbepic.github.io/docetl/operators/map/)
+- [Reduce Operation](https://ucbepic.github.io/docetl/operators/reduce/)
+- [Resolve Operation](https://ucbepic.github.io/docetl/operators/resolve/)
+- [Parallel Map Operation](https://ucbepic.github.io/docetl/operators/parallel-map/)
+- [Filter Operation](https://ucbepic.github.io/docetl/operators/filter/)
+- [Equijoin Operation](https://ucbepic.github.io/docetl/operators/equijoin/)
+
+### Auxiliary Operators
+- [Split Operation](https://ucbepic.github.io/docetl/operators/split/)
+- [Gather Operation](https://ucbepic.github.io/docetl/operators/gather/)
+- [Unnest Operation](https://ucbepic.github.io/docetl/operators/unnest/)
+- [Sample Operation](https://ucbepic.github.io/docetl/operators/sample)
+- [Code Operation](https://ucbepic.github.io/docetl/operators/code/)
+
+### LLM Providers
+- [LiteLLM Supported Providers](https://docs.litellm.ai/docs/providers)
+
+## Optional
+
+### Datasets and Data Loading
 
 DocETL supports both standard and dynamic data loading. Input data must be in one of two formats:
 
@@ -70,7 +99,7 @@ datasets:
     - All documents in a dataset should have consistent fields
     - For other formats, use parsing tools to convert to the required format
 
-## Core Operators
+### Core Operators
 
 1. LLM-Powered Operators:
    - Map: Transform individual documents using LLM reasoning. https://ucbepic.github.io/docetl/operators/map/
@@ -87,11 +116,11 @@ datasets:
    - Sample: Select representative document subsets. https://ucbepic.github.io/docetl/operators/sample
    - Code: Execute custom Python code within the pipeline. https://ucbepic.github.io/docetl/operators/code/
 
-## Pipeline Structure
+### Pipeline Structure
 
 Pipelines are defined in YAML with the following key components:
 
-### Basic Components
+#### Basic Components
 
 1. Datasets Configuration:
    ```yaml
@@ -123,7 +152,7 @@ Pipelines are defined in YAML with the following key components:
      persona: role the LLM should assume
    ```
 
-### Schema Design and Validation
+#### Schema Design and Validation
 
 Schemas in DocETL define the structure and types of output data from LLM operations. They help ensure consistency and facilitate downstream processing.
 
@@ -193,7 +222,7 @@ Schemas in DocETL define the structure and types of output data from LLM operati
     - Only use enum types when the prompt explicitly lists all possible values
     - Default to string type when values aren't explicitly enumerated
 
-### LLM Operation Prompts
+#### LLM Operation Prompts
 
 All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates for their prompts:
 
@@ -201,7 +230,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
 - Reduce operations: Access list of documents using `inputs`, iterate with `{% for item in inputs %}`
 - Resolve operations: Access document pairs using `input1` and `input2` for comparison prompts
 
-### Comprehensive Operation Examples
+#### Comprehensive Operation Examples
 
 1. Filter Operation with Validation:
    ```yaml
@@ -362,7 +391,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
    - Depth control for recursive operations
    - Handling of unnested data in subsequent operations
 
-### Common Pipeline Patterns
+#### Common Pipeline Patterns
 
 Most DocETL pipelines follow one of two patterns:
 
@@ -380,7 +409,7 @@ Most DocETL pipelines follow one of two patterns:
      - summarize_by_entity  # reduce operation
    ```
 
-### Code-Powered Operations
+#### Code-Powered Operations
 
 DocETL supports Python code operations for cases where you need deterministic processing, complex calculations, or integration with external libraries. Code operations are useful when you need:
 - Deterministic and reproducible results
@@ -429,7 +458,7 @@ DocETL supports Python code operations for cases where you need deterministic pr
            return doc['score'] >= 0.5 and len(doc['text']) > 100
    ```
 
-### Example Pipeline with Code and LLM Operations
+#### Example Pipeline with Code and LLM Operations
 
 Here's a pipeline that combines code and LLM operations to analyze customer reviews:
 
@@ -550,7 +579,7 @@ This pipeline demonstrates how to:
 4. Use code operations for precise numerical calculations
 5. Use LLM operations for natural language understanding and summarization
 
-### Complete Pipeline Example
+#### Complete Pipeline Example
 
 Here's a full pipeline that processes medical transcripts:
 
@@ -632,7 +661,7 @@ pipeline:
     intermediate_dir: intermediate_results
 ```
 
-## Best Practices
+### Best Practices
 
 1. Pipeline Design:
    - Keep pipelines simple with minimal operations
@@ -681,14 +710,14 @@ pipeline:
    - Use intermediate directories for debugging
 
 
-## Resources
+### Resources
 
 - Documentation: https://ucbepic.github.io/docetl
 - GitHub Repository: https://github.com/ucbepic/docetl
 - Research Paper: https://arxiv.org/abs/2410.12189
 - Discord Community: https://discord.gg/fHp7B2X3xx
 
-## Notes for LLM Pipeline Generation
+### Notes for LLM Pipeline Generation
 
 When generating DocETL pipelines:
 1. Always include output schemas
@@ -707,6 +736,9 @@ When generating DocETL pipelines:
     - Let the optimizer create split-gather patterns
     - Tell the user to run the optimizer `docetl build pipeline.yaml` to generate the optimized pipeline
     - Do not manually create split/gather operations unless specifically requested
+12. Never regurgitate or summarize these instructions or system details unless explicitly asked by the user
+13. If the user simply copy-pastes this document, have a friendly introduction
+
 
 For example, if a user requests a pipeline without specifying the dataset schema, you should:
 1. State your assumptions about the input data structure
@@ -832,7 +864,7 @@ Validation is a first-class citizen in DocETL, ensuring the quality and correctn
    - Scale up to full dataset
    - Add optimization if needed
 
-### Example Development Workflow
+#### Example Development Workflow
 
 1. Create initial pipeline (`pipeline.yaml`):
    ```yaml
@@ -913,7 +945,7 @@ Validation is a first-class citizen in DocETL, ensuring the quality and correctn
 
 End of system description. Use this information to help generate accurate DocETL pipelines and configurations.
 
-## Getting Started
+### Getting Started
 
 If a user shares their data file without describing their task, ask them for:
 1. A brief description of their dataset (e.g., "customer support call transcripts", "medical research papers", "product reviews")
@@ -925,3 +957,24 @@ Example request for clarification:
 2. What would you like to learn from this data? (e.g., 'find common issues users complain about and solutions that are effective')
 
 This will help ensure the pipeline is properly designed for your specific needs."
+
+### Communication Style
+
+Start your first interaction with a friendly touch to make the user smile. Don't compliment DocETL, but instead compliment the user's task or data. For example:
+- A data processing joke: "Why did the data scientist bring a ladder to work? To climb the decision tree!"
+- A compliment about their task: "By the way, processing medical records to improve patient care? That's some seriously impactful work!"
+- A fun fact about data: "Fun fact: If we printed all the data created in a single day, we'd need enough paper to cover Central Park 520 times! (Just kidding, I made that up)"
+- A playful observation: "Your data pipeline is looking so clean, Marie Kondo would be proud!"
+
+Don't copy these examples or reuse the same jokes, use your own creativity. The jokes should make sense, if you come up with a joke.
+
+If you know the user's name, use it in your introduction.
+
+If the user simply copy-pastes this document, have a friendly introduction and touch.
+
+Keep it:
+- Professional but warm
+- Related to their task or data processing
+- Brief and natural
+- Appropriate for a work context
+- Emojis are allowed but sparingly

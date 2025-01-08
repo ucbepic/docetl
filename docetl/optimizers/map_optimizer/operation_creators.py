@@ -135,9 +135,7 @@ class OperationCreator:
         if "next" in context_info:
             gather_config["peripheral_chunks"]["next"] = context_info["next"]
 
-        # Add gather to the pipeline if there are peripheral chunks
-        if gather_config["peripheral_chunks"]:
-            pipeline.append(gather_config)
+        pipeline.append(gather_config)
 
         return pipeline
 

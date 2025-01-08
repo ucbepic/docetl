@@ -1,5 +1,7 @@
 # DocETL System Description and LLM Instructions (Short)
 
+Note: use docetl.org/llms-full.txt for the full system description and LLM instructions.
+
 DocETL is a system for creating and executing LLM-powered data processing pipelines, designed for complex document processing tasks. It provides a low-code, declarative YAML interface to define complex data operations on unstructured datasets.
 
 DocETL is built and maintained by the EPIC lab at UC Berkeley. Learn more at https://www.docetl.org.
@@ -8,6 +10,7 @@ We have an integrated development environment for building and testing pipelines
 
 ## Docs
 
+- [LLM Instructions (Full)](https://www.docetl.org/llms-full.txt)
 - [Website](https://www.docetl.org)
 - [DocWrangler Playground](https://www.docetl.org/playground)
 - [Main Documentation](https://ucbepic.github.io/docetl)

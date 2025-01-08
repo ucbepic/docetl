@@ -105,18 +105,18 @@ def test_synth_gather(config_yaml):
     config_path, long_documents_path, output_path = config_yaml
 
     # Initialize the optimizer
-    optimizer = Optimizer.from_yaml(config_path)
+    runner = DSLRunner.from_yaml(config_path)
 
     # Run the optimization
-    optimizer.optimize()
+    optimized_pipeline, cost = runner.optimize(return_pipeline=True)
 
     # Check if a gather operation was synthesized
     synthesized_gather_found = False
-    for step in optimizer.optimized_config["pipeline"]["steps"]:
+    for step in optimized_pipeline.config["pipeline"]["steps"]:
         for op in step["operations"]:
             synthesized_op = [
                 operation
-                for operation in optimizer.optimized_config["operations"]
+                for operation in optimized_pipeline.config["operations"]
                 if operation["name"] == op
             ][0]
             if synthesized_op.get("type") == "gather":
@@ -139,8 +139,7 @@ def test_synth_gather(config_yaml):
     ), "No synthesized gather operation found in the optimized config"
 
     # Run the optimized pipeline
-    runner = DSLRunner(optimizer.optimized_config_path)
-    runner.run()
+    optimized_pipeline.load_run_save()
 
     # Check if the output file was created
     assert os.path.exists(output_path), "Output file was not created"
@@ -161,7 +160,6 @@ def test_synth_gather(config_yaml):
 
     # Clean up temporary files
     os.remove(config_path)
-    os.remove(optimizer.optimized_config_path)
     os.remove(long_documents_path)
     os.remove(output_path)
 

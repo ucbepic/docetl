@@ -445,8 +445,11 @@ class ResolveOperation(BaseOperation):
 
         # Compute an auto-batch size based on the number of comparisons
         def auto_batch() -> int:
-            # Maximum batch size limit for 4o-mini model
-            M = 500
+            # Get model-specific rate limit from pipeline
+            model = self.config.get("comparison_model", self.default_model)
+            rate_limit = self.runner.api.get_rate_limit(model)  
+            # Use the rate limit as our maximum batch size
+            M = rate_limit["requests_per_minute"]
             
             n = len(input_data)
             m = len(blocked_pairs)
@@ -468,6 +471,7 @@ class ResolveOperation(BaseOperation):
 
         # Compare pairs and update clusters in real-time
         batch_size = self.config.get("compare_batch_size", auto_batch())
+        rate_info = self.runner.pipeline.get_rate_limits(self.config.get("comparison_model", self.default_model))
         self.console.log(f"Using compare batch size: {batch_size}")
         pair_costs = 0
 

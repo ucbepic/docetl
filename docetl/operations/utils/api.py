@@ -13,10 +13,41 @@ from .validation import safe_eval, convert_dict_schema_to_list_schema, get_user_
 from docetl.utils import completion_cost
 
 from rich import print as rprint
+from .oss_llm import OutlinesBackend
 
-class APIWrapper(object):
+class APIWrapper:
     def __init__(self, runner):
         self.runner = runner
+        self._oss_operations = {}
+    
+    def _is_outlines_model(self, model: str) -> bool:
+        """Check if model is an Outlines model"""
+        return model.startswith("outlines/")
+
+    def _get_model_path(self, model: str) -> str:
+        """Extract model path from outlines model string"""
+        return model.split("outlines/", 1)[1]
+    
+    def _call_llm_with_cache(
+        self,
+        model: str,
+        op_type: str,
+        messages: List[Dict[str, str]],
+        output_schema: Dict[str, str],
+        tools: Optional[str] = None,
+        scratchpad: Optional[str] = None,
+        litellm_completion_kwargs: Dict[str, Any] = {},
+    ) -> ModelResponse:
+        """Handle both Outlines and cloud model calls"""
+        
+        # Add OSS model handling
+        if self._is_outlines_model(model):
+            model_path = self._get_model_path(model)
+            return self.outlines_backend.process_messages(
+                model_path=model_path,
+                messages=messages,
+                output_schema=output_schema
+            ).response
 
     @freezeargs
     def gen_embedding(self, model: str, input: List[str]) -> List[float]:
@@ -389,6 +420,23 @@ class APIWrapper(object):
         Returns:
             str: The response from the LLM.
         """
+        if any(prefix in model for prefix in ["local/", "huggingface/", "oss/"]):
+            try:
+                config = {
+                "name": f"oss_{op_type}",
+                "type": "oss_llm",
+                "model_path": model.split("/", 1)[1],
+                "output_schema": output_schema,
+                "max_tokens": litellm_completion_kwargs.get("max_tokens", 4096)
+                }
+            
+                oss_op = self._get_oss_operation(config)
+                return oss_op.process_messages(messages).response
+            
+            except Exception as e:
+                self.runner.console.print(f"[red]Error with OSS model: {str(e)}[/red]")
+                raise e
+        
         props = {key: convert_val(value) for key, value in output_schema.items()}
         use_tools = True
 
@@ -612,7 +660,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             for tool_call in tool_calls:
                 if response.choices[0].finish_reason == "content_filter":
                     raise InvalidOutputError(
-                        "Content filter triggered by LLM provider.",
+                        "Content filter triggered in LLM response",
                         "",
                         schema,
                         response.choices,

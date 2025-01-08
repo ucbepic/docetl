@@ -10,17 +10,14 @@ from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, List, Tuple, Optional
 
 from docetl.operations.utils import strict_render
+from docetl.operations.utils.progress import RichLoopBar
 import numpy as np
 from jinja2 import Template
 from litellm import model_cost
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import (
-    rich_as_completed,
-)
 from docetl.utils import completion_cost
-from pydantic import Field
 
 
 # Global variables to store shared data
@@ -39,6 +36,10 @@ def is_match(left_item: Dict[str, Any], right_item: Dict[str, Any]) -> bool:
         eval(condition, {"left": left_item, "right": right_item})
         for condition in _blocking_conditions
     )
+
+# LLM-based comparison for blocked pairs
+def get_hashable_key(item: Dict) -> str:
+    return json.dumps(item, sort_keys=True)
 
 
 def process_left_item(
@@ -69,7 +70,7 @@ class EquijoinOperation(BaseOperation):
         limit_comparisons: Optional[int] = None
         blocking_keys: Optional[Dict[str, List[str]]] = None
         timeout: Optional[int] = None
-        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        litellm_completion_kwargs: Dict[str, Any] = {}
     
     def compare_pair(
         self,
@@ -95,8 +96,11 @@ class EquijoinOperation(BaseOperation):
             Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
         """
 
-
-        prompt = strict_render(comparison_prompt, {"left": item1, "right": item2})
+        try:
+            prompt = strict_render(comparison_prompt, {"left": item1, "right": item2})
+        except Exception as e:
+            self.console.print(f"[red]Error rendering prompt: {e}[/red]")
+            return False, 0
         response = self.runner.api.call_llm(
             model,
             "compare",
@@ -107,10 +111,16 @@ class EquijoinOperation(BaseOperation):
             bypass_cache=self.config.get("bypass_cache", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
-        output = self.runner.api.parse_llm_response(
-            response.response, {"is_match": "bool"}
-        )[0]
-        return output["is_match"], response.total_cost
+        cost = 0
+        try:
+            cost = response.total_cost
+            output = self.runner.api.parse_llm_response(
+                response.response, {"is_match": "bool"}
+            )[0]
+        except Exception as e:
+            self.console.print(f"[red]Error parsing LLM response: {e}[/red]")
+            return False, cost
+        return output["is_match"], cost
 
     def syntax_check(self) -> None:
         """
@@ -215,10 +225,6 @@ class EquijoinOperation(BaseOperation):
         limit_comparisons = self.config.get("limit_comparisons")
         total_cost = 0
 
-        # LLM-based comparison for blocked pairs
-        def get_hashable_key(item: Dict) -> str:
-            return json.dumps(item, sort_keys=True)
-
         if len(left_data) == 0 or len(right_data) == 0:
             return [], 0
 
@@ -244,8 +250,12 @@ class EquijoinOperation(BaseOperation):
 
         # Check if we have exceeded the pairwise comparison limit
         if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
-            # Sample pairs randomly
-            sampled_pairs = random.sample(blocked_pairs, limit_comparisons)
+            # Sample pairs based on cardinality and length
+            sampled_pairs = stratified_length_sample(
+                blocked_pairs,
+                limit_comparisons,
+                sample_size=1000
+            )
 
             # Calculate number of dropped pairs
             dropped_pairs = len(blocked_pairs) - limit_comparisons
@@ -257,7 +267,7 @@ class EquijoinOperation(BaseOperation):
                 f"[yellow]Warning: {dropped_pairs} pairs will be dropped due to the comparison limit. "
                 f"Proceeding with {limit_comparisons} randomly sampled pairs. "
                 f"Do you want to continue?[/yellow]",
-                self.console,
+                console=self.console,
             ):
                 raise ValueError("Operation cancelled by user due to pair limit.")
 
@@ -410,6 +420,9 @@ class EquijoinOperation(BaseOperation):
         results = []
         comparison_costs = 0
 
+        if self.status:
+            self.status.stop()
+
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             future_to_pair = {
                 executor.submit(
@@ -424,12 +437,14 @@ class EquijoinOperation(BaseOperation):
                 for left, right in blocked_pairs
             }
 
-            for future in rich_as_completed(
-                future_to_pair,
-                total=len(future_to_pair),
-                desc="Comparing pairs",
+            pbar = RichLoopBar(
+                range(len(future_to_pair)),
+                desc=f"Comparing pairs",
                 console=self.console,
-            ):
+            )
+
+            for i in pbar:
+                future = list(future_to_pair.keys())[i]
                 pair = future_to_pair[future]
                 is_match, cost = future.result()
                 comparison_costs += cost
@@ -460,6 +475,9 @@ class EquijoinOperation(BaseOperation):
 
         total_cost += comparison_costs
 
+        if self.status:
+            self.status.start()
+
         # Calculate and print the join selectivity
         join_selectivity = (
             len(results) / (len(left_data) * len(right_data))
@@ -472,3 +490,65 @@ class EquijoinOperation(BaseOperation):
             self.status.start()
 
         return results, total_cost
+
+
+def estimate_cardinality(items: List[Dict], sample_size: int = 1000) -> float:
+    """
+    Estimates cardinality by sampling items and checking uniqueness ratio.
+    Returns estimated uniqueness ratio (0-1).
+    """
+    sample_size = min(len(items), sample_size)
+    sample = random.sample(items, sample_size)
+    unique_items = {get_hashable_key(item) for item in sample}
+    return len(unique_items) / sample_size
+
+
+def stratified_length_sample(
+    blocked_pairs: List[Tuple[Dict, Dict]], 
+    limit_comparisons: int,
+    sample_size: int = 1000
+) -> List[Tuple[Dict, Dict]]:
+    """
+    Samples pairs stratified by the smaller cardinality relation,
+    prioritizing longer matches within each stratum.
+    """
+    # Extract left and right items
+    left_items = [left for left, _ in blocked_pairs]
+    right_items = [right for _, right in blocked_pairs]
+    
+    # Estimate cardinality for both relations
+    left_uniqueness = estimate_cardinality(left_items, sample_size)
+    right_uniqueness = estimate_cardinality(right_items, sample_size)
+    
+    # Group by the relation with estimated lower cardinality
+    use_left_as_key = left_uniqueness < right_uniqueness
+    groups = defaultdict(list)
+    
+    for left, right in blocked_pairs:
+        key = get_hashable_key(left if use_left_as_key else right)
+        value = (left, right)
+        groups[key].append(value)
+    
+    # Sort each group by length of the other relation's item
+    for key in groups:
+        groups[key].sort(
+            key=lambda x: len(x[1 if use_left_as_key else 0]),
+            reverse=True  # Prioritize longer matches
+        )
+    
+    # Calculate samples per group
+    n_groups = len(groups)
+    base_samples_per_group = limit_comparisons // n_groups
+    extra_samples = limit_comparisons % n_groups
+    
+    # Sample from each group
+    sampled_pairs = []
+    for i, (key, pairs) in enumerate(groups.items()):
+        # Add one extra sample to early groups if we have remainder
+        group_sample_size = min(
+            len(pairs),
+            base_samples_per_group + (1 if i < extra_samples else 0)
+        )
+        sampled_pairs.extend(pairs[:group_sample_size])
+    
+    return sampled_pairs

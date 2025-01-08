@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 
 app = typer.Typer()
 
-
 @app.command()
 def build(
     yaml_file: Path = typer.Argument(

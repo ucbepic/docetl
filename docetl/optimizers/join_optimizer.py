@@ -711,7 +711,7 @@ class JoinOptimizer:
             if self.status:
                 self.status.stop()
             # Use Rich's Confirm for input
-            if Confirm.ask("Use this rule?", self.console):
+            if Confirm.ask("Use this rule?", console=self.console):
                 selected_containment_rules.append(rule)
             # Restart the status
             if self.status:

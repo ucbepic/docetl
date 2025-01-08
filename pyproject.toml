@@ -14,13 +14,11 @@ docetl = "docetl.cli:app"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-litellm = "^1.51.0"
 tqdm = "^4.66.4"
 rich = "^13.7.1"
 frozendict = "^2.4.4"
 diskcache = "^5.6.3"
 typer = "^0.12.5"
-pydantic = "^2.9.2"
 asteval = "^1.0.4"
 scikit-learn = "^1.5.2"
 pyrate-limiter = "^3.7.0"
@@ -40,6 +38,8 @@ docling = { version  = "^2.5.2", optional = true }
 azure-ai-formrecognizer = { version = "^3.3.3", optional = true }
 lzstring = "^1.0.4"
 azure-ai-documentintelligence = { version = "^1.0.0b4", optional = true }
+litellm = "^1.51.0"
+pydantic = "^2.9.2"
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]

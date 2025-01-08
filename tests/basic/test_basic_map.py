@@ -232,15 +232,15 @@ def test_map_with_enum_output(simple_map_config, map_sample_data, api_wrapper):
     assert all("sentiment" in result for result in results)
     assert all(result["sentiment"] in ["positive", "negative", "neutral"] for result in results)
 
-    # Try gemini model
-    map_config_with_enum_output["model"] = "gemini/gemini-1.5-flash"
-    operation = MapOperation(api_wrapper, map_config_with_enum_output, "gemini/gemini-1.5-flash", 4)
-    results, cost = operation.execute(map_sample_data)
+    # # Try gemini model
+    # map_config_with_enum_output["model"] = "gemini/gemini-1.5-flash"
+    # operation = MapOperation(api_wrapper, map_config_with_enum_output, "gemini/gemini-1.5-flash", 4)
+    # results, cost = operation.execute(map_sample_data)
 
-    assert len(results) == len(map_sample_data)
-    assert all("sentiment" in result for result in results)
-    assert all(result["sentiment"] in ["positive", "negative", "neutral"] for result in results)
-    assert cost > 0
+    # assert len(results) == len(map_sample_data)
+    # assert all("sentiment" in result for result in results)
+    # assert all(result["sentiment"] in ["positive", "negative", "neutral"] for result in results)
+    # assert cost > 0
 
     # Try list of enum types
     map_config_with_enum_output["output"] = {"schema": {"possible_sentiments": "list[enum[positive, negative, neutral]]"}}

@@ -830,8 +830,10 @@ class Optimizer:
             # Run the pipeline
             step_ops = []
             for step_op in step.get("operations"):
-                if step_op in replacement_operations:
-                    step_ops.extend(replacement_operations[step_op])
+                step_op_name = list(step_op.keys())[0] if isinstance(step_op, dict) else step_op
+
+                if step_op_name in replacement_operations:
+                    step_ops.extend(replacement_operations[step_op_name])
                 else:
                     step_ops.append(step_op)
 
@@ -934,8 +936,8 @@ class Optimizer:
                                     new_right_name,
                                 ) = self._optimize_equijoin(
                                     op_object,
-                                    operation["left"],
-                                    operation["right"],
+                                    next(iter(operation.values()))["left"],
+                                    next(iter(operation.values()))["right"],
                                     input_data["left"],
                                     input_data["right"],
                                     status,

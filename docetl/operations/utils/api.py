@@ -13,33 +13,20 @@ from .validation import safe_eval, convert_dict_schema_to_list_schema, get_user_
 from docetl.utils import completion_cost
 
 from rich import print as rprint
-from .oss_llm import OSSLLMOperation
+from .oss_llm import OutlinesBackend
 
 class APIWrapper:
     def __init__(self, runner):
         self.runner = runner
         self._oss_operations = {}
     
-    def _is_oss_model(self, model: str) -> bool:
-        """Check if model is an OSS model"""
-        return any(prefix in model for prefix in ["local/", "huggingface/", "oss/"])
+    def _is_outlines_model(self, model: str) -> bool:
+        """Check if model is an Outlines model"""
+        return model.startswith("outlines/")
 
-    def _get_oss_operation(self, model: str, output_schema: Dict[str, Any]) -> OSSLLMOperation:
-        """Get or create OSSLLMOperation instance"""
-        model_path = model.split("/", 1)[1]
-        if model_path not in self._oss_operations:
-            config = {
-                "name": f"oss_llm_{model_path}",
-                "type": "oss_llm",
-                "model_path": model_path,
-                "output_schema": output_schema,
-                "max_tokens": 4096  # Default value, can be overridden
-            }
-            self._oss_operations[model_path] = OSSLLMOperation(
-                config=config,
-                runner=self.runner
-            )
-        return self._oss_operations[model_path]
+    def _get_model_path(self, model: str) -> str:
+        """Extract model path from outlines model string"""
+        return model.split("outlines/", 1)[1]
     
     def _call_llm_with_cache(
         self,
@@ -51,12 +38,16 @@ class APIWrapper:
         scratchpad: Optional[str] = None,
         litellm_completion_kwargs: Dict[str, Any] = {},
     ) -> ModelResponse:
-        """Existing function, just add OSS model handling at the start"""
+        """Handle both Outlines and cloud model calls"""
         
         # Add OSS model handling
-        if self._is_oss_model(model):
-            operation = self._get_oss_operation(model, output_schema)
-            return operation.process_messages(messages)
+        if self._is_outlines_model(model):
+            model_path = self._get_model_path(model)
+            return self.outlines_backend.process_messages(
+                model_path=model_path,
+                messages=messages,
+                output_schema=output_schema
+            ).response
 
     @freezeargs
     def gen_embedding(self, model: str, input: List[str]) -> List[float]:

@@ -7,6 +7,11 @@ In this tutorial, we'll walk through using the DocETL playground to extract funn
 3. Examine outputs
 4. Iterate on prompts to improve results
 
+!!! tip "Using LLMs to Help Write Pipelines"
+
+    Want to use an LLM like ChatGPT or Claude to help you write your pipeline? See [docetl.org/llms.txt](https://docetl.org/llms.txt) for a big prompt you can copy paste into ChatGPT or Claude, before describing your task.
+
+
 ## Step 1: Upload the Data
 
 First, download the presidential debates dataset from [here](https://raw.githubusercontent.com/ucbepic/docetl/refs/heads/main/example_data/debates/data.json).

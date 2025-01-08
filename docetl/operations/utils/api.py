@@ -14,6 +14,8 @@ from docetl.utils import completion_cost
 
 from rich import print as rprint
 
+BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
+
 class APIWrapper(object):
     def __init__(self, runner):
         self.runner = runner
@@ -485,31 +487,45 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
 
         self.runner.rate_limiter.try_acquire("llm_call", weight=1)
         if tools is not None:
-            response = completion(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt,
-                    },
-                ]
-                + messages,
-                tools=tools,
-                tool_choice=tool_choice,
-                **litellm_completion_kwargs,
-            )
+            try:
+                response = completion(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt,
+                        },
+                    ]
+                    + messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    **litellm_completion_kwargs,
+                )
+            except Exception as e:
+                # Check that there's a prefix for the model name if it's not a basic model
+                if model not in BASIC_MODELS:
+                    if not "/" in model:
+                        raise ValueError(f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}")
+                raise e
         else:
-            response = completion(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt,
-                    },
-                ]
-                + messages,
-                **litellm_completion_kwargs,
-            )
+            try:
+                response = completion(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt,
+                        },
+                    ]
+                    + messages,
+                    **litellm_completion_kwargs,
+                )
+            except Exception as e:
+                # Check that there's a prefix for the model name if it's not a basic model
+                if model not in BASIC_MODELS:
+                    if not "/" in model:
+                        raise ValueError(f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}")
+                raise e
 
 
         return response

@@ -150,6 +150,11 @@ class GatherOperation(BaseOperation):
         Returns:
             str: Renderted chunk with context and headers.
         """
+
+        # If there are no peripheral chunks, return the main chunk
+        if not peripheral_config:
+            return chunks[current_index][content_key]
+
         combined_parts = ["--- Previous Context ---"]
 
         combined_parts.extend(

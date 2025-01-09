@@ -24,6 +24,108 @@ from .utils import classproperty
 
 load_dotenv()
 
+class OpContainer(object):
+    def __init__(self, name: str, runner: DSLRunner, config: Dict, **kwargs):
+        self.name = name
+        self.config = config
+        self.children = []
+        self.parent = None
+        self.is_equijoin = config.get("type") == "equijoin"
+        self.runner = runner
+    
+    def to_string(self):
+        return json.dumps(self.config, indent=2)
+
+    def add_child(self, child):
+        self.children.append(child)
+        child.parent = self
+        
+    def next(self):
+        input_data = None
+        cost = 0.0
+        this_op_cost = 0.0
+        curr_logs = ""
+
+        if self.is_equijoin:
+            assert len(self.children) == 2, "Equijoin should have left and right children"
+            left_data, left_cost, left_logs = self.children[0].next()
+            right_data, right_cost, right_logs = self.children[1].next()
+            cost += left_cost
+            cost += right_cost
+            curr_logs += left_logs
+            curr_logs += right_logs
+        elif len(self.children) > 0:
+            # Run the child
+            input_data, input_cost, input_logs = self.children[0].next()
+            cost += input_cost
+            cost += input_logs
+        
+        # Sample if the config asks
+        if "sample" in self.config:
+            input_data = input_data[: self.config["sample"]]
+
+        # run this op
+        with self.runner.console.status("[bold]Running Operation:[/bold]") as status:
+            status.update(f"Type: [cyan]{self.config['type']}[/cyan]")
+            status.update(f"Name: [cyan]{self.config.get('name', 'Unnamed')}[/cyan]")
+            self.status = status
+
+            operation_class = get_operation(self.config["type"])
+            operation_instance = operation_class(
+                self,
+                self.config,
+                self.default_model,
+                self.max_threads,
+                self.console,
+                self.status,
+            )
+
+            if self.is_equijoin:
+                # Do the equijoin
+                input_data, this_op_cost = operation_instance.execute(left_data, right_data)
+            else:
+                input_data, this_op_cost = operation_instance.execute(input_data)
+                
+            cost += this_op_cost
+            self.runner.total_cost += this_op_cost
+            curr_logs += f"[green]✓[/green] Operation [cyan]{self.name}[/cyan] (Cost: [green]${this_op_cost:.2f}[/green])\n"
+            self.console.print(f"[green]✓[/green] Operation [cyan]{self.name}[/cyan] completed (Cost: [green]${this_op_cost:.2f}[/green])")
+
+        return input_data, cost, curr_logs
+
+
+    def syntax_check(self):
+        operation = self.config["name"]
+        operation_type = self.config["type"]
+
+        operation_class = get_operation(operation_type)
+        operation_class(
+            self.runner,
+            self.config,
+            self.default_model,
+            self.max_threads,
+            self.console,
+        )
+
+        return f"[green]✓[/green] Operation '{operation}' ({operation_type})\n"
+
+class StepBoundary(OpContainer):
+    def next(self):
+        output_data, step_cost, step_logs = self.children[0].next()
+
+        # Print step logs
+        self.runner.datasets[self.name] = Dataset(self, "memory", output_data)
+        flush_cache(self.console)
+        self.console.print(Panel.fit(
+            step_logs + f"Step [cyan]{self.name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]",
+            title=f"[bold blue]Step Execution: {self.name}[/bold blue]"
+        ))
+
+        return output_data, 0, ""
+
+    def syntax_check(self):
+        return ""
+
 
 class DSLRunner(ConfigWrapper):
     """
@@ -89,6 +191,59 @@ class DSLRunner(ConfigWrapper):
         self.parsing_tool_map = create_parsing_tool_map(
             self.config.get("parsing_tools", None)
         )
+
+        # Create pipeline of Ops
+        self.op_container_map = {}
+        last_op_container = None
+        for step in self.config["pipeline"]["steps"]:
+            # Check name and operations
+            assert "name" in step.keys(), f"Step {step} does not have a name"
+            assert "operations" in  step.keys(), f"Step {step} does not have `operations`"
+
+            # First check if this has an input
+            op_start_idx = 0
+            step_input = step.get("input")
+            if step_input:
+                # Create a scan op
+                scan_op_container = OpContainer(f"{step['name']}/scan_{step_input}", self, {
+                    "type": "scan",
+                    "dataset_name": step_input 
+                })
+                last_op_container = scan_op_container
+            else:
+                # It better be an equijoin
+                assert isinstance(step["operations"][0], dict), f"Step {step} must have an input if the first operation is not an equijoin"
+
+                equijoin_operation_name = list(step["operations"][0].keys())[0]
+                left_dataset_name = list(step["operations"][0].values())["left"]
+                right_dataset_name = list(step["operations"][0].values())["right"]
+
+                # Create left and right scan ops, followed by the equijoin
+                left_scan_op_container = OpContainer(f"{step['name']}/scan_{step['operations'][0]['left']}", self, {
+                    "type": "scan",
+                    "dataset_name": left_dataset_name
+                })
+                right_scan_op_container = OpContainer(f"{step['name']}/scan_{step['operations'][0]['right']}", self, {
+                    "type": "scan",
+                    "dataset_name": right_dataset_name
+                })
+                equijoin_op_container = OpContainer(f"{step['name']}/{step['operations'][0]}", self, self.find_operation(equijoin_operation_name), False)
+                equijoin_op_container.children = [left_scan_op_container, right_scan_op_container]
+                last_op_container = equijoin_op_container
+                op_start_idx = 1
+
+            # Iterate through operations for this step and create containers for them
+            for operation_name in step["operations"][op_start_idx:]:
+                # Make sure operation_name is a string
+                assert isinstance(operation_name, str), f"Operation {operation_name} in step {step['name']} should be a string. If you intend for it to be an equijoin, don't specify an input in the step."
+
+                # Create the op container
+                op_container = OpContainer(
+                    f"{step['name']}/{operation_name}", 
+                    self, 
+                    self.find_operation(operation_name))
+                last_op_container.children.append(op_container)
+                last_op_container = op_container
 
         self.syntax_check()
 
@@ -374,6 +529,7 @@ class DSLRunner(ConfigWrapper):
                     input_data, cost = operation_instance.execute(left_data, right_data)
                 else:
                     input_data, cost = operation_instance.execute(input_data)
+                
                 total_cost += cost
                 step_content += f"[green]✓[/green] Operation [cyan]{operation_name}[/cyan] (Cost: [green]${cost:.2f}[/green])\n"
                 self.console.print(f"[green]✓[/green] Operation [cyan]{operation_name}[/cyan] completed (Cost: [green]${cost:.2f}[/green])")

@@ -10,7 +10,7 @@ from docetl.operations.resolve import ResolveOperation
 from docetl.operations.split import SplitOperation
 from docetl.operations.sample import SampleOperation
 from docetl.operations.unnest import UnnestOperation
-
+from docetl.operations.scan import ScanOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -26,6 +26,7 @@ mapping = {
     "split": SplitOperation,
     "sample": SampleOperation,
     "unnest": UnnestOperation,
+    "scan": ScanOperation
 }
 
 def get_operation(operation_type: str):

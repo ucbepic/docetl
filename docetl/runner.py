@@ -1,5 +1,5 @@
 """
-The DSLRunner module implements a declarative pipeline execution engine with a pull-based 
+The DSLRunner module implements a declarative pipeline execution engine with a pull-based
 evaluation model. Key architectural decisions include:
 
 Design Patterns:
@@ -35,9 +35,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.prompt import Confirm
-from rich.markup import escape
 
 from docetl.builder import Optimizer
 from docetl.config_wrapper import ConfigWrapper
@@ -53,7 +53,7 @@ load_dotenv()
 
 
 class OpContainer(object):
-    '''
+    """
     OpContainer implements a pull-based execution model for pipeline operations. Each container
     represents a node in the execution DAG and lazily evaluates its operation only when its
     output is requested by a parent node.
@@ -62,11 +62,11 @@ class OpContainer(object):
     - Lazy evaluation: Operations only execute when their output is needed
     - Transparent caching: Results can be cached and reused across pipeline runs
     - Cost tracking: Each operation's execution cost is tracked and aggregated
-    
+
     The pull-based model means that execution flows backwards through the DAG - when the final
     node is asked for data, it recursively requests data from its children until reaching leaf
     nodes (typically scan operations that load initial datasets).
-    '''
+    """
 
     def __init__(self, name: str, runner: "DSLRunner", config: Dict, **kwargs):
         self.name = name
@@ -79,13 +79,13 @@ class OpContainer(object):
     def to_string(self) -> str:
         return json.dumps(self.config, indent=2)
 
-    def add_child(self, child: 'OpContainer') -> None:
+    def add_child(self, child: "OpContainer") -> None:
         self.children.append(child)
         child.parent = self
 
     def next(self) -> Tuple[List[Dict], float, str]:
-        '''
-        Execute this operation and return its results. This is the core method implementing 
+        """
+        Execute this operation and return its results. This is the core method implementing
         the pull-based execution model.
 
         The execution follows these steps:
@@ -94,19 +94,19 @@ class OpContainer(object):
         3. Apply any configured sampling
         4. Execute the operation on the input data
         5. Cache results if checkpointing is enabled
-        
+
         Returns:
             Tuple[List[Dict], float, str]: A tuple containing:
                 - The operation's output data
                 - Total cost of this operation and its children
                 - Execution logs as a formatted string
-        '''
+        """
         # Track cost and logs for this operation and its children
         input_data = None
         cost = 0.0
         this_op_cost = 0.0
         curr_logs = ""
-        
+
         # Try to load from checkpoint if available
         attempted_input_data = self.runner._load_from_checkpoint_if_exists(
             self.name.split("/")[0], self.name.split("/")[-1]
@@ -118,14 +118,18 @@ class OpContainer(object):
         # Clear any existing checkpoint before running
         if self.runner.intermediate_dir:
             checkpoint_path = os.path.join(
-                self.runner.intermediate_dir, self.name.split("/")[0], f"{self.name.split('/')[-1]}.json"
+                self.runner.intermediate_dir,
+                self.name.split("/")[0],
+                f"{self.name.split('/')[-1]}.json",
             )
             if os.path.exists(checkpoint_path):
                 os.remove(checkpoint_path)
 
         # Handle equijoin operations which have two input streams
         if self.is_equijoin:
-            assert len(self.children) == 2, "Equijoin should have left and right children"
+            assert (
+                len(self.children) == 2
+            ), "Equijoin should have left and right children"
             left_data, left_cost, left_logs = self.children[0].next()
             right_data, right_cost, right_logs = self.children[1].next()
             cost += left_cost + right_cost
@@ -155,7 +159,9 @@ class OpContainer(object):
 
             # Execute operation with appropriate inputs
             if self.is_equijoin:
-                input_data, this_op_cost = operation_instance.execute(left_data, right_data)
+                input_data, this_op_cost = operation_instance.execute(
+                    left_data, right_data
+                )
             else:
                 input_data, this_op_cost = operation_instance.execute(input_data)
 
@@ -166,10 +172,16 @@ class OpContainer(object):
                 curr_logs += f"[green]✓[/green] {self.name} (Cost: [green]${this_op_cost:.2f}[/green])\n"
             else:
                 curr_logs += f"[green]✓[/green] {self.name}\n"
-            
+
         # Save checkpoint if enabled
-        if self.runner.intermediate_dir and self.name.split("/")[1] in self.runner.step_op_hashes[self.name.split("/")[0]]:
-            self.runner._save_checkpoint(self.name.split("/")[0], self.name.split("/")[-1], input_data)
+        if (
+            self.runner.intermediate_dir
+            and self.name.split("/")[1]
+            in self.runner.step_op_hashes[self.name.split("/")[0]]
+        ):
+            self.runner._save_checkpoint(
+                self.name.split("/")[0], self.name.split("/")[-1], input_data
+            )
 
         return input_data, cost, curr_logs
 
@@ -186,7 +198,7 @@ class OpContainer(object):
             self.runner.console,
             self.runner.status,
         )
-        
+
         # Do syntax check
         obj.syntax_check()
 
@@ -216,7 +228,7 @@ class StepBoundary(OpContainer):
 
 
 class DSLRunner(ConfigWrapper):
-    '''
+    """
     DSLRunner orchestrates pipeline execution by building and traversing a DAG of OpContainers.
     The runner uses a two-phase approach:
 
@@ -236,7 +248,7 @@ class DSLRunner(ConfigWrapper):
     - Pipeline validation before any execution
     - Cost estimation and optimization
     - Partial pipeline execution for testing
-    '''
+    """
 
     @classproperty
     def schema(cls):
@@ -283,7 +295,7 @@ class DSLRunner(ConfigWrapper):
         self._setup_parsing_tools()
         self._build_operation_graph()
         self._compute_operation_hashes()
-        
+
         # Run initial validation
         self.print_query_plan()
         self.syntax_check()
@@ -305,15 +317,15 @@ class DSLRunner(ConfigWrapper):
         """Build the DAG of operations from configuration"""
         self.op_container_map = {}
         self.last_op_container = None
-        
+
         for step in self.config["pipeline"]["steps"]:
             self._validate_step(step)
-            
+
             if step.get("input"):
                 self._add_scan_operation(step)
             else:
                 self._add_equijoin_operation(step)
-                
+
             self._add_step_operations(step)
             self._add_step_boundary(step)
 
@@ -327,9 +339,15 @@ class DSLRunner(ConfigWrapper):
         scan_op_container = OpContainer(
             f"{step['name']}/scan_{step['input']}",
             self,
-            {"type": "scan", "dataset_name": step['input'], "name": f"scan_{step['input']}"},
+            {
+                "type": "scan",
+                "dataset_name": step["input"],
+                "name": f"scan_{step['input']}",
+            },
         )
-        self.op_container_map[f"{step['name']}/scan_{step['input']}"] = scan_op_container
+        self.op_container_map[f"{step['name']}/scan_{step['input']}"] = (
+            scan_op_container
+        )
         if self.last_op_container:
             scan_op_container.add_child(self.last_op_container)
         self.last_op_container = scan_op_container
@@ -343,14 +361,22 @@ class DSLRunner(ConfigWrapper):
         left_scan_op_container = OpContainer(
             f"{step['name']}/scan_{left_dataset_name}",
             self,
-            {"type": "scan", "dataset_name": left_dataset_name, "name": f"scan_{left_dataset_name}"},
+            {
+                "type": "scan",
+                "dataset_name": left_dataset_name,
+                "name": f"scan_{left_dataset_name}",
+            },
         )
         if self.last_op_container:
             left_scan_op_container.add_child(self.last_op_container)
         right_scan_op_container = OpContainer(
             f"{step['name']}/scan_{right_dataset_name}",
             self,
-            {"type": "scan", "dataset_name": right_dataset_name, "name": f"scan_{right_dataset_name}"},
+            {
+                "type": "scan",
+                "dataset_name": right_dataset_name,
+                "name": f"scan_{right_dataset_name}",
+            },
         )
         if self.last_op_container:
             right_scan_op_container.add_child(self.last_op_container)
@@ -359,19 +385,25 @@ class DSLRunner(ConfigWrapper):
             self,
             self.find_operation(equijoin_operation_name),
         )
-        
+
         equijoin_op_container.add_child(left_scan_op_container)
         equijoin_op_container.add_child(right_scan_op_container)
-        
+
         self.last_op_container = equijoin_op_container
-        self.op_container_map[f"{step['name']}/{equijoin_operation_name}"] = equijoin_op_container
-        self.op_container_map[f"{step['name']}/scan_{left_dataset_name}"] = left_scan_op_container
-        self.op_container_map[f"{step['name']}/scan_{right_dataset_name}"] = right_scan_op_container
+        self.op_container_map[f"{step['name']}/{equijoin_operation_name}"] = (
+            equijoin_op_container
+        )
+        self.op_container_map[f"{step['name']}/scan_{left_dataset_name}"] = (
+            left_scan_op_container
+        )
+        self.op_container_map[f"{step['name']}/scan_{right_dataset_name}"] = (
+            right_scan_op_container
+        )
 
     def _add_step_operations(self, step: Dict) -> None:
         """Add operations for a step"""
         op_start_idx = 1 if not step.get("input") else 0
-        
+
         for operation_name in step["operations"][op_start_idx:]:
             if not isinstance(operation_name, str):
                 raise ValueError(
@@ -393,7 +425,7 @@ class DSLRunner(ConfigWrapper):
         step_boundary = StepBoundary(
             f"{step['name']}/boundary",
             self,
-            {"type": "step_boundary", "name": f"{step['name']}/boundary"}
+            {"type": "step_boundary", "name": f"{step['name']}/boundary"},
         )
         step_boundary.add_child(self.last_op_container)
         self.op_container_map[f"{step['name']}/boundary"] = step_boundary
@@ -403,7 +435,7 @@ class DSLRunner(ConfigWrapper):
         """Compute hashes for operations to enable caching"""
         op_map = {op["name"]: op for op in self.config["operations"]}
         self.step_op_hashes = defaultdict(dict)
-        
+
         for step in self.config["pipeline"]["steps"]:
             for idx, op in enumerate(step["operations"]):
                 op_name = op if isinstance(op, str) else list(op.keys())[0]
@@ -413,7 +445,7 @@ class DSLRunner(ConfigWrapper):
                     + [op_map[op_name]]
                     + [self.config.get("system_prompt", {})]
                 )
-                
+
                 for op in all_ops_until_and_including_current:
                     if "model" not in op:
                         op["model"] = self.default_model
@@ -455,7 +487,7 @@ class DSLRunner(ConfigWrapper):
             op_containers = []
             if self.last_op_container:
                 op_containers = [self.last_op_container]
-                
+
             while op_containers:
                 current = op_containers.pop(0)
                 syntax_result = current.syntax_check()
@@ -477,34 +509,40 @@ class DSLRunner(ConfigWrapper):
         """
         if not self.last_op_container:
             self.console.print("\n[bold]Pipeline Steps:[/bold]")
-            self.console.print(Panel("No operations in pipeline", title="Query Plan", width=100))
+            self.console.print(
+                Panel("No operations in pipeline", title="Query Plan", width=100)
+            )
             self.console.print()
             return
 
-        def _print_op(op: OpContainer, indent: int = 0, step_colors: Dict[str, str] = None) -> str:
+        def _print_op(
+            op: OpContainer, indent: int = 0, step_colors: Dict[str, str] = None
+        ) -> str:
             # Skip boundary operations but process their children
             if isinstance(op, StepBoundary):
                 if op.children:
                     return _print_op(op.children[0], indent, step_colors)
                 return ""
-                
+
             # Build the string for the current operation with indentation
             indent_str = "  " * indent
             output = []
-            
+
             # Color code the operation name based on its step
-            step_name = op.name.split('/')[0]
+            step_name = op.name.split("/")[0]
             color = step_colors.get(step_name, "white")
             output.append(f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]")
             output.append(f"{indent_str}Type: {op.config['type']}")
-            
+
             # Add schema if available
             if "output" in op.config and "schema" in op.config["output"]:
                 output.append(f"{indent_str}Output Schema:")
                 for field, field_type in op.config["output"]["schema"].items():
                     escaped_type = escape(str(field_type))
-                    output.append(f"{indent_str}  {field}: [bright_white]{escaped_type}[/bright_white]")
-            
+                    output.append(
+                        f"{indent_str}  {field}: [bright_white]{escaped_type}[/bright_white]"
+                    )
+
             # Add children
             if op.children:
                 if op.is_equijoin:
@@ -516,26 +554,29 @@ class DSLRunner(ConfigWrapper):
                     output.append(f"{indent_str}[yellow]▼[/yellow]")
                     for child in op.children:
                         output.append(_print_op(child, indent + 1, step_colors))
-            
+
             return "\n".join(output)
 
         # Get all step boundaries and extract unique step names
         step_boundaries = [
-            op for name, op in self.op_container_map.items() 
+            op
+            for name, op in self.op_container_map.items()
             if isinstance(op, StepBoundary)
         ]
         step_boundaries.sort(key=lambda x: x.name)
-        
+
         # Create a color map for steps - using distinct colors
         colors = ["cyan", "magenta", "green", "yellow", "blue", "red"]
-        step_names = [b.name.split('/')[0] for b in step_boundaries]
-        step_colors = {name: colors[i % len(colors)] for i, name in enumerate(step_names)}
-        
+        step_names = [b.name.split("/")[0] for b in step_boundaries]
+        step_colors = {
+            name: colors[i % len(colors)] for i, name in enumerate(step_names)
+        }
+
         # Print the legend
         self.console.print("\n[bold]Pipeline Steps:[/bold]")
         for step_name, color in step_colors.items():
             self.console.print(f"[{color}]■[/{color}] {step_name}")
-            
+
         # Print the full query plan starting from the last step boundary
         query_plan = _print_op(self.last_op_container, step_colors=step_colors)
         self.console.print(Panel(query_plan, title="Query Plan", width=100))
@@ -556,14 +597,14 @@ class DSLRunner(ConfigWrapper):
         self.console.rule("[bold]Pipeline Execution[/bold]")
         self.total_cost = 0
         start_time = time.time()
-        
+
         if self.last_op_container:
             self.load()
             output, _, _ = self.last_op_container.next()
             self.save(output)
 
         execution_time = time.time() - start_time
-        
+
         # Print execution summary
         self.console.print("\nExecution Summary")
         self.console.print(f"Cost: [green]${self.total_cost:.2f}[/green]")
@@ -610,7 +651,7 @@ class DSLRunner(ConfigWrapper):
         Save the final output of the pipeline.
         """
         output_path = self.get_output_path(require=True)
-        
+
         output_config = self.config["pipeline"]["output"]
         if output_config["type"] == "file":
             # Create the directory if it doesn't exist
@@ -629,7 +670,9 @@ class DSLRunner(ConfigWrapper):
                     ]
                     writer.writeheader()
                     writer.writerows(limited_data)
-            self.console.print(f"[green]✓[/green] Saved to [dim]{output_config['path']}[/dim]\n")
+            self.console.print(
+                f"[green]✓[/green] Saved to [dim]{output_config['path']}[/dim]\n"
+            )
         else:
             raise ValueError(
                 f"Unsupported output type: {output_config['type']}. Supported types: file"
@@ -647,9 +690,12 @@ class DSLRunner(ConfigWrapper):
 
         if not os.path.exists(intermediate_config_path):
             return None
-        
+
         # Make sure the step and op name is in the checkpoint config path
-        if step_name not in self.step_op_hashes or operation_name not in self.step_op_hashes[step_name]:
+        if (
+            step_name not in self.step_op_hashes
+            or operation_name not in self.step_op_hashes[step_name]
+        ):
             return None
 
         # See if the checkpoint config is the same as the current step op hash
@@ -690,7 +736,9 @@ class DSLRunner(ConfigWrapper):
 
         raise ValueError("Intermediate directory not set. Cannot clear intermediate.")
 
-    def _save_checkpoint(self, step_name: str, operation_name: str, data: List[Dict]) -> None:
+    def _save_checkpoint(
+        self, step_name: str, operation_name: str, data: List[Dict]
+    ) -> None:
         """
         Save a checkpoint of the current data after an operation.
 
@@ -751,4 +799,3 @@ class DSLRunner(ConfigWrapper):
             return DSLRunner(builder.clean_optimized_config(), self.max_threads), cost
 
         return builder.clean_optimized_config(), cost
-

@@ -1,8 +1,8 @@
 import importlib
 import io
 import os
-from typing import Dict, List, Optional, Any
 from functools import wraps
+from typing import Any, Dict, List, Optional
 
 
 def with_input_output_key(fn):
@@ -62,6 +62,7 @@ def whisper_speech_to_text(filename: str) -> List[str]:
         List[str]: Transcribed text.
     """
     import os
+
     from litellm import transcription
 
     file_size = os.path.getsize(filename)
@@ -385,9 +386,9 @@ def paddleocr_pdf_to_string(
     Returns:
         List[str]: Extracted content as a list of formatted strings.
     """
-    from paddleocr import PaddleOCR
     import fitz
     import numpy as np
+    from paddleocr import PaddleOCR
 
     ocr = PaddleOCR(use_angle_cls=True, lang=lang)
 
@@ -454,9 +455,9 @@ def gptpdf_to_string(
     Returns:
         str: Extracted content as a string.
     """
-    from gptpdf import parse_pdf
-
     import tempfile
+
+    from gptpdf import parse_pdf
 
     with tempfile.TemporaryDirectory() as temp_dir:
         kwargs = {

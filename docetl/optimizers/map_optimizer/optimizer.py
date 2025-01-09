@@ -15,7 +15,7 @@ from docetl.optimizers.map_optimizer.plan_generators import PlanGenerator
 from docetl.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from docetl.optimizers.map_optimizer.utils import select_evaluation_samples
 from docetl.optimizers.utils import LLMClient
-from docetl.utils import count_tokens, CapturedOutput, StageType
+from docetl.utils import CapturedOutput, StageType, count_tokens
 
 
 class MapOptimizer:
@@ -73,7 +73,14 @@ class MapOptimizer:
         self.k_to_pairwise_compare = 6
 
         self.plan_generator = PlanGenerator(
-            runner, llm_client, console, config, run_operation, max_threads, is_filter, depth
+            runner,
+            llm_client,
+            console,
+            config,
+            run_operation,
+            max_threads,
+            is_filter,
+            depth,
         )
         self.evaluator = Evaluator(
             llm_client,
@@ -87,21 +94,44 @@ class MapOptimizer:
             runner, llm_client, console, config, max_threads, is_filter
         )
 
-    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def should_optimize(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Determine if the given operation configuration should be optimized.
         """
-        input_data, output_data, _, _, validator_prompt, assessment, data_exceeds_limit = self._should_optimize_helper(op_config, input_data)
+        (
+            input_data,
+            output_data,
+            _,
+            _,
+            validator_prompt,
+            assessment,
+            data_exceeds_limit,
+        ) = self._should_optimize_helper(op_config, input_data)
         if data_exceeds_limit or assessment.get("needs_improvement", True):
-            assessment_str = "\n".join(assessment.get("reasons", [])) + "\n\nHere are some improvements that may help:\n" + "\n".join(assessment.get("improvements", []))
+            assessment_str = (
+                "\n".join(assessment.get("reasons", []))
+                + "\n\nHere are some improvements that may help:\n"
+                + "\n".join(assessment.get("improvements", []))
+            )
             if data_exceeds_limit:
                 assessment_str += "\nAlso, the input data exceeds the token limit."
             return assessment_str, input_data, output_data
         else:
             return "", input_data, output_data
-            
 
-    def _should_optimize_helper(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int, float, str, Dict[str, Any], bool]:
+    def _should_optimize_helper(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        int,
+        float,
+        str,
+        Dict[str, Any],
+        bool,
+    ]:
         """
         Determine if the given operation configuration should be optimized.
         Create a custom validator prompt and assess the operation's performance
@@ -159,7 +189,6 @@ class MapOptimizer:
             },
         )
 
-
         # Generate custom validator prompt
         self.console.post_optimizer_status(StageType.SHOULD_OPTIMIZE)
         validator_prompt = self.prompt_generator._generate_validator_prompt(
@@ -203,11 +232,21 @@ class MapOptimizer:
             validator_prompt,
         )
 
-        return input_data, output_data, model_input_context_length, no_change_runtime, validator_prompt, assessment, data_exceeds_limit
-        
+        return (
+            input_data,
+            output_data,
+            model_input_context_length,
+            no_change_runtime,
+            validator_prompt,
+            assessment,
+            data_exceeds_limit,
+        )
 
     def optimize(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]], plan_types: Optional[List[str]] = ["chunk", "proj_synthesis", "glean"]
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        plan_types: Optional[List[str]] = ["chunk", "proj_synthesis", "glean"],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize the given operation configuration for the input data.
@@ -256,10 +295,19 @@ class MapOptimizer:
         # Verify that the plan types are valid
         for plan_type in plan_types:
             if plan_type not in ["chunk", "proj_synthesis", "glean"]:
-                raise ValueError(f"Invalid plan type: {plan_type}. Valid plan types are: chunk, proj_synthesis, glean.")
+                raise ValueError(
+                    f"Invalid plan type: {plan_type}. Valid plan types are: chunk, proj_synthesis, glean."
+                )
 
-        
-        input_data, output_data, model_input_context_length, no_change_runtime, validator_prompt, assessment, data_exceeds_limit = self._should_optimize_helper(op_config, input_data)
+        (
+            input_data,
+            output_data,
+            model_input_context_length,
+            no_change_runtime,
+            validator_prompt,
+            assessment,
+            data_exceeds_limit,
+        ) = self._should_optimize_helper(op_config, input_data)
 
         # Check if improvement is needed based on the assessment
         if not self.config.get("optimizer_config", {}).get("force_decompose", False):
@@ -267,7 +315,11 @@ class MapOptimizer:
                 self.console.log(
                     f"[green]No improvement needed for operation {op_config['name']}[/green]"
                 )
-                return [op_config], output_data, self.plan_generator.subplan_optimizer_cost
+                return (
+                    [op_config],
+                    output_data,
+                    self.plan_generator.subplan_optimizer_cost,
+                )
 
         candidate_plans = {}
 
@@ -282,7 +334,9 @@ class MapOptimizer:
         # Generate chunk size plans
         self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
         if "chunk" in plan_types:
-            self.console.log("[bold magenta]Generating chunking plans...[/bold magenta]")
+            self.console.log(
+                "[bold magenta]Generating chunking plans...[/bold magenta]"
+            )
             chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
                 op_config, input_data, validator_prompt, model_input_context_length
             )

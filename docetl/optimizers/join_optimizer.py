@@ -11,7 +11,7 @@ from rich.status import Status
 
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.resolve import ResolveOperation
-from docetl.utils import completion_cost, extract_jinja_variables, StageType
+from docetl.utils import StageType, completion_cost, extract_jinja_variables
 
 
 class JoinOptimizer:
@@ -376,13 +376,15 @@ class JoinOptimizer:
             )
 
         return resolution_prompt
-    
+
     def should_optimize(self, input_data: List[Dict[str, Any]]) -> Tuple[bool, str]:
         """
         Determine if the given operation configuration should be optimized.
         """
         # If there are no blocking keys or embeddings, then we don't need to optimize
-        if not self.op_config.get("blocking_conditions") or not self.op_config.get("blocking_threshold"):
+        if not self.op_config.get("blocking_conditions") or not self.op_config.get(
+            "blocking_threshold"
+        ):
             return True, ""
 
         # Check if the operation is marked as empty
@@ -401,7 +403,9 @@ class JoinOptimizer:
 
             if map_prompt:
                 # Analyze the map prompt
-                analysis, explanation = self._analyze_map_prompt_categorization(map_prompt)
+                analysis, explanation = self._analyze_map_prompt_categorization(
+                    map_prompt
+                )
 
                 if analysis:
                     dedup = False
@@ -431,9 +435,9 @@ class JoinOptimizer:
 
                 if duplicates_found:
                     dedup = True
-            
+
             return dedup, explanation
-        
+
         return False, ""
 
     def optimize_resolve(

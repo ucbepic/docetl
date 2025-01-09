@@ -1,42 +1,45 @@
 import json
 import re
-from typing import Any, Dict, List
 from enum import Enum
+from typing import Any, Dict, List
+
 import tiktoken
 import yaml
 from jinja2 import Environment, meta
 from litellm import completion_cost as lcc
-
 from lzstring import LZString
+
 
 class Decryptor:
     def __init__(self, secret_key: str):
         self.key = secret_key
         self.lz = LZString()
-    
+
     def decrypt(self, encrypted_data: str) -> str:
         try:
             # First decompress the data
             compressed = self.lz.decompressFromBase64(encrypted_data)
             if not compressed:
                 raise ValueError("Invalid compressed data")
-            
+
             # Then decode using the key
-            result = ''
+            result = ""
             for i in range(len(compressed)):
                 char_code = ord(compressed[i]) - ord(self.key[i % len(self.key)])
                 result += chr(char_code)
-            
+
             return result
-            
+
         except Exception as e:
             print(f"Decryption failed: {str(e)}")
             return None
+
 
 def decrypt(encrypted_data: str, secret_key: str) -> str:
     if not secret_key:
         return encrypted_data
     return Decryptor(secret_key).decrypt(encrypted_data)
+
 
 class StageType(Enum):
     SAMPLE_RUN = "sample_run"
@@ -44,6 +47,7 @@ class StageType(Enum):
     CANDIDATE_PLANS = "candidate_plans"
     EVALUATION_RESULTS = "evaluation_results"
     END = "end"
+
 
 def get_stage_description(stage_type: StageType) -> str:
     if stage_type == StageType.SAMPLE_RUN:
@@ -58,14 +62,15 @@ def get_stage_description(stage_type: StageType) -> str:
         return "Optimization complete!"
     raise ValueError(f"Unknown stage type: {stage_type}")
 
+
 class CapturedOutput:
     def __init__(self):
         self.optimizer_output = {}
         self.step = None
-        
+
     def set_step(self, step: str):
         self.step = step
-    
+
     def save_optimizer_output(self, stage_type: StageType, output: Any):
         if self.step is None:
             raise ValueError("Step must be set before saving optimizer output")
@@ -75,6 +80,7 @@ class CapturedOutput:
             self.optimizer_output[self.step] = {}
 
         self.optimizer_output[self.step][stage_type] = output
+
 
 def extract_jinja_variables(template_string: str) -> List[str]:
     """
@@ -222,9 +228,9 @@ def truncate_sample_data(
     return truncated_data
 
 
-
 class classproperty(object):
     def __init__(self, f):
         self.f = f
+
     def __get__(self, obj, owner):
         return self.f(owner)

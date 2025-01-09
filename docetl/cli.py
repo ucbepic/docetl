@@ -1,15 +1,15 @@
+import os
 from pathlib import Path
 from typing import Optional
 
-import os
 import typer
+from dotenv import load_dotenv
 
 from docetl.operations.utils import clear_cache as cc
 from docetl.runner import DSLRunner
 
-from dotenv import load_dotenv
-
 app = typer.Typer()
+
 
 @app.command()
 def build(

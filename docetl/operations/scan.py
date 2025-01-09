@@ -1,8 +1,10 @@
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
+
 from pydantic import BaseModel
 
-from docetl.operations.base import BaseOperation
 from docetl.dataset import Dataset
+from docetl.operations.base import BaseOperation
+
 
 class ScanOperation(BaseOperation):
     class schema(BaseOperation.schema):
@@ -15,16 +17,19 @@ class ScanOperation(BaseOperation):
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
         Execute the scan operation to load data from the configured source.
-        
+
         Args:
             input_data: Not used in scan operation
-            
+
         Returns:
             Tuple[List[Dict], float]: Loaded data and cost (0 for scan)
         """
 
         # Look in the runner.datasets objects
-        if self.dataset_name not in self.runner.datasets:
-            raise ValueError(f"Dataset {self.dataset_name} not found")
+        if self.config["dataset_name"] not in self.runner.datasets:
+            raise ValueError(f"Dataset {self.config['dataset_name']} not found")
 
-        return self.runner.datasets[self.dataset_name].load(), 0.0  # Scan has no LLM cost
+        return (
+            self.runner.datasets[self.config["dataset_name"]].load(),
+            0.0,
+        )  # Scan has no LLM cost

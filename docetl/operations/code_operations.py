@@ -1,8 +1,10 @@
 import os
-from typing import Any, Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional, Tuple
+
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar
+
 
 class CodeMapOperation(BaseOperation):
     class schema(BaseOperation.schema):
@@ -29,7 +31,9 @@ class CodeMapOperation(BaseOperation):
         transform_fn = namespace["transform"]
 
         results = []
-        with ThreadPoolExecutor(max_workers=self.config.get('concurrent_thread_count', os.cpu_count())) as executor:
+        with ThreadPoolExecutor(
+            max_workers=self.config.get("concurrent_thread_count", os.cpu_count())
+        ) as executor:
             futures = [executor.submit(transform_fn, doc) for doc in input_data]
             pbar = RichLoopBar(
                 range(len(futures)),
@@ -40,14 +44,16 @@ class CodeMapOperation(BaseOperation):
                 result = futures[i].result()
                 if self.config.get("drop_keys"):
                     result = {
-                        k: v for k, v in result.items() 
+                        k: v
+                        for k, v in result.items()
                         if k not in self.config["drop_keys"]
                     }
                 doc = input_data[i]
                 merged_result = {**doc, **result}
                 results.append(merged_result)
-                
+
         return results, 0.0
+
 
 class CodeReduceOperation(BaseOperation):
     class schema(BaseOperation.schema):
@@ -79,6 +85,7 @@ class CodeReduceOperation(BaseOperation):
         if reduce_keys == ["_all"] or reduce_keys == "_all":
             grouped_data = [("_all", input_data)]
         else:
+
             def get_group_key(item):
                 return tuple(item[key] for key in reduce_keys)
 
@@ -92,7 +99,9 @@ class CodeReduceOperation(BaseOperation):
             grouped_data = list(grouped_data.items())
 
         results = []
-        with ThreadPoolExecutor(max_workers=self.config.get('concurrent_thread_count', os.cpu_count())) as executor:
+        with ThreadPoolExecutor(
+            max_workers=self.config.get("concurrent_thread_count", os.cpu_count())
+        ) as executor:
             futures = [executor.submit(reduce_fn, group) for _, group in grouped_data]
             pbar = RichLoopBar(
                 range(len(futures)),
@@ -101,7 +110,7 @@ class CodeReduceOperation(BaseOperation):
             )
             for i, (key, group) in zip(pbar, grouped_data):
                 result = futures[i].result()
-                
+
                 # Apply pass-through at the group level
                 if self.config.get("pass_through", False) and group:
                     for k, v in group[0].items():
@@ -119,6 +128,7 @@ class CodeReduceOperation(BaseOperation):
                 results.append(result)
 
         return results, 0.0
+
 
 class CodeFilterOperation(BaseOperation):
     class schema(BaseOperation.schema):
@@ -144,7 +154,9 @@ class CodeFilterOperation(BaseOperation):
         filter_fn = namespace["transform"]
 
         results = []
-        with ThreadPoolExecutor(max_workers=self.config.get('concurrent_thread_count', os.cpu_count())) as executor:
+        with ThreadPoolExecutor(
+            max_workers=self.config.get("concurrent_thread_count", os.cpu_count())
+        ) as executor:
             futures = [executor.submit(filter_fn, doc) for doc in input_data]
             pbar = RichLoopBar(
                 range(len(futures)),

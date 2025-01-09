@@ -2,11 +2,12 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
-from pydantic import Field
 
 from jinja2 import Template
+from pydantic import Field
 
 from docetl.operations.map import MapOperation
+
 
 class FilterOperation(MapOperation):
     class schema(MapOperation.schema):

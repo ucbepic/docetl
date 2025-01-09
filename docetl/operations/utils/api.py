@@ -4,17 +4,24 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 
-from litellm import completion, embedding, RateLimitError, ModelResponse
+from litellm import ModelResponse, RateLimitError, completion, embedding
+from rich import print as rprint
 from rich.console import Console
 
-from .cache import cache, cache_key, freezeargs
-from .llm import LLMResult, InvalidOutputError, timeout, truncate_messages
-from .validation import safe_eval, convert_dict_schema_to_list_schema, get_user_input_for_schema, convert_val, strict_render
 from docetl.utils import completion_cost
 
-from rich import print as rprint
+from .cache import cache, cache_key, freezeargs
+from .llm import InvalidOutputError, LLMResult, timeout, truncate_messages
+from .validation import (
+    convert_dict_schema_to_list_schema,
+    convert_val,
+    get_user_input_for_schema,
+    safe_eval,
+    strict_render,
+)
 
 BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
+
 
 class APIWrapper(object):
     def __init__(self, runner):
@@ -61,7 +68,7 @@ class APIWrapper(object):
                 c.set(key, result)
 
         return result
-    
+
     def call_llm_batch(
         self,
         model: str,
@@ -76,10 +83,19 @@ class APIWrapper(object):
     ) -> LLMResult:
         # Turn the output schema into a list of schemas
         output_schema = convert_dict_schema_to_list_schema(output_schema)
-        
+
         # Invoke the LLM call
-        return self.call_llm(model, op_type,messages, output_schema, verbose=verbose, timeout_seconds=timeout_seconds, max_retries_per_timeout=max_retries_per_timeout, bypass_cache=bypass_cache, litellm_completion_kwargs=litellm_completion_kwargs)
-        
+        return self.call_llm(
+            model,
+            op_type,
+            messages,
+            output_schema,
+            verbose=verbose,
+            timeout_seconds=timeout_seconds,
+            max_retries_per_timeout=max_retries_per_timeout,
+            bypass_cache=bypass_cache,
+            litellm_completion_kwargs=litellm_completion_kwargs,
+        )
 
     def _cached_call_llm(
         self,
@@ -129,7 +145,13 @@ class APIWrapper(object):
             else:
                 if not initial_result:
                     response = self._call_llm_with_cache(
-                        model, op_type, messages, output_schema, tools, scratchpad, litellm_completion_kwargs
+                        model,
+                        op_type,
+                        messages,
+                        output_schema,
+                        tools,
+                        scratchpad,
+                        litellm_completion_kwargs,
                     )
                     total_cost += completion_cost(response)
                 else:
@@ -139,9 +161,11 @@ class APIWrapper(object):
                     # Retry gleaning prompt + regular LLM
                     num_gleaning_rounds = gleaning_config.get("num_rounds", 2)
 
-                    parsed_output = self.parse_llm_response(
-                        response, output_schema, tools
-                    )[0] if isinstance(response, ModelResponse) else response
+                    parsed_output = (
+                        self.parse_llm_response(response, output_schema, tools)[0]
+                        if isinstance(response, ModelResponse)
+                        else response
+                    )
 
                     validator_messages = (
                         [
@@ -156,7 +180,10 @@ class APIWrapper(object):
 
                     for rnd in range(num_gleaning_rounds):
                         # Prepare validator prompt
-                        validator_prompt = strict_render(gleaning_config["validation_prompt"], {"output": parsed_output})
+                        validator_prompt = strict_render(
+                            gleaning_config["validation_prompt"],
+                            {"output": parsed_output},
+                        )
                         self.runner.rate_limiter.try_acquire("llm_call", weight=1)
 
                         # Get params for should refine
@@ -197,7 +224,9 @@ class APIWrapper(object):
 
                         # Parse the validator response
                         suggestion = json.loads(
-                            validator_response.choices[0].message.tool_calls[0].function.arguments
+                            validator_response.choices[0]
+                            .message.tool_calls[0]
+                            .function.arguments
                         )
                         if not suggestion["should_refine"]:
                             break
@@ -219,7 +248,13 @@ class APIWrapper(object):
 
                         # Call LLM again
                         response = self._call_llm_with_cache(
-                            model, op_type, messages, output_schema, tools, scratchpad, litellm_completion_kwargs
+                            model,
+                            op_type,
+                            messages,
+                            output_schema,
+                            tools,
+                            scratchpad,
+                            litellm_completion_kwargs,
                         )
                         parsed_output = self.parse_llm_response(
                             response, output_schema, tools
@@ -269,7 +304,13 @@ class APIWrapper(object):
                         i += 1
 
                         response = self._call_llm_with_cache(
-                            model, op_type, messages, output_schema, tools, scratchpad, litellm_completion_kwargs
+                            model,
+                            op_type,
+                            messages,
+                            output_schema,
+                            tools,
+                            scratchpad,
+                            litellm_completion_kwargs,
                         )
                         total_cost += completion_cost(response)
 
@@ -323,7 +364,14 @@ class APIWrapper(object):
         Raises:
             TimeoutError: If the call times out after retrying.
         """
-        key = cache_key(model, op_type, messages, output_schema, scratchpad, self.runner.config.get("system_prompt", {}))
+        key = cache_key(
+            model,
+            op_type,
+            messages,
+            output_schema,
+            scratchpad,
+            self.runner.config.get("system_prompt", {}),
+        )
 
         max_retries = max_retries_per_timeout
         attempt = 0
@@ -444,9 +492,15 @@ class APIWrapper(object):
             tools = None
             tool_choice = None
 
-        persona = self.runner.config.get("system_prompt", {}).get("persona", "a helpful assistant")
-        dataset_description = self.runner.config.get("system_prompt", {}).get("dataset_description", "a collection of unstructured documents")
-        parethetical_op_instructions = "many inputs:one output" if op_type == "reduce" else "one input:one output"
+        persona = self.runner.config.get("system_prompt", {}).get(
+            "persona", "a helpful assistant"
+        )
+        dataset_description = self.runner.config.get("system_prompt", {}).get(
+            "dataset_description", "a collection of unstructured documents"
+        )
+        parethetical_op_instructions = (
+            "many inputs:one output" if op_type == "reduce" else "one input:one output"
+        )
 
         system_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. The result should be a structured output that you will send back to the user, with the `send_output` function. Do not influence your answers too much based on the `send_output` function parameter names; just use them to send the result back to the user."
         if scratchpad:
@@ -481,7 +535,6 @@ If you use the scratchpad, keep it concise (~500 chars) and easily parsable usin
 
 Your main result must be sent via send_output. The updated_scratchpad is only for tracking state between batches, and should be null unless you specifically need to track frequencies."""
 
-
         # Truncate messages if they exceed the model's context length
         messages = truncate_messages(messages, model)
 
@@ -505,7 +558,9 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 # Check that there's a prefix for the model name if it's not a basic model
                 if model not in BASIC_MODELS:
                     if not "/" in model:
-                        raise ValueError(f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}")
+                        raise ValueError(
+                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
+                        )
                 raise e
         else:
             try:
@@ -524,9 +579,10 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 # Check that there's a prefix for the model name if it's not a basic model
                 if model not in BASIC_MODELS:
                     if not "/" in model:
-                        raise ValueError(f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}")
+                        raise ValueError(
+                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
+                        )
                 raise e
-
 
         return response
 

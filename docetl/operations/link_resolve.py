@@ -3,21 +3,22 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple
 
 import jinja2
+import numpy as np
 from jinja2 import Template
 from rich.prompt import Confirm
+from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, rich_as_completed
+from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render
 from docetl.utils import completion_cost, extract_jinja_variables
-from docetl.operations.utils import strict_render
+
 from .clustering_utils import get_embeddings_for_clustering
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+
 
 class LinkResolveOperation(BaseOperation):
     def syntax_check(self) -> None:
         pass
-    
+
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
         Executes the resolve links operation on the provided dataset.
@@ -33,7 +34,7 @@ class LinkResolveOperation(BaseOperation):
             return [], 0
 
         self.prompt_template = Template(self.config["comparison_prompt"])
-        
+
         id_key = self.config.get("id_key", "title")
         link_key = self.config.get("link_key", "related_to")
         blocking_threshold = self.config.get("blocking_threshold")
@@ -42,9 +43,8 @@ class LinkResolveOperation(BaseOperation):
         # Note: We don't want to use text-embedding-3-small as it has bad performance on short texts...
         embedding_model = self.config.get("embedding_model", "text-embedding-ada-002")
 
-        item_by_id = {item[id_key]: item
-                      for item in input_data}
-        
+        item_by_id = {item[id_key]: item for item in input_data}
+
         id_values = set([item[id_key] for item in input_data])
 
         link_values = set()
@@ -53,7 +53,7 @@ class LinkResolveOperation(BaseOperation):
 
         to_resolve = list(link_values - id_values)
         id_values = list(id_values)
-        
+
         if not blocking_threshold and not blocking_conditions:
             # Prompt the user for confirmation
             if not Confirm.ask(
@@ -64,22 +64,15 @@ class LinkResolveOperation(BaseOperation):
             ):
                 raise ValueError("Operation cancelled by user.")
 
-
         id_embeddings, id_embedding_cost = get_embeddings_for_clustering(
             [{"key": value} for value in id_values],
-            {
-                "embedding_model": embedding_model,
-                "embedding_keys": ["key"]
-            },
-            self.runner.api
+            {"embedding_model": embedding_model, "embedding_keys": ["key"]},
+            self.runner.api,
         )
         link_embeddings, link_embedding_cost = get_embeddings_for_clustering(
             [{"key": value} for value in to_resolve],
-            {
-                "embedding_model": embedding_model,
-                "embedding_keys": ["key"]
-            },
-            self.runner.api
+            {"embedding_model": embedding_model, "embedding_keys": ["key"]},
+            self.runner.api,
         )
 
         similarity_matrix = cosine_similarity(link_embeddings, id_embeddings)
@@ -88,12 +81,12 @@ class LinkResolveOperation(BaseOperation):
 
         total_possible_comparisons = acceptable.shape[0] * acceptable.shape[1]
         comparisons_saved = total_possible_comparisons - acceptable.sum().sum()
-        
+
         self.console.log(
             f"[green]Comparisons saved by blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
-        
+
         self.replacements = {}
 
         batch_size = self.config.get("compare_batch_size", 100)
@@ -102,7 +95,8 @@ class LinkResolveOperation(BaseOperation):
             futures = []
             for link_idx in range(acceptable.shape[0]):
                 for id_idx in range(acceptable.shape[1]):
-                    if not acceptable[link_idx, id_idx]: continue
+                    if not acceptable[link_idx, id_idx]:
+                        continue
 
                     id_value = id_values[id_idx]
                     link_value = to_resolve[link_idx]
@@ -111,11 +105,13 @@ class LinkResolveOperation(BaseOperation):
                     futures.append(
                         executor.submit(
                             self.compare,
-                            link_idx = link_idx,
-                            id_idx = id_idx,
-                            link_value = link_value,
-                            id_value = id_value,
-                            item = item))
+                            link_idx=link_idx,
+                            id_idx=id_idx,
+                            link_value=link_value,
+                            id_value=id_value,
+                            item=item,
+                        )
+                    )
 
             total_cost = 0
             pbar = RichLoopBar(
@@ -127,24 +123,23 @@ class LinkResolveOperation(BaseOperation):
                 total_cost += futures[i].result()
                 pbar.update(i)
 
-
         self.console.log(
             f"[green]Number of replacements found: {len(self.replacements)} "
             f"({(len(self.replacements) / total_possible_comparisons) * 100:.2f}% of all comparisons)[/green]"
         )
-                
+
         for item in input_data:
-            item[link_key] = [self.replacements.get(value, value)
-                              for value in item[link_key]]
+            item[link_key] = [
+                self.replacements.get(value, value) for value in item[link_key]
+            ]
 
         return input_data, total_cost
-                    
+
     def compare(self, link_idx, id_idx, link_value, id_value, item):
-        prompt = strict_render(self.prompt_template, {
-            "link_value": link_value,
-            "id_value": id_value,
-            "item": item
-        })
+        prompt = strict_render(
+            self.prompt_template,
+            {"link_value": link_value, "id_value": id_value, "item": item},
+        )
 
         schema = {"is_same": "bool"}
 
@@ -178,7 +173,7 @@ class LinkResolveOperation(BaseOperation):
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
         )
-        
+
         if response.validated:
             output = self.runner.api.parse_llm_response(
                 response.response,
@@ -189,8 +184,3 @@ class LinkResolveOperation(BaseOperation):
                 self.replacements[link_value] = id_value
 
         return response.total_cost
-
-        
-        
-
-    

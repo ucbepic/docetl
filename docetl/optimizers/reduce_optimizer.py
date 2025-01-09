@@ -15,7 +15,7 @@ from docetl.operations.base import BaseOperation
 from docetl.operations.utils import truncate_messages
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.utils import LLMClient
-from docetl.utils import count_tokens, extract_jinja_variables, StageType
+from docetl.utils import StageType, count_tokens, extract_jinja_variables
 
 
 class ReduceOptimizer:
@@ -122,20 +122,44 @@ class ReduceOptimizer:
             op_config, validator_inputs, original_output, validator_prompt
         )
 
-        return validation_results, prompt_tokens, model_input_context_length, model, validator_prompt, original_output
-    
-    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
-        validation_results, prompt_tokens, model_input_context_length, model, validator_prompt, original_output = self.should_optimize_helper(op_config, input_data)
+        return (
+            validation_results,
+            prompt_tokens,
+            model_input_context_length,
+            model,
+            validator_prompt,
+            original_output,
+        )
+
+    def should_optimize(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
+        (
+            validation_results,
+            prompt_tokens,
+            model_input_context_length,
+            model,
+            validator_prompt,
+            original_output,
+        ) = self.should_optimize_helper(op_config, input_data)
         if prompt_tokens * 1.5 > model_input_context_length:
-            return "The reduce prompt is likely to exceed the token limit for model {model}.", input_data, original_output
+            return (
+                "The reduce prompt is likely to exceed the token limit for model {model}.",
+                input_data,
+                original_output,
+            )
 
         if validation_results.get("needs_improvement", False):
-            return "\n".join(
-                [
-                    f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
-                    for result in validation_results["validation_results"]
-                ]
-            ), input_data, original_output
+            return (
+                "\n".join(
+                    [
+                        f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
+                        for result in validation_results["validation_results"]
+                    ]
+                ),
+                input_data,
+                original_output,
+            )
         else:
             return "", input_data, original_output
 
@@ -166,7 +190,14 @@ class ReduceOptimizer:
             Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
             and the list of outputs from the optimized operation(s), and the cost of the operation due to synthesizing any resolve operations.
         """
-        validation_results, prompt_tokens, model_input_context_length, model, validator_prompt, original_output = self.should_optimize_helper(op_config, input_data)
+        (
+            validation_results,
+            prompt_tokens,
+            model_input_context_length,
+            model,
+            validator_prompt,
+            original_output,
+        ) = self.should_optimize_helper(op_config, input_data)
 
         add_map_op = False
         if prompt_tokens * 2 > model_input_context_length:
@@ -196,13 +227,14 @@ class ReduceOptimizer:
         #     # Return unoptimized map and reduce operations
         #     return [map_prompt, op_config], input_data, 0.0
 
-       
         # Print the validation results
         self.console.log("[bold]Validation Results on Initial Sample:[/bold]")
-        if validation_results["needs_improvement"] or self.config.get("optimizer_config", {}).get("force_decompose", False):
+        if validation_results["needs_improvement"] or self.config.get(
+            "optimizer_config", {}
+        ).get("force_decompose", False):
             self.console.post_optimizer_rationale(
                 should_optimize=True,
-                rationale= "\n".join(
+                rationale="\n".join(
                     [
                         f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
                         for result in validation_results["validation_results"]
@@ -1119,7 +1151,10 @@ class ReduceOptimizer:
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             futures = []
             for reduce_key, inputs in validation_inputs.items():
-                if op_config["reduce_key"] == ["_all"] or op_config["reduce_key"] == "_all":
+                if (
+                    op_config["reduce_key"] == ["_all"]
+                    or op_config["reduce_key"] == "_all"
+                ):
                     sample_output = output_data[0]
                 elif isinstance(op_config["reduce_key"], list):
                     sample_output = next(
@@ -1490,8 +1525,10 @@ class ReduceOptimizer:
 
         def get_random_examples():
             reduce_key = op_config["reduce_key"]
-            reduce_key = list(reduce_key) if not isinstance(reduce_key, list) else reduce_key
-            
+            reduce_key = (
+                list(reduce_key) if not isinstance(reduce_key, list) else reduce_key
+            )
+
             if reduce_key == ["_all"]:
                 # For _all case, just pick random input and output examples
                 input_example = random.choice(sample_input)
@@ -1581,11 +1618,15 @@ class ReduceOptimizer:
 
             # Run the operation with the fold prompt
             try:
-                self._run_operation(temp_plan, sample_input[: temp_plan["fold_batch_size"]])
+                self._run_operation(
+                    temp_plan, sample_input[: temp_plan["fold_batch_size"]]
+                )
 
                 return fold_prompt
             except Exception as e:
-                self.console.log(f"[red]Error in agent-generated fold prompt: {e}[/red]")
+                self.console.log(
+                    f"[red]Error in agent-generated fold prompt: {e}[/red]"
+                )
 
                 # Create a default fold prompt that instructs folding new data into existing output
                 fold_prompt = f"""Analyze this batch of data using the following instructions:
@@ -1594,11 +1635,11 @@ class ReduceOptimizer:
 
 However, instead of starting fresh, fold your analysis into the existing output that has already been generated. The existing output is provided in the 'output' variable below:
 
-{{{{ output }}}} 
+{{{{ output }}}}
 
 Remember, you must fold the new data into the existing output, do not start fresh."""
                 return fold_prompt
-                
+
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
             fold_prompts = list(
                 executor.map(lambda _: generate_single_prompt(), range(num_prompts))

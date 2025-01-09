@@ -1,11 +1,14 @@
 import os
-import time
-from typing import Any, Optional, Tuple
-from rich.console import Console
-from io import StringIO
-import threading
 import queue
+import threading
+import time
+from io import StringIO
+from typing import Any, Optional, Tuple
+
+from rich.console import Console
+
 from docetl.utils import StageType, get_stage_description
+
 
 class ThreadSafeConsole(Console):
     def __init__(self, *args, **kwargs):
@@ -37,8 +40,10 @@ class ThreadSafeConsole(Console):
             refresh_per_second=refresh_per_second,
         )
         return status_renderable
-    
-    def post_optimizer_rationale(self, should_optimize: bool, rationale: str, validator_prompt: str):
+
+    def post_optimizer_rationale(
+        self, should_optimize: bool, rationale: str, validator_prompt: str
+    ):
         self.optimizer_rationale = (should_optimize, rationale, validator_prompt)
 
     def post_optimizer_status(self, stage: StageType):
@@ -47,8 +52,11 @@ class ThreadSafeConsole(Console):
     def get_optimizer_progress(self) -> Tuple[str, float]:
         if len(self.optimizer_statuses) == 0:
             return ("Optimization starting...", 0)
-        
-        if len(self.optimizer_statuses) > 0 and self.optimizer_statuses[-1][0] == StageType.END:
+
+        if (
+            len(self.optimizer_statuses) > 0
+            and self.optimizer_statuses[-1][0] == StageType.END
+        ):
             return (get_stage_description(StageType.END), 1)
 
         num_stages = len(StageType) - 1
@@ -89,6 +97,7 @@ def get_console():
             highlight=False,
         )
     else:
+
         class NoOpConsole(Console):
             def post_optimizer_status(self, *args, **kwargs):
                 pass

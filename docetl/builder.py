@@ -8,12 +8,12 @@ from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
-from docetl.utils import CapturedOutput
 from rich.console import Console
 from rich.panel import Panel
 from rich.status import Status
 from rich.traceback import install
 
+from docetl.config_wrapper import ConfigWrapper
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation
 from docetl.operations.base import BaseOperation
@@ -22,7 +22,7 @@ from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.map_optimizer import MapOptimizer
 from docetl.optimizers.reduce_optimizer import ReduceOptimizer
 from docetl.optimizers.utils import LLMClient
-from docetl.config_wrapper import ConfigWrapper
+from docetl.utils import CapturedOutput
 
 install(show_locals=True)
 
@@ -206,14 +206,16 @@ class Optimizer:
         The output is color-coded and formatted for easy readability, with a header and
         separator lines to clearly delineate the configuration information.
         """
-        self.console.print(Panel.fit(
-            "[bold cyan]Optimizer Configuration[/bold cyan]\n"
-            f"[yellow]Sample Size:[/yellow] {self.sample_size_map}\n"
-            f"[yellow]Max Threads:[/yellow] {self.max_threads}\n" 
-            f"[yellow]Model:[/yellow] {self.llm_client.model}\n"
-            f"[yellow]Timeout:[/yellow] {self.timeout} seconds",
-            title="Optimizer Configuration"
-        ))
+        self.console.print(
+            Panel.fit(
+                "[bold cyan]Optimizer Configuration[/bold cyan]\n"
+                f"[yellow]Sample Size:[/yellow] {self.sample_size_map}\n"
+                f"[yellow]Max Threads:[/yellow] {self.max_threads}\n"
+                f"[yellow]Model:[/yellow] {self.llm_client.model}\n"
+                f"[yellow]Timeout:[/yellow] {self.timeout} seconds",
+                title="Optimizer Configuration",
+            )
+        )
 
     def compute_sample_size(
         self,
@@ -471,7 +473,7 @@ class Optimizer:
                 step_name = step.get("name")
                 operations = step.get("operations", [])
                 step_info = f"[cyan]Step: {step_name}[/cyan]\n"
-                
+
                 for op in operations:
                     if isinstance(op, dict):
                         op_name = list(op.keys())[0]
@@ -481,14 +483,18 @@ class Optimizer:
                         step_info += f"  - {op}\n"
                 step_operations.append(step_info)
 
-            self.console.print(Panel.fit(
-                "\n".join(step_operations),
-                title="[bold blue]Operations for each step"
-            ))
+            self.console.print(
+                Panel.fit(
+                    "\n".join(step_operations),
+                    title="[bold blue]Operations for each step",
+                )
+            )
         else:
             self.console.log("[yellow]No optimized operations found[/yellow]")
 
-    def should_optimize(self, step_name: str, op_name: str) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    def should_optimize(
+        self, step_name: str, op_name: str
+    ) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Determine if an operation should be optimized.
         We do this by running the operations on a sample of the input data and checking if the output is correct.
@@ -502,7 +508,9 @@ class Optimizer:
             self.captured_output.set_step(step.get("name"))
             # Go through each operation in the step until we find the one we want to optimize
             ops_run = []
-            op_name_to_object = {name: self.find_operation(name) for name in step["operations"]}
+            op_name_to_object = {
+                name: self.find_operation(name) for name in step["operations"]
+            }
             for op_idx, operation in enumerate(step["operations"]):
                 if isinstance(operation, dict):
                     operation_name = list(operation.keys())[0]
@@ -525,14 +533,24 @@ class Optimizer:
                 output_data = input_data
 
                 # If this is not the operation we want to optimize, just execute it and add to selectivities
-                if f"{step.get('name')}/{op_name}" != f"{step_name}/{op_name}" and op_object.get("empty", False):
-                    output_data = self._run_operation(op_object, input_data, is_build=True)
-                    self.selectivities[step.get("name")][op_name] = len(output_data) / len(input_data)
+                if (
+                    f"{step.get('name')}/{op_name}" != f"{step_name}/{op_name}"
+                    and op_object.get("empty", False)
+                ):
+                    output_data = self._run_operation(
+                        op_object, input_data, is_build=True
+                    )
+                    self.selectivities[step.get("name")][op_name] = len(
+                        output_data
+                    ) / len(input_data)
                     ops_run.append(op_name)
 
                 # if this is the operation we want to optimize, invoke the optimizer's should_optimize method
                 else:
-                    if op_object.get("type") == "map" or op_object.get("type") == "filter":
+                    if (
+                        op_object.get("type") == "map"
+                        or op_object.get("type") == "filter"
+                    ):
                         # Create instance of map optimizer
                         map_optimizer = MapOptimizer(
                             self,
@@ -544,7 +562,9 @@ class Optimizer:
                             timeout=self.timeout,
                             is_filter=op_object.get("type") == "filter",
                         )
-                        should_optimize_output, input_data, output_data = map_optimizer.should_optimize(op_object, input_data)
+                        should_optimize_output, input_data, output_data = (
+                            map_optimizer.should_optimize(op_object, input_data)
+                        )
                     elif op_object.get("type") == "reduce":
                         reduce_optimizer = ReduceOptimizer(
                             self.runner,
@@ -554,7 +574,9 @@ class Optimizer:
                             self.max_threads,
                             self._run_operation,
                         )
-                        should_optimize_output, input_data, output_data = reduce_optimizer.should_optimize(op_object, input_data)
+                        should_optimize_output, input_data, output_data = (
+                            reduce_optimizer.should_optimize(op_object, input_data)
+                        )
                     elif op_object.get("type") == "resolve":
                         resolve_optimizer = JoinOptimizer(
                             self.runner,
@@ -567,15 +589,22 @@ class Optimizer:
                             .get("resolve", {})
                             .get("target_recall", 0.95),
                         )
-                        _, should_optimize_output = resolve_optimizer.should_optimize(input_data)
+                        _, should_optimize_output = resolve_optimizer.should_optimize(
+                            input_data
+                        )
 
                         # if should_optimize_output is empty, then we should move to the reduce operation
                         if should_optimize_output == "":
                             continue
 
                     # Return the string and operation cost
-                    return should_optimize_output, input_data, output_data, self.operations_cost + self.llm_client.total_cost
-        
+                    return (
+                        should_optimize_output,
+                        input_data,
+                        output_data,
+                        self.operations_cost + self.llm_client.total_cost,
+                    )
+
         # Should not get here
         raise ValueError("No operation to optimize found")
 
@@ -648,7 +677,9 @@ class Optimizer:
                 op_name = list(op.keys())[0] if isinstance(op, dict) else op
                 for i, op_config in enumerate(self.optimized_config["operations"]):
                     if op_config["name"] == op_name:
-                        self.optimized_config["operations"][i] = step_operations[op_name]
+                        self.optimized_config["operations"][i] = step_operations[
+                            op_name
+                        ]
                         changed_op = True
                 if not changed_op:
                     self.optimized_config["operations"].append(step_operations[op_name])
@@ -671,7 +702,10 @@ class Optimizer:
                                 if s["name"] == step_name
                             ][0],
                             "operations": [
-                                self.find_operation(list(op.keys())[0] if isinstance(op, dict) else op, self.optimized_config)
+                                self.find_operation(
+                                    list(op.keys())[0] if isinstance(op, dict) else op,
+                                    self.optimized_config,
+                                )
                                 for op in optimized_step["operations"]
                             ],
                         }
@@ -831,7 +865,9 @@ class Optimizer:
             # Run the pipeline
             step_ops = []
             for step_op in step.get("operations"):
-                step_op_name = list(step_op.keys())[0] if isinstance(step_op, dict) else step_op
+                step_op_name = (
+                    list(step_op.keys())[0] if isinstance(step_op, dict) else step_op
+                )
 
                 if step_op_name in replacement_operations:
                     step_ops.extend(replacement_operations[step_op_name])
@@ -866,26 +902,32 @@ class Optimizer:
             else:
                 sample_info = []
                 if op_object.get("type") == "equijoin":
-                    sample_info.extend([
-                        f"[yellow]Sample size (left): {len(input_data['left'])}",
-                        f"[yellow]Sample size (right): {len(input_data['right'])}"
-                    ])
+                    sample_info.extend(
+                        [
+                            f"[yellow]Sample size (left): {len(input_data['left'])}",
+                            f"[yellow]Sample size (right): {len(input_data['right'])}",
+                        ]
+                    )
                 else:
                     sample_info.append(f"[yellow]Sample size: {len(input_data)}")
 
                 # Get optimizer config for this operation type if it exists
-                optimizer_config = self.config.get("optimizer_config", {}).get(op_object["type"], {})
-                
+                optimizer_config = self.config.get("optimizer_config", {}).get(
+                    op_object["type"], {}
+                )
+
                 panel_content = "\n".join(sample_info)
                 if optimizer_config:
                     panel_content += "\n\n[cyan]Optimizer Config:[/cyan]"
                     for key, value in optimizer_config.items():
                         panel_content += f"\n[cyan]{key}:[/cyan] {value}"
-                
-                self.console.print(Panel.fit(
-                    panel_content,
-                    title=f"[yellow]Optimizing {operation_name} (Type: {op_object['type']})"
-                ))
+
+                self.console.print(
+                    Panel.fit(
+                        panel_content,
+                        title=f"[yellow]Optimizing {operation_name} (Type: {op_object['type']})",
+                    )
+                )
 
                 # Use rich console status to indicate optimization of the operation
                 with self.console.status(
@@ -998,15 +1040,16 @@ class Optimizer:
 
                     # Print new operator configs
                     if optimized_ops:
-                        config_content = "[bold green]New op configurations:[/bold green]\n"
+                        config_content = (
+                            "[bold green]New op configurations:[/bold green]\n"
+                        )
                         for op_name, op_config in optimized_operations.items():
                             if op_name in [o["name"] for o in optimized_ops]:
                                 config_content += f"[cyan]{op_name}:[/cyan] {json.dumps(op_config, indent=2)}\n"
-                        
-                        self.console.print(Panel.fit(
-                            config_content,
-                            title="Optimized Operations"
-                        ))
+
+                        self.console.print(
+                            Panel.fit(config_content, title="Optimized Operations")
+                        )
 
                     # Save the optimized operations to disk
                     os.makedirs(self.optimized_ops_path, exist_ok=True)
@@ -1082,7 +1125,11 @@ class Optimizer:
                         {
                             "step": step,
                             "operations": [
-                                self.find_operation(list(op.keys())[0] if isinstance(op, dict) else op, self.optimized_config) for op in step["operations"]
+                                self.find_operation(
+                                    list(op.keys())[0] if isinstance(op, dict) else op,
+                                    self.optimized_config,
+                                )
+                                for op in step["operations"]
                             ],
                         }
                     ).encode()
@@ -1117,7 +1164,7 @@ class Optimizer:
                 return self._get_reduce_sample(
                     data, op_config.get("reduce_key"), sample_size
                 )
-            
+
         if not self.config.get("optimizer_config", {}).get("random_sample", False):
             return data[:sample_size]
 
@@ -1181,9 +1228,7 @@ class Optimizer:
             if not self.config.get("optimizer_config", {}).get("random_sample", False):
                 group_sample = items[:group_sample_size]
             else:
-                group_sample = random.sample(
-                    items, min(group_sample_size, len(items))
-                )
+                group_sample = random.sample(items, min(group_sample_size, len(items)))
 
             sample.extend(group_sample)
 
@@ -1195,12 +1240,14 @@ class Optimizer:
                 for item in items
                 if item not in sample
             ]
-            additional_sample = random.sample(
-                remaining_items,
-                min(
-                    sample_size - len(sample), len(remaining_items)
-                ),
-            ) if self.config.get("optimizer_config", {}).get("random_sample", False) else remaining_items[:sample_size - len(sample)]
+            additional_sample = (
+                random.sample(
+                    remaining_items,
+                    min(sample_size - len(sample), len(remaining_items)),
+                )
+                if self.config.get("optimizer_config", {}).get("random_sample", False)
+                else remaining_items[: sample_size - len(sample)]
+            )
             sample.extend(additional_sample)
 
         # Create a histogram of group sizes
@@ -1217,8 +1264,10 @@ class Optimizer:
             normalized_count = int(count / max_count * max_bar_width)
             bar = "█" * normalized_count
             histogram_content += f"{size:3d}: {bar} ({count})\n"
-        
-        self.console.print(Panel.fit(histogram_content, title="Group Size Distribution"))
+
+        self.console.print(
+            Panel.fit(histogram_content, title="Group Size Distribution")
+        )
 
         return sample
 
@@ -1334,9 +1383,13 @@ class Optimizer:
 
             # Optimize the map operation
             if map_operation["optimize"]:
-                dataset_to_transform_sample = random.sample(
-                    dataset_to_transform, self.sample_size_map.get("map")
-                ) if self.config.get("optimizer_config", {}).get("random_sample", False) else dataset_to_transform[:self.sample_size_map.get("map")]
+                dataset_to_transform_sample = (
+                    random.sample(dataset_to_transform, self.sample_size_map.get("map"))
+                    if self.config.get("optimizer_config", {}).get(
+                        "random_sample", False
+                    )
+                    else dataset_to_transform[: self.sample_size_map.get("map")]
+                )
                 optimized_map_operations = self._optimize_map(
                     map_operation, dataset_to_transform_sample
                 )
@@ -1417,8 +1470,14 @@ class Optimizer:
             timeout=self.timeout,
             is_filter=is_filter,
         )
-        
-        optimized_ops, _, cost = map_optimizer.optimize(op_config, input_data, self.config.get("optimizer_config", {}).get("map", {}).get("plan_types", ["chunk", "proj_synthesis", "glean"]))
+
+        optimized_ops, _, cost = map_optimizer.optimize(
+            op_config,
+            input_data,
+            self.config.get("optimizer_config", {})
+            .get("map", {})
+            .get("plan_types", ["chunk", "proj_synthesis", "glean"]),
+        )
         self.operations_cost += cost
         return optimized_ops
 

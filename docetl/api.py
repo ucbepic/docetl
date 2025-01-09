@@ -49,9 +49,9 @@ Usage:
     result = optimized_pipeline.run()
 """
 
-import os
 import inspect
-from typing import Any, Dict, List, Optional, Callable, Union
+import os
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import yaml
 from rich import print
@@ -59,22 +59,22 @@ from rich import print
 from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
 from docetl.schemas import (
+    ClusterOp,
     Dataset,
     EquijoinOp,
     FilterOp,
     GatherOp,
     MapOp,
-    ReduceOp,
-    ResolveOp,
-    SplitOp,
-    UnnestOp,
-    ClusterOp,
-    SampleOp,
     OpType,
     ParallelMapOp,
     ParsingTool,
     PipelineOutput,
     PipelineStep,
+    ReduceOp,
+    ResolveOp,
+    SampleOp,
+    SplitOp,
+    UnnestOp,
 )
 
 
@@ -166,8 +166,9 @@ class Pipeline:
         self._load_env()
 
     def _load_env(self):
-        from dotenv import load_dotenv
         import os
+
+        from dotenv import load_dotenv
 
         # Get the current working directory
         cwd = os.getcwd()

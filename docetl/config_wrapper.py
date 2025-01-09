@@ -1,13 +1,15 @@
 import datetime
-import os
-from docetl.console import get_console
-from docetl.utils import decrypt, load_config
-from typing import Any, Dict, List, Optional, Tuple, Union
-from docetl.operations.utils import APIWrapper
-import pyrate_limiter
-from inspect import isawaitable
 import math
+import os
+from inspect import isawaitable
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import pyrate_limiter
 from rich.console import Console
+
+from docetl.console import get_console
+from docetl.operations.utils import APIWrapper
+from docetl.utils import decrypt, load_config
 
 
 class BucketCollection(pyrate_limiter.BucketFactory):
@@ -108,7 +110,6 @@ class ConfigWrapper(object):
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=math.inf)
 
         self.api = APIWrapper(self)
-    
+
     def reset_env(self):
         os.environ = self._original_env
-

@@ -7,20 +7,19 @@ import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, cpu_count
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from docetl import console
-from docetl.operations.utils import strict_render
-from docetl.operations.utils.progress import RichLoopBar
 import numpy as np
 from jinja2 import Template
 from litellm import model_cost
-from rich.prompt import Confirm
 from rich.console import Console
+from rich.prompt import Confirm
 
+from docetl import console
 from docetl.operations.base import BaseOperation
+from docetl.operations.utils import strict_render
+from docetl.operations.utils.progress import RichLoopBar
 from docetl.utils import completion_cost
-
 
 # Global variables to store shared data
 _right_data = None
@@ -38,6 +37,7 @@ def is_match(left_item: Dict[str, Any], right_item: Dict[str, Any]) -> bool:
         eval(condition, {"left": left_item, "right": right_item})
         for condition in _blocking_conditions
     )
+
 
 # LLM-based comparison for blocked pairs
 def get_hashable_key(item: Dict) -> str:
@@ -73,7 +73,7 @@ class EquijoinOperation(BaseOperation):
         blocking_keys: Optional[Dict[str, List[str]]] = None
         timeout: Optional[int] = None
         litellm_completion_kwargs: Dict[str, Any] = {}
-    
+
     def compare_pair(
         self,
         comparison_prompt: str,
@@ -254,10 +254,7 @@ class EquijoinOperation(BaseOperation):
         if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
             # Sample pairs based on cardinality and length
             sampled_pairs = stratified_length_sample(
-                blocked_pairs,
-                limit_comparisons,
-                sample_size=1000,
-                console=self.console
+                blocked_pairs, limit_comparisons, sample_size=1000, console=self.console
             )
 
             # Calculate number of dropped pairs
@@ -499,20 +496,20 @@ def estimate_length(items: List[Dict], sample_size: int = 1000) -> float:
     """
     Estimates average document length in the relation.
     Returns a normalized score (0-1) representing relative document size.
-    
+
     Args:
         items: List of dictionary items to analyze
         sample_size: Number of items to sample for estimation
-        
+
     Returns:
         float: Normalized score based on average document length
     """
     if not items:
         return 0.0
-        
+
     sample_size = min(len(items), sample_size)
     sample = random.sample(items, sample_size)
-    
+
     def get_doc_length(doc: Dict) -> int:
         """Calculate total length of all string values in document"""
         total_len = 0
@@ -523,20 +520,20 @@ def estimate_length(items: List[Dict], sample_size: int = 1000) -> float:
                 # For nested structures, use their string representation
                 total_len += len(str(value))
         return total_len
-    
+
     lengths = [get_doc_length(item) for item in sample]
     if not lengths:
         return 0.0
-        
+
     avg_length = sum(lengths) / len(lengths)
     return avg_length
 
 
 def stratified_length_sample(
-    blocked_pairs: List[Tuple[Dict, Dict]], 
+    blocked_pairs: List[Tuple[Dict, Dict]],
     limit_comparisons: int,
     sample_size: int = 1000,
-    console: Console = None
+    console: Console = None,
 ) -> List[Tuple[Dict, Dict]]:
     """
     Samples pairs stratified by the smaller cardinality relation,
@@ -545,44 +542,45 @@ def stratified_length_sample(
     # Extract left and right items
     left_items = [left for left, _ in blocked_pairs]
     right_items = [right for _, right in blocked_pairs]
-    
+
     # Estimate length for both relations
     left_length = estimate_length(left_items, sample_size)
     right_length = estimate_length(right_items, sample_size)
-    
+
     # Group by the relation with estimated lower length
     use_left_as_key = left_length > right_length
     if console:
         longer_length = max(left_length, right_length)
         longer_side = "left" if left_length > right_length else "right"
-        console.log(f"Longer length is {longer_length:.2f} ({longer_side} side). Using {longer_side} to sample matches.")
+        console.log(
+            f"Longer length is {longer_length:.2f} ({longer_side} side). Using {longer_side} to sample matches."
+        )
     groups = defaultdict(list)
-    
+
     for left, right in blocked_pairs:
         key = get_hashable_key(left if use_left_as_key else right)
         value = (left, right)
         groups[key].append(value)
-    
+
     # Sort each group by length of the other relation's item
     for key in groups:
         groups[key].sort(
             key=lambda x: len(x[1 if use_left_as_key else 0]),
-            reverse=True  # Prioritize longer matches
+            reverse=True,  # Prioritize longer matches
         )
-    
+
     # Calculate samples per group
     n_groups = len(groups)
     base_samples_per_group = limit_comparisons // n_groups
     extra_samples = limit_comparisons % n_groups
-    
+
     # Sample from each group
     sampled_pairs = []
     for i, (key, pairs) in enumerate(groups.items()):
         # Add one extra sample to early groups if we have remainder
         group_sample_size = min(
-            len(pairs),
-            base_samples_per_group + (1 if i < extra_samples else 0)
+            len(pairs), base_samples_per_group + (1 if i < extra_samples else 0)
         )
         sampled_pairs.extend(pairs[:group_sample_size])
-    
+
     return sampled_pairs

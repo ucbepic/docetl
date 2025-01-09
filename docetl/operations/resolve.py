@@ -2,24 +2,22 @@
 The `ResolveOperation` class is a subclass of `BaseOperation` that performs a resolution operation on a dataset. It uses a combination of blocking techniques and LLM-based comparisons to efficiently identify and resolve duplicate or related entries within the dataset.
 """
 
+import json
+import math
 import random
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Tuple, Optional, Union
-import json
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from docetl.operations.utils import strict_render
 import jinja2
 from jinja2 import Template
+from pydantic import Field
 from rich.prompt import Confirm
-import math
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, rich_as_completed
+from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render
 from docetl.utils import completion_cost, extract_jinja_variables
-
-from pydantic import Field
 
 
 def find_cluster(item, cluster_map):
@@ -81,11 +79,7 @@ class ResolveOperation(BaseOperation):
             ):
                 return True, 0, ""
 
-
-        prompt = strict_render(comparison_prompt, {
-            "input1": item1,
-            "input2": item2
-        })
+        prompt = strict_render(comparison_prompt, {"input1": item1, "input2": item2})
         response = self.runner.api.call_llm(
             model,
             "compare",
@@ -247,7 +241,7 @@ class ResolveOperation(BaseOperation):
                 if observability_key not in item:
                     item[observability_key] = {
                         "comparison_prompts": [],
-                        "resolution_prompt": None
+                        "resolution_prompt": None,
                     }
 
         blocking_keys = self.config.get("blocking_keys", [])
@@ -320,7 +314,9 @@ class ResolveOperation(BaseOperation):
                 total_cost += sum(costs)
 
         # Generate all pairs to compare, ensuring no duplicate comparisons
-        def get_unique_comparison_pairs() -> Tuple[List[Tuple[int, int]], Dict[Tuple[str, ...], List[int]]]:
+        def get_unique_comparison_pairs() -> (
+            Tuple[List[Tuple[int, int]], Dict[Tuple[str, ...], List[int]]]
+        ):
             # Create a mapping of values to their indices
             value_to_indices: Dict[Tuple[str, ...], List[int]] = {}
             for i, item in enumerate(input_data):
@@ -354,7 +350,11 @@ class ResolveOperation(BaseOperation):
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
-        blocked_pairs = list(filter(meets_blocking_conditions, comparison_pairs)) if blocking_conditions else comparison_pairs
+        blocked_pairs = (
+            list(filter(meets_blocking_conditions, comparison_pairs))
+            if blocking_conditions
+            else comparison_pairs
+        )
 
         # Apply limit_comparisons to blocked pairs
         if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
@@ -447,21 +447,21 @@ class ResolveOperation(BaseOperation):
         def auto_batch() -> int:
             # Maximum batch size limit for 4o-mini model
             M = 500
-            
+
             n = len(input_data)
             m = len(blocked_pairs)
-            
+
             # https://www.wolframalpha.com/input?i=k%28k-1%29%2F2+%2B+%28n-k%29%28k-1%29+%3D+m%2C+solve+for+k
             # Two possible solutions for k:
             # k = -1/2 sqrt((1 - 2n)^2 - 8m) + n + 1/2
             # k = 1/2 (sqrt((1 - 2n)^2 - 8m) + 2n + 1)
-            
-            discriminant = (1 - 2*n)**2 - 8*m
-            sqrt_discriminant = discriminant ** 0.5
-            
+
+            discriminant = (1 - 2 * n) ** 2 - 8 * m
+            sqrt_discriminant = discriminant**0.5
+
             k1 = -0.5 * sqrt_discriminant + n + 0.5
-            k2 = 0.5 * (sqrt_discriminant + 2*n + 1)
-            
+            k2 = 0.5 * (sqrt_discriminant + 2 * n + 1)
+
             # Take the maximum viable solution
             k = max(k1, k2)
             return M if k < 0 else min(int(k), M)
@@ -479,11 +479,13 @@ class ResolveOperation(BaseOperation):
         last_processed = 0
         for i in pbar:
             batch_end = last_processed + batch_size
-            batch = blocked_pairs[last_processed : batch_end]
+            batch = blocked_pairs[last_processed:batch_end]
             # Filter pairs for the initial batch
             better_batch = [
-                pair for pair in batch
-                if find_cluster(pair[0], cluster_map) == pair[0] and find_cluster(pair[1], cluster_map) == pair[1]
+                pair
+                for pair in batch
+                if find_cluster(pair[0], cluster_map) == pair[0]
+                and find_cluster(pair[1], cluster_map) == pair[1]
             ]
 
             # Expand better_batch if it doesn’t reach batch_size
@@ -493,8 +495,10 @@ class ResolveOperation(BaseOperation):
                 next_batch = blocked_pairs[batch_end:next_end]
 
                 better_batch.extend(
-                    pair for pair in next_batch
-                    if find_cluster(pair[0], cluster_map) == pair[0] and find_cluster(pair[1], cluster_map) == pair[1]
+                    pair
+                    for pair in next_batch
+                    if find_cluster(pair[0], cluster_map) == pair[0]
+                    and find_cluster(pair[1], cluster_map) == pair[1]
                 )
 
                 # Update batch_end to prevent overlapping in the next loop
@@ -524,18 +528,20 @@ class ResolveOperation(BaseOperation):
                     pair_costs += cost
                     if is_match_result:
                         merge_clusters(pair[0], pair[1])
-                        
+
                     if self.config.get("enable_observability", False):
                         observability_key = f"_observability_{self.config['name']}"
                         for idx in (pair[0], pair[1]):
                             if observability_key not in input_data[idx]:
                                 input_data[idx][observability_key] = {
                                     "comparison_prompts": [],
-                                    "resolution_prompt": None
+                                    "resolution_prompt": None,
                                 }
-                            input_data[idx][observability_key]["comparison_prompts"].append(prompt)
+                            input_data[idx][observability_key][
+                                "comparison_prompts"
+                            ].append(prompt)
 
-                    pbar.update(last_processed//batch_size)
+                    pbar.update(last_processed // batch_size)
         total_cost += pair_costs
 
         # Collect final clusters
@@ -553,10 +559,9 @@ class ResolveOperation(BaseOperation):
                         for item in cluster_items
                     ]
 
-
-                resolution_prompt = strict_render(self.config["resolution_prompt"], {
-                    "inputs": cluster_items
-                })
+                resolution_prompt = strict_render(
+                    self.config["resolution_prompt"], {"inputs": cluster_items}
+                )
                 reduction_response = self.runner.api.call_llm(
                     self.config.get("resolution_model", self.default_model),
                     "reduce",
@@ -575,7 +580,9 @@ class ResolveOperation(BaseOperation):
                         if self.config.get("validate", None)
                         else None
                     ),
-                    litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+                    litellm_completion_kwargs=self.config.get(
+                        "litellm_completion_kwargs", {}
+                    ),
                 )
                 reduction_cost = reduction_response.total_cost
 
@@ -585,7 +592,7 @@ class ResolveOperation(BaseOperation):
                         if observability_key not in item:
                             item[observability_key] = {
                                 "comparison_prompts": [],
-                                "resolution_prompt": None
+                                "resolution_prompt": None,
                             }
                         item[observability_key]["resolution_prompt"] = resolution_prompt
 

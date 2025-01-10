@@ -93,6 +93,7 @@
     "eslint-plugin-unused-imports": "^4.1.4",
     "globals": "^15.11.0",
     "postcss": "^8",
+    "tailwind-scrollbar": "^3.1.0",
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
     "typescript-eslint": "^8.11.0"

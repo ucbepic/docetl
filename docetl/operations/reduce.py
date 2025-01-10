@@ -17,16 +17,15 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import jinja2
 import numpy as np
 from jinja2 import Template
+from pydantic import Field
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import strict_render
 from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
 )
-from docetl.operations.utils import rich_as_completed
+from docetl.operations.utils import rich_as_completed, strict_render
 from docetl.utils import completion_cost
-from pydantic import Field
 
 
 class ReduceOperation(BaseOperation):
@@ -332,7 +331,9 @@ class ReduceOperation(BaseOperation):
                     value = item[key]
                     # Special handling for list-type values
                     if isinstance(value, list):
-                        key_values.append(tuple(sorted(value)))  # Convert list to sorted tuple
+                        key_values.append(
+                            tuple(sorted(value))
+                        )  # Convert list to sorted tuple
                     else:
                         key_values.append(value)
                 return tuple(key_values)
@@ -389,10 +390,9 @@ class ReduceOperation(BaseOperation):
             # Only execute merge-based plans if associative = True
             if "merge_prompt" in self.config and self.config.get("associative", True):
                 result, prompts, cost = self._parallel_fold_and_merge(key, group_list)
-            elif (
-                self.config.get("fold_batch_size", None)
-                and self.config.get("fold_batch_size") >= len(group_list)
-            ):
+            elif self.config.get("fold_batch_size", None) and self.config.get(
+                "fold_batch_size"
+            ) >= len(group_list):
                 # If the fold batch size is greater than or equal to the number of items in the group,
                 # we can just run a single fold operation
                 result, prompt, cost = self._batch_reduce(key, group_list)
@@ -410,9 +410,7 @@ class ReduceOperation(BaseOperation):
 
             if self.config.get("enable_observability", False):
                 # Add the _observability_{self.config['name']} key to the result
-                result[f"_observability_{self.config['name']}"] = {
-                    "prompts": prompts
-                }
+                result[f"_observability_{self.config['name']}"] = {"prompts": prompts}
 
             # Apply pass-through at the group level
             if (
@@ -510,8 +508,10 @@ class ReduceOperation(BaseOperation):
         self, key: Tuple, group_list: List[Dict], value_sampling: Dict, sample_size: int
     ) -> Tuple[List[Dict], float]:
         embedding_model = value_sampling["embedding_model"]
-        query_text = strict_render(value_sampling["query_text"], {"reduce_key": dict(zip(self.config["reduce_key"], key))})
-
+        query_text = strict_render(
+            value_sampling["query_text"],
+            {"reduce_key": dict(zip(self.config["reduce_key"], key))},
+        )
 
         embeddings, cost = get_embeddings_for_clustering(
             group_list, value_sampling, self.runner.api
@@ -557,6 +557,7 @@ class ReduceOperation(BaseOperation):
         merge_batch_size = self.config["merge_batch_size"]
         total_cost = 0
         prompts = []
+
         def calculate_num_parallel_folds():
             fold_time, fold_default = self.get_fold_time()
             merge_time, merge_default = self.get_merge_time()
@@ -687,7 +688,11 @@ class ReduceOperation(BaseOperation):
 
                 fold_results = new_results
 
-        return (fold_results[0], prompts, total_cost) if fold_results else (None, prompts, total_cost)
+        return (
+            (fold_results[0], prompts, total_cost)
+            if fold_results
+            else (None, prompts, total_cost)
+        )
 
     def _incremental_reduce(
         self, key: Tuple, group_list: List[Dict]
@@ -793,11 +798,14 @@ class ReduceOperation(BaseOperation):
             return self._batch_reduce(key, batch, scratchpad)
 
         start_time = time.time()
-        fold_prompt = strict_render(self.config["fold_prompt"], {
-            "inputs": batch,
-            "output": current_output,
-            "reduce_key": dict(zip(self.config["reduce_key"], key))
-        })
+        fold_prompt = strict_render(
+            self.config["fold_prompt"],
+            {
+                "inputs": batch,
+                "output": current_output,
+                "reduce_key": dict(zip(self.config["reduce_key"], key)),
+            },
+        )
 
         response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
@@ -855,10 +863,13 @@ class ReduceOperation(BaseOperation):
             the prompt used, and the cost of the merge operation.
         """
         start_time = time.time()
-        merge_prompt = strict_render(self.config["merge_prompt"], {
-            "outputs": outputs,
-            "reduce_key": dict(zip(self.config["reduce_key"], key))
-        })
+        merge_prompt = strict_render(
+            self.config["merge_prompt"],
+            {
+                "outputs": outputs,
+                "reduce_key": dict(zip(self.config["reduce_key"], key)),
+            },
+        )
         response = self.runner.api.call_llm(
             self.config.get("model", self.default_model),
             "merge",
@@ -961,10 +972,13 @@ class ReduceOperation(BaseOperation):
             Tuple[Optional[Dict], str, float]: A tuple containing the reduced output (or None if processing failed),
             the prompt used, and the cost of the reduce operation.
         """
-        prompt = strict_render(self.config["prompt"], {
-            "reduce_key": dict(zip(self.config["reduce_key"], key)),
-            "inputs": group_list
-        })
+        prompt = strict_render(
+            self.config["prompt"],
+            {
+                "reduce_key": dict(zip(self.config["reduce_key"], key)),
+                "inputs": group_list,
+            },
+        )
         item_cost = 0
 
         response = self.runner.api.call_llm(

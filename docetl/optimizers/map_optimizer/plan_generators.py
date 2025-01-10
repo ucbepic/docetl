@@ -1,8 +1,7 @@
 import copy
 import json
-import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 from rich.console import Console
 
@@ -130,7 +129,10 @@ class PlanGenerator:
                 f"Metadata prompt and output schema: {metadata_info.get('metadata_prompt', 'N/A')}; {metadata_info.get('output_schema', 'N/A')}"
             )
             self.console.log(f"Reason: {metadata_info.get('reason', 'N/A')}")
-            split_subprompt = "Given the following metadata about the document:\n{{ input.metadata }}\n\n" + split_subprompt
+            split_subprompt = (
+                "Given the following metadata about the document:\n{{ input.metadata }}\n\n"
+                + split_subprompt
+            )
 
         # Create header extraction prompt
         header_extraction_prompt, header_output_schema = (
@@ -255,7 +257,7 @@ class PlanGenerator:
                     map_op,
                     sample_map_input,
                     "shared_submap",
-                    plan_types=["proj_synthesis", "glean"]
+                    plan_types=["proj_synthesis", "glean"],
                 )
                 self.subplan_optimizer_cost += cost
             except Exception as e:
@@ -269,19 +271,18 @@ class PlanGenerator:
             try:
                 optimized_reduce_ops, _, cost = ReduceOptimizer(
                     self.runner,
-                    self.config,
-                    self.console,
-                    self.llm_client,
-                    self.max_threads,
                     self._run_operation,
                 ).optimize(reduce_op, sample_output)
                 self.subplan_optimizer_cost += cost
             except Exception as e:
-                import traceback    
+                import traceback
+
                 self.console.log(
                     f"[yellow]Warning: Failed to recursively optimize reduce operation: {e}. Using original reduce operation.[/yellow]"
                 )
-                self.console.log(f"[yellow]Traceback:[/yellow]\n{traceback.format_exc()}")
+                self.console.log(
+                    f"[yellow]Traceback:[/yellow]\n{traceback.format_exc()}"
+                )
 
         # Create plans for each chunk size
         plans = {}
@@ -315,7 +316,7 @@ class PlanGenerator:
                         header_extraction_prompt,
                         header_output_schema,
                     )
-                    
+
                     # Create the plan by combining all operations
                     plan = copy.deepcopy(base_operations)
                     plan.extend(smg_ops + optimized_map_ops + optimized_reduce_ops)
@@ -729,7 +730,7 @@ class PlanGenerator:
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Generate chain decomposition plans for the given operation.
-        
+
         If recursively_optimize is True in the op_config, each subtask in the chain
         will be recursively optimized using a new MapOptimizer instance.
         """
@@ -855,10 +856,10 @@ class PlanGenerator:
             if op_config.get("recursively_optimize", False):
                 try:
                     optimized_subtask_plan, cost = self._recursively_optimize_subtask(
-                        subtask_config, 
+                        subtask_config,
                         input_data,
                         f"chain_subtask_{idx+1}",
-                        plan_types=["proj_synthesis", "glean"]
+                        plan_types=["proj_synthesis", "glean"],
                     )
                     self.subplan_optimizer_cost += cost
                     chain_plan.extend(optimized_subtask_plan)
@@ -893,7 +894,7 @@ class PlanGenerator:
         subtask_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         subtask_name: str,
-        plan_types: List[str]
+        plan_types: List[str],
     ) -> Tuple[List[Dict[str, Any]], float]:
         """
         Recursively optimize a subtask using a new MapOptimizer instance.
@@ -906,24 +907,20 @@ class PlanGenerator:
 
         from docetl.optimizers.map_optimizer.optimizer import MapOptimizer
 
-        self.console.log(f"[cyan]Recursively optimizing {subtask_name} (depth {self.depth})...[/cyan]")
+        self.console.log(
+            f"[cyan]Recursively optimizing {subtask_name} (depth {self.depth})...[/cyan]"
+        )
 
         subtask_optimizer = MapOptimizer(
             self.runner,
-            self.config,
-            self.console,
-            self.llm_client,
-            self.max_threads,
             self._run_operation,
             is_filter=self.is_filter,
-            depth=self.depth + 1
+            depth=self.depth + 1,
         )
 
         try:
             optimized_plan, _, cost = subtask_optimizer.optimize(
-                subtask_config,
-                input_data,
-                plan_types
+                subtask_config, input_data, plan_types
             )
             return optimized_plan, cost
 

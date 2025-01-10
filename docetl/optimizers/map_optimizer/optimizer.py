@@ -7,15 +7,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from jinja2 import Template
 from litellm import model_cost
-from rich.console import Console
 from rich.table import Table
 
 from docetl.optimizers.map_optimizer.evaluator import Evaluator
 from docetl.optimizers.map_optimizer.plan_generators import PlanGenerator
 from docetl.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from docetl.optimizers.map_optimizer.utils import select_evaluation_samples
-from docetl.optimizers.utils import LLMClient
-from docetl.utils import count_tokens, CapturedOutput, StageType
+from docetl.utils import StageType, count_tokens
 
 
 class MapOptimizer:
@@ -40,10 +38,6 @@ class MapOptimizer:
     def __init__(
         self,
         runner,
-        config: Dict[str, Any],
-        console: Console,
-        llm_client: LLMClient,
-        max_threads: int,
         run_operation: Callable,
         timeout: int = 10,
         is_filter: bool = False,
@@ -53,55 +47,87 @@ class MapOptimizer:
         Initialize the MapOptimizer.
 
         Args:
-            config (Dict[str, Any]): The configuration dictionary for the optimizer.
-            console (Console): A Rich console object for pretty printing.
-            llm_client (LLMClient): A client for interacting with a language model.
-            max_threads (int): The maximum number of threads to use for parallel execution.
+            runner (Runner): The runner object.
             run_operation (Callable): A function to execute operations.
             timeout (int, optional): The timeout in seconds for operation execution. Defaults to 10.
             is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
         """
         self.runner = runner
-        self.config = config
-        self.console = console
-        self.llm_client = llm_client
+        self.config = runner.config
+        self.console = runner.console
+        self.llm_client = runner.optimizer.llm_client
         self._run_operation = run_operation
-        self.max_threads = max_threads
-        self.timeout = timeout
+        self.max_threads = runner.max_threads
+        self.timeout = runner.optimizer.timeout
         self._num_plans_to_evaluate_in_parallel = 5
         self.is_filter = is_filter
         self.k_to_pairwise_compare = 6
 
         self.plan_generator = PlanGenerator(
-            runner, llm_client, console, config, run_operation, max_threads, is_filter, depth
+            runner,
+            self.llm_client,
+            self.console,
+            self.config,
+            run_operation,
+            self.max_threads,
+            is_filter,
+            depth,
         )
         self.evaluator = Evaluator(
-            llm_client,
-            console,
-            run_operation,
-            timeout,
+            self.llm_client,
+            self.console,
+            self._run_operation,
+            self.timeout,
             self._num_plans_to_evaluate_in_parallel,
-            is_filter,
+            self.is_filter,
         )
         self.prompt_generator = PromptGenerator(
-            runner, llm_client, console, config, max_threads, is_filter
+            self.runner,
+            self.llm_client,
+            self.console,
+            self.config,
+            self.max_threads,
+            self.is_filter,
         )
 
-    def should_optimize(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def should_optimize(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Determine if the given operation configuration should be optimized.
         """
-        input_data, output_data, _, _, validator_prompt, assessment, data_exceeds_limit = self._should_optimize_helper(op_config, input_data)
+        (
+            input_data,
+            output_data,
+            _,
+            _,
+            validator_prompt,
+            assessment,
+            data_exceeds_limit,
+        ) = self._should_optimize_helper(op_config, input_data)
         if data_exceeds_limit or assessment.get("needs_improvement", True):
-            assessment_str = "\n".join(assessment.get("reasons", [])) + "\n\nHere are some improvements that may help:\n" + "\n".join(assessment.get("improvements", []))
+            assessment_str = (
+                "\n".join(assessment.get("reasons", []))
+                + "\n\nHere are some improvements that may help:\n"
+                + "\n".join(assessment.get("improvements", []))
+            )
             if data_exceeds_limit:
                 assessment_str += "\nAlso, the input data exceeds the token limit."
             return assessment_str, input_data, output_data
         else:
             return "", input_data, output_data
-            
 
-    def _should_optimize_helper(self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int, float, str, Dict[str, Any], bool]:
+    def _should_optimize_helper(
+        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        int,
+        float,
+        str,
+        Dict[str, Any],
+        bool,
+    ]:
         """
         Determine if the given operation configuration should be optimized.
         Create a custom validator prompt and assess the operation's performance
@@ -150,7 +176,7 @@ class MapOptimizer:
         no_change_runtime = time.time() - no_change_start
 
         # Capture output for the sample run
-        self.runner.captured_output.save_optimizer_output(
+        self.runner.optimizer.captured_output.save_optimizer_output(
             stage_type=StageType.SAMPLE_RUN,
             output={
                 "operation_config": op_config,
@@ -158,7 +184,6 @@ class MapOptimizer:
                 "output_data": output_data,
             },
         )
-
 
         # Generate custom validator prompt
         self.console.post_optimizer_status(StageType.SHOULD_OPTIMIZE)
@@ -181,12 +206,10 @@ class MapOptimizer:
             f"[bold]Assessment for whether we should improve operation {op_config['name']}:[/bold]"
         )
         for key, value in assessment.items():
-            self.console.print(
-                f"[bold cyan]{key}:[/bold cyan] [yellow]{value}[/yellow]"
-            )
+            self.console.log(f"[bold cyan]{key}:[/bold cyan] [yellow]{value}[/yellow]")
         self.console.log("\n")  # Add a newline for better readability
 
-        self.runner.captured_output.save_optimizer_output(
+        self.runner.optimizer.captured_output.save_optimizer_output(
             stage_type=StageType.SHOULD_OPTIMIZE,
             output={
                 "validator_prompt": validator_prompt,
@@ -203,11 +226,21 @@ class MapOptimizer:
             validator_prompt,
         )
 
-        return input_data, output_data, model_input_context_length, no_change_runtime, validator_prompt, assessment, data_exceeds_limit
-        
+        return (
+            input_data,
+            output_data,
+            model_input_context_length,
+            no_change_runtime,
+            validator_prompt,
+            assessment,
+            data_exceeds_limit,
+        )
 
     def optimize(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]], plan_types: Optional[List[str]] = ["chunk", "proj_synthesis", "glean"]
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        plan_types: Optional[List[str]] = ["chunk", "proj_synthesis", "glean"],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize the given operation configuration for the input data.
@@ -256,10 +289,19 @@ class MapOptimizer:
         # Verify that the plan types are valid
         for plan_type in plan_types:
             if plan_type not in ["chunk", "proj_synthesis", "glean"]:
-                raise ValueError(f"Invalid plan type: {plan_type}. Valid plan types are: chunk, proj_synthesis, glean.")
+                raise ValueError(
+                    f"Invalid plan type: {plan_type}. Valid plan types are: chunk, proj_synthesis, glean."
+                )
 
-        
-        input_data, output_data, model_input_context_length, no_change_runtime, validator_prompt, assessment, data_exceeds_limit = self._should_optimize_helper(op_config, input_data)
+        (
+            input_data,
+            output_data,
+            model_input_context_length,
+            no_change_runtime,
+            validator_prompt,
+            assessment,
+            data_exceeds_limit,
+        ) = self._should_optimize_helper(op_config, input_data)
 
         # Check if improvement is needed based on the assessment
         if not self.config.get("optimizer_config", {}).get("force_decompose", False):
@@ -267,7 +309,11 @@ class MapOptimizer:
                 self.console.log(
                     f"[green]No improvement needed for operation {op_config['name']}[/green]"
                 )
-                return [op_config], output_data, self.plan_generator.subplan_optimizer_cost
+                return (
+                    [op_config],
+                    output_data,
+                    self.plan_generator.subplan_optimizer_cost,
+                )
 
         candidate_plans = {}
 
@@ -282,7 +328,9 @@ class MapOptimizer:
         # Generate chunk size plans
         self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
         if "chunk" in plan_types:
-            self.console.log("[bold magenta]Generating chunking plans...[/bold magenta]")
+            self.console.log(
+                "[bold magenta]Generating chunking plans...[/bold magenta]"
+            )
             chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
                 op_config, input_data, validator_prompt, model_input_context_length
             )
@@ -330,7 +378,7 @@ class MapOptimizer:
         plans_list = list(candidate_plans.items())
 
         # Capture candidate plans
-        self.runner.captured_output.save_optimizer_output(
+        self.runner.optimizer.captured_output.save_optimizer_output(
             stage_type=StageType.CANDIDATE_PLANS,
             output=candidate_plans,
         )
@@ -458,7 +506,7 @@ class MapOptimizer:
         ratings = {k: v[0] for k, v in results.items()}
         runtime = {k: v[1] for k, v in results.items()}
         sample_outputs = {k: v[2] for k, v in results.items()}
-        self.runner.captured_output.save_optimizer_output(
+        self.runner.optimizer.captured_output.save_optimizer_output(
             stage_type=StageType.EVALUATION_RESULTS,
             output={
                 "input_data": evaluation_samples,

@@ -1,5 +1,5 @@
 import uuid
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import tiktoken
 
@@ -18,6 +18,7 @@ class SplitOperation(BaseOperation):
        - {name}_id: A unique identifier for each original document.
        - {name}_chunk_num: The sequential number of the chunk within its original document.
     """
+
     class schema(BaseOperation.schema):
         type: str = "split"
         split_key: str

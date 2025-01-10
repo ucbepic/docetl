@@ -171,19 +171,21 @@ class Evaluator:
             winner = {
                 "plan_1": f"[cyan]{plan1_name}[/cyan]",
                 "plan_2": f"[green]{plan2_name}[/green]",
-                "tie": "[yellow]Tie[/yellow]"
+                "tie": "[yellow]Tie[/yellow]",
             }[comp["better_plan"]]
-            
+
             comparison_content += (
                 f"[bold]Sample {i+1}:[/bold]\n"
                 f"Winner: {winner}\n"
                 f"Reason: {comp['reason']}\n\n"
             )
 
-        self.console.print(Panel.fit(
-            comparison_content,
-            title=f"[bold magenta]Pairwise Comparison: {plan1_name} vs {plan2_name}[/bold magenta]"
-        ))
+        self.console.log(
+            Panel.fit(
+                comparison_content,
+                title=f"[bold magenta]Pairwise Comparison: {plan1_name} vs {plan2_name}[/bold magenta]",
+            )
+        )
 
         if plan1_wins > plan2_wins:
             return plan1_name
@@ -371,7 +373,7 @@ class Evaluator:
         Custom Validator Prompt:
         {validator_prompt}
 
-        Based on the above information, please assess the operation's performance. 
+        Based on the above information, please assess the operation's performance.
         If it needs improvement, provide specific examples in your assessment.
         Be very detailed in your reasons for improvements, if any.
         Provide your assessment in the following format:

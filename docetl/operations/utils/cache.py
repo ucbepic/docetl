@@ -3,26 +3,31 @@ import hashlib
 import json
 import os
 import shutil
-from typing import Any, Dict, List
-from frozendict import frozendict
+from typing import Dict, List
+
 from diskcache import Cache
-from rich.console import Console
 from dotenv import load_dotenv
+from frozendict import frozendict
+from rich.console import Console
 
 from docetl.console import DOCETL_CONSOLE
 
 load_dotenv()
 
-DOCETL_HOME_DIR = os.environ.get("DOCETL_HOME_DIR", os.path.expanduser("~"))+"/.cache/docetl"
+DOCETL_HOME_DIR = (
+    os.environ.get("DOCETL_HOME_DIR", os.path.expanduser("~")) + "/.cache/docetl"
+)
 CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "general")
 LLM_CACHE_DIR = os.path.join(DOCETL_HOME_DIR, "llm")
 cache = Cache(LLM_CACHE_DIR)
 cache.close()
 
+
 def freezeargs(func):
     """
     Decorator to convert mutable dictionary arguments into immutable.
     """
+
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
         args = tuple(
@@ -42,13 +47,16 @@ def freezeargs(func):
             for k, v in kwargs.items()
         }
         return func(*args, **kwargs)
+
     return wrapped
+
 
 def flush_cache(console: Console = DOCETL_CONSOLE):
     """Flush the cache to disk."""
     console.log("[bold green]Flushing cache to disk...[/bold green]")
     cache.close()
     console.log("[bold green]Cache flushed to disk.[/bold green]")
+
 
 def clear_cache(console: Console = DOCETL_CONSOLE):
     """Clear the LLM cache stored on disk."""
@@ -67,14 +75,17 @@ def clear_cache(console: Console = DOCETL_CONSOLE):
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
             except Exception as e:
-                console.log(f"[bold red]Error deleting {file_path}: {str(e)}[/bold red]")
+                console.log(
+                    f"[bold red]Error deleting {file_path}: {str(e)}[/bold red]"
+                )
         console.log("[bold green]Cache cleared successfully.[/bold green]")
     except Exception as e:
         console.log(f"[bold red]Error clearing cache: {str(e)}[/bold red]")
 
+
 def cache_key(
     model: str,
-    op_type: str, 
+    op_type: str,
     messages: List[Dict[str, str]],
     output_schema: Dict[str, str],
     scratchpad: str = None,
@@ -89,4 +100,4 @@ def cache_key(
         "scratchpad": scratchpad,
         "system_prompt": json.dumps(system_prompt, sort_keys=True),
     }
-    return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest() 
+    return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest()

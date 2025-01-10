@@ -1,12 +1,9 @@
 """The `FilterOperation` class is a subclass of `BaseOperation` that implements a filtering operation on input data using a language model."""
 
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
-from pydantic import Field
-
-from jinja2 import Template
+from typing import Dict, List, Tuple
 
 from docetl.operations.map import MapOperation
+
 
 class FilterOperation(MapOperation):
     class schema(MapOperation.schema):
@@ -113,6 +110,7 @@ class FilterOperation(MapOperation):
         results, total_cost = super().execute(input_data)
 
         # Drop records with filter_key values that are False
-        results = [result for result in results if result[filter_key]]
+        if not is_build:
+            results = [result for result in results if result[filter_key]]
 
         return results, total_cost

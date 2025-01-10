@@ -20,10 +20,10 @@ repos:
       - id: check-docstring-first
 
   - repo: https://github.com/hadialqattan/pycln
-    rev: v2.4.0
+    rev: v2.5.0
     hooks:
       - id: pycln
-        args: [--all]
+        args: [--all, --exclude, "__init__.py$", --include, "^docetl/"]
 
   - repo: https://github.com/psf/black
     rev: 24.1.1

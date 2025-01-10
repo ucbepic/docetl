@@ -1,10 +1,12 @@
-from typing import Iterable, Optional, Union
 from concurrent.futures import as_completed
+from typing import Iterable, Optional, Union
+
 from tqdm import tqdm
+
 
 class RichLoopBar:
     """A progress bar class that integrates with Rich console."""
-    
+
     def __init__(
         self,
         iterable: Optional[Union[Iterable, range]] = None,
@@ -58,6 +60,7 @@ class RichLoopBar:
         if self.tqdm:
             self.tqdm.update(n)
 
+
 def rich_as_completed(futures, total=None, desc=None, leave=True, console=None):
     """Yield completed futures with a Rich progress bar."""
     if console is None:
@@ -66,4 +69,4 @@ def rich_as_completed(futures, total=None, desc=None, leave=True, console=None):
     with RichLoopBar(total=total, desc=desc, leave=leave, console=console) as pbar:
         for future in as_completed(futures):
             yield future
-            pbar.update() 
+            pbar.update()

@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Tuple
 
 from litellm import model_cost
 from rich.console import Console
-from rich.prompt import Prompt
 
 from docetl.optimizers.map_optimizer.utils import generate_and_validate_prompt
 from docetl.optimizers.utils import LLMClient
@@ -14,7 +13,7 @@ from docetl.utils import count_tokens, extract_jinja_variables, truncate_sample_
 class PromptGenerator:
     def __init__(
         self,
-        runner: "DSLRunner",
+        runner,
         llm_client: LLMClient,
         console: Console,
         config: Dict[str, Any],

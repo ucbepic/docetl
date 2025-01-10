@@ -148,7 +148,10 @@ class ConfigGenerator:
 
         result["subprompt_output_schema"].update(op_config["output"]["schema"])
 
-        result["subprompt"] = result["subprompt"] + " Only process the main chunk in --- Begin Main Chunk --- and --- End Main Chunk --- delimiters if they are present."
+        result["subprompt"] = (
+            result["subprompt"]
+            + " Only process the main chunk in --- Begin Main Chunk --- and --- End Main Chunk --- delimiters if they are present."
+        )
 
         self.console.log(
             f"[yellow]Breaking down operation {op_config['name']}[/yellow]"

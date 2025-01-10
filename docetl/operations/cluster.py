@@ -1,11 +1,12 @@
-import numpy as np
-from jinja2 import Environment, Template
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
-from .base import BaseOperation
-from .utils import RichLoopBar, strict_render
-from .clustering_utils import get_embeddings_for_clustering
+from typing import Any, Dict, List, Tuple
 
+import numpy as np
+from jinja2 import Template
+
+from .base import BaseOperation
+from .clustering_utils import get_embeddings_for_clustering
+from .utils import RichLoopBar, strict_render
 
 
 class ClusterOperation(BaseOperation):
@@ -101,9 +102,9 @@ class ClusterOperation(BaseOperation):
         )
 
         tree = self.agglomerative_cluster_of_embeddings(input_data, embeddings)
-        
+
         if "collapse" in self.config:
-            tree = self.collapse_tree(tree, collapse = self.config["collapse"])
+            tree = self.collapse_tree(tree, collapse=self.config["collapse"])
 
         self.prompt_template = Template(self.config["summary_prompt"])
         cost += self.annotate_clustering_tree(tree)
@@ -127,7 +128,7 @@ class ClusterOperation(BaseOperation):
                 #                res["embedding"] = list(embeddings[i])
                 return res
             return {
-                 "children": [
+                "children": [
                     build_tree(cl.children_[i - nsamples, 0]),
                     build_tree(cl.children_[i - nsamples, 1]),
                 ],
@@ -139,37 +140,54 @@ class ClusterOperation(BaseOperation):
     def get_tree_distances(self, t):
         res = set()
         if "distance" in t:
-            res.update(set([t["distance"] - child["distance"] for child in t["children"] if "distance" in child]))
+            res.update(
+                set(
+                    [
+                        t["distance"] - child["distance"]
+                        for child in t["children"]
+                        if "distance" in child
+                    ]
+                )
+            )
         if "children" in t:
             for child in t["children"]:
                 res.update(self.get_tree_distances(child))
         return res
-    
-    def _collapse_tree(self, t, parent_dist = None, collapse = None):
+
+    def _collapse_tree(self, t, parent_dist=None, collapse=None):
         if "children" in t:
-            if (    "distance" in t
+            if (
+                "distance" in t
                 and parent_dist is not None
                 and collapse is not None
-                and parent_dist - t["distance"] < collapse):
-                return [grandchild
-                        for child in t["children"]
-                        for grandchild in self._collapse_tree(child, parent_dist=parent_dist, collapse=collapse)]
+                and parent_dist - t["distance"] < collapse
+            ):
+                return [
+                    grandchild
+                    for child in t["children"]
+                    for grandchild in self._collapse_tree(
+                        child, parent_dist=parent_dist, collapse=collapse
+                    )
+                ]
             else:
                 res = dict(t)
-                res["children"] = [grandchild
-                                   for idx, child in enumerate(t["children"])
-                                   for grandchild in self._collapse_tree(child, parent_dist=t["distance"], collapse=collapse)]
+                res["children"] = [
+                    grandchild
+                    for idx, child in enumerate(t["children"])
+                    for grandchild in self._collapse_tree(
+                        child, parent_dist=t["distance"], collapse=collapse
+                    )
+                ]
                 return [res]
         else:
             return [t]
-        
-    def collapse_tree(self, tree, collapse = None):
+
+    def collapse_tree(self, tree, collapse=None):
         if collapse is not None:
             tree_distances = np.array(sorted(self.get_tree_distances(tree)))
             collapse = tree_distances[int(len(tree_distances) * collapse)]
         return self._collapse_tree(tree, collapse=collapse)[0]
 
-    
     def annotate_clustering_tree(self, t):
         if "children" in t:
             with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
@@ -218,7 +236,9 @@ class ClusterOperation(BaseOperation):
                     else None
                 ),
                 verbose=self.config.get("verbose", False),
-                litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+                litellm_completion_kwargs=self.config.get(
+                    "litellm_completion_kwargs", {}
+                ),
             )
             total_cost += response.total_cost
             if response.validated:

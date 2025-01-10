@@ -272,10 +272,6 @@ class PlanGenerator:
             try:
                 optimized_reduce_ops, _, cost = ReduceOptimizer(
                     self.runner,
-                    self.config,
-                    self.console,
-                    self.llm_client,
-                    self.max_threads,
                     self._run_operation,
                 ).optimize(reduce_op, sample_output)
                 self.subplan_optimizer_cost += cost
@@ -918,10 +914,6 @@ class PlanGenerator:
 
         subtask_optimizer = MapOptimizer(
             self.runner,
-            self.config,
-            self.console,
-            self.llm_client,
-            self.max_threads,
             self._run_operation,
             is_filter=self.is_filter,
             depth=self.depth + 1,

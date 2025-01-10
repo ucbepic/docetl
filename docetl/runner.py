@@ -39,192 +39,19 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.prompt import Confirm
 
-from docetl.builder import Optimizer
 from docetl.config_wrapper import ConfigWrapper
 from docetl.console import get_console
+from docetl.containers import OpContainer, StepBoundary
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation, get_operations
+from docetl.operations.base import BaseOperation
 from docetl.operations.utils import flush_cache
+from docetl.optimizer import Optimizer
 
 from . import schemas
 from .utils import classproperty
 
 load_dotenv()
-
-
-class OpContainer(object):
-    """
-    OpContainer implements a pull-based execution model for pipeline operations. Each container
-    represents a node in the execution DAG and lazily evaluates its operation only when its
-    output is requested by a parent node.
-
-    Key features:
-    - Lazy evaluation: Operations only execute when their output is needed
-    - Transparent caching: Results can be cached and reused across pipeline runs
-    - Cost tracking: Each operation's execution cost is tracked and aggregated
-
-    The pull-based model means that execution flows backwards through the DAG - when the final
-    node is asked for data, it recursively requests data from its children until reaching leaf
-    nodes (typically scan operations that load initial datasets).
-    """
-
-    def __init__(self, name: str, runner: "DSLRunner", config: Dict, **kwargs):
-        self.name = name
-        self.config = config
-        self.children = []
-        self.parent = None
-        self.is_equijoin = config.get("type") == "equijoin"
-        self.runner = runner
-
-    def to_string(self) -> str:
-        return json.dumps(self.config, indent=2)
-
-    def add_child(self, child: "OpContainer") -> None:
-        self.children.append(child)
-        child.parent = self
-
-    def next(self) -> Tuple[List[Dict], float, str]:
-        """
-        Execute this operation and return its results. This is the core method implementing
-        the pull-based execution model.
-
-        The execution follows these steps:
-        1. Check for cached results in checkpoints
-        2. If not cached, recursively request input data from child nodes
-        3. Apply any configured sampling
-        4. Execute the operation on the input data
-        5. Cache results if checkpointing is enabled
-
-        Returns:
-            Tuple[List[Dict], float, str]: A tuple containing:
-                - The operation's output data
-                - Total cost of this operation and its children
-                - Execution logs as a formatted string
-        """
-        # Track cost and logs for this operation and its children
-        input_data = None
-        cost = 0.0
-        this_op_cost = 0.0
-        curr_logs = ""
-
-        # Try to load from checkpoint if available
-        attempted_input_data = self.runner._load_from_checkpoint_if_exists(
-            self.name.split("/")[0], self.name.split("/")[-1]
-        )
-        if attempted_input_data is not None:
-            curr_logs += f"[green]✓[/green] Using cached {self.name}\n"
-            return attempted_input_data, 0, curr_logs
-
-        # Clear any existing checkpoint before running
-        if self.runner.intermediate_dir:
-            checkpoint_path = os.path.join(
-                self.runner.intermediate_dir,
-                self.name.split("/")[0],
-                f"{self.name.split('/')[-1]}.json",
-            )
-            if os.path.exists(checkpoint_path):
-                os.remove(checkpoint_path)
-
-        # Handle equijoin operations which have two input streams
-        if self.is_equijoin:
-            assert (
-                len(self.children) == 2
-            ), "Equijoin should have left and right children"
-            left_data, left_cost, left_logs = self.children[0].next()
-            right_data, right_cost, right_logs = self.children[1].next()
-            cost += left_cost + right_cost
-            curr_logs += left_logs + right_logs
-        # Handle standard operations with single input
-        elif len(self.children) > 0:
-            input_data, input_cost, input_logs = self.children[0].next()
-            cost += input_cost
-            curr_logs += input_logs
-
-        # Apply sampling if configured
-        if "sample" in self.config:
-            input_data = input_data[: self.config["sample"]]
-
-        # Execute the operation
-        with self.runner.console.status(f"Running {self.name}") as status:
-            self.runner.status = status
-            operation_class = get_operation(self.config["type"])
-            operation_instance = operation_class(
-                self.runner,
-                self.config,
-                self.runner.default_model,
-                self.runner.max_threads,
-                self.runner.console,
-                self.runner.status,
-            )
-
-            # Execute operation with appropriate inputs
-            if self.is_equijoin:
-                input_data, this_op_cost = operation_instance.execute(
-                    left_data, right_data
-                )
-            else:
-                input_data, this_op_cost = operation_instance.execute(input_data)
-
-            # Track costs and log execution
-            cost += this_op_cost
-            self.runner.total_cost += this_op_cost
-            if this_op_cost > 0:
-                curr_logs += f"[green]✓[/green] {self.name} (Cost: [green]${this_op_cost:.2f}[/green])\n"
-            else:
-                curr_logs += f"[green]✓[/green] {self.name}\n"
-
-        # Save checkpoint if enabled
-        if (
-            self.runner.intermediate_dir
-            and self.name.split("/")[1]
-            in self.runner.step_op_hashes[self.name.split("/")[0]]
-        ):
-            self.runner._save_checkpoint(
-                self.name.split("/")[0], self.name.split("/")[-1], input_data
-            )
-
-        return input_data, cost, curr_logs
-
-    def syntax_check(self) -> str:
-        operation = self.config["name"]
-        operation_type = self.config["type"]
-
-        operation_class = get_operation(operation_type)
-        obj = operation_class(
-            self.runner,
-            self.config,
-            self.runner.default_model,
-            self.runner.max_threads,
-            self.runner.console,
-            self.runner.status,
-        )
-
-        # Do syntax check
-        obj.syntax_check()
-
-        return f"[green]✓[/green] Operation '{operation}' ({operation_type})\n"
-
-
-class StepBoundary(OpContainer):
-
-    def next(self) -> Tuple[List[Dict], float, str]:
-        output_data, step_cost, step_logs = self.children[0].next()
-
-        # Print step logs
-        self.runner.datasets[self.name] = Dataset(self, "memory", output_data)
-        flush_cache(self.runner.console)
-        self.runner.console.print(
-            Panel.fit(
-                step_logs
-                + f"Step [cyan]{self.name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]",
-                title=f"[bold blue]Step Execution: {self.name}[/bold blue]",
-            )
-        )
-
-        return output_data, 0, ""
-
-    def syntax_check(self) -> str:
-        return ""
 
 
 class DSLRunner(ConfigWrapper):
@@ -291,13 +118,13 @@ class DSLRunner(ConfigWrapper):
             max_threads=max_threads,
             **kwargs,
         )
+        self.total_cost = 0
         self._initialize_state()
         self._setup_parsing_tools()
-        self._build_operation_graph()
+        self._build_operation_graph(config)
         self._compute_operation_hashes()
 
         # Run initial validation
-        self.print_query_plan()
         self.syntax_check()
 
     def _initialize_state(self) -> None:
@@ -313,8 +140,9 @@ class DSLRunner(ConfigWrapper):
             self.config.get("parsing_tools", None)
         )
 
-    def _build_operation_graph(self) -> None:
+    def _build_operation_graph(self, config: Dict) -> None:
         """Build the DAG of operations from configuration"""
+        self.config = config
         self.op_container_map = {}
         self.last_op_container = None
 
@@ -384,6 +212,8 @@ class DSLRunner(ConfigWrapper):
             f"{step['name']}/{equijoin_operation_name}",
             self,
             self.find_operation(equijoin_operation_name),
+            left_name=left_dataset_name,
+            right_name=right_dataset_name,
         )
 
         equijoin_op_container.add_child(left_scan_op_container)
@@ -501,7 +331,7 @@ class DSLRunner(ConfigWrapper):
 
         self.console.print("[green]✓ All operations passed syntax check[/green]\n")
 
-    def print_query_plan(self):
+    def print_query_plan(self, show_boundaries=False):
         """
         Print a visual representation of the entire query plan using indentation and arrows.
         Operations are color-coded by step to show the pipeline structure while maintaining
@@ -518,9 +348,23 @@ class DSLRunner(ConfigWrapper):
         def _print_op(
             op: OpContainer, indent: int = 0, step_colors: Dict[str, str] = None
         ) -> str:
-            # Skip boundary operations but process their children
+            # Handle boundary operations based on show_boundaries flag
             if isinstance(op, StepBoundary):
-                if op.children:
+                if show_boundaries:
+                    output = []
+                    indent_str = "  " * indent
+                    step_name = op.name.split("/")[0]
+                    color = step_colors.get(step_name, "white")
+                    output.append(
+                        f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]"
+                    )
+                    output.append(f"{indent_str}Type: step_boundary")
+                    if op.children:
+                        output.append(f"{indent_str}[yellow]▼[/yellow]")
+                        for child in op.children:
+                            output.append(_print_op(child, indent + 1, step_colors))
+                    return "\n".join(output)
+                elif op.children:
                     return _print_op(op.children[0], indent, step_colors)
                 return ""
 
@@ -594,8 +438,10 @@ class DSLRunner(ConfigWrapper):
         """
         output_path = self.get_output_path(require=True)
 
+        # Print the query plan
+        self.print_query_plan()
+
         self.console.rule("[bold]Pipeline Execution[/bold]")
-        self.total_cost = 0
         start_time = time.time()
 
         if self.last_op_container:
@@ -650,7 +496,7 @@ class DSLRunner(ConfigWrapper):
         """
         Save the final output of the pipeline.
         """
-        output_path = self.get_output_path(require=True)
+        self.get_output_path(require=True)
 
         output_config = self.config["pipeline"]["output"]
         if output_config["type"] == "file":
@@ -771,6 +617,7 @@ class DSLRunner(ConfigWrapper):
         self, step_name: str, op_name: str, **kwargs
     ) -> Tuple[str, float, List[Dict[str, Any]], List[Dict[str, Any]]]:
         builder = Optimizer(self, **kwargs)
+        self.optimizer = builder
         return builder.should_optimize(step_name, op_name)
 
     def optimize(
@@ -780,22 +627,77 @@ class DSLRunner(ConfigWrapper):
         **kwargs,
     ) -> Tuple[Union[Dict, "DSLRunner"], float]:
 
+        if not self.last_op_container:
+            raise ValueError("No operations in pipeline. Cannot optimize.")
+
+        self.load()
+
         builder = Optimizer(
             self,
             **kwargs,
         )
-        cost = builder.optimize()
-
-        # Dump via json
-        # import json
-        # with open(f"{self.base_name}_optimizer_output.json", "wb") as f:
-        #     json.dump(builder.captured_output.optimizer_output, f)
+        self.optimizer = builder
+        llm_api_cost = builder.optimize()
+        self.total_cost += llm_api_cost
 
         if save:
             builder.save_optimized_config(f"{self.base_name}_opt.yaml")
             self.optimized_config_path = f"{self.base_name}_opt.yaml"
 
         if return_pipeline:
-            return DSLRunner(builder.clean_optimized_config(), self.max_threads), cost
+            return (
+                DSLRunner(builder.clean_optimized_config(), self.max_threads),
+                self.total_cost,
+            )
 
-        return builder.clean_optimized_config(), cost
+        return builder.clean_optimized_config(), self.total_cost
+
+    def _run_operation(
+        self,
+        op_config: Dict[str, Any],
+        input_data: Union[List[Dict[str, Any]], Dict[str, Any]],
+        return_instance: bool = False,
+        is_build: bool = False,
+    ) -> Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation, float]]:
+        """
+        Run a single operation based on its configuration.
+
+        This method creates an instance of the appropriate operation class and executes it.
+        It also updates the total operation cost.
+
+        Args:
+            op_config (Dict[str, Any]): The configuration of the operation to run.
+            input_data (List[Dict[str, Any]]): The input data for the operation.
+            return_instance (bool, optional): If True, return the operation instance along with the output data.
+
+        Returns:
+            Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation, float]]:
+            If return_instance is False, returns the output data.
+            If return_instance is True, returns a tuple of the output data, the operation instance, and the cost.
+        """
+        operation_class = get_operation(op_config["type"])
+
+        oc_kwargs = {
+            "runner": self,
+            "config": op_config,
+            "default_model": self.config["default_model"],
+            "max_threads": self.max_threads,
+            "console": self.console,
+            "status": self.status,
+        }
+        operation_instance = operation_class(**oc_kwargs)
+        if op_config["type"] == "equijoin":
+            output_data, cost = operation_instance.execute(
+                input_data["left_data"], input_data["right_data"]
+            )
+        elif op_config["type"] == "filter":
+            output_data, cost = operation_instance.execute(input_data, is_build)
+        else:
+            output_data, cost = operation_instance.execute(input_data)
+
+        self.total_cost += cost
+
+        if return_instance:
+            return output_data, operation_instance
+        else:
+            return output_data

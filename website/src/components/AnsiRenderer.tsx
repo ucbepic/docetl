@@ -51,7 +51,7 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
     >
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-4">
         <pre
-          className="m-0 whitespace-pre-wrap break-words"
+          className="m-0 whitespace-pre-wrap break-words text-sm"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>

@@ -541,7 +541,6 @@ class ResolveOperation(BaseOperation):
                                 "comparison_prompts"
                             ].append(prompt)
 
-                    pbar.update(last_processed // batch_size)
         total_cost += pair_costs
 
         # Collect final clusters

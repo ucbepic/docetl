@@ -18,31 +18,26 @@ class JoinOptimizer:
     def __init__(
         self,
         runner,
-        config: Dict[str, Any],
         op_config: Dict[str, Any],
-        console: Console,
-        llm_client: Any,
-        max_threads: int,
         target_recall: float = 0.95,
         sample_size: int = 500,
         sampling_weight: float = 20,
         agent_max_retries: int = 5,
         estimated_selectivity: float = None,
-        status: Status = None,
     ):
         self.runner = runner
-        self.config = config
+        self.config = runner.config
         self.op_config = op_config
-        self.llm_client = llm_client
-        self.max_threads = max_threads
-        self.console = console
+        self.llm_client = runner.optimizer.llm_client
+        self.max_threads = runner.max_threads
+        self.console = runner.console
         self.target_recall = target_recall
         self.sample_size = sample_size
         self.sampling_weight = sampling_weight
         self.agent_max_retries = agent_max_retries
         self.estimated_selectivity = estimated_selectivity
         self.console.log(f"Target Recall: {self.target_recall}")
-        self.status = status
+        self.status = self.runner.status
         # if self.estimated_selectivity is not None:
         #     self.console.log(
         #         f"[yellow]Using estimated selectivity of {self.estimated_selectivity}[/yellow]"
@@ -443,7 +438,6 @@ class JoinOptimizer:
     def optimize_resolve(
         self, input_data: List[Dict[str, Any]]
     ) -> Tuple[Dict[str, Any], float]:
-
         # Check if the operation is marked as empty
         if self.op_config.get("empty", False):
             # Extract the map prompt from the intermediates

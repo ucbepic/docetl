@@ -1,4 +1,5 @@
 import json
+import math
 import re
 from enum import Enum
 from typing import Any, Dict, List
@@ -226,6 +227,67 @@ def truncate_sample_data(
                     return truncated_data
 
     return truncated_data
+
+
+def smart_sample(
+    input_data: List[Dict], sample_size_needed: int, max_unique_values: int = 5
+) -> List[Dict]:
+    """
+    Smart sampling strategy that:
+    1. Identifies categorical fields by checking for low cardinality (few unique values)
+    2. Stratifies on up to 3 categorical fields
+    3. Takes largest documents per stratum
+
+    Args:
+        input_data (List[Dict]): List of input documents
+        sample_size_needed (int): Number of samples needed
+        max_unique_values (int): Maximum number of unique values for a field to be considered categorical
+
+    Returns:
+        List[Dict]: Sampled documents
+    """
+    if not input_data or sample_size_needed >= len(input_data):
+        return input_data
+
+    # Find fields with low cardinality (categorical fields)
+    field_unique_values = {}
+    for field in input_data[0].keys():
+        unique_values = set(str(doc.get(field, "")) for doc in input_data)
+        if len(unique_values) <= max_unique_values:
+            field_unique_values[field] = len(unique_values)
+
+    # Sort by number of unique values and take top 3 categorical fields
+    categorical_fields = sorted(field_unique_values.items(), key=lambda x: x[1])[:3]
+    categorical_fields = [field for field, _ in categorical_fields]
+
+    # If no categorical fields, return largest documents
+    if not categorical_fields:
+        return sorted(input_data, key=lambda x: len(json.dumps(x)), reverse=True)[
+            :sample_size_needed
+        ]
+
+    # Group data by categorical fields
+    groups = {}
+    for doc in input_data:
+        key = tuple(str(doc.get(field, "")) for field in categorical_fields)
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(doc)
+
+    # Calculate samples needed per group (evenly distributed)
+    samples_per_group = math.ceil(sample_size_needed / len(groups))
+
+    # Take largest documents from each group
+    result = []
+    for docs in groups.values():
+        sorted_docs = sorted(docs, key=lambda x: len(json.dumps(x)), reverse=True)
+        result.extend(sorted_docs[:samples_per_group])
+
+    # If we have too many samples, trim to exact size needed
+    # Sort by size again to ensure we keep the largest documents
+    return sorted(result, key=lambda x: len(json.dumps(x)), reverse=True)[
+        :sample_size_needed
+    ]
 
 
 class classproperty(object):

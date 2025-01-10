@@ -38,14 +38,9 @@ class ReduceOptimizer:
     def __init__(
         self,
         runner,
-        config: Dict[str, Any],
-        console: Console,
-        llm_client: LLMClient,
-        max_threads: int,
         run_operation: Callable,
         num_fold_prompts: int = 1,
         num_samples_in_validation: int = 10,
-        status: Optional[Status] = None,
     ):
         """
         Initialize the ReduceOptimizer.
@@ -60,14 +55,14 @@ class ReduceOptimizer:
             num_samples_in_validation (int, optional): Number of samples to use in validation. Defaults to 10.
         """
         self.runner = runner
-        self.config = config
-        self.console = console
-        self.llm_client = llm_client
+        self.config = self.runner.config
+        self.console = self.runner.console
+        self.llm_client = self.runner.optimizer.llm_client
         self._run_operation = run_operation
-        self.max_threads = max_threads
+        self.max_threads = self.runner.max_threads
         self.num_fold_prompts = num_fold_prompts
         self.num_samples_in_validation = num_samples_in_validation
-        self.status = status
+        self.status = self.runner.status
 
     def should_optimize_helper(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -1108,6 +1103,8 @@ class ReduceOptimizer:
         4. How well does the output adhere to any specific formatting requirements mentioned in the original prompt, such as character limits for summaries or specific data types for aggregated values?
 
         Note that the output may reflect more than just the input provided, since we only provide a one-item sample input. Provide your response as a single string containing the custom validator prompt. The prompt should be tailored to the task and avoid generic criteria. The prompt should not reference a specific value in the sample input, but rather a general property.
+
+        Your prompt should not have any placeholders like {{ reduce_key }} or {{ input_key }}. It should just be a string.
         """
 
         parameters = {

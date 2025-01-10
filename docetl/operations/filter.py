@@ -114,6 +114,7 @@ class FilterOperation(MapOperation):
         results, total_cost = super().execute(input_data)
 
         # Drop records with filter_key values that are False
-        results = [result for result in results if result[filter_key]]
+        if not is_build:
+            results = [result for result in results if result[filter_key]]
 
         return results, total_cost

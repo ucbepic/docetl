@@ -40,10 +40,6 @@ class MapOptimizer:
     def __init__(
         self,
         runner,
-        config: Dict[str, Any],
-        console: Console,
-        llm_client: LLMClient,
-        max_threads: int,
         run_operation: Callable,
         timeout: int = 10,
         is_filter: bool = False,
@@ -53,45 +49,47 @@ class MapOptimizer:
         Initialize the MapOptimizer.
 
         Args:
-            config (Dict[str, Any]): The configuration dictionary for the optimizer.
-            console (Console): A Rich console object for pretty printing.
-            llm_client (LLMClient): A client for interacting with a language model.
-            max_threads (int): The maximum number of threads to use for parallel execution.
+            runner (Runner): The runner object.
             run_operation (Callable): A function to execute operations.
             timeout (int, optional): The timeout in seconds for operation execution. Defaults to 10.
             is_filter (bool, optional): If True, the operation is a filter operation. Defaults to False.
         """
         self.runner = runner
-        self.config = config
-        self.console = console
-        self.llm_client = llm_client
+        self.config = runner.config
+        self.console = runner.console
+        self.llm_client = runner.optimizer.llm_client
         self._run_operation = run_operation
-        self.max_threads = max_threads
-        self.timeout = timeout
+        self.max_threads = runner.max_threads
+        self.timeout = runner.optimizer.timeout
         self._num_plans_to_evaluate_in_parallel = 5
         self.is_filter = is_filter
         self.k_to_pairwise_compare = 6
 
         self.plan_generator = PlanGenerator(
             runner,
-            llm_client,
-            console,
-            config,
+            self.llm_client,
+            self.console,
+            self.config,
             run_operation,
-            max_threads,
+            self.max_threads,
             is_filter,
             depth,
         )
         self.evaluator = Evaluator(
-            llm_client,
-            console,
-            run_operation,
-            timeout,
+            self.llm_client,
+            self.console,
+            self._run_operation,
+            self.timeout,
             self._num_plans_to_evaluate_in_parallel,
-            is_filter,
+            self.is_filter,
         )
         self.prompt_generator = PromptGenerator(
-            runner, llm_client, console, config, max_threads, is_filter
+            self.runner,
+            self.llm_client,
+            self.console,
+            self.config,
+            self.max_threads,
+            self.is_filter,
         )
 
     def should_optimize(
@@ -180,7 +178,7 @@ class MapOptimizer:
         no_change_runtime = time.time() - no_change_start
 
         # Capture output for the sample run
-        self.runner.captured_output.save_optimizer_output(
+        self.runner.optimizer.captured_output.save_optimizer_output(
             stage_type=StageType.SAMPLE_RUN,
             output={
                 "operation_config": op_config,
@@ -215,7 +213,7 @@ class MapOptimizer:
             )
         self.console.log("\n")  # Add a newline for better readability
 
-        self.runner.captured_output.save_optimizer_output(
+        self.runner.optimizer.captured_output.save_optimizer_output(
             stage_type=StageType.SHOULD_OPTIMIZE,
             output={
                 "validator_prompt": validator_prompt,
@@ -384,7 +382,7 @@ class MapOptimizer:
         plans_list = list(candidate_plans.items())
 
         # Capture candidate plans
-        self.runner.captured_output.save_optimizer_output(
+        self.runner.optimizer.captured_output.save_optimizer_output(
             stage_type=StageType.CANDIDATE_PLANS,
             output=candidate_plans,
         )
@@ -512,7 +510,7 @@ class MapOptimizer:
         ratings = {k: v[0] for k, v in results.items()}
         runtime = {k: v[1] for k, v in results.items()}
         sample_outputs = {k: v[2] for k, v in results.items()}
-        self.runner.captured_output.save_optimizer_output(
+        self.runner.optimizer.captured_output.save_optimizer_output(
             stage_type=StageType.EVALUATION_RESULTS,
             output={
                 "input_data": evaluation_samples,

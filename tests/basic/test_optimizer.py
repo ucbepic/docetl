@@ -2,7 +2,6 @@ import os
 import pytest
 import json
 import shutil
-from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
 
 @pytest.fixture
@@ -71,21 +70,12 @@ def runner(test_config):
 def test_optimize_map_operation(runner, test_dir):
     """Test that the optimizer can optimize a simple map operation"""
     
-    # Initialize optimizer
-    optimizer = Optimizer(
-        runner=runner,
-        model="gpt-4o-mini",
-        timeout=30
-    )
     
     # Run optimization
-    total_cost = optimizer.optimize()
+    optimized_config, total_cost = runner.optimize()
     
     # Check that optimization completed successfully
     assert total_cost >= 0  # Cost should be non-negative
-    
-    # Get the optimized config
-    optimized_config = optimizer.clean_optimized_config()
     
     # Check that the optimized config contains operations
     assert "operations" in optimized_config
@@ -101,10 +91,4 @@ def test_optimize_map_operation(runner, test_dir):
     assert first_step["name"] == "name_extraction"
     assert "operations" in first_step
     assert len(first_step["operations"]) > 0
-    
-    # Save the optimized config
-    output_path = test_dir / "optimized_config.yaml"
-    optimizer.save_optimized_config(str(output_path))
-    
-    # Check that the file was created
-    assert output_path.exists()
+

@@ -2,7 +2,7 @@ import pytest
 import json
 import tempfile
 import os
-from docetl.builder import Optimizer
+
 from docetl.runner import DSLRunner
 from docetl.operations.split import SplitOperation
 from docetl.operations.map import MapOperation

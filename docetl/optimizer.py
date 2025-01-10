@@ -426,13 +426,14 @@ class Optimizer:
         else:
             self._insert_empty_resolve_operations()
 
-        # Print the query plan
-        self.runner.print_query_plan()
-
         # Start with the last operation container and visit each child
         self.runner.last_op_container.optimize()
 
         flush_cache(self.console)
+
+        # Print the query plan
+        self.console.rule("[bold cyan]Optimized Query Plan[/bold cyan]")
+        self.runner.print_query_plan()
 
         return self.llm_client.total_cost
 
@@ -712,10 +713,6 @@ class Optimizer:
         Saves the optimized configuration to a YAML file after resolving all references
         and cleaning up internal optimization artifacts.
         """
-        # Print the optimized query plan
-        self.console.rule("[bold cyan]Optimized Query Plan[/bold cyan]")
-        self.runner.print_query_plan()
-
         resolved_config = self.clean_optimized_config()
 
         with open(optimized_config_path, "w") as f:

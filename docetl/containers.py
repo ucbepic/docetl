@@ -564,18 +564,19 @@ class StepBoundary(OpContainer):
             is_build, sample_size_needed
         )
 
-        # Print step logs
+        # Print step logs only if not building
         self.runner.datasets[self.name.split("/")[0]] = Dataset(
             self, "memory", output_data
         )
-        flush_cache(self.runner.console)
-        self.runner.console.log(
-            Panel.fit(
-                step_logs
-                + f"Step [cyan]{self.name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]",
-                title=f"[bold blue]Step Execution: {self.name}[/bold blue]",
+        if not is_build:
+            flush_cache(self.runner.console)
+            self.runner.console.log(
+                Panel.fit(
+                    step_logs
+                    + f"Step [cyan]{self.name}[/cyan] completed. Cost: [green]${step_cost:.2f}[/green]",
+                    title=f"[bold blue]Step Execution: {self.name}[/bold blue]",
+                )
             )
-        )
 
         return output_data, 0, ""
 

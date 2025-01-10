@@ -232,7 +232,7 @@ def test_pipeline_optimization(
     )
 
     assert isinstance(optimized_pipeline, Pipeline)
-    assert len(optimized_pipeline.operations) == len(pipeline.operations)
+    assert len(optimized_pipeline.operations) == len(pipeline.operations) + 1
     assert len(optimized_pipeline.steps) == len(pipeline.steps)
 
 

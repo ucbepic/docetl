@@ -349,11 +349,13 @@ class Optimizer:
                 child.next(
                     is_build=True,
                     sample_size_needed=SAMPLE_SIZE_MAP.get(child.config["type"]),
-                )
+                )[0]
             )
 
-        # Determine whether we should optimize the node_of_interest
+        # Set the step
+        self.captured_output.set_step(step_name)
 
+        # Determine whether we should optimize the node_of_interest
         if (
             node_of_interest.config.get("type") == "map"
             or node_of_interest.config.get("type") == "filter"

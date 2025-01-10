@@ -619,9 +619,11 @@ class DSLRunner(ConfigWrapper):
     def should_optimize(
         self, step_name: str, op_name: str, **kwargs
     ) -> Tuple[str, float, List[Dict[str, Any]], List[Dict[str, Any]]]:
+        self.load()
         builder = Optimizer(self, **kwargs)
         self.optimizer = builder
-        return builder.should_optimize(step_name, op_name)
+        result = builder.should_optimize(step_name, op_name)
+        return result
 
     def optimize(
         self,

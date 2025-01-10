@@ -59,9 +59,12 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
         isWebSocketClosed ? "opacity-50" : ""
       }`}
     >
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-4">
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500"
+      >
         <pre
-          className="m-0 whitespace-pre-wrap break-words text-sm"
+          className="m-0 whitespace-pre-wrap break-words leading-tight text-sm"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>

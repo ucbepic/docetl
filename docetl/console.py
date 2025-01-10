@@ -21,19 +21,26 @@ class ThreadSafeConsole(Console):
         self.optimizer_statuses = []
         self.optimizer_rationale = None
 
+    def get_output(self):
+        # return self.export_text(styles=True)
+        value = self.buffer.getvalue()
+        self.buffer.truncate(0)
+        self.buffer.seek(0)
+        return value
+
     def status(
         self,
         status: "RenderableType",
         *,
         spinner: str = "dots",
         spinner_style: "StyleType" = "status.spinner",
-        speed: float = 1.0,
-        refresh_per_second: float = 12.5,
+        speed: float = 0.1,  # Much slower speed
+        refresh_per_second: float = 0.5,  # Much slower refresh rate (every 2 seconds)
     ) -> "Status":
 
         status_renderable = Status(
             status,
-            console=None,
+            console=self,
             spinner=spinner,
             spinner_style=spinner_style,
             speed=speed,
@@ -98,6 +105,7 @@ def get_console():
             color_system="truecolor",
             width=120,
             style="bright_white on black",
+            record=True,
         )
     else:
 

@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
 
 # from ..operations import map
 # MapOp = map.MapOperation.schema
+
 
 class ToolFunction(BaseModel):
     name: str
@@ -96,7 +97,8 @@ class PipelineStep(BaseModel):
     name: str
     operations: List[Union[Dict[str, Any], str]]
     input: Optional[str] = None
-    
+
+
 class PipelineOutput(BaseModel):
     """
     Represents the output configuration for a pipeline.

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from docetl.operations.base import BaseOperation
 
@@ -22,7 +22,7 @@ class GatherOperation(BaseOperation):
         order_key: str
         peripheral_chunks: Dict[str, Any]
         doc_header_key: Optional[str] = None
-    
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the GatherOperation.

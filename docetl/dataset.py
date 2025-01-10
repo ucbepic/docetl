@@ -1,10 +1,11 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List, Optional, Union, Literal
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
+
 from pydantic import BaseModel
 
-from docetl.parsing_tools import get_parser, get_parsing_tools
 from docetl.base_schemas import ParsingTool
+from docetl.parsing_tools import get_parser, get_parsing_tools
 
 
 def create_parsing_tool_map(
@@ -73,7 +74,7 @@ class Dataset:
         path: str
         source: str = "local"
         parsing: Optional[List[Dict[str, str]]] = None
-        
+
     def __init__(
         self,
         runner,

@@ -1,5 +1,7 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
+
 import numpy as np
+
 from docetl.operations.base import BaseOperation
 from docetl.operations.clustering_utils import get_embeddings_for_clustering
 

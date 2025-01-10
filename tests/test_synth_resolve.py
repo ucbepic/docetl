@@ -3,7 +3,6 @@ import pytest
 import json
 import tempfile
 import os
-from docetl.builder import Optimizer
 
 
 @pytest.fixture

@@ -3,11 +3,21 @@ import Convert from "ansi-to-html";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 
 const convert = new Convert({
-  fg: "#000",
-  bg: "#fff",
+  fg: "#fff", // Default foreground to white instead of black
+  bg: "#000", // Default background to black
   newline: true,
   escapeXML: true,
   stream: false,
+  colors: {
+    // Override the default ANSI colors with brighter variants
+    // Especially important for blue
+    1: "#ff0000", // red
+    2: "#00ff00", // green
+    3: "#ffff00", // yellow
+    4: "#5C9FFF", // bright blue instead of default blue
+    5: "#ff00ff", // magenta
+    6: "#00ffff", // cyan
+  },
 });
 
 interface AnsiRendererProps {
@@ -49,9 +59,12 @@ const AnsiRenderer: React.FC<AnsiRendererProps> = ({
         isWebSocketClosed ? "opacity-50" : ""
       }`}
     >
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-4">
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500"
+      >
         <pre
-          className="m-0 whitespace-pre-wrap break-words"
+          className="m-0 whitespace-pre-wrap break-words leading-tight text-sm"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>

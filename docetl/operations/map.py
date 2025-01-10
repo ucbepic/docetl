@@ -5,18 +5,14 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from docetl.operations.utils import strict_render
-from jinja2 import Environment, Template
+from jinja2 import Template
+from litellm.utils import ModelResponse
+from pydantic import Field, field_validator
 from tqdm import tqdm
 
-from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar
 from docetl.base_schemas import Tool, ToolFunction
-from docetl.utils import completion_cost
-from pydantic import Field, field_validator
-from litellm.utils import ModelResponse
-
-
+from docetl.operations.base import BaseOperation
+from docetl.operations.utils import RichLoopBar, strict_render
 
 
 class MapOperation(BaseOperation):
@@ -41,6 +37,7 @@ class MapOperation(BaseOperation):
         clustering_method: Optional[str] = None
         batch_prompt: Optional[str] = None
         litellm_completion_kwargs: Dict[str, Any] = {}
+
         @field_validator("drop_keys")
         def validate_drop_keys(cls, v):
             if isinstance(v, str):
@@ -75,7 +72,7 @@ class MapOperation(BaseOperation):
             raise ValueError(
                 "If 'drop_keys' is not specified, both 'prompt' and 'output' must be present in the configuration"
             )
-        
+
         if config.batch_prompt:
             try:
                 template = Template(config.batch_prompt)
@@ -111,7 +108,7 @@ class MapOperation(BaseOperation):
                 for tool in config.tools:
                     try:
                         tool_obj = Tool(**tool)
-                    except Exception as e:
+                    except Exception:
                         raise TypeError("Tool must be a dictionary")
 
                     if not (tool_obj.code and tool_obj.function):
@@ -129,7 +126,6 @@ class MapOperation(BaseOperation):
                             )
 
             self.gleaning_check()
-        
 
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
@@ -164,17 +160,23 @@ class MapOperation(BaseOperation):
         if self.status:
             self.status.stop()
 
-        def _process_map_item(item: Dict, initial_result: Optional[Dict] = None) -> Tuple[Optional[Dict], float]:
+        def _process_map_item(
+            item: Dict, initial_result: Optional[Dict] = None
+        ) -> Tuple[Optional[Dict], float]:
 
             prompt = strict_render(self.config["prompt"], {"input": item})
 
             def validation_fn(response: Union[Dict[str, Any], ModelResponse]):
-                output = self.runner.api.parse_llm_response(
-                    response,
-                    schema=self.config["output"]["schema"],
-                    tools=self.config.get("tools", None),
-                    manually_fix_errors=self.manually_fix_errors,
-                )[0] if isinstance(response, ModelResponse) else response
+                output = (
+                    self.runner.api.parse_llm_response(
+                        response,
+                        schema=self.config["output"]["schema"],
+                        tools=self.config.get("tools", None),
+                        manually_fix_errors=self.manually_fix_errors,
+                    )[0]
+                    if isinstance(response, ModelResponse)
+                    else response
+                )
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value
@@ -205,7 +207,9 @@ class MapOperation(BaseOperation):
                 verbose=self.config.get("verbose", False),
                 bypass_cache=self.config.get("bypass_cache", False),
                 initial_result=initial_result,
-                litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+                litellm_completion_kwargs=self.config.get(
+                    "litellm_completion_kwargs", {}
+                ),
             )
 
             if llm_result.validated:
@@ -220,7 +224,6 @@ class MapOperation(BaseOperation):
                 else:
                     output = llm_result.response
 
-                
                 # Augment the output with the original item
                 output = {**item, **output}
                 if self.config.get("enable_observability", False):
@@ -228,12 +231,14 @@ class MapOperation(BaseOperation):
                 return output, llm_result.total_cost
 
             return None, llm_result.total_cost
-        
-         # If there's a batch prompt, let's use that
+
+        # If there's a batch prompt, let's use that
         def _process_map_batch(items: List[Dict]) -> Tuple[List[Dict], float]:
             total_cost = 0
             if len(items) > 1 and self.config.get("batch_prompt", None):
-                batch_prompt = strict_render(self.config["batch_prompt"], {"inputs": items})
+                batch_prompt = strict_render(
+                    self.config["batch_prompt"], {"inputs": items}
+                )
 
                 # Issue the batch call
                 llm_result = self.runner.api.call_llm_batch(
@@ -243,23 +248,39 @@ class MapOperation(BaseOperation):
                     self.config["output"]["schema"],
                     verbose=self.config.get("verbose", False),
                     timeout_seconds=self.config.get("timeout", 120),
-                    max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                    max_retries_per_timeout=self.config.get(
+                        "max_retries_per_timeout", 2
+                    ),
                     bypass_cache=self.config.get("bypass_cache", False),
-                    litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+                    litellm_completion_kwargs=self.config.get(
+                        "litellm_completion_kwargs", {}
+                    ),
                 )
                 total_cost += llm_result.total_cost
 
                 # Parse the LLM response
-                parsed_output = self.runner.api.parse_llm_response(llm_result.response, self.config["output"]["schema"])[0].get("results", [])
-                items_and_outputs = [(item, parsed_output[idx] if idx < len(parsed_output) else None) for idx, item in enumerate(items)]
+                parsed_output = self.runner.api.parse_llm_response(
+                    llm_result.response, self.config["output"]["schema"]
+                )[0].get("results", [])
+                items_and_outputs = [
+                    (item, parsed_output[idx] if idx < len(parsed_output) else None)
+                    for idx, item in enumerate(items)
+                ]
             else:
                 items_and_outputs = [(item, None) for item in items]
 
-            # Run _process_map_item for each item 
+            # Run _process_map_item for each item
             all_results = []
             if len(items_and_outputs) > 1:
                 with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:
-                    futures = [executor.submit(_process_map_item, items_and_outputs[i][0], items_and_outputs[i][1]) for i in range(len(items_and_outputs))]
+                    futures = [
+                        executor.submit(
+                            _process_map_item,
+                            items_and_outputs[i][0],
+                            items_and_outputs[i][1],
+                        )
+                        for i in range(len(items_and_outputs))
+                    ]
                     for i in range(len(futures)):
                         try:
                             result, item_cost = futures[i].result()
@@ -268,19 +289,25 @@ class MapOperation(BaseOperation):
                             total_cost += item_cost
                         except Exception as e:
                             if self.config.get("skip_on_error", False):
-                               self.console.log(f"[bold red]Error in map operation {self.config['name']}, skipping item:[/bold red] {e}")
-                               continue
+                                self.console.log(
+                                    f"[bold red]Error in map operation {self.config['name']}, skipping item:[/bold red] {e}"
+                                )
+                                continue
                             else:
                                 raise e
             else:
                 try:
-                    result, item_cost = _process_map_item(items_and_outputs[0][0], items_and_outputs[0][1])
+                    result, item_cost = _process_map_item(
+                        items_and_outputs[0][0], items_and_outputs[0][1]
+                    )
                     if result is not None:
                         all_results.append(result)
                     total_cost += item_cost
                 except Exception as e:
                     if self.config.get("skip_on_error", False):
-                        self.console.log(f"[bold red]Error in map operation {self.config['name']}, skipping item:[/bold red] {e}")
+                        self.console.log(
+                            f"[bold red]Error in map operation {self.config['name']}, skipping item:[/bold red] {e}"
+                        )
                     else:
                         raise e
 
@@ -291,7 +318,7 @@ class MapOperation(BaseOperation):
             batch_size = self.max_batch_size if self.max_batch_size is not None else 1
             futures = []
             for i in range(0, len(input_data), batch_size):
-                batch = input_data[i:i + batch_size]
+                batch = input_data[i : i + batch_size]
                 futures.append(executor.submit(_process_map_batch, batch))
             results = []
             total_cost = 0
@@ -304,11 +331,14 @@ class MapOperation(BaseOperation):
                 result_list, item_cost = futures[i].result()
                 if result_list:
                     if "drop_keys" in self.config:
-                        result_list = [{
-                            k: v
-                            for k, v in result.items()
-                            if k not in self.config["drop_keys"]
-                        } for result in result_list]
+                        result_list = [
+                            {
+                                k: v
+                                for k, v in result.items()
+                                if k not in self.config["drop_keys"]
+                            }
+                            for result in result_list
+                        ]
                     results.extend(result_list)
                 total_cost += item_cost
 
@@ -470,7 +500,9 @@ class ParallelMapOperation(BaseOperation):
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
                 bypass_cache=self.config.get("bypass_cache", False),
-                litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+                litellm_completion_kwargs=self.config.get(
+                    "litellm_completion_kwargs", {}
+                ),
             )
             output = self.runner.api.parse_llm_response(
                 response.response,
@@ -513,7 +545,9 @@ class ParallelMapOperation(BaseOperation):
                     if self.config.get("enable_observability", False):
                         if f"_observability_{self.config['name']}" not in item_result:
                             item_result[f"_observability_{self.config['name']}"] = {}
-                        item_result[f"_observability_{self.config['name']}"].update({f"prompt_{prompt_index}": prompt})
+                        item_result[f"_observability_{self.config['name']}"].update(
+                            {f"prompt_{prompt_index}": prompt}
+                        )
 
                     # Update the item_result with the output
                     item_result.update(output)

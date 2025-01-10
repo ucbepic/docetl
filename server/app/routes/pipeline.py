@@ -212,7 +212,7 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
                 )
 
                 if user_message == "kill":
-                    runner.console.print("Stopping process...")
+                    runner.console.log("Stopping process...")
                     await websocket.send_json({
                         "type": "error",
                         "message": "Process stopped by user request"

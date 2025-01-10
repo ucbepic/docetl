@@ -1,8 +1,8 @@
 import importlib
 import io
 import os
-from typing import Dict, List, Optional, Any
 from functools import wraps
+from typing import Any, Dict, List, Optional
 
 
 def with_input_output_key(fn):
@@ -61,7 +61,7 @@ def whisper_speech_to_text(filename: str) -> List[str]:
     Returns:
         List[str]: Transcribed text.
     """
-    import os
+
     from litellm import transcription
 
     file_size = os.path.getsize(filename)
@@ -274,7 +274,6 @@ def azure_di_read(
     Raises:
         ValueError: If DOCUMENTINTELLIGENCE_API_KEY or DOCUMENTINTELLIGENCE_ENDPOINT environment variables are not set.
     """
-    import os
 
     from azure.ai.documentintelligence import DocumentIntelligenceClient
     from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
@@ -385,9 +384,9 @@ def paddleocr_pdf_to_string(
     Returns:
         List[str]: Extracted content as a list of formatted strings.
     """
-    from paddleocr import PaddleOCR
     import fitz
     import numpy as np
+    from paddleocr import PaddleOCR
 
     ocr = PaddleOCR(use_angle_cls=True, lang=lang)
 
@@ -454,9 +453,9 @@ def gptpdf_to_string(
     Returns:
         str: Extracted content as a string.
     """
-    from gptpdf import parse_pdf
-
     import tempfile
+
+    from gptpdf import parse_pdf
 
     with tempfile.TemporaryDirectory() as temp_dir:
         kwargs = {
@@ -483,7 +482,7 @@ def gptpdf_to_string(
 def get_parser(name: str):
     try:
         entrypoint = importlib.metadata.entry_points(group="docetl.parser")[name]
-    except KeyError as e:
+    except KeyError:
         raise KeyError(f"Unrecognized parser {name}")
     return entrypoint.load()
 

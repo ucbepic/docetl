@@ -1,42 +1,46 @@
 import json
+import math
 import re
-from typing import Any, Dict, List
 from enum import Enum
+from typing import Any, Dict, List
+
 import tiktoken
 import yaml
 from jinja2 import Environment, meta
 from litellm import completion_cost as lcc
-
 from lzstring import LZString
+
 
 class Decryptor:
     def __init__(self, secret_key: str):
         self.key = secret_key
         self.lz = LZString()
-    
+
     def decrypt(self, encrypted_data: str) -> str:
         try:
             # First decompress the data
             compressed = self.lz.decompressFromBase64(encrypted_data)
             if not compressed:
                 raise ValueError("Invalid compressed data")
-            
+
             # Then decode using the key
-            result = ''
+            result = ""
             for i in range(len(compressed)):
                 char_code = ord(compressed[i]) - ord(self.key[i % len(self.key)])
                 result += chr(char_code)
-            
+
             return result
-            
+
         except Exception as e:
             print(f"Decryption failed: {str(e)}")
             return None
+
 
 def decrypt(encrypted_data: str, secret_key: str) -> str:
     if not secret_key:
         return encrypted_data
     return Decryptor(secret_key).decrypt(encrypted_data)
+
 
 class StageType(Enum):
     SAMPLE_RUN = "sample_run"
@@ -44,6 +48,7 @@ class StageType(Enum):
     CANDIDATE_PLANS = "candidate_plans"
     EVALUATION_RESULTS = "evaluation_results"
     END = "end"
+
 
 def get_stage_description(stage_type: StageType) -> str:
     if stage_type == StageType.SAMPLE_RUN:
@@ -58,14 +63,15 @@ def get_stage_description(stage_type: StageType) -> str:
         return "Optimization complete!"
     raise ValueError(f"Unknown stage type: {stage_type}")
 
+
 class CapturedOutput:
     def __init__(self):
         self.optimizer_output = {}
         self.step = None
-        
+
     def set_step(self, step: str):
         self.step = step
-    
+
     def save_optimizer_output(self, stage_type: StageType, output: Any):
         if self.step is None:
             raise ValueError("Step must be set before saving optimizer output")
@@ -75,6 +81,7 @@ class CapturedOutput:
             self.optimizer_output[self.step] = {}
 
         self.optimizer_output[self.step][stage_type] = output
+
 
 def extract_jinja_variables(template_string: str) -> List[str]:
     """
@@ -222,9 +229,70 @@ def truncate_sample_data(
     return truncated_data
 
 
+def smart_sample(
+    input_data: List[Dict], sample_size_needed: int, max_unique_values: int = 5
+) -> List[Dict]:
+    """
+    Smart sampling strategy that:
+    1. Identifies categorical fields by checking for low cardinality (few unique values)
+    2. Stratifies on up to 3 categorical fields
+    3. Takes largest documents per stratum
+
+    Args:
+        input_data (List[Dict]): List of input documents
+        sample_size_needed (int): Number of samples needed
+        max_unique_values (int): Maximum number of unique values for a field to be considered categorical
+
+    Returns:
+        List[Dict]: Sampled documents
+    """
+    if not input_data or sample_size_needed >= len(input_data):
+        return input_data
+
+    # Find fields with low cardinality (categorical fields)
+    field_unique_values = {}
+    for field in input_data[0].keys():
+        unique_values = set(str(doc.get(field, "")) for doc in input_data)
+        if len(unique_values) <= max_unique_values:
+            field_unique_values[field] = len(unique_values)
+
+    # Sort by number of unique values and take top 3 categorical fields
+    categorical_fields = sorted(field_unique_values.items(), key=lambda x: x[1])[:3]
+    categorical_fields = [field for field, _ in categorical_fields]
+
+    # If no categorical fields, return largest documents
+    if not categorical_fields:
+        return sorted(input_data, key=lambda x: len(json.dumps(x)), reverse=True)[
+            :sample_size_needed
+        ]
+
+    # Group data by categorical fields
+    groups = {}
+    for doc in input_data:
+        key = tuple(str(doc.get(field, "")) for field in categorical_fields)
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(doc)
+
+    # Calculate samples needed per group (evenly distributed)
+    samples_per_group = math.ceil(sample_size_needed / len(groups))
+
+    # Take largest documents from each group
+    result = []
+    for docs in groups.values():
+        sorted_docs = sorted(docs, key=lambda x: len(json.dumps(x)), reverse=True)
+        result.extend(sorted_docs[:samples_per_group])
+
+    # If we have too many samples, trim to exact size needed
+    # Sort by size again to ensure we keep the largest documents
+    return sorted(result, key=lambda x: len(json.dumps(x)), reverse=True)[
+        :sample_size_needed
+    ]
+
 
 class classproperty(object):
     def __init__(self, f):
         self.f = f
+
     def __get__(self, obj, owner):
         return self.f(owner)

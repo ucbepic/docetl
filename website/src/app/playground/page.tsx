@@ -723,7 +723,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           onDragEnd={() => (document.body.style.cursor = "default")}
         >
           {showFileExplorer && (
-            <ResizablePanel defaultSize={10} minSize={6} className="h-full">
+            <ResizablePanel defaultSize={15} minSize={6} className="h-full">
               <ResizablePanelGroup
                 direction="vertical"
                 className="h-full"
@@ -731,7 +731,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                 onDragEnd={() => (document.body.style.cursor = "default")}
               >
                 <ResizablePanel
-                  defaultSize={40}
+                  defaultSize={50}
                   minSize={20}
                   className="overflow-auto"
                 >
@@ -756,7 +756,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                 </ResizablePanel>
                 <ResizableHandle withHandle className={resizeHandleStyles} />
                 <ResizablePanel
-                  defaultSize={60}
+                  defaultSize={50}
                   minSize={20}
                   className="overflow-auto"
                 >
@@ -769,7 +769,11 @@ const CodeEditorPipelineApp: React.FC = () => {
             <ResizableHandle withHandle className={resizeHandleStyles} />
           )}
 
-          <ResizablePanel defaultSize={60} minSize={30} className="h-full">
+          <ResizablePanel
+            defaultSize={showDatasetView ? 65 : 85}
+            minSize={30}
+            className="h-full"
+          >
             <ResizablePanelGroup
               direction="vertical"
               className="h-full"

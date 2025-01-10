@@ -72,7 +72,7 @@ def test_optimize_map_operation(runner, test_dir):
     
     
     # Run optimization
-    optimized_config, total_cost = runner.optimize()
+    optimized_config, total_cost = runner.optimize(return_pipeline=False)
     
     # Check that optimization completed successfully
     assert total_cost >= 0  # Cost should be non-negative

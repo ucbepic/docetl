@@ -5,7 +5,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from jinja2 import Environment, Template
+from jinja2 import Template
 from litellm.utils import ModelResponse
 from pydantic import Field, field_validator
 from tqdm import tqdm
@@ -13,7 +13,6 @@ from tqdm import tqdm
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, strict_render
-from docetl.utils import completion_cost
 
 
 class MapOperation(BaseOperation):
@@ -109,7 +108,7 @@ class MapOperation(BaseOperation):
                 for tool in config.tools:
                     try:
                         tool_obj = Tool(**tool)
-                    except Exception as e:
+                    except Exception:
                         raise TypeError("Tool must be a dictionary")
 
                     if not (tool_obj.code and tool_obj.function):

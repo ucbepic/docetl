@@ -1,8 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from jinja2 import Environment, Template
+from jinja2 import Template
 
 from .base import BaseOperation
 from .clustering_utils import get_embeddings_for_clustering

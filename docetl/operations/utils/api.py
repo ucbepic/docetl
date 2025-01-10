@@ -557,7 +557,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             except Exception as e:
                 # Check that there's a prefix for the model name if it's not a basic model
                 if model not in BASIC_MODELS:
-                    if not "/" in model:
+                    if "/" not in model:
                         raise ValueError(
                             f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
                         )
@@ -578,7 +578,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             except Exception as e:
                 # Check that there's a prefix for the model name if it's not a basic model
                 if model not in BASIC_MODELS:
-                    if not "/" in model:
+                    if "/" not in model:
                         raise ValueError(
                             f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
                         )
@@ -699,13 +699,13 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                                 continue
                             try:
                                 output_dict[key] = ast.literal_eval(value)
-                            except:
+                            except Exception:
                                 try:
                                     if value.startswith("["):
                                         output_dict[key] = ast.literal_eval(value + "]")
                                     else:
                                         output_dict[key] = value
-                                except:
+                                except Exception:
                                     pass
                     outputs.append(output_dict)
                 except json.JSONDecodeError:

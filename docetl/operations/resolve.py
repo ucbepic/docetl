@@ -2,13 +2,9 @@
 The `ResolveOperation` class is a subclass of `BaseOperation` that performs a resolution operation on a dataset. It uses a combination of blocking techniques and LLM-based comparisons to efficiently identify and resolve duplicate or related entries within the dataset.
 """
 
-import json
-import math
 import random
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 from jinja2 import Template
@@ -253,10 +249,10 @@ class ResolveOperation(BaseOperation):
         if not blocking_threshold and not blocking_conditions:
             # Prompt the user for confirmation
             if not Confirm.ask(
-                f"[yellow]Warning: No blocking keys or conditions specified. "
-                f"This may result in a large number of comparisons. "
-                f"We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
-                f"Do you want to continue without blocking?[/yellow]",
+                "[yellow]Warning: No blocking keys or conditions specified. "
+                "This may result in a large number of comparisons. "
+                "We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
+                "Do you want to continue without blocking?[/yellow]",
                 console=self.runner.console,
             ):
                 raise ValueError("Operation cancelled by user.")

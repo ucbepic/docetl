@@ -13,8 +13,7 @@ from rich.panel import Panel
 from rich.status import Status
 from rich.traceback import install
 
-from docetl.config_wrapper import ConfigWrapper
-from docetl.dataset import Dataset, create_parsing_tool_map
+from docetl.dataset import Dataset
 from docetl.operations import get_operation
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import flush_cache
@@ -206,7 +205,7 @@ class Optimizer:
         The output is color-coded and formatted for easy readability, with a header and
         separator lines to clearly delineate the configuration information.
         """
-        self.console.print(
+        self.console.log(
             Panel.fit(
                 "[bold cyan]Optimizer Configuration[/bold cyan]\n"
                 f"[yellow]Sample Size:[/yellow] {self.sample_size_map}\n"
@@ -483,7 +482,7 @@ class Optimizer:
                         step_info += f"  - {op}\n"
                 step_operations.append(step_info)
 
-            self.console.print(
+            self.console.log(
                 Panel.fit(
                     "\n".join(step_operations),
                     title="[bold blue]Operations for each step",
@@ -922,7 +921,7 @@ class Optimizer:
                     for key, value in optimizer_config.items():
                         panel_content += f"\n[cyan]{key}:[/cyan] {value}"
 
-                self.console.print(
+                self.console.log(
                     Panel.fit(
                         panel_content,
                         title=f"[yellow]Optimizing {operation_name} (Type: {op_object['type']})",
@@ -993,7 +992,7 @@ class Optimizer:
                                     f"Unsupported operation type: {op_object['type']}"
                                 )
                             break  # If successful, break out of the retry loop
-                        except Exception as e:
+                        except Exception:
                             if (
                                 retry
                                 == self.config.get("optimizer_config", {}).get(
@@ -1047,7 +1046,7 @@ class Optimizer:
                             if op_name in [o["name"] for o in optimized_ops]:
                                 config_content += f"[cyan]{op_name}:[/cyan] {json.dumps(op_config, indent=2)}\n"
 
-                        self.console.print(
+                        self.console.log(
                             Panel.fit(config_content, title="Optimized Operations")
                         )
 
@@ -1265,9 +1264,7 @@ class Optimizer:
             bar = "█" * normalized_count
             histogram_content += f"{size:3d}: {bar} ({count})\n"
 
-        self.console.print(
-            Panel.fit(histogram_content, title="Group Size Distribution")
-        )
+        self.console.log(Panel.fit(histogram_content, title="Group Size Distribution"))
 
         return sample
 

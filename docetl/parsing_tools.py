@@ -61,7 +61,6 @@ def whisper_speech_to_text(filename: str) -> List[str]:
     Returns:
         List[str]: Transcribed text.
     """
-    import os
 
     from litellm import transcription
 
@@ -275,7 +274,6 @@ def azure_di_read(
     Raises:
         ValueError: If DOCUMENTINTELLIGENCE_API_KEY or DOCUMENTINTELLIGENCE_ENDPOINT environment variables are not set.
     """
-    import os
 
     from azure.ai.documentintelligence import DocumentIntelligenceClient
     from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
@@ -484,7 +482,7 @@ def gptpdf_to_string(
 def get_parser(name: str):
     try:
         entrypoint = importlib.metadata.entry_points(group="docetl.parser")[name]
-    except KeyError as e:
+    except KeyError:
         raise KeyError(f"Unrecognized parser {name}")
     return entrypoint.load()
 

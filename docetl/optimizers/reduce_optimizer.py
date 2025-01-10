@@ -3,18 +3,15 @@ import json
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from statistics import mean
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 from jinja2 import Template
 from litellm import model_cost
-from rich.console import Console
 from rich.prompt import Confirm
-from rich.status import Status
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import truncate_messages
 from docetl.optimizers.join_optimizer import JoinOptimizer
-from docetl.optimizers.utils import LLMClient
 from docetl.utils import StageType, count_tokens, extract_jinja_variables
 
 
@@ -194,9 +191,9 @@ class ReduceOptimizer:
             original_output,
         ) = self.should_optimize_helper(op_config, input_data)
 
-        add_map_op = False
+        # add_map_op = False
         if prompt_tokens * 2 > model_input_context_length:
-            add_map_op = True
+            # add_map_op = True
             self.console.log(
                 f"[yellow]Warning: The reduce prompt exceeds the token limit for model {model}. "
                 f"Token count: {prompt_tokens}, Limit: {model_input_context_length}. "
@@ -326,7 +323,7 @@ class ReduceOptimizer:
         should_preprocess = preprocessing_result["preprocessing_needed"]
         preprocessing_rationale = preprocessing_result["rationale"]
 
-        self.console.log(f"[bold]Map-Reduce Decomposition Analysis:[/bold]")
+        self.console.log("[bold]Map-Reduce Decomposition Analysis:[/bold]")
         self.console.log(f"Should write a map operation: {should_preprocess}")
         self.console.log(f"Rationale: {preprocessing_rationale}")
 

@@ -10,12 +10,10 @@ from multiprocessing import Pool, cpu_count
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from jinja2 import Template
 from litellm import model_cost
 from rich.console import Console
 from rich.prompt import Confirm
 
-from docetl import console
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import strict_render
 from docetl.operations.utils.progress import RichLoopBar
@@ -101,7 +99,7 @@ class EquijoinOperation(BaseOperation):
         try:
             prompt = strict_render(comparison_prompt, {"left": item1, "right": item2})
         except Exception as e:
-            self.console.print(f"[red]Error rendering prompt: {e}[/red]")
+            self.console.log(f"[red]Error rendering prompt: {e}[/red]")
             return False, 0
         response = self.runner.api.call_llm(
             model,
@@ -120,7 +118,7 @@ class EquijoinOperation(BaseOperation):
                 response.response, {"is_match": "bool"}
             )[0]
         except Exception as e:
-            self.console.print(f"[red]Error parsing LLM response: {e}[/red]")
+            self.console.log(f"[red]Error parsing LLM response: {e}[/red]")
             return False, cost
         return output["is_match"], cost
 
@@ -439,7 +437,7 @@ class EquijoinOperation(BaseOperation):
 
             pbar = RichLoopBar(
                 range(len(future_to_pair)),
-                desc=f"Comparing pairs",
+                desc="Comparing pairs",
                 console=self.console,
             )
 

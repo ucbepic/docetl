@@ -180,7 +180,7 @@ class Evaluator:
                 f"Reason: {comp['reason']}\n\n"
             )
 
-        self.console.print(
+        self.console.log(
             Panel.fit(
                 comparison_content,
                 title=f"[bold magenta]Pairwise Comparison: {plan1_name} vs {plan2_name}[/bold magenta]",

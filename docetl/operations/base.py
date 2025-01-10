@@ -11,7 +11,6 @@ from rich.console import Console
 from rich.status import Status
 
 from docetl.console import DOCETL_CONSOLE
-from docetl.operations.utils import APIWrapper
 
 
 # FIXME: This should probably live in some utils module?
@@ -33,7 +32,7 @@ class BaseOperationMeta(ABCMeta):
 class BaseOperation(ABC, metaclass=BaseOperationMeta):
     def __init__(
         self,
-        runner: "ConfigWrapper",
+        runner,
         config: Dict,
         default_model: str,
         max_threads: int,

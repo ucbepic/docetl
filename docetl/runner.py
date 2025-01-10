@@ -34,18 +34,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
-from rich.prompt import Confirm
 
 from docetl.config_wrapper import ConfigWrapper
-from docetl.console import get_console
 from docetl.containers import OpContainer, StepBoundary
 from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation, get_operations
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import flush_cache
 from docetl.optimizer import Optimizer
 
 from . import schemas
@@ -306,7 +302,7 @@ class DSLRunner(ConfigWrapper):
         """
         Perform a syntax check on all operations defined in the configuration.
         """
-        self.console.print("\n[yellow]Checking operations...[/yellow]")
+        self.console.log("[yellow]Checking operations...[/yellow]")
 
         # Just validate that it's a json file if specified
         self.get_output_path()
@@ -321,7 +317,7 @@ class DSLRunner(ConfigWrapper):
             while op_containers:
                 current = op_containers.pop(0)
                 syntax_result = current.syntax_check()
-                self.console.print(syntax_result, end="")
+                self.console.log(syntax_result, end="")
                 # Add all children to the queue
                 op_containers.extend(current.children)
         except Exception as e:
@@ -329,7 +325,7 @@ class DSLRunner(ConfigWrapper):
                 f"Syntax check failed for operation '{current.name}': {str(e)}"
             )
 
-        self.console.print("[green]✓ All operations passed syntax check[/green]\n")
+        self.console.log("[green]✓ All operations passed syntax check[/green]")
 
     def print_query_plan(self, show_boundaries=False):
         """
@@ -338,11 +334,11 @@ class DSLRunner(ConfigWrapper):
         dependencies between steps.
         """
         if not self.last_op_container:
-            self.console.print("\n[bold]Pipeline Steps:[/bold]")
-            self.console.print(
+            self.console.log("\n[bold]Pipeline Steps:[/bold]")
+            self.console.log(
                 Panel("No operations in pipeline", title="Query Plan", width=100)
             )
-            self.console.print()
+            self.console.log()
             return
 
         def _print_op(
@@ -417,14 +413,14 @@ class DSLRunner(ConfigWrapper):
         }
 
         # Print the legend
-        self.console.print("\n[bold]Pipeline Steps:[/bold]")
+        self.console.log("\n[bold]Pipeline Steps:[/bold]")
         for step_name, color in step_colors.items():
-            self.console.print(f"[{color}]■[/{color}] {step_name}")
+            self.console.log(f"[{color}]■[/{color}] {step_name}")
 
         # Print the full query plan starting from the last step boundary
         query_plan = _print_op(self.last_op_container, step_colors=step_colors)
-        self.console.print(Panel(query_plan, title="Query Plan", width=100))
-        self.console.print()
+        self.console.log(Panel(query_plan, title="Query Plan", width=100))
+        self.console.log()
 
     def find_operation(self, op_name: str) -> Dict:
         for operation_config in self.config["operations"]:
@@ -441,24 +437,28 @@ class DSLRunner(ConfigWrapper):
         # Print the query plan
         self.print_query_plan()
 
-        self.console.rule("[bold]Pipeline Execution[/bold]")
         start_time = time.time()
 
         if self.last_op_container:
             self.load()
+            self.console.rule("[bold]Pipeline Execution[/bold]")
             output, _, _ = self.last_op_container.next()
             self.save(output)
 
         execution_time = time.time() - start_time
 
         # Print execution summary
-        self.console.print("\nExecution Summary")
-        self.console.print(f"Cost: [green]${self.total_cost:.2f}[/green]")
-        self.console.print(f"Time: {execution_time:.2f}s")
-        if self.intermediate_dir:
-            self.console.print(f"Cache: [dim]{self.intermediate_dir}[/dim]")
-        self.console.print(f"Output: [dim]{output_path}[/dim]")
-        self.console.print()
+        summary = (
+            f"Cost: [green]${self.total_cost:.2f}[/green]\n"
+            f"Time: {execution_time:.2f}s\n"
+            + (
+                f"Cache: [dim]{self.intermediate_dir}[/dim]\n"
+                if self.intermediate_dir
+                else ""
+            )
+            + f"Output: [dim]{output_path}[/dim]"
+        )
+        self.console.log(Panel(summary, title="Execution Summary"))
 
         return self.total_cost
 
@@ -467,6 +467,7 @@ class DSLRunner(ConfigWrapper):
         Load all datasets defined in the configuration.
         """
         datasets = {}
+        self.console.rule("[bold]Loading Datasets[/bold]")
 
         for name, dataset_config in self.config["datasets"].items():
             if dataset_config["type"] == "file":
@@ -478,7 +479,9 @@ class DSLRunner(ConfigWrapper):
                     parsing=dataset_config.get("parsing", []),
                     user_defined_parsing_tool_map=self.parsing_tool_map,
                 )
-                self.console.print(f"[green]✓[/green] Loaded {name}")
+                self.console.log(
+                    f"[green]✓[/green] Loaded dataset '{name}' from {dataset_config['path']}"
+                )
             else:
                 raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
 
@@ -490,7 +493,7 @@ class DSLRunner(ConfigWrapper):
             )
             for name, dataset in datasets.items()
         }
-        self.console.print()
+        self.console.log()
 
     def save(self, data: List[Dict]) -> None:
         """
@@ -516,7 +519,7 @@ class DSLRunner(ConfigWrapper):
                     ]
                     writer.writeheader()
                     writer.writerows(limited_data)
-            self.console.print(
+            self.console.log(
                 f"[green]✓[/green] Saved to [dim]{output_config['path']}[/dim]\n"
             )
         else:
@@ -564,7 +567,7 @@ class DSLRunner(ConfigWrapper):
                     self, "file", checkpoint_path, "local"
                 )
 
-                self.console.print(
+                self.console.log(
                     f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' from {checkpoint_path}[/italic]"
                 )
 
@@ -609,7 +612,7 @@ class DSLRunner(ConfigWrapper):
         with open(checkpoint_path, "w") as f:
             json.dump(data, f)
 
-        self.console.print(
+        self.console.log(
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
         )
 

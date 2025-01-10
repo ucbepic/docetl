@@ -1,16 +1,12 @@
-import random
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Tuple
 
-import jinja2
-import numpy as np
 from jinja2 import Template
 from rich.prompt import Confirm
 from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, rich_as_completed, strict_render
-from docetl.utils import completion_cost, extract_jinja_variables
+from docetl.operations.utils import RichLoopBar, strict_render
 
 from .clustering_utils import get_embeddings_for_clustering
 
@@ -57,10 +53,10 @@ class LinkResolveOperation(BaseOperation):
         if not blocking_threshold and not blocking_conditions:
             # Prompt the user for confirmation
             if not Confirm.ask(
-                f"[yellow]Warning: No blocking keys or conditions specified. "
-                f"This may result in a large number of comparisons. "
-                f"We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
-                f"Do you want to continue without blocking?[/yellow]",
+                "[yellow]Warning: No blocking keys or conditions specified. "
+                "This may result in a large number of comparisons. "
+                "We recommend specifying at least one blocking key or condition, or using the optimizer to automatically come up with these. "
+                "Do you want to continue without blocking?[/yellow]",
             ):
                 raise ValueError("Operation cancelled by user.")
 

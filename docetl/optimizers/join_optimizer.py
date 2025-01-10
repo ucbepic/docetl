@@ -5,13 +5,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from litellm import model_cost
-from rich.console import Console
 from rich.prompt import Confirm
-from rich.status import Status
 
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.resolve import ResolveOperation
-from docetl.utils import StageType, completion_cost, extract_jinja_variables
+from docetl.utils import completion_cost, extract_jinja_variables
 
 
 class JoinOptimizer:
@@ -620,7 +618,7 @@ class JoinOptimizer:
 
             # Log the generated blocking keys
             self.console.log(
-                f"[bold]Generated blocking keys (for embeddings-based blocking):[/bold]"
+                "[bold]Generated blocking keys (for embeddings-based blocking):[/bold]"
             )
             self.console.log(f"Left keys: {left_keys}")
             self.console.log(f"Right keys: {right_keys}")

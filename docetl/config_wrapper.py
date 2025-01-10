@@ -2,7 +2,7 @@ import datetime
 import math
 import os
 from inspect import isawaitable
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional
 
 import pyrate_limiter
 from rich.console import Console

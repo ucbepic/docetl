@@ -7,15 +7,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from jinja2 import Template
 from litellm import model_cost
-from rich.console import Console
 from rich.table import Table
 
 from docetl.optimizers.map_optimizer.evaluator import Evaluator
 from docetl.optimizers.map_optimizer.plan_generators import PlanGenerator
 from docetl.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from docetl.optimizers.map_optimizer.utils import select_evaluation_samples
-from docetl.optimizers.utils import LLMClient
-from docetl.utils import CapturedOutput, StageType, count_tokens
+from docetl.utils import StageType, count_tokens
 
 
 class MapOptimizer:
@@ -208,9 +206,7 @@ class MapOptimizer:
             f"[bold]Assessment for whether we should improve operation {op_config['name']}:[/bold]"
         )
         for key, value in assessment.items():
-            self.console.print(
-                f"[bold cyan]{key}:[/bold cyan] [yellow]{value}[/yellow]"
-            )
+            self.console.log(f"[bold cyan]{key}:[/bold cyan] [yellow]{value}[/yellow]")
         self.console.log("\n")  # Add a newline for better readability
 
         self.runner.optimizer.captured_output.save_optimizer_output(

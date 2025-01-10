@@ -1,11 +1,12 @@
 import os
-import queue
 import threading
 import time
 from io import StringIO
-from typing import Any, Optional, Tuple
+from typing import Tuple
 
-from rich.console import Console
+from rich.console import Console, RenderableType
+from rich.status import Status
+from rich.style import StyleType
 
 from docetl.utils import StageType, get_stage_description
 
@@ -29,7 +30,6 @@ class ThreadSafeConsole(Console):
         speed: float = 1.0,
         refresh_per_second: float = 12.5,
     ) -> "Status":
-        from rich.status import Status
 
         status_renderable = Status(
             status,
@@ -92,9 +92,12 @@ def get_console():
     if os.environ.get("USE_FRONTEND") == "true":
         return ThreadSafeConsole(
             force_terminal=True,
-            width=80,
             soft_wrap=True,
             highlight=False,
+            log_path=False,
+            color_system="truecolor",
+            width=120,
+            style="bright_white on black",
         )
     else:
 
@@ -105,7 +108,8 @@ def get_console():
             def post_optimizer_rationale(self, *args, **kwargs):
                 pass
 
-        return NoOpConsole()
+        return NoOpConsole(log_path=False)
 
 
+# Create the console first
 DOCETL_CONSOLE = get_console()

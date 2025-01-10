@@ -1,16 +1,13 @@
-import ast
 import json
 import threading
-import time
 from typing import Any, Dict, List, Optional
 
 import tiktoken
-from jinja2 import Template
 from litellm import model_cost
 from pydantic import BaseModel
 from rich import print as rprint
 
-from docetl.utils import completion_cost, count_tokens
+from docetl.utils import count_tokens
 
 
 class LLMResult(BaseModel):

@@ -1,4 +1,8 @@
+from typing import Union
+
 from . import dataset
+
+# ruff: noqa: F403
 from .base_schemas import *
 from .operations import (
     cluster,

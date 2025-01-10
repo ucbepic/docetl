@@ -1,8 +1,5 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-from pydantic import BaseModel
-
-from docetl.dataset import Dataset
 from docetl.operations.base import BaseOperation
 
 

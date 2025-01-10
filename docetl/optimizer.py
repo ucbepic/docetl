@@ -12,24 +12,15 @@ The architecture follows these key principles:
 
 import copy
 import hashlib
-import json
-import math
 import os
 import random
-from collections import Counter, defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Tuple
 
 import yaml
-from rich.console import Console
 from rich.panel import Panel
-from rich.status import Status
 from rich.traceback import install
 
-from docetl.config_wrapper import ConfigWrapper
 from docetl.containers import OpContainer, StepBoundary
-from docetl.dataset import Dataset, create_parsing_tool_map
-from docetl.operations import get_operation
-from docetl.operations.base import BaseOperation
 from docetl.operations.utils import flush_cache
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.optimizers.map_optimizer import MapOptimizer
@@ -52,6 +43,7 @@ SAMPLE_SIZE_MAP = {
     "gather": 10,
     "unnest": 10,
 }
+
 
 class Optimizer:
     """
@@ -110,14 +102,14 @@ class Optimizer:
         self.timeout = timeout
         self.resume = resume
         self.captured_output = CapturedOutput()
-        
+
         # Add sample cache for build operations
         self.sample_cache = {}  # Maps operation names to (output_data, sample_size)
 
         home_dir = os.environ.get("DOCETL_HOME_DIR", os.path.expanduser("~"))
         cache_dir = os.path.join(home_dir, f".docetl/cache/{runner.yaml_file_suffix}")
         os.makedirs(cache_dir, exist_ok=True)
-        
+
         # Hash the config to create a unique identifier
         config_hash = hashlib.sha256(str(self.config).encode()).hexdigest()
         self.optimized_ops_path = f"{cache_dir}/{config_hash}.yaml"
@@ -127,10 +119,8 @@ class Optimizer:
         if self.config.get("optimizer_config", {}).get("sample_sizes", {}):
             self.sample_size_map.update(self.config["optimizer_config"]["sample_sizes"])
 
-
         self.print_optimizer_config()
 
-    
     def print_optimizer_config(self):
         """
         Print the current configuration of the optimizer.
@@ -143,7 +133,7 @@ class Optimizer:
         The output is color-coded and formatted for easy readability, with a header and
         separator lines to clearly delineate the configuration information.
         """
-        self.console.print(
+        self.console.log(
             Panel.fit(
                 "[bold cyan]Optimizer Configuration[/bold cyan]\n"
                 f"[yellow]Sample Size:[/yellow] {self.sample_size_map}\n"
@@ -153,7 +143,7 @@ class Optimizer:
                 title="Optimizer Configuration",
             )
         )
-    
+
     def _insert_empty_resolve_operations(self):
         """
         Determines whether to insert resolve operations in the pipeline.
@@ -174,14 +164,14 @@ class Optimizer:
             """Helper to find first map descendant without a resolve operation in between."""
             if visited is None:
                 visited = set()
-            
+
             if container.name in visited:
                 return None
             visited.add(container.name)
-            
+
             if not container.children:
                 return None
-                
+
             for child in container.children:
                 if child.config["type"] == "map":
                     return child
@@ -196,7 +186,7 @@ class Optimizer:
         containers_to_check = [self.runner.last_op_container]
         while containers_to_check:
             current = containers_to_check.pop(0)
-            
+
             # Skip if this is a boundary or has no children
             if isinstance(current, StepBoundary) or not current.children:
                 containers_to_check.extend(current.children)
@@ -204,13 +194,15 @@ class Optimizer:
 
             # Get the step name from the container's name
             step_name = current.name.split("/")[0]
-            
+
             # Check if current container is a reduce operation
-            if current.config["type"] == "reduce" and current.config.get("synthesize_resolve", True):
+            if current.config["type"] == "reduce" and current.config.get(
+                "synthesize_resolve", True
+            ):
                 reduce_key = current.config.get("reduce_key", "_all")
                 if isinstance(reduce_key, str):
                     reduce_key = [reduce_key]
-                
+
                 if "_all" not in reduce_key:
                     # Find map descendant without resolve
                     map_desc = find_map_without_resolve(current)
@@ -222,10 +214,14 @@ class Optimizer:
                         self.console.log(
                             f"  • [cyan]Reduce operation:[/cyan] [bold]{current.name}[/bold]"
                         )
-                        self.console.log(f"  • [cyan]Step:[/cyan] [bold]{step_name}[/bold]")
+                        self.console.log(
+                            f"  • [cyan]Step:[/cyan] [bold]{step_name}[/bold]"
+                        )
 
                         # Create new resolve operation config
-                        new_resolve_name = f"synthesized_resolve_{len(self.config['operations'])}"
+                        new_resolve_name = (
+                            f"synthesized_resolve_{len(self.config['operations'])}"
+                        )
                         new_resolve_config = {
                             "name": new_resolve_name,
                             "type": "resolve",
@@ -251,7 +247,7 @@ class Optimizer:
                         new_resolve_container = OpContainer(
                             f"{step_name}/{new_resolve_name}",
                             self.runner,
-                            new_resolve_config
+                            new_resolve_config,
                         )
 
                         # Insert the new container between reduce and its children
@@ -260,9 +256,11 @@ class Optimizer:
                             child.parent = new_resolve_container
                         current.children = [new_resolve_container]
                         new_resolve_container.parent = current
-                        
+
                         # Add to container map
-                        self.runner.op_container_map[f"{step_name}/{new_resolve_name}"] = new_resolve_container
+                        self.runner.op_container_map[
+                            f"{step_name}/{new_resolve_name}"
+                        ] = new_resolve_container
 
                         # Add children to the queue
                         containers_to_check.extend(new_resolve_container.children)
@@ -285,32 +283,32 @@ class Optimizer:
             """Helper to find map prompts for given keys in the container's descendants."""
             if visited is None:
                 visited = set()
-            
+
             if container.name in visited:
                 return []
             visited.add(container.name)
-            
+
             prompts = []
             if container.config["type"] == "map":
                 output_schema = container.config.get("output", {}).get("schema", {})
                 if any(key in output_schema for key in keys):
                     prompts.append(container.config.get("prompt", ""))
-            
+
             for child in container.children:
                 prompts.extend(find_map_prompts_for_keys(child, keys, visited))
-            
+
             return prompts
 
         # Walk down the operation container tree
         containers_to_check = [self.runner.last_op_container]
         while containers_to_check:
             current = containers_to_check.pop(0)
-            
+
             # Skip if this is a boundary or has no children
             if isinstance(current, StepBoundary) or not current.children:
                 containers_to_check.extend(current.children)
                 continue
-            
+
             # If this is a reduce operation, find relevant map prompts
             if current.config["type"] == "reduce":
                 reduce_keys = current.config.get("reduce_key", [])
@@ -319,11 +317,15 @@ class Optimizer:
 
                 # Find map prompts in descendants
                 relevant_prompts = find_map_prompts_for_keys(current, reduce_keys)
-                
+
                 if relevant_prompts:
-                    current.config["_intermediates"] = current.config.get("_intermediates", {})
-                    current.config["_intermediates"]["last_map_prompt"] = relevant_prompts[-1]
-            
+                    current.config["_intermediates"] = current.config.get(
+                        "_intermediates", {}
+                    )
+                    current.config["_intermediates"]["last_map_prompt"] = (
+                        relevant_prompts[-1]
+                    )
+
             # Add children to the queue
             containers_to_check.extend(current.children)
 
@@ -335,19 +337,23 @@ class Optimizer:
         and evaluating potential optimizations. Returns the optimization suggestion and relevant data.
         """
         self.console.rule("[bold cyan]Beginning Pipeline Optimization[/bold cyan]")
-        self.syntax_check()
 
         self._insert_empty_resolve_operations()
-        
+
         node_of_interest = self.runner.op_container_map[f"{step_name}/{op_name}"]
-        
+
         # Run the node_of_interest's children
         input_data = []
         for child in node_of_interest.children:
-            input_data.append(child.next(is_build=True, sample_size_needed=SAMPLE_SIZE_MAP.get(child.config["type"])))
-        
+            input_data.append(
+                child.next(
+                    is_build=True,
+                    sample_size_needed=SAMPLE_SIZE_MAP.get(child.config["type"]),
+                )
+            )
+
         # Determine whether we should optimize the node_of_interest
-        
+
         if (
             node_of_interest.config.get("type") == "map"
             or node_of_interest.config.get("type") == "filter"
@@ -358,16 +364,16 @@ class Optimizer:
                 self.runner._run_operation,
                 is_filter=node_of_interest.config.get("type") == "filter",
             )
-            should_optimize_output, input_data, output_data = map_optimizer.should_optimize(
-                node_of_interest.config, input_data[0]
+            should_optimize_output, input_data, output_data = (
+                map_optimizer.should_optimize(node_of_interest.config, input_data[0])
             )
         elif node_of_interest.config.get("type") == "reduce":
             reduce_optimizer = ReduceOptimizer(
                 self.runner,
                 self._run_operation,
             )
-            should_optimize_output, input_data, output_data = reduce_optimizer.should_optimize(
-                node_of_interest.config, input_data[0]
+            should_optimize_output, input_data, output_data = (
+                reduce_optimizer.should_optimize(node_of_interest.config, input_data[0])
             )
         elif node_of_interest.config.get("type") == "resolve":
             resolve_optimizer = JoinOptimizer(
@@ -399,21 +405,28 @@ class Optimizer:
         operation-specific optimizers where marked. Returns the total optimization cost.
         """
         self.console.rule("[bold cyan]Beginning Pipeline Optimization[/bold cyan]")
-        
+
         # If self.resume is True and there's a checkpoint, load it
         if self.resume:
             if os.path.exists(self.optimized_ops_path):
                 # Load the yaml and change the runner with it
                 with open(self.optimized_ops_path, "r") as f:
                     partial_optimized_config = yaml.safe_load(f)
-                    self.console.print("[yellow]Loading partially optimized pipeline from checkpoint...[/yellow]")
+                    self.console.log(
+                        "[yellow]Loading partially optimized pipeline from checkpoint...[/yellow]"
+                    )
                     self.runner._build_operation_graph(partial_optimized_config)
             else:
-                self.console.print("[yellow]No checkpoint found, starting optimization from scratch...[/yellow]")
-        
+                self.console.log(
+                    "[yellow]No checkpoint found, starting optimization from scratch...[/yellow]"
+                )
+
         else:
             self._insert_empty_resolve_operations()
-        
+
+        # Print the query plan
+        self.runner.print_query_plan()
+
         # Start with the last operation container and visit each child
         self.runner.last_op_container.optimize()
 
@@ -428,7 +441,9 @@ class Optimizer:
         right_name: str,
         left_data: List[Dict[str, Any]],
         right_data: List[Dict[str, Any]],
-        run_operation: Callable[[Dict[str, Any], List[Dict[str, Any]]], List[Dict[str, Any]]]
+        run_operation: Callable[
+            [Dict[str, Any], List[Dict[str, Any]]], List[Dict[str, Any]]
+        ],
     ) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str, str]:
         """
         Optimizes an equijoin operation by analyzing join conditions and potentially inserting
@@ -529,7 +544,7 @@ class Optimizer:
                 )
 
         return op_config, new_steps, new_left_name, new_right_name
-    
+
     def checkpoint_optimized_ops(self) -> None:
         """
         Generates the clean config and saves it to the self.optimized_ops_path
@@ -567,35 +582,36 @@ class Optimizer:
         """
         if not self.runner.last_op_container:
             return self.config
-            
+
         # Create a clean copy of the config
         clean_config = {
             "datasets": self.config.get("datasets", {}),
             "operations": [],
-            "pipeline": self.runner.config.get("pipeline", {}).copy()  # Copy entire pipeline config
+            "pipeline": self.runner.config.get(
+                "pipeline", {}
+            ).copy(),  # Copy entire pipeline config
         }
-        
+
         # Reset steps to regenerate
         clean_config["pipeline"]["steps"] = []
-        
+
         # Keep track of operations we've seen to avoid duplicates
         seen_operations = set()
-        current_step = None
-        
+
         def clean_operation(op_container: OpContainer) -> Dict:
             """Remove internal fields from operation config"""
             op_config = op_container.config
             clean_op = op_config.copy()
-            
+
             clean_op.pop("_intermediates", None)
-            
+
             # If op has already been optimized, remove the recursively_optimize and optimize fields
             if op_container.is_optimized:
                 for field in ["recursively_optimize", "optimize"]:
                     clean_op.pop(field, None)
 
             return clean_op
-            
+
         def process_container(container, current_step=None):
             """Process an operation container and its dependencies"""
             # Skip step boundaries
@@ -603,24 +619,21 @@ class Optimizer:
                 if container.children:
                     return process_container(container.children[0], current_step)
                 return None, None
-                
+
             # Get step name from container name
             step_name = container.name.split("/")[0]
-            
+
             # If this is a new step, create it
             if not current_step or current_step["name"] != step_name:
-                current_step = {
-                    "name": step_name,
-                    "operations": []
-                }
+                current_step = {"name": step_name, "operations": []}
                 clean_config["pipeline"]["steps"].insert(0, current_step)
-            
+
             # Skip scan operations but process their dependencies
             if container.config["type"] == "scan":
                 if container.children:
                     return process_container(container.children[0], current_step)
                 return None, current_step
-                
+
             # Handle equijoin operations
             if container.is_equijoin:
                 # Add operation to list if not seen
@@ -628,15 +641,18 @@ class Optimizer:
                     op_config = clean_operation(container)
                     clean_config["operations"].append(op_config)
                     seen_operations.add(container.name)
-                
+
                 # Add to step operations with left and right inputs
-                current_step["operations"].insert(0, {
-                    container.config["name"]: {
-                        "left": container.kwargs["left_name"],
-                        "right": container.kwargs["right_name"]
-                    }
-                })
-                
+                current_step["operations"].insert(
+                    0,
+                    {
+                        container.config["name"]: {
+                            "left": container.kwargs["left_name"],
+                            "right": container.kwargs["right_name"],
+                        }
+                    },
+                )
+
                 # Process both children
                 if container.children:
                     process_container(container.children[0], current_step)
@@ -647,20 +663,20 @@ class Optimizer:
                     op_config = clean_operation(container)
                     clean_config["operations"].append(op_config)
                     seen_operations.add(container.name)
-                
+
                 # Add to step operations
                 current_step["operations"].insert(0, container.config["name"])
-                
+
                 # Process children
                 if container.children:
                     for child in container.children:
                         process_container(child, current_step)
-            
+
             return container, current_step
-        
+
         # Start processing from the last container
         process_container(self.runner.last_op_container)
-        
+
         # Add inputs to steps based on their first operation
         for step in clean_config["pipeline"]["steps"]:
             first_op = step["operations"][0]
@@ -668,19 +684,25 @@ class Optimizer:
                 continue  # Equijoin steps don't need an input field
             elif len(step["operations"]) > 0:
                 # Find the first non-scan operation's input by looking at its dependencies
-                op_container = self.runner.op_container_map.get(f"{step['name']}/{first_op}")
+                op_container = self.runner.op_container_map.get(
+                    f"{step['name']}/{first_op}"
+                )
                 if op_container and op_container.children:
                     child = op_container.children[0]
-                    while child and child.config["type"] == "step_boundary" and child.children:
+                    while (
+                        child
+                        and child.config["type"] == "step_boundary"
+                        and child.children
+                    ):
                         child = child.children[0]
                     if child and child.config["type"] == "scan":
                         step["input"] = child.config["dataset_name"]
-        
+
         # Preserve all other config key-value pairs from original config
         for key, value in self.config.items():
             if key not in ["datasets", "operations", "pipeline"]:
                 clean_config[key] = value
-        
+
         return clean_config
 
     def save_optimized_config(self, optimized_config_path: str):
@@ -691,7 +713,7 @@ class Optimizer:
         # Print the optimized query plan
         self.console.rule("[bold cyan]Optimized Query Plan[/bold cyan]")
         self.runner.print_query_plan()
-        
+
         resolved_config = self.clean_optimized_config()
 
         with open(optimized_config_path, "w") as f:

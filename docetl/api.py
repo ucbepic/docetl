@@ -56,7 +56,6 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import yaml
 from rich import print
 
-from docetl.builder import Optimizer
 from docetl.runner import DSLRunner
 from docetl.schemas import (
     ClusterOp,

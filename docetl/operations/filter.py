@@ -1,10 +1,6 @@
 """The `FilterOperation` class is a subclass of `BaseOperation` that implements a filtering operation on input data using a language model."""
 
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
-
-from jinja2 import Template
-from pydantic import Field
+from typing import Dict, List, Tuple
 
 from docetl.operations.map import MapOperation
 

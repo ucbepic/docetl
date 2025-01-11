@@ -77,24 +77,36 @@ def safe_eval(expression: str, output: Dict) -> bool:
 def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
     """Convert a string representation of a type to a dictionary representation."""
     value = value.strip().lower()
+    is_outlines = model.startswith("outlines/")
+
+    # Basic types
     if value in ["str", "text", "string", "varchar"]:
-        return {"type": "string"}
+        return "str" if is_outlines else {"type": "string"}
     elif value in ["int", "integer"]:
-        return {"type": "integer"}
+        return "int" if is_outlines else {"type": "integer"}
     elif value in ["float", "decimal", "number"]:
-        return {"type": "number"}
+        return "float" if is_outlines else {"type": "number"}
     elif value in ["bool", "boolean"]:
-        return {"type": "boolean"}
+        return "bool" if is_outlines else {"type": "boolean"}
+    
+    # Lists
     elif value.startswith("list["):
         inner_type = value[5:-1].strip()
-        return {"type": "array", "items": convert_val(inner_type, model)}
+        inner_val = convert_val(inner_type, model)
+        return f"List[{inner_val}]" if is_outlines else {"type": "array", "items": inner_val}
     elif value == "list":
         raise ValueError("List type must specify its elements, e.g., 'list[str]'")
+    
+    # Objects
     elif value.startswith("{") and value.endswith("}"):
         properties = {}
         for item in value[1:-1].split(","):
             key, val = item.strip().split(":")
             properties[key.strip()] = convert_val(val.strip(), model)
+        
+        if is_outlines:
+            return properties
+        
         result = {
             "type": "object",
             "properties": properties,
@@ -103,12 +115,6 @@ def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
         if "gemini" not in model:
             result["additionalProperties"] = False
         return result
-    elif value.startswith("enum[") and value.endswith("]"):
-        enum_values = value[5:-1].strip().split(",")
-        enum_values = [v.strip() for v in enum_values]
-        return {"type": "string", "enum": enum_values}
-    else:
-        raise ValueError(f"Unsupported value type: {value}")
 
 def convert_dict_schema_to_list_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     """Convert a dictionary schema to a list schema."""

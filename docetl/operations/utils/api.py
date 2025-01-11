@@ -561,6 +561,19 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         messages = truncate_messages(messages, model)
 
         self.runner.rate_limiter.try_acquire("llm_call", weight=1)
+        if self._is_outlines_model(model):
+            model_path = self._get_model_path(model)
+            return self.outlines_backend.process_messages(
+                model_path=model_path,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt,
+                    },
+                ] + messages,
+                output_schema=output_schema
+            )
+        # Handle other models through LiteLLM
         if tools is not None:
             try:
                 response = completion(

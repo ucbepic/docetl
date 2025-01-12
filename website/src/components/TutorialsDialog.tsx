@@ -215,14 +215,16 @@ operations:
   - type: reduce
     name: create_report
     prompt: >-
+      Here are some complaints found in the dataset:
       {% for doc in inputs %}
+      Ticket #{{ loop.index }}:
           - Complaint Category: {{ doc.complaint_category }}
           - Frustration Level: {{ doc.frustration_level }}
           - Chief Complaint: {{ doc.chief_complaint }}
       {% endfor %}
 
-      Summarize the common complaints and highlight how they differ across
-      frustration levels.
+      Summarize the common complaints across all tickets, and highlight how
+      they differ across frustration levels.
     output:
       schema:
         common_complaints_report: string

@@ -23,7 +23,7 @@ app = modal.App(
     .pip_install("poetry")
     .pip_install("pyyaml")
     .pip_install("supabase")
-    .run_commands(["poetry config virtualenvs.create false", "poetry install --all-extras --no-root && poetry install --all-extras"])
+    .run_commands(["poetry config virtualenvs.create false", "poetry install --all-extras --no-root && poetry install --all-extras", "pip install docetl --target=./lib1"])
 )
 vol = modal.Volume.from_name("docetl-backend-api", create_if_missing=True)
 

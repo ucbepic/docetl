@@ -61,7 +61,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         self.manually_fix_errors = self.config.get("manually_fix_errors", False)
         self.status = status
         self.num_retries_on_validate_failure = self.config.get(
-            "num_retries_on_validate_failure", 0
+            "num_retries_on_validate_failure", 2
         )
         self.is_build = is_build
         self.syntax_check()

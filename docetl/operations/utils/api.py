@@ -693,6 +693,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
 
                 try:
                     output_dict = json.loads(tool_call.function.arguments)
+                    # Augment output_dict with empty values for any keys in the schema that are not in output_dict
+                    for key in schema:
+                        if key not in output_dict:
+                            output_dict[key] = "Not found"
+
                     if "ollama" in response.model:
                         for key, value in output_dict.items():
                             if not isinstance(value, str):

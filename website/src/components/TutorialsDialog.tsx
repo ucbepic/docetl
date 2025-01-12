@@ -151,6 +151,100 @@ system_prompt:
   dataset_description: "a collection of Supreme Court oral argument transcripts"
   persona: "a legal analyst skilled at breaking down complex legal concepts for general audiences. You have extensive experience studying Supreme Court arguments and can identify key patterns while explaining them in clear, engaging language that helps non-lawyers understand the fascinating dynamics at play"`,
   },
+  {
+    id: "airline-support",
+    title: "Airline Customer Support Analysis",
+    description:
+      "Analyze customer support conversations to understand common complaints, frustration levels, and customer satisfaction patterns in airline services.",
+    datasetUrl:
+      "https://drive.google.com/file/d/1oiVA_rx5usJFIWp0Aah0oYYVhD3std4e/view?usp=sharing",
+    datasetDescription:
+      "Sample of airline customer service chat data from Kaggle (https://www.kaggle.com/datasets/aimack/customer-service-chat-data-30k-rows)",
+    operations: [
+      "Map: Analyze individual chats to identify chief complaints, categorize issues, and assess customer frustration levels",
+      "Reduce: Create a comprehensive report summarizing common complaints and patterns across different frustration levels",
+    ],
+    pipelineTemplate: `datasets:
+  input:
+    type: file
+    path: DATASET_PATH_PLACEHOLDER
+    source: local
+default_model: gpt-4o-mini
+operations:
+  - type: map
+    name: chief_complaint_and_tagging
+    prompt: >-
+      Describe the chief complaint from the user, including direct quotes from
+      the user to capture their exact words.
+
+      {{ input.text }}
+
+      Additionally, categorize the complaint into one of the following
+      categories: pricing, tech issue, user error, customer service, or
+      animal/pet assistance. Ensure that the category is in lowercase.
+
+      Determine the level of frustration expressed by the user, using the
+      values: high, medium, or low (all in lowercase).
+
+      Also, note if the user has any status with the airline (e.g., frequent
+      flyer, loyalty member) and include any negative comments or experiences
+      mentioned by the user. Additionally, if the user provides any positive
+      comments, please note those as well.
+
+      Format the output as follows:
+      - Chief Complaint: [User's quoted complaint]
+      - Complaint Category: [Selected category]
+      - Frustration Level: [high/medium/low]
+      - User Status: [Yes/No, with details if applicable]
+      - Negative Comments: [Any negative feedback from the user]
+      - Positive Comments: [Any positive feedback from the user, if applicable]
+
+      Example output:
+      - Chief Complaint: "I was charged extra fees that were not disclosed
+      during booking."
+      - Complaint Category: pricing
+      - Frustration Level: high
+      - User Status: No
+      - Negative Comments: "The customer service was unhelpful and dismissive."
+      - Positive Comments: "The flight attendants were friendly and attentive."
+    output:
+      schema:
+        chief_complaint: string
+        complaint_category: string
+        frustration_level: string
+  - type: reduce
+    name: create_report
+    prompt: >-
+      Here are some complaints found in the dataset:
+      {% for doc in inputs %}
+      Ticket #{{ loop.index }}:
+          - Complaint Category: {{ doc.complaint_category }}
+          - Frustration Level: {{ doc.frustration_level }}
+          - Chief Complaint: {{ doc.chief_complaint }}
+      {% endfor %}
+
+      Summarize the common complaints across all tickets, and highlight how
+      they differ across frustration levels.
+    output:
+      schema:
+        common_complaints_report: string
+    reduce_key:
+      - _all
+pipeline:
+  steps:
+    - name: data_processing
+      input: input
+      operations:
+        - chief_complaint_and_tagging
+        - create_report
+  output:
+    type: file
+    path: DATASET_PATH_PLACEHOLDER_OUTPUT
+    intermediate_dir: DATASET_PATH_PLACEHOLDER_INTERMEDIATES
+system_prompt:
+  dataset_description: "airline customer support chats"
+  persona: "product marketer and strategist"`,
+  },
 ];
 
 interface TutorialsDialogProps {

@@ -177,6 +177,12 @@ class MapOperation(BaseOperation):
                     if isinstance(response, ModelResponse)
                     else response
                 )
+
+                # Check that the output has all the keys in the schema
+                for key in self.config["output"]["schema"]:
+                    if key not in output:
+                        return output, False
+
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
                         output[key] = value

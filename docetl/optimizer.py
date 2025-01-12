@@ -372,7 +372,7 @@ class Optimizer:
         elif node_of_interest.config.get("type") == "reduce":
             reduce_optimizer = ReduceOptimizer(
                 self.runner,
-                self._run_operation,
+                self.runner._run_operation,
             )
             should_optimize_output, input_data, output_data = (
                 reduce_optimizer.should_optimize(node_of_interest.config, input_data[0])

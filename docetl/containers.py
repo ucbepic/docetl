@@ -500,12 +500,12 @@ class OpContainer:
             # Track costs and log execution
             this_op_cost = self.runner.total_cost - cost_before_execution
             cost += this_op_cost
-            if this_op_cost > 0:
-                build_indicator = "[yellow](build)[/yellow] " if is_build else ""
-                curr_logs += f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${this_op_cost:.2f}[/green])\n"
-            else:
-                build_indicator = "[yellow](build)[/yellow] " if is_build else ""
-                curr_logs += f"[green]✓[/green] {build_indicator}{self.name}\n"
+
+            build_indicator = "[yellow](build)[/yellow] " if is_build else ""
+            curr_logs += f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${this_op_cost:.2f}[/green])\n"
+            self.runner.console.log(
+                f"[green]✓[/green] {build_indicator}{self.name} (Cost: [green]${this_op_cost:.2f}[/green])"
+            )
 
             # Save selectivity estimate
             output_size = len(output_data)

@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, InfiniteData } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, Search } from "lucide-react";
@@ -69,6 +69,7 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
     wordCounts: [],
     histogram: [],
   });
+  const [hasFoundKeys, setHasFoundKeys] = useState(false);
 
   const fetchFileContent = async ({ pageParam = 0 }): Promise<FileChunk> => {
     if (!file?.path) throw new Error("No file selected");
@@ -82,74 +83,70 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
   };
 
   const { data, fetchNextPage, hasNextPage, isFetching, isError, error } =
-    // @ts-expect-error Property 'initialPageParam' is missing in type
-    useInfiniteQuery<FileChunk>({
+    useInfiniteQuery<
+      FileChunk,
+      Error,
+      InfiniteData<FileChunk>,
+      [string, string | undefined],
+      number
+    >({
       queryKey: ["fileContent", file?.path],
-      // @ts-expect-error Parameter 'pageParam' implicitly has an 'any' type
       queryFn: ({ pageParam = 0 }) => fetchFileContent({ pageParam }),
       getNextPageParam: (lastPage) =>
         lastPage.hasMore ? lastPage.page + 1 : undefined,
       enabled: !!file?.path,
+      initialPageParam: 0,
     });
 
   const lines = useMemo(() => {
-    // @ts-expect-error Property 'content' does not exist on type 'unknown'
     return data?.pages.flatMap((page) => page.content.split("\n")) ?? [];
   }, [data]);
 
   // Extract keys from the first valid JSON object in the data
-  useMemo(() => {
-    if (!lines.length) return;
+  useEffect(() => {
+    if (!data?.pages || hasFoundKeys) return;
+
+    // Get all the content
+    let allContent = data.pages.map((page) => page.content).join("");
 
     try {
-      // Try to parse the entire content as JSON first
-      const content = lines.join("\n");
-      const parsed = JSON.parse(content);
+      // Try to parse the chunk content as JSON first
+      const parsed = JSON.parse(allContent);
 
       if (Array.isArray(parsed)) {
         // If it's an array, get keys from the first object
         if (parsed.length > 0 && typeof parsed[0] === "object") {
           setKeys(Object.keys(parsed[0]));
+          setHasFoundKeys(true);
+          return;
         }
       } else if (typeof parsed === "object" && parsed !== null) {
         // If it's a single object, get its keys
         setKeys(Object.keys(parsed));
+        setHasFoundKeys(true);
+        return;
       }
-    } catch (error) {
-      // Fallback to the original line-by-line approach
-      let jsonString = "";
-      let braceCount = 0;
-      let inObject = false;
+    } catch {
+      // Strip away the first character if it's a [
+      if (allContent[0] === "[") {
+        allContent = allContent.slice(1);
+      }
 
-      for (const line of lines) {
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          if (char === "{") {
-            if (!inObject) inObject = true;
-            braceCount++;
-          } else if (char === "}") {
-            braceCount--;
-          }
-
-          if (inObject) {
-            jsonString += char;
-          }
-
-          if (inObject && braceCount === 0) {
-            try {
-              const parsedObject = JSON.parse(jsonString);
-              setKeys(Object.keys(parsedObject));
-              return;
-            } catch (error) {
-              console.error("Error parsing JSON:", error);
-            }
-            jsonString = "";
-            inObject = false;
+      // Keep trying to JSON.parse the content at a }, to get the dataset keys
+      for (let i = 0; i < allContent.length; i++) {
+        if (allContent[i] === "}") {
+          try {
+            const parsed = JSON.parse(allContent.slice(0, i + 1));
+            setKeys(Object.keys(parsed));
+            setHasFoundKeys(true);
+            return;
+          } catch {
+            continue;
           }
         }
       }
     }
-  }, [lines]);
+  }, [data?.pages, hasFoundKeys]);
 
   // Perform search and update matches
   useEffect(() => {
@@ -403,22 +400,27 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
         </h2>
       </div>
 
-      <div className="text-xs mb-4 bg-muted/50 p-2 rounded-md">
-        <span className="text-muted-foreground font-medium">
-          Available Keys:{" "}
-        </span>
-        <div className="flex flex-wrap gap-1 mt-2">
-          {keys.map((key) => (
-            <Badge
-              key={key}
-              variant="default"
-              className="transition-none hover:bg-primary hover:text-primary-foreground"
-            >
-              {key}
-            </Badge>
-          ))}
-        </div>
-      </div>
+      <Collapsible className="mb-4">
+        <CollapsibleTrigger className="flex items-center gap-2 hover:text-primary transition-colors">
+          <ChevronRight className="h-4 w-4 transition-transform ui-expanded:rotate-90" />
+          <p className="text-sm font-medium">Available Keys</p>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-4">
+          <div className="text-xs bg-muted/50 p-2 rounded-md">
+            <div className="flex flex-wrap gap-1">
+              {keys.map((key) => (
+                <Badge
+                  key={key}
+                  variant="default"
+                  className="transition-none hover:bg-primary hover:text-primary-foreground"
+                >
+                  {key}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <Collapsible className="mb-4">
         <CollapsibleTrigger className="flex items-center gap-2 hover:text-primary transition-colors">

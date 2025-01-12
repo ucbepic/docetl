@@ -266,7 +266,6 @@ const DatasetView: React.FC<{ file: File | null }> = ({ file }) => {
 
       setTimeout(() => {
         try {
-          // @ts-expect-error Property 'content' does not exist on type 'unknown'
           const allContent = data.pages.map((page) => page.content).join("");
           let documents: Record<string, unknown>[] = [];
 

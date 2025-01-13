@@ -65,7 +65,6 @@ interface FileExplorerProps {
   onFolderDelete?: (folderName: string) => void;
   currentFile: File | null;
   setCurrentFile: (file: File | null) => void;
-  setShowDatasetView: (show: boolean) => void;
   namespace: string;
 }
 
@@ -203,7 +202,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onFolderDelete,
   currentFile,
   setCurrentFile,
-  setShowDatasetView,
   namespace,
 }) => {
   const { toast } = useToast();
@@ -615,17 +613,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-64">
-                  {file.type === "json" ? (
-                    <ContextMenuItem
-                      onClick={() => {
-                        handleFileSelection(file);
-                        setShowDatasetView(true);
-                      }}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      <span>View Dataset</span>
-                    </ContextMenuItem>
-                  ) : (
+                  {file.type !== "json" && (
                     <ContextMenuItem onClick={() => setViewingDocument(file)}>
                       <Eye className="mr-2 h-4 w-4" />
                       <span>View Document</span>

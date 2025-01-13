@@ -739,6 +739,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                     files={files}
                     onFileClick={(file) => {
                       setCurrentFile(file);
+                      setShowDatasetView(true);
                     }}
                     onFileUpload={(file: File) =>
                       setFiles((prevFiles) => [...prevFiles, file])
@@ -749,7 +750,6 @@ const CodeEditorPipelineApp: React.FC = () => {
                       );
                     }}
                     setCurrentFile={setCurrentFile}
-                    setShowDatasetView={setShowDatasetView}
                     currentFile={currentFile}
                     namespace={namespace}
                   />

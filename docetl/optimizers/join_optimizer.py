@@ -36,6 +36,8 @@ class JoinOptimizer:
         self.estimated_selectivity = estimated_selectivity
         self.console.log(f"Target Recall: {self.target_recall}")
         self.status = self.runner.status
+        self.max_comparison_sampling_attempts = 5
+        self.synthesized_keys = []
         # if self.estimated_selectivity is not None:
         #     self.console.log(
         #         f"[yellow]Using estimated selectivity of {self.estimated_selectivity}[/yellow]"
@@ -516,14 +518,11 @@ class JoinOptimizer:
                 blocking_keys,
                 comparison_results,
             )
-            if not false_negatives and rule_selectivity <= estimated_selectivity:
-                self.console.log(
-                    "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within estimated selectivity.[/green]"
-                )
-            else:
+            # If more than 50% of the sample is false negatives, reject the blocking rule
+            if len(false_negatives) > len(sampled_pairs) / 2:
                 if false_negatives:
                     self.console.log(
-                        f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample.[/red]"
+                        f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample ({len(false_negatives) / len(sampled_pairs):.2f} of the sample).[/red]"
                     )
                     for i, j in false_negatives[:5]:  # Show up to 5 examples
                         self.console.log(
@@ -538,6 +537,13 @@ class JoinOptimizer:
                 blocking_rules = (
                     []
                 )  # Clear the blocking rule if it introduces false negatives or is too selective
+            elif not false_negatives and rule_selectivity > estimated_selectivity:
+                self.console.log(
+                    "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within estimated selectivity.[/green]"
+                )
+            else:
+                # TODO: ask user if they want to use the blocking rule, or come up with some good default behavior
+                pass
 
         optimized_config = self._update_config(threshold, blocking_keys, blocking_rules)
         return optimized_config, embedding_cost + comparison_cost
@@ -570,6 +576,7 @@ class JoinOptimizer:
                     f"Generated map transformation prompt: {extraction_prompt}"
                 )
                 self.console.log(f"\nNew output key: {output_key}")
+                self.synthesized_keys.append({dataset_to_transform: output_key})
                 self.console.log(
                     f"\nNew equijoin comparison prompt: {new_comparison_prompt}"
                 )
@@ -642,7 +649,11 @@ class JoinOptimizer:
             left_data, right_data, sampled_pairs
         )
         self._print_similarity_histogram(similarities, comparison_results)
-        while not any(result[2] for result in comparison_results):
+        attempts = 0
+        while (
+            not any(result[2] for result in comparison_results)
+            and attempts < self.max_comparison_sampling_attempts
+        ):
             self.console.log(
                 "[yellow]No matches found in the current sample. Resampling pairs to compare...[/yellow]"
             )
@@ -652,11 +663,25 @@ class JoinOptimizer:
             )
             comparison_cost += current_cost
             self._print_similarity_histogram(similarities, comparison_results)
+            attempts += 1
 
-        threshold, estimated_selectivity = self._find_optimal_threshold(
-            comparison_results, similarities
-        )
-        self.estimated_selectivity = estimated_selectivity
+        if not any(result[2] for result in comparison_results):
+            # If still no matches after max_comparison_sampling_attempts attempts, use 99th percentile similarity as threshold
+            # This is a heuristic to avoid being in an infinite loop
+            # TODO: have a better plan for sampling pairs or avoiding getting into this situation
+            self.console.log(
+                f"[yellow]No matches found after {self.max_comparison_sampling_attempts} attempts. Using 99th percentile similarity as threshold.[/yellow]"
+            )
+            threshold = np.percentile([sim[2] for sim in similarities], 99)
+            # TODO: figure out how to estimate selectivity
+            estimated_selectivity = 0.0
+            self.estimated_selectivity = estimated_selectivity
+
+        else:
+            threshold, estimated_selectivity = self._find_optimal_threshold(
+                comparison_results, similarities
+            )
+            self.estimated_selectivity = estimated_selectivity
 
         blocking_rules = self._generate_blocking_rules_equijoin(
             left_keys, right_keys, left_data, right_data, comparison_results
@@ -772,13 +797,12 @@ class JoinOptimizer:
 
                 Consider the following:
                 1. Are the current keys sufficient for accurate embedding-based ranking of likely matches? We don't want to use too many keys, or keys with too much information, as this will dilute the signal in the embeddings.
-                2. Are there any keys particularly long (e.g., full text fields), containing information that is not relevant for the join operation?
-                3. Is there information spread across multiple fields that could be combined?
-                4. Would a summary or extraction of key information be beneficial?
-                5. Is there a mismatch in information representation between the datasets?
-                6. Could an additional LLM-generated field improve the accuracy of embeddings or join comparisons?
+                2. Are there any keys particularly long (e.g., full text fields), containing information that is not relevant for the join operation? The dataset with the longer keys should be transformed.
+                3. Would a summary or extraction of important information from long key-value pairs be beneficial? If so, the dataset with the longer keys should be transformed.
+                4. Is there a mismatch in information representation between the datasets?
+                5. Could an additional LLM-generated field improve the accuracy of embeddings or join comparisons?
 
-                If you believe an additional LLM transformation would be beneficial, specify which dataset (left or right) should be transformed and explain why. In most cases, you should pick the dataset with the longer keys unless there is a specific reason to pick the other dataset. Otherwise, indicate that no additional transformation is needed and explain why the current blocking keys are sufficient.""",
+                If you believe an additional LLM transformation would be beneficial, specify which dataset (left or right) should be transformed and explain why. Otherwise, indicate that no additional transformation is needed and explain why the current blocking keys are sufficient.""",
             }
         ]
 
@@ -1393,6 +1417,12 @@ class JoinOptimizer:
         # Get all available keys from the sample data
         left_keys = set(left_data[0].keys())
         right_keys = set(right_data[0].keys())
+
+        # Ignore the keys that are created by the join operation
+        left_sythesized_keys = [v for k, v in self.synthesized_keys if k == "left"]
+        right_sythesized_keys = [v for k, v in self.synthesized_keys if k == "right"]
+        left_keys = left_keys - set(left_sythesized_keys)
+        right_keys = right_keys - set(right_sythesized_keys)
 
         # Sample a few records from each dataset
         sample_left = random.sample(left_data, min(3, len(left_data)))

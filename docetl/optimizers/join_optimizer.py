@@ -530,10 +530,6 @@ class JoinOptimizer:
                         )
                     if len(false_negatives) > 5:
                         self.console.log(f"  ... and {len(false_negatives) - 5} more.")
-                if rule_selectivity > estimated_selectivity:
-                    self.console.log(
-                        f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the estimated selectivity ({estimated_selectivity:.4f}).[/red]"
-                    )
                 blocking_rules = (
                     []
                 )  # Clear the blocking rule if it introduces false negatives or is too selective
@@ -543,7 +539,7 @@ class JoinOptimizer:
                 )
             else:
                 # TODO: ask user if they want to use the blocking rule, or come up with some good default behavior
-                pass
+                blocking_rules = []
 
         optimized_config = self._update_config(threshold, blocking_keys, blocking_rules)
         return optimized_config, embedding_cost + comparison_cost
@@ -576,7 +572,6 @@ class JoinOptimizer:
                     f"Generated map transformation prompt: {extraction_prompt}"
                 )
                 self.console.log(f"\nNew output key: {output_key}")
-                self.synthesized_keys.append({dataset_to_transform: output_key})
                 self.console.log(
                     f"\nNew equijoin comparison prompt: {new_comparison_prompt}"
                 )
@@ -863,7 +858,7 @@ class JoinOptimizer:
                 Please provide:
                 1. An LLM prompt to extract a smaller representation of what is relevant to the join task. The prompt should be a Jinja2 template, referring to any fields in the input data as {{{{ input.field_name }}}}. The prompt should instruct the LLM to return some **non-empty** string-valued output. The transformation should be tailored to the join task if possible, not just a generic summary of the data.
                 2. A name for the new output key that will store the transformed data.
-                3. An edited comparison prompt that leverages the new attribute created by the transformation. This prompt should be a Jinja2 template, referring to any fields in the input data as {{{{ left.field_name }}}} and {{{{ right.field_name }}}}. The prompt should be the same as the current comparison prompt, but with a new instruction that leverages the new attribute created by the transformation. The prompt should instruct the LLM to return a boolean-valued output, like the current comparison prompt.""",
+                3. An edited comparison prompt that leverages the new attribute created by the transformation. This prompt should be a Jinja2 template, referring to any fields in the input data as {{{{ left.field_name }}}} and {{{{ right.field_name }}}}. The prompt should be the same as the current comparison prompt, but with a new instruction that leverages the new attribute created by the transformation (in addition to the other fields in the prompt). The prompt should instruct the LLM to return a boolean-valued output, like the current comparison prompt.""",
             }
         ]
 
@@ -1420,11 +1415,19 @@ class JoinOptimizer:
         left_keys = set(left_data[0].keys())
         right_keys = set(right_data[0].keys())
 
-        # Ignore the keys that are created by the synthesized map operations
-        left_sythesized_keys = [v for k, v in self.synthesized_keys if k == "left"]
-        right_sythesized_keys = [v for k, v in self.synthesized_keys if k == "right"]
-        left_keys = left_keys - set(left_sythesized_keys)
-        right_keys = right_keys - set(right_sythesized_keys)
+        # Find the keys that are in the config's prompt
+        left_prompt_keys = set(
+            self.op_config.get("comparison_prompt", "")
+            .split("{{ left.")[1]
+            .split(" }}")[0]
+            .split(".")
+        )
+        right_prompt_keys = set(
+            self.op_config.get("comparison_prompt", "")
+            .split("{{ right.")[1]
+            .split(" }}")[0]
+            .split(".")
+        )
 
         # Sample a few records from each dataset
         sample_left = random.sample(left_data, min(3, len(left_data)))
@@ -1462,7 +1465,7 @@ Example structures of containment-based blocking rules:
 "all(word in left['{{left_key}}'].lower() for word in right['{{right_key}}'].lower().split())"
 "any(word in right['{{right_key}}'].lower().split() for word in left['{{left_key}}'].lower().split())"
 
-Please provide 3-5 different containment-based blocking rules, based on the keys and sample data provided.""",
+Please provide 3-5 different containment-based blocking rules, based on the keys and sample data provided. Prioritize rules with the following keys: {', '.join(left_prompt_keys)} and {', '.join(right_prompt_keys)}.""",
             },
         ]
 

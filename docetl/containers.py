@@ -91,11 +91,28 @@ class OpContainer:
         sample_size_needed = self.runner.optimizer.sample_size_map.get(
             self.config["type"]
         )
+
+        # if type is equijoin, sample_size_needed may be a dictionary
+        if self.config["type"] == "equijoin":
+            if isinstance(sample_size_needed, dict):
+                sample_size_needed = [
+                    sample_size_needed["left"],
+                    sample_size_needed["right"],
+                ]
+            else:
+                sample_size_needed = [sample_size_needed, sample_size_needed]
+        else:
+            sample_size_needed = [sample_size_needed]
+
+        assert len(sample_size_needed) >= len(
+            self.children
+        ), f"Sample size list must be a list of at least the same length as the number of children. Current sample size list: {sample_size_needed}. Current number of children: {len(self.children)}"
+
         # run the children to get the input data for optimizing this operation
         input_data = []
-        for child in self.children:
+        for idx, child in enumerate(self.children):
             input_data.append(
-                child.next(is_build=True, sample_size_needed=sample_size_needed)[0]
+                child.next(is_build=True, sample_size_needed=sample_size_needed[idx])[0]
             )
 
         # Optimize this operation if it's eligible for optimization
@@ -367,6 +384,13 @@ class OpContainer:
         sample_size_needed = self.runner.optimizer.sample_size_map.get(
             new_head_pointer.config["type"]
         )
+        # if it's an equijoin, sample_size_needed may be a dictionary
+        if new_head_pointer.config["type"] == "equijoin":
+            if isinstance(sample_size_needed, dict):
+                sample_size_needed = min(
+                    sample_size_needed["left"], sample_size_needed["right"]
+                )
+
         # walk down the new head pointer and set the selectivities
         queue = [new_head_pointer] if new_head_pointer.parent else []
         while queue:

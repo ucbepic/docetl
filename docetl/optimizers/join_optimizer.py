@@ -861,9 +861,9 @@ class JoinOptimizer:
                 Reason for transforming {dataset_to_transform} dataset: {reason}
 
                 Please provide:
-                1. An LLM prompt to extract a smaller representation of what is relevant to the join task. The prompt should be a Jinja2 template, referring to any fields in the input data as {{ input.field_name }}. The prompt should instruct the LLM to return some **non-empty** string-valued output. The transformation should be tailored to the join task if possible, not just a generic summary of the data.
+                1. An LLM prompt to extract a smaller representation of what is relevant to the join task. The prompt should be a Jinja2 template, referring to any fields in the input data as {{{{ input.field_name }}}}. The prompt should instruct the LLM to return some **non-empty** string-valued output. The transformation should be tailored to the join task if possible, not just a generic summary of the data.
                 2. A name for the new output key that will store the transformed data.
-                3. An edited comparison prompt that leverages the new attribute created by the transformation. This prompt should be a Jinja2 template, referring to any fields in the input data as {{ left.field_name }} and {{ right.field_name }}. The prompt should be the same as the current comparison prompt, but with a new instruction that leverages the new attribute created by the transformation. The prompt should instruct the LLM to return a boolean-valued output, like the current comparison prompt.""",
+                3. An edited comparison prompt that leverages the new attribute created by the transformation. This prompt should be a Jinja2 template, referring to any fields in the input data as {{{{ left.field_name }}}} and {{{{ right.field_name }}}}. The prompt should be the same as the current comparison prompt, but with a new instruction that leverages the new attribute created by the transformation. The prompt should instruct the LLM to return a boolean-valued output, like the current comparison prompt.""",
             }
         ]
 
@@ -888,7 +888,9 @@ class JoinOptimizer:
         result = json.loads(response.choices[0].message.content)
 
         return (
-            result["extraction_prompt"],
+            result["extraction_prompt"]
+            .replace("left.", "input.")
+            .replace("right.", "input."),
             result["output_key"],
             result["new_comparison_prompt"],
         )
@@ -1418,7 +1420,7 @@ class JoinOptimizer:
         left_keys = set(left_data[0].keys())
         right_keys = set(right_data[0].keys())
 
-        # Ignore the keys that are created by the join operation
+        # Ignore the keys that are created by the synthesized map operations
         left_sythesized_keys = [v for k, v in self.synthesized_keys if k == "left"]
         right_sythesized_keys = [v for k, v in self.synthesized_keys if k == "right"]
         left_keys = left_keys - set(left_sythesized_keys)

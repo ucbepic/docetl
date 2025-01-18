@@ -446,7 +446,7 @@ class APIWrapper(object):
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and ("ollama" in model or "sagemaker" in model)
+            and ("sagemaker" in model)
         ):
             use_tools = False
 
@@ -698,7 +698,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                         if key not in output_dict:
                             output_dict[key] = "Not found"
 
-                    if "ollama" in response.model:
+                    if "ollama" in response.model or "sagemaker" in response.model:
                         for key, value in output_dict.items():
                             if not isinstance(value, str):
                                 continue

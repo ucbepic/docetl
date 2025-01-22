@@ -523,6 +523,17 @@ const SettingsModal: React.FC<SettingsModalProps> = React.memo(
             <DialogTitle>{opName}</DialogTitle>
             <DialogDescription>
               Add or modify additional arguments for this {opType} operation.
+              For example, to set LiteLLM completion arguments, use
+              litellm_completion_kwargs as the key and {`{"temperature": 0}`} as
+              the value. See{" "}
+              <a
+                href="https://docs.litellm.ai/docs/completion/input"
+                target="_blank"
+                className="underline text-blue-500"
+              >
+                LiteLLM completion arguments
+              </a>{" "}
+              for all available options.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

@@ -149,6 +149,7 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `timeout`                         | Timeout for each LLM call in seconds                                                            | 120                           |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
 | `skip_on_error` | If true, skip the operation if the LLM returns an error. | False                          |
+| `bypass_cache` | If true, bypass the cache for this operation. | False                          |
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
 

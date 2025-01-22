@@ -120,7 +120,11 @@ def extract_jinja_variables(template_string: str) -> List[str]:
 
 def completion_cost(response) -> float:
     try:
-        return lcc(response)
+        return (
+            response._completion_cost
+            if hasattr(response, "_completion_cost")
+            else lcc(response)
+        )
     except Exception:
         return 0.0
 

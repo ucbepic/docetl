@@ -128,6 +128,7 @@ After determining eligible pairs for comparison, the Resolve operation uses a Un
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                             | 2                             |
 | `sample`                  | Number of samples to use for the operation                                                      |   None                        |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
+| `bypass_cache` | If true, bypass the cache for this operation. | False                          |
 
 ## Best Practices
 

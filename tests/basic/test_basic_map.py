@@ -358,4 +358,30 @@ def test_map_operation_with_max_tokens(simple_map_config, map_sample_data, api_w
     # Since we limited max_tokens to 10, each response should be relatively short
     # The sentiment field should contain just the sentiment value without much extra text
     assert all(len(result["sentiment"]) <= 20 for result in results)
+    
+def test_map_operation_with_verbose(simple_map_config, map_sample_data, api_wrapper):
+    # Add verbose configuration
+    map_config_with_verbose = {
+        **simple_map_config,
+        "verbose": True,
+        "bypass_cache": True
+    }
+
+    operation = MapOperation(api_wrapper, map_config_with_verbose, "gpt-4o-mini", 4)
+
+    # Execute the operation
+    results, cost = operation.execute(map_sample_data)
+
+    # Assert that we have results for all input items
+    assert len(results) == len(map_sample_data)
+
+    # Check that all results have a sentiment
+    assert all("sentiment" in result for result in results)
+
+    # Verify that all sentiments are valid
+    valid_sentiments = ["positive", "negative", "neutral"]
+    assert all(
+        any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
+    )
+
 

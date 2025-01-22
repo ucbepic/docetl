@@ -76,6 +76,15 @@ export function generatePipelineConfig(
         return null;
       }
 
+      // Get litellm_completion_kwargs and parse it as a dictionary
+      const litellm_completion_kwargs =
+        op.otherKwargs?.litellm_completion_kwargs;
+      if (litellm_completion_kwargs) {
+        op.otherKwargs.litellm_completion_kwargs = JSON.parse(
+          litellm_completion_kwargs
+        );
+      }
+
       const newOp: Record<string, unknown> = {
         ...op,
         ...op.otherKwargs,

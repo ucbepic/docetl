@@ -60,6 +60,16 @@ This approach allows DocETL to dynamically load and process various file types, 
 
     Currently, DocETL only supports JSON files or CSV files as input datasets. If you're interested in support for other data types or cloud-based datasets, please reach out to us or join our open-source community and contribute! We welcome new ideas and contributions to expand the capabilities of DocETL.
 
+### Dataset Description and Persona
+
+You can define a description of your dataset and persona you want the LLM to adopt when executing operations on your dataset. This is useful for providing context to the LLM and for optimizing the operations.
+
+```yaml
+system_prompt: # This is optional, but recommended for better performance. It is applied to all operations in the pipeline.
+  dataset_description: a collection of transcripts of doctor visits
+  persona: a medical practitioner analyzing patient symptoms and reactions to medications
+```
+
 ### Operators
 
 Operators are the building blocks of your pipeline, defining the transformations and analyses to be performed on your data. They are detailed in the [Operators](../concepts/operators.md) documentation. Operators can include map, reduce, filter, and other types of operations.
@@ -85,6 +95,7 @@ pipeline:
   output:
     type: file
     path: "country_summaries.json"
+    intermediate_dir: "intermediate_data" # Optional: If you want to store intermediate outputs in a directory
 ```
 
 For a practical example of how these components come together, refer to the [Tutorial](../tutorial.md), which demonstrates a complete pipeline for analyzing user behavior data.

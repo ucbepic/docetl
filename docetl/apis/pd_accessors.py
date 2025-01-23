@@ -356,11 +356,11 @@ class SemanticAccessor:
 
         When fuzzy=True and no blocking parameters are provided in resolve_kwargs,
         this method automatically invokes the JoinOptimizer to generate efficient
-        blocking conditions for the resolution phase. The optimizer will suggest
+        blocking conditions for the resolve phase. The optimizer will suggest
         blocking thresholds and conditions to improve performance while maintaining
         the target recall. The optimized configuration will be displayed for future reuse.
 
-        The resolution phase is skipped if:
+        The resolve phase is skipped if:
         - fuzzy=False
         - reduce_keys=["_all"]
         - input data has 5 or fewer rows

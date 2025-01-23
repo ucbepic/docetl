@@ -284,7 +284,7 @@ export function TutorialsDialog({
   files,
 }: TutorialsDialogProps) {
   const { toast } = useToast();
-  const { uploadDataset } = useDatasetUpload({
+  const { uploadLocalDataset } = useDatasetUpload({
     namespace,
     onFileUpload,
     setCurrentFile,
@@ -405,7 +405,7 @@ export function TutorialsDialog({
       setUploadedDatasetPath(datasetFileName);
 
       // Upload dataset and wait for currentFile to update
-      await uploadDataset(datasetFile);
+      await uploadLocalDataset(datasetFile);
     } catch (error) {
       console.error("Error loading tutorial:", error);
       toast({

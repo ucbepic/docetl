@@ -5333,4 +5333,4 @@ server = ["azure-ai-documentintelligence", "azure-ai-formrecognizer", "docling",
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "a7ff2aeefcd400baf5f7204c1a0875b9c4aa010014b3c8a0c73300db984387d6"
+content-hash = "fef3243dacdde2cb76b4640bcb66ccccfecc0118a39995edd008c1187af00410"

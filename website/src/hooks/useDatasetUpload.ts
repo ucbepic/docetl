@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { File } from "@/app/types";
 import { getBackendUrl } from "@/lib/api-config";
+import Papa from "papaparse";
 
 interface UseDatasetUploadOptions {
   namespace: string;
@@ -17,16 +18,7 @@ export function useDatasetUpload({
   const { toast } = useToast();
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
 
-  async function validateJsonDataset(file: Blob): Promise<void> {
-    const text = await file.text();
-    let data: unknown;
-
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error("Invalid JSON format");
-    }
-
+  async function validateJsonDataset(data: unknown): Promise<void> {
     // Check if it's an array
     if (!Array.isArray(data)) {
       throw new Error(
@@ -62,12 +54,36 @@ export function useDatasetUpload({
     }
   }
 
-  const uploadDataset = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith(".json")) {
+  const convertCsvToJson = (csvText: string): Promise<unknown[]> => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvText, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            reject(
+              new Error(`CSV parsing error: ${results.errors[0].message}`)
+            );
+          } else {
+            resolve(results.data);
+          }
+        },
+        error: (error) => {
+          reject(new Error(`CSV parsing error: ${error.message}`));
+        },
+      });
+    });
+  };
+
+  const uploadLocalDataset = async (file: File) => {
+    const fileExtension = file.name.toLowerCase().split(".").pop();
+
+    if (!["json", "csv"].includes(fileExtension || "")) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Please upload a JSON file",
+        description: "Please upload a JSON or CSV file",
       });
       return;
     }
@@ -80,10 +96,30 @@ export function useDatasetUpload({
     setUploadingFiles((prev) => new Set(prev).add(file.name));
 
     try {
-      await validateJsonDataset(file.blob);
+      let jsonData: unknown;
 
+      if (fileExtension === "csv") {
+        const csvText = await file.blob.text();
+        jsonData = await convertCsvToJson(csvText);
+      } else {
+        const text = await file.blob.text();
+        try {
+          jsonData = JSON.parse(text);
+        } catch {
+          throw new Error("Invalid JSON format");
+        }
+      }
+
+      await validateJsonDataset(jsonData);
+
+      // Convert the JSON data back to a blob for upload
+      const jsonBlob = new Blob([JSON.stringify(jsonData)], {
+        type: "application/json",
+      });
       const formData = new FormData();
-      formData.append("file", file.blob);
+      // Always save as .json regardless of input format
+      const fileName = file.name.replace(/\.(json|csv)$/, ".json");
+      formData.append("file", jsonBlob, fileName);
       formData.append("namespace", namespace);
 
       const response = await fetch(`${getBackendUrl()}/fs/upload-file`, {
@@ -98,7 +134,7 @@ export function useDatasetUpload({
       const data = await response.json();
 
       const newFile = {
-        name: file.name,
+        name: fileName,
         path: data.path,
         type: "json" as const,
         parentFolder: "root",
@@ -128,8 +164,71 @@ export function useDatasetUpload({
     }
   };
 
+  const uploadRemoteDataset = async (url: string) => {
+    const fileName = url.split("/").pop() || "dataset.json";
+    setUploadingFiles((prev) => new Set(prev).add(fileName));
+
+    try {
+      toast({
+        title: "Downloading remote dataset...",
+        description: "This may take a few seconds",
+      });
+
+      const formData = new FormData();
+      formData.append("url", url);
+      formData.append("namespace", namespace);
+
+      const response = await fetch(`${getBackendUrl()}/fs/upload-file`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        // Get the response details
+        const errorDetails = await response.json();
+        throw new Error(
+          errorDetails.detail || "Failed to fetch remote dataset"
+        );
+      }
+
+      const data = await response.json();
+
+      const newFile = {
+        name: fileName.replace(/\.(json|csv)$/, ".json"),
+        path: data.path,
+        type: "json" as const,
+        parentFolder: "root",
+      };
+
+      onFileUpload(newFile);
+      setCurrentFile(newFile);
+
+      toast({
+        title: "Success",
+        description: "Remote dataset downloaded and processed successfully",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch remote dataset",
+      });
+    } finally {
+      setUploadingFiles((prev) => {
+        const next = new Set(prev);
+        next.delete(fileName);
+        return next;
+      });
+    }
+  };
+
   return {
     uploadingFiles,
-    uploadDataset,
+    uploadLocalDataset,
+    uploadRemoteDataset,
   };
 }

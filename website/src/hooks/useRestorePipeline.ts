@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import yaml from "js-yaml";
 import { v4 as uuidv4 } from "uuid";
-import path from "path";
 import { Operation, File } from "@/app/types";
 import { schemaDictToItemSet } from "@/components/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +20,7 @@ interface YAMLOperation {
   };
   validate?: unknown;
   sample?: unknown;
+  reduce_key?: string | string[];
   [key: string]: unknown;
 }
 
@@ -86,16 +86,31 @@ export const useRestorePipeline = ({
                     output,
                     validate,
                     sample,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    reduce_key, // Explicitly ignore reduce_key as it's handled in otherKwargs
                     ...otherKwargs
                   } = op;
 
+                  // Convert all otherKwargs values to strings
+                  const stringifiedKwargs: Record<string, string> =
+                    Object.entries(otherKwargs).reduce(
+                      (acc, [key, value]) => ({
+                        ...acc,
+                        [key]:
+                          typeof value === "object"
+                            ? JSON.stringify(value)
+                            : String(value),
+                      }),
+                      {} as Record<string, string>
+                    );
+
                   // If the operation type is 'reduce', ensure reduce_key is a list
-                  if (type === "reduce" && otherKwargs.reduce_key) {
-                    otherKwargs.reduce_key = Array.isArray(
-                      otherKwargs.reduce_key
-                    )
-                      ? otherKwargs.reduce_key
-                      : [otherKwargs.reduce_key];
+                  if (type === "reduce" && op.reduce_key) {
+                    stringifiedKwargs.reduce_key = JSON.stringify(
+                      Array.isArray(op.reduce_key)
+                        ? op.reduce_key
+                        : [op.reduce_key]
+                    );
                   }
 
                   return {
@@ -120,7 +135,7 @@ export const useRestorePipeline = ({
                       : undefined,
                     validate,
                     sample,
-                    otherKwargs,
+                    otherKwargs: stringifiedKwargs,
                     visibility: true,
                   } as Operation;
                 })

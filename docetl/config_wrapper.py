@@ -56,6 +56,7 @@ class ConfigWrapper(object):
         yaml_file_suffix: Optional[str] = None,
         max_threads: int = None,
         console: Optional[Console] = None,
+        **kwargs,
     ):
         self.config = config
         self.base_name = base_name

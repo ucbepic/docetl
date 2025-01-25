@@ -121,7 +121,9 @@ class DSLRunner(ConfigWrapper):
         self._compute_operation_hashes()
 
         # Run initial validation
-        self.syntax_check()
+        self._from_df_accessors = kwargs.get("from_df_accessors", False)
+        if not self._from_df_accessors:
+            self.syntax_check()
 
     def _initialize_state(self) -> None:
         """Initialize basic runner state and datasets"""

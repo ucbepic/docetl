@@ -42,12 +42,14 @@ export type SchemaType =
   | "int"
   | "boolean"
   | "list"
-  | "dict";
+  | "dict"
+  | "enum";
 
 export interface SchemaItem {
   key: string;
   type: SchemaType;
   subType?: SchemaItem | SchemaItem[];
+  enumValues?: string[];
 }
 
 export interface UserNote {

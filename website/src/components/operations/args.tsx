@@ -126,6 +126,7 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
                       : value === "dict"
                       ? [{ key: "", type: "string" }]
                       : undefined,
+                  enumValues: value === "enum" ? ["", ""] : undefined,
                 });
               }}
             >
@@ -139,6 +140,7 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
                 <SelectItem value="boolean">boolean</SelectItem>
                 <SelectItem value="list">list</SelectItem>
                 <SelectItem value="dict">dict</SelectItem>
+                <SelectItem value="enum">enum</SelectItem>
               </SelectContent>
             </Select>
             {!isList && (
@@ -150,6 +152,79 @@ export const SchemaForm: React.FC<SchemaFormProps> = React.memo(
               >
                 <Trash2 size={16} />
               </Button>
+            )}
+            {item.type === "enum" && (
+              <div className="w-full mt-1 ml-4">
+                <Label className="text-sm text-gray-500 mb-1">
+                  Enum Values
+                </Label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 overflow-x-auto flex items-center gap-2 pb-2">
+                    {(item.enumValues || ["", ""]).map((value, enumIndex) => (
+                      <div
+                        key={enumIndex}
+                        className="flex-none flex items-center gap-1"
+                      >
+                        <Input
+                          value={value}
+                          onChange={(e) => {
+                            const newValues = [
+                              ...(item.enumValues || ["", ""]),
+                            ];
+                            newValues[enumIndex] = e.target.value;
+                            updateItem(index, {
+                              ...item,
+                              enumValues: newValues,
+                            });
+                          }}
+                          placeholder={`value${enumIndex + 1}`}
+                          className={`w-32 ${!value ? "border-red-500" : ""}`}
+                        />
+                        {item.enumValues && item.enumValues.length > 2 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const newValues = item.enumValues?.filter(
+                                (_, i) => i !== enumIndex
+                              );
+                              updateItem(index, {
+                                ...item,
+                                enumValues: newValues,
+                              });
+                            }}
+                            className="p-1 h-7 w-7 hover:bg-destructive/10"
+                          >
+                            <Trash2 size={14} className="text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newValues = [...(item.enumValues || ["", ""]), ""];
+                      updateItem(index, {
+                        ...item,
+                        enumValues: newValues,
+                      });
+                    }}
+                    className="flex-none"
+                  >
+                    <Plus size={16} className="mr-1" />
+                    Add Value
+                  </Button>
+                </div>
+                {(!item.enumValues?.length ||
+                  item.enumValues.length < 2 ||
+                  item.enumValues.some((v) => !v)) && (
+                  <div className="text-red-500 text-sm mt-1">
+                    At least two non-empty enum values are required
+                  </div>
+                )}
+              </div>
             )}
             {item.type === "list" && item.subType && (
               <div className="w-full mt-1 ml-4 flex items-center">

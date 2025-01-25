@@ -118,7 +118,7 @@ def evaluate_structured_output(model: str, text: str) -> tuple[Set[str], float, 
     json_schema_object = {
       "type": "json_schema",
       "json_schema": {
-        "name": "FoundItems",
+        "name": "send_output",
         "strict": "true",
         "schema": {
           "type": "object",
@@ -132,7 +132,8 @@ def evaluate_structured_output(model: str, text: str) -> tuple[Set[str], float, 
           },
           "required": ["fruits_and_vegetables"]
         }
-      }
+      },
+      "temperature": 0
     }
     if "gpt" in model:
         json_schema_object = FoundItems

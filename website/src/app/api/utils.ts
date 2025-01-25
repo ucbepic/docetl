@@ -158,6 +158,13 @@ export function generatePipelineConfig(
           return `{${Object.entries(subSchema)
             .map(([k, v]) => `${k}: ${v}`)
             .join(", ")}}`;
+        } else if (item.type === "enum") {
+          if (!item.enumValues?.length) {
+            throw new Error(
+              `Enum type must specify its values for field: ${item.key}`
+            );
+          }
+          return `enum[${item.enumValues.join(", ")}]`;
         } else {
           return item.type;
         }

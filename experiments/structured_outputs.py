@@ -34,8 +34,7 @@ FRUITS_VEGETABLES = [
 MODELS = [
     "azure/gpt-4o-mini",
     "deepseek/deepseek-chat",
-    # "lm_studio/mlx-community/llama-3.2-3b-instruct"
-    # "azure/gpt-4o",
+    "lm_studio/hugging-quants/llama-3.2-3b-instruct"
 ]
 SYSTEM_PROMPT = (
     "You are a helpful assistant, helping the user make sense of their data. "
@@ -59,12 +58,13 @@ STRUCTURED_SYSTEM_PROMPT = (
 )
 
 PROMPT_TEMPLATE = (
-    "Extract all fruits and vegetables mentioned in this transcript. "
+    "I have injected several fruit and vegetable names into this transcript. "
+    "Your task is to find and list all fruits and vegetables mentioned. "
     "Only include items that are actually fruits or vegetables, "
     "not metaphors or company names: {text}"
 )
 
-class ExtractedItems(BaseModel):
+class FoundItems(BaseModel):
     fruits_and_vegetables: List[str]
 
 def load_and_augment_debates(filepath: str, num_samples: int = 20, frac_doc_content: float = 0.5) -> List[Dict[str, any]]:
@@ -108,7 +108,7 @@ def evaluate_structured_output(model: str, text: str) -> tuple[Set[str], float, 
     
     messages = [{
         "role": "system",
-        "content": STRUCTURED_SYSTEM_PROMPT.format(schema=ExtractedItems.model_json_schema())
+        "content": STRUCTURED_SYSTEM_PROMPT.format(schema=FoundItems.model_json_schema())
     }, {
         "role": "user",
         "content": PROMPT_TEMPLATE.format(text=text)
@@ -118,7 +118,7 @@ def evaluate_structured_output(model: str, text: str) -> tuple[Set[str], float, 
     json_schema_object = {
       "type": "json_schema",
       "json_schema": {
-        "name": "ExtractedItems",
+        "name": "FoundItems",
         "strict": "true",
         "schema": {
           "type": "object",
@@ -135,7 +135,7 @@ def evaluate_structured_output(model: str, text: str) -> tuple[Set[str], float, 
       }
     }
     if "gpt" in model:
-        json_schema_object = ExtractedItems
+        json_schema_object = FoundItems
     if "deepseek" in model:
         json_schema_object = {"type": "json_object"}
     
@@ -257,12 +257,12 @@ def process_document(args) -> Dict[str, any]:
         "structured": {
             **metrics_structured,
             "runtime": runtime_structured,
-            "cost": cost_structured
+            "cost": cost_structured if cost_structured else 0.0
         },
         "tool": {
             **metrics_tool,
             "runtime": runtime_tool,
-            "cost": cost_tool
+            "cost": cost_tool if cost_tool else 0.0
         }
     }
 

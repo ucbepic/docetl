@@ -201,4 +201,11 @@ This will process the medical transcripts, extract medication information, resol
 
     Yes, you can adapt this pipeline to process other types of medical documents by modifying the input data format and adjusting the prompts in each operation. For example, you could use it to analyze discharge summaries, clinical notes, or research papers by updating the extraction and summarization prompts accordingly.
 
-If you're unsure about the optimal configuration for your specific use case, you can use DocETL's optimizer, which can be invoked using `docetl build` instead of `docetl run`. Learn more about the optimizer in the [optimization documentation](optimization/overview.md).
+??? question "How can I optimize the performance of this pipeline?"
+
+    If you're unsure about the optimal configuration for your specific use case, you can use DocETL's optimizer, which can be invoked using `docetl build` instead of `docetl run`. Learn more about the optimizer in the [optimization documentation](optimization/overview.md).
+
+??? question "How can I use the pandas integration?"
+
+    DocETL provides a pandas integration for a few operators (map, filter, merge, agg). Learn more about the pandas integration in the [pandas documentation](pandas/index.md).
+

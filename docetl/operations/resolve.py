@@ -27,7 +27,7 @@ class ResolveOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "resolve"
         comparison_prompt: str
-        resolution_prompt: str
+        resolution_prompt: Optional[str] = None
         output: Optional[Dict[str, Any]] = None
         embedding_model: Optional[str] = None
         resolution_model: Optional[str] = None
@@ -119,14 +119,16 @@ class ResolveOperation(BaseOperation):
                     f"Missing required key '{key}' in ResolveOperation configuration"
                 )
 
-        if "schema" not in self.config["output"]:
+        if "schema" not in self.config["output"] and not self.runner._from_df_accessors:
             raise ValueError("Missing 'schema' in 'output' configuration")
+        elif not self.runner._from_df_accessors:
+            if not isinstance(self.config["output"]["schema"], dict):
+                raise TypeError(
+                    "'schema' in 'output' configuration must be a dictionary"
+                )
 
-        if not isinstance(self.config["output"]["schema"], dict):
-            raise TypeError("'schema' in 'output' configuration must be a dictionary")
-
-        if not self.config["output"]["schema"]:
-            raise ValueError("'schema' in 'output' configuration cannot be empty")
+            if not self.config["output"]["schema"]:
+                raise ValueError("'schema' in 'output' configuration cannot be empty")
 
         # Check if the comparison_prompt is a valid Jinja2 template
         try:
@@ -140,7 +142,7 @@ class ResolveOperation(BaseOperation):
                 or "input2" not in comparison_var_names
             ):
                 raise ValueError(
-                    "'comparison_prompt' must contain both 'input1' and 'input2' variables"
+                    f"'comparison_prompt' must contain both 'input1' and 'input2' variables. {self.config['comparison_prompt']}"
                 )
 
             if "resolution_prompt" in self.config:
@@ -674,19 +676,36 @@ class ResolveOperation(BaseOperation):
             f"Number of distinct keys after resolution: {num_clusters_after}"
         )
 
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = [
-                executor.submit(process_cluster, cluster) for cluster in final_clusters
-            ]
-            for future in rich_as_completed(
-                futures,
-                total=len(futures),
-                desc="Determining resolved key for each group of equivalent keys",
-                console=self.console,
-            ):
-                cluster_results, cluster_cost = future.result()
-                results.extend(cluster_results)
-                total_cost += cluster_cost
+        # If no resolution prompt is provided, we can skip the resolution phase
+        # And simply select the most common value for each key
+        if not self.config.get("resolution_prompt", None):
+            for cluster in final_clusters:
+                if len(cluster) > 1:
+                    for key in self.config["output"]["keys"]:
+                        most_common_value = max(
+                            set(input_data[i][key] for i in cluster),
+                            key=lambda x: sum(
+                                1 for i in cluster if input_data[i][key] == x
+                            ),
+                        )
+                        for i in cluster:
+                            input_data[i][key] = most_common_value
+            results = input_data
+        else:
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                futures = [
+                    executor.submit(process_cluster, cluster)
+                    for cluster in final_clusters
+                ]
+                for future in rich_as_completed(
+                    futures,
+                    total=len(futures),
+                    desc="Determining resolved key for each group of equivalent keys",
+                    console=self.console,
+                ):
+                    cluster_results, cluster_cost = future.result()
+                    results.extend(cluster_results)
+                    total_cost += cluster_cost
 
         total_pairs = len(input_data) * (len(input_data) - 1) // 2
         true_match_count = sum(

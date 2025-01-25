@@ -545,7 +545,11 @@ class JoinOptimizer:
         return optimized_config, embedding_cost + comparison_cost
 
     def optimize_equijoin(
-        self, left_data: List[Dict[str, Any]], right_data: List[Dict[str, Any]]
+        self,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        skip_map_gen: bool = False,
+        skip_containment_gen: bool = False,
     ) -> Tuple[Dict[str, Any], float, Dict[str, Any]]:
         left_keys = self.op_config.get("blocking_keys", {}).get("left", [])
         right_keys = self.op_config.get("blocking_keys", {}).get("right", [])
@@ -554,12 +558,16 @@ class JoinOptimizer:
             # Ask the LLM agent if it would be beneficial to do a map operation on
             # one of the datasets before doing an equijoin
             apply_transformation, dataset_to_transform, reason = (
-                self._should_apply_map_transformation(
-                    left_keys, right_keys, left_data, right_data
+                (
+                    self._should_apply_map_transformation(
+                        left_keys, right_keys, left_data, right_data
+                    )
                 )
+                if not skip_map_gen
+                else (False, None, None)
             )
 
-            if apply_transformation:
+            if apply_transformation and not skip_map_gen:
                 self.console.log(
                     f"LLM agent suggested applying a map transformation to {dataset_to_transform} dataset because: {reason}"
                 )
@@ -717,21 +725,25 @@ class JoinOptimizer:
         containment_rules = self._generate_containment_rules_equijoin(
             left_data, right_data
         )
-        self.console.log(
-            f"[bold]Generated {len(containment_rules)} containment rules. Please select which ones to use as blocking conditions:[/bold]"
-        )
-        selected_containment_rules = []
-        for rule in containment_rules:
-            self.console.log(f"[green]{rule}[/green]")
-            # Temporarily stop the status
-            if self.status:
-                self.status.stop()
-            # Use Rich's Confirm for input
-            if Confirm.ask("Use this rule?", console=self.console):
-                selected_containment_rules.append(rule)
-            # Restart the status
-            if self.status:
-                self.status.start()
+        if not skip_containment_gen:
+            self.console.log(
+                f"[bold]Generated {len(containment_rules)} containment rules. Please select which ones to use as blocking conditions:[/bold]"
+            )
+            selected_containment_rules = []
+            for rule in containment_rules:
+                self.console.log(f"[green]{rule}[/green]")
+                # Temporarily stop the status
+                if self.status:
+                    self.status.stop()
+                # Use Rich's Confirm for input
+                if Confirm.ask("Use this rule?", console=self.console):
+                    selected_containment_rules.append(rule)
+                # Restart the status
+                if self.status:
+                    self.status.start()
+        else:
+            # Take first 2
+            selected_containment_rules = containment_rules[:2]
 
         if len(containment_rules) > 0:
             self.console.log(
@@ -1416,18 +1428,27 @@ class JoinOptimizer:
         right_keys = set(right_data[0].keys())
 
         # Find the keys that are in the config's prompt
-        left_prompt_keys = set(
-            self.op_config.get("comparison_prompt", "")
-            .split("{{ left.")[1]
-            .split(" }}")[0]
-            .split(".")
-        )
-        right_prompt_keys = set(
-            self.op_config.get("comparison_prompt", "")
-            .split("{{ right.")[1]
-            .split(" }}")[0]
-            .split(".")
-        )
+        try:
+            left_prompt_keys = set(
+                self.op_config.get("comparison_prompt", "")
+                .split("{{ left.")[1]
+                .split(" }}")[0]
+                .split(".")
+            )
+        except Exception as e:
+            self.console.log(f"[red]Error parsing comparison prompt: {e}[/red]")
+            left_prompt_keys = left_keys
+
+        try:
+            right_prompt_keys = set(
+                self.op_config.get("comparison_prompt", "")
+                .split("{{ right.")[1]
+                .split(" }}")[0]
+                .split(".")
+            )
+        except Exception as e:
+            self.console.log(f"[red]Error parsing comparison prompt: {e}[/red]")
+            right_prompt_keys = right_keys
 
         # Sample a few records from each dataset
         sample_left = random.sample(left_data, min(3, len(left_data)))

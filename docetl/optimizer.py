@@ -119,7 +119,8 @@ class Optimizer:
         if self.config.get("optimizer_config", {}).get("sample_sizes", {}):
             self.sample_size_map.update(self.config["optimizer_config"]["sample_sizes"])
 
-        self.print_optimizer_config()
+        if not self.runner._from_df_accessors:
+            self.print_optimizer_config()
 
     def print_optimizer_config(self):
         """

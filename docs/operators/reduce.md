@@ -65,6 +65,7 @@ This Reduce operation processes customer feedback grouped by department:
 | `timeout`                 | Timeout for each LLM call in seconds                                                                   | 120                         |
 | `max_retries_per_timeout` | Maximum number of retries per timeout                                                                  | 2                           |
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
+| `bypass_cache` | If true, bypass the cache for this operation. | False                          |
 
 ## Advanced Features
 

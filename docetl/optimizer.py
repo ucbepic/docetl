@@ -119,7 +119,8 @@ class Optimizer:
         if self.config.get("optimizer_config", {}).get("sample_sizes", {}):
             self.sample_size_map.update(self.config["optimizer_config"]["sample_sizes"])
 
-        self.print_optimizer_config()
+        if not self.runner._from_df_accessors:
+            self.print_optimizer_config()
 
     def print_optimizer_config(self):
         """
@@ -372,7 +373,7 @@ class Optimizer:
         elif node_of_interest.config.get("type") == "reduce":
             reduce_optimizer = ReduceOptimizer(
                 self.runner,
-                self._run_operation,
+                self.runner._run_operation,
             )
             should_optimize_output, input_data, output_data = (
                 reduce_optimizer.should_optimize(node_of_interest.config, input_data[0])

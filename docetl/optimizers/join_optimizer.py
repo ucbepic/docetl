@@ -36,6 +36,8 @@ class JoinOptimizer:
         self.estimated_selectivity = estimated_selectivity
         self.console.log(f"Target Recall: {self.target_recall}")
         self.status = self.runner.status
+        self.max_comparison_sampling_attempts = 5
+        self.synthesized_keys = []
         # if self.estimated_selectivity is not None:
         #     self.console.log(
         #         f"[yellow]Using estimated selectivity of {self.estimated_selectivity}[/yellow]"
@@ -516,14 +518,11 @@ class JoinOptimizer:
                 blocking_keys,
                 comparison_results,
             )
-            if not false_negatives and rule_selectivity <= estimated_selectivity:
-                self.console.log(
-                    "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within estimated selectivity.[/green]"
-                )
-            else:
+            # If more than 50% of the sample is false negatives, reject the blocking rule
+            if len(false_negatives) > len(sampled_pairs) / 2:
                 if false_negatives:
                     self.console.log(
-                        f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample.[/red]"
+                        f"[red]Blocking rule rejected. {len(false_negatives)} false negatives detected in the sample ({len(false_negatives) / len(sampled_pairs):.2f} of the sample).[/red]"
                     )
                     for i, j in false_negatives[:5]:  # Show up to 5 examples
                         self.console.log(
@@ -531,19 +530,26 @@ class JoinOptimizer:
                         )
                     if len(false_negatives) > 5:
                         self.console.log(f"  ... and {len(false_negatives) - 5} more.")
-                if rule_selectivity > estimated_selectivity:
-                    self.console.log(
-                        f"[red]Blocking rule rejected. Rule selectivity ({rule_selectivity:.4f}) is higher than the estimated selectivity ({estimated_selectivity:.4f}).[/red]"
-                    )
                 blocking_rules = (
                     []
                 )  # Clear the blocking rule if it introduces false negatives or is too selective
+            elif not false_negatives and rule_selectivity > estimated_selectivity:
+                self.console.log(
+                    "[green]Blocking rule verified. No false negatives detected in the sample and selectivity is within estimated selectivity.[/green]"
+                )
+            else:
+                # TODO: ask user if they want to use the blocking rule, or come up with some good default behavior
+                blocking_rules = []
 
         optimized_config = self._update_config(threshold, blocking_keys, blocking_rules)
         return optimized_config, embedding_cost + comparison_cost
 
     def optimize_equijoin(
-        self, left_data: List[Dict[str, Any]], right_data: List[Dict[str, Any]]
+        self,
+        left_data: List[Dict[str, Any]],
+        right_data: List[Dict[str, Any]],
+        skip_map_gen: bool = False,
+        skip_containment_gen: bool = False,
     ) -> Tuple[Dict[str, Any], float, Dict[str, Any]]:
         left_keys = self.op_config.get("blocking_keys", {}).get("left", [])
         right_keys = self.op_config.get("blocking_keys", {}).get("right", [])
@@ -552,12 +558,16 @@ class JoinOptimizer:
             # Ask the LLM agent if it would be beneficial to do a map operation on
             # one of the datasets before doing an equijoin
             apply_transformation, dataset_to_transform, reason = (
-                self._should_apply_map_transformation(
-                    left_keys, right_keys, left_data, right_data
+                (
+                    self._should_apply_map_transformation(
+                        left_keys, right_keys, left_data, right_data
+                    )
                 )
+                if not skip_map_gen
+                else (False, None, None)
             )
 
-            if apply_transformation:
+            if apply_transformation and not skip_map_gen:
                 self.console.log(
                     f"LLM agent suggested applying a map transformation to {dataset_to_transform} dataset because: {reason}"
                 )
@@ -642,7 +652,11 @@ class JoinOptimizer:
             left_data, right_data, sampled_pairs
         )
         self._print_similarity_histogram(similarities, comparison_results)
-        while not any(result[2] for result in comparison_results):
+        attempts = 0
+        while (
+            not any(result[2] for result in comparison_results)
+            and attempts < self.max_comparison_sampling_attempts
+        ):
             self.console.log(
                 "[yellow]No matches found in the current sample. Resampling pairs to compare...[/yellow]"
             )
@@ -652,11 +666,25 @@ class JoinOptimizer:
             )
             comparison_cost += current_cost
             self._print_similarity_histogram(similarities, comparison_results)
+            attempts += 1
 
-        threshold, estimated_selectivity = self._find_optimal_threshold(
-            comparison_results, similarities
-        )
-        self.estimated_selectivity = estimated_selectivity
+        if not any(result[2] for result in comparison_results):
+            # If still no matches after max_comparison_sampling_attempts attempts, use 99th percentile similarity as threshold
+            # This is a heuristic to avoid being in an infinite loop
+            # TODO: have a better plan for sampling pairs or avoiding getting into this situation
+            self.console.log(
+                f"[yellow]No matches found after {self.max_comparison_sampling_attempts} attempts. Using 99th percentile similarity as threshold.[/yellow]"
+            )
+            threshold = np.percentile([sim[2] for sim in similarities], 99)
+            # TODO: figure out how to estimate selectivity
+            estimated_selectivity = 0.0
+            self.estimated_selectivity = estimated_selectivity
+
+        else:
+            threshold, estimated_selectivity = self._find_optimal_threshold(
+                comparison_results, similarities
+            )
+            self.estimated_selectivity = estimated_selectivity
 
         blocking_rules = self._generate_blocking_rules_equijoin(
             left_keys, right_keys, left_data, right_data, comparison_results
@@ -697,21 +725,25 @@ class JoinOptimizer:
         containment_rules = self._generate_containment_rules_equijoin(
             left_data, right_data
         )
-        self.console.log(
-            f"[bold]Generated {len(containment_rules)} containment rules. Please select which ones to use as blocking conditions:[/bold]"
-        )
-        selected_containment_rules = []
-        for rule in containment_rules:
-            self.console.log(f"[green]{rule}[/green]")
-            # Temporarily stop the status
-            if self.status:
-                self.status.stop()
-            # Use Rich's Confirm for input
-            if Confirm.ask("Use this rule?", console=self.console):
-                selected_containment_rules.append(rule)
-            # Restart the status
-            if self.status:
-                self.status.start()
+        if not skip_containment_gen:
+            self.console.log(
+                f"[bold]Generated {len(containment_rules)} containment rules. Please select which ones to use as blocking conditions:[/bold]"
+            )
+            selected_containment_rules = []
+            for rule in containment_rules:
+                self.console.log(f"[green]{rule}[/green]")
+                # Temporarily stop the status
+                if self.status:
+                    self.status.stop()
+                # Use Rich's Confirm for input
+                if Confirm.ask("Use this rule?", console=self.console):
+                    selected_containment_rules.append(rule)
+                # Restart the status
+                if self.status:
+                    self.status.start()
+        else:
+            # Take first 2
+            selected_containment_rules = containment_rules[:2]
 
         if len(containment_rules) > 0:
             self.console.log(
@@ -772,13 +804,12 @@ class JoinOptimizer:
 
                 Consider the following:
                 1. Are the current keys sufficient for accurate embedding-based ranking of likely matches? We don't want to use too many keys, or keys with too much information, as this will dilute the signal in the embeddings.
-                2. Are there any keys particularly long (e.g., full text fields), containing information that is not relevant for the join operation?
-                3. Is there information spread across multiple fields that could be combined?
-                4. Would a summary or extraction of key information be beneficial?
-                5. Is there a mismatch in information representation between the datasets?
-                6. Could an additional LLM-generated field improve the accuracy of embeddings or join comparisons?
+                2. Are there any keys particularly long (e.g., full text fields), containing information that is not relevant for the join operation? The dataset with the longer keys should be transformed.
+                3. Would a summary or extraction of important information from long key-value pairs be beneficial? If so, the dataset with the longer keys should be transformed.
+                4. Is there a mismatch in information representation between the datasets?
+                5. Could an additional LLM-generated field improve the accuracy of embeddings or join comparisons?
 
-                If you believe an additional LLM transformation would be beneficial, specify which dataset (left or right) should be transformed and explain why. In most cases, you should pick the dataset with the longer keys unless there is a specific reason to pick the other dataset. Otherwise, indicate that no additional transformation is needed and explain why the current blocking keys are sufficient.""",
+                If you believe an additional LLM transformation would be beneficial, specify which dataset (left or right) should be transformed and explain why. Otherwise, indicate that no additional transformation is needed and explain why the current blocking keys are sufficient.""",
             }
         ]
 
@@ -837,9 +868,9 @@ class JoinOptimizer:
                 Reason for transforming {dataset_to_transform} dataset: {reason}
 
                 Please provide:
-                1. An LLM prompt to extract a smaller representation of what is relevant to the join task. The prompt should be a Jinja2 template, referring to any fields in the input data as {{ input.field_name }}. The prompt should instruct the LLM to return some **non-empty** string-valued output. The transformation should be tailored to the join task if possible, not just a generic summary of the data.
+                1. An LLM prompt to extract a smaller representation of what is relevant to the join task. The prompt should be a Jinja2 template, referring to any fields in the input data as {{{{ input.field_name }}}}. The prompt should instruct the LLM to return some **non-empty** string-valued output. The transformation should be tailored to the join task if possible, not just a generic summary of the data.
                 2. A name for the new output key that will store the transformed data.
-                3. An edited comparison prompt that leverages the new attribute created by the transformation. This prompt should be a Jinja2 template, referring to any fields in the input data as {{ left.field_name }} and {{ right.field_name }}. The prompt should be the same as the current comparison prompt, but with a new instruction that leverages the new attribute created by the transformation. The prompt should instruct the LLM to return a boolean-valued output, like the current comparison prompt.""",
+                3. An edited comparison prompt that leverages the new attribute created by the transformation. This prompt should be a Jinja2 template, referring to any fields in the input data as {{{{ left.field_name }}}} and {{{{ right.field_name }}}}. The prompt should be the same as the current comparison prompt, but with a new instruction that leverages the new attribute created by the transformation (in addition to the other fields in the prompt). The prompt should instruct the LLM to return a boolean-valued output, like the current comparison prompt.""",
             }
         ]
 
@@ -864,7 +895,9 @@ class JoinOptimizer:
         result = json.loads(response.choices[0].message.content)
 
         return (
-            result["extraction_prompt"],
+            result["extraction_prompt"]
+            .replace("left.", "input.")
+            .replace("right.", "input."),
             result["output_key"],
             result["new_comparison_prompt"],
         )
@@ -1394,6 +1427,29 @@ class JoinOptimizer:
         left_keys = set(left_data[0].keys())
         right_keys = set(right_data[0].keys())
 
+        # Find the keys that are in the config's prompt
+        try:
+            left_prompt_keys = set(
+                self.op_config.get("comparison_prompt", "")
+                .split("{{ left.")[1]
+                .split(" }}")[0]
+                .split(".")
+            )
+        except Exception as e:
+            self.console.log(f"[red]Error parsing comparison prompt: {e}[/red]")
+            left_prompt_keys = left_keys
+
+        try:
+            right_prompt_keys = set(
+                self.op_config.get("comparison_prompt", "")
+                .split("{{ right.")[1]
+                .split(" }}")[0]
+                .split(".")
+            )
+        except Exception as e:
+            self.console.log(f"[red]Error parsing comparison prompt: {e}[/red]")
+            right_prompt_keys = right_keys
+
         # Sample a few records from each dataset
         sample_left = random.sample(left_data, min(3, len(left_data)))
         sample_right = random.sample(right_data, min(3, len(right_data)))
@@ -1430,7 +1486,7 @@ Example structures of containment-based blocking rules:
 "all(word in left['{{left_key}}'].lower() for word in right['{{right_key}}'].lower().split())"
 "any(word in right['{{right_key}}'].lower().split() for word in left['{{left_key}}'].lower().split())"
 
-Please provide 3-5 different containment-based blocking rules, based on the keys and sample data provided.""",
+Please provide 3-5 different containment-based blocking rules, based on the keys and sample data provided. Prioritize rules with the following keys: {', '.join(left_prompt_keys)} and {', '.join(right_prompt_keys)}.""",
             },
         ]
 

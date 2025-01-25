@@ -6,7 +6,9 @@ from typing import Any, Dict, List, Optional
 
 from litellm import ModelResponse, RateLimitError, completion, embedding
 from rich import print as rprint
-from rich.console import Console
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.text import Text
 
 from docetl.utils import completion_cost
 
@@ -403,7 +405,7 @@ class APIWrapper:
         rate_limited_attempt = 0
         while attempt <= max_retries:
             try:
-                return timeout(timeout_seconds)(self._cached_call_llm)(
+                output = timeout(timeout_seconds)(self._cached_call_llm)(
                     key,
                     model,
                     op_type,
@@ -418,6 +420,31 @@ class APIWrapper:
                     initial_result=initial_result,
                     litellm_completion_kwargs=litellm_completion_kwargs,
                 )
+                # Log input and output if verbose
+                if verbose:
+                    # Truncate messages to 500 chars
+                    messages_str = str(messages)
+                    truncated_messages = (
+                        messages_str[:500] + "..."
+                        if len(messages_str) > 500
+                        else messages_str
+                    )
+
+                    # Log with nice formatting
+                    self.runner.console.print(
+                        Panel(
+                            Group(
+                                Text("Input:", style="bold cyan"),
+                                Text(truncated_messages),
+                                Text("\nOutput:", style="bold cyan"),
+                                Text(str(output)),
+                            ),
+                            title="[bold green]LLM Call Details[/bold green]",
+                            border_style="green",
+                        )
+                    )
+
+                return output
             except RateLimitError:
                 # TODO: this is a really hacky way to handle rate limits
                 # we should implement a more robust retry mechanism
@@ -479,7 +506,7 @@ class APIWrapper:
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and ("ollama" in model or "sagemaker" in model)
+            and ("sagemaker" in model)
         ):
             use_tools = False
 
@@ -740,7 +767,12 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
 
                 try:
                     output_dict = json.loads(tool_call.function.arguments)
-                    if "ollama" in response.model:
+                    # Augment output_dict with empty values for any keys in the schema that are not in output_dict
+                    for key in schema:
+                        if key not in output_dict:
+                            output_dict[key] = "Not found"
+
+                    if "ollama" in response.model or "sagemaker" in response.model:
                         for key, value in output_dict.items():
                             if not isinstance(value, str):
                                 continue

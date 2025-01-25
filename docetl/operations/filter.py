@@ -113,4 +113,8 @@ class FilterOperation(MapOperation):
         if not is_build:
             results = [result for result in results if result[filter_key]]
 
+        # Drop the filter_key from the results
+        for result in results:
+            result.pop(filter_key, None)
+
         return results, total_cost

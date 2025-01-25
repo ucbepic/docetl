@@ -5328,9 +5328,9 @@ type = ["pytest-mypy"]
 
 [extras]
 parsing = ["azure-ai-documentintelligence", "openpyxl", "paddlepaddle", "pydub", "pymupdf", "python-docx", "python-pptx"]
-server = ["azure-ai-documentintelligence", "azure-ai-formrecognizer", "docling", "fastapi", "uvicorn"]
+server = ["azure-ai-documentintelligence", "azure-ai-formrecognizer", "docling", "fastapi", "httpx", "uvicorn"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "a7ff2aeefcd400baf5f7204c1a0875b9c4aa010014b3c8a0c73300db984387d6"
+content-hash = "d97320f86d224de38d08d74c519242f4ad07dd39988a0abd606597c9d8e40254"

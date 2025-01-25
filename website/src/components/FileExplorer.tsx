@@ -12,6 +12,7 @@ import {
   Database,
   AlertTriangle,
   AlertCircle,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { DocumentViewer } from "./DocumentViewer";
@@ -65,7 +67,6 @@ interface FileExplorerProps {
   onFolderDelete?: (folderName: string) => void;
   currentFile: File | null;
   setCurrentFile: (file: File | null) => void;
-  setShowDatasetView: (show: boolean) => void;
   namespace: string;
 }
 
@@ -150,50 +151,72 @@ async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
 
 type ConversionMethod = "local" | "azure" | "docetl" | "custom-docling";
 
-async function validateJsonDataset(file: Blob): Promise<void> {
-  const text = await file.text();
-  let data: unknown;
-
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error("Invalid JSON format");
-  }
-
-  // Check if it's an array
-  if (!Array.isArray(data)) {
-    throw new Error(
-      "Dataset must be an array of objects, like this: [{key: value}, {key: value}]"
-    );
-  }
-
-  // Check if array is not empty
-  if (data.length === 0) {
-    throw new Error("Dataset cannot be empty");
-  }
-
-  // Check if first item is an object
-  if (typeof data[0] !== "object" || data[0] === null) {
-    throw new Error("Dataset must contain objects");
-  }
-
-  // Get keys of first object
-  const firstObjectKeys = Object.keys(data[0]).sort();
-
-  // Check if all objects have the same keys
-  const hasConsistentKeys = data.every((item) => {
-    if (typeof item !== "object" || item === null) return false;
-    const currentKeys = Object.keys(item).sort();
-    return (
-      currentKeys.length === firstObjectKeys.length &&
-      currentKeys.every((key, index) => key === firstObjectKeys[index])
-    );
-  });
-
-  if (!hasConsistentKeys) {
-    throw new Error("All objects in dataset must have the same keys");
-  }
+interface RemoteDatasetDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (url: string) => Promise<void>;
 }
+
+const RemoteDatasetDialog: React.FC<RemoteDatasetDialogProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+}) => {
+  const [url, setUrl] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await onSubmit(url);
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Upload Remote Dataset</DialogTitle>
+          <DialogDescription>
+            Enter the URL of a publicly accessible JSON or CSV file
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="url">Dataset URL</Label>
+            <Input
+              id="url"
+              type="url"
+              placeholder="https://example.com/dataset.json"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" type="button" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                "Upload"
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   files,
@@ -203,7 +226,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onFolderDelete,
   currentFile,
   setCurrentFile,
-  setShowDatasetView,
   namespace,
 }) => {
   const { toast } = useToast();
@@ -218,12 +240,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const [azureEndpoint, setAzureEndpoint] = useState("");
   const [azureKey, setAzureKey] = useState("");
   const [customDoclingUrl, setCustomDoclingUrl] = useState("");
+  const [isRemoteDatasetDialogOpen, setIsRemoteDatasetDialogOpen] =
+    useState(false);
 
-  const { uploadingFiles, uploadDataset } = useDatasetUpload({
-    namespace,
-    onFileUpload,
-    setCurrentFile,
-  });
+  const { uploadingFiles, uploadLocalDataset, uploadRemoteDataset } =
+    useDatasetUpload({
+      namespace,
+      onFileUpload,
+      setCurrentFile,
+    });
 
   // Group files by folder
   const groupedFiles = files.reduce((acc: { [key: string]: File[] }, file) => {
@@ -257,7 +282,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       type: "json",
       blob: uploadedFile,
     };
-    await uploadDataset(fileToUpload);
+    await uploadLocalDataset(fileToUpload);
   };
 
   const handleFileSelection = (file: File) => {
@@ -308,11 +333,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   };
 
   useEffect(() => {
-    if (!isUploadDialogOpen && !viewingDocument && !folderToDelete) {
+    const someDialogOpen = isUploadDialogOpen || isRemoteDatasetDialogOpen;
+    if (!someDialogOpen && !viewingDocument && !folderToDelete) {
       // Reset pointer-events after the dialog closes
       document.body.style.pointerEvents = "auto";
     }
-  }, [isUploadDialogOpen, viewingDocument, folderToDelete]);
+  }, [
+    isUploadDialogOpen,
+    viewingDocument,
+    folderToDelete,
+    isRemoteDatasetDialogOpen,
+  ]);
 
   const handleDialogClose = () => {
     // Clear the state and close the dialog
@@ -526,7 +557,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               <div className="flex items-center w-full">
                 <Input
                   type="file"
-                  accept=".json,application/json"
+                  accept=".json,.csv"
                   onChange={(e) => {
                     handleFileUpload(e);
                     e.currentTarget.value = "";
@@ -551,14 +582,46 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   <span>
                     {uploadingFiles.size > 0
                       ? "Uploading dataset..."
-                      : "Upload dataset.json"}
+                      : "Upload Local Dataset"}
                   </span>
                 </label>
               </div>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setIsUploadDialogOpen(true)}>
-              <FolderUp className="mr-2 h-4 w-4" />
-              <span>Upload Files or Folder</span>
+            <DropdownMenuItem
+              onClick={() => setIsRemoteDatasetDialogOpen(true)}
+              disabled={uploadingFiles.size > 0}
+              className={`flex items-center w-full cursor-pointer ${
+                uploadingFiles.size > 0 ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              {uploadingFiles.size > 0 ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Globe className="mr-2 h-4 w-4" />
+              )}
+              <span>
+                {uploadingFiles.size > 0
+                  ? "Uploading dataset..."
+                  : "Upload Remote Dataset"}
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setIsUploadDialogOpen(true)}
+              disabled={uploadingFiles.size > 0}
+              className={`flex items-center w-full cursor-pointer ${
+                uploadingFiles.size > 0 ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              {uploadingFiles.size > 0 ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FolderUp className="mr-2 h-4 w-4" />
+              )}
+              <span>
+                {uploadingFiles.size > 0
+                  ? "Uploading files..."
+                  : "Upload Files or Folder"}
+              </span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -615,17 +678,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-64">
-                  {file.type === "json" ? (
-                    <ContextMenuItem
-                      onClick={() => {
-                        handleFileSelection(file);
-                        setShowDatasetView(true);
-                      }}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      <span>View Dataset</span>
-                    </ContextMenuItem>
-                  ) : (
+                  {file.type !== "json" && (
                     <ContextMenuItem onClick={() => setViewingDocument(file)}>
                       <Eye className="mr-2 h-4 w-4" />
                       <span>View Document</span>
@@ -1079,6 +1132,14 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      )}
+
+      {isRemoteDatasetDialogOpen && (
+        <RemoteDatasetDialog
+          isOpen={isRemoteDatasetDialogOpen}
+          onClose={() => setIsRemoteDatasetDialogOpen(false)}
+          onSubmit={uploadRemoteDataset}
+        />
       )}
     </div>
   );

@@ -54,3 +54,6 @@ website/next-env.d.ts
 
 # Docker
 .docker/
+
+# experiments
+experiments/*.json

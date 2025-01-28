@@ -473,6 +473,8 @@ class APIWrapper(object):
             if scratchpad is not None:
                 newProps["updated_scratchpad"] = {"type": "object"}
 
+
+# hard coded props for now for testing
             parameters = {"type": "object", "properties": {
                 "func_calls": {"type": "array", "items": {"type": "string"}},
                 "updated_scratchpad": {"type": "array", "items": {"fruit_name": "string", "count": "integer"}}

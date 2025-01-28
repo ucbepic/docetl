@@ -529,6 +529,10 @@ class APIWrapper(object):
             "many inputs:one output" if op_type == "reduce" else "one input:one output"
         )
 
+
+####
+# Below comments were in previous prompt, but I commented it out for now for testing.
+
 # IMPORTANT: Only use the scratchpad if your task specifically requires tracking items that appear multiple times across batches. If you only need to track distinct/unique items, leave the scratchpad empty and set updated_scratchpad to null.
 
 # The intermediate output contains the result that directly answers the user's task, for **all** the data processed so far, including the current batch. You must return this via the send_output function.
@@ -546,19 +550,21 @@ class APIWrapper(object):
 # - Set updated_scratchpad to: null
 # 3. Set updated_scratchpad accordingly
 
+    # check scratchpad is updating every call
         self.runner.console.log("scratchpad")
         self.runner.console.log(scratchpad)
+
         system_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {
             op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. return a list of function calls, based on the definitions below, via the `send_output` function"
         system_prompt += f"""
 
 There are two types of function calls for these batches
-ADD("fruit_name") -> updates the scratchpad or state by adding the fruit to the intermediate state
-INCREMENT("fruit_name") -> updates the scratchpad by incrementing the count on the fruit in the intermediate state.
+ADD("string") -> updates the scratchpad or state by adding the fruit to the intermediate state
+INCREMENT("string") -> updates the scratchpad by incrementing the count on the fruit in the intermediate state. ONLY CAN BE CALLED IF ELEMENT HAS BEEN ADDED BEFORE.
 
 if the scratchpad is empty, the increment function doesn't need to be called.
 
-AFTER DECIDING THE FUNCTION CALLS, update the updated_scratchpad via the `send_output` function, with a key-value pair of the current fruit counts (ex. "apple: 1")
+AFTER DECIDING THE FUNCTION CALLS, update the func_calls and updated_scratchpad via the `send_output` function, with a key-value pair of the current value counts (ex. "apple: 1") - the key should be the fruit name and the value should be the count
 You will use the updated_scratchpad to determine whether add or increment functions are called for the data you see.
 """
 

@@ -62,7 +62,8 @@ class APIWrapper(object):
                 input = [item if item else "None" for item in input]
 
                 # FIXME: Should we use a different limit for embedding?
-                self.runner.rate_limiter.try_acquire("embedding_call", weight=1)
+                self.runner.rate_limiter.try_acquire(
+                    "embedding_call", weight=1)
                 result = embedding(model=model, input=input)
                 # Cache the result
                 c.set(key, result)
@@ -153,6 +154,8 @@ class APIWrapper(object):
                         scratchpad,
                         litellm_completion_kwargs,
                     )
+                    self.runner.console.log("HEY")
+                    self.runner.console.log(response)
                     total_cost += completion_cost(response)
                 else:
                     response = initial_result
@@ -162,7 +165,8 @@ class APIWrapper(object):
                     num_gleaning_rounds = gleaning_config.get("num_rounds", 2)
 
                     parsed_output = (
-                        self.parse_llm_response(response, output_schema, tools)[0]
+                        self.parse_llm_response(
+                            response, output_schema, tools)[0]
                         if isinstance(response, ModelResponse)
                         else response
                     )
@@ -175,7 +179,8 @@ class APIWrapper(object):
                             }
                         ]
                         + messages
-                        + [{"role": "assistant", "content": json.dumps(parsed_output)}]
+                        + [{"role": "assistant",
+                            "content": json.dumps(parsed_output)}]
                     )
 
                     for rnd in range(num_gleaning_rounds):
@@ -184,7 +189,8 @@ class APIWrapper(object):
                             gleaning_config["validation_prompt"],
                             {"output": parsed_output},
                         )
-                        self.runner.rate_limiter.try_acquire("llm_call", weight=1)
+                        self.runner.rate_limiter.try_acquire(
+                            "llm_call", weight=1)
 
                         # Get params for should refine
                         should_refine_params = {
@@ -233,7 +239,8 @@ class APIWrapper(object):
 
                         if verbose:
                             self.runner.console.log(
-                                f"Validator improvements (gleaning round {rnd + 1}): {suggestion['improvements']}"
+                                f"Validator improvements (gleaning round {
+                                    rnd + 1}): {suggestion['improvements']}"
                             )
 
                         # Prompt for improvement
@@ -244,7 +251,8 @@ class APIWrapper(object):
                         ```
 
                         Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""
-                        messages.append({"role": "user", "content": improvement_prompt})
+                        messages.append(
+                            {"role": "user", "content": improvement_prompt})
 
                         # Call LLM again
                         response = self._call_llm_with_cache(
@@ -278,7 +286,8 @@ class APIWrapper(object):
                     i = 0
                     validation_result = False
                     while not validation_result and i < num_tries:
-                        parsed_output, validation_result = validation_fn(response)
+                        parsed_output, validation_result = validation_fn(
+                            response)
                         if validation_result:
                             validated = True
                             break
@@ -297,7 +306,8 @@ class APIWrapper(object):
                             }
                         )
                         self.runner.console.log(
-                            f"[bold red]Validation failed:[/bold red] {val_rule}\n"
+                            f"[bold red]Validation failed:[/bold red] {
+                                val_rule}\n"
                             f"\t[yellow]Output:[/yellow] {parsed_output}\n"
                             f"\t({i + 1}/{num_tries})"
                         )
@@ -396,18 +406,21 @@ class APIWrapper(object):
             except RateLimitError:
                 # TODO: this is a really hacky way to handle rate limits
                 # we should implement a more robust retry mechanism
-                backoff_time = 4 * (2**rate_limited_attempt)  # Exponential backoff
+                # Exponential backoff
+                backoff_time = 4 * (2**rate_limited_attempt)
                 max_backoff = 120  # Maximum backoff time of 60 seconds
                 sleep_time = min(backoff_time, max_backoff)
                 self.runner.console.log(
-                    f"[yellow]Rate limit hit. Retrying in {sleep_time:.2f} seconds...[/yellow]"
+                    f"[yellow]Rate limit hit. Retrying in {
+                        sleep_time:.2f} seconds...[/yellow]"
                 )
                 time.sleep(sleep_time)
                 rate_limited_attempt += 1
             except TimeoutError:
                 if attempt == max_retries:
                     self.runner.console.log(
-                        f"[bold red]LLM call timed out after {max_retries + 1} attempts[/bold red]"
+                        f"[bold red]LLM call timed out after {
+                            max_retries + 1} attempts[/bold red]"
                     )
                     # TODO: HITL
                     return LLMResult(response=None, total_cost=0.0, validated=False)
@@ -439,12 +452,18 @@ class APIWrapper(object):
         Returns:
             str: The response from the LLM.
         """
-        props = {key: convert_val(value) for key, value in output_schema.items()}
+        print("TESTING")
+        props = {key: convert_val(value)
+                 for key, value in output_schema.items()}
+        self.runner.console.log("OLD PROPS")
+        self.runner.console.log(props)
+
+        newProps = {"func_calls": []}
         use_tools = True
 
         if (
             len(props) == 1
-            and list(props.values())[0].get("type") == "string"
+            # and list(props.values())[0].get("type") == "string"
             and scratchpad is None
             and ("sagemaker" in model)
         ):
@@ -452,10 +471,15 @@ class APIWrapper(object):
 
         if tools is None and use_tools:
             if scratchpad is not None:
-                props["updated_scratchpad"] = {"type": "string"}
+                newProps["updated_scratchpad"] = {"type": "object"}
 
-            parameters = {"type": "object", "properties": props}
-            parameters["required"] = list(props.keys())
+            parameters = {"type": "object", "properties": {
+                "func_calls": {"type": "array", "items": {"type": "string"}},
+                "updated_scratchpad": {"type": "array", "items": {"fruit_name": "string", "count": "integer"}}
+            }}
+            self.runner.console.log("Keys being printed")
+            self.runner.console.log(newProps.keys())
+            parameters["required"] = list(newProps.keys())
 
             # TODO: this is a hack to get around the fact that gemini doesn't support additionalProperties
             if "gemini" not in model and "claude" not in model:
@@ -473,9 +497,10 @@ class APIWrapper(object):
             ]
             if "claude" not in model:
                 tools[0]["additionalProperties"] = False
-                tools[0]["strict"] = True
+                # tools[0]["strict"] = True
 
-            tool_choice = {"type": "function", "function": {"name": "send_output"}}
+            tool_choice = {"type": "function",
+                           "function": {"name": "send_output"}}
 
         elif tools is not None:
             tools = json.loads(tools)
@@ -502,7 +527,39 @@ class APIWrapper(object):
             "many inputs:one output" if op_type == "reduce" else "one input:one output"
         )
 
-        system_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. The result should be a structured output that you will send back to the user, with the `send_output` function. Do not influence your answers too much based on the `send_output` function parameter names; just use them to send the result back to the user."
+# IMPORTANT: Only use the scratchpad if your task specifically requires tracking items that appear multiple times across batches. If you only need to track distinct/unique items, leave the scratchpad empty and set updated_scratchpad to null.
+
+# The intermediate output contains the result that directly answers the user's task, for **all** the data processed so far, including the current batch. You must return this via the send_output function.
+
+# Example task that NEEDS scratchpad - counting words that appear >2 times:
+# # Words seen 3+ times - this is your actual result
+# - Call send_output with: {{"frequent_words": ["the", "and"]}}
+# # Must track words seen 1-2 times
+# - Set updated_scratchpad to: {{"pending": {{"cat": 2, "dog": 1}}}}
+
+# Example task that does NOT need scratchpad - collecting unique locations:
+# # Just the unique items
+# - Call send_output with: {{"locations": ["New York", "Paris"]}}
+# # No need to track counts since we only want distinct items
+# - Set updated_scratchpad to: null
+# 3. Set updated_scratchpad accordingly
+
+        self.runner.console.log("scratchpad")
+        self.runner.console.log(scratchpad)
+        system_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {
+            op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. return a list of function calls, based on the definitions below, via the `send_output` function"
+        system_prompt += f"""
+
+There are two types of function calls for these batches
+ADD("fruit_name") -> updates the scratchpad or state by adding the fruit to the intermediate state
+INCREMENT("fruit_name") -> updates the scratchpad by incrementing the count on the fruit in the intermediate state.
+
+if the scratchpad is empty, the increment function doesn't need to be called.
+
+AFTER DECIDING THE FUNCTION CALLS, update the updated_scratchpad via the `send_output` function, with a key-value pair of the current fruit counts (ex. "apple: 1")
+You will use the updated_scratchpad to determine whether add or increment functions are called for the data you see.
+"""
+
         if scratchpad:
             system_prompt += f"""
 
@@ -511,29 +568,30 @@ You are incrementally processing data across multiple batches. You will see:
 2. The intermediate output so far (what you returned last time)
 3. A scratchpad for tracking additional state: {scratchpad}
 
-IMPORTANT: Only use the scratchpad if your task specifically requires tracking items that appear multiple times across batches. If you only need to track distinct/unique items, leave the scratchpad empty and set updated_scratchpad to null.
-
-The intermediate output contains the result that directly answers the user's task, for **all** the data processed so far, including the current batch. You must return this via the send_output function.
-
-Example task that NEEDS scratchpad - counting words that appear >2 times:
-- Call send_output with: {{"frequent_words": ["the", "and"]}} # Words seen 3+ times - this is your actual result
-- Set updated_scratchpad to: {{"pending": {{"cat": 2, "dog": 1}}}} # Must track words seen 1-2 times
-
-Example task that does NOT need scratchpad - collecting unique locations:
-- Call send_output with: {{"locations": ["New York", "Paris"]}} # Just the unique items
-- Set updated_scratchpad to: null # No need to track counts since we only want distinct items
 
 As you process each batch:
 1. Use both the previous output and scratchpad (if needed) to inform your processing
-2. Call send_output with your result that combines the current batch with previous output
-3. Set updated_scratchpad only if you need to track counts/frequencies between batches
+2.) Update the function_calls list with one of the two functions: ADD() or INCREMENT();
+- ADD(fruit_or_veggie_name): Adds the fruit or veggie to the state, with an initial count of 1, if it doesn't exist.
+- INCREMENT(fruit_or_veggie_name): Updates the count of the fruit or veggie in the state, if it exists.
 
-If you use the scratchpad, keep it concise (~500 chars) and easily parsable using:
-- Key-value pairs
-- JSON-like format
-- Simple counters/tallies
+AFTER DECIDING THE FUNCTION CALLS, update the updated_scratchpad with a key-value pair of the current fruit counts (ex. "apple: 1")
+You will use the updated_scratchpad to determine whether add or increment functions are called for the data you see.
 
-Your main result must be sent via send_output. The updated_scratchpad is only for tracking state between batches, and should be null unless you specifically need to track frequencies."""
+
+The Updated Scratchpad should follow the same state pattern as the previous batch;
+You will be updating the scratchpad with edit functions such as increment or add.
+
+for example,
+old state: "apple": 1, "orange": 3
+article finds the fruits "apple, orange, pear"
+You will be updating the state by INCREMENTING apple and orange and ADDING pear.
+updated state: "apple": 2, "orange":4, "pear": 1
+
+TAKE YOUR TIME SEARCHING THROUGH THE DATA TO MAKE ADDITIONS OR INCREMENTS TO THE STATE
+
+
+Your main result must be sent via send_output."""
 
         # Truncate messages if they exceed the model's context length
         messages = truncate_messages(messages, model)
@@ -559,7 +617,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 if model not in BASIC_MODELS:
                     if "/" not in model:
                         raise ValueError(
-                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
+                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {
+                                e}"
                         )
                 raise e
         else:
@@ -580,7 +639,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 if model not in BASIC_MODELS:
                     if "/" not in model:
                         raise ValueError(
-                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
+                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {
+                                e}"
                         )
                 raise e
 
@@ -602,12 +662,14 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         except InvalidOutputError as e:
             if manually_fix_errors:
                 rprint(
-                    f"[bold red]Could not parse LLM output:[/bold red] {e.message}\n"
+                    f"[bold red]Could not parse LLM output:[/bold red] {
+                        e.message}\n"
                     f"\tExpected Schema: {e.expected_schema}\n"
                     f"\tPlease manually set this output."
                 )
                 rprint(
-                    f"\n[bold yellow]LLM-Generated Response:[/bold yellow]\n{response}"
+                    f"\n[bold yellow]LLM-Generated Response:[/bold yellow]\n{
+                        response}"
                 )
                 output = get_user_input_for_schema(schema)
 
@@ -640,7 +702,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         """
 
         if not response:
-            raise InvalidOutputError("No response from LLM", [{}], schema, [], [])
+            raise InvalidOutputError(
+                "No response from LLM", [{}], schema, [], [])
 
         tool_calls = (
             response.choices[0].message.tool_calls
@@ -662,7 +725,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 for tool in tools:
                     if tool_call.function.name == tool["function"]["name"]:
                         try:
-                            function_args = json.loads(tool_call.function.arguments)
+                            function_args = json.loads(
+                                tool_call.function.arguments)
                         except json.JSONDecodeError:
                             return [{}]
                         # Execute the function defined in the tool's code
@@ -677,7 +741,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         else:
             if not tool_calls:
                 raise InvalidOutputError(
-                    "No tool calls in LLM response", [{}], schema, response.choices, []
+                    "No tool calls in LLM response", [
+                        {}], schema, response.choices, []
                 )
 
             outputs = []
@@ -707,7 +772,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                             except Exception:
                                 try:
                                     if value.startswith("["):
-                                        output_dict[key] = ast.literal_eval(value + "]")
+                                        output_dict[key] = ast.literal_eval(
+                                            value + "]")
                                     else:
                                         output_dict[key] = value
                                 except Exception:
@@ -752,7 +818,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         for validation in operation["validate"]:
             try:
                 if not safe_eval(validation, output):
-                    console.log(f"[bold red]Validation failed:[/bold red] {validation}")
+                    console.log(
+                        f"[bold red]Validation failed:[/bold red] {validation}")
                     console.log(f"[yellow]Output:[/yellow] {output}")
                     return False
             except Exception as e:

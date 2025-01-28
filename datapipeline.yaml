@@ -1,0 +1,66 @@
+datasets:
+  input:
+    type: file
+    path: dataset.json
+    source: local
+default_model: gpt-4o-mini
+operations:
+  - type: reduce
+    name: get_fruits
+    prompt: >-
+      You are going to be given many articles. 
+
+
+      {% for input in inputs %}
+
+      article: {{ input.src }}
+
+      {% endfor %}
+
+
+      SEARCH THROUGH ALL CONTENT OF THE articles.
+
+       I want you to provide me the
+      names of the fruit/vegetable name which appeared the most amount of times and give me the amount of times it appeared.
+
+      Also, provide me the list of all fruits and vegetables, and the count of the amount of times each appeared through all batches.
+
+      Only count the fruit if you see the NAME of it, not a reference to it.
+    fold_batch_size: 2
+    sample: 7
+    fold_prompt: >-
+      Update the existing list of fruit/veggie names based on the additional articles content
+
+      {% for input in inputs %}
+
+      article: {{ input.src }}
+
+      {% endfor %}
+
+      Update the existing list with the proper count and name of each fruit; if a new fruit is seen, add it to the list;  Repeating fruit/veggie names in the list is allowed, please do it.
+
+
+         Only count the fruit if you see the NAME of it, not a reference to it.
+
+      Existing list of fruit/veggie names:
+      data: {{ output.fruit_or_veggie_seen_most, output.number_of_times_seen, output.data_count }}
+
+    output:
+      schema:
+        fruit_or_veggie_seen_most: "string"
+        number_of_times_seen: "int"
+        data_count: "list[{name:string, count:int}]"
+    reduce_key:
+      - _all
+    model: gpt-4o-mini
+pipeline:
+  steps:
+    - name: data_processing
+      input: input
+      operations:
+        - get_fruits
+  output:
+    type: file
+    path: results.json
+    intermediate_dir: intermediate_results
+system_prompt: {}

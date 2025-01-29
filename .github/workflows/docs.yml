@@ -19,7 +19,13 @@
           with:
             python-version: 3.x
         - name: Install dependencies
-          run: pip install mkdocs-material
+          run: |
+            pip install mkdocs==1.6.1 \
+                        mkdocs-material==9.5.34 \
+                        mkdocstrings==0.26.1 \
+                        mkdocstrings-python==1.11.1 \
+                        mkdocs-glightbox==0.4.0 \
+                        pytkdocs==0.16.2
         - name: Copy environment file
           run: cp .env.sample .env
         - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV

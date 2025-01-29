@@ -14,6 +14,7 @@ from docetl.utils import completion_cost
 
 from .cache import cache, cache_key, freezeargs
 from .llm import InvalidOutputError, LLMResult, timeout, truncate_messages
+from .oss_llm import OutlinesBackend
 from .validation import (
     convert_dict_schema_to_list_schema,
     convert_val,
@@ -25,9 +26,33 @@ from .validation import (
 BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
 
 
-class APIWrapper(object):
+class APIWrapper:
     def __init__(self, runner):
         self.runner = runner
+        self._oss_operations = {}
+        self.outlines_backend = OutlinesBackend()
+
+        # If any of the models in the config are outlines models, initialize the outlines backend
+        default_model = self.runner.config.get("default_model", "gpt-4o-mini")
+        models_and_schemas = [
+            (op.get("model", default_model), op.get("output", {}).get("schema", {}))
+            for op in self.runner.config.get("operations", [])
+        ]
+        for model, schema in models_and_schemas:
+            if self._is_outlines_model(model):
+                model = model.replace("outlines/", "")
+                self.runner.console.log(
+                    f"Initializing outlines backend for model: {model}"
+                )
+                self.outlines_backend.setup_model(model, schema)
+
+    def _is_outlines_model(self, model: str) -> bool:
+        """Check if model is an Outlines model"""
+        return model.startswith("outlines/")
+
+    def _get_model_path(self, model: str) -> str:
+        """Extract model path from outlines model string"""
+        return model.split("outlines/", 1)[1]
 
     @freezeargs
     def gen_embedding(self, model: str, input: List[str]) -> List[float]:
@@ -466,6 +491,14 @@ class APIWrapper(object):
         Returns:
             str: The response from the LLM.
         """
+        # Add OSS model handling
+        if self._is_outlines_model(model):
+            model_path = self._get_model_path(model)
+            returned_val = self.outlines_backend.process_messages(
+                model_path=model_path, messages=messages, output_schema=output_schema
+            ).response
+            return returned_val
+
         props = {key: convert_val(value) for key, value in output_schema.items()}
         use_tools = True
 
@@ -566,6 +599,20 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         messages = truncate_messages(messages, model)
 
         self.runner.rate_limiter.try_acquire("llm_call", weight=1)
+        if self._is_outlines_model(model):
+            model_path = self._get_model_path(model)
+            return self.outlines_backend.process_messages(
+                model_path=model_path,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt,
+                    },
+                ]
+                + messages,
+                output_schema=output_schema,
+            )
+        # Handle other models through LiteLLM
         if tools is not None:
             try:
                 response = completion(

@@ -1,46 +1,47 @@
+import ast
 import json
-from typing import Any, Dict, Union
-
+from typing import Union, Dict, Any
 from asteval import Interpreter
-from jinja2 import Environment, StrictUndefined, Template
-from jinja2.exceptions import UndefinedError
 from rich import print as rprint
 from rich.prompt import Prompt
 
-aeval = Interpreter()
+from jinja2 import Environment, StrictUndefined, Template
+from jinja2.exceptions import UndefinedError
 
+
+aeval = Interpreter()
 
 def strict_render(template: Union[Template, str], context: Dict[str, Any]) -> str:
     """
     Renders a Jinja template with strict undefined checking.
-
+    
     Args:
         template: Either a Jinja2 Template object or a template string
         context: Dictionary containing the template variables
-
+        
     Returns:
         The rendered template string
-
+        
     Raises:
         UndefinedError: When any undefined variable, attribute or index is accessed
         ValueError: When template is invalid
     """
     # Create strict environment
     env = Environment(undefined=StrictUndefined)
-
+    
     # Convert string to Template if needed
     if isinstance(template, str):
 
         # # If "inputs" in the context, make sure they are not accessing some attribute of inputs
         # if "inputs" in context and "{{ inputs." in template:
         #     raise UndefinedError("The inputs variable is a list, so you cannot access attributes of inputs. Use inputs[index].key instead.")
-
+        
         try:
             template = env.from_string(template)
         except Exception as e:
             raise ValueError(f"Invalid template: {str(e)}")
-
-    try:
+    
+    try:    
         return template.render(context)
     except UndefinedError as e:
         # Get the available context keys for better error reporting
@@ -52,12 +53,8 @@ def strict_render(template: Union[Template, str], context: Dict[str, Any]) -> st
             if isinstance(context[var], dict):
                 var_attributes[var] = list(context[var].keys())
             elif isinstance(context[var], list) and len(context[var]) > 0:
-                var_attributes[var] = [
-                    f"inputs[i].{k}"
-                    for k in context[var][0].keys()
-                    if "_observability" not in k
-                ]
-
+                var_attributes[var] = [f"inputs[i].{k}" for k in context[var][0].keys() if "_observability" not in k]
+        
         raise UndefinedError(
             f"{str(e)}\n"
             f"Your prompt can include the following variables: {available_vars}\n"
@@ -77,28 +74,39 @@ def safe_eval(expression: str, output: Dict) -> bool:
         except Exception:
             return False
 
-
 def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
     """Convert a string representation of a type to a dictionary representation."""
     value = value.strip().lower()
+    is_outlines = model.startswith("outlines/")
+
+    # Basic types
     if value in ["str", "text", "string", "varchar"]:
-        return {"type": "string"}
+        return "str" if is_outlines else {"type": "string"}
     elif value in ["int", "integer"]:
-        return {"type": "integer"}
+        return "int" if is_outlines else {"type": "integer"}
     elif value in ["float", "decimal", "number"]:
-        return {"type": "number"}
+        return "float" if is_outlines else {"type": "number"}
     elif value in ["bool", "boolean"]:
-        return {"type": "boolean"}
+        return "bool" if is_outlines else {"type": "boolean"}
+    
+    # Lists
     elif value.startswith("list["):
         inner_type = value[5:-1].strip()
-        return {"type": "array", "items": convert_val(inner_type, model)}
+        inner_val = convert_val(inner_type, model)
+        return f"List[{inner_val}]" if is_outlines else {"type": "array", "items": inner_val}
     elif value == "list":
         raise ValueError("List type must specify its elements, e.g., 'list[str]'")
+    
+    # Objects
     elif value.startswith("{") and value.endswith("}"):
         properties = {}
         for item in value[1:-1].split(","):
             key, val = item.strip().split(":")
             properties[key.strip()] = convert_val(val.strip(), model)
+        
+        if is_outlines:
+            return properties
+        
         result = {
             "type": "object",
             "properties": properties,
@@ -107,19 +115,20 @@ def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
         if "gemini" not in model:
             result["additionalProperties"] = False
         return result
+    
+    # Enums
     elif value.startswith("enum[") and value.endswith("]"):
         enum_values = value[5:-1].strip().split(",")
         enum_values = [v.strip() for v in enum_values]
         return {"type": "string", "enum": enum_values}
+    
     else:
         raise ValueError(f"Unsupported value type: {value}")
-
 
 def convert_dict_schema_to_list_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     """Convert a dictionary schema to a list schema."""
     schema_str = "{" + ", ".join([f"{k}: {v}" for k, v in schema.items()]) + "}"
     return {"results": f"list[{schema_str}]"}
-
 
 def get_user_input_for_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     """Prompt the user for input for each key in the schema."""
@@ -134,15 +143,11 @@ def get_user_input_for_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(parsed_value, eval(value_type)):
                 user_input[key] = parsed_value
             else:
-                rprint(
-                    f"[bold red]Error:[/bold red] Input for '{key}' does not match the expected type {value_type}."
-                )
+                rprint(f"[bold red]Error:[/bold red] Input for '{key}' does not match the expected type {value_type}.")
                 return get_user_input_for_schema(schema)
 
         except json.JSONDecodeError:
-            rprint(
-                f"[bold red]Error:[/bold red] Invalid JSON input for '{key}'. Please try again."
-            )
+            rprint(f"[bold red]Error:[/bold red] Invalid JSON input for '{key}'. Please try again.")
             return get_user_input_for_schema(schema)
 
-    return user_input
+    return user_input 

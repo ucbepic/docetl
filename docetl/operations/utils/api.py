@@ -1,6 +1,7 @@
 import ast
 import hashlib
 import json
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -473,7 +474,7 @@ class APIWrapper(object):
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and ("sagemaker" in model)
+            and ("sagemaker" in model or "deepseek-r1" in model)
         ):
             use_tools = False
 
@@ -678,7 +679,25 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         # Check if there are no tools and the schema has a single key-value pair
         if not tools and len(schema) == 1 and not tool_calls:
             key = next(iter(schema))
-            return [{key: response.choices[0].message.content}]
+            content = response.choices[0].message.content
+
+            # Handle deepseek-r1 models' think tags
+            if "deepseek-r1" in response.model:
+                result = {}
+                # Extract think content if present
+                think_match = re.search(r'<think>(.*?)</think>', content, re.DOTALL)
+                if think_match:
+                    result['think'] = think_match.group(1).strip()
+                    # Get the remaining content after </think>
+                    main_content = re.split(r'</think>', content, maxsplit=1)[-1].strip()
+                    result[key] = main_content
+                else:
+                    # If no think tags, just use the content as is
+                    result[key] = content
+                return [result]
+            
+            # For other models, continue with existing behavior
+            return [{key: content}]
 
         # Parse the response based on the provided tools
         if tools:

@@ -34,7 +34,8 @@ FRUITS_VEGETABLES = [
 MODELS = [
     "azure/gpt-4o-mini",
     "deepseek/deepseek-chat",
-    "lm_studio/hugging-quants/llama-3.2-3b-instruct"
+    # "lm_studio/hugging-quants/llama-3.2-3b-instruct",
+    # "lm_studio/qwen2.5-7b-instruct-1m",
 ]
 SYSTEM_PROMPT = (
     "You are a helpful assistant, helping the user make sense of their data. "
@@ -146,7 +147,8 @@ def evaluate_structured_output(model: str, text: str) -> tuple[Set[str], float, 
             messages=messages,
             response_format=json_schema_object,
             num_retries=3,
-            # max_tokens=500,
+            temperature=1.0,
+            max_tokens=500,
         )
         extracted_items = set(json.loads(response.choices[0].message.content)["fruits_and_vegetables"])
         cost = response._hidden_params["response_cost"]
@@ -201,6 +203,7 @@ def evaluate_tool_calling(model: str, text: str) -> tuple[Set[str], float, float
             tool_choice={"type": "function", "function": {"name": "send_output"}},
             num_retries=3,
             max_tokens=500,
+            temperature=1.0,
         )
         
         tool_calls = response.choices[0].message.tool_calls

@@ -20,7 +20,7 @@ app = modal.App(
     .add_local_dir("docetl", remote_path="/docetl", copy=True)
     .add_local_dir("server", remote_path="/server", copy=True)
     # .poetry_install_from_file("/root/pyproject.toml", force_build=True)
-    .pip_install("poetry")
+    .pip_install("poetry==1.8.5")
     .pip_install("pyyaml")
     .pip_install("supabase")
     .run_commands(["poetry config virtualenvs.create false", "poetry install --all-extras --no-root && poetry install --all-extras", "pip install docetl --target=./lib1"])

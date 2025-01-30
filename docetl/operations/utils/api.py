@@ -26,6 +26,10 @@ from .validation import (
 BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
 
 
+def is_deepseek_r1(model: str) -> bool:
+    return "deepseek-r1" in model or "deepseek-reasoner" in model
+
+
 class APIWrapper(object):
     def __init__(self, runner):
         self.runner = runner
@@ -474,7 +478,7 @@ class APIWrapper(object):
             len(props) == 1
             and list(props.values())[0].get("type") == "string"
             and scratchpad is None
-            and ("sagemaker" in model or "deepseek-r1" in model)
+            and ("sagemaker" in model or is_deepseek_r1(model))
         ):
             use_tools = False
 
@@ -530,7 +534,17 @@ class APIWrapper(object):
             "many inputs:one output" if op_type == "reduce" else "one input:one output"
         )
 
-        system_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. The result should be a structured output that you will send back to the user, with the `send_output` function. Do not influence your answers too much based on the `send_output` function parameter names; just use them to send the result back to the user."
+        # Different system prompts based on model type
+        base_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible."
+
+        if "sagemaker" in model or is_deepseek_r1(model):
+            system_prompt = base_prompt
+        else:
+            system_prompt = (
+                base_prompt
+                + " The result should be a structured output that you will send back to the user, with the `send_output` function. Do not influence your answers too much based on the `send_output` function parameter names; just use them to send the result back to the user."
+            )
+
         if scratchpad:
             system_prompt += f"""
 
@@ -682,20 +696,22 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             content = response.choices[0].message.content
 
             # Handle deepseek-r1 models' think tags
-            if "deepseek-r1" in response.model:
+            if is_deepseek_r1(response.model):
                 result = {}
                 # Extract think content if present
-                think_match = re.search(r'<think>(.*?)</think>', content, re.DOTALL)
+                think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
                 if think_match:
-                    result['think'] = think_match.group(1).strip()
+                    result["think"] = think_match.group(1).strip()
                     # Get the remaining content after </think>
-                    main_content = re.split(r'</think>', content, maxsplit=1)[-1].strip()
+                    main_content = re.split(r"</think>", content, maxsplit=1)[
+                        -1
+                    ].strip()
                     result[key] = main_content
                 else:
                     # If no think tags, just use the content as is
                     result[key] = content
                 return [result]
-            
+
             # For other models, continue with existing behavior
             return [{key: content}]
 

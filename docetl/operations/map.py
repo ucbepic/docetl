@@ -177,7 +177,6 @@ class MapOperation(BaseOperation):
                     if isinstance(response, ModelResponse)
                     else response
                 )
-
                 # Check that the output has all the keys in the schema
                 for key in self.config["output"]["schema"]:
                     if key not in output:
@@ -317,7 +316,6 @@ class MapOperation(BaseOperation):
                     else:
                         raise e
 
-            # Return items and cost
             return all_results, total_cost
 
         with ThreadPoolExecutor(max_workers=self.max_batch_size) as executor:

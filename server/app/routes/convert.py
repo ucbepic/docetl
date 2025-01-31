@@ -173,9 +173,7 @@ async def convert_documents(
         # Process all files
         for filename, file_path, is_txt in zip(original_filenames, file_paths, txt_files):
             if is_txt:
-                # For txt files, just read the content
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
+                content = try_read_file_with_encodings(file_path)
                 results.append({
                     "filename": filename,
                     "markdown": content
@@ -243,4 +241,24 @@ async def azure_convert_documents(
 
         return {"documents": formatted_results}
     
+def get_supported_encodings():
+    """Get list of supported encodings from environment or use default."""
+    encodings_str = os.getenv("TEXT_FILE_ENCODINGS", "utf-8")
+    return [enc.strip() for enc in encodings_str.split(",")]
+
+def try_read_file_with_encodings(file_path: str) -> str:
+    """Try to read a file with configured encodings."""
+    encodings = get_supported_encodings()
+
+    for encoding in encodings:
+        try:
+            with open(file_path, 'r', encoding=encoding) as f:
+                return f.read()
+        except UnicodeDecodeError:
+            print(f"Failed to decode {file_path} with encoding {encoding}")
+            continue
+
+    # If all encodings fail, try with the most permissive one and replace errors
+    with open(file_path, 'r', encoding='latin1', errors='replace') as f:
+        return f.read()
 

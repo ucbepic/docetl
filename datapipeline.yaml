@@ -27,7 +27,7 @@ operations:
 
       Only count the fruit if you see the NAME of it, not a reference to it.
     fold_batch_size: 2
-    sample: 7
+    sample: 5
     fold_prompt: >-
       Update the existing list of fruit/veggie names based on the additional articles content
 

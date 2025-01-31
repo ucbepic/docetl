@@ -1,6 +1,8 @@
 import ast
 import hashlib
 import json
+import re
+import copy
 import time
 from typing import Any, Dict, List, Optional
 
@@ -98,6 +100,27 @@ class APIWrapper(object):
             litellm_completion_kwargs=litellm_completion_kwargs,
         )
 
+    # Given a list of function calls from llm
+    # be able to update a localized state which can be used for the next batch
+    def process_func_calls(self, func_calls, state=None):
+        # init state if first batch
+        if state is None:
+            state = {}
+
+        # loop through func calls and update localized state
+        # state is key-value pair, so keeps track of count with value
+        # @TODO: make it more generalizable, as 2 func_types are supported
+        for call in func_calls:
+            match = re.match(r'(ADD|INCREMENT)\("(.+?)"\)', call)
+            if match:
+                action, item = match.groups()
+                if action == "ADD":
+                    state[item] = state.get(item, 0) + 1
+                elif action == "INCREMENT" and item in state:
+                    state[item] += 1
+
+        return state
+
     def _cached_call_llm(
         self,
         cache_key: str,
@@ -154,8 +177,43 @@ class APIWrapper(object):
                         scratchpad,
                         litellm_completion_kwargs,
                     )
-                    self.runner.console.log("HEY")
-                    self.runner.console.log(response)
+
+                    # Copy response object to inject updated_scratchpad for next batch
+                    newRes = copy.deepcopy(response)
+
+                    arguments_str = newRes.choices[0].message.tool_calls[0].function.arguments
+
+                    # Gather list of function calls in json format
+                    arguments_dict = json.loads(arguments_str)
+                    func_calls = arguments_dict["func_calls"]
+
+                    old_state = {}
+
+                    # get previous llm state
+                    try:
+                        old_state = arguments_dict["updated_scratchpad"]
+                    except KeyError:
+                        self.console.log(
+                            "ERROR: KEY VALUE; likely llm interference")
+
+                    updated_state = self.process_func_calls(
+                        func_calls, old_state)
+
+                    arguments_dict['updated_scratchpad'] = updated_state
+
+                    newRes.choices[0].message.tool_calls[0].function.arguments = json.dumps(
+                        arguments_dict)
+
+                    # update response for next batch
+                    response = newRes
+
+                    parsed_output = self.parse_llm_response(
+                        response, output_schema, tools
+                    )[0]
+
+                    self.runner.console.log("PARSED")
+                    self.runner.console.log(parsed_output)
+
                     total_cost += completion_cost(response)
                 else:
                     response = initial_result
@@ -477,7 +535,9 @@ class APIWrapper(object):
 # hard coded props for now for testing
             parameters = {"type": "object", "properties": {
                 "func_calls": {"type": "array", "items": {"type": "string"}},
-                "updated_scratchpad": {"type": "array", "items": {"fruit_name": "string", "count": "integer"}}
+                "updated_scratchpad": {"type": "object", "properties": {"fruit_name": {
+                    "type": "integer"
+                }, "default": {}}}
             }}
             self.runner.console.log("Keys being printed")
             self.runner.console.log(newProps.keys())
@@ -558,14 +618,19 @@ class APIWrapper(object):
             op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. return a list of function calls, based on the definitions below, via the `send_output` function"
         system_prompt += f"""
 
+        Via the `send_output` function, make sure to return both the func_calls list, and the updated_scratchpad object, even if they are empty. Remember, you are not allowed to edit the updated_scratchpad at all.
+
 There are two types of function calls for these batches
 ADD("string") -> updates the scratchpad or state by adding the fruit to the intermediate state
 INCREMENT("string") -> updates the scratchpad by incrementing the count on the fruit in the intermediate state. ONLY CAN BE CALLED IF ELEMENT HAS BEEN ADDED BEFORE.
 
-if the scratchpad is empty, the increment function doesn't need to be called.
+If you see a fruit/veggie, you are only allowed to call ONE of the two functions in that moment, and then move on to th next.
 
-AFTER DECIDING THE FUNCTION CALLS, update the func_calls and updated_scratchpad via the `send_output` function, with a key-value pair of the current value counts (ex. "apple: 1") - the key should be the fruit name and the value should be the count
-You will use the updated_scratchpad to determine whether add or increment functions are called for the data you see.
+if the scratchpad is empty, the increment function SHOULD NOT be called.
+
+AFTER DECIDING THE FUNCTION CALLS, update the func_calls via the `send_output` function
+
+NEVER EDIT THE UPDATED_SCRATCHPAD DIRECTLY. JUST USE IT FOR REFERENCE, AND ALWAYS RETURN IT WITHOUT CHANGES MADE TO IT FROM WHEN YOU SAW IT.
 """
 
         if scratchpad:
@@ -574,27 +639,19 @@ You will use the updated_scratchpad to determine whether add or increment functi
 You are incrementally processing data across multiple batches. You will see:
 1. The current batch of data to process
 2. The intermediate output so far (what you returned last time)
-3. A scratchpad for tracking additional state: {scratchpad}
+3. A scratchpad for tracking function calls: {scratchpad}
 
 
 As you process each batch:
 1. Use both the previous output and scratchpad (if needed) to inform your processing
-2.) Update the function_calls list with one of the two functions: ADD() or INCREMENT();
+2.) Update the func_calls list with one of the two functions: ADD() or INCREMENT() based on the data you see;
 - ADD(fruit_or_veggie_name): Adds the fruit or veggie to the state, with an initial count of 1, if it doesn't exist.
 - INCREMENT(fruit_or_veggie_name): Updates the count of the fruit or veggie in the state, if it exists.
 
-AFTER DECIDING THE FUNCTION CALLS, update the updated_scratchpad with a key-value pair of the current fruit counts (ex. "apple: 1")
-You will use the updated_scratchpad to determine whether add or increment functions are called for the data you see.
+To determine whether the ADD or INCREMENT function should be called, you will be provided the curent state, and counts of each. If the fruit doesn't exist, add ADD to the func_list, but else run INCREMENT to the func_list.'
 
+Make sure to ONLY update the func_list, do NOT update the updated_scratchpad at all.
 
-The Updated Scratchpad should follow the same state pattern as the previous batch;
-You will be updating the scratchpad with edit functions such as increment or add.
-
-for example,
-old state: "apple": 1, "orange": 3
-article finds the fruits "apple, orange, pear"
-You will be updating the state by INCREMENTING apple and orange and ADDING pear.
-updated state: "apple": 2, "orange":4, "pear": 1
 
 TAKE YOUR TIME SEARCHING THROUGH THE DATA TO MAKE ADDITIONS OR INCREMENTS TO THE STATE
 
@@ -722,6 +779,8 @@ Your main result must be sent via send_output."""
         # Check if there are no tools and the schema has a single key-value pair
         if not tools and len(schema) == 1 and not tool_calls:
             key = next(iter(schema))
+            self.runner.console.log("PARSING KEYS")
+            self.runner.console.log({key: response.choices[0].message.content})
             return [{key: response.choices[0].message.content}]
 
         # Parse the response based on the provided tools
@@ -731,6 +790,8 @@ Your main result must be sent via send_output."""
             results = []
             for tool_call in tool_calls:
                 for tool in tools:
+                    self.runner.console.log("PARSER")
+                    self.runner.console.log(tool["function"]["name"])
                     if tool_call.function.name == tool["function"]["name"]:
                         try:
                             function_args = json.loads(

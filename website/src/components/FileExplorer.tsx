@@ -94,7 +94,6 @@ interface FileWithPath extends File {
 const SUPPORTED_EXTENSIONS = [
   ".pdf",
   ".docx",
-  ".doc",
   ".txt",
   ".html",
   ".pptx",

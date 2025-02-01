@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  docetl:
+    build: .
+    image: docetl
+    ports:
+      # Map host ports to container ports using environment variables.
+      # If FRONTEND_HOST_PORT is not set, default to 3031.
+      - "${FRONTEND_HOST_PORT:-3031}:3000"
+      # If BACKEND_HOST_PORT is not set, default to 8081.
+      - "${BACKEND_HOST_PORT:-8081}:8000"
+    environment:
+      # Pass environment variables from the .env file (or host environment)
+      # with default values if they are not defined.
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_api_key_here}
+      - BACKEND_ALLOW_ORIGINS=${BACKEND_ALLOW_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
+      - BACKEND_PORT=${BACKEND_PORT:-8000}
+      - BACKEND_RELOAD=${BACKEND_RELOAD:-True}
+      - FRONTEND_HOST=${FRONTEND_HOST:-0.0.0.0}
+      - FRONTEND_PORT=${FRONTEND_PORT:-3000}
+      - TEXT_FILE_ENCODINGS=${TEXT_FILE_ENCODINGS:-utf-8,latin1,cp1252,iso-8859-1}
+    volumes:
+      # Mount the named volume "docetl-data" to /docetl-data in the container.
+      - docetl-data:/docetl-data
+
+volumes:
+  # Define a named volume for persistent data.
+  docetl-data:

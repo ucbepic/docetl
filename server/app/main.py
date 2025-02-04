@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include all routers
+# Include all routers,
 app.include_router(pipeline.router)
 app.include_router(convert.router)
 app.include_router(filesystem.router, prefix="/fs")
@@ -34,6 +34,10 @@ app.include_router(filesystem.router, prefix="/fs")
 @app.get("/")
 async def root():
     return {"message": "DocETL API is running"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 if __name__ == "__main__":
     import uvicorn

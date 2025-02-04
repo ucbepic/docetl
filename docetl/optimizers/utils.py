@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict, List
 
 from litellm import completion
@@ -14,17 +15,20 @@ class LLMClient:
     and keeps track of the total cost of API calls.
     """
 
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, runner, model: str = "gpt-4o", **litellm_kwargs):
         """
         Initialize the LLMClient.
 
         Args:
             model (str, optional): The name of the LLM model to use. Defaults to "gpt-4o".
+            **litellm_kwargs: Additional keyword arguments for the LLM model.
         """
         if model == "gpt-4o":
             model = "gpt-4o-2024-08-06"
         self.model = model
+        self.litellm_kwargs = litellm_kwargs
         self.total_cost = 0
+        self.runner = runner
 
     def generate(
         self,
@@ -46,6 +50,9 @@ class LLMClient:
         Returns:
             Any: The response from the LLM.
         """
+        if self.runner.is_cancelled():
+            raise asyncio.CancelledError("Operation was cancelled")
+
         parameters["additionalProperties"] = False
 
         messages = truncate_messages(messages, self.model, from_agent=True)
@@ -59,6 +66,7 @@ class LLMClient:
                 },
                 *messages,
             ],
+            **self.litellm_kwargs,
             response_format={
                 "type": "json_schema",
                 "json_schema": {

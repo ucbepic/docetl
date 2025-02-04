@@ -50,7 +50,8 @@ export function generatePipelineConfig(
   } | null = null,
   apiKeys: APIKey[] = [],
   docetl_encryption_key: string = "",
-  enable_observability: boolean = true
+  enable_observability: boolean = true,
+  optimizerModel: string = "gpt-4o"
 ) {
   const datasets = {
     input: {
@@ -210,6 +211,7 @@ export function generatePipelineConfig(
 
   // Fix type errors by asserting the pipeline config type
   const pipelineConfig: any = {
+    optimizer_model: optimizerModel,
     datasets,
     default_model,
     ...(enable_observability && {

@@ -57,7 +57,9 @@ async def run_optimization(task_id: str, yaml_config: str, step_name: str, op_na
         should_optimize, input_data, output_data, cost = await asyncio.to_thread(
             runner.should_optimize,
             step_name,
-            op_name
+            op_name,
+            model=runner.config.get("optimizer_model", "gpt-4o"),
+            litellm_kwargs=runner.config.get("optimizer_litellm_kwargs", {})
         )
         
         # Update task result

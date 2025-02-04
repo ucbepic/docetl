@@ -29,6 +29,7 @@ def build(
 ):
     """
     Build and optimize the configuration specified in the YAML file.
+    Any arguments passed here will override the values in the YAML file.
 
     Args:
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
@@ -47,7 +48,12 @@ def build(
 
     runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
     runner.optimize(
-        save=True, return_pipeline=False, model=model, resume=resume, timeout=timeout
+        save=True,
+        return_pipeline=False,
+        model=model or runner.config.get("optimizer_model", "gpt-4o"),
+        resume=resume,
+        timeout=timeout,
+        litellm_kwargs=runner.config.get("optimizer_litellm_kwargs", {}),
     )
 
 

@@ -1,0 +1,43 @@
+services:
+  docetl:
+    container_name: docetl-docwrangler-stack
+    build: .
+    image: docetl
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      # Map host ports to container ports using environment variables.
+      # If FRONTEND_DOCKER_COMPOSE_PORT is not set, default to 3031.
+      - "${FRONTEND_DOCKER_COMPOSE_PORT:-3031}:3000"
+      # If BACKEND_DOCKER_COMPOSE_PORT is not set, default to 8081.
+      - "${BACKEND_DOCKER_COMPOSE_PORT:-8081}:8000"
+    environment:
+      # Pass environment variables from the .env file (or host environment)
+      # with default values if they are not defined.
+      # Authentication
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_api_key_here}
+      
+      # Backend Configuration
+      - BACKEND_ALLOW_ORIGINS=${BACKEND_ALLOW_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
+      - BACKEND_PORT=${BACKEND_PORT:-8000}
+      - BACKEND_RELOAD=${BACKEND_RELOAD:-True}
+      
+      # Frontend Configuration
+      - FRONTEND_HOST=${FRONTEND_HOST:-0.0.0.0}
+      - FRONTEND_PORT=${FRONTEND_PORT:-3000}
+      
+      # File Processing
+      - TEXT_FILE_ENCODINGS=${TEXT_FILE_ENCODINGS:-utf-8,latin1,cp1252,iso-8859-1}
+    volumes:
+      # Mount the named volume "docetl-data" to /docetl-data in the container.
+      - docetl-data:/docetl-data
+
+volumes:
+  # Define a named volume for persistent data.
+  docetl-data:

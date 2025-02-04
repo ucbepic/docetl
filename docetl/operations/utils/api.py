@@ -27,6 +27,7 @@ BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
 
 
 def is_deepseek_r1(model: str) -> bool:
+    model = model.lower()
     return "deepseek-r1" in model or "deepseek-reasoner" in model
 
 

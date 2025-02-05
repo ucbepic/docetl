@@ -193,7 +193,7 @@ class APIWrapper(object):
                     try:
                         old_state = arguments_dict["updated_scratchpad"]
                     except KeyError:
-                        self.console.log(
+                        self.runner.console.log(
                             "ERROR: KEY VALUE; likely llm interference")
 
                     updated_state = self.process_func_calls(
@@ -204,15 +204,20 @@ class APIWrapper(object):
                     newRes.choices[0].message.tool_calls[0].function.arguments = json.dumps(
                         arguments_dict)
 
+                    self.runner.console.log(response)
+
                     # update response for next batch
                     response = newRes
 
-                    parsed_output = self.parse_llm_response(
-                        response, output_schema, tools
-                    )[0]
+                    self.runner.console.log("response")
+                    self.runner.console.log(response)
 
-                    self.runner.console.log("PARSED")
-                    self.runner.console.log(parsed_output)
+                    # call llm to transform schema
+                    translate_prompt = "You are attempting to restructure an array to match the user's self defined schema. The users schema is the following \n"
+                    translate_prompt += json.dumps(output_schema)
+                    translate_prompt += "\n the schema you will see is this key value storage, where the value indicates the count of how many times the key appeared in the data processing:"
+                    translate_prompt += "\n" + json.dumps(updated_state)
+                    translate_prompt += "Convert the schema over, and return the proper array"
 
                     total_cost += completion_cost(response)
                 else:
@@ -723,7 +728,7 @@ Your main result must be sent via send_output."""
         This function extracts the tool calls from the LLM response and returns the arguments
         """
         try:
-            return self._parse_llm_response_helper(response, schema, tools)
+            return self._parse_llm_response_helper(response, schema, tools, {"apple": 1, "orange": 2})
         except InvalidOutputError as e:
             if manually_fix_errors:
                 rprint(
@@ -747,6 +752,7 @@ Your main result must be sent via send_output."""
         response: Any,
         schema: Dict[str, Any] = {},
         tools: Optional[List[Dict[str, str]]] = None,
+        updated_state: Optional[Dict[str, str]] = {}
     ) -> List[Dict[str, Any]]:
         """
         Parse the response from a language model.
@@ -826,7 +832,32 @@ Your main result must be sent via send_output."""
                     )
 
                 try:
-                    output_dict = json.loads(tool_call.function.arguments)
+                    response = completion(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": f"""
+
+                            You will be given a dictionary state schema. In this specific state, the key is the name of the fruit, and the value is the amount of times that fruit was seen in a batch of documents. Your goal is to convert this schema into the user's self-defined schema. Both are provided now:
+
+                            user's self-defined schema: {schema}
+
+                            schema to transform: {updated_state}
+
+
+                            Keep all the values the same, just format it to match the user's schema.
+
+                            Your answer should be returned in json format, with just the outputted data in the user's self defined schema. Do not return any additional formatting information, just give the straight object like you are in a code edtior.
+                            """,
+                            },
+                        ]
+                    )
+
+                    self.runner.console.log(response)
+
+                    output_dict = json.loads(
+                        response.choices[0].message.content)
                     # Augment output_dict with empty values for any keys in the schema that are not in output_dict
                     for key in schema:
                         if key not in output_dict:

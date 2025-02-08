@@ -2,6 +2,7 @@
 The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOperation` that perform mapping operations on input data. They use LLM-based processing to transform input items into output items based on specified prompts and schemas, and can also perform key dropping operations.
 """
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -190,6 +191,8 @@ class MapOperation(BaseOperation):
                 return output, False
 
             self.runner.rate_limiter.try_acquire("call", weight=1)
+            if self.runner.is_cancelled:
+                raise asyncio.CancelledError("Operation was cancelled")
             llm_result = self.runner.api.call_llm(
                 self.config.get("model", self.default_model),
                 "map",

@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import hashlib
 import json
 import re
@@ -71,6 +72,8 @@ class APIWrapper(object):
 
                 # FIXME: Should we use a different limit for embedding?
                 self.runner.rate_limiter.try_acquire("embedding_call", weight=1)
+                if self.runner.is_cancelled:
+                    raise asyncio.CancelledError("Operation was cancelled")
                 result = embedding(model=model, input=input)
                 # Cache the result
                 c.set(key, result)
@@ -582,6 +585,9 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         messages = truncate_messages(messages, model)
 
         self.runner.rate_limiter.try_acquire("llm_call", weight=1)
+        if self.runner.is_cancelled:
+            raise asyncio.CancelledError("Operation was cancelled")
+
         if tools is not None:
             try:
                 response = completion(

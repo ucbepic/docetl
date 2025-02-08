@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any, Dict, List
 
 from litellm import completion
@@ -50,9 +49,6 @@ class LLMClient:
         Returns:
             Any: The response from the LLM.
         """
-        if self.runner.is_cancelled():
-            raise asyncio.CancelledError("Operation was cancelled")
-
         parameters["additionalProperties"] = False
 
         messages = truncate_messages(messages, self.model, from_agent=True)

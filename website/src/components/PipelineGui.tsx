@@ -1291,7 +1291,8 @@ const PipelineGUI: React.FC = () => {
                   />
                   <p className="text-xs text-muted-foreground">
                     Enter any LiteLLM model name (e.g.,
-                    &quot;azure/gpt-4o&quot;) or select from suggestions above
+                    &quot;azure/gpt-4o&quot;) or select from suggestions above.
+                    Make sure the model supports JSON mode.
                   </p>
                 </div>
               )}

@@ -622,6 +622,13 @@ class DSLRunner(ConfigWrapper):
         self, step_name: str, op_name: str, **kwargs
     ) -> Tuple[str, float, List[Dict[str, Any]], List[Dict[str, Any]]]:
         self.load()
+
+        # Augment the kwargs with the runner's config if not already provided
+        if "optimizer_litellm_kwargs" not in kwargs:
+            kwargs["litellm_kwargs"] = self.config.get("optimizer_litellm_kwargs", {})
+        if "optimizer_model" not in kwargs:
+            kwargs["model"] = self.config.get("optimizer_model", "gpt-4o")
+
         builder = Optimizer(self, **kwargs)
         self.optimizer = builder
         result = builder.should_optimize(step_name, op_name)
@@ -638,6 +645,12 @@ class DSLRunner(ConfigWrapper):
             raise ValueError("No operations in pipeline. Cannot optimize.")
 
         self.load()
+
+        # Augment the kwargs with the runner's config if not already provided
+        if "optimizer_litellm_kwargs" not in kwargs:
+            kwargs["litellm_kwargs"] = self.config.get("optimizer_litellm_kwargs", {})
+        if "optimizer_model" not in kwargs:
+            kwargs["model"] = self.config.get("optimizer_model", "gpt-4o")
 
         builder = Optimizer(
             self,

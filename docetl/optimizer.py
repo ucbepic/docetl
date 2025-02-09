@@ -56,6 +56,7 @@ class Optimizer:
         self,
         runner: "DSLRunner",
         model: str = "gpt-4o",
+        litellm_kwargs: Dict[str, Any] = {},
         resume: bool = False,
         timeout: int = 60,
     ):
@@ -98,7 +99,7 @@ class Optimizer:
         self.status = runner.status
 
         self.optimized_config = copy.deepcopy(self.config)
-        self.llm_client = LLMClient(model)
+        self.llm_client = LLMClient(runner, model, **litellm_kwargs)
         self.timeout = timeout
         self.resume = resume
         self.captured_output = CapturedOutput()

@@ -1,6 +1,6 @@
 [
   {
-    "fruit_or_veggie_seen_most": "orange",
+    "fruit_or_veggie_seen_most": "kiwi",
     "number_of_times_seen": 2,
     "data_count": [
       {
@@ -8,8 +8,272 @@
         "count": 1
       },
       {
+        "name": "banana",
+        "count": 1
+      },
+      {
         "name": "orange",
+        "count": 1
+      },
+      {
+        "name": "lemon",
+        "count": 1
+      },
+      {
+        "name": "lime",
+        "count": 1
+      },
+      {
+        "name": "pineapple",
+        "count": 1
+      },
+      {
+        "name": "avocado",
+        "count": 1
+      },
+      {
+        "name": "blueberry",
+        "count": 1
+      },
+      {
+        "name": "strawberry",
+        "count": 1
+      },
+      {
+        "name": "raspberry",
+        "count": 1
+      },
+      {
+        "name": "mango",
+        "count": 1
+      },
+      {
+        "name": "kiwi",
         "count": 2
+      },
+      {
+        "name": "papaya",
+        "count": 1
+      },
+      {
+        "name": "watermelon",
+        "count": 1
+      },
+      {
+        "name": "peach",
+        "count": 2
+      },
+      {
+        "name": "carrot",
+        "count": 1
+      },
+      {
+        "name": "potato",
+        "count": 1
+      },
+      {
+        "name": "sweet potato",
+        "count": 1
+      },
+      {
+        "name": "spinach",
+        "count": 1
+      },
+      {
+        "name": "kale",
+        "count": 1
+      },
+      {
+        "name": "broccoli",
+        "count": 1
+      },
+      {
+        "name": "cauliflower",
+        "count": 1
+      },
+      {
+        "name": "jalape\u00f1o",
+        "count": 1
+      },
+      {
+        "name": "bell pepper",
+        "count": 1
+      },
+      {
+        "name": "zucchini",
+        "count": 1
+      },
+      {
+        "name": "eggplant",
+        "count": 1
+      },
+      {
+        "name": "beet",
+        "count": 1
+      },
+      {
+        "name": "onion",
+        "count": 1
+      },
+      {
+        "name": "garlic",
+        "count": 1
+      },
+      {
+        "name": "pomegranate",
+        "count": 1
+      },
+      {
+        "name": "pumpkin",
+        "count": 1
+      },
+      {
+        "name": "cucumber",
+        "count": 1
+      },
+      {
+        "name": "coconut",
+        "count": 2
+      },
+      {
+        "name": "durian",
+        "count": 1
+      },
+      {
+        "name": "rambutan",
+        "count": 1
+      },
+      {
+        "name": "lychee",
+        "count": 1
+      },
+      {
+        "name": "guava",
+        "count": 1
+      },
+      {
+        "name": "dragon fruit",
+        "count": 2
+      },
+      {
+        "name": "tamarillo",
+        "count": 1
+      },
+      {
+        "name": "grapefruit",
+        "count": 1
+      },
+      {
+        "name": "fuji apple",
+        "count": 1
+      },
+      {
+        "name": "Granny Smith apple",
+        "count": 1
+      },
+      {
+        "name": "Bartlett pear",
+        "count": 1
+      },
+      {
+        "name": "Anjou pear",
+        "count": 1
+      },
+      {
+        "name": "fig",
+        "count": 1
+      },
+      {
+        "name": "Concord grape",
+        "count": 1
+      },
+      {
+        "name": "Thompson Seedless grape",
+        "count": 1
+      },
+      {
+        "name": "cherry",
+        "count": 1
+      },
+      {
+        "name": "cranberry",
+        "count": 1
+      },
+      {
+        "name": "mulberry",
+        "count": 1
+      },
+      {
+        "name": "elderberry",
+        "count": 2
+      },
+      {
+        "name": "jackfruit",
+        "count": 1
+      },
+      {
+        "name": "cloudberry",
+        "count": 1
+      },
+      {
+        "name": "acai berry",
+        "count": 1
+      },
+      {
+        "name": "cherimoya",
+        "count": 1
+      },
+      {
+        "name": "longan",
+        "count": 1
+      },
+      {
+        "name": "salak",
+        "count": 1
+      },
+      {
+        "name": "Gala apple",
+        "count": 1
+      },
+      {
+        "name": "Honeycrisp apple",
+        "count": 1
+      },
+      {
+        "name": "Asian pear",
+        "count": 1
+      },
+      {
+        "name": "goji fruit",
+        "count": 1
+      },
+      {
+        "name": "tomato",
+        "count": 1
+      },
+      {
+        "name": "starfruit",
+        "count": 1
+      },
+      {
+        "name": "passionfruit",
+        "count": 1
+      },
+      {
+        "name": "soursop",
+        "count": 1
+      },
+      {
+        "name": "tangerine",
+        "count": 1
+      },
+      {
+        "name": "apricot",
+        "count": 1
+      },
+      {
+        "name": "nectarine",
+        "count": 1
       }
     ],
     "_all": "_",

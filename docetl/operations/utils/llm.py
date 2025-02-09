@@ -14,6 +14,7 @@ class LLMResult(BaseModel):
     response: Any
     total_cost: float
     validated: bool
+    updated_state: Optional[dict[str, Any]]
 
 
 class InvalidOutputError(Exception):
@@ -74,7 +75,8 @@ def truncate_messages(
     model_input_context_length = model_cost.get(model.split("/")[-1], {}).get(
         "max_input_tokens", 8192
     )
-    total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
+    total_tokens = sum(count_tokens(json.dumps(msg), model)
+                       for msg in messages)
 
     if total_tokens <= model_input_context_length - 100:
         return messages
@@ -95,14 +97,15 @@ def truncate_messages(
     truncated_encoded = (
         encoded_content[: mid_point - tokens_to_remove // 2]
         + encoder.encode(f" ... [{tokens_to_remove} tokens truncated] ... ")
-        + encoded_content[mid_point + tokens_to_remove // 2 :]
+        + encoded_content[mid_point + tokens_to_remove // 2:]
     )
     truncated_content = encoder.decode(truncated_encoded)
     total_tokens = len(encoded_content)
 
     warning_type = "User" if not from_agent else "Agent"
     rprint(
-        f"[yellow]{warning_type} Warning:[/yellow] Cutting {tokens_to_remove} tokens from a prompt with {total_tokens} tokens..."
+        f"[yellow]{warning_type} Warning:[/yellow] Cutting {
+            tokens_to_remove} tokens from a prompt with {total_tokens} tokens..."
     )
 
     longest_message["content"] = truncated_content

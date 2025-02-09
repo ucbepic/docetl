@@ -64,6 +64,7 @@ class ReduceOperation(BaseOperation):
             **kwargs: Arbitrary keyword arguments.
         """
         super().__init__(*args, **kwargs)
+        self.updated_state = {}
         self.min_samples = 5
         self.max_samples = 1000
         self.fold_times = deque(maxlen=self.max_samples)
@@ -786,6 +787,9 @@ class ReduceOperation(BaseOperation):
             if folded_output is None:
                 continue
 
+            self.runner.console.log('folded output')
+            self.runner.console.log(folded_output)
+
             if self.config.get("persist_intermediates", False):
                 self.intermediates[key].append(
                     {
@@ -885,6 +889,7 @@ class ReduceOperation(BaseOperation):
                 response.response,
                 schema=self.config["output"]["schema"],
                 manually_fix_errors=self.manually_fix_errors,
+                updated_state=response.updated_state
             )[0]
 
             folded_output.update(dict(zip(self.config["reduce_key"], key)))
@@ -910,6 +915,8 @@ class ReduceOperation(BaseOperation):
             Tuple[Optional[Dict], str, float]: A tuple containing the merged output (or None if processing failed),
             the prompt used, and the cost of the merge operation.
         """
+        self.runner.console.log("MERGE")
+        self.runner.console.log(outputs)
         start_time = time.time()
         merge_prompt = strict_render(
             self.config["merge_prompt"],
@@ -949,6 +956,7 @@ class ReduceOperation(BaseOperation):
                 response.response,
                 schema=self.config["output"]["schema"],
                 manually_fix_errors=self.manually_fix_errors,
+                updated_state=response.updated_state
             )[0]
             merged_output.update(dict(zip(self.config["reduce_key"], key)))
             merge_cost = response.total_cost
@@ -1063,6 +1071,7 @@ class ReduceOperation(BaseOperation):
                 response.response,
                 schema=self.config["output"]["schema"],
                 manually_fix_errors=self.manually_fix_errors,
+                updated_state=response.updated_state
             )[0]
             output.update(dict(zip(self.config["reduce_key"], key)))
 

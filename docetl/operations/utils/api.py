@@ -103,22 +103,18 @@ class APIWrapper(object):
     # Given a list of function calls from llm
     # be able to update a localized state which can be used for the next batch
     def process_func_calls(self, func_calls, state=None):
-        # init state if first batch
+        # Initialize state if it's the first batch
         if state is None:
             state = {}
 
-        # loop through func calls and update localized state
-        # state is key-value pair, so keeps track of count with value
-        # @TODO: make it more generalizable, as 2 func_types are supported
+    # Loop through func calls and update state
         for call in func_calls:
-            match = re.match(r'(ADD|INCREMENT)\("(.+?)"\)', call)
+            # Only match ADD functions
+            match = re.match(r'ADD\("(.+?)"\)', call)
             if match:
-                action, item = match.groups()
-                if action == "ADD":
-                    state[item] = state.get(item, 0) + 1
-                elif action == "INCREMENT" and item in state:
-                    state[item] += 1
-
+                item = match.group(1)
+                # Increment count if exists, otherwise set to 1
+                state[item] = state.get(item, 0) + 1
         return state
 
     def _cached_call_llm(
@@ -162,6 +158,7 @@ class APIWrapper(object):
         """
         total_cost = 0.0
         validated = False
+        updated_state = {}
         with cache as c:
             response = c.get(cache_key)
             if response is not None and not bypass_cache:
@@ -187,17 +184,13 @@ class APIWrapper(object):
                     arguments_dict = json.loads(arguments_str)
                     func_calls = arguments_dict["func_calls"]
 
-                    old_state = {}
-
                     # get previous llm state
-                    try:
-                        old_state = arguments_dict["updated_scratchpad"]
-                    except KeyError:
-                        self.runner.console.log(
-                            "ERROR: KEY VALUE; likely llm interference")
+
+                    self.runner.console.log("JFIOWIJOFEWJIOFEJIOE")
+                    self.runner.console.log(scratchpad)
 
                     updated_state = self.process_func_calls(
-                        func_calls, old_state)
+                        func_calls, {} if isinstance(scratchpad, str) else scratchpad)
 
                     arguments_dict['updated_scratchpad'] = updated_state
 
@@ -211,13 +204,6 @@ class APIWrapper(object):
 
                     self.runner.console.log("response")
                     self.runner.console.log(response)
-
-                    # call llm to transform schema
-                    translate_prompt = "You are attempting to restructure an array to match the user's self defined schema. The users schema is the following \n"
-                    translate_prompt += json.dumps(output_schema)
-                    translate_prompt += "\n the schema you will see is this key value storage, where the value indicates the count of how many times the key appeared in the data processing:"
-                    translate_prompt += "\n" + json.dumps(updated_state)
-                    translate_prompt += "Convert the schema over, and return the proper array"
 
                     total_cost += completion_cost(response)
                 else:
@@ -318,15 +304,15 @@ class APIWrapper(object):
                             {"role": "user", "content": improvement_prompt})
 
                         # Call LLM again
-                        response = self._call_llm_with_cache(
-                            model,
-                            op_type,
-                            messages,
-                            output_schema,
-                            tools,
-                            scratchpad,
-                            litellm_completion_kwargs,
-                        )
+                        # response = self._call_llm_with_cache(
+                        #     model,
+                        #     op_type,
+                        #     messages,
+                        #     output_schema,
+                        #     tools,
+                        #     scratchpad,
+                        #     litellm_completion_kwargs,
+                        # )
                         parsed_output = self.parse_llm_response(
                             response, output_schema, tools
                         )[0]
@@ -376,15 +362,15 @@ class APIWrapper(object):
                         )
                         i += 1
 
-                        response = self._call_llm_with_cache(
-                            model,
-                            op_type,
-                            messages,
-                            output_schema,
-                            tools,
-                            scratchpad,
-                            litellm_completion_kwargs,
-                        )
+                        # response = self._call_llm_with_cache(
+                        #     model,
+                        #     op_type,
+                        #     messages,
+                        #     output_schema,
+                        #     tools,
+                        #     scratchpad,
+                        #     litellm_completion_kwargs,
+                        # )
                         total_cost += completion_cost(response)
 
                 else:
@@ -395,7 +381,7 @@ class APIWrapper(object):
                 if validated:
                     c.set(cache_key, response)
 
-        return LLMResult(response=response, total_cost=total_cost, validated=validated)
+        return LLMResult(response=response, total_cost=total_cost, validated=validated, updated_state=updated_state)
 
     def call_llm(
         self,
@@ -498,6 +484,7 @@ class APIWrapper(object):
         tools: Optional[str] = None,
         scratchpad: Optional[str] = None,
         litellm_completion_kwargs: Dict[str, Any] = {},
+        updated_state: Optional[dict[str, Any]] = {}
     ) -> Any:
         """
         Make an LLM call with caching.
@@ -540,9 +527,7 @@ class APIWrapper(object):
 # hard coded props for now for testing
             parameters = {"type": "object", "properties": {
                 "func_calls": {"type": "array", "items": {"type": "string"}},
-                "updated_scratchpad": {"type": "object", "properties": {"fruit_name": {
-                    "type": "integer"
-                }, "default": {}}}
+                "updated_scratchpad": {"type": "object", "default": updated_state}
             }}
             self.runner.console.log("Keys being printed")
             self.runner.console.log(newProps.keys())
@@ -557,7 +542,7 @@ class APIWrapper(object):
                     "type": "function",
                     "function": {
                         "name": "send_output",
-                        "description": "Send output back to the user",
+                        "description": "Send output back to the user. Do not edit the updated_scratchpad parameter at all, you are only allowed to read it.",
                         "parameters": parameters,
                     },
                 }
@@ -625,13 +610,12 @@ class APIWrapper(object):
 
         Via the `send_output` function, make sure to return both the func_calls list, and the updated_scratchpad object, even if they are empty. Remember, you are not allowed to edit the updated_scratchpad at all.
 
-There are two types of function calls for these batches
-ADD("string") -> updates the scratchpad or state by adding the fruit to the intermediate state
-INCREMENT("string") -> updates the scratchpad by incrementing the count on the fruit in the intermediate state. ONLY CAN BE CALLED IF ELEMENT HAS BEEN ADDED BEFORE.
+        DO NOT DELETE ANYTHING FROM THE UPDATED_SCRATCHPAD OBJECT. PERSIST IT'S VALUES
 
-If you see a fruit/veggie, you are only allowed to call ONE of the two functions in that moment, and then move on to th next.
+There function call available for these batches is:
+ADD("string") -> updates the scratchpad or state by adding/incrementing the fruit to the intermediate state
 
-if the scratchpad is empty, the increment function SHOULD NOT be called.
+If you see a fruit/veggie, you are only allowed to call this function in this moment, and then move on to the next instance.
 
 AFTER DECIDING THE FUNCTION CALLS, update the func_calls via the `send_output` function
 
@@ -644,22 +628,17 @@ NEVER EDIT THE UPDATED_SCRATCHPAD DIRECTLY. JUST USE IT FOR REFERENCE, AND ALWAY
 You are incrementally processing data across multiple batches. You will see:
 1. The current batch of data to process
 2. The intermediate output so far (what you returned last time)
-3. A scratchpad for tracking function calls: {scratchpad}
+3. A scratchpad of the current state where the value represents the count of the item: {scratchpad}
 
 
 As you process each batch:
 1. Use both the previous output and scratchpad (if needed) to inform your processing
-2.) Update the func_calls list with one of the two functions: ADD() or INCREMENT() based on the data you see;
-- ADD(fruit_or_veggie_name): Adds the fruit or veggie to the state, with an initial count of 1, if it doesn't exist.
-- INCREMENT(fruit_or_veggie_name): Updates the count of the fruit or veggie in the state, if it exists.
+2.) Update the func_calls list with the function: ADD()  based on the data you see;
+- ADD(fruit_or_veggie_name): For every fruit or veggie you see, call the ADD function. Repeats are allowed. Please do it, even if you see the same fruit in the scratchpad.
 
-To determine whether the ADD or INCREMENT function should be called, you will be provided the curent state, and counts of each. If the fruit doesn't exist, add ADD to the func_list, but else run INCREMENT to the func_list.'
+Make sure to ONLY update the func_list, do NOT EDIT the updated_scratchpad at all.
 
-Make sure to ONLY update the func_list, do NOT update the updated_scratchpad at all.
-
-
-TAKE YOUR TIME SEARCHING THROUGH THE DATA TO MAKE ADDITIONS OR INCREMENTS TO THE STATE
-
+TAKE YOUR TIME SEARCHING THROUGH THE DATA TO MAKE CHANGES TO THE STATE
 
 Your main result must be sent via send_output."""
 
@@ -722,13 +701,14 @@ Your main result must be sent via send_output."""
         schema: Dict[str, Any] = {},
         tools: Optional[List[Dict[str, str]]] = None,
         manually_fix_errors: bool = False,
+        updated_state: Dict[str, Any] = {}
     ) -> List[Dict[str, Any]]:
         """
         Parse the response from a language model.
         This function extracts the tool calls from the LLM response and returns the arguments
         """
         try:
-            return self._parse_llm_response_helper(response, schema, tools, {"apple": 1, "orange": 2})
+            return self._parse_llm_response_helper(response, schema, tools, updated_state)
         except InvalidOutputError as e:
             if manually_fix_errors:
                 rprint(
@@ -845,7 +825,6 @@ Your main result must be sent via send_output."""
 
                             schema to transform: {updated_state}
 
-
                             Keep all the values the same, just format it to match the user's schema.
 
                             Your answer should be returned in json format, with just the outputted data in the user's self defined schema. Do not return any additional formatting information, just give the straight object like you are in a code edtior.
@@ -858,6 +837,8 @@ Your main result must be sent via send_output."""
 
                     output_dict = json.loads(
                         response.choices[0].message.content)
+
+                    output_dict['updated_scratchpad'] = updated_state
                     # Augment output_dict with empty values for any keys in the schema that are not in output_dict
                     for key in schema:
                         if key not in output_dict:

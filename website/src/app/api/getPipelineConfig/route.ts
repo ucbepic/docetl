@@ -12,6 +12,7 @@ export async function POST(request: Request) {
       sample_size,
       namespace,
       system_prompt,
+      optimizerModel,
     } = await request.json();
 
     if (!name) {
@@ -44,7 +45,8 @@ export async function POST(request: Request) {
       system_prompt,
       [],
       "",
-      false
+      false,
+      optimizerModel
     );
 
     return NextResponse.json({ pipelineConfig: yamlString });

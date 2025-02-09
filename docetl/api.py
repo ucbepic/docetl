@@ -183,6 +183,7 @@ class Pipeline:
         model: str = "gpt-4o",
         resume: bool = False,
         timeout: int = 60,
+        litellm_kwargs: Dict[str, Any] = {},
     ) -> "Pipeline":
         """
         Optimize the pipeline using the Optimizer.
@@ -203,7 +204,13 @@ class Pipeline:
             yaml_file_suffix=self.name,
             max_threads=max_threads,
         )
-        optimized_config, _ = runner.optimize(return_pipeline=False)
+        optimized_config, _ = runner.optimize(
+            model=model,
+            resume=resume,
+            timeout=timeout,
+            litellm_kwargs=litellm_kwargs,
+            return_pipeline=False,
+        )
 
         updated_pipeline = Pipeline(
             name=self.name,

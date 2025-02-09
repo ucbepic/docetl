@@ -109,6 +109,7 @@ class ConfigWrapper(object):
         )
         bucket_factory = BucketCollection(**buckets)
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=math.inf)
+        self.is_cancelled = False
 
         self.api = APIWrapper(self)
 

@@ -221,3 +221,22 @@ try:
 except Exception as e:
     print(f"Error during processing: {e}")
 ``` 
+
+## Example 6: PDF Analysis
+
+DocETL supports native PDF handling with Claude and Gemini, in map and filter operations.
+Suppose you have a column in your pandas dataframe with PDF paths (1 path per row), and you want the LLM to do some analysis for each PDF. You can do this by setting the `pdf_url_key` parameter in the map or filter operation.
+
+```python
+df = pd.DataFrame({
+    "PdfPath": ["https://docetl.blob.core.windows.net/ntsb-reports/Report_N617GC.pdf", "https://docetl.blob.core.windows.net/ntsb-reports/Report_CEN25LA075.pdf"]
+})
+
+result_df = df.semantic.map(
+    prompt="Summarize the air crash report and determine any contributing factors",
+    output_schema={"summary": "str", "contributing_factors": "list[str]"},
+    pdf_url_key="PdfPath", # This is the column with the PDF paths
+)
+
+print(result_df.head()) # The result will have the same number of rows as the input dataframe, with the summary and contributing factors added
+```

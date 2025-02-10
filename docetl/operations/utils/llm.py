@@ -71,6 +71,11 @@ def truncate_messages(
     messages: List[Dict[str, str]], model: str, from_agent: bool = False
 ) -> List[Dict[str, str]]:
     """Truncate messages to fit within model's context length."""
+    # if there's a pdf, don't truncate
+    for message in messages:
+        if isinstance(message["content"], list):
+            return messages
+
     model_cost_info = model_cost.get(model, {})
     if not model_cost_info:
         # Try stripping the first part before the /

@@ -150,6 +150,7 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls. | {}                          |
 | `skip_on_error` | If true, skip the operation if the LLM returns an error. | False                          |
 | `bypass_cache` | If true, bypass the cache for this operation. | False                          |
+| `pdf_url_key` | If specified, the key in the input that contains the URL of the PDF to process. | None                          |
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
 
@@ -201,6 +202,67 @@ When using batch processing:
     - Consider document length when setting batch size
 
 ## Advanced Features
+
+### PDF Processing
+
+The Map operation can directly process PDFs using Claude or Gemini models. To use this feature:
+
+1. Your input dataset must contain a key representing the URL of the PDF to process
+2. Specify this field name using the `pdf_url_key` parameter in your map operation
+3. The URLs must be publicly accessible or accessible to your environment
+
+??? example "PDF Processing Example"
+
+    Here's an example of processing a dataset of papers, where each paper is represented by a URL.
+
+    ```yaml
+    datasets:
+      papers:
+        type: file
+        path: "papers/urls.json"  # Contains documents with PDF URLs
+
+    default_model: gemini/gemini-2.0-flash  # or claude models
+    operations:
+      - name: extract_paper_info
+        type: map
+        pdf_url_key: url  # Tells DocETL which field contains the PDF URL
+        prompt: |
+          Summarize the paper.
+        output:
+          schema:
+            paper_info: string
+
+    pipeline:
+      steps:
+        - name: extract_paper_info
+          input: papers
+          operations:
+            - extract_paper_info
+    ```
+
+    Your input data (`papers/urls.json`) should contain documents with PDF URLs:
+    ```json
+    [
+      {"url": "https://assets.anthropic.com/m/1cd9d098ac3e6467/original/Claude-3-Model-Card.pdf"},
+      ...
+    ]
+    ```
+
+    DocETL will:
+    1. Download each PDF
+    2. Extract the text content
+    3. Pass the content to the LLM with your prompt
+    4. Return the processed results:
+
+    ```json
+    [
+      {
+        "url": "https://assets.anthropic.com/m/1cd9d098ac3e6467/original/Claude-3-Model-Card.pdf",
+        "paper_info": "This paper introduces Claude 3.5 Haiku and the upgraded Claude 3.5 Sonnet..."
+      },
+      ...
+    ]
+    ```
 
 ### Tool Use
 

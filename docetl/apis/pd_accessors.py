@@ -39,6 +39,8 @@ from docetl.operations.filter import FilterOperation
 from docetl.operations.map import MapOperation
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
+from docetl.operations.split import SplitOperation 
+from docetl.operations.gather import GatherOperation 
 from docetl.optimizer import Optimizer
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.runner import DSLRunner
@@ -47,7 +49,7 @@ from docetl.runner import DSLRunner
 class OpHistory(NamedTuple):
     """Record of an operation that was run."""
 
-    op_type: str  # 'map', 'filter', 'merge', 'agg'
+    op_type: str  # 'map', 'filter', 'merge', 'agg', 'split', 'gather'
     config: Dict[str, Any]  # Full config used
     output_columns: List[str]  # Columns created/modified
 
@@ -610,6 +612,66 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         results, cost = filter_op.execute(input_data)
 
         return self._record_operation(results, "filter", filter_config, cost)
+    
+    def split(self, prompt: str, output_schema: Dict[str, Any], **kwargs) -> pd.DataFrame:
+        """
+        Semantically split each row into multiple rows using a language model.
+
+        Args:
+            prompt: Jinja template string instructing how to split the input.
+            output_schema: Dictionary defining the structure of the split output.
+            **kwargs: Additional configuration options similar to map.
+        Returns:
+            pd.DataFrame: A new DataFrame containing the split rows.
+        """
+        input_data = self._df.to_dict("records")
+        split_config = {
+            "type": "split",
+            "name": f"semantic_split_{len(self._history)}",
+            "prompt": prompt,
+            "output": {"schema": output_schema},
+            **kwargs,
+        }
+        split_op = SplitOperation(
+            runner=self.runner,
+            config=split_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = split_op.execute(input_data)
+        return self._record_operation(results, "split", split_config, cost)
+
+    def gather(self, prompt: str, output_schema: Dict[str, Any], **kwargs) -> pd.DataFrame:
+        """
+        Semantically gather multiple rows into a consolidated result using a language model.
+
+        Args:
+            prompt: Jinja template string instructing how to gather the input rows.
+            output_schema: Dictionary defining the structure of the gathered output.
+            **kwargs: Additional configuration options.
+        Returns:
+            pd.DataFrame: A new DataFrame containing the gathered result.
+        """
+        input_data = self._df.to_dict("records")
+        gather_config = {
+            "type": "gather",
+            "name": f"semantic_gather_{len(self._history)}",
+            "prompt": prompt,
+            "output": {"schema": output_schema},
+            **kwargs,
+        }
+        gather_op = GatherOperation(
+            runner=self.runner,
+            config=gather_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = gather_op.execute(input_data)
+        return self._record_operation(results, "gather", gather_config, cost)
 
     @property
     def total_cost(self) -> float:

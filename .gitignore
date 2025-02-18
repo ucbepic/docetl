@@ -58,4 +58,6 @@ website/next-env.d.ts
 # experiments
 experiments/*.json
 
+experiments/gemini/declassified/*.json
+
 metrics_vs_cost.png

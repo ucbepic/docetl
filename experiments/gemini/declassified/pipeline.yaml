@@ -1,0 +1,85 @@
+datasets:
+  articles:
+    type: file
+    path: experiments/gemini/declassified/blackvault_articles_pdfs.json
+
+default_model: gemini/gemini-2.0-flash
+
+operations:
+  - name: extract_event_type
+    type: map
+    optimize: true
+    prompt: |
+      Given the following document content from the black vault, identify and extract the type of extraterrestrial or paranormal event being described:
+
+      {{ input.content }}
+
+      {% if input.pdf_content %}
+      Additional PDF content:
+      {{ input.pdf_content | truncate(1000000) }}
+      {% endif %}
+
+      Provide a single, specific event type category (e.g. "UFO Sighting", "Alien Abduction", "Crop Circle", etc.).
+    output:
+      schema:
+        event_type: str
+
+  - name: resolve_event_types
+    type: resolve
+    blocking_keys:
+    - event_type
+    blocking_threshold: 0.9899
+    verbose: true
+    optimize: true
+    comparison_prompt: |
+      Compare these two event types from extraterrestrial/paranormal incident reports:
+
+      Type 1: {{ input1.event_type }}
+      Type 2: {{ input2.event_type }}
+
+      Are these describing the same or similar categories of event? Consider if they are synonyms or closely related subcategories. For example, if they both relate to UFOs, they should be grouped together.
+    resolution_prompt: |
+      Given these similar event type categorizations:
+      {% for entry in inputs %}
+      - {{ entry.event_type }}
+      {% endfor %}
+
+      Provide a single standardized category name that best represents all of these related event types. It should not be long. A few words at most.
+    output:
+      schema:
+        event_type: str
+
+  - name: aggregate_locations
+    type: reduce
+    reduce_key: event_type
+    optimize: true
+    prompt: |
+      For extraterrestrial/paranormal events of type "{{ reduce_key }}", analyze these incident reports:
+
+      {% for report in inputs %}
+      Report {{ loop.index }}:
+      {{ report.content }}
+      {% if report.pdf_content %}
+      Additional PDF content:
+      {{ report.pdf_content | truncate(10000) }}
+      {% endif %}
+      {% endfor %}
+
+      Extract and list all unique locations of observation mentioned across these reports. They should be real locations on Earth.
+    output:
+      schema:
+        locations: list[str]
+
+pipeline:
+  steps:
+    - name: analyze_events
+      input: articles
+      operations:
+        - extract_event_type
+        - resolve_event_types
+        - aggregate_locations
+
+  output:
+    type: file
+    path: experiments/gemini/declassified/event_locations_unoptimized.json
+    intermediate_dir: experiments/gemini/declassified/intermediate_unoptimized

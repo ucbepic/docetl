@@ -144,8 +144,7 @@ class Optimizer:
                 f"[yellow]Sample Size:[/yellow] {self.sample_size_map}\n"
                 f"[yellow]Max Threads:[/yellow] {self.max_threads}\n"
                 f"[yellow]Rewrite Agent Model:[/yellow] {self.llm_client.rewrite_agent_model}\n"
-                f"[yellow]Judge Agent Model:[/yellow] {self.llm_client.judge_agent_model}\n"
-                f"[yellow]Timeout:[/yellow] {self.timeout} seconds",
+                f"[yellow]Judge Agent Model:[/yellow] {self.llm_client.judge_agent_model}\n",
                 title="Optimizer Configuration",
             )
         )

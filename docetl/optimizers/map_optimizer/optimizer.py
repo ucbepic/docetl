@@ -379,8 +379,13 @@ class MapOptimizer:
         self.console.log(table)
         self.console.log("\n")
 
-        best_plan = candidate_plans[best_plan_name]
-        best_output = results[best_plan_name][2]
+        try:
+            best_plan = candidate_plans[best_plan_name]
+            best_output = results[best_plan_name][2]
+        except KeyError:
+            raise ValueError(
+                f"Best plan name {best_plan_name} not found in candidate plans. Candidate plan names: {candidate_plans.keys()}"
+            )
 
         self.console.log(
             f"[green]Current best plan: {best_plan_name} for operation {op_config['name']} "
@@ -464,8 +469,9 @@ class MapOptimizer:
 
                 if chunk_plans:
                     # Sample 2 random plans
+                    chunk_items = list(chunk_plans.items())
                     sample_plans = dict(
-                        random.sample(chunk_plans.items(), min(2, len(chunk_plans)))
+                        random.sample(chunk_items, min(2, len(chunk_items)))
                     )
                     sample_results = self._evaluate_plans(
                         sample_plans, op_config, evaluation_samples, validator_prompt
@@ -501,6 +507,7 @@ class MapOptimizer:
                         chunk_plans, op_config, evaluation_samples, validator_prompt
                     )
                     initial_results.update(chunk_results)
+                    candidate_plans.update(chunk_plans)
             else:
                 # Try all chunking plans since no improvement found yet
                 self.console.log(

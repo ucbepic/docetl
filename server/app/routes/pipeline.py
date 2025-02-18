@@ -181,8 +181,12 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
         if config.get("optimize", False):
             logging.info(f"Optimizing pipeline with model {config.get('optimizer_model', 'gpt-4o')}")
             
+            # Set the runner config to the optimizer config
+            runner.config["optimizer_config"]["rewrite_agent_model"] = config.get("optimizer_model", "gpt-4o")
+            runner.config["optimizer_config"]["judge_agent_model"] = config.get("optimizer_model", "gpt-4o-mini")
+            
             async def run_pipeline():
-                return await asyncio.to_thread(runner.optimize, return_pipeline=False, model=config.get("optimizer_model", "gpt-4o"))
+                return await asyncio.to_thread(runner.optimize, return_pipeline=False)
 
         else:
             async def run_pipeline():

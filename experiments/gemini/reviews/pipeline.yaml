@@ -1,0 +1,50 @@
+datasets:
+  reviews:
+    type: file
+    path: experiments/gemini/reviews/reviews.json
+
+default_model: gemini/gemini-2.0-flash
+
+optimizer_config:
+  plan_types: ["proj_synthesis", "glean"]
+
+operations:
+  - type: sample
+    method: uniform
+    random_state: 42
+    samples: 10
+    name: sample_reviews
+  - name: analyze_reviews
+    optimize: true
+    type: map
+    prompt: |
+      Given the following reviews for the game {{ input.app_name }}, analyze them and select 10 positive and 10 negative reviews that are evenly distributed across time:
+
+      {{ input.concatenated_reviews }}
+
+      From all the reviews:
+      1. Select 10 positive reviews spread evenly across the time range (from earliest to latest timestamps)
+      2. Select 10 negative reviews spread evenly across the time range (from earliest to latest timestamps)
+
+      Return two lists:
+      - positive_reviews: List of 10 positive reviews, sorted by timestamp
+      - negative_reviews: List of 10 negative reviews, sorted by timestamp
+
+      Each returned review object should contain the review ID, timestamp and a summary of the review.
+    output:
+      schema:
+        positive_reviews: "list[{review_id: string, timestamp: string, review_summary: string}]"
+        negative_reviews: "list[{review_id: string, timestamp: string, review_summary: string}]"
+
+pipeline:
+  steps:
+    - name: process_reviews
+      input: reviews
+      operations:
+        - sample_reviews
+        - analyze_reviews
+
+  output:
+    type: file
+    path: experiments/gemini/reviews/analyzed_reviews_baseline.json
+    intermediate_dir: experiments/gemini/reviews/intermediate

@@ -225,10 +225,14 @@ def test_pipeline_optimization(
             type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
         ),
         default_model="gpt-4o-mini",
+        optimizer_config={
+            "rewrite_agent_model": "gpt-4o-mini",
+            "judge_agent_model": "gpt-4o-mini",
+        },
     )
 
     optimized_pipeline = pipeline.optimize(
-        max_threads=4, model="gpt-4o-mini", timeout=10
+        max_threads=4, timeout=10
     )
 
     assert isinstance(optimized_pipeline, Pipeline)

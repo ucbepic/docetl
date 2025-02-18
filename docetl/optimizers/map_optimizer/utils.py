@@ -37,7 +37,7 @@ def generate_and_validate_prompt(
 
     while attempt < max_retries:
         try:
-            response = llm_client.generate(
+            response = llm_client.generate_rewrite(
                 chat_history,
                 system_prompt,
                 parameters,

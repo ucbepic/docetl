@@ -71,7 +71,7 @@ class JoinOptimizer:
             },
         ]
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             messages,
             "You are an expert in analyzing natural language prompts for data processing tasks.",
             {
@@ -121,7 +121,7 @@ class JoinOptimizer:
                 "content": f"{context_prefix}I want to do a reduce operation on these values, and I need to determine if there are semantic duplicates in the data, where the strings are different but they technically belong in the same group. Note that exact string duplicates should not be considered here.\n\nHere's a sample of the data (showing the '{reduce_key}' field(s)): {data_sample}\n\nBased on this {'context and ' if map_prompt else ''}sample, are there likely to be such semantic duplicates (not exact string matches) in the dataset? Respond with 'yes' only if you think there are semantic duplicates, or 'no' if you don't see evidence of semantic duplicates or if you only see exact string duplicates.",
             },
         ]
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             messages,
             "You are an expert data analyst. Analyze the given data sample and determine if there are likely to be semantic duplicate values that belong in the same group, even if the strings are different.",
             {
@@ -209,7 +209,9 @@ class JoinOptimizer:
             "required": ["duplicates_found", "explanation"],
         }
 
-        response = self.llm_client.generate(messages, system_prompt, response_schema)
+        response = self.llm_client.generate_rewrite(
+            messages, system_prompt, response_schema
+        )
 
         # Print the duplicates_found and explanation
         self.console.log(
@@ -258,7 +260,7 @@ class JoinOptimizer:
             }
         ]
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             messages,
             system_prompt,
             {
@@ -342,7 +344,7 @@ class JoinOptimizer:
             }
         ]
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             messages,
             system_prompt,
             {
@@ -813,7 +815,7 @@ class JoinOptimizer:
             }
         ]
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             messages,
             "You are an AI expert in data analysis and entity matching.",
             {
@@ -874,7 +876,7 @@ class JoinOptimizer:
             }
         ]
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             messages,
             "You are an AI expert in data analysis and decomposing complex data processing pipelines.",
             {
@@ -943,7 +945,7 @@ class JoinOptimizer:
             }
         ]
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             messages,
             "You are an expert in entity matching and database operations.",
             {
@@ -1312,7 +1314,7 @@ class JoinOptimizer:
 
         for attempt in range(self.agent_max_retries):  # Up to 3 attempts
             # Generate blocking rule using the LLM
-            response = self.llm_client.generate(
+            response = self.llm_client.generate_rewrite(
                 messages,
                 "You are an expert in entity resolution and Python programming. Your task is to generate one efficient blocking rule based on the given sample comparisons and data structure.",
                 {
@@ -1490,7 +1492,7 @@ Please provide 3-5 different containment-based blocking rules, based on the keys
             },
         ]
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             messages,
             "You are an expert in data matching and Python programming.",
             {
@@ -1570,7 +1572,7 @@ Please provide 3-5 different containment-based blocking rules, based on the keys
         ]
 
         for attempt in range(self.agent_max_retries):
-            response = self.llm_client.generate(
+            response = self.llm_client.generate_rewrite(
                 messages,
                 "You are an expert in entity resolution and Python programming. Your task is to generate one efficient blocking rule based on the given sample comparisons and data structure.",
                 {

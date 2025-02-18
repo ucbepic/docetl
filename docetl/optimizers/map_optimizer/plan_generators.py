@@ -416,7 +416,7 @@ class PlanGenerator:
             "required": ["guiding_sentence"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": user_prompt}], system_prompt, parameters
         )
 
@@ -529,7 +529,7 @@ class PlanGenerator:
             "required": ["quality_category", "reason"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_judge(
             [
                 {"role": "user", "content": prompt},
             ],
@@ -575,26 +575,8 @@ class PlanGenerator:
     def _generate_parallel_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Generate plans that use parallel execution for the given operation.
-
-        This method analyzes the operation's output schema and attempts to decompose
-        the task into subtasks that can be executed in parallel. It then creates a
-        plan that includes these parallel subtasks.
-
-        Args:
-            op_config (Dict[str, Any]): The configuration of the operation.
-            input_data (List[Dict[str, Any]]): The input data for the operation.
-
-        Returns:
-            Dict[str, List[Dict[str, Any]]]: A dictionary containing a single key
-        """
+        """Generate plans that use parallel execution for the given operation."""
         output_schema = op_config["output"]["schema"]
-        if len(output_schema) <= 1:
-            return (
-                {}
-            )  # No need for parallel decomposition if there's only one output key
-
         system_prompt = "You are an AI assistant tasked with decomposing a complex data processing task into parallel subtasks."
 
         variables_in_prompt = extract_jinja_variables(op_config["prompt"])
@@ -604,7 +586,7 @@ class PlanGenerator:
         Original task prompt:
         {op_config['prompt']}
 
-        Output schema the operation will produce:
+        Target schema the operation will produce:
         {json.dumps(output_schema, indent=2)}
 
         Input data keys:
@@ -615,6 +597,74 @@ class PlanGenerator:
 
         Decompose the original task into parallel subtasks, where each subtask produces one or more keys of the output schema.
         Assume that the subtasks can be executed independently. You cannot rely on the output of one subtask to complete another subtask. Make sure you include the same input variables as in the original task prompt. Each prompt should be a Jinja2 template. You can reference the keys of the input data using the syntax {{ input.key }}.
+        You should try to cover all the keys in the target schema, but you can defer some keys to a later task (which you will be prompted for in a later step).
+        Sometimes you will want to synthesize new keys that are not in the target schema.
+
+        For example, in a medical document scenario with target schema:
+        {{
+            "patient_age": "number",
+            "patient_gender": "string",
+            "patient_weight": "number",
+            "blood_pressure": "string",
+            "heart_rate": "number",
+            "temperature": "number",
+            "condition": "string",
+            "severity": "string"
+        }}
+
+        You might decompose into:
+        {{
+            "subtasks": [
+                {{
+                    "name": "extract_patient_demographics",
+                    "prompt": "Extract the patient's basic demographic information from the following text: {{ input.text }}\\nProvide the patient's age, gender, and weight.",
+                    "output_keys": ["patient_age", "patient_gender", "patient_weight"]
+                }},
+                {{
+                    "name": "extract_vitals",
+                    "prompt": "Extract vital signs from the following medical text: {{ input.text }}\\nProvide the blood pressure, heart rate and temperature readings.",
+                    "output_keys": ["blood_pressure", "heart_rate", "temperature"]
+                }},
+                {{
+                    "name": "extract_diagnosis",
+                    "prompt": "Analyze the following medical text and extract the diagnosis information: {{ input.text }}\\nProvide the medical condition and its severity level.",
+                    "output_keys": ["condition", "severity"]
+                }}
+            ]
+        }}
+
+        Or for a legal document with target schema:
+        {{
+            "clauses": [{{
+                "clause": "string",
+                "clause_type": "string"
+            }}]
+        }}
+
+        Where the original prompt asks to identify clauses of types: Indemnification, Limitation of Liability, Confidentiality, Term & Termination
+
+        You might synthesize new keys (one per clause type) and decompose into:
+        {{
+            "subtasks": [
+                {{
+                    "name": "extract_liability_clauses",
+                    "prompt": "From the following legal text: {{ input.text }}\\nIdentify and extract any Indemnification and Limitation of Liability clauses. For each clause found, provide the exact clause text.",
+                    "output_keys": ["indemnification_clauses", "liability_clauses"]
+                }},
+                {{
+                    "name": "extract_confidentiality_clauses",
+                    "prompt": "From the following legal text: {{ input.text }}\\nIdentify and extract any Confidentiality clauses. Provide the exact clause text for each confidentiality provision found.",
+                    "output_keys": ["confidentiality_clauses"]
+                }},
+                {{
+                    "name": "extract_term_clauses",
+                    "prompt": "From the following legal text: {{ input.text }}\\nIdentify and extract any Term & Termination clauses. Provide the exact clause text for each term and termination provision found.",
+                    "output_keys": ["term_clauses"]
+                }}
+            ]
+        }}
+
+        Note that in the legal example, the individual clause lists will be combined into the final "clauses" array in a subsequent reduce operation (which you will be prompted for in a later step).
 
         Provide your response in the following format:
         {{
@@ -652,7 +702,7 @@ class PlanGenerator:
             "required": ["subtasks"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,
@@ -667,15 +717,29 @@ class PlanGenerator:
             covered_keys.update(subtask["output_keys"])
 
         missing_keys = output_schema_keys - covered_keys
-        # Attempt to add missing keys to the most appropriate subtask
+
+        plans = {}
+
+        # Get the output schema from parallel subtasks
+        parallel_output_schema = {}
+        for subtask in result["subtasks"]:
+            for key in subtask["output_keys"]:
+                parallel_output_schema[key] = op_output_schema.get(key, "string")
+
+        # Check for missing keys
+        missing_keys = set(op_output_schema.keys()) - set(parallel_output_schema.keys())
+
         if missing_keys:
             self.console.log(
-                "[bold yellow]Warning:[/bold yellow] Some output schema keys are not covered by subtasks. Attempting to add them to the most appropriate subtask."
+                f"[bold yellow]Warning:[/bold yellow] Some output schema keys are not covered by subtasks: {missing_keys}"
             )
+
+            # Plan 1: Add missing keys to first subtask (original approach)
+            modified_subtasks = copy.deepcopy(result["subtasks"])
             for key in missing_keys:
                 # Find the subtask with the most similar existing output keys
                 best_subtask = max(
-                    result["subtasks"],
+                    modified_subtasks,
                     key=lambda s: len(set(s["output_keys"]) & output_schema_keys),
                 )
                 best_subtask["output_keys"].append(key)
@@ -684,46 +748,78 @@ class PlanGenerator:
                     f"[yellow]Added missing key '{key}' to subtask '{best_subtask['name']}'[/yellow]"
                 )
 
-        # Check again for any remaining missing keys
-        missing_keys = output_schema_keys - covered_keys
-
-        if missing_keys:
-            self.console.log(
-                f"[bold red]Error in parallel map decomposition:[/bold red] Some output schema keys are not covered by subtasks: {missing_keys}"
+            parallel_map_op_1 = self.operation_creator.create_parallel_map_operation(
+                op_config, op_output_schema, modified_subtasks
             )
-            return {}
 
-        # Update op_output_schema if there are keys in covered_keys that are not in the output schema
-        new_keys = covered_keys - output_schema_keys
-        if new_keys:
-            self.console.log(
-                "[bold yellow]Warning:[/bold yellow] Some keys in subtasks are not in the original output schema. Adding them to the output schema."
-            )
-            for key in new_keys:
-                op_output_schema[key] = "string"  # Default to string type for new keys
-                self.console.log(
-                    f"[yellow]Added new key '{key}' to output schema[/yellow]"
+            plans["parallel_map_1"] = [copy.deepcopy(parallel_map_op_1)]
+
+            # Plan 2: Keep parallel map as is and add reduce step
+            try:
+                # Create parallel map with original subtasks
+                parallel_map_op = self.operation_creator.create_parallel_map_operation(
+                    op_config, parallel_output_schema, result["subtasks"]
+                )
+                parallel_map_op_config = copy.deepcopy(parallel_map_op)
+
+                # Run the parallel map to get sample output
+                sample_output = self._run_operation(
+                    parallel_map_op, input_data, is_build=True
                 )
 
-        parallel_map_operation = self.operation_creator.create_parallel_map_operation(
-            op_config, op_output_schema, result["subtasks"]
-        )
+                # Generate transform prompt
+                transform_prompt = self.prompt_generator._get_schema_transform_prompt(
+                    op_config, parallel_output_schema, op_output_schema, sample_output
+                )
 
-        # Print the parallel decomposition plan
-        self.console.log("[bold]Parallel Decomposition Plan:[/bold ]")
-        self.console.log(f"Operation: {op_config['name']}")
-        self.console.log(f"Number of subtasks: {len(result['subtasks'])}")
-        for idx, subtask in enumerate(result["subtasks"], 1):
-            self.console.log(f"\n[bold]Subtask {idx}: {subtask['name']}[/bold]")
-            self.console.log(f"Output keys: {', '.join(subtask['output_keys'])}")
-            if len(subtask["prompt"]) > 500:
+                # Final map output schema is the original output schema - the keys that were not covered by the parallel subtasks
+                final_map_output_schema = {
+                    key: op_output_schema[key]
+                    for key in op_output_schema
+                    if key not in parallel_output_schema
+                }
+
+                # Create map operation for schema transformation
+                transform_op = self.operation_creator.create_map_operation(
+                    op_config,
+                    final_map_output_schema,
+                    transform_prompt,
+                )
+
+                plans["parallel_map_with_transform"] = [
+                    parallel_map_op_config,
+                    transform_op,
+                ]
+
+            except Exception as e:
                 self.console.log(
-                    f"Prompt: {subtask['prompt'][:500]}..."
-                )  # Truncate long prompts
-            else:
-                self.console.log(f"Prompt: {subtask['prompt']}")
+                    f"[yellow]Warning: Failed to create parallel map with reduce plan: {str(e)}. Using only the combined plan.[/yellow]"
+                )
+        else:
+            # If no missing keys, just create the parallel map operation
+            parallel_map_op = self.operation_creator.create_parallel_map_operation(
+                op_config, op_output_schema, result["subtasks"]
+            )
+            plans["parallel_map"] = [parallel_map_op]
 
-        return {"parallel_map": [parallel_map_operation]}
+        # Print the parallel decomposition plans
+        self.console.log("[bold]Parallel Decomposition Plans:[/bold]")
+        for plan_name, plan in plans.items():
+            self.console.log(f"\n[bold cyan]Plan: {plan_name}[/bold cyan]")
+            for idx, op in enumerate(plan):
+                self.console.log(f"Operation {idx + 1}: {op['name']}")
+                if idx == 0:  # Parallel map operation
+                    for subtask_idx, subtask in enumerate(op.get("prompts", []), 1):
+                        self.console.log(f"\n[bold]Subtask {subtask_idx}:[/bold]")
+                        self.console.log(f"Output keys: {subtask['output_keys']}")
+                        if len(subtask["prompt"]) > 500:
+                            self.console.log(f"Prompt: {subtask['prompt'][:500]}...")
+                        else:
+                            self.console.log(f"Prompt: {subtask['prompt']}")
+                else:  # Reduce operation
+                    self.console.log(f"Transform prompt: {op['prompt'][:500]}...")
+
+        return plans
 
     def _generate_chain_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -799,52 +895,72 @@ class PlanGenerator:
             "required": ["subtasks"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,
         )
         result = json.loads(response.choices[0].message.content)
+        subtasks = result["subtasks"]
 
         # Verify that all output schema keys are covered by the subtasks' output keys
         output_schema_keys = set(output_schema.keys())
         subtask_output_keys = set()
-        for subtask in result["subtasks"]:
+        for subtask in subtasks:
             subtask_output_keys.update(subtask["output_keys"])
 
         missing_keys = output_schema_keys - subtask_output_keys
         if missing_keys:
             self.console.log(
-                "[bold red]Warning:[/bold red] Some output schema keys are not covered by subtasks:"
+                f"[bold yellow]Warning:[/bold yellow] Some output schema keys are not covered by chain subtasks: {missing_keys}"
             )
-            for key in missing_keys:
-                self.console.log(f"  - {key}")
 
-            # Attempt to add missing keys to the most appropriate subtask
-            for key in missing_keys:
-                # Find the subtask with the most similar existing output keys
-                best_subtask = max(
-                    result["subtasks"],
-                    key=lambda s: len(set(s["output_keys"]) & output_schema_keys),
+            try:
+                # Create the chain plan with original subtasks
+                chain_plan = []
+                for idx, subtask in enumerate(result["subtasks"]):
+                    subtask_config = copy.deepcopy(op_config)
+                    subtask_config["name"] = f"{op_config['name']}_subtask_{idx+1}"
+                    subtask_config["prompt"] = subtask["prompt"]
+                    subtask_config["output"]["schema"] = {
+                        key: output_schema.get(key, "string")
+                        for key in subtask["output_keys"]
+                    }
+                    chain_plan.append(subtask_config)
+
+                # Generate synthesis prompt for missing keys
+                synthesis_prompt = self.prompt_generator._get_missing_keys_prompt(
+                    op_config,
+                    missing_keys,
+                    subtask_output_keys,
                 )
-                best_subtask["output_keys"].append(key)
+
+                # Add the synthesis subtask to the chain plan
+                synthesis_subtask = {
+                    "name": f"{op_config['name']}_synthesis",
+                    "prompt": synthesis_prompt,
+                    "output_keys": list(missing_keys),
+                }
+                chain_plan.append(synthesis_subtask)
+
+            except Exception as e:
                 self.console.log(
-                    f"[yellow]Added missing key '{key}' to subtask '{best_subtask['name']}'[/yellow]"
+                    f"[yellow]Warning: Failed to create synthesis step for missing keys: {str(e)}.[/yellow]"
                 )
-
-        # Verify again after attempting to add missing keys
-        subtask_output_keys = set()
-        for subtask in result["subtasks"]:
-            subtask_output_keys.update(subtask["output_keys"])
-
-        if len(output_schema_keys - subtask_output_keys) > 0:
-            self.console.log(
-                f"[bold red]Error in chain decomposition:[/bold red] Some output schema keys are not covered by subtasks: {output_schema_keys - subtask_output_keys}"
-            )
-            return {}
+                # Attempt to add missing keys to the most appropriate subtask
+                for key in missing_keys:
+                    # Find the subtask with the most similar existing output keys
+                    best_subtask = max(
+                        subtasks,
+                        key=lambda s: len(set(s["output_keys"]) & output_schema_keys),
+                    )
+                    best_subtask["output_keys"].append(key)
+                    self.console.log(
+                        f"[yellow]Added missing key '{key}' to subtask '{best_subtask['name']}'[/yellow]"
+                    )
 
         chain_plan = []
-        for idx, subtask in enumerate(result["subtasks"]):
+        for idx, subtask in enumerate(subtasks):
             subtask_config = copy.deepcopy(op_config)
             subtask_config["name"] = f"{op_config['name']}_subtask_{idx+1}"
             subtask_config["prompt"] = subtask["prompt"]

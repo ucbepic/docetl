@@ -19,12 +19,17 @@ def build(
     max_threads: Optional[int] = typer.Option(
         None, help="Maximum number of threads to use for running operations"
     ),
-    model: str = typer.Option("gpt-4o", help="Model to use for optimization"),
+    rewrite_agent_model: str = typer.Option(
+        "gpt-4o", help="Model to use for rewriting operations"
+    ),
+    judge_agent_model: str = typer.Option(
+        "gpt-4o-mini", help="Model to use for judging rewritten operations"
+    ),
     resume: bool = typer.Option(
         False, help="Resume optimization from a previous build that may have failed"
     ),
-    timeout: int = typer.Option(
-        60, help="Timeout for optimization operations in seconds"
+    save_path: Path = typer.Option(
+        None, help="Path to save the optimized pipeline configuration"
     ),
 ):
     """
@@ -36,7 +41,7 @@ def build(
         max_threads (Optional[int]): Maximum number of threads to use for running operations.
         model (str): Model to use for optimization. Defaults to "gpt-4o".
         resume (bool): Whether to resume optimization from a previous run. Defaults to False.
-        timeout (int): Timeout for optimization operations in seconds. Defaults to 60.
+        save_path (Path): Path to save the optimized pipeline configuration.
     """
     # Get the current working directory (where the user called the command)
     cwd = os.getcwd()
@@ -47,13 +52,14 @@ def build(
         load_dotenv(env_file)
 
     runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
+    runner.config["optimizer_rewrite_agent_model"] = rewrite_agent_model
+    runner.config["optimizer_judge_agent_model"] = judge_agent_model
     runner.optimize(
         save=True,
         return_pipeline=False,
-        model=model or runner.config.get("optimizer_model", "gpt-4o"),
         resume=resume,
-        timeout=timeout,
         litellm_kwargs=runner.config.get("optimizer_litellm_kwargs", {}),
+        save_path=save_path,
     )
 
 

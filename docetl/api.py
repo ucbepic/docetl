@@ -180,10 +180,12 @@ class Pipeline:
     def optimize(
         self,
         max_threads: Optional[int] = None,
-        model: str = "gpt-4o",
+        rewrite_agent_model: str = "gpt-4o",
+        judge_agent_model: str = "gpt-4o-mini",
         resume: bool = False,
         timeout: int = 60,
         litellm_kwargs: Dict[str, Any] = {},
+        save_path: Optional[str] = None,
     ) -> "Pipeline":
         """
         Optimize the pipeline using the Optimizer.
@@ -205,11 +207,13 @@ class Pipeline:
             max_threads=max_threads,
         )
         optimized_config, _ = runner.optimize(
-            model=model,
+            rewrite_agent_model=rewrite_agent_model,
+            judge_agent_model=judge_agent_model,
             resume=resume,
             timeout=timeout,
             litellm_kwargs=litellm_kwargs,
             return_pipeline=False,
+            save_path=save_path,
         )
 
         updated_pipeline = Pipeline(

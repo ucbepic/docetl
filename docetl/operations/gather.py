@@ -297,9 +297,14 @@ class GatherOperation(BaseOperation):
         current_chunk_headers = current_chunk.get(doc_header_key, [])
         highest_level = float("inf")  # Initialize with positive infinity
         for header_info in current_chunk_headers:
-            level = header_info.get("level")
-            if level is not None and level < highest_level:
-                highest_level = level
+            try:
+                level = header_info.get("level")
+                if level is not None and level < highest_level:
+                    highest_level = level
+            except Exception as e:
+                self.runner.console.log(f"[red]Error processing header: {e}[/red]")
+                self.runner.console.log(f"[red]Header: {header_info}[/red]")
+                return ""
 
         # If no headers found in the current chunk, set highest_level to None
         if highest_level == float("inf"):
@@ -307,14 +312,19 @@ class GatherOperation(BaseOperation):
 
         for chunk in chunks:
             for header_info in chunk.get(doc_header_key, []):
-                header = header_info["header"]
-                level = header_info["level"]
-                if header and level:
-                    current_hierarchy[level] = header
+                try:
+                    header = header_info["header"]
+                    level = header_info["level"]
+                    if header and level:
+                        current_hierarchy[level] = header
                     # Clear lower levels when a higher level header is found
                     for lower_level in range(level + 1, len(current_hierarchy) + 1):
                         if lower_level in current_hierarchy:
                             current_hierarchy[lower_level] = None
+                except Exception as e:
+                    self.runner.console.log(f"[red]Error processing header: {e}[/red]")
+                    self.runner.console.log(f"[red]Header: {header_info}[/red]")
+                    return ""
 
         rendered_headers = [
             f"{'#' * level} {header}"

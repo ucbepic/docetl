@@ -490,7 +490,8 @@ class ParallelMapOperation(BaseOperation):
         def process_prompt(item, prompt_config):
             prompt = strict_render(prompt_config["prompt"], {"input": item})
             local_output_schema = {
-                key: output_schema[key] for key in prompt_config["output_keys"]
+                key: output_schema.get(key, "string")
+                for key in prompt_config["output_keys"]
             }
             model = prompt_config.get("model", self.default_model)
             if not model:

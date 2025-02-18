@@ -1,5 +1,6 @@
 import concurrent
 import copy
+import random
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -244,47 +245,12 @@ class MapOptimizer:
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """
         Optimize the given operation configuration for the input data.
-        This method analyzes the operation and input data, generates various
-        optimization plans, evaluates them, and returns the best plan along
-        with its output. A key part of this process is creating a custom
-        validator prompt for evaluation. The validator prompt is generated
-        based on the specific task, input data, and output data. It serves
-        as a critical tool for assessing the quality and correctness of
-        each optimization plan's output. This custom prompt ensures that
-        the evaluation is tailored to the unique requirements and nuances
-        of the given operation. The types of optimization plans include:
-
-        1. Improved Prompt Plan: Enhances the original prompt based on evaluation, aiming to improve output quality.
-
-        2. Chunk Size Plan: Splits input data into chunks of different sizes,
-           processes each chunk separately, and then combines the results. This
-           can improve performance for large inputs.
-
-        3. Gleaning Plans: Implements an iterative refinement process where the
-           output is validated and improved over multiple rounds, enhancing accuracy.
-
-        4. Chain Decomposition Plan: Breaks down complex operations into a series
-           of simpler sub-operations, potentially improving overall performance
-           and interpretability.
-
-        5. Parallel Map Plan: Decomposes the task into subtasks that can be
-           executed in parallel, potentially speeding up processing for
-           independent operations.
-
-        The method generates these plans, evaluates their performance using
-        a custom validator, and selects the best performing plan based on
-        output quality and execution time.
-
-        Args:
-            op_config (Dict[str, Any]): The configuration of the operation to optimize.
-            input_data (List[Dict[str, Any]]): The input data for the operation.
-
-        Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing
-            the best optimization plan and its output. The plan is a list of
-            operation configurations that achieve the best performance.
-            The cost is the cost of the optimizer (from possibly synthesizing resolves).
-
+        Uses a staged evaluation approach:
+        1. For data exceeding limits: Try all plan types at once
+        2. For data within limits:
+            - First try gleaning/proj synthesis
+            - Compare with baseline
+            - Selectively try chunking plans based on initial results
         """
         # Verify that the plan types are valid
         for plan_type in plan_types:
@@ -303,7 +269,6 @@ class MapOptimizer:
             data_exceeds_limit,
         ) = self._should_optimize_helper(op_config, input_data)
 
-        # Check if improvement is needed based on the assessment
         if not self.config.get("optimizer_config", {}).get("force_decompose", False):
             if not data_exceeds_limit and not assessment.get("needs_improvement", True):
                 self.console.log(
@@ -315,78 +280,287 @@ class MapOptimizer:
                     self.plan_generator.subplan_optimizer_cost,
                 )
 
-        candidate_plans = {}
+        # Select consistent evaluation samples
+        num_evaluations = min(5, len(input_data))
+        evaluation_samples = select_evaluation_samples(input_data, num_evaluations)
 
-        # Generate improved prompt plan
-        if not data_exceeds_limit:
-            #     improved_prompt_plan = self.prompt_generator._get_improved_prompt(
-            #         op_config, assessment, input_data
-            #     )
-            #     candidate_plans["improved_instructions"] = improved_prompt_plan
-            candidate_plans["no_change"] = [op_config]
-
-        # Generate chunk size plans
-        self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
-        if "chunk" in plan_types:
-            self.console.log(
-                "[bold magenta]Generating chunking plans...[/bold magenta]"
+        if data_exceeds_limit:
+            # For data exceeding limits, try all plan types at once
+            return self._evaluate_all_plans(
+                op_config,
+                input_data,
+                evaluation_samples,
+                validator_prompt,
+                plan_types,
+                model_input_context_length,
+                data_exceeds_limit=True,
             )
-            chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
-                op_config, input_data, validator_prompt, model_input_context_length
-            )
-            for pname, plan in chunk_size_plans.items():
-                candidate_plans[pname] = plan
 
-        # Generate gleaning plans
-        if not data_exceeds_limit and "glean" in plan_types:
+        # For data within limits, use staged evaluation
+        return self._staged_evaluation(
+            op_config,
+            input_data,
+            evaluation_samples,
+            validator_prompt,
+            plan_types,
+            no_change_runtime,
+            model_input_context_length,
+        )
+
+    def _select_best_plan(
+        self,
+        results: Dict[str, Tuple[float, float, List[Dict[str, Any]]]],
+        op_config: Dict[str, Any],
+        evaluation_samples: List[Dict[str, Any]],
+        validator_prompt: str,
+        candidate_plans: Dict[str, List[Dict[str, Any]]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], str, Dict[str, int]]:
+        """
+        Select the best plan from evaluation results using top-k comparison.
+
+        Returns:
+            Tuple of (best plan, best output, best plan name, pairwise rankings)
+        """
+        # Sort results by score in descending order
+        sorted_results = sorted(results.items(), key=lambda x: x[1][0], reverse=True)
+
+        # Take the top k plans
+        top_plans = sorted_results[: self.k_to_pairwise_compare]
+
+        # Check if there are no top plans
+        if len(top_plans) == 0:
+            raise ValueError(
+                "No valid plans were generated. Unable to proceed with optimization."
+            )
+
+        # Include any additional plans that are tied with the last plan
+        tail_score = (
+            top_plans[-1][1][0]
+            if len(top_plans) == self.k_to_pairwise_compare
+            else float("-inf")
+        )
+        filtered_results = dict(
+            top_plans
+            + [
+                item
+                for item in sorted_results[len(top_plans) :]
+                if item[1][0] == tail_score
+            ]
+        )
+
+        # Perform pairwise comparisons on filtered plans
+        if len(filtered_results) > 1:
+            pairwise_rankings = self.evaluator._pairwise_compare_plans(
+                filtered_results, validator_prompt, op_config, evaluation_samples
+            )
+            best_plan_name = max(pairwise_rankings, key=pairwise_rankings.get)
+        else:
+            pairwise_rankings = {k: 0 for k in results.keys()}
+            best_plan_name = next(iter(filtered_results))
+
+        # Display results table
+        self.console.log(
+            f"\n[bold]Plan Evaluation Results for {op_config['name']} ({op_config['type']}, {len(results)} plans, {len(evaluation_samples)} samples):[/bold]"
+        )
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Plan", style="dim")
+        table.add_column("Score", justify="right", width=10)
+        table.add_column("Runtime", justify="right", width=10)
+        table.add_column("Pairwise Wins", justify="right", width=10)
+
+        for plan_name, (score, runtime, _) in sorted_results:
+            table.add_row(
+                plan_name,
+                f"{score:.2f}",
+                f"{runtime:.2f}s",
+                f"{pairwise_rankings.get(plan_name, 0)}",
+            )
+
+        self.console.log(table)
+        self.console.log("\n")
+
+        try:
+            best_plan = candidate_plans[best_plan_name]
+            best_output = results[best_plan_name][2]
+        except KeyError:
+            raise ValueError(
+                f"Best plan name {best_plan_name} not found in candidate plans. Candidate plan names: {candidate_plans.keys()}"
+            )
+
+        self.console.log(
+            f"[green]Current best plan: {best_plan_name} for operation {op_config['name']} "
+            f"(Score: {results[best_plan_name][0]:.2f}, "
+            f"Runtime: {results[best_plan_name][1]:.2f}s)[/green]"
+        )
+
+        return best_plan, best_output, best_plan_name, pairwise_rankings
+
+    def _staged_evaluation(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        evaluation_samples: List[Dict[str, Any]],
+        validator_prompt: str,
+        plan_types: List[str],
+        no_change_runtime: float,
+        model_input_context_length: int,
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+        """Stage 1: Try gleaning and proj synthesis plans first"""
+        candidate_plans = {"no_change": [op_config]}
+
+        # Generate initial plans (gleaning and proj synthesis)
+        if "glean" in plan_types:
             self.console.log(
                 "[bold magenta]Generating gleaning plans...[/bold magenta]"
             )
             gleaning_plans = self.plan_generator._generate_gleaning_plans(
                 op_config, validator_prompt
             )
-            for pname, plan in gleaning_plans.items():
-                candidate_plans[pname] = plan
+            candidate_plans.update(gleaning_plans)
 
-        # Generate chain decomposition plans
-        if not data_exceeds_limit and "proj_synthesis" in plan_types:
-            if not self.is_filter:
+        if "proj_synthesis" in plan_types and not self.is_filter:
+            self.console.log(
+                "[bold magenta]Generating independent projection synthesis plans...[/bold magenta]"
+            )
+            parallel_plans = self.plan_generator._generate_parallel_plans(
+                op_config, input_data
+            )
+            candidate_plans.update(parallel_plans)
+
+            self.console.log(
+                "[bold magenta]Generating chain projection synthesis plans...[/bold magenta]"
+            )
+            chain_plans = self.plan_generator._generate_chain_plans(
+                op_config, input_data
+            )
+            candidate_plans.update(chain_plans)
+
+        # Evaluate initial plans
+        initial_results = self._evaluate_plans(
+            candidate_plans,
+            op_config,
+            evaluation_samples,
+            validator_prompt,
+            no_change_runtime,
+        )
+
+        # Get best initial plan
+        best_plan, best_output, best_plan_name, pairwise_rankings = (
+            self._select_best_plan(
+                initial_results,
+                op_config,
+                evaluation_samples,
+                validator_prompt,
+                candidate_plans,
+            )
+        )
+        best_is_better_than_baseline = best_plan_name != "no_change"
+
+        # Stage 2: Decide whether/how to try chunking plans
+        if "chunk" in plan_types:
+            if best_is_better_than_baseline:
+                # Try 2 random chunking plans first
                 self.console.log(
-                    "[bold magenta]Generating chain projection synthesis plans...[/bold magenta]"
+                    "[bold magenta]Trying sample of chunking plans...[/bold magenta]"
                 )
-                chain_plans = self.plan_generator._generate_chain_plans(
-                    op_config, input_data
+                chunk_plans = self.plan_generator._generate_chunk_size_plans(
+                    op_config, input_data, validator_prompt, model_input_context_length
                 )
-                for pname, plan in chain_plans.items():
-                    candidate_plans[pname] = plan
 
-                # Generate parallel map plans
+                if chunk_plans:
+                    # Sample 2 random plans
+                    chunk_items = list(chunk_plans.items())
+                    sample_plans = dict(
+                        random.sample(chunk_items, min(2, len(chunk_items)))
+                    )
+                    sample_results = self._evaluate_plans(
+                        sample_plans, op_config, evaluation_samples, validator_prompt
+                    )
+
+                    # Do pairwise comparison between sampled plans and current best
+                    current_best = {best_plan_name: initial_results[best_plan_name]}
+                    current_best.update(sample_results)
+
+                    _, _, new_best_name, new_pairwise_rankings = self._select_best_plan(
+                        current_best,
+                        op_config,
+                        evaluation_samples,
+                        validator_prompt,
+                        {**{best_plan_name: best_plan}, **sample_plans},
+                    )
+
+                    if new_best_name == best_plan_name:
+                        self.console.log(
+                            "[yellow]Sample chunking plans did not improve results. Keeping current best plan.[/yellow]"
+                        )
+                        return (
+                            best_plan,
+                            best_output,
+                            self.plan_generator.subplan_optimizer_cost,
+                        )
+
+                    # If a sampled plan wins, evaluate all chunking plans
+                    self.console.log(
+                        "[bold magenta]Generating all chunking plans...[/bold magenta]"
+                    )
+                    chunk_results = self._evaluate_plans(
+                        chunk_plans, op_config, evaluation_samples, validator_prompt
+                    )
+                    initial_results.update(chunk_results)
+                    candidate_plans.update(chunk_plans)
+            else:
+                # Try all chunking plans since no improvement found yet
                 self.console.log(
-                    "[bold magenta]Generating independent projection synthesis plans...[/bold magenta]"
+                    "[bold magenta]Generating chunking plans...[/bold magenta]"
                 )
-                parallel_plans = self.plan_generator._generate_parallel_plans(
-                    op_config, input_data
+                chunk_plans = self.plan_generator._generate_chunk_size_plans(
+                    op_config, input_data, validator_prompt, model_input_context_length
                 )
-                for pname, plan in parallel_plans.items():
-                    candidate_plans[pname] = plan
+                chunk_results = self._evaluate_plans(
+                    chunk_plans, op_config, evaluation_samples, validator_prompt
+                )
+                initial_results.update(chunk_results)
+                candidate_plans.update(chunk_plans)
 
-        # Select consistent evaluation samples
-        num_evaluations = min(5, len(input_data))
-        evaluation_samples = select_evaluation_samples(input_data, num_evaluations)
+        # Final selection of best plan
+        best_plan, best_output, _, final_pairwise_rankings = self._select_best_plan(
+            initial_results,
+            op_config,
+            evaluation_samples,
+            validator_prompt,
+            candidate_plans,
+        )
 
-        results = {}
-        plans_list = list(candidate_plans.items())
-
-        # Capture candidate plans
+        # Capture evaluation results with pairwise rankings
+        ratings = {k: v[0] for k, v in initial_results.items()}
+        runtime = {k: v[1] for k, v in initial_results.items()}
+        sample_outputs = {k: v[2] for k, v in initial_results.items()}
         self.runner.optimizer.captured_output.save_optimizer_output(
-            stage_type=StageType.CANDIDATE_PLANS,
-            output=candidate_plans,
+            stage_type=StageType.EVALUATION_RESULTS,
+            output={
+                "input_data": evaluation_samples,
+                "all_plan_ratings": ratings,
+                "all_plan_runtimes": runtime,
+                "all_plan_sample_outputs": sample_outputs,
+                "all_plan_pairwise_rankings": final_pairwise_rankings,
+            },
         )
 
-        self.console.post_optimizer_status(StageType.EVALUATION_RESULTS)
-        self.console.log(
-            f"[bold magenta]Evaluating {len(plans_list)} plans...[/bold magenta]"
-        )
+        self.console.post_optimizer_status(StageType.END)
+        return best_plan, best_output, self.plan_generator.subplan_optimizer_cost
+
+    def _evaluate_plans(
+        self,
+        plans: Dict[str, List[Dict[str, Any]]],
+        op_config: Dict[str, Any],
+        evaluation_samples: List[Dict[str, Any]],
+        validator_prompt: str,
+        no_change_runtime: Optional[float] = None,
+    ) -> Dict[str, Tuple[float, float, List[Dict[str, Any]]]]:
+        """Helper method to evaluate a set of plans in parallel"""
+        results = {}
+        plans_list = list(plans.items())
+
         for i in range(0, len(plans_list), self._num_plans_to_evaluate_in_parallel):
             batch = plans_list[i : i + self._num_plans_to_evaluate_in_parallel]
             with ThreadPoolExecutor(
@@ -413,96 +587,95 @@ class MapOptimizer:
                             f"[yellow]Plan {plan_name} timed out and will be skipped.[/yellow]"
                         )
                     except Exception as e:
-                        # TODO: raise this error if the error is related to a Jinja error
                         self.console.log(
                             f"[red]Error in plan {plan_name}: {str(e)}[/red]"
                         )
-                        import traceback
 
-                        print(traceback.format_exc())
-
-        # Add no change plan
-        if not data_exceeds_limit:
+        if "no_change" in results and no_change_runtime is not None:
             results["no_change"] = (
                 results["no_change"][0],
                 no_change_runtime,
                 results["no_change"][2],
             )
 
-        # Create a table of scores sorted in descending order
-        scores = sorted(
-            [(score, runtime, plan) for plan, (score, runtime, _) in results.items()],
-            reverse=True,
-        )
+        return results
 
-        # Sort results by score in descending order
-        sorted_results = sorted(results.items(), key=lambda x: x[1][0], reverse=True)
+    def _evaluate_all_plans(
+        self,
+        op_config: Dict[str, Any],
+        input_data: List[Dict[str, Any]],
+        evaluation_samples: List[Dict[str, Any]],
+        validator_prompt: str,
+        plan_types: List[str],
+        model_input_context_length: int,
+        data_exceeds_limit: bool,
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+        """
+        Evaluate all plans for a given operation configuration.
+        """
+        candidate_plans = {}
 
-        # Take the top 6 plans
-        top_plans = sorted_results[: self.k_to_pairwise_compare]
-
-        # Check if there are no top plans
-        if len(top_plans) == 0:
-            self.console.post_optimizer_status(StageType.END)
-            raise ValueError(
-                "Agent did not generate any plans. Unable to proceed with optimization. Try again."
-            )
-
-        # Include any additional plans that are tied with the last plan
-        tail_score = (
-            top_plans[-1][1][0]
-            if len(top_plans) == self.k_to_pairwise_compare
-            else float("-inf")
-        )
-        filtered_results = dict(
-            top_plans
-            + [
-                item
-                for item in sorted_results[len(top_plans) :]
-                if item[1][0] == tail_score
-            ]
-        )
-
-        # Perform pairwise comparisons on filtered plans
-        if len(filtered_results) > 1:
-            pairwise_rankings = self.evaluator._pairwise_compare_plans(
-                filtered_results, validator_prompt, op_config, evaluation_samples
-            )
-            best_plan_name = max(pairwise_rankings, key=pairwise_rankings.get)
-        else:
-            pairwise_rankings = {k: 0 for k in results.keys()}
-            best_plan_name = (
-                next(iter(filtered_results))
-                if filtered_results
-                else max(results, key=lambda x: results[x][0])
-            )
-
+        # Generate all plans
+        self.console.post_optimizer_status(StageType.CANDIDATE_PLANS)
         self.console.log(
-            f"\n[bold]Plan Evaluation Results for {op_config['name']} ({op_config['type']}, {len(scores)} plans, {num_evaluations} samples):[/bold]"
+            f"[bold magenta]Generating {len(plan_types)} plans...[/bold magenta]"
         )
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Plan", style="dim")
-        table.add_column("Score", justify="right", width=10)
-        table.add_column("Runtime", justify="right", width=10)
-        table.add_column("Pairwise Wins", justify="right", width=10)
+        for plan_type in plan_types:
+            if plan_type == "chunk":
+                self.console.log(
+                    "[bold magenta]Generating chunking plans...[/bold magenta]"
+                )
+                chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
+                    op_config, input_data, validator_prompt, model_input_context_length
+                )
+                candidate_plans.update(chunk_size_plans)
+            elif plan_type == "proj_synthesis":
+                if not self.is_filter:
+                    self.console.log(
+                        "[bold magenta]Generating independent projection synthesis plans...[/bold magenta]"
+                    )
+                    parallel_plans = self.plan_generator._generate_parallel_plans(
+                        op_config, input_data
+                    )
+                    candidate_plans.update(parallel_plans)
 
-        for score, runtime, plan in scores:
-            table.add_row(
-                plan,
-                f"{score:.2f}",
-                f"{runtime:.2f}s",
-                f"{pairwise_rankings.get(plan, 0)}",
-            )
+                    self.console.log(
+                        "[bold magenta]Generating chain projection synthesis plans...[/bold magenta]"
+                    )
+                    chain_plans = self.plan_generator._generate_chain_plans(
+                        op_config, input_data
+                    )
+                    candidate_plans.update(chain_plans)
+            elif plan_type == "glean":
+                self.console.log(
+                    "[bold magenta]Generating gleaning plans...[/bold magenta]"
+                )
+                gleaning_plans = self.plan_generator._generate_gleaning_plans(
+                    op_config, validator_prompt
+                )
+                candidate_plans.update(gleaning_plans)
 
-        self.console.log(table)
-        self.console.log("\n")
+        # Capture candidate plans
+        self.runner.optimizer.captured_output.save_optimizer_output(
+            stage_type=StageType.CANDIDATE_PLANS,
+            output=candidate_plans,
+        )
 
-        _, _, best_output = results[best_plan_name]
+        self.console.post_optimizer_status(StageType.EVALUATION_RESULTS)
         self.console.log(
-            f"[green]Choosing {best_plan_name} for operation {op_config['name']} (Score: {results[best_plan_name][0]:.2f}, Runtime: {results[best_plan_name][1]:.2f}s)[/green]"
+            f"[bold magenta]Evaluating {len(candidate_plans)} plans...[/bold magenta]"
         )
 
-        # Capture evaluation results
+        results = self._evaluate_plans(
+            candidate_plans, op_config, evaluation_samples, validator_prompt
+        )
+
+        # Select best plan using the centralized method
+        best_plan, best_output, _, pairwise_rankings = self._select_best_plan(
+            results, op_config, evaluation_samples, validator_prompt, candidate_plans
+        )
+
+        # Capture evaluation results with pairwise rankings
         ratings = {k: v[0] for k, v in results.items()}
         runtime = {k: v[1] for k, v in results.items()}
         sample_outputs = {k: v[2] for k, v in results.items()}
@@ -518,8 +691,4 @@ class MapOptimizer:
         )
 
         self.console.post_optimizer_status(StageType.END)
-        return (
-            candidate_plans[best_plan_name],
-            best_output,
-            self.plan_generator.subplan_optimizer_cost,
-        )
+        return best_plan, best_output, self.plan_generator.subplan_optimizer_cost

@@ -13,7 +13,7 @@ import { useDatasetUpload } from "@/hooks/useDatasetUpload";
 import { useRestorePipeline } from "@/hooks/useRestorePipeline";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { File as FileType, Operation } from "@/app/types";
+import type { File as FileType, Operation, OutputType } from "@/app/types";
 
 interface Tutorial {
   id: string;
@@ -265,6 +265,7 @@ interface TutorialsDialogProps {
   }) => void;
   currentFile: FileType | null;
   files: FileType[];
+  setOutput: (output: OutputType | null) => void;
 }
 
 export function TutorialsDialog({
@@ -282,6 +283,7 @@ export function TutorialsDialog({
   setSystemPrompt,
   currentFile,
   files,
+  setOutput,
 }: TutorialsDialogProps) {
   const { toast } = useToast();
   const { uploadLocalDataset } = useDatasetUpload({
@@ -299,6 +301,7 @@ export function TutorialsDialog({
     setSystemPrompt,
     currentFile,
     files,
+    setOutput,
   });
 
   // Add state to track the uploaded dataset path

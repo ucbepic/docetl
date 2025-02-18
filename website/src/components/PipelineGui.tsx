@@ -426,6 +426,7 @@ const PipelineGUI: React.FC = () => {
     setSystemPrompt,
     currentFile,
     files,
+    setOutput,
   });
 
   useEffect(() => {

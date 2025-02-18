@@ -55,7 +55,8 @@ class Optimizer:
     def __init__(
         self,
         runner: "DSLRunner",
-        model: str = "gpt-4o",
+        rewrite_agent_model: str = "gpt-4o",
+        judge_agent_model: str = "gpt-4o-mini",
         litellm_kwargs: Dict[str, Any] = {},
         resume: bool = False,
         timeout: int = 60,
@@ -99,7 +100,9 @@ class Optimizer:
         self.status = runner.status
 
         self.optimized_config = copy.deepcopy(self.config)
-        self.llm_client = LLMClient(runner, model, **litellm_kwargs)
+        self.llm_client = LLMClient(
+            runner, rewrite_agent_model, judge_agent_model, **litellm_kwargs
+        )
         self.timeout = timeout
         self.resume = resume
         self.captured_output = CapturedOutput()
@@ -140,8 +143,8 @@ class Optimizer:
                 "[bold cyan]Optimizer Configuration[/bold cyan]\n"
                 f"[yellow]Sample Size:[/yellow] {self.sample_size_map}\n"
                 f"[yellow]Max Threads:[/yellow] {self.max_threads}\n"
-                f"[yellow]Model:[/yellow] {self.llm_client.model}\n"
-                f"[yellow]Timeout:[/yellow] {self.timeout} seconds",
+                f"[yellow]Rewrite Agent Model:[/yellow] {self.llm_client.rewrite_agent_model}\n"
+                f"[yellow]Judge Agent Model:[/yellow] {self.llm_client.judge_agent_model}\n",
                 title="Optimizer Configuration",
             )
         )
@@ -338,7 +341,7 @@ class Optimizer:
         Analyzes whether an operation should be optimized by running it on a sample of input data
         and evaluating potential optimizations. Returns the optimization suggestion and relevant data.
         """
-        self.console.rule("[bold cyan]Beginning Pipeline Optimization[/bold cyan]")
+        self.console.rule("[bold cyan]Beginning Pipeline Assessment[/bold cyan]")
 
         self._insert_empty_resolve_operations()
 
@@ -408,7 +411,7 @@ class Optimizer:
         Optimizes the entire pipeline by walking the operation DAG and applying
         operation-specific optimizers where marked. Returns the total optimization cost.
         """
-        self.console.rule("[bold cyan]Beginning Pipeline Optimization[/bold cyan]")
+        self.console.rule("[bold cyan]Beginning Pipeline Rewrites[/bold cyan]")
 
         # If self.resume is True and there's a checkpoint, load it
         if self.resume:
@@ -606,7 +609,7 @@ class Optimizer:
         def clean_operation(op_container: OpContainer) -> Dict:
             """Remove internal fields from operation config"""
             op_config = op_container.config
-            clean_op = op_config.copy()
+            clean_op = copy.deepcopy(op_config)
 
             clean_op.pop("_intermediates", None)
 

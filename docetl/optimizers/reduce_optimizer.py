@@ -297,7 +297,7 @@ class ReduceOptimizer:
             f"Reduce operation prompt:\n{truncated_messages[0]['content']}"
         )
 
-        preprocessing_response = self.llm_client.generate(
+        preprocessing_response = self.llm_client.generate_rewrite(
             model=self.config.get("model", self.default_model),
             messages=[{"role": "user", "content": preprocessing_prompt}],
             response_format={
@@ -686,7 +686,7 @@ class ReduceOptimizer:
             "required": ["should_decompose", "explanation"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,
@@ -756,7 +756,7 @@ class ReduceOptimizer:
             ],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,
@@ -801,7 +801,7 @@ class ReduceOptimizer:
             "required": ["enable_sampling", "explanation"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,
@@ -854,7 +854,7 @@ class ReduceOptimizer:
             "required": ["method", "explanation"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,
@@ -893,7 +893,7 @@ class ReduceOptimizer:
                 "required": ["embedding_keys", "explanation"],
             }
 
-            response = self.llm_client.generate(
+            response = self.llm_client.generate_rewrite(
                 [{"role": "user", "content": prompt}],
                 system_prompt,
                 parameters,
@@ -939,7 +939,7 @@ class ReduceOptimizer:
                 "required": ["query_text", "explanation"],
             }
 
-            response = self.llm_client.generate(
+            response = self.llm_client.generate_rewrite(
                 [{"role": "user", "content": prompt}],
                 system_prompt,
                 parameters,
@@ -1003,7 +1003,7 @@ class ReduceOptimizer:
             "required": ["order_matters", "explanation"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,
@@ -1110,7 +1110,7 @@ class ReduceOptimizer:
             "required": ["validator_prompt"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,
@@ -1210,7 +1210,7 @@ class ReduceOptimizer:
 
                 futures.append(
                     executor.submit(
-                        self.llm_client.generate,
+                        self.llm_client.generate_judge,
                         [{"role": "user", "content": prompt}],
                         system_prompt,
                         parameters,
@@ -1595,7 +1595,7 @@ class ReduceOptimizer:
 
             Provide the fold prompt as a string.
             """
-            response = self.llm_client.generate(
+            response = self.llm_client.generate_rewrite(
                 [{"role": "user", "content": prompt}],
                 system_prompt,
                 parameters,
@@ -1906,7 +1906,7 @@ Remember, you must fold the new data into the existing output, do not start fres
             "required": ["merge_prompt"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [{"role": "user", "content": prompt}],
             system_prompt,
             parameters,

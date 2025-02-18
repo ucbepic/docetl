@@ -624,10 +624,15 @@ class DSLRunner(ConfigWrapper):
         self.load()
 
         # Augment the kwargs with the runner's config if not already provided
-        if "optimizer_litellm_kwargs" not in kwargs:
-            kwargs["litellm_kwargs"] = self.config.get("optimizer_litellm_kwargs", {})
-        if "optimizer_model" not in kwargs:
-            kwargs["model"] = self.config.get("optimizer_model", "gpt-4o")
+        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
+            "litellm_kwargs", {}
+        )
+        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "rewrite_agent_model", "gpt-4o"
+        )
+        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "judge_agent_model", "gpt-4o-mini"
+        )
 
         builder = Optimizer(self, **kwargs)
         self.optimizer = builder
@@ -647,10 +652,19 @@ class DSLRunner(ConfigWrapper):
         self.load()
 
         # Augment the kwargs with the runner's config if not already provided
-        if "optimizer_litellm_kwargs" not in kwargs:
-            kwargs["litellm_kwargs"] = self.config.get("optimizer_litellm_kwargs", {})
-        if "optimizer_model" not in kwargs:
-            kwargs["model"] = self.config.get("optimizer_model", "gpt-4o")
+        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
+            "litellm_kwargs", {}
+        )
+        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "rewrite_agent_model", "gpt-4o"
+        )
+        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "judge_agent_model", "gpt-4o-mini"
+        )
+
+        save_path = kwargs.get("save_path", None)
+        # Pop the save_path from kwargs
+        kwargs.pop("save_path", None)
 
         builder = Optimizer(
             self,
@@ -658,11 +672,31 @@ class DSLRunner(ConfigWrapper):
         )
         self.optimizer = builder
         llm_api_cost = builder.optimize()
+        operations_cost = self.total_cost
         self.total_cost += llm_api_cost
 
+        # Log the cost of optimization
+        self.console.log(
+            f"[green italic]💰 Total cost: ${self.total_cost:.4f}[/green italic]"
+        )
+        self.console.log(
+            f"[green italic]  ├─ Operation execution cost: ${operations_cost:.4f}[/green italic]"
+        )
+        self.console.log(
+            f"[green italic]  └─ Optimization cost: ${llm_api_cost:.4f}[/green italic]"
+        )
+
         if save:
-            builder.save_optimized_config(f"{self.base_name}_opt.yaml")
-            self.optimized_config_path = f"{self.base_name}_opt.yaml"
+            # If output path is provided, save the optimized config to that path
+            if kwargs.get("save_path"):
+                save_path = kwargs["save_path"]
+                if not os.path.isabs(save_path):
+                    save_path = os.path.join(os.getcwd(), save_path)
+                builder.save_optimized_config(save_path)
+                self.optimized_config_path = save_path
+            else:
+                builder.save_optimized_config(f"{self.base_name}_opt.yaml")
+                self.optimized_config_path = f"{self.base_name}_opt.yaml"
 
         if return_pipeline:
             return (

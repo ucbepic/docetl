@@ -91,10 +91,7 @@ class SemanticAccessor:
         """
         self.runner.config.update(config)
 
-        builder = Optimizer(
-            self.runner,
-            model=self.runner.config["default_model"],
-        )
+        builder = Optimizer(self.runner)
         self.runner.optimizer = builder
 
     def _record_operation(

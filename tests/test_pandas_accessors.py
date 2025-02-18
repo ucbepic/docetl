@@ -336,12 +336,12 @@ def test_config_setting():
     df = pd.DataFrame({"text": ["test"]})
     
     # Set custom config
-    df.semantic.set_config(default_model="gpt-4")
-    assert df.semantic.runner.config["default_model"] == "gpt-4"
+    df.semantic.set_config(default_model="gpt-4o-mini", optimizer_config={"rewrite_agent_model": "gpt-4o", "judge_agent_model": "gpt-4o-mini"})
+    assert df.semantic.runner.config["default_model"] == "gpt-4o-mini"
     
     # Update config
-    df.semantic.set_config(max_threads=4)
-    assert df.semantic.runner.config["max_threads"] == 4
+    df.semantic.set_config(max_threads=64)
+    assert df.semantic.runner.config["max_threads"] == 64
 
 def test_error_handling(sample_df):
     """Test error handling for invalid inputs."""

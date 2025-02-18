@@ -42,12 +42,12 @@ class PromptGenerator:
         ]
 
         # Get the model's input context length
-        model_input_context_length = model_cost.get(self.llm_client.model, {}).get(
-            "max_input_tokens", 8192
-        )
+        model_input_context_length = model_cost.get(
+            self.llm_client.rewrite_agent_model, {}
+        ).get("max_input_tokens", 8192)
         # Count tokens in the prompt
         prompt_tokens = count_tokens(
-            op_config.get("prompt", "N/A"), self.llm_client.model
+            op_config.get("prompt", "N/A"), self.llm_client.rewrite_agent_model
         )
 
         # Calculate available tokens for sample data
@@ -59,7 +59,7 @@ class PromptGenerator:
             output_data[0],
             available_tokens,
             output_keys_not_in_input + variables_in_prompt,
-            self.llm_client.model,
+            self.llm_client.rewrite_agent_model,
         )
 
         prompt = f"""
@@ -70,7 +70,7 @@ class PromptGenerator:
         Sample Input & Output: {json.dumps(truncated_output, indent=2)}
         Task Prompt: {op_config.get('prompt', 'N/A')}
 
-        Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask 2 or 3 specific questions about the quality and completeness of the output, such as:
+        Based on this information, create a custom validator prompt that will assess how well the original task was performed. The prompt should ask 2 specific questions about the quality and completeness (i.e., precision and recall) of the output, such as:
         1. Recall-oriented; if the prompt asks for all instances of a target information, the validator prompt should ask if all instances were found?
         2. Would the output significantly improve if the input was analyzed more carefully?
         3. Is the output format correct and consistent?
@@ -85,7 +85,7 @@ class PromptGenerator:
             "required": ["validator_prompt"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [
                 {"role": "user", "content": prompt},
             ],
@@ -171,7 +171,7 @@ class PromptGenerator:
             "additionalProperties": False,
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [
                 {"role": "user", "content": prompt},
             ],
@@ -246,7 +246,7 @@ class PromptGenerator:
             "required": ["new_prompt"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [
                 {"role": "user", "content": prompt},
             ],
@@ -492,7 +492,7 @@ class PromptGenerator:
             "required": ["edited_subprompt"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [
                 {"role": "user", "content": prompt},
             ],
@@ -502,3 +502,197 @@ class PromptGenerator:
         result = json.loads(response.choices[0].message.content)
 
         return result["edited_subprompt"]
+
+    def _get_schema_transform_prompt(
+        self,
+        op_config: Dict[str, Any],
+        parallel_output_schema: Dict[str, Any],
+        target_schema: Dict[str, Any],
+        sample_output: List[Dict[str, Any]],
+    ) -> str:
+        """
+        Generate a prompt for transforming parallel map output into the target schema.
+
+        Args:
+            op_config: Original operation configuration
+            parallel_output_schema: Schema produced by parallel map operations
+            target_schema: Desired final output schema
+            sample_output: Sample output from parallel map operations
+
+        Returns:
+            str: Prompt for the reduce operation that transforms schemas
+        """
+        system_prompt = (
+            "You are an AI assistant tasked with transforming data between schemas."
+        )
+
+        # Filter sample output to only include parallel output schema keys
+        filtered_sample = [
+            {k: d[k] for k in parallel_output_schema.keys()} for d in sample_output[:2]
+        ]  # Limit to 2 samples for brevity
+
+        missing_keys = set(target_schema.keys()) - set(parallel_output_schema.keys())
+
+        prompt = f"""Original task prompt that operated on the full input:
+        {op_config['prompt']}
+
+        Current schema from parallel operations:
+        {json.dumps(parallel_output_schema, indent=2)}
+
+        Target schema we need to transform to:
+        {json.dumps(target_schema, indent=2)}
+
+        Sample output from parallel operations/input to this transform operation:
+        {json.dumps(filtered_sample, indent=2)}
+
+        Keys that need to be synthesized: {list(missing_keys)}
+
+        For example, in a legal document analysis task (where the document key is 'document'), the parallel operations may have extracted specific clauses into separate lists:
+
+        Input schema:
+        ```json
+        {{
+            "indemnification_clauses": ["Company A shall indemnify..."],
+            "liability_clauses": ["Neither party shall be liable..."],
+            "confidentiality_clauses": ["All information shared..."],
+            "term_clauses": ["This agreement shall remain in effect..."]
+        }}
+        ```
+
+        Target schema:
+        ```json
+        {{
+            "clauses": [
+                {{
+                    "type": "indemnification",
+                    "text": "Company A shall indemnify...",
+                    "risk_level": "high"
+                }},
+                {{
+                    "type": "liability",
+                    "text": "Neither party shall be liable...",
+                    "risk_level": "medium"
+                }}
+            ]
+        }}
+        ```
+
+        Create a prompt that will transform the parallel operation output into the target schema.
+        The prompt should:
+        1. Use the existing data to synthesize the missing keys
+        2. Maintain the values of keys that already exist
+        3. Follow the original task's intent when synthesizing new values
+        4. Include the original prompt as context, so the LLM has context on how to fill out the remaining keys if the parallel operations didn't cover them
+
+        Guidelines:
+        - The only variable you can use is 'input', which contains a single result from the parallel operations
+        - To reference a key created by the parallel operations, use the 'input.key_name' syntax
+        - Also reference the original document like the original prompt did, so the LLM has context on how to fill out the remaining keys if the parallel operations didn't cover them
+        - The prompt must be a valid Jinja2 template
+        - Explain how to use the existing data to inform the synthesis
+
+        Example of a good transform prompt for the above example:
+        ```
+        [Insert original task prompt here]
+
+        Here is the document we are working with:
+        {{ {{ input.document }} }}
+
+        Here are the extracted clauses:
+        - Indemnification clauses: {{ {{ input.indemnification_clauses }} }}
+        - Liability clauses: {{ {{ input.liability_clauses }} }}
+        - Confidentiality clauses: {{ {{ input.confidentiality_clauses }} }}
+        - Term clauses: {{ {{ input.term_clauses }} }}
+
+        Format the output as a list of clause objects with type, text and risk_level fields.
+        ```
+
+        Provide your prompt template as a single string.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {"transform_prompt": {"type": "string"}},
+            "required": ["transform_prompt"],
+        }
+
+        result = generate_and_validate_prompt(
+            self.llm_client,
+            prompt,
+            system_prompt,
+            parameters,
+            op_config,
+            is_metadata=True,
+            config=self.config,
+            max_threads=self.max_threads,
+            console=self.console,
+            inclusion_strings=["input"],
+        )
+
+        return result["transform_prompt"]
+
+    def _get_missing_keys_prompt(
+        self,
+        op_config: Dict[str, Any],
+        missing_keys: set[str],
+        existing_keys: set[str],
+    ) -> str:
+        """
+        Generate a prompt for synthesizing missing keys in chain plans.
+
+        Args:
+            op_config: Original operation configuration
+            missing_keys: Set of keys that need to be synthesized
+            existing_keys: Set of keys that were already generated by previous chain steps
+            sample_output: Unused, kept for interface compatibility
+
+        Returns:
+            str: Prompt focused on generating just the missing keys
+        """
+        system_prompt = "You are an AI assistant tasked with completing missing fields in a data processing task."
+
+        prompt = f"""Original task prompt:
+        {op_config['prompt']}
+
+        The chain steps so far will generate these keys:
+        {json.dumps({k: op_config['output']['schema'][k] for k in existing_keys}, indent=2)}
+
+        We need to generate these remaining keys:
+        {json.dumps({k: op_config['output']['schema'][k] for k in missing_keys}, indent=2)}
+
+        Create a prompt that focuses specifically on generating the missing keys.
+        The prompt should:
+        1. Use the context from the original task
+        2. Reference the existing keys (using input.key_name syntax) to inform the generation of missing keys
+        3. Only generate the missing keys, as the existing keys will be merged in later
+        4. Maintain consistency with the already generated data
+
+        Guidelines:
+        - Reference existing keys using the 'input.key_name' syntax
+        - Include any relevant parts of the original prompt that help with generating these specific keys
+        - The prompt must be a valid Jinja2 template
+        - Focus only on generating the missing keys: {', '.join(missing_keys)}
+
+        Provide your prompt template as a single string.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {"synthesis_prompt": {"type": "string"}},
+            "required": ["synthesis_prompt"],
+        }
+
+        result = generate_and_validate_prompt(
+            self.llm_client,
+            prompt,
+            system_prompt,
+            parameters,
+            op_config,
+            is_metadata=True,
+            config=self.config,
+            max_threads=self.max_threads,
+            console=self.console,
+            inclusion_strings=["input"],
+        )
+
+        return result["synthesis_prompt"]

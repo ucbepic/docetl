@@ -13,6 +13,7 @@ class OperationCreator:
     ) -> Dict[str, Any]:
         output = op_config["output"]
         output["schema"] = op_output_schema
+
         parallel_map_op = {
             "type": "parallel_map",
             "name": f"{op_config['name']}_parallel_map",
@@ -194,13 +195,13 @@ class OperationCreator:
         combine_prompt: str,
         is_associative: bool,
         doc_id_key: str,
+        add_input: bool = True,
     ) -> Dict[str, Any]:
         name = f"subreduce_{op_config['name']}"
-        return {
+        config = {
             "type": "reduce",
             "name": name,
             "reduce_key": [doc_id_key],
-            "input": op_config["output"],  # subselect keys
             "prompt": combine_prompt,
             "model": (
                 op_config["model"]
@@ -213,3 +214,6 @@ class OperationCreator:
             "synthesize_resolve": False,
             "_intermediates": {"last_map_prompt": op_config["prompt"]},
         }
+        if add_input:
+            config["input"] = op_config["output"]  # subselect keys
+        return config

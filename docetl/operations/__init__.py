@@ -11,6 +11,7 @@ from docetl.operations.split import SplitOperation
 from docetl.operations.sample import SampleOperation
 from docetl.operations.unnest import UnnestOperation
 from docetl.operations.scan import ScanOperation
+from docetl.operations.add_uuid import AddUuidOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -26,7 +27,8 @@ mapping = {
     "split": SplitOperation,
     "sample": SampleOperation,
     "unnest": UnnestOperation,
-    "scan": ScanOperation
+    "scan": ScanOperation,
+    "add_uuid": AddUuidOperation
 }
 
 def get_operation(operation_type: str):

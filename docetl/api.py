@@ -144,6 +144,7 @@ class Pipeline:
         parsing_tools: List[Union[ParsingTool, Callable]] = [],
         default_model: Optional[str] = None,
         rate_limits: Optional[Dict[str, int]] = None,
+        optimizer_config: Dict[str, Any] = {},
     ):
         self.name = name
         self.datasets = datasets
@@ -162,6 +163,7 @@ class Pipeline:
         ]
         self.default_model = default_model
         self.rate_limits = rate_limits
+        self.optimizer_config = optimizer_config
         self._load_env()
 
     def _load_env(self):
@@ -180,10 +182,8 @@ class Pipeline:
     def optimize(
         self,
         max_threads: Optional[int] = None,
-        model: str = "gpt-4o",
         resume: bool = False,
-        timeout: int = 60,
-        litellm_kwargs: Dict[str, Any] = {},
+        save_path: Optional[str] = None,
     ) -> "Pipeline":
         """
         Optimize the pipeline using the Optimizer.
@@ -205,11 +205,9 @@ class Pipeline:
             max_threads=max_threads,
         )
         optimized_config, _ = runner.optimize(
-            model=model,
             resume=resume,
-            timeout=timeout,
-            litellm_kwargs=litellm_kwargs,
             return_pipeline=False,
+            save_path=save_path,
         )
 
         updated_pipeline = Pipeline(
@@ -220,6 +218,7 @@ class Pipeline:
             output=self.output,
             default_model=self.default_model,
             parsing_tools=self.parsing_tools,
+            optimizer_config=self.optimizer_config,
         )
         updated_pipeline._update_from_dict(optimized_config)
         return updated_pipeline
@@ -288,6 +287,7 @@ class Pipeline:
                 if self.parsing_tools
                 else None
             ),
+            "optimizer_config": self.optimizer_config,
         }
         if self.rate_limits:
             d["rate_limits"] = self.rate_limits

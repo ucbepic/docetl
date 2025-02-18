@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import yaml from "js-yaml";
 import { v4 as uuidv4 } from "uuid";
-import { Operation, File } from "@/app/types";
+import { Operation, File, OutputType } from "@/app/types";
 import { schemaDictToItemSet } from "@/components/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -47,6 +47,7 @@ interface RestorePipelineConfig {
   }) => void;
   currentFile: File | null;
   files: File[];
+  setOutput: (output: OutputType | null) => void;
 }
 
 export const useRestorePipeline = ({
@@ -59,6 +60,7 @@ export const useRestorePipeline = ({
   setSystemPrompt,
   currentFile,
   files,
+  setOutput,
 }: RestorePipelineConfig) => {
   const { toast } = useToast();
 
@@ -92,25 +94,24 @@ export const useRestorePipeline = ({
                   } = op;
 
                   // Convert all otherKwargs values to strings
-                  const stringifiedKwargs: Record<string, string> =
-                    Object.entries(otherKwargs).reduce(
-                      (acc, [key, value]) => ({
-                        ...acc,
-                        [key]:
-                          typeof value === "object"
-                            ? JSON.stringify(value)
-                            : String(value),
-                      }),
-                      {} as Record<string, string>
-                    );
+                  const stringifiedKwargs: Record<string, any> = Object.entries(
+                    otherKwargs
+                  ).reduce(
+                    (acc, [key, value]) => ({
+                      ...acc,
+                      [key]:
+                        typeof value === "object"
+                          ? JSON.stringify(value)
+                          : String(value),
+                    }),
+                    {} as Record<string, string>
+                  );
 
-                  // If the operation type is 'reduce', ensure reduce_key is a list
+                  // If the operation type is 'reduce', ensure reduce_key is a list of strings
                   if (type === "reduce" && op.reduce_key) {
-                    stringifiedKwargs.reduce_key = JSON.stringify(
-                      Array.isArray(op.reduce_key)
-                        ? op.reduce_key
-                        : [op.reduce_key]
-                    );
+                    stringifiedKwargs.reduce_key = Array.isArray(op.reduce_key)
+                      ? op.reduce_key
+                      : [op.reduce_key];
                   }
 
                   return {
@@ -151,6 +152,7 @@ export const useRestorePipeline = ({
                   yamlContent.system_prompt?.dataset_description || null,
                 persona: yamlContent.system_prompt?.persona || null,
               });
+              setOutput(null);
 
               // Look for paths in all datasets
               const datasetPaths = Object.values(yamlContent.datasets || {})

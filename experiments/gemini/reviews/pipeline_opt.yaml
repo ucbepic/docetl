@@ -1,0 +1,111 @@
+datasets:
+  reviews:
+    path: experiments/gemini/reviews/reviews.json
+    type: file
+default_model: gemini/gemini-2.0-flash
+operations:
+- type: sample
+  method: uniform
+  random_state: 42
+  samples: 10
+  name: sample_reviews
+- type: split
+  name: split_reviews
+  split_key: concatenated_reviews
+  method: token_count
+  method_kwargs:
+    num_tokens: 104652
+- model: gemini/gemini-2.0-flash
+  name: extract_positive_reviews
+  type: map
+  verbose: true
+  output:
+    schema:
+      positive_reviews: 'list[{review_id: string, timestamp: string, review_summary: string}]'
+  prompt: |
+    Given the following reviews for the game {{ input.app_name }}, analyze them and select 10 positive reviews that are evenly distributed across time:
+
+    {{ input.concatenated_reviews_chunk }}
+
+    Select up to 10 positive reviews spread evenly across the time range (from earliest to latest timestamps).
+    Return the reviews sorted by timestamp.
+
+    Each returned review object should contain the review ID, timestamp and a summary of the review.
+  gleaning:
+    num_rounds: 1
+    validation_prompt: |
+      Verify the following:
+      - Are your reviews sorted in chronological order by timestamp?
+      - Do all review IDs appear in the original text?
+      Be specific wherever possible.
+- model: gemini/gemini-2.0-flash
+  name: extract_negative_reviews 
+  verbose: true
+  type: map
+  output:
+    schema:
+      negative_reviews: 'list[{review_id: string, timestamp: string, review_summary: string}]'
+  prompt: |
+    Given the following reviews for the game {{ input.app_name }}, analyze them and select 10 negative reviews (where the reviewer does not recommend the game) that are evenly distributed across time:
+
+    {{ input.concatenated_reviews_chunk }}
+
+    Select up to 10 negative reviews spread evenly across the time range (from earliest to latest timestamps).
+    Return the reviews sorted by timestamp.
+
+    Each returned review object should contain the review ID, timestamp and a summary of the review.
+  gleaning:
+    num_rounds: 1
+    verbose: true
+    validation_prompt: |
+      Verify the following:
+      - Are your reviews sorted in chronological order by timestamp?
+      - Do all review IDs appear in the original text?
+      Be specific wherever possible.
+- name: combine_reviews
+  type: reduce
+  reduce_key: split_reviews_id
+  model: gemini/gemini-2.0-flash
+  output:
+    schema:
+      positive_reviews: 'list[{review_id: string, timestamp: string, review_summary: string}]'
+      negative_reviews: 'list[{review_id: string, timestamp: string, review_summary: string}]'
+  prompt: |
+    You have multiple sets of positive and negative reviews from different chunks of the game {{ reduce_key }}.
+    Combine and sort them to get 10 positive and 10 negative reviews spread evenly across the full time range.
+
+    Here are the reviews from each chunk:
+    {% for item in inputs %}
+    Chunk {{ loop.index }}:
+    Positive reviews:
+    {% for review in item.positive_reviews %}
+    - ID: {{ review.review_id }}, Time: {{ review.timestamp }}, Summary: {{ review.review_summary }}
+    {% endfor %}
+    
+    Negative reviews:
+    {% for review in item.negative_reviews %}
+    - ID: {{ review.review_id }}, Time: {{ review.timestamp }}, Summary: {{ review.review_summary }}
+    {% endfor %}
+    {% endfor %}
+
+    Return two sorted lists of exactly 10 reviews each:
+    - positive_reviews: Select 10 positive reviews spread evenly across the full time range
+    - negative_reviews: Select 10 negative reviews spread evenly across the full time range
+
+    Ensure the reviews in each list are sorted chronologically by timestamp.
+  associative: true
+  pass_through: true
+pipeline:
+  output:
+    intermediate_dir: experiments/gemini/reviews/intermediate_optimized
+    path: experiments/gemini/reviews/analyzed_reviews_optimized.json
+    type: file
+  steps:
+  - input: reviews
+    name: process_reviews
+    operations:
+    - sample_reviews
+    - split_reviews
+    - extract_positive_reviews
+    - extract_negative_reviews
+    - combine_reviews

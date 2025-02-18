@@ -62,5 +62,7 @@ metrics_vs_cost.png
 tests/data/anthropic-red-team-attempts.jsonl
 tests/data/get_freshstack.py
 experiments/gemini/declassified/*.json
+experiments/gemini/reviews/*.json
+experiments/gemini/reviews/reviews_sample.csv
 
 metrics_vs_cost.png

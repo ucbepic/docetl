@@ -19,12 +19,6 @@ def build(
     max_threads: Optional[int] = typer.Option(
         None, help="Maximum number of threads to use for running operations"
     ),
-    rewrite_agent_model: str = typer.Option(
-        "gpt-4o", help="Model to use for rewriting operations"
-    ),
-    judge_agent_model: str = typer.Option(
-        "gpt-4o-mini", help="Model to use for judging rewritten operations"
-    ),
     resume: bool = typer.Option(
         False, help="Resume optimization from a previous build that may have failed"
     ),
@@ -52,13 +46,10 @@ def build(
         load_dotenv(env_file)
 
     runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
-    runner.config["optimizer_rewrite_agent_model"] = rewrite_agent_model
-    runner.config["optimizer_judge_agent_model"] = judge_agent_model
     runner.optimize(
         save=True,
         return_pipeline=False,
         resume=resume,
-        litellm_kwargs=runner.config.get("optimizer_litellm_kwargs", {}),
         save_path=save_path,
     )
 

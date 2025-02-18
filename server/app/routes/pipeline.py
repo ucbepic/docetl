@@ -58,8 +58,6 @@ async def run_optimization(task_id: str, yaml_config: str, step_name: str, op_na
             runner.should_optimize,
             step_name,
             op_name,
-            model=runner.config.get("optimizer_model", "gpt-4o"),
-            litellm_kwargs=runner.config.get("optimizer_litellm_kwargs", {})
         )
         
         # Update task result

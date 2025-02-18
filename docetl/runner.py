@@ -624,13 +624,15 @@ class DSLRunner(ConfigWrapper):
         self.load()
 
         # Augment the kwargs with the runner's config if not already provided
-        if "optimizer_litellm_kwargs" not in kwargs:
-            kwargs["litellm_kwargs"] = self.config.get("optimizer_litellm_kwargs", {})
-        if "optimizer_model" not in kwargs:
-            kwargs["rewrite_agent_model"] = self.config.get("optimizer_model", "gpt-4o")
-            kwargs["judge_agent_model"] = self.config.get(
-                "optimizer_model", "gpt-4o-mini"
-            )
+        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
+            "litellm_kwargs", {}
+        )
+        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "rewrite_agent_model", "gpt-4o"
+        )
+        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "judge_agent_model", "gpt-4o-mini"
+        )
 
         builder = Optimizer(self, **kwargs)
         self.optimizer = builder
@@ -650,16 +652,15 @@ class DSLRunner(ConfigWrapper):
         self.load()
 
         # Augment the kwargs with the runner's config if not already provided
-        if "optimizer_litellm_kwargs" not in kwargs:
-            kwargs["litellm_kwargs"] = self.config.get("optimizer_litellm_kwargs", {})
-        if "optimizer_rewrite_agent_model" not in kwargs:
-            kwargs["rewrite_agent_model"] = self.config.get(
-                "optimizer_rewrite_agent_model", "gpt-4o"
-            )
-        if "optimizer_judge_agent_model" not in kwargs:
-            kwargs["judge_agent_model"] = self.config.get(
-                "optimizer_judge_agent_model", "gpt-4o-mini"
-            )
+        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
+            "litellm_kwargs", {}
+        )
+        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "rewrite_agent_model", "gpt-4o"
+        )
+        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "judge_agent_model", "gpt-4o-mini"
+        )
 
         save_path = kwargs.get("save_path", None)
         # Pop the save_path from kwargs

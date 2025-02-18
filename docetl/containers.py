@@ -181,7 +181,9 @@ class OpContainer:
                                     input_data[0],
                                     plan_types=self.runner.config.get(
                                         "optimizer_config", {}
-                                    ).get(
+                                    )
+                                    .get("map", {})
+                                    .get(
                                         "plan_types",
                                         ["chunk", "proj_synthesis", "glean"],
                                     ),

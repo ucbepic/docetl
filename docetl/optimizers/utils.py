@@ -28,6 +28,9 @@ class LLMClient:
         self.rewrite_agent_model = rewrite_agent_model
         self.judge_agent_model = judge_agent_model
         self.litellm_kwargs = litellm_kwargs
+        if "temperature" not in self.litellm_kwargs:
+            self.litellm_kwargs["temperature"] = 0.0
+
         self.total_cost = 0
         self.runner = runner
 
@@ -60,7 +63,6 @@ class LLMClient:
         while rate_limited_attempt < 6:
             try:
                 response = completion(
-                    temperature=0.0,
                     model=model,
                     messages=[
                         {

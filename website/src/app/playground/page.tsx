@@ -299,6 +299,7 @@ const CodeEditorPipelineApp: React.FC = () => {
     setSampleSize,
     setDefaultModel,
     setSystemPrompt,
+    setOutput,
   } = usePipelineContext();
 
   useEffect(() => {
@@ -860,6 +861,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           setSystemPrompt={setSystemPrompt}
           currentFile={currentFile}
           files={files}
+          setOutput={setOutput}
         />
       </div>
     </BookmarkProvider>

@@ -232,7 +232,7 @@ def test_pipeline_optimization(
     )
 
     optimized_pipeline = pipeline.optimize(
-        max_threads=4, timeout=10
+        max_threads=64
     )
 
     assert isinstance(optimized_pipeline, Pipeline)

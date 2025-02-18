@@ -226,7 +226,7 @@ def test_pipeline_optimization(
         ),
         default_model="gpt-4o-mini",
         optimizer_config={
-            "rewrite_agent_model": "gpt-4o-mini",
+            "rewrite_agent_model": "gpt-4o",
             "judge_agent_model": "gpt-4o-mini",
         },
     )

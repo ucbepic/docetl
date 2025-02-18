@@ -1,0 +1,268 @@
+datasets:
+  articles:
+    path: experiments/gemini/declassified/blackvault_articles_pdfs.json
+    type: file
+default_model: gemini/gemini-2.0-flash
+operations:
+- associative: true
+  fold_batch_size: 324
+  fold_prompt: 'Analyze this batch of data using the following instructions:
+
+
+    For extraterrestrial/paranormal events of type "{{ reduce_key }}", analyze these
+    incident reports:
+
+
+    {% for report in inputs %}
+
+    Report {{ loop.index }}:
+
+    {{ report.content }}
+
+    {% if report.pdf_content %}
+
+    Additional PDF content:
+
+    {{ report.pdf_content | truncate(10000) }}
+
+    {% endif %}
+
+    {% endfor %}
+
+
+    Extract and list all unique locations of observation mentioned across these reports.
+    They should be real locations on Earth.
+
+
+
+    However, instead of starting fresh, fold your analysis into the existing output
+    that has already been generated. The existing output is provided in the ''output''
+    variable below:
+
+
+    {{ output }}
+
+
+    Remember, you must fold the new data into the existing output, do not start fresh.'
+  model: gemini/gemini-2.0-flash
+  name: aggregate_locations_bs_324_fp_0
+  output:
+    schema:
+      locations: list[str]
+  prompt: 'For extraterrestrial/paranormal events of type "{{ reduce_key }}", analyze
+    these incident reports:
+
+
+    {% for report in inputs %}
+
+    Report {{ loop.index }}:
+
+    {{ report.content }}
+
+    {% if report.pdf_content %}
+
+    Additional PDF content:
+
+    {{ report.pdf_content | truncate(10000) }}
+
+    {% endif %}
+
+    {% endfor %}
+
+
+    Extract and list all unique locations of observation mentioned across these reports.
+    They should be real locations on Earth.
+
+    '
+  reduce_key:
+  - event_type
+  type: reduce
+- blocking_keys:
+  - event_type
+  blocking_threshold: 0.9899
+  comparison_prompt: 'Compare these two event types from extraterrestrial/paranormal
+    incident reports:
+
+
+    Type 1: {{ input1.event_type }}
+
+    Type 2: {{ input2.event_type }}
+
+
+    Are these describing the same or similar categories of event? Consider if they
+    are synonyms or closely related subcategories. For example, if they both relate
+    to UFOs, they should be grouped together.
+
+    '
+  embedding_model: text-embedding-3-small
+  model: gemini/gemini-2.0-flash
+  name: resolve_event_types
+  output:
+    schema:
+      event_type: str
+  resolution_prompt: 'Given these similar event type categorizations:
+
+    {% for entry in inputs %}
+
+    - {{ entry.event_type }}
+
+    {% endfor %}
+
+
+    Provide a single standardized category name that best represents all of these
+    related event types. It should not be long. A few words at most.
+
+    '
+  type: resolve
+  verbose: true
+- associative: true
+  input: &id001
+    schema:
+      event_type: str
+  model: gemini/gemini-2.0-flash
+  name: subreduce_extract_event_type
+  output: *id001
+  pass_through: true
+  prompt: 'You are tasked with determining a consolidated type of extraterrestrial
+    or paranormal event based on individual chunk results.
+
+
+    Here are the event types extracted from each chunk:
+
+    {% for item in inputs %}
+
+    Event type for chunk {{ loop.index }}:
+
+    {{ item.event_type }}
+
+    {% endfor %}
+
+
+    Analyze all the event types above and provide a single, specific category that
+    best represents the overall event being described. Ensure that you consider frequency
+    and variety in the event types listed, looking for the most representative category.
+    If there is a clear dominant event type mentioned across chunks, use that. If
+    you find multiple distinct types, choose one that best encompasses the essence
+    of the descriptions.'
+  reduce_key:
+  - split_extract_event_type_id
+  synthesize_resolve: false
+  type: reduce
+- model: gemini/gemini-2.0-flash
+  name: submap_extract_event_type
+  output:
+    schema:
+      event_type: str
+  prompt: 'Given the following metadata about the document:
+
+    {{ input.metadata }}
+
+
+    Given the following document content from the black vault, identify and extract
+    the type of extraterrestrial or paranormal event being described:
+
+
+    {{ input.content_chunk_rendered }}
+
+
+    Provide a single, specific event type category (e.g. "UFO Sighting", "Alien Abduction",
+    "Crop Circle", etc.). Only process the main chunk in --- Begin Main Chunk ---
+    and --- End Main Chunk --- delimiters if they are present.'
+  type: map
+- content_key: content_chunk
+  doc_header_key: headers
+  doc_id_key: split_extract_event_type_id
+  name: gather_content_extract_event_type
+  order_key: split_extract_event_type_chunk_num
+  peripheral_chunks:
+    next:
+      head:
+        count: 2
+    previous:
+      middle:
+        content_key: content_summary
+      tail:
+        count: 2
+  type: gather
+- name: parallel_map_content_extract_event_type
+  output:
+    schema:
+      content_summary: string
+      headers: 'list[{header: string, level: integer}]'
+  prompts:
+  - model: gemini/gemini-2.0-flash
+    name: header_extraction_content_extract_event_type
+    output_keys:
+    - headers
+    prompt: "Analyze the following chunk of a document and extract any headers you\
+      \ see.\n\n        {{ input.content_chunk }}\n\n        Examples of headers and\
+      \ their levels based on the document structure:\n        - \"Investigation Status:\
+      \ Ongoing \u2013 Last Updated 2/7/2020\" (level 1)\n- \"Table of Contents\"\
+      \ (level 1)\n- \"AATIP Timeline\" (level 1)\n- \"Department of Defense Denial\"\
+      \ (level 2)\n- \"The National Security Agency\u2019s Intellipedia Denial\" (level\
+      \ 2)\n- \"The Resignation Letter and Declassification Efforts Denial\" (level\
+      \ 2)\n- \"\u201CDeclassified\u201D Videos Released\" (level 3)\n- \"The GIMBAL\
+      \ Video\" (level 3)\n- \"The NIMITZ Video\" (level 3)\n\n        Overall structure:\
+      \ The document exhibits a clear hierarchical structure with three levels of\
+      \ headers, demonstrating an organized presentation of information. Level 1 headers\
+      \ serve as main headings, followed by level 2 headers that break down the content\
+      \ into manageable sections, and level 3 headers that detail specific items within\
+      \ those sections. The use of bold formatting and varying font sizes aids in\
+      \ visually distinguishing between header levels.\n\n        Provide your analysis\
+      \ as a list of dictionaries, where each dictionary contains a 'header' (string)\
+      \ and 'level' (integer). For example:\n\n        [\n            {\"header\"\
+      : \"Investigation Status: Ongoing \u2013 Last Updated 2/7/2020\", \"level\"\
+      : 1},\n            {\"header\": \"Department of Defense Denial\", \"level\"\
+      : 2}\n        ]\n\n        Only include headers you find in the text, do not\
+      \ add any that are not present. Use the patterns described for each level to\
+      \ identify headers:\n        Level 1: Level 1 headers are bold and appear to\
+      \ represent major sections or topics of the document, often styled larger than\
+      \ normal text.\nLevel 2: Level 2 headers are also bold and generally indicate\
+      \ subsections under level 1 topics, with a smaller font size compared to level\
+      \ 1 headers.\nLevel 3: Level 3 headers follow a similar bold formatting; these\
+      \ headers introduce specific elements or items under the related level 2 headers.\n\
+      \        "
+  - model: gemini/gemini-2.0-flash
+    name: summary_content_extract_event_type
+    output_keys:
+    - content_summary
+    prompt: 'Summarize the following chunk: {{ input.content_chunk }}
+
+
+      Focus on identifying and categorizing any extraterrestrial or paranormal events
+      mentioned in the text, specifically referencing UFOs or related phenomena.'
+  type: parallel_map
+- method: token_count
+  method_kwargs:
+    num_tokens: 762
+  name: split_extract_event_type
+  split_key: content
+  type: split
+- model: gemini/gemini-2.0-flash
+  name: extract_metadata_extract_event_type
+  output:
+    schema:
+      metadata: str
+  prompt: 'Extract the type of extraterrestrial or paranormal event from the following
+    content: {{ input.content }}. Look for phrases or descriptions that indicate an
+    event type like ''UFO Sighting'', ''Alien Abduction'', ''Crop Circle'', etc.'
+  type: map
+optimizer_judge_agent_model: gemini/gemini-2.0-flash
+optimizer_rewrite_agent_model: gpt-4o-mini
+pipeline:
+  output:
+    intermediate_dir: experiments/gemini/declassified/intermediate_optimized
+    path: experiments/gemini/declassified/event_locations_optimized.json
+    type: file
+  steps:
+  - input: articles
+    name: analyze_events
+    operations:
+    - extract_metadata_extract_event_type
+    - split_extract_event_type
+    - parallel_map_content_extract_event_type
+    - gather_content_extract_event_type
+    - submap_extract_event_type
+    - subreduce_extract_event_type
+    - resolve_event_types
+    - aggregate_locations_bs_324_fp_0

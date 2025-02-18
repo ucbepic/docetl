@@ -59,5 +59,7 @@ website/next-env.d.ts
 experiments/*.json
 
 experiments/gemini/declassified/*.json
+experiments/gemini/reviews/*.json
+experiments/gemini/reviews/reviews_sample.csv
 
 metrics_vs_cost.png

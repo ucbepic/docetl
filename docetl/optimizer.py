@@ -100,8 +100,16 @@ class Optimizer:
         self.status = runner.status
 
         self.optimized_config = copy.deepcopy(self.config)
+
+        # Get the rate limits from the optimizer config
+        rate_limits = self.config.get("optimizer_config", {}).get("rate_limits", {})
+
         self.llm_client = LLMClient(
-            runner, rewrite_agent_model, judge_agent_model, **litellm_kwargs
+            runner,
+            rewrite_agent_model,
+            judge_agent_model,
+            rate_limits,
+            **litellm_kwargs,
         )
         self.timeout = timeout
         self.resume = resume
@@ -144,7 +152,8 @@ class Optimizer:
                 f"[yellow]Sample Size:[/yellow] {self.sample_size_map}\n"
                 f"[yellow]Max Threads:[/yellow] {self.max_threads}\n"
                 f"[yellow]Rewrite Agent Model:[/yellow] {self.llm_client.rewrite_agent_model}\n"
-                f"[yellow]Judge Agent Model:[/yellow] {self.llm_client.judge_agent_model}\n",
+                f"[yellow]Judge Agent Model:[/yellow] {self.llm_client.judge_agent_model}\n"
+                f"[yellow]Rate Limits:[/yellow] {self.config.get('optimizer_config', {}).get('rate_limits', {})}\n",
                 title="Optimizer Configuration",
             )
         )

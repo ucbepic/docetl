@@ -1,9 +1,12 @@
+import math
 import time
 from typing import Any, Dict, List
 
+import pyrate_limiter
 from litellm import RateLimitError, completion
 
 from docetl.operations.utils import truncate_messages
+from docetl.ratelimiter import BucketCollection
 from docetl.utils import completion_cost
 
 
@@ -16,7 +19,12 @@ class LLMClient:
     """
 
     def __init__(
-        self, runner, rewrite_agent_model: str, judge_agent_model: str, **litellm_kwargs
+        self,
+        runner,
+        rewrite_agent_model: str,
+        judge_agent_model: str,
+        rate_limits: Dict[str, Dict[str, Any]],
+        **litellm_kwargs,
     ):
         """
         Initialize the LLMClient.
@@ -33,6 +41,29 @@ class LLMClient:
 
         self.total_cost = 0
         self.runner = runner
+
+        # Initialize the rate limiter for judge model
+        buckets = {
+            param: pyrate_limiter.InMemoryBucket(
+                [
+                    pyrate_limiter.Rate(
+                        param_limit["count"],
+                        param_limit["per"]
+                        * getattr(
+                            pyrate_limiter.Duration,
+                            param_limit.get("unit", "SECOND").upper(),
+                        ),
+                    )
+                    for param_limit in param_limits
+                ]
+            )
+            for param, param_limits in rate_limits.items()
+        }
+        buckets["unknown"] = pyrate_limiter.InMemoryBucket(
+            [pyrate_limiter.Rate(math.inf, 1)]
+        )
+        bucket_factory = BucketCollection(**buckets)
+        self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=math.inf)
 
     def _generate(
         self,
@@ -58,6 +89,10 @@ class LLMClient:
         parameters["additionalProperties"] = False
 
         messages = truncate_messages(messages, model, from_agent=True)
+
+        if model == self.judge_agent_model:
+            # Acquire
+            self.rate_limiter.try_acquire("llm_call", weight=1)
 
         rate_limited_attempt = 0
         while rate_limited_attempt < 6:

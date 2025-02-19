@@ -26,8 +26,8 @@ operations:
       Also, provide me the list of all fruits and vegetables, and the count of the amount of times each appeared through all batches.
 
       Only count the fruit if you see the NAME of it, not a reference to it.
-    fold_batch_size: 3
-    sample: 5
+    fold_batch_size: 4
+    sample: 15
     fold_prompt: >-
       Update the existing list of fruit/veggie names based on the additional articles content
 

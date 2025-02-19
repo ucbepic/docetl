@@ -103,19 +103,18 @@ class APIWrapper(object):
     # Given a list of function calls from llm
     # be able to update a localized state which can be used for the next batch
     def process_func_calls(self, func_calls, state=None):
-        # Initialize state if it's the first batch
         if state is None:
             state = {}
+        newState = copy.deepcopy(state)
 
-    # Loop through func calls and update state
         for call in func_calls:
-            # Only match ADD functions
             match = re.match(r'ADD\("(.+?)"\)', call)
             if match:
                 item = match.group(1)
-                # Increment count if exists, otherwise set to 1
-                state[item] = state.get(item, 0) + 1
-        return state
+                newState[item] = newState.get(item, 0) + 1
+        self.runner.console.log("NEW STATE")
+        self.runner.console.log(newState)
+        return newState
 
     def _cached_call_llm(
         self,
@@ -184,26 +183,8 @@ class APIWrapper(object):
                     arguments_dict = json.loads(arguments_str)
                     func_calls = arguments_dict["func_calls"]
 
-                    # get previous llm state
-
-                    self.runner.console.log("JFIOWIJOFEWJIOFEJIOE")
-                    self.runner.console.log(scratchpad)
-
                     updated_state = self.process_func_calls(
                         func_calls, {} if isinstance(scratchpad, str) else scratchpad)
-
-                    arguments_dict['updated_scratchpad'] = updated_state
-
-                    newRes.choices[0].message.tool_calls[0].function.arguments = json.dumps(
-                        arguments_dict)
-
-                    self.runner.console.log(response)
-
-                    # update response for next batch
-                    response = newRes
-
-                    self.runner.console.log("response")
-                    self.runner.console.log(response)
 
                     total_cost += completion_cost(response)
                 else:
@@ -527,7 +508,6 @@ class APIWrapper(object):
 # hard coded props for now for testing
             parameters = {"type": "object", "properties": {
                 "func_calls": {"type": "array", "items": {"type": "string"}},
-                "updated_scratchpad": {"type": "object", "default": updated_state}
             }}
             self.runner.console.log("Keys being printed")
             self.runner.console.log(newProps.keys())
@@ -542,7 +522,7 @@ class APIWrapper(object):
                     "type": "function",
                     "function": {
                         "name": "send_output",
-                        "description": "Send output back to the user. Do not edit the updated_scratchpad parameter at all, you are only allowed to read it.",
+                        "description": "Send output back to the user. ",
                         "parameters": parameters,
                     },
                 }
@@ -608,9 +588,7 @@ class APIWrapper(object):
             op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. return a list of function calls, based on the definitions below, via the `send_output` function"
         system_prompt += f"""
 
-        Via the `send_output` function, make sure to return both the func_calls list, and the updated_scratchpad object, even if they are empty. Remember, you are not allowed to edit the updated_scratchpad at all.
-
-        DO NOT DELETE ANYTHING FROM THE UPDATED_SCRATCHPAD OBJECT. PERSIST IT'S VALUES
+        Via the `send_output` function, make sure to return both the func_calls list even if  empty. 
 
 There function call available for these batches is:
 ADD("string") -> updates the scratchpad or state by adding/incrementing the fruit to the intermediate state
@@ -619,7 +597,6 @@ If you see a fruit/veggie, you are only allowed to call this function in this mo
 
 AFTER DECIDING THE FUNCTION CALLS, update the func_calls via the `send_output` function
 
-NEVER EDIT THE UPDATED_SCRATCHPAD DIRECTLY. JUST USE IT FOR REFERENCE, AND ALWAYS RETURN IT WITHOUT CHANGES MADE TO IT FROM WHEN YOU SAW IT.
 """
 
         if scratchpad:
@@ -636,7 +613,6 @@ As you process each batch:
 2.) Update the func_calls list with the function: ADD()  based on the data you see;
 - ADD(fruit_or_veggie_name): For every fruit or veggie you see, call the ADD function. Repeats are allowed. Please do it, even if you see the same fruit in the scratchpad.
 
-Make sure to ONLY update the func_list, do NOT EDIT the updated_scratchpad at all.
 
 TAKE YOUR TIME SEARCHING THROUGH THE DATA TO MAKE CHANGES TO THE STATE
 
@@ -812,28 +788,6 @@ Your main result must be sent via send_output."""
                     )
 
                 try:
-                    response = completion(
-                        model="gpt-4o-mini",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": f"""
-
-                            You will be given a dictionary state schema. In this specific state, the key is the name of the fruit, and the value is the amount of times that fruit was seen in a batch of documents. Your goal is to convert this schema into the user's self-defined schema. Both are provided now:
-
-                            user's self-defined schema: {schema}
-
-                            schema to transform: {updated_state}
-
-                            Keep all the values the same, just format it to match the user's schema.
-
-                            Your answer should be returned in json format, with just the outputted data in the user's self defined schema. Do not return any additional formatting information, just give the straight object like you are in a code edtior.
-                            """,
-                            },
-                        ]
-                    )
-
-                    self.runner.console.log(response)
 
                     output_dict = json.loads(
                         response.choices[0].message.content)

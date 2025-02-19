@@ -9,12 +9,14 @@ Manages performance metrics and dynamically adjusts processing (i.e., number of 
 import math
 import random
 import time
+import json
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import jinja2
+from litellm import completion
 import numpy as np
 from jinja2 import Template
 from pydantic import Field
@@ -759,6 +761,7 @@ class ReduceOperation(BaseOperation):
         total_cost = 0
         current_output = None
         prompts = []
+        updated_state = None
 
         # Calculate and log the number of folds to be performed
         num_folds = (len(group_list) + fold_batch_size - 1) // fold_batch_size
@@ -787,15 +790,12 @@ class ReduceOperation(BaseOperation):
             if folded_output is None:
                 continue
 
-            self.runner.console.log('folded output')
-            self.runner.console.log(folded_output)
-
             if self.config.get("persist_intermediates", False):
                 self.intermediates[key].append(
                     {
                         "iter": iter_count,
                         "intermediate": folded_output,
-                        "scratchpad": folded_output["updated_scratchpad"],
+                        "scratchpad": folded_output['updated_scratchpad'],
                     }
                 )
                 iter_count += 1
@@ -812,7 +812,31 @@ class ReduceOperation(BaseOperation):
 
             current_output = folded_output
 
-        return current_output, prompts, total_cost
+        current_output = completion(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"""
+
+                            You will be given a dictionary state schema. In this specific state, the key is the name of the fruit, and the value is the amount of times that fruit was seen in a batch of documents. Your goal is to convert this schema into the user's self-defined schema. Both are provided now:
+
+                            user's self-defined schema: {self.config["output"]["schema"]}
+
+                            schema to transform: {current_output['final_state']}
+
+                            Keep all the values the same, just format it to match the user's schema.
+
+                            Your answer should be returned in json format, with just the outputted data in the user's self defined schema. Do not return any additional formatting information, just give the straight object like you are in a code edtior.
+                            """,
+                },
+            ]
+        )
+
+        total_cost += completion_cost(current_output)
+
+        return json.loads(
+            current_output.choices[0].message.content), prompts, total_cost
 
     def validation_fn(self, response: Dict[str, Any]):
         output = self.runner.api.parse_llm_response(
@@ -861,7 +885,7 @@ class ReduceOperation(BaseOperation):
             self.config.get("model", self.default_model),
             "reduce",
             [{"role": "user", "content": fold_prompt}],
-            self.config["output"]["schema"],
+            {"func_list": "str"},
             scratchpad=scratchpad,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get(
@@ -885,13 +909,8 @@ class ReduceOperation(BaseOperation):
         self._update_fold_time(end_time - start_time)
 
         if response.validated:
-            folded_output = self.runner.api.parse_llm_response(
-                response.response,
-                schema=self.config["output"]["schema"],
-                manually_fix_errors=self.manually_fix_errors,
-                updated_state=response.updated_state
-            )[0]
-
+            folded_output = {"updated_scratchpad": response.updated_state,
+                             "final_state": response.updated_state}
             folded_output.update(dict(zip(self.config["reduce_key"], key)))
             fold_cost = response.total_cost
 
@@ -915,8 +934,6 @@ class ReduceOperation(BaseOperation):
             Tuple[Optional[Dict], str, float]: A tuple containing the merged output (or None if processing failed),
             the prompt used, and the cost of the merge operation.
         """
-        self.runner.console.log("MERGE")
-        self.runner.console.log(outputs)
         start_time = time.time()
         merge_prompt = strict_render(
             self.config["merge_prompt"],
@@ -956,7 +973,6 @@ class ReduceOperation(BaseOperation):
                 response.response,
                 schema=self.config["output"]["schema"],
                 manually_fix_errors=self.manually_fix_errors,
-                updated_state=response.updated_state
             )[0]
             merged_output.update(dict(zip(self.config["reduce_key"], key)))
             merge_cost = response.total_cost
@@ -1043,7 +1059,7 @@ class ReduceOperation(BaseOperation):
             self.config.get("model", self.default_model),
             "reduce",
             [{"role": "user", "content": prompt}],
-            self.config["output"]["schema"],
+            {"func_list": "str"},
             scratchpad=scratchpad,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get(
@@ -1064,15 +1080,14 @@ class ReduceOperation(BaseOperation):
                 "litellm_completion_kwargs", {}),
         )
 
+        self.runner.console.log("LOGGING NEW CHANGE")
+        self.runner.console.log(response)
+
         item_cost += response.total_cost
 
         if response.validated:
-            output = self.runner.api.parse_llm_response(
-                response.response,
-                schema=self.config["output"]["schema"],
-                manually_fix_errors=self.manually_fix_errors,
-                updated_state=response.updated_state
-            )[0]
+            output = {"updated_scratchpad": response.updated_state,
+                      "final_state": response.updated_state}
             output.update(dict(zip(self.config["reduce_key"], key)))
 
             return output, prompt, item_cost

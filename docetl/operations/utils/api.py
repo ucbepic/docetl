@@ -506,9 +506,7 @@ class APIWrapper(object):
 
 
 # hard coded props for now for testing
-            parameters = {"type": "object", "properties": {
-                "func_calls": {"type": "array", "items": {"type": "string"}},
-            }}
+            parameters = {"type": "object", "properties": props}
             self.runner.console.log("Keys being printed")
             self.runner.console.log(newProps.keys())
             parameters["required"] = list(newProps.keys())

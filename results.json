@@ -1,27 +1,27 @@
 [
   {
     "fruit_or_veggie_seen_most": "banana",
-    "number_of_times_seen": 6,
+    "number_of_times_seen": 4,
     "data_count": [
       {
         "name": "apple",
-        "count": 5
+        "count": 3
       },
       {
         "name": "banana",
-        "count": 6
+        "count": 4
       },
       {
         "name": "orange",
-        "count": 3
+        "count": 2
       },
       {
         "name": "lemon",
-        "count": 3
+        "count": 2
       },
       {
         "name": "lime",
-        "count": 2
+        "count": 1
       },
       {
         "name": "pineapple",
@@ -29,15 +29,15 @@
       },
       {
         "name": "avocado",
-        "count": 3
+        "count": 4
       },
       {
         "name": "blueberry",
-        "count": 3
+        "count": 4
       },
       {
         "name": "strawberry",
-        "count": 3
+        "count": 4
       },
       {
         "name": "raspberry",
@@ -45,19 +45,19 @@
       },
       {
         "name": "mango",
-        "count": 3
+        "count": 2
       },
       {
         "name": "kiwi",
-        "count": 6
+        "count": 1
       },
       {
         "name": "papaya",
-        "count": 5
+        "count": 3
       },
       {
         "name": "watermelon",
-        "count": 4
+        "count": 3
       },
       {
         "name": "peach",
@@ -121,7 +121,7 @@
       },
       {
         "name": "pomegranate",
-        "count": 4
+        "count": 3
       },
       {
         "name": "pumpkin",
@@ -133,7 +133,7 @@
       },
       {
         "name": "coconut",
-        "count": 3
+        "count": 2
       },
       {
         "name": "durian",
@@ -141,15 +141,15 @@
       },
       {
         "name": "rambutan",
-        "count": 2
+        "count": 1
       },
       {
         "name": "lychee",
-        "count": 3
+        "count": 1
       },
       {
         "name": "guava",
-        "count": 4
+        "count": 1
       },
       {
         "name": "dragon fruit",
@@ -160,20 +160,24 @@
         "count": 1
       },
       {
+        "name": "grapefruit",
+        "count": 2
+      },
+      {
         "name": "pear",
-        "count": 4
+        "count": 2
       },
       {
         "name": "fig",
-        "count": 4
+        "count": 3
       },
       {
         "name": "grape",
-        "count": 4
+        "count": 3
       },
       {
         "name": "cherry",
-        "count": 3
+        "count": 1
       },
       {
         "name": "cranberry",
@@ -189,7 +193,11 @@
       },
       {
         "name": "jackfruit",
-        "count": 3
+        "count": 1
+      },
+      {
+        "name": "melon",
+        "count": 1
       },
       {
         "name": "cloudberry",
@@ -212,15 +220,15 @@
         "count": 1
       },
       {
-        "name": "gala apple",
+        "name": "Gala apple",
         "count": 1
       },
       {
-        "name": "honeycrisp apple",
+        "name": "Honeycrisp apple",
         "count": 1
       },
       {
-        "name": "goji berry",
+        "name": "goji fruit",
         "count": 1
       },
       {
@@ -229,11 +237,11 @@
       },
       {
         "name": "starfruit",
-        "count": 4
+        "count": 3
       },
       {
         "name": "passionfruit",
-        "count": 3
+        "count": 2
       },
       {
         "name": "soursop",
@@ -241,31 +249,19 @@
       },
       {
         "name": "tangerine",
-        "count": 3
+        "count": 1
       },
       {
         "name": "apricot",
-        "count": 3
+        "count": 1
       },
       {
         "name": "nectarine",
         "count": 2
       },
       {
-        "name": "almond",
+        "name": "persimmons",
         "count": 1
-      },
-      {
-        "name": "maracuja",
-        "count": 1
-      },
-      {
-        "name": "mangosteen",
-        "count": 1
-      },
-      {
-        "name": "persimmon",
-        "count": 2
       },
       {
         "name": "medlar",
@@ -273,42 +269,26 @@
       },
       {
         "name": "cantaloupe",
-        "count": 3
+        "count": 2
       },
       {
         "name": "blackberry",
-        "count": 2
+        "count": 1
       },
       {
         "name": "date",
-        "count": 3
+        "count": 1
       },
       {
         "name": "tamarind",
-        "count": 2
+        "count": 1
       },
       {
         "name": "dragonfruit",
         "count": 3
       },
       {
-        "name": "carambola",
-        "count": 1
-      },
-      {
-        "name": "grapefruit",
-        "count": 2
-      },
-      {
         "name": "plum",
-        "count": 1
-      },
-      {
-        "name": "melon",
-        "count": 1
-      },
-      {
-        "name": "honeydew",
         "count": 1
       }
     ],

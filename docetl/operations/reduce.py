@@ -757,6 +757,7 @@ class ReduceOperation(BaseOperation):
             Tuple[Optional[Dict], List[str], float]: A tuple containing the final reduced result (or None if processing failed),
             the list of prompts used, and the total cost of the operation.
         """
+        final_state = None
         fold_batch_size = self.config["fold_batch_size"]
         total_cost = 0
         current_output = None
@@ -802,6 +803,7 @@ class ReduceOperation(BaseOperation):
 
             # Pop off updated_scratchpad
             if "updated_scratchpad" in folded_output:
+                final_state = folded_output['updated_scratchpad']
                 scratchpad = folded_output["updated_scratchpad"]
                 if self.config.get("verbose", False):
                     self.console.log(
@@ -823,7 +825,7 @@ class ReduceOperation(BaseOperation):
 
                             user's self-defined schema: {self.config["output"]["schema"]}
 
-                            schema to transform: {current_output['final_state']}
+                            schema to transform: {final_state}
 
                             Keep all the values the same, just format it to match the user's schema.
 
@@ -885,7 +887,7 @@ class ReduceOperation(BaseOperation):
             self.config.get("model", self.default_model),
             "reduce",
             [{"role": "user", "content": fold_prompt}],
-            {"func_list": "str"},
+            {"func_calls": "list[str]"},
             scratchpad=scratchpad,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get(
@@ -910,7 +912,7 @@ class ReduceOperation(BaseOperation):
 
         if response.validated:
             folded_output = {"updated_scratchpad": response.updated_state,
-                             "final_state": response.updated_state}
+                             }
             folded_output.update(dict(zip(self.config["reduce_key"], key)))
             fold_cost = response.total_cost
 
@@ -1059,7 +1061,7 @@ class ReduceOperation(BaseOperation):
             self.config.get("model", self.default_model),
             "reduce",
             [{"role": "user", "content": prompt}],
-            {"func_list": "str"},
+            {"func_calls": "list[str]"},
             scratchpad=scratchpad,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get(
@@ -1087,7 +1089,7 @@ class ReduceOperation(BaseOperation):
 
         if response.validated:
             output = {"updated_scratchpad": response.updated_state,
-                      "final_state": response.updated_state}
+                      }
             output.update(dict(zip(self.config["reduce_key"], key)))
 
             return output, prompt, item_cost

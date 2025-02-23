@@ -4,6 +4,8 @@ datasets:
     path: experiments/gemini/declassified/blackvault_articles_pdfs.json
 
 default_model: gemini/gemini-2.0-flash
+optimizer_judge_agent_model: gemini/gemini-2.0-flash
+optimizer_rewrite_agent_model: gpt-4o-mini
 
 operations:
   - name: extract_event_type

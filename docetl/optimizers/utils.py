@@ -6,7 +6,7 @@ import pyrate_limiter
 from litellm import RateLimitError, completion
 
 from docetl.operations.utils import truncate_messages
-from docetl.ratelimiter import BucketCollection
+from docetl.ratelimiter import create_bucket_factory
 from docetl.utils import completion_cost
 
 
@@ -43,26 +43,7 @@ class LLMClient:
         self.runner = runner
 
         # Initialize the rate limiter for judge model
-        buckets = {
-            param: pyrate_limiter.InMemoryBucket(
-                [
-                    pyrate_limiter.Rate(
-                        param_limit["count"],
-                        param_limit["per"]
-                        * getattr(
-                            pyrate_limiter.Duration,
-                            param_limit.get("unit", "SECOND").upper(),
-                        ),
-                    )
-                    for param_limit in param_limits
-                ]
-            )
-            for param, param_limits in rate_limits.items()
-        }
-        buckets["unknown"] = pyrate_limiter.InMemoryBucket(
-            [pyrate_limiter.Rate(math.inf, 1)]
-        )
-        bucket_factory = BucketCollection(**buckets)
+        bucket_factory = create_bucket_factory(rate_limits)
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=math.inf)
 
     def _generate(

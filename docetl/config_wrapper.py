@@ -8,7 +8,7 @@ from rich.console import Console
 
 from docetl.console import get_console
 from docetl.operations.utils import APIWrapper
-from docetl.ratelimiter import BucketCollection
+from docetl.ratelimiter import create_bucket_factory
 from docetl.utils import decrypt, load_config
 
 
@@ -66,26 +66,7 @@ class ConfigWrapper(object):
         for key, value in self.llm_api_keys.items():
             os.environ[key] = value
 
-        buckets = {
-            param: pyrate_limiter.InMemoryBucket(
-                [
-                    pyrate_limiter.Rate(
-                        param_limit["count"],
-                        param_limit["per"]
-                        * getattr(
-                            pyrate_limiter.Duration,
-                            param_limit.get("unit", "SECOND").upper(),
-                        ),
-                    )
-                    for param_limit in param_limits
-                ]
-            )
-            for param, param_limits in self.config.get("rate_limits", {}).items()
-        }
-        buckets["unknown"] = pyrate_limiter.InMemoryBucket(
-            [pyrate_limiter.Rate(math.inf, 1)]
-        )
-        bucket_factory = BucketCollection(**buckets)
+        bucket_factory = create_bucket_factory(self.config.get("rate_limits", {}))
         self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=math.inf)
         self.is_cancelled = False
 

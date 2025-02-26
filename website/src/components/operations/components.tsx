@@ -86,9 +86,7 @@ export const MapFilterOperationComponent: React.FC<OperationComponentProps> = ({
   onUpdate,
   onToggleSchema,
 }) => {
-  const schemaItems = useMemo(() => {
-    return operation?.output?.schema || [];
-  }, [operation?.output?.schema]);
+  const schemaItems = useMemo(() => operation?.output?.schema || [], [operation?.output?.schema]);
 
   const handlePromptChange = (newPrompt: string) => {
     onUpdate({ ...operation, prompt: newPrompt });
@@ -100,6 +98,17 @@ export const MapFilterOperationComponent: React.FC<OperationComponentProps> = ({
       output: {
         ...operation.output,
         schema: newSchema,
+      },
+    });
+  };
+
+  // Handle changes to the PDF URL key using otherKwargs
+  const handlePdfUrlKeyChange = (newPdfUrlKey: string) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        pdf_url_key: newPdfUrlKey,
       },
     });
   };
@@ -116,6 +125,25 @@ export const MapFilterOperationComponent: React.FC<OperationComponentProps> = ({
         isExpanded={isSchemaExpanded}
         onToggle={onToggleSchema}
       />
+
+      {/* PDF Processing Section */}
+      <div className="mt-2 space-y-2">
+      <Label htmlFor="pdf-url-key" className="text-xs font-semibold">
+        PDF URL Key (optional)
+      </Label>
+      <Input
+        id="pdf-url-key"
+        type="text"
+        value={operation.otherKwargs?.pdf_url_key || ""}
+        onChange={(e) => handlePdfUrlKeyChange(e.target.value)}
+        placeholder="e.g. url"
+        className="h-8"
+      />
+      <p className="text-xs text-muted-foreground">
+        Enter the key in your input data that contains the PDF URL or file path.
+        Leave blank to disable PDF processing.
+      </p>
+    </div>
     </>
   );
 };

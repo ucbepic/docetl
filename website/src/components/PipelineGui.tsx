@@ -141,10 +141,10 @@ interface Dataset {
 const PREDEFINED_MODELS = [
   "gpt-4o-mini",
   "gpt-4o",
-  "claude-3-sonnet-20240320",
+  "claude-3-7-sonnet-20250219",
   "claude-3-opus-20240229",
   "azure/<your-deployment-name>",
-  "gemini/gemini-pro",
+  "gemini/gemini-2.0-flash",
 ] as const;
 
 interface AddOperationDropdownProps {

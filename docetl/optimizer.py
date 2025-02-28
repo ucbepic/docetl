@@ -650,6 +650,9 @@ class Optimizer:
         # Keep track of operations we've seen to avoid duplicates
         seen_operations = set()
 
+        # Map to store step names to their input datasets
+        step_inputs = {}
+
         def clean_operation(op_container: OpContainer) -> Dict:
             """Remove internal fields from operation config"""
             op_config = op_container.config
@@ -683,8 +686,11 @@ class Optimizer:
                 current_step = {"name": step_name, "operations": []}
                 clean_config["pipeline"]["steps"].insert(0, current_step)
 
-            # Skip scan operations but process their dependencies
+            # Record input dataset if this is a scan operation
             if container.config["type"] == "scan":
+                dataset_name = container.config["dataset_name"]
+                step_inputs[step_name] = dataset_name
+
                 if container.children:
                     return process_container(container.children[0], current_step)
                 return None, current_step
@@ -732,26 +738,15 @@ class Optimizer:
         # Start processing from the last container
         process_container(container)
 
-        # Add inputs to steps based on their first operation
+        # Add inputs to steps based on the step_inputs map
         for step in clean_config["pipeline"]["steps"]:
             first_op = step["operations"][0]
+            step_name = step["name"]
+
             if isinstance(first_op, dict):  # This is an equijoin
                 continue  # Equijoin steps don't need an input field
-            elif len(step["operations"]) > 0:
-                # Find the first non-scan operation's input by looking at its dependencies
-                op_container = self.runner.op_container_map.get(
-                    f"{step['name']}/{first_op}"
-                )
-                if op_container and op_container.children:
-                    child = op_container.children[0]
-                    while (
-                        child
-                        and child.config["type"] == "step_boundary"
-                        and child.children
-                    ):
-                        child = child.children[0]
-                    if child and child.config["type"] == "scan":
-                        step["input"] = child.config["dataset_name"]
+            elif len(step["operations"]) > 0 and step_name in step_inputs:
+                step["input"] = step_inputs[step_name]
 
         # Preserve all other config key-value pairs from original config
         for key, value in self.config.items():

@@ -633,6 +633,18 @@ const CodeEditorPipelineApp: React.FC = () => {
                     the features.
                   </p>
                   <p className="text-foreground/90 leading-relaxed">
+                    New to DocWrangler? Watch our{" "}
+                    <a
+                      href="https://youtu.be/ytAsNoTZfhw"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      video tutorial
+                    </a>{" "}
+                    to get started.
+                  </p>
+                  <p className="text-foreground/90 leading-relaxed">
                     Want to run DocETL or the playground locally? Check out our{" "}
                     <a
                       href="https://ucbepic.github.io/docetl/playground/"

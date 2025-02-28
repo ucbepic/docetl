@@ -57,11 +57,10 @@ class SemanticAccessor:
     def __init__(self, df: pd.DataFrame):
         self._df = df
         # Get history and costs from parent DataFrame if it exists
-        self._history = getattr(df, "_semantic_history", []).copy()
-        self._costs = getattr(df, "_semantic_costs", 0.0)
+        self._history = df.attrs.get("_semantic_history", []).copy()
+        self._costs = df.attrs.get("_semantic_costs", 0.0)
 
-        config = getattr(
-            df,
+        config = df.attrs.get(
             "_semantic_config",
             {
                 "default_model": "gpt-4o-mini",
@@ -101,15 +100,40 @@ class SemanticAccessor:
         # Find new columns by comparing with current DataFrame
         result_df = pd.DataFrame(data)
         new_cols = list(set(result_df.columns) - set(self._df.columns))
-        entry = OpHistory(op_type, config, new_cols)
+
+        # Make a serializable copy of the config
+        serializable_config = self._make_serializable(config)
+
+        entry = OpHistory(op_type, serializable_config, new_cols)
         self._history.append(entry)
         self._costs += cost
 
-        # Store history and costs on the result DataFrame
-        result_df._semantic_history = self._history
-        result_df._semantic_costs = self._costs
-        result_df._semantic_config = self.runner.config
+        # Store history and costs in the DataFrame's attrs dictionary
+        result_df.attrs["_semantic_history"] = self._history
+        result_df.attrs["_semantic_costs"] = self._costs
+        # Make a serializable copy of the runner config
+        result_df.attrs["_semantic_config"] = self._make_serializable(
+            self.runner.config
+        )
         return result_df
+
+    def _make_serializable(self, obj: Any) -> Any:
+        """Recursively convert an object to be serializable/picklable.
+
+        Handles:
+        - dict_keys/dict_values/dict_items -> list
+        - dictionaries -> dictionaries with serializable values
+        - lists/tuples -> lists/tuples with serializable values
+        - other objects are returned as-is
+        """
+        if isinstance(obj, dict):
+            return {k: self._make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self._make_serializable(x) for x in obj]
+        elif isinstance(obj, (type({}.keys()), type({}.values()), type({}.items()))):
+            return list(obj)
+        else:
+            return obj
 
     def _get_column_history(self, column: str) -> List[OpHistory]:
         """Get history of operations that created/modified a column."""

@@ -1,0 +1,931 @@
+[
+  {
+    "locations": [
+      "St. Louis, Missouri",
+      "Los Angeles",
+      "Canada",
+      "Australia",
+      "South America",
+      "Antarctica",
+      "Georgia",
+      "Mississippi",
+      "Kensington, Maryland",
+      "Arizona",
+      "New York",
+      "Pennsylvania",
+      "Syracuse",
+      "Texas",
+      "New Mexico",
+      "Mexico",
+      "East Texas",
+      "Washington, D.C.",
+      "Kansas",
+      "Eureka, Utah",
+      "Phoenix",
+      "Stead Field, Reno",
+      "Mesquite Range, Nevada",
+      "California",
+      "Toronto",
+      "New Jersey",
+      "Kuala Lumpur, Malaysia",
+      "Indiana",
+      "Lynn, Massachusetts",
+      "Voronezh"
+    ],
+    "event_type": "UFO Sightings, Hazards, and Safety Measures",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "London",
+      "Beijing"
+    ],
+    "event_type": "Hoax/Fallen Angel",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Peru",
+      "South America",
+      "Mexico"
+    ],
+    "event_type": "Extraterrestrial Mummy Hoax",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Russia"
+    ],
+    "event_type": "Insectoid Alien Sighting",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Unidentified Aerial Phenomena (UAP)/Likely a balloon",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Mars"
+    ],
+    "event_type": "Comet Anomaly",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Dauphin, Manitoba, Canada"
+    ],
+    "event_type": "UFO sighting and unexplained markings",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "South Carolina",
+      "Laurelville, Ohio"
+    ],
+    "event_type": "Ufology",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Cave Junction, Oregon (1926 or 1927)"
+    ],
+    "event_type": "Unclear/Questionable Photo",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Tennessee"
+    ],
+    "event_type": "Shadow Being Encounter",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Natural Phenomenon/Optical Illusion",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Northumberland, Pennsylvania",
+      "Lewisburg, Pennsylvania",
+      "Montour Ridge, Pennsylvania"
+    ],
+    "event_type": "UFO sightings and unexplained death",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Glasgow Airport",
+      "Baillieston"
+    ],
+    "event_type": "UFO near miss",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Taylor, Michigan",
+      "Canton, Ohio",
+      "Detroit"
+    ],
+    "event_type": "Meteor",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "UFOlogical",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Unexplained Phenomenon: Levitating rock",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Beeville, Texas, USA"
+    ],
+    "event_type": "UFO sighting and chupacabra",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "New Mexico",
+      "Baldy Mountain",
+      "Wright Patterson Air Force Base",
+      "The Pentagon"
+    ],
+    "event_type": "Extraterrestrial Contact/Collaboration",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Misidentified insects",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Newport Beach, California"
+    ],
+    "event_type": "Flying Humanoid UFO",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Dulce, New Mexico",
+      "Archuleta Mesa, Colorado-New Mexico border"
+    ],
+    "event_type": "Alien Underground Facility",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Colorado Springs",
+      "New York City"
+    ],
+    "event_type": "Extraterrestrial Radio Transmission",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Possible plant life on Mars",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Rockford, Michigan"
+    ],
+    "event_type": "Angel sighting",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "HATTIESBURG, MS",
+      "San Antonio Texas",
+      "Washington"
+    ],
+    "event_type": "Bigfoot sighting/kill",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Basra Airport",
+      "Basra Palace"
+    ],
+    "event_type": "Apparition",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Stockton, California"
+    ],
+    "event_type": "Hole Punch Cloud",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Martian Anomaly",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "corridor",
+      "hallway"
+    ],
+    "event_type": "Ghostly Apparition/Physical Assault",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Lady Frere",
+      "Montauk, New York"
+    ],
+    "event_type": "Deformed animal birth interpreted as paranormal event",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Australia",
+      "Wyoming",
+      "Signal Mountain Lodge"
+    ],
+    "event_type": "UFO sighting debunking",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Catawissa, PA"
+    ],
+    "event_type": "Misidentified natural phenomena",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Mediterranean Sea",
+      "Corsica"
+    ],
+    "event_type": "Ball Lightning",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Las Vegas",
+      "Area 51",
+      "Nevada",
+      "New Hampshire",
+      "Washington, D.C."
+    ],
+    "event_type": "UFO Disclosure",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Newtown, Pennsylvania"
+    ],
+    "event_type": "Vortex",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Haleakala Observation in Hawaii",
+      "Chile",
+      "Pasadena, California"
+    ],
+    "event_type": "Interstellar Object Observation",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Levittown, PA"
+    ],
+    "event_type": "UFO sighting with physical effects",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "western Switzerland",
+      "Maules"
+    ],
+    "event_type": "Possible Hoax/Unexplained Human Figure",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Japan",
+      "Russia"
+    ],
+    "event_type": "UFO Intercept/Defense",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Malibu, CA",
+      "Point Dume",
+      "China Lake Naval Base",
+      "Mojave desert",
+      "Naval Undersea Warfare Center in Hawthorne, NV",
+      "Las Vegas",
+      "Reno",
+      "Los Angeles",
+      "Zuma Beach",
+      "Santa Monica Mountains",
+      "Pacific Ocean"
+    ],
+    "event_type": "Underwater UFO/USO base",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Irkutsk region",
+      "southern Siberia",
+      "Kamensk",
+      "Buryatia",
+      "Lake Baikal"
+    ],
+    "event_type": "Alien Body Discovery/Hoax",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Unclear",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Tucson",
+      "Sonoran desert",
+      "New Mexico border"
+    ],
+    "event_type": "Reptilian Humanoid Encounter",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "OCEAN"
+    ],
+    "event_type": "Black Knight Satellite",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Persian Gulf",
+      "South Pars Area",
+      "Qatar beach",
+      "Acklins Island",
+      "Bahamas"
+    ],
+    "event_type": "Unidentified Marine Carcass",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Washington",
+      "Huntsville",
+      "Pasadena",
+      "Berlin",
+      "Braunschweig",
+      "Katlenburg-Lindau"
+    ],
+    "event_type": "Possible Extraterrestrial Structures",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Bakersfield, CA"
+    ],
+    "event_type": "Space Debris",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Knoxville, TN"
+    ],
+    "event_type": "Camera and Celestial Misidentification",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Omaha, Nebraska"
+    ],
+    "event_type": "UFO sighting with missing time and physical effects",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Hulung Beach",
+      "Serum Island",
+      "Indonesia"
+    ],
+    "event_type": "Unidentified marine animal",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Florida",
+      "Ohio",
+      "Columbus",
+      "California",
+      "Fredericton",
+      "New York"
+    ],
+    "event_type": "UFO Sightings and Alien Abductions",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Roanoke, Texas",
+      "Holland"
+    ],
+    "event_type": "Crop Circles",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Windward",
+      "Carriacou",
+      "Grenada",
+      "Galapagos Islands",
+      "Peru",
+      "Cocos Island",
+      "Costa Rica",
+      "Villaricos, Spain",
+      "Cuevas, Spain"
+    ],
+    "event_type": "Unidentified Marine Creature",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Mission, B.C., Canada",
+      "Brummen, The Netherlands",
+      "Teton, Idaho",
+      "Augusta, GA"
+    ],
+    "event_type": "Crop Phenomena",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 4
+  },
+  {
+    "locations": [
+      "Flagstaff, AZ",
+      "Leupp, AZ",
+      "Los Angeles, California",
+      "Sequoia Park In Monterey Park in Southern California",
+      "Royal Australian Navy Air Station Nowra",
+      "Chicago",
+      "Narulan",
+      "Ramstein Air Force Base"
+    ],
+    "event_type": "UFO and Anomalous Encounter",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 4
+  },
+  {
+    "locations": [
+      "Lake Okeechobee, Florida",
+      "Boca Raton",
+      "Okeechobee Airport",
+      "Nubbin Slough",
+      "Indiantown",
+      "Florida"
+    ],
+    "event_type": "Extraterrestrial Contact",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Cotton Valley, Louisiana"
+    ],
+    "event_type": "UFO Sighting and Missing Time",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Lakeview, Ohio",
+      "Los Gatos, California",
+      "Illinois",
+      "Burlington, West Virginia",
+      "Sacramento, California",
+      "Burns, Oregon"
+    ],
+    "event_type": "Angel Hair UFO Phenomenon",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Northwestern, Pennsylvania",
+      "Houston, Missouri",
+      "Milwaukie, Oregon",
+      "Chicago, IL"
+    ],
+    "event_type": "Alien Implant",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 4
+  },
+  {
+    "locations": [],
+    "event_type": "Uncategorized",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 4
+  },
+  {
+    "locations": [
+      "Memphis, Tennessee",
+      "Claymont, Delaware",
+      "Delphos, Kansas"
+    ],
+    "event_type": "UFO Encounter with Evidence",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "San Agustin Plains, New Mexico",
+      "San Antonio, NM",
+      "Roswell, NM",
+      "Spitsbergen, Norway",
+      "Great Britain",
+      "New York"
+    ],
+    "event_type": "UFO Crash",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 4
+  },
+  {
+    "locations": [
+      "Westchester, Illinois",
+      "Phoenix, Arizona",
+      "Gila Bend, Arizona",
+      "Mt. Clemens, Michigan",
+      "Olivet, Michigan",
+      "East Lansing, Michigan",
+      "Grand Rapids, Michigan",
+      "San Diego, California",
+      "El Cajon, California",
+      "Alabama"
+    ],
+    "event_type": "Time Abnormality",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Lake Champlain",
+      "Stirlingshire",
+      "Killearn",
+      "Loch Ness",
+      "Loch Dochfour"
+    ],
+    "event_type": "Lake Monster Sightings",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Bachelor\u2019s Grove cemetery, Midlothian, Illinois",
+      "Saginaw, Michigan",
+      "Cecil Hotel, Los Angeles",
+      "Boothill Graveyard, Tombstone Arizona",
+      "HMS Daedalus training facility, World War I",
+      "Queen\u2019s House, National Maritime Museum, Greenwich, England",
+      "White Rock, British Columbia",
+      "Perth, Australia",
+      "Kent, British store, UK",
+      "Wem Town Hall, Shropshire, England",
+      "Foreston, Minnesota"
+    ],
+    "event_type": "Paranormal Activity",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 11
+  },
+  {
+    "locations": [
+      "Portsmouth, New Hampshire",
+      "US Route 3, central New Hampshire",
+      "North Woodstock, New Hampshire",
+      "Plymouth, New Hampshire",
+      "Salt Fork State Park, Cambridge, Ohio",
+      "Area 51, Nevada"
+    ],
+    "event_type": "UFO Encounters",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Socorro, New Mexico",
+      "Mount Pleasant, Ontario, Canada",
+      "Harrisonburg, Virginia",
+      "Staunton, Virginia",
+      "Buffalo, Oklahoma",
+      "Trans-en-Provence, Var region, southeastern France",
+      "Delphos, KS"
+    ],
+    "event_type": "UFO Events",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 6
+  },
+  {
+    "locations": [
+      "Iowa",
+      "British Columbia coast",
+      "Northern California",
+      "Sonora, CA",
+      "Columbia River Valley",
+      "Rocklin",
+      "Yakima, Washington",
+      "Leyton, UT",
+      "Hill AFB",
+      "United Kingdom",
+      "TAMPA, Florida",
+      "Monterey Bay Aquarium Research Institute in Moss Landing, Calif.",
+      "south Atlantic Ocean",
+      "Provo Canyon",
+      "Squaw Peak",
+      "Little Rock Canyon Overlook",
+      "Utah",
+      "Washington State",
+      "Sherman Pass/SR 20"
+    ],
+    "event_type": "Cryptid Sighting",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 5
+  },
+  {
+    "locations": [
+      "Monessen",
+      "Mon Valley",
+      "Fayette County",
+      "Connellsville",
+      "Uniontown",
+      "Allegheny County",
+      "Westmoreland County",
+      "West Newton",
+      "Greene County",
+      "Waynesburg",
+      "South Greensburg",
+      "Butler County",
+      "Parker",
+      "East Brady",
+      "Allegheny River",
+      "North Huntingdon Township",
+      "Irwin",
+      "Laurel Ridge",
+      "Ligonier",
+      "Laurel Mountain area",
+      "Chestnut Ridge",
+      "eastern Butler County",
+      "Greensburg",
+      "Cedar Street exit",
+      "Springdale",
+      "Pittsburgh",
+      "Fayette and Westmoreland counties",
+      "Ligonier",
+      "Kecksburg",
+      "Mount Pleasant Township",
+      "Flatwoods",
+      "West Virginia",
+      "Morgantown",
+      "Sutton",
+      "Charleston"
+    ],
+    "event_type": "UFO and Creature Sightings",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Manchester, Indiana",
+      "North Hogan Road, Dearborn County, Indiana",
+      "Mt. Otorten, Ural Mountains, Russia",
+      "Roswell, New Mexico",
+      "Alamogordo Army Air Field, New Mexico",
+      "Pulau Pangkor beach"
+    ],
+    "event_type": "UFO and Alien Encounters",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 5
+  },
+  {
+    "locations": [
+      "Alaska",
+      "Malta",
+      "Arizona",
+      "California",
+      "New Mexico",
+      "England",
+      "United States (US)",
+      "Canada",
+      "University of Chicago",
+      "Oxford University"
+    ],
+    "event_type": "Extraterrestrial Encounter",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 6
+  },
+  {
+    "locations": [
+      "Valparaiso, Nebraska",
+      "Reconquista, Santa Fe",
+      "Villa Adela, Villa Ocampo district",
+      "Tartagal, Santa Fe",
+      "Kansas City, Missouri",
+      "Platte County, Missouri",
+      "Red Bluff, CA",
+      "Depuyer, Montana",
+      "Naselle, Washington",
+      "Grays River, Washington",
+      "Derwent, Alberta",
+      "St. Paul, Alberta",
+      "Henry County, Missouri",
+      "Colorado",
+      "Saskatchewan, Canada",
+      "Logan, Utah"
+    ],
+    "event_type": "Animal Mutilation",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 11
+  },
+  {
+    "locations": [
+      "Three Mile Lake, Bracebridge, Ontario, Canada",
+      "Manchester, New Hampshire",
+      "Goffstown, New Hampshire",
+      "Northwestern, Pennsylvania",
+      "Pitcairn, Pennsylvania",
+      "McKeesport, PA",
+      "Ossett, West Yorkshire, England",
+      "Edmonton, Alberta, Canada",
+      "Ben Wheeler, Texas",
+      "New Berlin, Wisconsin",
+      "Washington D.C.",
+      "Dover Plains, NY",
+      "Houston, Texas",
+      "Edmond, Oklahoma",
+      "Cowichan, Vancouver Island, BC, Canada",
+      "New Gloucester, Maine",
+      "Maribel, WI",
+      "Dearborn, MI",
+      "Alaska",
+      "Tinton Falls, NJ",
+      "West Lothian, Scotland",
+      "Livingston, West Lothian, Scotland",
+      "Dechmont Woods, West Lothian, Scotland",
+      "West Lothian, Scotland",
+      "Avondale, Arizona",
+      "Phoenix, Arizona",
+      "Papua, New Guinea",
+      "Warton aerodrome Lancashire, England",
+      "Saint Petersburg, FL",
+      "El Paso, Texas"
+    ],
+    "event_type": "Alien Abduction and Contact",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 34
+  },
+  {
+    "locations": [
+      "Lakeview Drive",
+      "Bethel Road",
+      "Stone Lake",
+      "Linden",
+      "Centerville, Ohio",
+      "Stingley Elementary School, Centerville, Ohio",
+      "Washington Township",
+      "Bradstreet Road",
+      "Dayton, Ohio",
+      "Beavercreek, Ohio",
+      "Wilmington, Ohio"
+    ],
+    "event_type": "UFO Power Line Interaction",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Pampa Lluscuma",
+      "Putre",
+      "Chile",
+      "Arica",
+      "Tahlequah, Oklahoma",
+      "Roswell",
+      "Plains of San Agustin",
+      "New Mexico",
+      "Varginha",
+      "Brazil",
+      "Europe",
+      "Newark, New Jersey",
+      "Hong Kong, China",
+      "Iceland",
+      "Hawaii",
+      "Las Vegas",
+      "Orlando",
+      "Georgia",
+      "Australia",
+      "Santiago",
+      "Punta Arenas",
+      "Temuco",
+      "Port Aransas, Texas"
+    ],
+    "event_type": "UFO Sightings",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 4
+  },
+  {
+    "locations": [
+      "Area 51",
+      "Los Alamos",
+      "Dulce's N.M. Deep Underground Military Base",
+      "Diego Garcia Island",
+      "Philippines",
+      "England",
+      "National Security Agency (NSA)",
+      "Aztec, New Mexico",
+      "Arecibo Observatory",
+      "Berlin, Germany",
+      "Flat Rock, Nevada",
+      "Wright-Patterson Air Force Base",
+      "Colorado",
+      "Belleville, Illinois",
+      "Virginia",
+      "California",
+      "Redstone Arsenal In Alabama",
+      "Ames research centre In California",
+      "Johns Hopkins University"
+    ],
+    "event_type": "UFO and Alien Technology",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Area 51, Nevada",
+      "U.S. Capitol Building, Washington, D.C.",
+      "Burbank, California",
+      "Big Bear Lake, California",
+      "Roswell, New Mexico",
+      "Alamogordo Army Air Field (later Holloman AFB), New Mexico",
+      "Port Aransas, Texas",
+      "Dayton, Ohio",
+      "Brooklyn Navy Yard, New York"
+    ],
+    "event_type": "UFO Government Cover-Ups",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Duffield, Derbyshire",
+      "New Mexico",
+      "Roswell, New Mexico",
+      "Magenta, Lombardy, Italy",
+      "Ravenna, Italy",
+      "Rome, Italy",
+      "Mestre, Italy",
+      "Venice, Italy",
+      "San Marino",
+      "San Jose, California",
+      "Ocean Shores, Washington",
+      "California",
+      "Porter, Texas",
+      "Antelope Valley, California",
+      "Palmdale, California",
+      "St. Thomas, Ontario, Canada",
+      "Voronezh, Russia",
+      "Fort McCoy Wildlife Management Area, Florida",
+      "Ocean Shores, Washington",
+      "New York",
+      "53rd Street Penthouse apartment, New York",
+      "Heber, Arizona",
+      "Apache-Sitgreaves National Forest, Arizona",
+      "Stevensville, Montana",
+      "Poland",
+      "Delphos, Kansas",
+      "Aguada, Puerto Rico",
+      "Oxford, Maine",
+      "New York City",
+      "El Yunque rainforest, Puerto Rico",
+      "Europe"
+    ],
+    "event_type": "UFO Encounters and Hoaxes",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 19
+  },
+  {
+    "locations": [
+      "Chiclayo, Peru",
+      "Lynchburg, Virginia",
+      "Loudon, New Hampshire",
+      "Belmont, New Hampshire",
+      "Los Angeles, California",
+      "Birmingham, UK",
+      "New Britain, Pennsylvania",
+      "Ottumwa, Iowa",
+      "Liguria, Italy",
+      "Brandon, Mississippi",
+      "New Hampshire",
+      "Concord, NH",
+      "Tully, NY",
+      "Laguna Niguel, CA",
+      "Oceanside, California",
+      "Van Nuys, Los Angeles",
+      "Brandon, Mississippi",
+      "Long Beach, California",
+      "Warren, Ohio",
+      "Haifa, Israel",
+      "Norwood, Ohio",
+      "Lodi, Ohio",
+      "Brandon, Mississippi",
+      "Tijuana, B.C. Mexico",
+      "New Britain, Pennsylvania",
+      "Brandon, Mississippi",
+      "Warren, Ohio",
+      "Long Beach, California",
+      "Tully, NY",
+      "Laguna Niguel, CA",
+      "Oceanside California",
+      "Van Nuys Los Angeles",
+      "Brandon Mississippi"
+    ],
+    "event_type": "UFO Sighting",
+    "_counts_prereduce_gleaning_1_rounds_aggregate_locations_bs_324_fp_0": 290
+  }
+]

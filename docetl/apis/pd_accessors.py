@@ -57,11 +57,10 @@ class SemanticAccessor:
     def __init__(self, df: pd.DataFrame):
         self._df = df
         # Get history and costs from parent DataFrame if it exists
-        self._history = getattr(df, "_semantic_history", []).copy()
-        self._costs = getattr(df, "_semantic_costs", 0.0)
+        self._history = df.attrs.get("_semantic_history", []).copy()
+        self._costs = df.attrs.get("_semantic_costs", 0.0)
 
-        config = getattr(
-            df,
+        config = df.attrs.get(
             "_semantic_config",
             {
                 "default_model": "gpt-4o-mini",
@@ -105,10 +104,10 @@ class SemanticAccessor:
         self._history.append(entry)
         self._costs += cost
 
-        # Store history and costs on the result DataFrame
-        result_df._semantic_history = self._history
-        result_df._semantic_costs = self._costs
-        result_df._semantic_config = self.runner.config
+        # Store history and costs in the DataFrame's attrs dictionary
+        result_df.attrs["_semantic_history"] = self._history
+        result_df.attrs["_semantic_costs"] = self._costs
+        result_df.attrs["_semantic_config"] = self.runner.config
         return result_df
 
     def _get_column_history(self, column: str) -> List[OpHistory]:

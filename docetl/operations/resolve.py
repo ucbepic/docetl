@@ -44,6 +44,10 @@ class ResolveOperation(BaseOperation):
         litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
         enable_observability: bool = False
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.default_model = self.config.get("model", self.default_model)
+
     def compare_pair(
         self,
         comparison_prompt: str,

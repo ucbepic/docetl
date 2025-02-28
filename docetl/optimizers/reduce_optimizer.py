@@ -11,7 +11,7 @@ from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import truncate_messages
-from docetl.optimizers.join_optimizer import JoinOptimizer
+from docetl.optimizers.utils import PlanResult
 from docetl.utils import StageType, count_tokens, extract_jinja_variables
 
 
@@ -38,6 +38,7 @@ class ReduceOptimizer:
         run_operation: Callable,
         num_fold_prompts: int = 1,
         num_samples_in_validation: int = 10,
+        num_desired_plans: int = 1,
     ):
         """
         Initialize the ReduceOptimizer.
@@ -60,6 +61,7 @@ class ReduceOptimizer:
         self.num_fold_prompts = num_fold_prompts
         self.num_samples_in_validation = num_samples_in_validation
         self.status = self.runner.status
+        self.num_desired_plans = num_desired_plans
 
     def should_optimize_helper(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -221,47 +223,74 @@ class ReduceOptimizer:
 
         # Print the validation results
         self.console.log("[bold]Validation Results on Initial Sample:[/bold]")
-        if validation_results["needs_improvement"] or self.config.get(
-            "optimizer_config", {}
-        ).get("force_decompose", False):
-            self.console.post_optimizer_rationale(
-                should_optimize=True,
-                rationale="\n".join(
-                    [
-                        f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
-                        for result in validation_results["validation_results"]
-                    ]
-                ),
-                validator_prompt=validator_prompt,
-            )
-            self.console.log(
-                "\n".join(
-                    [
-                        f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
-                        for result in validation_results["validation_results"]
-                    ]
-                )
-            )
+        # if validation_results["needs_improvement"] or self.config.get(
+        #     "optimizer_config", {}
+        # ).get("force_decompose", False):
 
-            # Step 3: Evaluate if decomposition is beneficial
+        self.console.post_optimizer_rationale(
+            should_optimize=True,
+            rationale="\n".join(
+                [
+                    f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
+                    for result in validation_results["validation_results"]
+                ]
+            ),
+            validator_prompt=validator_prompt,
+        )
+        self.console.log(
+            "\n".join(
+                [
+                    f"Issues: {result['issues']} Suggestions: {result['suggestions']}"
+                    for result in validation_results["validation_results"]
+                ]
+            )
+        )
+
+        all_plans = []
+        total_cost = 0.0
+
+        # Step 3: Evaluate if decomposition is beneficial
+        if level == 1:
             decomposition_result = self._evaluate_decomposition(
                 op_config, input_data, level
             )
 
             if decomposition_result["should_decompose"]:
-                return self._optimize_decomposed_reduce(
-                    decomposition_result, op_config, input_data, level
+                pipelines, best_decomposed_outputs, cost = (
+                    self._optimize_decomposed_reduce(
+                        decomposition_result, op_config, input_data, level
+                    )
                 )
+                all_plans.extend(pipelines)
+                total_cost += cost
 
-            return self._optimize_single_reduce(op_config, input_data, validator_prompt)
+        top_single_plans, cost = self._optimize_single_reduce(
+            op_config, input_data, validator_prompt
+        )
+        all_plans.extend(top_single_plans)
+        total_cost += cost
+
+        # Sort the plans by score
+        all_plans.sort(key=lambda x: x.score, reverse=True)
+
+        best_plan_name = all_plans[0].plan_name
+        if "decomposed" in best_plan_name:
+            optimized_output = best_decomposed_outputs
         else:
-            self.console.log(f"No improvements identified; {validation_results}.")
-            self.console.post_optimizer_rationale(
-                should_optimize=False,
-                rationale="No improvements identified; no optimization recommended.",
-                validator_prompt=validator_prompt,
-            )
-            return [op_config], original_output, 0.0
+            optimized_output = self._run_operation(all_plans[0].ops[0], input_data)
+        self.console.post_optimizer_status(StageType.END)
+
+        # Return the top self.num_desired_plans plans
+        return all_plans[: self.num_desired_plans], optimized_output, total_cost
+
+        # else:
+        #     self.console.log(f"No improvements identified; {validation_results}.")
+        #     self.console.post_optimizer_rationale(
+        #         should_optimize=False,
+        #         rationale="No improvements identified; no optimization recommended.",
+        #         validator_prompt=validator_prompt,
+        #     )
+        #     return [op_config], original_output, 0.0
 
     def _should_use_map(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -379,15 +408,11 @@ class ReduceOptimizer:
 
         self.console.log("[bold magenta]Evaluating plans...[/bold magenta]")
         self.console.post_optimizer_status(StageType.EVALUATION_RESULTS)
-        best_plan = self._evaluate_reduce_plans(
+        best_plans = self._evaluate_reduce_plans(
             op_config, reduce_plans + gleaning_plans, input_data, validator_prompt
         )
 
-        # Step 4: Run the best reduce plan
-        optimized_output = self._run_operation(best_plan, input_data)
-        self.console.post_optimizer_status(StageType.END)
-
-        return [best_plan], optimized_output, 0.0
+        return best_plans, 0.0
 
     def _generate_gleaning_plans(
         self,
@@ -456,13 +481,9 @@ class ReduceOptimizer:
             for both reduce operations and the final output of the second reduce operation, and the cost of the operation due to synthesizing any resolve operations.
         """
         sub_group_key = decomposition_result["sub_group_key"]
-        first_reduce_prompt = decomposition_result["first_reduce_prompt"]
-        second_reduce_prompt = decomposition_result["second_reduce_prompt"]
-        pipeline = []
         all_cost = 0.0
 
         first_reduce_config = op_config.copy()
-        first_reduce_config["prompt"] = first_reduce_prompt
         if isinstance(op_config["reduce_key"], list):
             first_reduce_config["reduce_key"] = [sub_group_key] + op_config[
                 "reduce_key"
@@ -471,59 +492,39 @@ class ReduceOptimizer:
             first_reduce_config["reduce_key"] = [sub_group_key, op_config["reduce_key"]]
         first_reduce_config["pass_through"] = True
 
-        if first_reduce_config.get("synthesize_resolve", True):
-            resolve_config = {
-                "type": "resolve",
-                "empty": True,
-                "embedding_model": "text-embedding-3-small",
-                "resolution_model": self.config.get("default_model", "gpt-4o-mini"),
-                "comparison_model": self.config.get("default_model", "gpt-4o-mini"),
-                "_intermediates": {
-                    "map_prompt": op_config.get("_intermediates", {}).get(
-                        "last_map_prompt"
-                    ),
-                    "reduce_key": first_reduce_config["reduce_key"],
-                },
-            }
-            optimized_resolve_config, resolve_cost = JoinOptimizer(
-                self.config,
-                resolve_config,
-                self.console,
-                self.llm_client,
-                self.max_threads,
-            ).optimize_resolve(input_data)
-            all_cost += resolve_cost
-
-            if not optimized_resolve_config.get("empty", False):
-                # Add this to the pipeline
-                pipeline += [optimized_resolve_config]
-
-                # Run the resolver
-                optimized_output = self._run_operation(
-                    optimized_resolve_config, input_data
-                )
-                input_data = optimized_output
-
         first_optimized_configs, first_outputs, first_cost = self.optimize(
             first_reduce_config, input_data, level + 1
         )
-        pipeline += first_optimized_configs
         all_cost += first_cost
+        best_first_plan = first_optimized_configs[0]
 
         # Optimize second reduce operation
         second_reduce_config = op_config.copy()
-        second_reduce_config["prompt"] = second_reduce_prompt
         second_reduce_config["pass_through"] = True
 
         second_optimized_configs, second_outputs, second_cost = self.optimize(
             second_reduce_config, first_outputs, level + 1
         )
-
-        # Combine optimized configs and return with final output
-        pipeline += second_optimized_configs
         all_cost += second_cost
 
-        return pipeline, second_outputs, all_cost
+        # Combine optimized configs and return with final output
+        pipelines = []
+        for second_plan_result in second_optimized_configs:
+            pipelines.append(
+                PlanResult(
+                    plan_name=f"decomposed_{best_first_plan.plan_name}_{second_plan_result.plan_name}",
+                    ops=best_first_plan.ops + second_plan_result.ops,
+                    output=second_plan_result.output,
+                    cost=best_first_plan.cost + second_plan_result.cost,
+                    score=(best_first_plan.score + second_plan_result.score) / 2,
+                )
+            )
+
+        # Sort the pipelines by score
+        pipelines.sort(key=lambda x: x.score, reverse=True)
+
+        # Return the top self.num_desired_plans pipelines
+        return pipelines[: self.num_desired_plans], second_outputs, all_cost
 
     def _evaluate_decomposition(
         self,
@@ -546,6 +547,21 @@ class ReduceOptimizer:
             Dict[str, Any]: A dictionary containing the decomposition decision and details.
         """
         should_decompose = self._should_decompose(op_config, input_data, level)
+
+        # Verify that the decomposition is valid -- that the sub-group key actually exists in the input data
+        if should_decompose["should_decompose"]:
+            sub_group_key = should_decompose["sub_group_key"]
+            if sub_group_key not in input_data[0].keys():
+                should_decompose["should_decompose"] = False
+                should_decompose["explanation"] = (
+                    "The sub-group key does not exist in the input data."
+                )
+            # If it's already part of the reduce key, don't decompose
+            if sub_group_key in op_config["reduce_key"]:
+                should_decompose["should_decompose"] = False
+                should_decompose["explanation"] = (
+                    "The sub-group key is already part of the reduce key."
+                )
 
         # Log the decomposition decision
         if should_decompose["should_decompose"]:
@@ -585,20 +601,7 @@ class ReduceOptimizer:
         if self.status:
             self.status.start()
 
-        # Return if decomposition is not recommended
-        if not should_decompose["should_decompose"]:
-            return should_decompose
-
-        decomposition_details = self._get_decomposition_details(op_config, input_data)
-        result = {**should_decompose, **decomposition_details}
-        if decomposition_details["sub_group_key"] in op_config["reduce_key"]:
-            result["should_decompose"] = False
-            result[
-                "explanation"
-            ] += " However, the suggested sub-group key is already part of the current reduce key(s), so decomposition is not recommended."
-            result["sub_group_key"] = ""
-
-        return result
+        return should_decompose
 
     def _should_decompose(
         self,
@@ -664,17 +667,13 @@ class ReduceOptimizer:
         Sample values for other keys:
         {json.dumps(sample_values, indent=2)}
 
-        Based on this information, determine if it would be beneficial to decompose this reduce operation into a sub-reduce operation followed by a final reduce operation. Consider ALL of the following:
+        Evaluate whether decomposing this reduce operation into two sequential reduce operations would substantially improve performance or accuracy. Consider these key factors:
 
-        1. Is there a natural hierarchy in the data (e.g., country -> state -> city) among the other available keys, with a key at a finer level of granularity than the current reduce key(s)?
-        2. Are the current reduce key(s) some form of ID, and are there many different types of inputs for that ID among the other available keys?
-        3. Does the prompt implicitly ask for sub-grouping based on the other available keys (e.g., "summarize policies by state, then by country")?
-        4. Would splitting the operation improve accuracy (i.e., make sure information isn't lost when reducing)?
-        5. Are all the keys of the potential hierarchy provided in the other available keys? If not, we should not decompose.
-        6. Importantly, do not suggest decomposition using any key that is already part of the current reduce key(s). We are looking for a new key from the other available keys to use for sub-grouping.
-        7. Do not suggest keys that don't contain meaningful information (e.g., id-related keys).
+        1. Hierarchical Structure: Do the other available keys contain a natural data hierarchy (e.g., country -> state -> city) that could benefit from staged aggregation?
+        2. Implicit Requirements: Does the prompt suggest natural sub-groupings in the data (e.g., "aggregate by department, then division")?
+        3. Meaningful Keys: Focus only on keys that represent logical groupings of data, avoiding technical or system-generated fields.
 
-        Provide your analysis in the following format:
+        Respond with your analysis in the following format:
         """
 
         parameters = {
@@ -682,8 +681,9 @@ class ReduceOptimizer:
             "properties": {
                 "should_decompose": {"type": "boolean"},
                 "explanation": {"type": "string"},
+                "sub_group_key": {"type": "string"},
             },
-            "required": ["should_decompose", "explanation"],
+            "required": ["should_decompose", "explanation", "sub_group_key"],
         }
 
         response = self.llm_client.generate_rewrite(
@@ -1367,6 +1367,16 @@ class ReduceOptimizer:
                 plan["name"] = f"{op_config['name']}_bs_{batch_size}_fp_{fold_idx}"
                 plans.append(plan)
 
+        # Now duplicate the plans for each model
+        plan_idxs = list(range(len(plans)))
+        for model in self.runner.optimizer.model_choices:
+            if model == op_config.get("model", self.runner.optimizer.default_model):
+                continue
+            for idx in plan_idxs:
+                plan_copy = plans[idx].copy()
+                plan_copy["model"] = model
+                plans.append(plan_copy)
+
         return plans
 
     def _calculate_compression_ratio(
@@ -1684,7 +1694,7 @@ Remember, you must fold the new data into the existing output, do not start fres
 
         plan_scores = []
         plan_outputs = {}
-
+        plan_op_costs = {}
         # Create a fixed random sample for evaluation
         sample_size = min(100, len(input_data))
         evaluation_sample = random.sample(input_data, sample_size)
@@ -1706,9 +1716,10 @@ Remember, you must fold the new data into the existing output, do not start fres
                 for plan in plans
             ]
             for future in as_completed(futures):
-                plan, score, output = future.result()
+                plan, score, output, op_cost = future.result()
                 plan_scores.append((plan, score))
                 plan_outputs[id(plan)] = output
+                plan_op_costs[id(plan)] = op_cost
 
         # Sort plans by score in descending order, then by fold_batch_size in descending order
         sorted_plans = sorted(
@@ -1726,57 +1737,68 @@ Remember, you must fold the new data into the existing output, do not start fres
             f"\n[green]Selected best plan with score: {best_score:.2f} and batch size: {best_plan['fold_batch_size']}[/green]"
         )
 
-        if op_config.get("synthesize_merge", False):
-            # Create a new plan with merge prompt and updated parameters
-            merged_plan = best_plan.copy()
-
-            # Synthesize merge prompt if it doesn't exist
-            if "merge_prompt" not in merged_plan:
-                merged_plan["merge_prompt"] = self._synthesize_merge_prompt(
-                    merged_plan, plan_outputs[id(best_plan)]
-                )
-                # Print the synthesized merge prompt
-                self.console.log("\n[bold]Synthesized Merge Prompt:[/bold]")
-                self.console.log(merged_plan["merge_prompt"])
-
-            # Set merge_batch_size to 2 and num_parallel_folds to 5
-            merged_plan["merge_batch_size"] = 2
-
-            # Evaluate the merged plan
-            _, merged_plan_score, _, operation_instance = self._evaluate_single_plan(
-                merged_plan,
-                evaluation_sample,
-                validator_prompt,
-                validation_inputs,
-                return_instance=True,
+        best_plans = [
+            PlanResult(
+                plan_name=f"{plan['name']}_{i}",
+                ops=[plan],
+                cost=plan_op_costs[id(plan)],
+                score=score,
+                output=plan_outputs[id(plan)],
             )
+            for i, (plan, score) in enumerate(sorted_plans)
+        ][: self.num_desired_plans]
 
-            # Get the merge and fold times from the operation instance
-            merge_times = operation_instance.merge_times
-            fold_times = operation_instance.fold_times
-            merge_avg_time = mean(merge_times) if merge_times else None
-            fold_avg_time = mean(fold_times) if fold_times else None
+        # if op_config.get("synthesize_merge", False):
+        #     # Create a new plan with merge prompt and updated parameters
+        #     merged_plan = best_plan.copy()
 
-            self.console.log("\n[bold]Scores:[/bold]")
-            self.console.log(f"Original plan: {best_score:.2f}")
-            self.console.log(f"Merged plan: {merged_plan_score:.2f}")
+        #     # Synthesize merge prompt if it doesn't exist
+        #     if "merge_prompt" not in merged_plan:
+        #         merged_plan["merge_prompt"] = self._synthesize_merge_prompt(
+        #             merged_plan, plan_outputs[id(best_plan)]
+        #         )
+        #         # Print the synthesized merge prompt
+        #         self.console.log("\n[bold]Synthesized Merge Prompt:[/bold]")
+        #         self.console.log(merged_plan["merge_prompt"])
 
-            # Compare scores and decide which plan to use
-            if merged_plan_score >= best_score * 0.75:
-                self.console.log(
-                    f"\n[green]Using merged plan with score: {merged_plan_score:.2f}[/green]"
-                )
-                if merge_avg_time and fold_avg_time:
-                    merged_plan["merge_time"] = merge_avg_time
-                    merged_plan["fold_time"] = fold_avg_time
-                return merged_plan
-            else:
-                self.console.log(
-                    f"\n[yellow]Merged plan quality too low. Using original plan with score: {best_score:.2f}[/yellow]"
-                )
-                return best_plan
-        else:
-            return best_plan
+        #     # Set merge_batch_size to 2 and num_parallel_folds to 5
+        #     merged_plan["merge_batch_size"] = 2
+
+        #     # Evaluate the merged plan
+        #     _, merged_plan_score, _, operation_instance, merged_plan_op_cost = self._evaluate_single_plan(
+        #         merged_plan,
+        #         evaluation_sample,
+        #         validator_prompt,
+        #         validation_inputs,
+        #         return_instance=True,
+        #     )
+
+        #     # Get the merge and fold times from the operation instance
+        #     merge_times = operation_instance.merge_times
+        #     fold_times = operation_instance.fold_times
+        #     merge_avg_time = mean(merge_times) if merge_times else None
+        #     fold_avg_time = mean(fold_times) if fold_times else None
+
+        #     self.console.log("\n[bold]Scores:[/bold]")
+        #     self.console.log(f"Original plan: {best_score:.2f}")
+        #     self.console.log(f"Merged plan: {merged_plan_score:.2f}")
+
+        #     # Compare scores and decide which plan to use
+        #     if merged_plan_score >= best_score * 0.75:
+        #         self.console.log(
+        #             f"\n[green]Using merged plan with score: {merged_plan_score:.2f}[/green]"
+        #         )
+        #         if merge_avg_time and fold_avg_time:
+        #             merged_plan["merge_time"] = merge_avg_time
+        #             merged_plan["fold_time"] = fold_avg_time
+        #         return merged_plan
+        #     else:
+        #         self.console.log(
+        #             f"\n[yellow]Merged plan quality too low. Using original plan with score: {best_score:.2f}[/yellow]"
+        #         )
+        #         return best_plan
+        # else:
+        return best_plans
 
     def _evaluate_single_plan(
         self,
@@ -1818,7 +1840,9 @@ Remember, you must fold the new data into the existing output, do not start fres
         3. Calculates a score based on the validation results.
         4. Returns the plan, score, output data, and optionally the operation instance.
         """
-        output = self._run_operation(plan, input_data, return_instance)
+        output, op_cost = self._run_operation(
+            plan, input_data, return_instance, return_cost=True
+        )
         if return_instance:
             output, operation_instance = output
 
@@ -1835,9 +1859,9 @@ Remember, you must fold the new data into the existing output, do not start fres
         score = valid_count / len(validation_result["validation_results"])
 
         if return_instance:
-            return plan, score, output, operation_instance
+            return plan, score, output, operation_instance, op_cost
         else:
-            return plan, score, output
+            return plan, score, output, op_cost
 
     def _synthesize_merge_prompt(
         self, plan: Dict[str, Any], sample_outputs: List[Dict[str, Any]]

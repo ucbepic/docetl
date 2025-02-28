@@ -4,10 +4,22 @@ datasets:
     path: experiments/gemini/declassified/blackvault_articles_pdfs.json
 
 default_model: gemini/gemini-2.0-flash
-optimizer_judge_agent_model: gemini/gemini-2.0-flash
-optimizer_rewrite_agent_model: gpt-4o-mini
+optimizer_config:
+  judge_agent_model: azure/gpt-4o-mini
+  rewrite_agent_model: azure/gpt-4o
+  sample_sizes:
+    resolve: 50
+  model_choices:
+    - gemini/gemini-2.0-flash
+    - gemini/gemini-2.0-flash-lite-preview-02-05
+  save_all_plans: true
 
 operations:
+  - type: sample
+    method: uniform
+    random_state: 42
+    samples: 500
+    name: sample_articles
   - name: extract_event_type
     type: map
     optimize: true
@@ -21,25 +33,26 @@ operations:
       {{ input.pdf_content | truncate(1000000) }}
       {% endif %}
 
-      Provide a single, specific event type category (e.g. "UFO Sighting", "Alien Abduction", "Crop Circle", etc.).
+      Provide a single, specific event type category.
     output:
       schema:
         event_type: str
 
   - name: resolve_event_types
     type: resolve
+    optimize: true
+    model: azure/gpt-4o-mini
+    blocking_threshold: 0.6869
     blocking_keys:
     - event_type
-    blocking_threshold: 0.9899
     verbose: true
-    optimize: true
     comparison_prompt: |
       Compare these two event types from extraterrestrial/paranormal incident reports:
 
       Type 1: {{ input1.event_type }}
       Type 2: {{ input2.event_type }}
 
-      Are these describing the same or similar categories of event? Consider if they are synonyms or closely related subcategories. For example, if they both relate to UFOs, they should be grouped together.
+      Are these describing similar categories of event? Consider if they are synonyms or closely related subcategories.
     resolution_prompt: |
       Given these similar event type categorizations:
       {% for entry in inputs %}
@@ -77,6 +90,7 @@ pipeline:
     - name: analyze_events
       input: articles
       operations:
+        - sample_articles
         - extract_event_type
         - resolve_event_types
         - aggregate_locations

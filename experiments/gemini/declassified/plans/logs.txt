@@ -1,0 +1,240 @@
+Plan 0
+
+╭─────────────── Step Execution: analyze_events/boundary ────────────────╮                                                                                         
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                           │                                                                                         
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                         │                                                                                         
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)     │                                                                                         
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                │                                                                                         
+           │ ✓ analyze_events/parallel_map_content_extract_event_type (Cost: $0.00) │                                                                                         
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)       │                                                                                         
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.00)               │                                                                                         
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.00)            │                                                                                         
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.22)                     │                                                                                         
+           │ ✓ analyze_events/aggregate_locations_bs_324_fp_0 (Cost: $0.06)         │                                                                                         
+           │ Step analyze_events/boundary completed. Cost: $0.27                    │                                                                                         
+           ╰────────────────────────────────────────────────────────────────────────╯                                                                                         
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_0.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.27                                                                                                                                                     │
+           │ Time: 155.94s                                                                                                                                                   │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_0                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_0.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Plan 1
+
+ ╭─────────────── Step Execution: analyze_events/boundary ────────────────╮                                                                                         
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                           │                                                                                         
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                         │                                                                                         
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)     │                                                                                         
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                │                                                                                         
+           │ ✓ analyze_events/parallel_map_content_extract_event_type (Cost: $0.00) │                                                                                         
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)       │                                                                                         
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.00)               │                                                                                         
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.01)            │                                                                                         
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.17)                     │                                                                                         
+           │ ✓ analyze_events/aggregate_locations_bs_324_fp_0 (Cost: $0.05)         │                                                                                         
+           │ Step analyze_events/boundary completed. Cost: $0.23                    │                                                                                         
+           ╰────────────────────────────────────────────────────────────────────────╯                                                                                         
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_0.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.23                                                                                                                                                     │
+           │ Time: 138.32s                                                                                                                                                   │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_0                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_0.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Plan 2
+
+ ╭──────────────────── Step Execution: analyze_events/boundary ─────────────────────╮                                                                               
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                                     │                                                                               
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                                   │                                                                               
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)               │                                                                               
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                          │                                                                               
+           │ ✓ analyze_events/parallel_map_content_extract_event_type (Cost: $0.00)           │                                                                               
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)                 │                                                                               
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.00)                         │                                                                               
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.00)                      │                                                                               
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.05)                               │                                                                               
+           │ ✓ analyze_events/gleaning_1_rounds_aggregate_locations_bs_324_fp_0 (Cost: $0.13) │                                                                               
+           │ Step analyze_events/boundary completed. Cost: $0.18                              │                                                                               
+           ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                               
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_2.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.18                                                                                                                                                     │
+           │ Time: 109.94s                                                                                                                                                   │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_2                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_2.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Plan 3
+
+╭──────────────────── Step Execution: analyze_events/boundary ─────────────────────╮                                                                               
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                                     │                                                                               
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                                   │                                                                               
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)               │                                                                               
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                          │                                                                               
+           │ ✓ analyze_events/parallel_map_content_extract_event_type (Cost: $0.00)           │                                                                               
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)                 │                                                                               
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.00)                         │                                                                               
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.00)                      │                                                                               
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.06)                               │                                                                               
+           │ ✓ analyze_events/gleaning_1_rounds_aggregate_locations_bs_324_fp_0 (Cost: $0.11) │                                                                               
+           │ Step analyze_events/boundary completed. Cost: $0.17                              │                                                                               
+           ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                               
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_3.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.17                                                                                                                                                     │
+           │ Time: 82.45s                                                                                                                                                    │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_3                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_3.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Plan 4
+
+╭──────────────────── Step Execution: analyze_events/boundary ─────────────────────╮                                                                               
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                                     │                                                                               
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                                   │                                                                               
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)               │                                                                               
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                          │                                                                               
+           │ ✓ analyze_events/parallel_map_content_extract_event_type (Cost: $0.00)           │                                                                               
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)                 │                                                                               
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.00)                         │                                                                               
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.00)                      │                                                                               
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.04)                               │                                                                               
+           │ ✓ analyze_events/gleaning_1_rounds_aggregate_locations_bs_324_fp_0 (Cost: $0.21) │                                                                               
+           │ Step analyze_events/boundary completed. Cost: $0.25                              │                                                                               
+           ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                               
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_4.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.25                                                                                                                                                     │
+           │ Time: 154.80s                                                                                                                                                   │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_4                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_4.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Plan 5
+
+╭──────────────────── Step Execution: analyze_events/boundary ─────────────────────╮                                                                               
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                                     │                                                                               
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                                   │                                                                               
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)               │                                                                               
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                          │                                                                               
+           │ ✓ analyze_events/parallel_map_content_extract_event_type (Cost: $0.00)           │                                                                               
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)                 │                                                                               
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.00)                         │                                                                               
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.00)                      │                                                                               
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.05)                               │                                                                               
+           │ ✓ analyze_events/gleaning_1_rounds_aggregate_locations_bs_324_fp_0 (Cost: $0.18) │                                                                               
+           │ Step analyze_events/boundary completed. Cost: $0.23                              │                                                                               
+           ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                               
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_5.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.23                                                                                                                                                     │
+           │ Time: 121.91s                                                                                                                                                   │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_5                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_5.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Plan 6
+
+ ╭────────────────── Step Execution: analyze_events/boundary ──────────────────╮                                                                                    
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                                │                                                                                    
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                              │                                                                                    
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)          │                                                                                    
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                     │                                                                                    
+           │ ✓ analyze_events/header_extraction_content_extract_event_type (Cost: $0.00) │                                                                                    
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)            │                                                                                    
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.06)                    │                                                                                    
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.00)                 │                                                                                    
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.12)                          │                                                                                    
+           │ ✓ analyze_events/aggregate_locations_bs_324_fp_0 (Cost: $0.05)              │                                                                                    
+           │ Step analyze_events/boundary completed. Cost: $0.23                         │                                                                                    
+           ╰─────────────────────────────────────────────────────────────────────────────╯                                                                                    
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_6.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.23                                                                                                                                                     │
+           │ Time: 133.16s                                                                                                                                                   │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_6                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_6.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Plan 7
+
+ ╭──────────────────── Step Execution: analyze_events/boundary ─────────────────────╮                                                                               
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                                     │                                                                               
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                                   │                                                                               
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)               │                                                                               
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                          │                                                                               
+           │ ✓ analyze_events/header_extraction_content_extract_event_type (Cost: $0.00)      │                                                                               
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)                 │                                                                               
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.00)                         │                                                                               
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.00)                      │                                                                               
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.07)                               │                                                                               
+           │ ✓ analyze_events/gleaning_1_rounds_aggregate_locations_bs_324_fp_0 (Cost: $0.10) │                                                                               
+           │ Step analyze_events/boundary completed. Cost: $0.18                              │                                                                               
+           ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                               
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_7.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.18                                                                                                                                                     │
+           │ Time: 104.83s                                                                                                                                                   │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_7                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_7.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+Plan 8
+
+
+Processing gleaning_1_rounds_aggregate_locations_bs_324_fp_0 (reduce) on all documents: 100%|█████████████████████████████████████████████████| 79/79 [01:06<00:00,  1.19it/s]
+[23:08:00] ✓ analyze_events/gleaning_1_rounds_aggregate_locations_bs_324_fp_0 (Cost: $0.18)                                                                                   
+           ✓ Intermediate saved for operation 'gleaning_1_rounds_aggregate_locations_bs_324_fp_0' in step 'analyze_events' at                                                 
+           experiments/gemini/declassified/plans/intermediate_8/analyze_events/gleaning_1_rounds_aggregate_locations_bs_324_fp_0.json                                         
+           Flushing cache to disk...                                                                                                                                          
+           Cache flushed to disk.                                                                                                                                             
+           ╭──────────────────── Step Execution: analyze_events/boundary ─────────────────────╮                                                                               
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)                                     │                                                                               
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)                                   │                                                                               
+           │ ✓ analyze_events/extract_metadata_extract_event_type (Cost: $0.00)               │                                                                               
+           │ ✓ analyze_events/split_extract_event_type (Cost: $0.00)                          │                                                                               
+           │ ✓ analyze_events/header_extraction_content_extract_event_type (Cost: $0.00)      │                                                                               
+           │ ✓ analyze_events/gather_content_extract_event_type (Cost: $0.00)                 │                                                                               
+           │ ✓ analyze_events/submap_extract_event_type (Cost: $0.00)                         │                                                                               
+           │ ✓ analyze_events/subreduce_extract_event_type (Cost: $0.00)                      │                                                                               
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.04)                               │                                                                               
+           │ ✓ analyze_events/gleaning_1_rounds_aggregate_locations_bs_324_fp_0 (Cost: $0.18) │                                                                               
+           │ Step analyze_events/boundary completed. Cost: $0.22                              │                                                                               
+           ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                               
+           ✓ Saved to experiments/gemini/declassified/plans/event_locations_8.json                                                                                            
+                                                                                                                                                                              
+           ╭─────────────────────────────────────────────────────────────────────── Execution Summary ───────────────────────────────────────────────────────────────────────╮
+           │ Cost: $0.22                                                                                                                                                     │
+           │ Time: 115.63s                                                                                                                                                   │
+           │ Cache: experiments/gemini/declassified/plans/intermediate_8                                                                                                     │
+           │ Output: experiments/gemini/declassified/plans/event_locations_8.json                                                                                            │
+           ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Baseline
+
+           ╭────── Step Execution: analyze_events/boundary ──────╮                                                      
+           │ ✓ analyze_events/scan_articles (Cost: $0.00)        │                                                      
+           │ ✓ analyze_events/sample_articles (Cost: $0.00)      │                                                      
+           │ ✓ analyze_events/extract_event_type (Cost: $0.00)   │                                                      
+           │ ✓ analyze_events/resolve_event_types (Cost: $0.19)  │                                                      
+           │ ✓ analyze_events/aggregate_locations (Cost: $0.07)  │                                                      
+           │ Step analyze_events/boundary completed. Cost: $0.27 │                                                      
+           ╰─────────────────────────────────────────────────────╯                                                      
+           ✓ Saved to experiments/gemini/declassified/event_locations_unoptimized.json                                  
+                                                                                                                        
+           ╭──────────────────────────────────────────── Execution Summary ────────────────────────────────────────────╮
+           │ Cost: $0.27                                                                                               │
+           │ Time: 171.46s                                                                                             │
+           │ Cache: experiments/gemini/declassified/intermediate_unoptimized                                           │
+           │ Output: experiments/gemini/declassified/event_locations_unoptimized.json                                  │
+           ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯

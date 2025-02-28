@@ -31,8 +31,19 @@ operations:
     They should be real locations on Earth. Combine these with the current list of
     locations in {{ output.locations }} to ensure all locations are included without
     duplicates.'
-  model: gemini/gemini-2.0-flash-lite-preview-02-05
-  name: aggregate_locations_bs_324_fp_0
+  gleaning:
+    num_rounds: 1
+    validation_prompt: '1. Does the output list all unique locations of observation
+      mentioned in the reports, ensuring they are real locations on Earth as specified
+      in the task?
+
+      2. Are there any locations that appear to be missing or incorrectly identified
+      as not being on Earth?
+
+      3. Does the output maintain the integrity of the input data by accurately reflecting
+      the locations mentioned without introducing errors or omissions?'
+  model: gemini/gemini-2.0-flash
+  name: gleaning_1_rounds_aggregate_locations_bs_324_fp_0
   optimize: true
   output:
     schema:
@@ -82,7 +93,7 @@ operations:
 
     '
   embedding_model: text-embedding-3-small
-  model: gemini/gemini-2.0-flash
+  model: azure/gpt-4o-mini
   name: resolve_event_types
   optimize: true
   output:
@@ -237,6 +248,11 @@ operations:
     Provide a single, specific event type category. Only process the main chunk in
     --- Begin Main Chunk --- and --- End Main Chunk --- delimiters if they are present.'
   type: map
+- type: sample
+  method: uniform
+  random_state: 42
+  samples: 500
+  name: sample_articles
 optimizer_config:
   judge_agent_model: azure/gpt-4o-mini
   model_choices:
@@ -248,12 +264,14 @@ optimizer_config:
   save_all_plans: true
 pipeline:
   output:
-    intermediate_dir: experiments/gemini/declassified/intermediate_unoptimized
-    path: experiments/gemini/declassified/event_locations_unoptimized.json
+    intermediate_dir: experiments/gemini/declassified/plans/intermediate_4
+    path: experiments/gemini/declassified/plans/event_locations_4.json
     type: file
   steps:
   - name: analyze_events
+    input: articles
     operations:
+    - sample_articles
     - extract_metadata_extract_event_type
     - split_extract_event_type
     - parallel_map_content_extract_event_type
@@ -261,4 +279,4 @@ pipeline:
     - submap_extract_event_type
     - subreduce_extract_event_type
     - resolve_event_types
-    - aggregate_locations_bs_324_fp_0
+    - gleaning_1_rounds_aggregate_locations_bs_324_fp_0

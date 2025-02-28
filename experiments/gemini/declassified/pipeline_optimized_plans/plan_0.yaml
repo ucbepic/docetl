@@ -82,7 +82,7 @@ operations:
 
     '
   embedding_model: text-embedding-3-small
-  model: gemini/gemini-2.0-flash
+  model: azure/gpt-4o-mini
   name: resolve_event_types
   optimize: true
   output:
@@ -237,6 +237,12 @@ operations:
     Provide a single, specific event type category. Only process the main chunk in
     --- Begin Main Chunk --- and --- End Main Chunk --- delimiters if they are present.'
   type: map
+- type: sample
+  method: uniform
+  random_state: 42
+  samples: 500
+  name: sample_articles
+
 optimizer_config:
   judge_agent_model: azure/gpt-4o-mini
   model_choices:
@@ -248,12 +254,14 @@ optimizer_config:
   save_all_plans: true
 pipeline:
   output:
-    intermediate_dir: experiments/gemini/declassified/intermediate_unoptimized
-    path: experiments/gemini/declassified/event_locations_unoptimized.json
+    intermediate_dir: experiments/gemini/declassified/plans/intermediate_0
+    path: experiments/gemini/declassified/plans/event_locations_0.json
     type: file
   steps:
   - name: analyze_events
+    input: articles
     operations:
+    - sample_articles
     - extract_metadata_extract_event_type
     - split_extract_event_type
     - parallel_map_content_extract_event_type

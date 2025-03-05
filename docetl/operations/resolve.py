@@ -87,7 +87,10 @@ class ResolveOperation(BaseOperation):
             {"is_match": "bool"},
             timeout_seconds=timeout_seconds,
             max_retries_per_timeout=max_retries_per_timeout,
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=(
+                self.config.get("bypass_cache", False)
+                or self.runner.config.get("default_bypass_cache", False)
+            ),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
         )
@@ -573,7 +576,10 @@ class ResolveOperation(BaseOperation):
                     max_retries_per_timeout=self.config.get(
                         "max_retries_per_timeout", 2
                     ),
-                    bypass_cache=self.config.get("bypass_cache", False),
+                    bypass_cache=(
+                        self.config.get("bypass_cache", False)
+                        or self.runner.config.get("default_bypass_cache", False)
+                    ),
                     validation_config=(
                         {
                             "val_rule": self.config.get("validate", []),

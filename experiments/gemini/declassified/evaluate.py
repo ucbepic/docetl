@@ -9,8 +9,8 @@ from docetl import SemanticAccessor
 import matplotlib.pyplot as plt
 
 # Hardcoded costs in dollars for each plan index
-PLAN_COSTS = [0.27, 0.23, 0.18, 0.17, 0.25, 0.23, 0.23, 0.18, 0.22]
-BASELINE_COST = 0.27
+PLAN_COSTS = [0.74, 0.68, 0.81, 0.81, 0.89, 0.85, 0.52, 0.56, 0.64]
+BASELINE_COST = 1.03
 
 # Hardcoded runtimes in seconds for each plan index
 PLAN_RUNTIMES = [155.94, 138.32, 109.94, 82.45, 154.80, 121.91, 133.16, 104.83, 115.63]

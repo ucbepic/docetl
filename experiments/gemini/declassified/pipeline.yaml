@@ -4,6 +4,7 @@ datasets:
     path: experiments/gemini/declassified/blackvault_articles_pdfs.json
 
 default_model: gemini/gemini-2.0-flash
+default_bypass_cache: true
 optimizer_config:
   judge_agent_model: azure/gpt-4o-mini
   rewrite_agent_model: azure/gpt-4o

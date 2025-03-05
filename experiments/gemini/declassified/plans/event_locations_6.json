@@ -1,75 +1,41 @@
 [
   {
-    "locations": [
-      "Rockford, Michigan"
-    ],
-    "event_type": "Angel sighting",
+    "locations": [],
+    "event_type": "Mars rover camera anomaly",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Newsletter",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "SC",
-      "Laurelville, Ohio"
+      "Malta"
     ],
-    "event_type": "Ufology",
+    "event_type": "UFO Sighting with Occupants",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "Bakersfield, CA",
-      "Pacific Ocean"
+      "Russia"
     ],
-    "event_type": "Space Debris",
+    "event_type": "Insectoid Alien Sighting",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "OCEAN"
+      "Marshall County"
     ],
-    "event_type": "Black Knight Satellite",
+    "event_type": "Freak Accident",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "Stirlingshire",
-      "Killearn",
-      "Crow Hill",
-      "Glasgow",
-      "Canada"
+      "London",
+      "Beijing"
     ],
-    "event_type": "Cryptozoology",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Saginaw"
-    ],
-    "event_type": "Haunting",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Basra Airport",
-      "Basra",
-      "COB (Central Operating Base)"
-    ],
-    "event_type": "Apparition",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
-  },
-  {
-    "locations": [
-      "Malibu, CA",
-      "Point Dume",
-      "China Lake Naval Base",
-      "Mojave desert",
-      "Naval Undersea Warfare Center in Hawthorne, NV",
-      "Las Vegas",
-      "Reno",
-      "Zuma Beach",
-      "Pacific Ocean",
-      "Santa Monica Mountains"
-    ],
-    "event_type": "Underwater UFO/USO base",
+    "event_type": "Hoax Fallen Angel Sighting",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
@@ -82,49 +48,113 @@
   },
   {
     "locations": [],
-    "event_type": "Comet Anomaly",
+    "event_type": "Electro-Gravity",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Levitating rock",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "Mt. Clemens",
-      "Olivet",
+      "Catawissa, PA",
+      "Scranton, PA"
+    ],
+    "event_type": "Misidentified natural phenomena",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Colorado Springs",
+      "New York City"
+    ],
+    "event_type": "Extraterrestrial Radio Transmission",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Tennessee"
+    ],
+    "event_type": "Sighting of a black mass humanoid",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Stockton, California"
+    ],
+    "event_type": "Hole Punch Cloud",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Cave Junction, Oregon"
+    ],
+    "event_type": "Unidentified Photo/Footage",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Katlenburg-Lindau, Germany",
+      "Pasadena",
+      "Huntsville",
+      "Berlin",
+      "Braunschweig"
+    ],
+    "event_type": "Artificial structure on Vesta",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Mediterranean",
+      "Corsica"
+    ],
+    "event_type": "Unexplained Fireball Event",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "OCEAN"
+    ],
+    "event_type": "Black Knight Satellite",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Rockford, Michigan"
+    ],
+    "event_type": "Angel sighting",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Beeville, Texas"
+    ],
+    "event_type": "UFO sighting and chupacabra",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Possible plant-life on Mars",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Centerville, Ohio",
+      "Bellbrook, Ohio"
+    ],
+    "event_type": "UFO Interaction with Infrastructure",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Mt. Clemens, Michigan",
+      "Olivet, Michigan",
       "East Lansing",
-      "Grand Rapids"
+      "Grand Rapids",
+      "Lansing"
     ],
     "event_type": "Time Lapse/Missing Time",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "London",
-      "Beijing",
-      "China"
-    ],
-    "event_type": "Hoax/Fallen Angel",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Area 51",
-      "Los Angeles"
-    ],
-    "event_type": "Alien Interrogation",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Russia"
-    ],
-    "event_type": "Insectoid Alien Sighting",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Illinois",
-      "Chagrin Falls, Ohio"
-    ],
-    "event_type": "UFO sighting with material dispersion",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
@@ -140,74 +170,16 @@
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
-    "locations": [],
-    "event_type": "No event type identified",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
     "locations": [
-      "TUCSON, Ariz."
+      "Cecil Hotel",
+      "Vancouver, Canada",
+      "Los Angeles"
     ],
-    "event_type": "Reptilian Humanoid Encounter",
+    "event_type": "Paranormal Event",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "Taylor, Michigan",
-      "Canton, Ohio",
-      "Detroit area"
-    ],
-    "event_type": "Meteor",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Mediterranean Sea",
-      "Corsica"
-    ],
-    "event_type": "Ball Lightning",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [],
-    "event_type": "UFOs and Shaver Mystery",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Japan",
-      "Russia"
-    ],
-    "event_type": "UFO Intercept/Defense",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Dauphin, Manitoba, Canada"
-    ],
-    "event_type": "UFO sighting and unexplained markings",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [],
-    "event_type": "Unexplained Phenomenon: Levitating rock",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [],
-    "event_type": "Unidentified Aerial Phenomena (UAP)/Likely a balloon",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Tennessee"
-    ],
-    "event_type": "Shadow Being Encounter",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Dulce Base",
       "Archuleta Mesa",
       "Colorado-New Mexico border",
       "Dulce, New Mexico"
@@ -217,157 +189,121 @@
   },
   {
     "locations": [
-      "Stockton, California"
+      "Boothill Graveyard, Tombstone Arizona",
+      "Kent",
+      "Whitstable"
     ],
-    "event_type": "Hole Punch Cloud",
+    "event_type": "Paranormal Events",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Chita, Russia",
+      "Ugdan village"
+    ],
+    "event_type": "Explosion of unknown object",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "Beeville, Texas"
+      "Dabrowka, Poland",
+      "Delphos, Kansas",
+      "New Pine Creek, Oregon"
     ],
-    "event_type": "UFO sighting and chupacabra",
+    "event_type": "UFO sighting with physical trace",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
-    "locations": [],
-    "event_type": "Possible plant life on Mars",
+    "locations": [
+      "Cape Town",
+      "Eastern Province",
+      "Lady Frere",
+      "Montauk, New York"
+    ],
+    "event_type": "Deformed animal birth possibly linked to witchcraft or a demonic event",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
       "Las Vegas",
+      "HATTIESBURG, MS",
       "San Antonio Texas",
       "Washington",
       "Mississippi",
-      "HATTIESBURG, MS"
+      "United States"
     ],
-    "event_type": "Bigfoot sighting/kill",
+    "event_type": "Bigfoot Sighting/Kill",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "western Switzerland",
-      "Maules"
+      "Illinois",
+      "Chagrin Falls, Ohio",
+      "Australasian region"
     ],
-    "event_type": "Possible Hoax/Unexplained Human Figure",
+    "event_type": "UFO sighting with material deposition",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Flagstaff, AZ",
+      "Leupp AZ",
+      "Arizona"
+    ],
+    "event_type": "UFO sighting and anomalous animal encounter",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Basra Airport",
+      "Basra",
+      "COB (Central Operating Base)"
+    ],
+    "event_type": "Apparition",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
   },
   {
     "locations": [
       "Persian Gulf",
+      "South Pars Area",
       "Qatar beach",
       "Bahamas",
       "Acklins island",
-      "Spar Creek",
-      "Bushehr",
-      "Iran"
+      "Spar Creek"
     ],
     "event_type": "Unidentified Marine Carcass",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "Levittown, PA"
+      "Japan",
+      "Russia"
     ],
-    "event_type": "UFO sighting with physical effects",
+    "event_type": "UFO Interception of Meteor",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "Loch Ness",
-      "Loch Dochfour",
-      "Scotland",
-      "Darlington",
-      "Loch Ness"
+      "Malibu, CA",
+      "Point Dume",
+      "Santa Monica Mountains",
+      "Zuma Beach",
+      "China Lake Naval Base",
+      "Mojave desert",
+      "Naval Undersea Warfare Center",
+      "Hawthorne, NV",
+      "Las Vegas",
+      "Reno",
+      "Los Angeles"
     ],
-    "event_type": "Loch Ness Monster sighting",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Omaha, Nebraska"
-    ],
-    "event_type": "UFO sighting with missing time and physical effects",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Colorado Springs",
-      "New York City"
-    ],
-    "event_type": "Extraterrestrial Radio Transmission",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [],
-    "event_type": "Martian Anomaly",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
-  },
-  {
-    "locations": [
-      "Cave Junction, Oregon"
-    ],
-    "event_type": "Unclear",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
-  },
-  {
-    "locations": [
-      "Northwestern, Pennsylvania",
-      "Milwaukie, Oregon",
-      "Houston, Missouri",
-      "Chicago, IL"
-    ],
-    "event_type": "Extraterrestrial Implant",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 4
-  },
-  {
-    "locations": [
-      "Augusta, Ga."
-    ],
-    "event_type": "UFO Sighting and Crop Circles",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [],
-    "event_type": "Unknown",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
-  },
-  {
-    "locations": [],
-    "event_type": "Natural Phenomenon/Optical Illusion",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Los Angeles, California",
-      "Monterey Park, Southern California",
-      "Sequoia Park"
-    ],
-    "event_type": "Humanoid UFO Sighting",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Catawissa, PA",
-      "Scranton, PA"
-    ],
-    "event_type": "Misidentified natural phenomena",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Australia",
-      "Wyoming"
-    ],
-    "event_type": "UFO sighting debunking",
+    "event_type": "Underwater UFO/USO base",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
       "Haleakala Observation",
-      "Chile",
       "Hawaii",
+      "Chile",
       "Pasadena, California"
     ],
     "event_type": "Interstellar Object Observation",
@@ -375,152 +311,172 @@
   },
   {
     "locations": [
-      "Cape Town",
-      "Lady Frere",
-      "Eastern Province",
-      "South Africa",
-      "Montauk, New York"
+      "Mt. Clemens, Michigan",
+      "Lima, Ohio",
+      "25 Mile road (six miles north of Mt. Clemens, Michigan)"
     ],
-    "event_type": "Deformed animal birth interpreted as paranormal event",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Knoxville, TN"
-    ],
-    "event_type": "Misidentification or Artifact Explanation",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
-  },
-  {
-    "locations": [
-      "Northumberland, Pennsylvania",
-      "Lewisburg, Pennsylvania",
-      "Pennsylvania",
-      "Montour Ridge",
-      "Point Township"
-    ],
-    "event_type": "UFO sightings and unexplained death",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Westchester, Illinois"
-    ],
-    "event_type": "Missing Time",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Glasgow Airport",
-      "Baillieston"
-    ],
-    "event_type": "UFO near miss",
+    "event_type": "UFO Impact",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [],
-    "event_type": "Potential Extraterrestrial Structures",
+    "event_type": "Comet Anomaly",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Tahlequah, Oklahoma"
+    ],
+    "event_type": "Mass sighting of orb-shaped objects",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Bakersfield, CA",
+      "Pacific Ocean"
+    ],
+    "event_type": "Meteor/Satellite",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Social Media",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Australia",
+      "Wyoming",
+      "Signal Mountain Lodge"
+    ],
+    "event_type": "UFO Sighting Debunking",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Florida"
+    ],
+    "event_type": "Extraterrestrial Gift/Healing",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Tucson, Arizona",
+      "New Mexico border"
+    ],
+    "event_type": "Reptilian Humanoid Encounter",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Los Angeles, California",
+      "Sequoia Park",
+      "Monterey Park",
+      "Southern California"
+    ],
+    "event_type": "Humanoid UFO sighting",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [],
+    "event_type": "Mars Anomalies",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Newport Beach California"
+    ],
+    "event_type": "Flying Humanoid",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Long Beach CA",
+      "Carson Park",
+      "Camp Pendleton",
+      "Long Beach"
+    ],
+    "event_type": "UFO sighting with orb ejection",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Hartford, Connecticut"
+    ],
+    "event_type": "Unexplained Fire",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Knoxville, TN.",
+      "Taylor, Michigan",
+      "Canton, Ohio"
+    ],
+    "event_type": "Misidentified Phenomena",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
   },
   {
-    "locations": [
-      "New Mexico"
-    ],
-    "event_type": "Extraterrestrial Contact/Collaboration",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+    "locations": [],
+    "event_type": "Ambiguous",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
   },
   {
     "locations": [
-      "Irkutsk region",
-      "Siberia",
-      "Kamensk",
-      "Buryatia",
-      "Lake Baikal"
+      "Italy",
+      "California",
+      "Mexico",
+      "Kennedy Space Centre"
     ],
-    "event_type": "Alien Body Discovery/Hoax",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Cecil Hotel, Los Angeles",
-      "Vancouver, Canada",
-      "Los Angeles"
-    ],
-    "event_type": "Possible paranormal influence/activity",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Tombstone Arizona",
-      "Greenwich, England",
-      "White Rock, British Columbia",
-      "Kent",
-      "Shropshire, England",
-      "Midlothian, Illinois",
-      "Perth, Australia",
-      "Edinburgh, Scotland",
-      "Andover, England"
-    ],
-    "event_type": "Paranormal Event",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 8
-  },
-  {
-    "locations": [
-      "Portsmouth, New Hampshire",
-      "Niagara Falls",
-      "Montreal",
-      "North Woodstock",
-      "Plymouth",
-      "Salt Fork, Cambridge, Ohio",
-      "Winnipeg, Canada",
-      "Ohio"
-    ],
-    "event_type": "UFO abduction",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
-  },
-  {
-    "locations": [
-      "Lake Okeechobee, Florida",
-      "Boca Raton, Florida",
-      "Okeechobee, Florida",
-      "Indiantown",
-      "Nubbin Lock"
-    ],
-    "event_type": "Close Encounter of the Fifth Kind",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
-  },
-  {
-    "locations": [
-      "Lake Champlain",
-      "Villaricos, Spain",
-      "Carriacou",
-      "United Kingdom",
-      "Galapagos Islands",
-      "Peru",
-      "Cocos Island",
-      "Indonesia\u2019s central Maluku province",
-      "Hulung Beach on Serum Island",
-      "South Atlantic Ocean",
-      "Grenada",
-      "Moss Landing, Calif."
-    ],
-    "event_type": "Marine Creature Sighting",
+    "event_type": "Extraterrestrial Contact",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 5
   },
   {
+    "locations": [],
+    "event_type": "Unidentified Aerial Phenomena (UAP)",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
     "locations": [
-      "Roswell, New Mexico",
-      "Alamogordo Army Air Field",
-      "Corona",
-      "New Mexico",
-      "Ft. Worth Air Field",
-      "Socorro",
-      "New Mexico",
-      "Sweden",
-      "Antarctica"
+      "Stirlingshire",
+      "Killearn",
+      "Glasgow",
+      "western Switzerland",
+      "Maules"
     ],
-    "event_type": "UFO Sightings and Government Cover-Up",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+    "event_type": "Cryptid Encounters",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Omaha, Nebraska",
+      "Westchester, Illinois"
+    ],
+    "event_type": "Temporal Abduction",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Area 51",
+      "Diego Garcia Island",
+      "Roswell",
+      "California",
+      "Japan",
+      "New Mexico",
+      "Aztec",
+      "Middle Tennessee State University",
+      "Murfreesboro, TN",
+      "Wright Patterson Air Force Base"
+    ],
+    "event_type": "Extraterrestrial Encounters",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
+  },
+  {
+    "locations": [
+      "Milwaukie, Oregon",
+      "Northwestern, Pennsylvania"
+    ],
+    "event_type": "Alien Implant",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
   },
   {
     "locations": [
@@ -538,431 +494,448 @@
   },
   {
     "locations": [
-      "San Antonio, NM",
-      "New Mexico",
-      "San Agustin Plains, New Mexico",
-      "Spitsbergen, Norway",
-      "Roswell"
+      "HMS Daedalus training facility",
+      "Perth, Australia",
+      "Chicago",
+      "Midlothian, Illinois",
+      "Rubio Woods Forest Preserve",
+      "Saginaw",
+      "White Rock, British Columbia",
+      "Greenwich, England",
+      "Shropshire, England",
+      "Wem"
     ],
-    "event_type": "UFO Crash",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 4
+    "event_type": "Supernatural Events",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 6
   },
   {
     "locations": [
-      "Centerville, Ohio",
-      "Bellbrook, Ohio",
-      "Dayton, Ohio",
-      "Wilmington, Ohio",
-      "Cambridge, Massachusettes"
+      "St. Louis, Missouri",
+      "Buenos Aires",
+      "Mexico City",
+      "Ohio",
+      "New Haven, Connecticut",
+      "Syracuse",
+      "Texas",
+      "New Mexico",
+      "El Paso",
+      "East Texas",
+      "White Sands",
+      "Fort Bliss",
+      "Holloman Air Force Base",
+      "Phoenix",
+      "Eureka, Utah",
+      "Nevada",
+      "Kuala Lumpur, Malaysia",
+      "Indiana",
+      "Lynn, Massachusetts",
+      "Canada",
+      "Australia",
+      "South America",
+      "Antarctica",
+      "Arizona",
+      "Mississippi",
+      "Georgia",
+      "Kentucky",
+      "Voronezh"
     ],
-    "event_type": "UFO Interaction with Power Lines",
+    "event_type": "UFO Sightings and Hazards",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Arizona",
+      "Mexico City",
+      "West Texas",
+      "Eastern New Mexico",
+      "Midland, Texas",
+      "Washington, DC",
+      "New York",
+      "Mesa Verde Museum",
+      "San Francisco"
+    ],
+    "event_type": "Misidentification or Hoax",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
   },
   {
     "locations": [
-      "Malta",
-      "Roswell, New Mexico",
-      "Delphos, Kansas",
-      "Memphis, Tennessee"
+      "Las Vegas",
+      "New Hampshire",
+      "Nevada",
+      "Columbus, Ohio",
+      "New Mexico",
+      "Fredericton, New Brunswick"
     ],
-    "event_type": "UFO Encounter",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 4
+    "event_type": "UFO Encounters",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
   },
   {
     "locations": [
-      "Royal Australian Navy Air Station Nowra",
-      "Chicago",
-      "Manchester, Indiana",
-      "Aurora, Indiana",
-      "North Hogan Road",
-      "Cincinnati",
-      "Ramstein Air Force Base",
-      "Russia\u2019s Ural Mountains",
-      "Mt. Otorten",
-      "Narulan",
-      "Mascot"
-    ],
-    "event_type": "UFO/Alien Encounter",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 4
-  },
-  {
-    "locations": [
-      "Flagstaff, AZ",
-      "Leupp AZ",
-      "Aguada, Puerto Rico",
-      "Brooklyn, New York",
-      "Foreston, Minnesota",
-      "Ohio",
-      "Mayaguez",
-      "San Juan",
-      "Stroudsburg, Pennsylvania",
-      "El Yunque rainforest"
-    ],
-    "event_type": "UFO and Alien Encounters",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 6
-  },
-  {
-    "locations": [
-      "Buffalo, Oklahoma",
-      "Socorro, New Mexico",
-      "Trans-en-Provence",
-      "Harrisonburg, Virginia",
-      "Mount Pleasant, Ontario"
-    ],
-    "event_type": "UFO Incidents",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 6
-  },
-  {
-    "locations": [
-      "Holland",
-      "Brummen, The Netherlands",
-      "Teton, Idaho",
-      "Roanoke Texas",
-      "Mission B.C., Canada"
-    ],
-    "event_type": "Crop Formations",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 5
-  },
-  {
-    "locations": [
-      "Leyton, UT",
-      "Hill AFB",
       "Washington State",
-      "Sherman Pass/SR 20",
-      "Provo Canyon",
+      "Utah\u2019s Provo Canyon",
       "Squaw Peak",
       "Little Rock Canyon Overlook",
-      "Utah",
+      "Leyton, UT",
+      "Hill AFB",
+      "Iowa",
+      "British Columbia coast",
+      "Northern California",
       "Sonora, CA",
       "Yakima, Washington",
       "Columbia River Valley",
-      "British Columbia",
-      "Iowa",
-      "Rocklin",
-      "Yakima",
-      "California"
+      "Rocklin"
     ],
     "event_type": "Cryptid Sighting",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 4
   },
   {
     "locations": [
-      "Area 51",
-      "Los Alamos",
-      "The Dulce\u2019s N.M. Deep Underground Military Base",
-      "Diego Garcia Island",
-      "Aztec, New Mexico",
-      "Roswell, New Mexico",
-      "Flat Rock, Nevada",
-      "Wright-Patterson Air Force Base",
-      "MORAO in Colorado",
-      "SAC in Rebrethi",
-      "SEACON in Virginia",
-      "Raccon in California",
-      "Redstone Arsenal In Alotima",
-      "Ames research centre In California",
-      "Nevada",
-      "Grand Coulee Dam"
-    ],
-    "event_type": "Extraterrestrial Technology",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
-  },
-  {
-    "locations": [
-      "Duffield, Derbyshire",
-      "Porter, Texas",
-      "Palmdale, Ca",
-      "Antelope Valley, Ca",
-      "Peru",
-      "South America",
-      "Kansas",
-      "St. Thomas, Ontario Canada",
-      "Moscow, Russia",
-      "Globe, AZ",
-      "Fort Worth, Texas",
-      "Prague, Czech Republic",
-      "Holland",
-      "Baltimore, MD."
-    ],
-    "event_type": "Hoax - UFO and Alien Related",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 7
-  },
-  {
-    "locations": [
-      "Bracebridge area of Ontario (Canada)",
-      "Three Mile Lake",
-      "Balthaycock Island",
-      "Washington D.C.",
-      "Port Carling",
-      "Warton aerodrome Lancashire",
-      "Worcestershire UK",
-      "Alaska",
-      "Papua, New Guinea",
-      "Ben Wheeler, Texas",
-      "Cowichan on Vancouver Island",
-      "New Mexico",
-      "Fredericton, New Brunswick",
-      "Alberta",
-      "Ohio",
-      "Italy",
-      "Mexico"
-    ],
-    "event_type": "Extraterrestrial Encounter",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 13
-  },
-  {
-    "locations": [
-      "Florida",
-      "New York",
-      "Ocean Shores, WA",
-      "San Jose, California",
-      "California",
-      "Modesto, California",
-      "Marina, California",
-      "Arnold, California",
+      "USA",
       "Germany",
-      "Edwards Air Force Base",
-      "Nevada",
+      "California",
       "New Mexico",
-      "Roswell, New Mexico",
-      "Bridgewater Triangle of Massachusetts",
-      "Maine",
-      "Oxford, Maine",
-      "Yosemite",
-      "Lake Tahoe",
-      "Pacific",
-      "Japan",
-      "Europe",
-      "Hiroshima",
-      "Nagasaki",
-      "Area 51",
-      "Sierras"
-    ],
-    "event_type": "UFO and Extraterrestrial Encounters",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 8
-  },
-  {
-    "locations": [
-      "Washington, D.C.",
-      "Ashland, Ohio",
-      "Greenwich, Ohio",
-      "Ohio",
-      "Alaska",
-      "Burbank, California",
-      "Big Bear Lake, California",
-      "Roswell, New Mexico",
-      "New Mexico",
-      "Dayton",
       "Texas",
-      "Port Aransas, Texas",
-      "Alamogordo Army Air Field",
-      "Holloman AFB",
-      "China",
-      "Korea",
-      "Baltimore",
-      "Virginia",
-      "Pennsylvania",
-      "New Brunswick",
       "Ohio",
-      "Arizona",
+      "Washington State",
       "Nevada",
-      "London"
+      "Antarctica",
+      "Sweden"
     ],
-    "event_type": "Extraterrestrial Encounters",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 7
+    "event_type": "UFO Sightings and Government Issues",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
   },
   {
     "locations": [
       "Magenta, Lombardy, Italy",
-      "San Marino",
+      "Vergiate, Italy",
       "Ravenna, Italy",
-      "Rome",
-      "Mestre, Venice",
-      "Venice",
-      "Milan",
-      "Florence",
-      "Bologna",
-      "Naples",
-      "Valona, Albania",
-      "Berlin",
-      "Garda Lake",
-      "Vergiate",
-      "Sesto Calende",
-      "Varese",
-      "Ticino",
-      "Lybia",
-      "Mexico City",
-      "Arizona",
-      "Permian Basin of west Texas and eastern New Mexico",
-      "Midland, Texas",
-      "Washington, DC",
-      "Mesa Verde Museum",
-      "San Francisco"
-    ],
-    "event_type": "UFO Incident",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
-  },
-  {
-    "locations": [
-      "Pennsylvania",
-      "Monessen",
-      "Mon Valley",
-      "Fayette County",
-      "Connellsville",
-      "Uniontown",
-      "Allegheny County",
-      "Westmoreland County",
-      "West Newton",
-      "Greene County",
-      "Waynesburg",
-      "South Greensburg",
-      "Butler County",
-      "Parker",
-      "East Brady",
-      "North Huntingdon Township",
-      "Irwin",
-      "Ligonier",
-      "Laurel Ridge",
-      "Laurel Mountain",
-      "Cedar Street exit outside of Greensburg",
-      "Springdale",
-      "Pittsburgh",
-      "Fayette",
-      "Ligonier",
-      "Newport Beach California",
-      "Flatwoods, West Virginia",
-      "West Virginia",
-      "Morgantown",
-      "Cincinnati",
-      "Charleston, West Virginia",
-      "Sutton",
-      "Andrews AFB",
-      "Washington, DC",
-      "Clarksburg WV",
-      "Houlton, ME"
-    ],
-    "event_type": "UFO and Cryptid Sightings",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 3
-  },
-  {
-    "locations": [
-      "St. Louis, Missouri",
-      "Canada",
-      "Australia",
-      "South America",
-      "Antarctica",
-      "Buenos Aires",
-      "Colombia",
-      "Mexico City",
-      "Mexico",
-      "Ohio",
-      "Texas",
-      "New York",
-      "New England",
-      "New Haven, Connecticut",
-      "Brazil",
       "Rome, Italy",
-      "Uberlandia",
-      "Syracuse",
-      "Pennsylvania",
-      "Niagara Falls",
-      "El Paso",
-      "East Texas",
-      "White Sands",
-      "Fort Bliss",
-      "Holloman Air Force Base",
-      "Eureka, Utah",
-      "Kansas",
-      "Phoenix",
-      "Reno",
-      "Mesquite Range",
-      "Nevada",
-      "Voronezh",
-      "Michigan",
-      "Georgia",
-      "Kuala Lumpur",
-      "Malaysia",
-      "Indiana",
-      "Massachusetts",
-      "Mississippi",
-      "New Mexico",
-      "Kentucky",
-      "Franklin, Kentucky"
+      "Mestre, Italy",
+      "Venice, Italy",
+      "Bologna, Italy",
+      "Naples, Italy",
+      "Milan, Italy",
+      "Valona, Albania",
+      "Florence, Italy",
+      "Berlin, Germany",
+      "Garda Lake area, Italy",
+      "Lybia",
+      "Varese, Italy",
+      "Sesto Calende, Italy",
+      "Ticino Triangle",
+      "Los Angeles, USA"
     ],
-    "event_type": "UFO Sightings, Hazards, and Safety Measures",
+    "event_type": "UFO Crash/Retrieval",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
   },
   {
     "locations": [
-      "Henry County, Mo.",
-      "Reconquista, Santa Fe",
-      "Villa Adela",
-      "Villa Ocampo",
-      "Km.20, jurisdiction of Tartagal",
+      "Burbank, California",
+      "Big Bear Lake, California",
+      "Roswell",
+      "Dayton",
+      "Albuquerque, NM",
+      "Brooklyn Navy Yard",
+      "Los Alamos",
+      "Baltimore",
+      "China",
+      "Korea",
+      "New Mexico",
+      "Sandia",
+      "Port Aransas, Texas",
+      "Ohio",
+      "Las Vegas, NV"
+    ],
+    "event_type": "UFO crash and alien body recovery",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 1
+  },
+  {
+    "locations": [
+      "Villaricos, Spain",
+      "Fukushima",
+      "Cuevas, Spain",
+      "United Kingdom",
+      "Tampa, Florida",
+      "Lake Champlain",
+      "Indonesia\u2019s central Maluku province",
+      "Hulung Beach on Serum Island",
+      "Loch Ness",
+      "Loch Dochfour",
+      "Carriacou",
+      "Grenada",
+      "Galapagos Islands",
+      "Peru",
+      "Cocos Island",
+      "Costa Rica"
+    ],
+    "event_type": "Mythical Marine Creature Sighting",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 6
+  },
+  {
+    "locations": [
+      "San Antonio, NM",
+      "San Agustin Plains in New Mexico",
+      "Roswell",
+      "Spitsbergen, Norway",
+      "Great Britain",
+      "Ashland, Ohio",
+      "Newport Beach, CA",
+      "Greenwich, Ohio",
+      "New York",
+      "San Antonio, NM",
+      "San Agustin, NM"
+    ],
+    "event_type": "UFO Crash Events",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 6
+  },
+  {
+    "locations": [
+      "New Mexico",
+      "Socorro, New Mexico",
+      "France",
+      "Trans-en-Provence",
+      "Mount Pleasant, Ontario, Canada",
+      "Ontario, Canada",
+      "Brantford, Ontario, Canada",
+      "Arizona",
+      "Dubuque, Iowa",
+      "Kansas",
+      "Delphos, KS",
+      "Marignane",
+      "Socorro"
+    ],
+    "event_type": "UFO Events",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 5
+  },
+  {
+    "locations": [
+      "Iceland",
+      "Jan Mayen island",
+      "Atlantic Ocean",
+      "Arctic Ocean",
+      "Narragansett Bay",
+      "Faslane, Scotland",
+      "New London, Conn.",
+      "Norfolk, Virginia",
+      "St Croix, Virgin Islands",
+      "Tongue of the Ocean",
+      "Nassau",
+      "British West Indies",
+      "Fort Lauderdale, Florida",
+      "North Atlantic"
+    ],
+    "event_type": "Unidentified Phenomena",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 2
+  },
+  {
+    "locations": [
+      "Mission B.C., Canada",
+      "Brummen, The Netherlands",
+      "Teton, Idaho",
+      "Augusta, Ga.",
+      "Roanoke Texas",
+      "Holland",
+      "Chagrin Falls, Ohio"
+    ],
+    "event_type": "Crop Circles and UFOs",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 6
+  },
+  {
+    "locations": [
+      "Valparaiso, Nebraska",
+      "Naselle, Washington",
+      "Red Bluff, California",
+      "Colorado",
       "Saskatchewan, Canada",
       "Utah",
-      "Logan, Utah",
-      "Red Bluff, CA",
-      "Saskatchewan, Canada",
-      "Colorado",
-      "KANSAS CITY, Mo.",
-      "Platte County",
+      "Kansas City, Missouri",
       "Depuyer, Montana",
-      "Valparaiso, Nebraska",
-      "Derwent Alberta",
-      "St. Paul",
-      "Alberta, Canada",
-      "Naselle, Washington",
-      "Grays River",
-      "Pacific County",
-      "Red Bluff, California"
+      "Derwent Alberta (south of St. Paul)",
+      "Reconquista, Santa Fe",
+      "Villa Ocampo",
+      "Tartagal",
+      "Henry County, Mo",
+      "Logan, Utah"
     ],
-    "event_type": "Cattle Mutilation",
+    "event_type": "Animal Mutilation",
     "_counts_prereduce_aggregate_locations_bs_324_fp_0": 11
   },
   {
     "locations": [
-      "New Gloucester, Maine",
-      "Phoenix",
-      "San Diego",
-      "Arizona",
-      "Gila Bend",
-      "New Berlin, Wisconsin",
-      "Cotton Valley, Louisiana",
-      "El Paso, Texas",
-      "Apache-Sitgreaves National Forest",
-      "Heber, Arizona",
-      "Tinton Falls, NJ",
-      "Cotton Valley Louisiana",
-      "Livingston",
-      "West Lothian",
-      "Dechmont Woods",
-      "Manchester, New Hampshire",
-      "Goffstown",
-      "Westlawn Cemetery",
-      "McKeesport, PA",
-      "Pitcairn, Pennsylvania",
-      "Saint Petersburg, FL",
-      "Edmond, Oklahoma",
-      "Ossett, West Yorkshire",
-      "Ilkley Moore",
-      "Edmonton, Alberta",
-      "Fort McCoy Wildlife Management Area",
-      "Avondale, Arizona",
-      "Dover Plains, NY",
-      "Irvine",
-      "Irvine, CA",
-      "Stevensville, Montana",
-      "Poland",
-      "Arizona (Apache-Sitgreaves National forest)",
-      "Northwestern, Pennsylvania"
+      "Area 51",
+      "Globe, AZ",
+      "Prague, Czech Republic",
+      "Holland",
+      "Salt Lake City, UT",
+      "Groningen, Holland",
+      "Moscow, Russia",
+      "Baltimore, MD",
+      "Fort Worth, Texas",
+      "Porter, Texas",
+      "Siberia",
+      "Irkutsk region",
+      "Buryatia",
+      "Kamensk",
+      "Lake Baikal",
+      "Duffield, Derbyshire",
+      "Peru",
+      "Nazca desert",
+      "South America"
     ],
-    "event_type": "Alien Abduction",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 26
+    "event_type": "Hoax - Extraterrestrial",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 7
   },
   {
-    "locations": null,
+    "locations": [
+      "Saint Petersburg, FL",
+      "New Berlin, Wisconsin",
+      "Manchester, New Hampshire",
+      "Goffstown, New Hampshire",
+      "Edmond, Oklahoma",
+      "Cambridge, Ohio",
+      "New Gloucester, Maine",
+      "Ossett, West Yorkshire, England",
+      "Houston, Missouri",
+      "Phoenix, Arizona",
+      "El Paso, Texas",
+      "Avondale, Arizona",
+      "Dover Plains, NY"
+    ],
+    "event_type": "Alien Abduction",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 25
+  },
+  {
+    "locations": [
+      "Delphos, Kansas",
+      "Buffalo, Oklahoma",
+      "Centerville, Ohio",
+      "Bellbrook, Ohio",
+      "Woodward, Oklahoma",
+      "Harper, Oklahoma",
+      "Dayton, Ohio",
+      "Beavercreek, Ohio",
+      "Wilmington, Ohio",
+      "Cambridge, Massachusettes",
+      "Washington Township"
+    ],
+    "event_type": "UFO Encounter",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 4
+  },
+  {
+    "locations": [
+      "Memphis, Tennessee",
+      "Alaska",
+      "Dearborn",
+      "Kansas",
+      "Texas",
+      "Amarillo",
+      "California",
+      "Missouri",
+      "Dauphin, Manitoba, Canada",
+      "Russia's Ural Mountains",
+      "Aztec, New Mexico",
+      "New Mexico Desert",
+      "New York",
+      "Voronezh, Russia",
+      "Massachusetts",
+      "Maine",
+      "Oxford",
+      "Long Beach, Washington",
+      "Pacific Ocean",
+      "Chile",
+      "Arica",
+      "Santiago",
+      "New Zealand",
+      "Wellington",
+      "Christchurch",
+      "Blenheim",
+      "Temuco",
+      "Putre",
+      "Pampa Lluscuma",
+      "Virginia",
+      "Colorado",
+      "Nevada",
+      "Arizona",
+      "Iceland",
+      "Texas",
+      "Middle East",
+      "South East Asia",
+      "Berlin, Germany",
+      "Europe"
+    ],
+    "event_type": "UFO and Extraterrestrial Encounters",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 20
+  },
+  {
+    "locations": [
+      "Near Virginia City Nevada on Highway 50 East",
+      "Aguada, Puerto Rico",
+      "Brooklyn, New York",
+      "Lake Okeechobee, Florida",
+      "Cotton Valley, Louisiana",
+      "Foreston, Minnesota",
+      "Warton aerodrome Lancashire",
+      "Fort Worth, Texas",
+      "Ocean Shores, Washington",
+      "San Jose, California",
+      "Modesto, California",
+      "Santa Cruz, California",
+      "Marina, California",
+      "Arnold, California",
+      "Boca Raton, Florida",
+      "Okeechobee, Florida",
+      "Indiantown",
+      "Nubbin Slough",
+      "El Yunque rainforest",
+      "Bermuda Triangle",
+      "Stroudsburg, Pennsylvania",
+      "Mayaguez",
+      "San Juan",
+      "Worcestershire UK"
+    ],
+    "event_type": "UFO and Alien Encounters",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 9
+  },
+  {
+    "locations": [
+      "Manchester, Indiana",
+      "Aurora, Indiana",
+      "Cowichan, Vancouver Island",
+      "Bracebridge, Ontario",
+      "Northumberland, Pennsylvania",
+      "Lewisburg, Pennsylvania",
+      "Papua, New Guinea",
+      "Laurelville, Ohio",
+      "Monessen, Pennsylvania",
+      "Connellsville, Pennsylvania",
+      "Uniontown, Pennsylvania",
+      "West Newton, Pennsylvania",
+      "Waynesburg, Pennsylvania",
+      "South Greensburg",
+      "Parker, Butler County",
+      "East Brady",
+      "North Huntingdon Township",
+      "Ligonier",
+      "Greensburg",
+      "Springdale",
+      "Mount Pleasant Township",
+      "Lockbourne Air Force Base",
+      "Wright Patterson Air Force Base",
+      "Butler County",
+      "Fayette County",
+      "Westmoreland County",
+      "Indiana County",
+      "Greene County",
+      "Allegheny County",
+      "Irwin",
+      "North Huntingdon"
+    ],
+    "event_type": "Extraterrestrial Encounter and Sightings",
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 7
+  },
+  {
+    "locations": "```tool_code\nprint(default_api.send_output(locations=[\"New Hampshire\", \"Concord, NH\", \"Belmont, NH\", \"Rosarito, Baja California\", \"Tucson, Arizona\", \"Mesa, Arizona\", \"Tularosa, New Mexico\", \"Chiclayo, Peru\", \"Lynchburg Virginia\", \"Laguna Niguel, CA\", \"Oceanside California\", \"Van Nuys\", \"Los Angeles\", \"Hollydale Park, Southgate California\", \"Chichester, PA\", \"Chichester, West Sussex\", \"Birmingham\", \"England\", \"Italy\", \"Rovigo\", \"Colli di Abano Terme\", \"Van Nuys, CA\", \"Oceanside, CA\", \"Los Angeles, CA\", \"Chiclayo, Peru\", \"Lynchburg, VA\", \"Laguna Niguel, CA\", \"Bakersfield, California\", \"Laguna Niguel, CA\", \"Phoenix, Arizona\", \"Tully, NY\", \"Dover, Delaware\", \"Brandon, Mississippi\", \"New Britain, Pennsylvania\", \"California\", \"Oceanside CA\", \"Van Nuys CA\", \"Chiclayo Peru\", \"Bakersfield CA\", \"Roswell, New Mexico\", \"Tucson AZ\", \"Claymont Delaware\", \"Ben Wheeler, Texas\", \"Tully, New York\", \"Cincinnati, Ohio\", \"Dover, Delaware\", \"Tully NY\", \"Philadelphia, Pennsylvania\", \"Ottumwa, Iowa\", \"New Britain, Pennsylvania\", \"Oceanside, California\", \"Lancaster, Ohio\", \"Washington, DC\", \"Brandon, Mississippi\", \"Chiclayo, Peru\", \"Lynchburg, Virginia\", \"Ben Wheeler, Texas\", \"Tully, NY\", \"Cincinnati, Ohio\", \"Long Beach, California\", \"Brandon, Mississippi\", \"Lynchburg, Virginia\", \"Long Beach, California\", \"Haifa, Israel\", \"Chiclayo, Peru\", \"Long Beach, California\", \"Phoenix, Arizona\", \"Lincoln City\", \"Roswell, New Mexico\", \"Chichester, PA\", \"Ohio\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Ben Wheeler, Texas\", \"Tully, NY\", \"Cincinnati, Ohio\", \"Long Beach, California\", \"Boon County, West Virginia\", \"Long Beach, California\", \"Tucson, Arizona\", \"Philadelphia, Pennsylvania\", \"Tully, New York\", \"Lancaster, Ohio\", \"Lincoln City\", \"Roswell, New Mexico\", \"Boon County, West Virginia\", \"East Grinstead, UK\", \"Roswell, New Mexico\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Long Beach, California\", \"Ben Wheeler, Texas\", \"Lancaster, Ohio\", \"Philadelphia, Pennsylvania\", \"Roswell, New Mexico\", \"Thunder Bay, Ontario\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Lancaster, Ohio\", \"Thunder Bay, Ontario\", \"Fairbanks, Alaska\", \"Los Angeles, California\", \"Italy\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Fairbanks, Alaska\", \"Tijuana\", \"Houston\", \"Los Angeles\", \"Italy\", \"Thunder Bay, Ontario\", \"Ben Wheeler, Texas\", \"Thunder Bay, Ontario\", \"Roswell, New Mexico\", \"Fairbanks, Alaska\", \"Tijuana\", \"Houston\", \"Los Angeles\", \"Italy\", \"Groningen, Netherlands\", \"St George Island, Florida\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Los Angeles\", \"Boon County, West Virginia\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Ben Wheeler, Texas\", \"Lincoln City\", \"Roswell, New Mexico\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Houston, TX\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Phoenix, AZ\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"New Boston, Michigan\", \"Haifa, Israel\", \"Tully, New York\", \"Phoenix, Arizona\", \"Lincoln City\", \"Roswell, New Mexico\", \"Los Angeles, California\", \"Tully, NY\", \"Philadelphia, PA\", \"Boon County, WV\", \"Thunder Bay, Ontario\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, NY\", \"Philadelphia, PA\", \"Ben Wheeler, Texas\", \"New Boston, Michigan\", \"New Boston, MI\", \"Tully, NY\", \"Philadelphia, PA\", \"Boon County, WV\", \"Thunder Bay, Ontario\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Ben Wheeler, Texas\", \"Thunder Bay, Ontario\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Rosarito, Baja California\", \"Boon County, West Virginia\", \"Tully, NY\", \"Philadelphia, Pennsylvania\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Philadelphia, Pennsylvania\", \"Tully, NY\", \"Claymont, Delaware\", \"Rosarito, Baja California\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Philadelphia, Pennsylvania\", \"Tully, New York\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Phoenix, Arizona\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Ben Wheeler, Texas\", \"Thunder Bay, Ontario\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Ben Wheeler, Texas\", \"Thunder Bay, Ontario\", \"Phoenix, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Ben Wheeler, Texas\", \"Thunder Bay, Ontario\", \"Houston, Texas\", \"Rosarito, Baja California\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, Pennsylvania\", \"Tully, NY\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Phoenix, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Boon County, WV\", \"Claymont, Delaware\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Philadelphia, PA\", \"Ben Wheeler, TX\", \"Claymont, DE\", \"Philadelphia, PA\", \"Thunder Bay, ON\", \"Ben Wheeler, TX\", \"Claymont, DE\", \"Philadelphia, PA\", \"Claymont, DE\", \"Philadelphia, PA\", \"Ben Wheeler, TX\", \"Claymont, DE\", \"Philadelphia, PA\", \"Long Beach, California\", \"Brandon, Mississippi\", \"Phoenix, Arizona\", \"Los Angeles\", \"Ben Wheeler, Texas\", \"Long Beach, California\", \"Boon County, West Virginia\", \"Tully, NY\", \"Philadelphia, Pennsylvania\", \"Ben Wheeler, Texas\", \"Los Angeles, California\", \"Long Beach, California\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Long Beach, California\", \"Los Angeles\", \"Brandon, Mississippi\", \"New Britain, Pennsylvania\", \"California\", \"Oceanside, CA\", \"Van Nuys\", \"Los Angeles\", \"Hollydale Park, Southgate California\", \"Chichester, PA\", \"Birmingham\", \"England\", \"Italy\", \"Rovigo\", \"Colli di Abano Terme\", \"Van Nuys, CA\", \"Oceanside, CA\", \"Los Angeles, CA\", \"Chiclayo, Peru\", \"Lynchburg, VA\", \"Laguna Niguel, CA\", \"Bakersfield, CA\", \"Rosarito, Mexico\", \"Laguna Beach\", \"Ocean Beach\", \"Encinitas, CA\", \"Lancaster, Ohio\", \"Tully, NY\", \"Philadelphia, Pennsylvania\", \"Moline\", \"Oceanside, California\", \"Oceanside, California\", \"Chiclayo, Peru\", \"Lynchburg, Virginia\", \"Long Beach, California\", \"Phoenix, Arizona\", \"Thunder Bay, Ontario\", \"Ben Wheeler, Texas\", \"Long Beach, California\", \"Thunder Bay, Ontario\", \"Rosarito, Baja California\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Boon County, WV\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Boon County, WV\", \"Thunder Bay, Ontario\", \"Boon County, WV\", \"Tuscon, Arizona\", \"Claymont, DE\", \"Rosarito, Baja California\", \"Boon County, West Virginia\", \"Claymont, Delaware\", \"Claymont, DE\", \"Los Angeles, CA\", \"Claymont, Delaware\", \"Hot Springs, MT\", \"Brandon, Mississippi\", \"Ben Wheeler, Texas\", \"Nephi, Utah\", \"Tully, New York\", \"Phoenix, AZ\", \"Lynchburg, Virginia\", \"Ben Wheeler, Texas\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Philadelphia, Pennsylvania\", \"Roswell, New Mexico\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston\", \"Claymont, DE\", \"Tuscon, Arizona\", \"Philadelphia, Pennsylvania\", \"Claymont, Delaware\", \"Houston, Texas\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, TX\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Houston, TX\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Claymont, Delaware\", \"Houston, TX\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Boon County, West Virginia\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Boon County, West Virginia\", \"Claymont, Delaware\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Phoenix, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, DE\", \"Claymont, Delaware\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, TX\", \"Claymont, Delaware\", \"Philadelphia, PA\", \"Claymont, DE\", \"Los Angeles, California\", \"Claymont, Delaware\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, DE\", \"Houston, TX\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Claymont, Delaware\", \"Houston, TX\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Thunder Bay, Ontario\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Los Angeles, CA\", \"Claymont, Delaware\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Tuscon, Arizona\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Tuscon, Arizona\", \"Claymont, DE\", \"Houston, TX\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, Pennsylvania\", \"Houston, Texas\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, Pennsylvania\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Boon County, West Virginia\", \"Los Angeles, CA\", \"Boon County, WV\", \"Houston, TX\", \"Los Angeles, California\", \"Claymont, DE\", \"Los Angeles, California\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Ben Wheeler, Texas\", \"Los Angeles, CA\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Los Angeles, CA\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Mesa, AZ\", \"Tuscon, AZ\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Ben Wheeler, TX\", \"Los Angeles, CA\", \"Tuscon, Arizona\", \"Claymont, DE\", \"Los Angeles, CA\", \"Ben Wheeler, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Mesa, AZ\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Philadelphia, Pennsylvania\", \"Houston, Texas\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Thunder Bay, ON\", \"Boon County, WV\", \"Claymont, Delaware\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, Pennsylvania\", \"Boon County, WV\", \"Thunder Bay, Ontario\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, NY\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Boon County, WV\", \"Philadelphia, PA\", \"Thunder Bay, Ontario\", \"Houston, Texas\", \"Los Angeles, CA\", \"Claymont, Delaware\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, CA\", \"Ben Wheeler, Texas\", \"Los Angeles, CA\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Claymont, DE\", \"Los Angeles, CA\", \"Ben Wheeler, TX\", \"Los Angeles, CA\", \"Tuscon, Arizona\", \"Claymont, DE\", \"Los Angeles, CA\", \"Tuscon, Arizona\", \"Claymont, DE\", \"Los Angeles, CA\", \"Tuscon, Arizona\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Los Angeles, CA\", \"Claymont, DE\", \"Boon County, WV\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Mesa, AZ\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, NY\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Boon County, WV\", \"Philadelphia, PA\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, Delaware\", \"Thunder Bay, Ontario\", \"Houston, Texas\", \"Los Angeles, California\", \"Tully, New York\", \"Philadelphia, Pennsylvania\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Ben Wheeler, TX\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Ben Wheeler, TX\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Boon County, West Virginia\", \"Tully, NY\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Ben Wheeler, TX\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Ben Wheeler, TX\", \"Philadelphia, PA\", \"Thunder Bay, ON\", \"Los Angeles, CA\", \"Boon County, WV\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Ben Wheeler, Texas\", \"Claymont, Delaware\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Ben Wheeler, Texas\", \"Claymont, Delaware\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Boon County, WV\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Boon County, WV\", \"Thunder Bay, Ontario\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, ON\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Los Angeles, California\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Los Angeles, CA\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Los Angeles, CA\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Los Angeles, CA\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, DE\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Boon County, West Virginia\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Boon County, West Virginia\", \"Thunder Bay, Ontario\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Tuscon, AZ\", \"Claymont, DE\", \"Los Angeles, CA\", \"Philadelphia, PA\", \"Tuscon, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, AZ\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, ON\", \"Philadelphia, PA\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Houston, TX\", \"Los Angeles, CA\", \"Claymont, DE\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tucson, Arizona\", \"Claymont, Delaware\", \"Houston, Texas\", \"Los Angeles, California\", \"Thunder Bay, Ontario\", \"Philadelphia, PA\", \"Tuscon, Arizona\",",
     "event_type": "UFO Sightings",
-    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 296
+    "_counts_prereduce_aggregate_locations_bs_324_fp_0": 290
   }
 ]

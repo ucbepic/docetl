@@ -4,6 +4,7 @@ datasets:
     path: experiments/gemini/reviews/reviews.json
 
 default_model: gemini/gemini-2.0-flash
+default_bypass_cache: true
 
 optimizer_config:
   plan_types: ["proj_synthesis", "glean"]

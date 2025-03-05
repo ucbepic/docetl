@@ -66,5 +66,6 @@ experiments/gemini/reviews/*.json
 experiments/gemini/reviews/reviews_sample.csv
 experiments/gemini/declassified/intermediate*
 experiments/gemini/declassified/plans/intermediate*
+experiments/gemini/reviews/intermediate/*
 
 metrics_vs_cost.png

@@ -824,7 +824,10 @@ class ReduceOperation(BaseOperation):
                 if self.config.get("validate", None)
                 else None
             ),
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=(
+                self.config.get("bypass_cache", False)
+                or self.runner.config.get("default_bypass_cache", False)
+            ),
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
@@ -887,7 +890,10 @@ class ReduceOperation(BaseOperation):
                 if self.config.get("validate", None)
                 else None
             ),
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=(
+                self.config.get("bypass_cache", False)
+                or self.runner.config.get("default_bypass_cache", False)
+            ),
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
@@ -991,7 +997,10 @@ class ReduceOperation(BaseOperation):
             scratchpad=scratchpad,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=(
+                self.config.get("bypass_cache", False)
+                or self.runner.config.get("default_bypass_cache", False)
+            ),
             validation_config=(
                 {
                     "num_retries": self.num_retries_on_validate_failure,

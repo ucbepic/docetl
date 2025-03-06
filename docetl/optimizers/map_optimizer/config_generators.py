@@ -115,7 +115,7 @@ class ConfigGenerator:
             "additionalProperties": False,
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [
                 {"role": "user", "content": prompt},
             ],
@@ -268,7 +268,7 @@ class ConfigGenerator:
             "required": ["needs_metadata", "reason"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [
                 {"role": "user", "content": prompt},
             ],
@@ -400,7 +400,7 @@ class ConfigGenerator:
             ],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_rewrite(
             [
                 {"role": "user", "content": prompt},
             ],

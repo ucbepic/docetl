@@ -906,6 +906,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
           system_prompt: systemPrompt,
           namespace: namespace,
           apiKeys: apiKeys,
+          optimizerModel: optimizerModel,
         }),
       });
 
@@ -922,7 +923,6 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
       sendMessage({
         yaml_config: filePath,
         optimize: true,
-        optimizer_model: optimizerModel,
       });
     } catch (error) {
       console.error("Error optimizing operation:", error);

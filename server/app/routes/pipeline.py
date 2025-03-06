@@ -57,7 +57,7 @@ async def run_optimization(task_id: str, yaml_config: str, step_name: str, op_na
         should_optimize, input_data, output_data, cost = await asyncio.to_thread(
             runner.should_optimize,
             step_name,
-            op_name
+            op_name,
         )
         
         # Update task result
@@ -69,6 +69,7 @@ async def run_optimization(task_id: str, yaml_config: str, step_name: str, op_na
         tasks[task_id].completed_at = datetime.now()
         
     except asyncio.CancelledError:
+        runner.is_cancelled = True
         tasks[task_id].status = TaskStatus.CANCELLED
         tasks[task_id].completed_at = datetime.now()
         raise
@@ -180,8 +181,12 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
         if config.get("optimize", False):
             logging.info(f"Optimizing pipeline with model {config.get('optimizer_model', 'gpt-4o')}")
             
+            # Set the runner config to the optimizer config
+            runner.config["optimizer_config"]["rewrite_agent_model"] = config.get("optimizer_model", "gpt-4o")
+            runner.config["optimizer_config"]["judge_agent_model"] = config.get("optimizer_model", "gpt-4o-mini")
+            
             async def run_pipeline():
-                return await asyncio.to_thread(runner.optimize, return_pipeline=False, model=config.get("optimizer_model", "gpt-4o"))
+                return await asyncio.to_thread(runner.optimize, return_pipeline=False)
 
         else:
             async def run_pipeline():
@@ -213,6 +218,9 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
 
                 if user_message == "kill":
                     runner.console.log("Stopping process...")
+                    runner.is_cancelled = True
+                    
+                    
                     await websocket.send_json({
                         "type": "error",
                         "message": "Process stopped by user request"
@@ -223,6 +231,12 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
                 runner.console.post_input(user_message)
             except asyncio.TimeoutError:
                 pass  # No message received, continue with the loop
+            except asyncio.CancelledError:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Process stopped by user request"
+                })
+                raise
 
             await asyncio.sleep(0.5)
 

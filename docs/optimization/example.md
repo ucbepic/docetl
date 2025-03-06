@@ -43,6 +43,7 @@ default_model: gpt-4o-mini
 operations:
   - name: extract_medications
     type: map
+    optimize: true
     output:
       schema:
         medication: list[str]
@@ -56,6 +57,7 @@ operations:
 
   - name: summarize_prescriptions
     type: reduce
+    optimize: true
     reduce_key:
       - medication
     output:
@@ -182,11 +184,10 @@ This optimized pipeline now includes improved prompts, a resolve operation, and 
 ## Optimizer API
 
 ::: docetl.cli.build
-handler: python
-options:
-members: - build
-show_root_full_path: true
-show_root_toc_entry: true
-show_root_heading: true
-show_source: false
-show_name: true
+    options:
+        show_root_heading: true
+        heading_level: 3
+        show_if_no_docstring: false
+        docstring_options:
+            ignore_init_summary: false
+            trim_doctest_flags: true

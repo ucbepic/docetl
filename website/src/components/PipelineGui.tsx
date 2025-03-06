@@ -141,10 +141,10 @@ interface Dataset {
 const PREDEFINED_MODELS = [
   "gpt-4o-mini",
   "gpt-4o",
-  "claude-3-sonnet-20240320",
+  "claude-3-7-sonnet-20250219",
   "claude-3-opus-20240229",
   "azure/<your-deployment-name>",
-  "gemini/gemini-pro",
+  "gemini/gemini-2.0-flash",
 ] as const;
 
 interface AddOperationDropdownProps {
@@ -245,6 +245,56 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
         />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+};
+
+const ModelInput: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  suggestions?: readonly string[];
+}> = ({ value, onChange, placeholder, suggestions = PREDEFINED_MODELS }) => {
+  const [isFocused, setIsFocused] = useState(false);
+
+  return (
+    <div className="relative">
+      <Input
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full"
+        placeholder={placeholder}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => {
+          setTimeout(() => setIsFocused(false), 200);
+        }}
+      />
+      {isFocused &&
+        (value === "" ||
+          suggestions.some((model) =>
+            model.toLowerCase().includes(value?.toLowerCase() || "")
+          )) && (
+          <div className="absolute top-full left-0 w-full mt-1 bg-popover rounded-md border shadow-md z-50 max-h-[200px] overflow-y-auto">
+            {suggestions
+              .filter(
+                (model) =>
+                  value === "" ||
+                  model.toLowerCase().includes(value.toLowerCase())
+              )
+              .map((model) => (
+                <div
+                  key={model}
+                  className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => {
+                    onChange(model);
+                    setIsFocused(false);
+                  }}
+                >
+                  {model}
+                </div>
+              ))}
+          </div>
+        )}
+    </div>
   );
 };
 
@@ -376,6 +426,7 @@ const PipelineGUI: React.FC = () => {
     setSystemPrompt,
     currentFile,
     files,
+    setOutput,
   });
 
   useEffect(() => {
@@ -572,8 +623,9 @@ const PipelineGUI: React.FC = () => {
           operation_id: operations[operations.length - 1].id,
           name: pipelineName,
           sample_size: sampleSize,
-          namespace,
+          namespace: namespace,
           system_prompt: systemPrompt,
+          optimizerModel: optimizerModel,
         }),
       });
 
@@ -651,8 +703,9 @@ const PipelineGUI: React.FC = () => {
             sample_size: sampleSize,
             clear_intermediate: clear_intermediate,
             system_prompt: systemPrompt,
-            namespace,
+            namespace: namespace,
             apiKeys: currentApiKeys, // Use the latest API keys
+            optimizerModel: optimizerModel,
           }),
         });
 
@@ -755,8 +808,9 @@ const PipelineGUI: React.FC = () => {
           name: pipelineName,
           sample_size: sampleSize,
           optimize: true,
-          namespace,
-          apiKeys,
+          namespace: namespace,
+          apiKeys: apiKeys,
+          optimizerModel: optimizerModel,
         }),
       });
 
@@ -771,7 +825,6 @@ const PipelineGUI: React.FC = () => {
       sendMessage({
         yaml_config: filePath,
         optimize: true,
-        optimizer_model: optimizerModel,
       });
     } catch (error) {
       console.error("Error optimizing operation:", error);
@@ -1188,52 +1241,15 @@ const PipelineGUI: React.FC = () => {
 
             <div className="flex flex-col space-y-1.5">
               <Label htmlFor="defaultModel">Default Model</Label>
-              <div className="relative">
-                <Input
-                  id="defaultModel"
-                  value={tempDefaultModel || ""}
-                  onChange={(e) => setTempDefaultModel(e.target.value)}
-                  className="w-full"
-                  placeholder="Enter or select a model..."
-                  onFocus={() => setIsModelInputFocused(true)}
-                  onBlur={() => {
-                    setTimeout(() => setIsModelInputFocused(false), 200);
-                  }}
-                />
-                {isModelInputFocused &&
-                  (tempDefaultModel === "" ||
-                    PREDEFINED_MODELS.some((model) =>
-                      model
-                        .toLowerCase()
-                        .includes(tempDefaultModel?.toLowerCase() || "")
-                    )) && (
-                    <div className="absolute top-full left-0 w-full mt-1 bg-popover rounded-md border shadow-md z-50 max-h-[200px] overflow-y-auto">
-                      {PREDEFINED_MODELS.filter(
-                        (model) =>
-                          tempDefaultModel === "" ||
-                          model
-                            .toLowerCase()
-                            .includes(tempDefaultModel.toLowerCase())
-                      ).map((model) => (
-                        <div
-                          key={model}
-                          className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground"
-                          onClick={() => {
-                            setTempDefaultModel(model);
-                            setIsModelInputFocused(false);
-                          }}
-                        >
-                          {model}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-              </div>
+              <ModelInput
+                value={tempDefaultModel}
+                onChange={setTempDefaultModel}
+                placeholder="Enter or select a model..."
+              />
               <p className="text-xs text-muted-foreground">
                 Enter any LiteLLM model name or select from suggestions. Make
-                sure you&apos;ve set your API keys in Edit{" "}
-                {String.fromCharCode(8594)} Edit API Keys when using our hosted
-                app.{" "}
+                sure you&apos;ve set your API keys in Edit {">"} Edit API Keys
+                when using our hosted app.{" "}
                 <a
                   href="https://docs.litellm.ai/docs/providers"
                   target="_blank"
@@ -1267,18 +1283,19 @@ const PipelineGUI: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <Select
-                  value={tempOptimizerModel}
-                  onValueChange={(value) => setTempOptimizerModel(value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select optimizer model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gpt-4o">gpt-4o</SelectItem>
-                    <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col gap-2">
+                  <ModelInput
+                    value={tempOptimizerModel}
+                    onChange={setTempOptimizerModel}
+                    placeholder="Enter optimizer model name..."
+                    suggestions={["gpt-4o", "gpt-4o-mini"]}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter any LiteLLM model name (e.g.,
+                    &quot;azure/gpt-4o&quot;) or select from suggestions above.
+                    Make sure the model supports JSON mode.
+                  </p>
+                </div>
               )}
             </div>
 

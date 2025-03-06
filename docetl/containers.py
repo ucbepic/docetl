@@ -177,7 +177,16 @@ class OpContainer:
                                     is_filter=self.config["type"] == "filter",
                                 )
                                 optimized_ops, _, cost = map_optimizer.optimize(
-                                    self.config, input_data[0]
+                                    self.config,
+                                    input_data[0],
+                                    plan_types=self.runner.config.get(
+                                        "optimizer_config", {}
+                                    )
+                                    .get("map", {})
+                                    .get(
+                                        "plan_types",
+                                        ["chunk", "proj_synthesis", "glean"],
+                                    ),
                                 )
                                 self.runner.total_cost += cost
                             elif self.config.get("type") == "reduce":

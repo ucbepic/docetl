@@ -55,6 +55,7 @@ nav:
     - Product Review Mining: examples/mining-product-reviews.md
     - Medical Document Classification: examples/ollama.md
     - Legal Document Analysis: examples/split-gather.md
+    - PDF Analysis (NTSB Airplane Crashes): examples/pdf-analysis-gemini.md
   
   - Developer Reference:
       - Technical Guides:

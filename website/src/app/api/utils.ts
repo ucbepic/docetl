@@ -50,7 +50,8 @@ export function generatePipelineConfig(
   } | null = null,
   apiKeys: APIKey[] = [],
   docetl_encryption_key: string = "",
-  enable_observability: boolean = true
+  enable_observability: boolean = true,
+  optimizerModel: string = "gpt-4o"
 ) {
   const datasets = {
     input: {
@@ -203,13 +204,18 @@ export function generatePipelineConfig(
   }
 
   // Fetch all operations up until and including the operation_id
-  const operationsToRun = operations.slice(
-    0,
-    operations.findIndex((op: Operation) => op.id === operation_id) + 1
-  );
+  const operationsToRun = operations
+    .slice(
+      0,
+      operations.findIndex((op: Operation) => op.id === operation_id) + 1
+    )
+    .filter((op) =>
+      updatedOperations.some((updatedOp) => updatedOp.name === op.name)
+    );
 
   // Fix type errors by asserting the pipeline config type
   const pipelineConfig: any = {
+    optimizer_model: optimizerModel,
     datasets,
     default_model,
     ...(enable_observability && {
@@ -296,6 +302,8 @@ export function generatePipelineConfig(
   outputPath = path.join(outputBase, "data_processing", outputOpName + ".json");
 
   const yamlString = yaml.dump(pipelineConfig);
+
+  console.log(yamlString);
 
   return {
     yamlString,

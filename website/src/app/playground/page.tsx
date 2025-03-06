@@ -112,6 +112,15 @@ const NamespaceDialog = dynamic(
 import { ThemeProvider, useTheme, Theme } from "@/contexts/ThemeContext";
 import { APIKeysDialog } from "@/components/APIKeysDialog";
 import { TutorialsDialog, TUTORIALS } from "@/components/TutorialsDialog";
+const NaturalLanguagePipelineDialog = dynamic(
+  () =>
+    import("@/components/NaturalLanguagePipelineDialog").then(
+      (mod) => mod.default
+    ),
+  {
+    ssr: false,
+  }
+);
 
 const LeftPanelIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <svg
@@ -235,24 +244,22 @@ const PerformanceWrapper: React.FC<{
   children: React.ReactNode;
   className?: string;
 }> = ({ children, className }) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [size, setSize] = useState<{ width: number; height: number }>();
+  // We're tracking dragging state in other components but don't need to modify it here
+  const isDragging = false;
   const ref = useRef<HTMLDivElement>(null);
 
   // Capture size on mount and resize
   useEffect(() => {
     if (ref.current) {
-      const observer = new ResizeObserver((entries) => {
-        if (!isDragging) {
-          const { width, height } = entries[0].contentRect;
-          setSize({ width, height });
-        }
+      const observer = new ResizeObserver(() => {
+        // Just watching for resize events, but not storing size
+        // because it's not needed for this implementation
       });
 
       observer.observe(ref.current);
       return () => observer.disconnect();
     }
-  }, [isDragging]);
+  }, []);
 
   return (
     <div
@@ -281,6 +288,7 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [showTutorialsDialog, setShowTutorialsDialog] = useState(false);
   const [selectedTutorial, setSelectedTutorial] =
     useState<(typeof TUTORIALS)[0]>();
+  const [showNLPipelineDialog, setShowNLPipelineDialog] = useState(false);
   const { theme, setTheme } = useTheme();
 
   const {
@@ -299,6 +307,8 @@ const CodeEditorPipelineApp: React.FC = () => {
     setSampleSize,
     setDefaultModel,
     setSystemPrompt,
+    setOutput,
+    defaultModel,
   } = usePipelineContext();
 
   useEffect(() => {
@@ -467,6 +477,9 @@ const CodeEditorPipelineApp: React.FC = () => {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                  <MenubarItem onSelect={() => setShowNLPipelineDialog(true)}>
+                    New from Natural Language
+                  </MenubarItem>
                   <MenubarItem onSelect={handleOpen}>Open</MenubarItem>
                   <MenubarItem onSelect={handleSaveAs}>Save As</MenubarItem>
                 </MenubarContent>
@@ -597,7 +610,7 @@ const CodeEditorPipelineApp: React.FC = () => {
                 <div className="space-y-4 text-sm">
                   <p className="text-foreground/90 leading-relaxed">
                     DocWrangler and DocETL are research projects from UC
-                    Berkeley's EPIC Data Lab. DocWrangler provides an
+                    Berkeley&apos;s EPIC Data Lab. DocWrangler provides an
                     interactive playground for building data processing
                     pipelines, powered by DocETL - our system that combines a
                     domain-specific language, query optimizer, and execution
@@ -613,11 +626,23 @@ const CodeEditorPipelineApp: React.FC = () => {
                     .
                   </p>
                   <p className="text-foreground/90 leading-relaxed">
-                    DocWrangler's AI Chat and Improve Prompt features use our
-                    experimental LLM and log usage data. For privacy, you can
-                    use your own API key instead by going to Edit &gt; Edit API
-                    keys and enabling &quot;Use personal API key&quot; in the
-                    features.
+                    DocWrangler&apos;s AI Chat and Improve Prompt features use
+                    our experimental LLM and log usage data. For privacy, you
+                    can use your own API key instead by going to Edit &gt; Edit
+                    API keys and enabling &quot;Use personal API key&quot; in
+                    the features.
+                  </p>
+                  <p className="text-foreground/90 leading-relaxed">
+                    New to DocWrangler? Watch our{" "}
+                    <a
+                      href="https://youtu.be/ytAsNoTZfhw"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      video tutorial
+                    </a>{" "}
+                    to get started.
                   </p>
                   <p className="text-foreground/90 leading-relaxed">
                     Want to run DocETL or the playground locally? Check out our{" "}
@@ -860,6 +885,28 @@ const CodeEditorPipelineApp: React.FC = () => {
           setSystemPrompt={setSystemPrompt}
           currentFile={currentFile}
           files={files}
+          setOutput={setOutput}
+        />
+        <NaturalLanguagePipelineDialog
+          open={showNLPipelineDialog}
+          onOpenChange={setShowNLPipelineDialog}
+          onFileUpload={(file: File) => {
+            setFiles((prevFiles) => [...prevFiles, file]);
+            // Set as current file
+            setCurrentFile(file);
+          }}
+          setCurrentFile={setCurrentFile}
+          setOperations={setOperations}
+          setPipelineName={setPipelineName}
+          setSampleSize={setSampleSize}
+          setDefaultModel={setDefaultModel}
+          setSystemPrompt={setSystemPrompt}
+          currentFile={currentFile}
+          files={files}
+          setFiles={setFiles}
+          setOutput={setOutput}
+          defaultModel={defaultModel}
+          namespace={namespace}
         />
       </div>
     </BookmarkProvider>

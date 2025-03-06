@@ -20,6 +20,11 @@ import {
 } from "../ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "../ui/textarea";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "../ui/hover-card";
 
 interface PromptConfig {
   prompt: string;
@@ -86,9 +91,10 @@ export const MapFilterOperationComponent: React.FC<OperationComponentProps> = ({
   onUpdate,
   onToggleSchema,
 }) => {
-  const schemaItems = useMemo(() => {
-    return operation?.output?.schema || [];
-  }, [operation?.output?.schema]);
+  const schemaItems = useMemo(
+    () => operation?.output?.schema || [],
+    [operation?.output?.schema]
+  );
 
   const handlePromptChange = (newPrompt: string) => {
     onUpdate({ ...operation, prompt: newPrompt });
@@ -100,6 +106,17 @@ export const MapFilterOperationComponent: React.FC<OperationComponentProps> = ({
       output: {
         ...operation.output,
         schema: newSchema,
+      },
+    });
+  };
+
+  // Handle changes to the PDF URL key using otherKwargs
+  const handlePdfUrlKeyChange = (newPdfUrlKey: string) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        pdf_url_key: newPdfUrlKey,
       },
     });
   };
@@ -116,6 +133,57 @@ export const MapFilterOperationComponent: React.FC<OperationComponentProps> = ({
         isExpanded={isSchemaExpanded}
         onToggle={onToggleSchema}
       />
+
+      {/* PDF Processing Section */}
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="pdf-url-key" className="text-xs font-semibold">
+            PDF URL Key
+          </Label>
+          <HoverCard>
+            <HoverCardTrigger>
+              <Info size={16} className="text-primary cursor-help" />
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">PDF Processing</h4>
+                <p className="text-sm text-muted-foreground">
+                  Specify the key in your data that contains PDF URLs or file
+                  paths. Leave blank to disable PDF processing.
+                </p>
+                <div className="mt-2 rounded-md bg-muted p-2">
+                  <p className="text-sm font-medium">Example:</p>
+                  <p className="text-xs text-muted-foreground">
+                    If your input data has a <code>{"url"}</code> key or column,
+                    and the values are urls to PDF, enter <code>{"url"}</code>{" "}
+                    here.
+                  </p>
+                </div>
+                <p className="text-xs text-gray-600 font-medium mt-1">
+                  Note: PDF processing is only available with Claude and Gemini
+                  models.
+                </p>
+                <a
+                  href="https://ucbepic.github.io/docetl/operators/map/#pdf-processing"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline flex items-center gap-1 pt-2"
+                >
+                  <span>Learn more about PDF processing</span>
+                  <Info className="h-3 w-3" />
+                </a>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
+        <Input
+          id="pdf-url-key"
+          type="text"
+          value={operation.otherKwargs?.pdf_url_key || ""}
+          onChange={(e) => handlePdfUrlKeyChange(e.target.value)}
+          placeholder="e.g. url or pdf_path"
+        />
+      </div>
     </>
   );
 };

@@ -19,23 +19,23 @@ def build(
     max_threads: Optional[int] = typer.Option(
         None, help="Maximum number of threads to use for running operations"
     ),
-    model: str = typer.Option("gpt-4o", help="Model to use for optimization"),
     resume: bool = typer.Option(
         False, help="Resume optimization from a previous build that may have failed"
     ),
-    timeout: int = typer.Option(
-        60, help="Timeout for optimization operations in seconds"
+    save_path: Path = typer.Option(
+        None, help="Path to save the optimized pipeline configuration"
     ),
 ):
     """
     Build and optimize the configuration specified in the YAML file.
+    Any arguments passed here will override the values in the YAML file.
 
     Args:
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
         max_threads (Optional[int]): Maximum number of threads to use for running operations.
         model (str): Model to use for optimization. Defaults to "gpt-4o".
         resume (bool): Whether to resume optimization from a previous run. Defaults to False.
-        timeout (int): Timeout for optimization operations in seconds. Defaults to 60.
+        save_path (Path): Path to save the optimized pipeline configuration.
     """
     # Get the current working directory (where the user called the command)
     cwd = os.getcwd()
@@ -47,7 +47,10 @@ def build(
 
     runner = DSLRunner.from_yaml(str(yaml_file), max_threads=max_threads)
     runner.optimize(
-        save=True, return_pipeline=False, model=model, resume=resume, timeout=timeout
+        save=True,
+        return_pipeline=False,
+        resume=resume,
+        save_path=save_path,
     )
 
 

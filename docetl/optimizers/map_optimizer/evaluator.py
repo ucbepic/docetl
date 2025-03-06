@@ -145,7 +145,7 @@ class Evaluator:
                 "required": ["better_plan", "reason"],
             }
 
-            response = self.llm_client.generate(
+            response = self.llm_client.generate_judge(
                 [{"role": "user", "content": prompt}],
                 system_prompt,
                 parameters,
@@ -298,11 +298,11 @@ class Evaluator:
         # Get output schema
         output_schema = op_config.get("output", {}).get("schema", {})
         # Calculate available tokens for sample data
-        model_input_context_length = model_cost.get(self.llm_client.model, {}).get(
-            "max_input_tokens", 8192
-        )
+        model_input_context_length = model_cost.get(
+            self.llm_client.judge_agent_model, {}
+        ).get("max_input_tokens", 8192)
         prompt_tokens = count_tokens(
-            op_config.get("prompt", "N/A"), self.llm_client.model
+            op_config.get("prompt", "N/A"), self.llm_client.judge_agent_model
         )
         available_tokens = (
             model_input_context_length - prompt_tokens - 100
@@ -313,13 +313,13 @@ class Evaluator:
             {key: input_sample[0].get(key, "N/A") for key in variables_in_prompt},
             available_tokens,
             [variables_in_prompt],
-            self.llm_client.model,
+            self.llm_client.rewrite_agent_model,
         )
         output_1 = truncate_sample_data(
             {key: output_sample[0].get(key, "N/A") for key in output_schema.keys()},
             available_tokens,
             [list(output_schema.keys())],
-            self.llm_client.model,
+            self.llm_client.rewrite_agent_model,
         )
 
         prompt = f"""Task: Assess the performance of a data processing operation based on sample rows and a custom validator prompt. You will see the output of the operation for each row.
@@ -338,13 +338,13 @@ class Evaluator:
                 {key: input_sample[1].get(key, "N/A") for key in variables_in_prompt},
                 available_tokens,
                 [variables_in_prompt],
-                self.llm_client.model,
+                self.llm_client.judge_agent_model,
             )
             output_2 = truncate_sample_data(
                 {key: output_sample[1].get(key, "N/A") for key in output_schema.keys()},
                 available_tokens,
                 [list(output_schema.keys())],
-                self.llm_client.model,
+                self.llm_client.judge_agent_model,
             )
             prompt += f"""
         ---Row 2---
@@ -356,13 +356,13 @@ class Evaluator:
                 {key: input_sample[2].get(key, "N/A") for key in variables_in_prompt},
                 available_tokens,
                 [variables_in_prompt],
-                self.llm_client.model,
+                self.llm_client.judge_agent_model,
             )
             output_3 = truncate_sample_data(
                 {key: output_sample[2].get(key, "N/A") for key in output_schema.keys()},
                 available_tokens,
                 [list(output_schema.keys())],
-                self.llm_client.model,
+                self.llm_client.judge_agent_model,
             )
             prompt += f"""
         ---Row 3---
@@ -392,7 +392,7 @@ class Evaluator:
             "required": ["needs_improvement", "reasons", "improvements"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_judge(
             [
                 {"role": "user", "content": prompt},
             ],
@@ -488,7 +488,7 @@ class Evaluator:
             "required": ["quality_category", "reason"],
         }
 
-        response = self.llm_client.generate(
+        response = self.llm_client.generate_judge(
             [
                 {"role": "user", "content": prompt},
             ],

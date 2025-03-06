@@ -638,12 +638,23 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         """
         Semantically split each row into multiple rows using a language model.
 
+        Documentation: https://ucbepic.github.io/docetl/operators/split/
+
         Args:
             prompt: Jinja template string instructing how to split the input.
+                    Use {{input.column}} to reference input fields.
             output_schema: Dictionary defining the structure of the split output.
-            **kwargs: Additional configuration options similar to map.
+            **kwargs: Additional configuration options similar to the map operation.
+        
         Returns:
             pd.DataFrame: A new DataFrame containing the split rows.
+
+        Examples:
+            >>> # Split a text column into sentences
+            >>> df.semantic.split(
+            ...     prompt="Split the text in {{input.text}} into individual sentences.",
+            ...     output_schema={"sentence": "str"}
+            ... )
         """
         input_data = self._df.to_dict("records")
         split_config = {
@@ -668,12 +679,23 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         """
         Semantically gather multiple rows into a consolidated result using a language model.
 
+        Documentation: https://ucbepic.github.io/docetl/operators/gather/
+
         Args:
             prompt: Jinja template string instructing how to gather the input rows.
+                    Use {{input.column}} to reference input fields.
             output_schema: Dictionary defining the structure of the gathered output.
-            **kwargs: Additional configuration options.
+            **kwargs: Additional configuration options similar to the map operation.
+        
         Returns:
             pd.DataFrame: A new DataFrame containing the gathered result.
+
+        Examples:
+            >>> # Gather multiple texts into a single summary
+            >>> df.semantic.gather(
+            ...     prompt="Summarize the following texts: {{input.text}}",
+            ...     output_schema={"summary": "str"}
+            ... )
         """
         input_data = self._df.to_dict("records")
         gather_config = {
@@ -693,6 +715,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         )
         results, cost = gather_op.execute(input_data)
         return self._record_operation(results, "gather", gather_config, cost)
+
 
     @property
     def total_cost(self) -> float:

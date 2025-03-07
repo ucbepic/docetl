@@ -7,6 +7,45 @@ export const schemaDictToItemSet = (
     if (typeof type === "string") {
       if (type.startsWith("list[")) {
         const subType = type.slice(5, -1);
+
+        // Handle objects inside lists
+        if (subType.startsWith("{") && subType.endsWith("}")) {
+          try {
+            // Extract the object definition from between curly braces
+            const objectContent = subType.slice(1, -1);
+
+            // Convert "key: value" pairs to a proper JSON object format
+            const objectPairs = objectContent
+              .split(",")
+              .map((pair) => pair.trim());
+            const objectSchema: Record<string, string> = {};
+
+            for (const pair of objectPairs) {
+              const [pairKey, pairValue] = pair.split(":").map((p) => p.trim());
+              if (pairKey && pairValue) {
+                objectSchema[pairKey] = pairValue;
+              }
+            }
+
+            // Recursively process the object schema
+            return {
+              key,
+              type: "list",
+              subType: {
+                key: "0",
+                type: "dict",
+                subType: schemaDictToItemSet(objectSchema),
+              },
+            };
+          } catch (error) {
+            console.error(
+              `Error parsing object inside list for ${key}:`,
+              error
+            );
+            return { key, type: "list", subType: { key: "0", type: "string" } };
+          }
+        }
+
         return {
           key,
           type: "list",
@@ -31,11 +70,26 @@ export const schemaDictToItemSet = (
         };
       } else if (type.startsWith("{") && type.endsWith("}")) {
         try {
-          const subSchema = JSON.parse(type);
+          // Extract the object definition from between curly braces
+          const objectContent = type.slice(1, -1);
+
+          // Convert "key: value" pairs to a proper JSON object format
+          const objectPairs = objectContent
+            .split(",")
+            .map((pair) => pair.trim());
+          const objectSchema: Record<string, string> = {};
+
+          for (const pair of objectPairs) {
+            const [pairKey, pairValue] = pair.split(":").map((p) => p.trim());
+            if (pairKey && pairValue) {
+              objectSchema[pairKey] = pairValue;
+            }
+          }
+
           return {
             key,
             type: "dict",
-            subType: schemaDictToItemSet(subSchema),
+            subType: schemaDictToItemSet(objectSchema),
           };
         } catch (error) {
           console.error(`Error parsing dict schema for ${key}:`, error);

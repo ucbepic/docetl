@@ -8,7 +8,6 @@ from rich.console import Console
 from docetl.optimizers.map_optimizer.config_generators import ConfigGenerator
 from docetl.optimizers.map_optimizer.operation_creators import OperationCreator
 from docetl.optimizers.map_optimizer.prompt_generators import PromptGenerator
-from docetl.optimizers.reduce_optimizer import ReduceOptimizer
 from docetl.optimizers.utils import LLMClient
 from docetl.utils import extract_jinja_variables
 
@@ -253,11 +252,17 @@ class PlanGenerator:
         optimized_map_ops = [map_op]  # Default to original map op
         if not self.is_filter and op_config.get("recursively_optimize", False):
             try:
+                plans_to_try = (
+                    self.runner.config.get("optimizer_config", {})
+                    .get("map", {})
+                    .get("plan_types", ["proj_synthesis", "glean"])
+                )
+                plans_to_try = [ptt for ptt in plans_to_try if ptt != "chunk"]
                 optimized_map_ops, cost = self._recursively_optimize_subtask(
                     map_op,
                     sample_map_input,
                     "shared_submap",
-                    plan_types=["proj_synthesis", "glean"],
+                    plan_types=plans_to_try,
                 )
                 self.subplan_optimizer_cost += cost
             except Exception as e:
@@ -267,22 +272,22 @@ class PlanGenerator:
 
         # Then optimize the reduce operation once
         optimized_reduce_ops = [reduce_op]  # Default to original reduce op
-        if not self.is_filter and op_config.get("recursively_optimize", False):
-            try:
-                optimized_reduce_ops, _, cost = ReduceOptimizer(
-                    self.runner,
-                    self._run_operation,
-                ).optimize(reduce_op, sample_output)
-                self.subplan_optimizer_cost += cost
-            except Exception as e:
-                import traceback
+        # if not self.is_filter and op_config.get("recursively_optimize", False):
+        #     try:
+        #         optimized_reduce_ops, _, cost = ReduceOptimizer(
+        #             self.runner,
+        #             self._run_operation,
+        #         ).optimize(reduce_op, sample_output)
+        #         self.subplan_optimizer_cost += cost
+        #     except Exception as e:
+        #         import traceback
 
-                self.console.log(
-                    f"[yellow]Warning: Failed to recursively optimize reduce operation: {e}. Using original reduce operation.[/yellow]"
-                )
-                self.console.log(
-                    f"[yellow]Traceback:[/yellow]\n{traceback.format_exc()}"
-                )
+        #         self.console.log(
+        #             f"[yellow]Warning: Failed to recursively optimize reduce operation: {e}. Using original reduce operation.[/yellow]"
+        #         )
+        #         self.console.log(
+        #             f"[yellow]Traceback:[/yellow]\n{traceback.format_exc()}"
+        #         )
 
         # Create plans for each chunk size
         plans = {}
@@ -575,7 +580,17 @@ class PlanGenerator:
     def _generate_parallel_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Generate plans that use parallel execution for the given operation."""
+        """Generate plans that use parallel execution for the given operation.
+
+        Args:
+            op_config: The operation configuration to generate plans for.
+            input_data: The input data to use for sample outputs.
+            recursively_optimize: If True, recursively optimize the final map operation.
+
+        Returns:
+            A dictionary of plans, where each key is a plan name and each value is
+            a list of operation configurations.
+        """
         output_schema = op_config["output"]["schema"]
         system_prompt = "You are an AI assistant tasked with decomposing a complex data processing task into parallel subtasks."
 
@@ -665,6 +680,7 @@ class PlanGenerator:
         }}
 
         Note that in the legal example, the individual clause lists will be combined into the final "clauses" array in a subsequent reduce operation (which you will be prompted for in a later step).
+        Make sure that every prompt is a Jinja2 template that references the input, with brackets like {{{{ input.key }}}}.
 
         Provide your response in the following format:
         {{
@@ -786,6 +802,54 @@ class PlanGenerator:
                     transform_prompt,
                 )
 
+                # If recursively optimize is enabled, optimize the transform operation
+                if (
+                    op_config.get("recursively_optimize", False)
+                    and final_map_output_schema
+                ):
+                    self.console.log(
+                        "[bold cyan]Recursively optimizing final map operation...[/bold cyan]"
+                    )
+
+                    # Run the parallel map to get input for the transform operation
+                    transform_input = self._run_operation(
+                        parallel_map_op, input_data, is_build=True
+                    )
+
+                    # Recursively optimize the transform operation
+                    try:
+                        user_specified_plans = (
+                            self.runner.config.get("optimizer_config", {})
+                            .get("map", {})
+                            .get("plan_types", ["proj_synthesis", "glean"])
+                        )
+                        user_specified_plans = [
+                            ptt
+                            for ptt in user_specified_plans
+                            if ptt != "chunk" and ptt != "chain"
+                        ]
+                        optimized_transform_ops, transform_cost = (
+                            self._recursively_optimize_subtask(
+                                transform_op,
+                                transform_input,
+                                "final_transform",
+                                user_specified_plans,  # Include plans to try
+                            )
+                        )
+
+                        self.console.log(
+                            f"[green]Successfully optimized final map operation (cost: ${transform_cost:.4f})[/green]"
+                        )
+
+                        plans["parallel_map_with_optimized_transform"] = [
+                            parallel_map_op_config,
+                            *optimized_transform_ops,
+                        ]
+                    except Exception as e:
+                        self.console.log(
+                            f"[yellow]Warning: Failed to recursively optimize transform operation: {str(e)}. Using original transformation.[/yellow]"
+                        )
+
                 plans["parallel_map_with_transform"] = [
                     parallel_map_op_config,
                     transform_op,
@@ -803,8 +867,10 @@ class PlanGenerator:
             plans["parallel_map"] = [parallel_map_op]
 
         # Print the parallel decomposition plans
+        plans_to_return = {}
         self.console.log("[bold]Parallel Decomposition Plans:[/bold]")
         for plan_name, plan in plans.items():
+            plan_valid = True
             self.console.log(f"\n[bold cyan]Plan: {plan_name}[/bold cyan]")
             for idx, op in enumerate(plan):
                 self.console.log(f"Operation {idx + 1}: {op['name']}")
@@ -812,14 +878,23 @@ class PlanGenerator:
                     for subtask_idx, subtask in enumerate(op.get("prompts", []), 1):
                         self.console.log(f"\n[bold]Subtask {subtask_idx}:[/bold]")
                         self.console.log(f"Output keys: {subtask['output_keys']}")
+                        if "prompt" not in subtask:
+                            self.console.log(
+                                f"Warning: No prompt found for subtask {subtask_idx}; {subtask}"
+                            )
+                            plan_valid = False
+                            break
+
                         if len(subtask["prompt"]) > 500:
                             self.console.log(f"Prompt: {subtask['prompt'][:500]}...")
                         else:
                             self.console.log(f"Prompt: {subtask['prompt']}")
                 else:  # Reduce operation
                     self.console.log(f"Transform prompt: {op['prompt'][:500]}...")
+            if plan_valid:
+                plans_to_return[plan_name] = plan
 
-        return plans
+        return plans_to_return
 
     def _generate_chain_plans(
         self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
@@ -858,6 +933,7 @@ class PlanGenerator:
         Every variable you use in the prompt must be defined in the input data or the output of a previous subtask, and should be accessed like this: {{{{ input.key }}}}. You may need to reference the data for all the subtasks in the chain.
 
         Ensure that all keys in the original output schema are produced by the end of the chain, even if some subtasks create additional intermediate keys.
+        Make sure that every prompt is a Jinja2 template that references the input, with brackets.
 
         Provide your response in the following format:
         {{
@@ -971,11 +1047,19 @@ class PlanGenerator:
             # If recursive optimization is enabled, optimize each subtask
             if op_config.get("recursively_optimize", False):
                 try:
+                    user_specified_plans = (
+                        self.runner.config.get("optimizer_config", {})
+                        .get("map", {})
+                        .get("plan_types", ["proj_synthesis", "glean"])
+                    )
+                    user_specified_plans = [
+                        ptt for ptt in user_specified_plans if ptt != "chunk"
+                    ]
                     optimized_subtask_plan, cost = self._recursively_optimize_subtask(
                         subtask_config,
                         input_data,
                         f"chain_subtask_{idx+1}",
-                        plan_types=["proj_synthesis", "glean"],
+                        plan_types=user_specified_plans,
                     )
                     self.subplan_optimizer_cost += cost
                     chain_plan.extend(optimized_subtask_plan)
@@ -992,14 +1076,16 @@ class PlanGenerator:
         for idx, subtask in enumerate(chain_plan):
             self.console.log(f"[cyan]Subtask {idx+1}:[/cyan]")
             self.console.log(f"  [yellow]Name:[/yellow] {subtask['name']}")
-            self.console.log(
-                f"  [yellow]Prompt:[/yellow] {subtask['prompt'][:500]}..."
-                if len(subtask["prompt"]) > 500
-                else f"  [yellow]Prompt:[/yellow] {subtask['prompt']}"
-            )
-            self.console.log(
-                f"  [yellow]Output Keys:[/yellow] {', '.join(subtask['output']['schema'].keys())}"
-            )
+            self.console.log(f"  [yellow]Type:[/yellow] {subtask['type']}")
+            if subtask["type"] == "map":
+                self.console.log(
+                    f"  [yellow]Prompt:[/yellow] {subtask['prompt'][:500]}..."
+                    if len(subtask["prompt"]) > 500
+                    else f"  [yellow]Prompt:[/yellow] {subtask['prompt']}"
+                )
+                self.console.log(
+                    f"  [yellow]Output Keys:[/yellow] {', '.join(subtask['output']['schema'].keys())}"
+                )
             self.console.log("")  # Add a blank line between subtasks
         self.console.log("\n")  # Add a newline for better readability
 

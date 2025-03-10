@@ -1,13 +1,20 @@
 import math
+import os
 import time
 from typing import Any, Dict, List
 
+import litellm
 import pyrate_limiter
-from litellm import RateLimitError, completion
+from litellm import Cache, RateLimitError, completion
 
-from docetl.operations.utils import truncate_messages
+from docetl.operations.utils import DOCETL_HOME_DIR, truncate_messages
 from docetl.ratelimiter import create_bucket_factory
 from docetl.utils import completion_cost
+
+# Set diskcache for litellm
+litellm.cache = Cache(
+    type="disk", disk_cache_dir=os.path.join(DOCETL_HOME_DIR, "agent_cache")
+)
 
 
 class LLMClient:
@@ -96,6 +103,7 @@ class LLMClient:
                             "schema": parameters,
                         },
                     },
+                    caching=False,
                 )
                 cost = completion_cost(response)
                 self.total_cost += cost

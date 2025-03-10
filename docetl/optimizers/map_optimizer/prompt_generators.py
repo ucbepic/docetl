@@ -593,10 +593,12 @@ class PromptGenerator:
 
         Example of a good transform prompt for the above example:
         ```
-        [Insert original task prompt here]
+        Convert the following contract information into a structured list of clauses.
 
         Here is the document we are working with:
         {{ {{ input.document }} }}
+
+        Return a list of ALL the clauses in the document. Do not forget to include any clauses.
 
         Here are the extracted clauses:
         - Indemnification clauses: {{ {{ input.indemnification_clauses }} }}

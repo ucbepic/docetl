@@ -1,12 +1,12 @@
 datasets:
   input:
     type: file
-    path: dataset.json
+    path: diseases.json
     source: local
 default_model: gpt-4o-mini
 operations:
   - type: reduce
-    name: get_fruits
+    name: get_diseases
     prompt: >-
       You are going to be given many articles. 
 
@@ -18,18 +18,12 @@ operations:
       {% endfor %}
 
 
-      SEARCH THROUGH ALL CONTENT OF THE articles.
+      SEARCH THROUGH ALL CONTENT OF THE articles of diseases.
 
-       I want you to provide me the
-      names of the fruit/vegetable name which appeared the most amount of times and give me the amount of times it appeared.
-
-      Also, provide me the list of all fruits and vegetables, and the count of the amount of times each appeared through all batches.
-
-      Only count the fruit if you see the NAME of it, not a reference to it.
-    fold_batch_size: 4
-    sample: 15
+       I want you to provide me the name of the disease which showed up the most within all of the articles. In addition, provide me the symptoms of all the diseases mentioned, and rank which one is the worst.
+    fold_batch_size: 5
     fold_prompt: >-
-      Update the existing list of fruit/veggie names based on the additional articles content
+      Update the existing list of diseases and facts based on the additional articles content
 
       {% for input in inputs %}
 
@@ -37,19 +31,17 @@ operations:
 
       {% endfor %}
 
-      Update the existing list with the proper count and name of each fruit; if a new fruit is seen, add it to the list;  Repeating fruit/veggie names in the list is allowed, please do it.
+      Update the existing list with the proper count and name of each disease; if a new disease is seen, add it to the list;  Repeating disease names in the list is allowed, please do it.
 
-
-         Only count the fruit if you see the NAME of it, not a reference to it.
 
       Existing list of fruit/veggie names:
-      data: {{ output.fruit_or_veggie_seen_most, output.number_of_times_seen, output.data_count }}
+      data: {{ output.diseases, output.symptoms  }}
 
     output:
       schema:
-        fruit_or_veggie_seen_most: "string"
-        number_of_times_seen: "int"
-        data_count: "list[{name:string, count:int}]"
+        symptoms: "list[{disease_name:string, symptoms: list[str]}]"
+        top_disease_mentioned: "str"
+        most_harmful_disease: "str"
     reduce_key:
       - _all
     model: gpt-4o-mini
@@ -58,7 +50,7 @@ pipeline:
     - name: data_processing
       input: input
       operations:
-        - get_fruits
+        - get_diseases
   output:
     type: file
     path: results.json

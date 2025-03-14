@@ -821,11 +821,13 @@ class ReduceOperation(BaseOperation):
                     "role": "system",
                     "content": f"""
 
-                            You will be given a dictionary state schema. In this specific state, the key is the name of the fruit, and the value is the amount of times that fruit was seen in a batch of documents. Your goal is to convert this schema into the user's self-defined schema. Both are provided now:
+                            You will be given a dictionary state schema. Your goal is to convert this schema into the user's self-defined schema. Both are provided now:
 
                             user's self-defined schema: {self.config["output"]["schema"]}
 
-                            schema to transform: {final_state}
+                            schema to transform: {final_state};
+
+                            check the `summary` property of the state schema to see if you can fit parts of it into the user's self-defined schema.
 
                             Keep all the values the same, just format it to match the user's schema.
 

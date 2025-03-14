@@ -103,18 +103,94 @@ class APIWrapper(object):
     # Given a list of function calls from llm
     # be able to update a localized state which can be used for the next batch
     def process_func_calls(self, func_calls, state=None):
+        for call in func_calls:
+            match = re.match(r'(ADD|INCREMENT)\("(.+?)"\)', call)
+            if match:
+                action, item = match.groups()
+                if action == "ADD":
+                    state[item] = state.get(item, 0) + 1
+                elif action == "INCREMENT" and item in state:
+                    state[item] += 1
+
+        return state
+
+    # updated process function
+    def processor(self, func_calls, state=None):
         if state is None:
             state = {}
-        newState = copy.deepcopy(state)
 
         for call in func_calls:
+            # Handling ADD("key")
             match = re.match(r'ADD\("(.+?)"\)', call)
             if match:
                 item = match.group(1)
-                newState[item] = newState.get(item, 0) + 1
-        self.runner.console.log("NEW STATE")
-        self.runner.console.log(newState)
-        return newState
+                if item not in state:
+                    state[item] = {"count": 1, "summary": ""}
+                else:
+                    state[item]["count"] += 1
+
+            # Handling INCREMENT("key")
+            match = re.match(r'INCREMENT\("(.+?)"\)', call)
+            if match:
+                item = match.group(1)
+                if item in state:
+                    state[item]["count"] += 1
+
+            # Handling UPDATE_SUMMARY("key", "data")
+            match = re.match(r'UPDATE_SUMMARY\("(.+?)",\s*"(.+?)"\)', call)
+            if match:
+                item, summary = match.groups()
+                if item in state:
+                    state[item]["summary"] += " " + \
+                        summary
+                else:
+                    state[item] = {"count": 0, "summary": summary}
+
+        return state
+
+    def process_func_calls_freq(self, func_calls, state=None):
+        state = self.process_func_calls(func_calls, state)
+
+        if not state:
+            return {}
+
+        # get count for each piece of data
+        max_count = max((res.get("count", 0) for res in state.values()))
+
+        if max_count <= 15:
+            thresholds = {
+                "most frequent": 6,
+                "frequent": 4,
+                "moderate": 3,
+                "low": 1
+            }
+        else:
+            thresholds = {
+                "most frequent": 0.80 * max_count,
+                "frequent": 0.60 * max_count,
+                "moderate": 0.40 * max_count,
+                "low": 1
+            }
+
+        labeled_scratchpad = {}
+        for item, data in state.items():
+            count = data["count"]
+
+            if count >= thresholds["most frequent"]:
+                frequency_label = "most frequent"
+            elif count >= thresholds["frequent"]:
+                frequency_label = "frequent"
+            elif count >= thresholds["moderate"]:
+                frequency_label = "moderate"
+            else:
+                frequency_label = "low"
+
+            labeled_scratchpad[item] = {
+                "frequency": frequency_label,
+                "summary": data.get("summary", "")
+            }
+
+        return labeled_scratchpad
 
     def _cached_call_llm(
         self,
@@ -174,6 +250,8 @@ class APIWrapper(object):
                         litellm_completion_kwargs,
                     )
 
+                    self.runner.console.log(response)
+
                     # Copy response object to inject updated_scratchpad for next batch
                     newRes = copy.deepcopy(response)
 
@@ -183,7 +261,7 @@ class APIWrapper(object):
                     arguments_dict = json.loads(arguments_str)
                     func_calls = arguments_dict["func_calls"]
 
-                    updated_state = self.process_func_calls(
+                    updated_state = self.processor(
                         func_calls, {} if isinstance(scratchpad, str) else scratchpad)
 
                     total_cost += completion_cost(response)
@@ -504,11 +582,7 @@ class APIWrapper(object):
             if scratchpad is not None:
                 newProps["updated_scratchpad"] = {"type": "object"}
 
-
-# hard coded props for now for testing
             parameters = {"type": "object", "properties": props}
-            self.runner.console.log("Keys being printed")
-            self.runner.console.log(newProps.keys())
             parameters["required"] = list(newProps.keys())
 
             # TODO: this is a hack to get around the fact that gemini doesn't support additionalProperties
@@ -579,22 +653,33 @@ class APIWrapper(object):
 # 3. Set updated_scratchpad accordingly
 
     # check scratchpad is updating every call
-        self.runner.console.log("scratchpad")
-        self.runner.console.log(scratchpad)
 
         system_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {
             op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. return a list of function calls, based on the definitions below, via the `send_output` function"
         system_prompt += f"""
 
-        Via the `send_output` function, make sure to return both the func_calls list even if  empty. 
+        Via the `send_output` function, make sure to return the func_calls list even if empty. 
 
-There function call available for these batches is:
-ADD("string") -> updates the scratchpad or state by adding/incrementing the fruit to the intermediate state
+the function calls available for these batches are:
+ADD(key:string) -> updates state by adding data to the intermediate state
+INCREMENT(key:string) -> updates state by incrementing previosuly existing data to the intermediate state
+UPDATE_SUMMARY(key: string, data:string) -> this function is not related to counts, so decide wheter you should use it or not. It should only be called when you need to keep track of data other than counts related to specific instances. The first argument of the function should be the same key as what you use for ADD or INCREMENT(ex. when trying to see different symptoms of diseases)
 
-If you see a fruit/veggie, you are only allowed to call this function in this moment, and then move on to the next instance.
+WHEN CALLING ANY FUNCTION CALLS THE KEY MUST BE THE SAME WHEN REFERRING TO THE SAME SUBJECT.
 
-AFTER DECIDING THE FUNCTION CALLS, update the func_calls via the `send_output` function
 
+DO NOT INCLUDE ANY COUNTS OR ":" in the argument for the ADD or INCREMENT functions. 
+
+To take care of duplicate keys being found, you can just append multiple function calls to the func_calls list.
+
+
+As you process each batch:
+1. Use both the previous output and scratchpad (if needed) to inform your processing
+2.) Update the func_calls list with the functions: ADD(key: string) or INCREMENT(key: string)
+
+You may also use the UPDATE_SUMMARY function and use the same key as you do for the ADD or INCREMENT functions. 
+
+For example, for a dataset of fruits, an example func_calls list via `send_output` would look something like: func_calls: ['ADD("apple")', 'ADD("orange")', 'INC("apple")', 'ADD("grape")', 'INC("grape")']
 """
 
         if scratchpad:
@@ -603,19 +688,17 @@ AFTER DECIDING THE FUNCTION CALLS, update the func_calls via the `send_output` f
 You are incrementally processing data across multiple batches. You will see:
 1. The current batch of data to process
 2. The intermediate output so far (what you returned last time)
-3. A scratchpad of the current state where the value represents the count of the item: {scratchpad}
+3. A scratchpad of the current state (key and value pairs): {scratchpad}
 
 
-As you process each batch:
-1. Use both the previous output and scratchpad (if needed) to inform your processing
-2.) Update the func_calls list with the function: ADD()  based on the data you see;
-- ADD(fruit_or_veggie_name): For every fruit or veggie you see, call the ADD function. Repeats are allowed. Please do it, even if you see the same fruit in the scratchpad.
+For Counts:
+if the key already exists in the scratchpad, you can use the INCREMENT function, but if it doesn't exist, use the ADD function, initially, and if you see it again, use INCREMENT from then on out.
 
 
-TAKE YOUR TIME SEARCHING THROUGH THE DATA TO MAKE CHANGES TO THE STATE
+AFTER DECIDING THE FUNCTION CALLS, update the func_calls via the `send_output` function
+
 
 Your main result must be sent via send_output."""
-
         # Truncate messages if they exceed the model's context length
         messages = truncate_messages(messages, model)
 

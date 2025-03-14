@@ -1,297 +1,227 @@
 [
   {
-    "fruit_or_veggie_seen_most": "banana",
-    "number_of_times_seen": 4,
-    "data_count": [
+    "symptoms": [
       {
-        "name": "apple",
-        "count": 3
+        "disease_name": "Influenza",
+        "symptoms": [
+          "fever",
+          "chills",
+          "sore throat",
+          "muscle aches",
+          "fatigue",
+          "cough",
+          "congestion"
+        ]
       },
       {
-        "name": "banana",
-        "count": 4
+        "disease_name": "Common Cold",
+        "symptoms": [
+          "runny nose",
+          "sneezing",
+          "sore throat"
+        ]
       },
       {
-        "name": "orange",
+        "disease_name": "COVID-19",
+        "symptoms": [
+          "fever",
+          "cough",
+          "fatigue",
+          "difficulty breathing",
+          "loss of taste or smell",
+          "body aches"
+        ]
+      },
+      {
+        "disease_name": "Bronchitis",
+        "symptoms": [
+          "persistent cough",
+          "mucus production",
+          "fatigue"
+        ]
+      },
+      {
+        "disease_name": "Diabetes",
+        "symptoms": [
+          "extreme thirst",
+          "frequent urination",
+          "blurred vision",
+          "unexplained weight loss",
+          "fatigue",
+          "excessive hunger",
+          "slow wound healing"
+        ]
+      },
+      {
+        "disease_name": "Type 1 Diabetes",
+        "symptoms": [
+          "extreme thirst",
+          "frequent urination",
+          "blurred vision",
+          "unexplained weight loss"
+        ]
+      },
+      {
+        "disease_name": "Type 2 Diabetes",
+        "symptoms": [
+          "fatigue",
+          "excessive hunger",
+          "slow wound healing"
+        ]
+      },
+      {
+        "disease_name": "Hyperthyroidism",
+        "symptoms": [
+          "excessive sweating",
+          "weight loss",
+          "increased appetite"
+        ]
+      },
+      {
+        "disease_name": "Malaria",
+        "symptoms": [
+          "cyclical fevers",
+          "chills",
+          "headaches",
+          "nausea",
+          "vomiting",
+          "extreme fatigue"
+        ]
+      },
+      {
+        "disease_name": "Dengue Fever",
+        "symptoms": [
+          "high fever",
+          "severe headaches",
+          "joint and muscle pain",
+          "rash",
+          "bleeding"
+        ]
+      },
+      {
+        "disease_name": "Multiple Sclerosis",
+        "symptoms": [
+          "numbness or weakness in limbs",
+          "vision problems",
+          "balance issues",
+          "cognitive changes"
+        ]
+      },
+      {
+        "disease_name": "Guillain-Barr\u00e9 Syndrome",
+        "symptoms": [
+          "weakness",
+          "tingling",
+          "paralysis starting in the feet and legs"
+        ]
+      },
+      {
+        "disease_name": "Tuberculosis",
+        "symptoms": [
+          "persistent cough lasting more than three weeks",
+          "chest pain",
+          "coughing up blood",
+          "fever",
+          "night sweats",
+          "weight loss"
+        ]
+      },
+      {
+        "disease_name": "Pneumonia",
+        "symptoms": [
+          "cough",
+          "fever",
+          "chills",
+          "difficulty breathing"
+        ]
+      }
+    ],
+    "diseases": [
+      {
+        "name": "Influenza",
+        "count": 1
+      },
+      {
+        "name": "Common Cold",
+        "count": 1
+      },
+      {
+        "name": "COVID-19",
+        "count": 1
+      },
+      {
+        "name": "Bronchitis",
+        "count": 1
+      },
+      {
+        "name": "Diabetes",
+        "count": 1
+      },
+      {
+        "name": "Type 1 Diabetes",
+        "count": 1
+      },
+      {
+        "name": "Type 2 Diabetes",
+        "count": 1
+      },
+      {
+        "name": "Hyperthyroidism",
+        "count": 1
+      },
+      {
+        "name": "Malaria",
+        "count": 1
+      },
+      {
+        "name": "Dengue Fever",
+        "count": 1
+      },
+      {
+        "name": "Asthma",
         "count": 2
       },
       {
-        "name": "lemon",
+        "name": "COPD",
         "count": 2
       },
       {
-        "name": "lime",
-        "count": 1
-      },
-      {
-        "name": "pineapple",
-        "count": 3
-      },
-      {
-        "name": "avocado",
-        "count": 4
-      },
-      {
-        "name": "blueberry",
-        "count": 4
-      },
-      {
-        "name": "strawberry",
-        "count": 4
-      },
-      {
-        "name": "raspberry",
-        "count": 3
-      },
-      {
-        "name": "mango",
+        "name": "Cancer",
         "count": 2
       },
       {
-        "name": "kiwi",
-        "count": 1
-      },
-      {
-        "name": "papaya",
-        "count": 3
-      },
-      {
-        "name": "watermelon",
-        "count": 3
-      },
-      {
-        "name": "peach",
-        "count": 4
-      },
-      {
-        "name": "carrot",
-        "count": 1
-      },
-      {
-        "name": "potato",
-        "count": 1
-      },
-      {
-        "name": "sweet potato",
-        "count": 1
-      },
-      {
-        "name": "spinach",
-        "count": 1
-      },
-      {
-        "name": "kale",
-        "count": 1
-      },
-      {
-        "name": "broccoli",
-        "count": 1
-      },
-      {
-        "name": "cauliflower",
-        "count": 1
-      },
-      {
-        "name": "jalape\u00f1o",
-        "count": 1
-      },
-      {
-        "name": "bell pepper",
-        "count": 1
-      },
-      {
-        "name": "zucchini",
-        "count": 1
-      },
-      {
-        "name": "eggplant",
-        "count": 1
-      },
-      {
-        "name": "beet",
-        "count": 1
-      },
-      {
-        "name": "onion",
-        "count": 1
-      },
-      {
-        "name": "garlic",
-        "count": 1
-      },
-      {
-        "name": "pomegranate",
-        "count": 3
-      },
-      {
-        "name": "pumpkin",
-        "count": 1
-      },
-      {
-        "name": "cucumber",
-        "count": 1
-      },
-      {
-        "name": "coconut",
+        "name": "Parkinson's disease",
         "count": 2
       },
       {
-        "name": "durian",
-        "count": 1
-      },
-      {
-        "name": "rambutan",
-        "count": 1
-      },
-      {
-        "name": "lychee",
-        "count": 1
-      },
-      {
-        "name": "guava",
-        "count": 1
-      },
-      {
-        "name": "dragon fruit",
+        "name": "Alzheimer's disease",
         "count": 2
       },
       {
-        "name": "tamarillo",
-        "count": 1
-      },
-      {
-        "name": "grapefruit",
+        "name": "Epilepsy",
         "count": 2
       },
       {
-        "name": "pear",
+        "name": "Stroke",
         "count": 2
       },
       {
-        "name": "fig",
-        "count": 3
-      },
-      {
-        "name": "grape",
-        "count": 3
-      },
-      {
-        "name": "cherry",
+        "name": "Multiple Sclerosis",
         "count": 1
       },
       {
-        "name": "cranberry",
+        "name": "Guillain-Barr\u00e9 Syndrome",
         "count": 1
       },
       {
-        "name": "mulberry",
+        "name": "Tuberculosis",
         "count": 1
       },
       {
-        "name": "elderberry",
-        "count": 2
-      },
-      {
-        "name": "jackfruit",
-        "count": 1
-      },
-      {
-        "name": "melon",
-        "count": 1
-      },
-      {
-        "name": "cloudberry",
-        "count": 1
-      },
-      {
-        "name": "acai berry",
-        "count": 1
-      },
-      {
-        "name": "cherimoya",
-        "count": 1
-      },
-      {
-        "name": "longan",
-        "count": 1
-      },
-      {
-        "name": "salak",
-        "count": 1
-      },
-      {
-        "name": "Gala apple",
-        "count": 1
-      },
-      {
-        "name": "Honeycrisp apple",
-        "count": 1
-      },
-      {
-        "name": "goji fruit",
-        "count": 1
-      },
-      {
-        "name": "tomato",
-        "count": 1
-      },
-      {
-        "name": "starfruit",
-        "count": 3
-      },
-      {
-        "name": "passionfruit",
-        "count": 2
-      },
-      {
-        "name": "soursop",
-        "count": 1
-      },
-      {
-        "name": "tangerine",
-        "count": 1
-      },
-      {
-        "name": "apricot",
-        "count": 1
-      },
-      {
-        "name": "nectarine",
-        "count": 2
-      },
-      {
-        "name": "persimmons",
-        "count": 1
-      },
-      {
-        "name": "medlar",
-        "count": 1
-      },
-      {
-        "name": "cantaloupe",
-        "count": 2
-      },
-      {
-        "name": "blackberry",
-        "count": 1
-      },
-      {
-        "name": "date",
-        "count": 1
-      },
-      {
-        "name": "tamarind",
-        "count": 1
-      },
-      {
-        "name": "dragonfruit",
-        "count": 3
-      },
-      {
-        "name": "plum",
+        "name": "Pneumonia",
         "count": 1
       }
     ],
-    "_counts_prereduce_get_fruits": 15
+    "_counts_prereduce_get_diseases": 10
   }
 ]

@@ -493,7 +493,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
                 resolve_config["resolution_prompt"] = resolution_prompt
                 resolve_config["output"] = {
                     "schema": resolution_output_schema,
-                    "keys": resolution_output_schema.keys(),
+                    "keys": list(resolution_output_schema.keys()),
                 }
             else:
                 resolve_config["output"] = {"keys": reduce_keys}

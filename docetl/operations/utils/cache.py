@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 import shutil
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from diskcache import Cache
 from dotenv import load_dotenv
@@ -90,6 +90,7 @@ def cache_key(
     output_schema: Dict[str, str],
     scratchpad: str = None,
     system_prompt: Dict[str, str] = None,
+    op_config: Dict[str, Any] = {},
 ) -> str:
     """Generate a unique cache key based on function arguments."""
     key_dict = {
@@ -99,5 +100,6 @@ def cache_key(
         "output_schema": json.dumps(output_schema, sort_keys=True),
         "scratchpad": scratchpad,
         "system_prompt": json.dumps(system_prompt, sort_keys=True),
+        "op_config": json.dumps(op_config, sort_keys=True),
     }
     return hashlib.md5(json.dumps(key_dict, sort_keys=True).encode()).hexdigest()

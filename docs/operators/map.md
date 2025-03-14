@@ -134,7 +134,8 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `prompt`                          | The prompt template to use for the transformation. Access input variables with `input.keyname`. | None                          |
 | `batch_prompt`                    | Template for processing multiple documents in a single prompt. Access batch with `inputs` list. | None                          |
 | `max_batch_size`                  | Maximum number of documents to process in a single batch                                        | None                          |
-| `output`                          | Schema definition for the output from the LLM.                                                  | None                          |
+| `output.schema`                   | Schema definition for the output from the LLM.                                                  | None                          |
+| `output.n`                        | Number of outputs to generate for each input. (only available for OpenAI models; this is used to generate multiple outputs from a single input and automatically turn into a bigger list)                                                    | 1                             |
 | `model`                           | The language model to use                                                                       | Falls back to `default_model` |
 | `optimize`                        | Flag to enable operation optimization                                                           | `True`                        |
 | `recursively_optimize`            | Flag to enable recursive optimization of operators synthesized as part of rewrite rules         | `false`                       |
@@ -335,3 +336,78 @@ You can use a map operation to act as an LLM no-op, and just drop any key-value 
 3. **Appropriate Model Selection**: Choose the right model for your task, balancing performance and cost.
 4. **Optimize for Scale**: For large datasets, consider using `sample` to test your operation before running on the full dataset.
 5. **Use Tools Wisely**: Leverage tools for complex calculations or operations that the LLM might struggle with. You can write any Python code in the tools, so you can even use tools to call other APIs or search the internet.
+
+### Synthetic Data Generation
+
+The Map operation supports generating multiple outputs for each input using the `output.n` parameter. This is particularly useful for synthetic data generation, content variations, or when you need multiple alternatives for each input item.
+
+When you set `output.n` to a value greater than 1, the operation will:
+1. Process each input once
+2. Generate multiple outputs based on the same input
+3. Return all generated outputs as separate items in the result list
+
+This multiplies your dataset size by the factor of `n`.
+
+??? example "Synthetic Email Generation Example"
+
+    Imagine you have a dataset of prospects and want to generate multiple email templates for each person. Here's how to generate 10 different email templates per prospect:
+
+    ```yaml
+    datasets:
+      prospects:
+        type: file
+        path: "prospects.json"  # Contains names, companies, roles, etc.
+
+    operations:
+      - name: generate_email_templates
+        type: map
+        bypass_cache: true
+        optimize: true
+        output:
+          n: 10  # Generate 10 unique emails per prospect
+          schema:
+            subject: "str"
+            body: "str"
+            call_to_action: "str"
+        prompt: |
+          Create a personalized cold outreach email for the following prospect:
+          
+          Name: {{ input.name }}
+          Company: {{ input.company }}
+          Role: {{ input.role }}
+          Industry: {{ input.industry }}
+          
+          The email should:
+          - Have a compelling subject line
+          - Be brief (3-5 sentences)
+          - Mention a specific pain point for their industry
+          - Include a clear call to action
+          - Sound natural and conversational, not sales-y
+          
+          Your response should be formatted as:
+          Subject: [Your subject line]
+          
+          [Your email body]
+          
+          Call to action: [Your specific call to action]
+
+    pipeline:
+      steps:
+        - name: email_generation
+          input: prospects
+          operations:
+            - generate_email_templates
+      
+      output:
+        type: file
+        path: "email_templates.json"
+    ```
+
+    With this configuration, if your prospects.json file has 50 prospects, the output will contain 500 email templates (50 prospects × 10 emails each).
+
+!!! note "Important Considerations"
+
+    - The `output.n` parameter is only available for OpenAI models
+    - Higher values of `n` will increase the cost of your operation proportionally
+    - For optimal results, keep your prompt focused and clear about generating diverse outputs
+    - When using pandas, the `n` parameter can be passed directly to the `map` method

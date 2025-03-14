@@ -85,6 +85,7 @@ class ResolveOperation(BaseOperation):
             max_retries_per_timeout=max_retries_per_timeout,
             bypass_cache=self.config.get("bypass_cache", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+            op_config=self.config,
         )
         output = self.runner.api.parse_llm_response(
             response.response,
@@ -580,6 +581,7 @@ class ResolveOperation(BaseOperation):
                     litellm_completion_kwargs=self.config.get(
                         "litellm_completion_kwargs", {}
                     ),
+                    op_config=self.config,
                 )
                 reduction_cost = reduction_response.total_cost
 

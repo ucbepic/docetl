@@ -601,7 +601,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
 
         extra_litellm_kwargs = {}
         extra_litellm_kwargs.update(litellm_completion_kwargs)
-        if "n" in op_config["output"].keys():
+        if "n" in op_config.get("output", {}).keys():
             extra_litellm_kwargs["n"] = op_config["output"]["n"]
 
         if tools is not None:

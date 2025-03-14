@@ -240,3 +240,55 @@ result_df = df.semantic.map(
 
 print(result_df.head()) # The result will have the same number of rows as the input dataframe, with the summary and contributing factors added
 ```
+
+## Example 7: Synthetic Data Generation
+
+DocETL supports generating multiple outputs for each input using the `n` parameter in the map operation. This is useful for synthetic data generation, A/B testing content variations, or creating multiple alternatives for each input.
+
+```python
+# Starter concepts for content generation
+df = pd.DataFrame({
+    "product": ["Smart Watch", "Wireless Earbuds", "Home Security Camera"],
+    "target_audience": ["Fitness Enthusiasts", "Music Lovers", "Homeowners"]
+})
+
+# Generate 5 marketing headlines for each product-audience combination
+variations = df.semantic.map(
+    prompt="""Generate a compelling marketing headline for the following product and target audience:
+    
+    Product: {{input.product}}
+    Target Audience: {{input.target_audience}}
+    
+    The headline should:
+    - Be attention-grabbing and memorable
+    - Speak directly to the target audience's needs or desires
+    - Highlight the key benefit of the product
+    - Be between 5-10 words
+    """,
+    output_schema={"headline": "str"},
+    n=5  # Generate 5 variations for each input row
+)
+
+print(f"Original dataframe rows: {len(df)}")
+print(f"Generated variations: {len(variations)}")  # Should be 5x the original count
+
+# Variations dataframe will contain:
+# - All original columns (product, target_audience)
+# - The new headline column
+# - 5 rows for each original row (15 total for this example)
+
+# You can also combine this with other operations
+# Filter to only keep the best headlines
+best_headlines = variations.semantic.filter(
+    prompt="""Is this headline exceptional and likely to drive high engagement?
+    
+    Product: {{input.product}}
+    Target Audience: {{input.target_audience}}
+    Headline: {{input.headline}}
+    
+    Consider catchiness, emotional appeal, and clarity.
+    """
+)
+```
+
+This example will generate 15 total variations (3 products × 5 variations each). You can adjust the `n` parameter to generate more or fewer variations as needed.

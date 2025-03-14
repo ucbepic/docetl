@@ -166,7 +166,7 @@ class MapOperation(BaseOperation):
 
         def _process_map_item(
             item: Dict, initial_result: Optional[Dict] = None
-        ) -> Tuple[Optional[Dict], float]:
+        ) -> Tuple[Optional[List[Dict]], float]:
 
             prompt = strict_render(self.config["prompt"], {"input": item})
             messages = [{"role": "user", "content": prompt}]
@@ -244,25 +244,29 @@ class MapOperation(BaseOperation):
                 litellm_completion_kwargs=self.config.get(
                     "litellm_completion_kwargs", {}
                 ),
+                op_config=self.config,
             )
 
             if llm_result.validated:
                 # Parse the response
                 if isinstance(llm_result.response, ModelResponse):
-                    output = self.runner.api.parse_llm_response(
+                    outputs = self.runner.api.parse_llm_response(
                         llm_result.response,
                         schema=self.config["output"]["schema"],
                         tools=self.config.get("tools", None),
                         manually_fix_errors=self.manually_fix_errors,
-                    )[0]
+                    )
                 else:
-                    output = llm_result.response
+                    outputs = [llm_result.response]
 
                 # Augment the output with the original item
-                output = {**item, **output}
+                outputs = [{**item, **output} for output in outputs]
                 if self.config.get("enable_observability", False):
-                    output[f"_observability_{self.config['name']}"] = {"prompt": prompt}
-                return output, llm_result.total_cost
+                    for output in outputs:
+                        output[f"_observability_{self.config['name']}"] = {
+                            "prompt": prompt
+                        }
+                return outputs, llm_result.total_cost
 
             return None, llm_result.total_cost
 
@@ -321,9 +325,9 @@ class MapOperation(BaseOperation):
                     ]
                     for i in range(len(futures)):
                         try:
-                            result, item_cost = futures[i].result()
-                            if result is not None:
-                                all_results.append(result)
+                            results, item_cost = futures[i].result()
+                            if results is not None:
+                                all_results.extend(results)
                             total_cost += item_cost
                         except Exception as e:
                             if self.config.get("skip_on_error", False):
@@ -335,11 +339,11 @@ class MapOperation(BaseOperation):
                                 raise e
             else:
                 try:
-                    result, item_cost = _process_map_item(
+                    results, item_cost = _process_map_item(
                         items_and_outputs[0][0], items_and_outputs[0][1]
                     )
-                    if result is not None:
-                        all_results.append(result)
+                    if results is not None:
+                        all_results.extend(results)
                     total_cost += item_cost
                 except Exception as e:
                     if self.config.get("skip_on_error", False):
@@ -555,6 +559,7 @@ class ParallelMapOperation(BaseOperation):
                 litellm_completion_kwargs=self.config.get(
                     "litellm_completion_kwargs", {}
                 ),
+                op_config=self.config,
             )
             output = self.runner.api.parse_llm_response(
                 response.response,

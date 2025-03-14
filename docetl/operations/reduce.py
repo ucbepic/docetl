@@ -827,6 +827,7 @@ class ReduceOperation(BaseOperation):
             bypass_cache=self.config.get("bypass_cache", False),
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+            op_config=self.config,
         )
 
         end_time = time.time()
@@ -889,6 +890,7 @@ class ReduceOperation(BaseOperation):
             bypass_cache=self.config.get("bypass_cache", False),
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+            op_config=self.config,
         )
 
         end_time = time.time()
@@ -1002,6 +1004,7 @@ class ReduceOperation(BaseOperation):
             gleaning_config=self.config.get("gleaning", None),
             verbose=self.config.get("verbose", False),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
+            op_config=self.config,
         )
 
         item_cost += response.total_cost

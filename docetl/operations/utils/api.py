@@ -91,6 +91,7 @@ class APIWrapper(object):
         max_retries_per_timeout: int = 2,
         bypass_cache: bool = False,
         litellm_completion_kwargs: Dict[str, Any] = {},
+        op_config: Dict[str, Any] = {},
     ) -> LLMResult:
         # Turn the output schema into a list of schemas
         output_schema = convert_dict_schema_to_list_schema(output_schema)
@@ -106,6 +107,7 @@ class APIWrapper(object):
             max_retries_per_timeout=max_retries_per_timeout,
             bypass_cache=bypass_cache,
             litellm_completion_kwargs=litellm_completion_kwargs,
+            op_config=op_config,
         )
 
     def _cached_call_llm(
@@ -123,6 +125,7 @@ class APIWrapper(object):
         bypass_cache: bool = False,
         initial_result: Optional[Any] = None,
         litellm_completion_kwargs: Dict[str, Any] = {},
+        op_config: Dict[str, Any] = {},
     ) -> LLMResult:
         """
         Cached version of the call_llm function.
@@ -144,6 +147,7 @@ class APIWrapper(object):
             verbose (bool): Whether to print verbose output.
             bypass_cache (bool): Whether to bypass the cache.
             initial_result (Optional[Any]): The initial result to use for the operation, if exists.
+            op_config (Dict[str, Any]): The operation configuration.
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
@@ -163,6 +167,7 @@ class APIWrapper(object):
                         tools,
                         scratchpad,
                         litellm_completion_kwargs,
+                        op_config=op_config,
                     )
                     total_cost += completion_cost(response)
                 else:
@@ -266,6 +271,7 @@ class APIWrapper(object):
                             tools,
                             scratchpad,
                             litellm_completion_kwargs,
+                            op_config=op_config,
                         )
                         parsed_output = self.parse_llm_response(
                             response, output_schema, tools
@@ -322,6 +328,7 @@ class APIWrapper(object):
                             tools,
                             scratchpad,
                             litellm_completion_kwargs,
+                            op_config=op_config,
                         )
                         total_cost += completion_cost(response)
 
@@ -351,6 +358,7 @@ class APIWrapper(object):
         bypass_cache: bool = False,
         initial_result: Optional[Any] = None,
         litellm_completion_kwargs: Dict[str, Any] = {},
+        op_config: Dict[str, Any] = {},
     ) -> LLMResult:
         """
         Wrapper function that uses caching for LLM calls.
@@ -382,6 +390,7 @@ class APIWrapper(object):
             output_schema,
             scratchpad,
             self.runner.config.get("system_prompt", {}),
+            op_config,
         )
 
         max_retries = max_retries_per_timeout
@@ -403,6 +412,7 @@ class APIWrapper(object):
                     bypass_cache=bypass_cache,
                     initial_result=initial_result,
                     litellm_completion_kwargs=litellm_completion_kwargs,
+                    op_config=op_config,
                 )
                 # Log input and output if verbose
                 if verbose:
@@ -458,6 +468,7 @@ class APIWrapper(object):
         tools: Optional[str] = None,
         scratchpad: Optional[str] = None,
         litellm_completion_kwargs: Dict[str, Any] = {},
+        op_config: Dict[str, Any] = {},
     ) -> Any:
         """
         Make an LLM call with caching.
@@ -588,6 +599,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         if self.runner.is_cancelled:
             raise asyncio.CancelledError("Operation was cancelled")
 
+        extra_litellm_kwargs = {}
+        extra_litellm_kwargs.update(litellm_completion_kwargs)
+        if "n" in op_config["output"].keys():
+            extra_litellm_kwargs["n"] = op_config["output"]["n"]
+
         if tools is not None:
             try:
                 response = completion(
@@ -601,7 +617,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     + messages,
                     tools=tools,
                     tool_choice=tool_choice,
-                    **litellm_completion_kwargs,
+                    **extra_litellm_kwargs,
                 )
             except Exception as e:
                 # Check that there's a prefix for the model name if it's not a basic model
@@ -622,7 +638,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                         },
                     ]
                     + messages,
-                    **litellm_completion_kwargs,
+                    **extra_litellm_kwargs,
                 )
             except Exception as e:
                 # Check that there's a prefix for the model name if it's not a basic model
@@ -647,7 +663,16 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         This function extracts the tool calls from the LLM response and returns the arguments
         """
         try:
-            return self._parse_llm_response_helper(response, schema, tools)
+            if not response:
+                raise InvalidOutputError("No response from LLM", [{}], schema, [], [])
+
+            # Go through each choice
+            results = []
+            for index in range(len(response.choices)):
+                results.extend(
+                    self._parse_llm_response_helper(response, schema, tools, index)
+                )
+            return results
         except InvalidOutputError as e:
             if manually_fix_errors:
                 rprint(
@@ -669,6 +694,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         response: Any,
         schema: Dict[str, Any] = {},
         tools: Optional[List[Dict[str, str]]] = None,
+        index: int = 0,
     ) -> List[Dict[str, Any]]:
         """
         Parse the response from a language model.
@@ -688,19 +714,16 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             InvalidOutputError: If the response is not valid.
         """
 
-        if not response:
-            raise InvalidOutputError("No response from LLM", [{}], schema, [], [])
-
         tool_calls = (
-            response.choices[0].message.tool_calls
-            if "tool_calls" in dir(response.choices[0].message)
+            response.choices[index].message.tool_calls
+            if "tool_calls" in dir(response.choices[index].message)
             else []
         )
 
         # Check if there are no tools and the schema has a single key-value pair
         if not tools and len(schema) == 1 and not tool_calls:
             key = next(iter(schema))
-            content = response.choices[0].message.content
+            content = response.choices[index].message.content
 
             # Handle deepseek-r1 models' think tags
             if is_deepseek_r1(response.model):
@@ -725,7 +748,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         # Parse the response based on the provided tools
         if tools:
             # If custom tools are provided, parse accordingly
-            tool_calls = response.choices[0].message.tool_calls
+            tool_calls = response.choices[index].message.tool_calls
             results = []
             for tool_call in tool_calls:
                 for tool in tools:
@@ -751,7 +774,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
 
             outputs = []
             for tool_call in tool_calls:
-                if response.choices[0].finish_reason == "content_filter":
+                if response.choices[index].finish_reason == "content_filter":
                     raise InvalidOutputError(
                         "Content filter triggered by LLM provider.",
                         "",

@@ -191,6 +191,7 @@ class SemanticAccessor:
                 - litellm_completion_kwargs: Additional parameters for LiteLLM
                 - skip_on_error: Skip operation if LLM returns error (default: False)
                 - bypass_cache: Bypass cache for this operation (default: False)
+                - n: Number of outputs to generate for each input (synthetic data generation)
 
         Returns:
             pd.DataFrame: A new DataFrame containing the transformed data with columns
@@ -207,16 +208,27 @@ class SemanticAccessor:
             ...     validate=["len(output['entities']) <= 5"],
             ...     num_retries_on_validate_failure=2
             ... )
+
+            >>> # Generate synthetic data with multiple variations per input
+            >>> df.semantic.map(
+            ...     prompt="Create a headline for: {{input.topic}}",
+            ...     output_schema={"headline": "str"},
+            ...     n=5  # Generate 5 variations for each input
+            ... )
         """
         # Convert DataFrame to list of dicts for DocETL
         input_data = self._df.to_dict("records")
+
+        output_dict = {"schema": output_schema}
+        if "n" in kwargs:
+            output_dict["n"] = kwargs["n"]
 
         # Create map operation config
         map_config = {
             "type": "map",
             "name": f"semantic_map_{len(self._history)}",
             "prompt": prompt,
-            "output": {"schema": output_schema},
+            "output": output_dict,
             **kwargs,
         }
 

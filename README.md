@@ -28,6 +28,14 @@ DocETL is a tool for creating and executing data processing pipelines, especiall
 - [Using Gleaning to Improve Output Quality](https://x.com/sh_reya/status/1843354256335876262)
 - [Deep Dive on Resolve Operator](https://x.com/sh_reya/status/1840796824636121288)
 
+### 🧪 AgenticPreprint Experiments
+
+This repository contains experimental materials from our research paper:
+
+- **CUAD**: Contract understanding experiment. See [agenticpreprint/cuad/README.md](agenticpreprint/cuad/README.md) for details.
+- **BioDex**: Biological document classification experiment. See [agenticpreprint/biodex/README.md](agenticpreprint/biodex/README.md) for details.
+
+These experiments demonstrate DocETL's capabilities for optimizing document processing pipelines in specialized domains.
 
 ## 🚀 Getting Started
 

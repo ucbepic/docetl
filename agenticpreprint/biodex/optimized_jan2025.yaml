@@ -1,0 +1,81 @@
+datasets:
+  biodex_sample:
+    path: agenticpreprint/biodex/biodex_sample.json
+    type: file
+  biodex_terms:
+    path: agenticpreprint/biodex/biodex_terms.json
+    type: file
+default_model: azure/gpt-4o-mini
+operations:
+- model: azure/gpt-4o-mini
+  name: group_reactions
+  output:
+    schema:
+      ranked_conditions: list[string]
+  pass_through: true
+  prompt: 'Given the following medical article, rank the following conditions in order
+    of most confident to least confident that the article is describing the condition:
+
+    {{ inputs[0].fulltext_processed }}
+
+
+    Conditions: {% for value in inputs %}{{ value.reaction }}{% if not loop.last %},
+    {% endif %}{% endfor %}
+
+
+    There may be conditions described in the article that are not in the list. Do
+    not include them in the ranked list. Only focus on the conditions in the list.
+
+    '
+  reduce_key:
+  - id
+  type: reduce
+- blocking_conditions:
+  - all(word in left['fulltext_processed'].lower() for word in right['reaction'].lower().split())
+  blocking_keys:
+    left:
+    - transformed_reactions
+    right:
+    - reaction
+  blocking_threshold: 0.3232
+  comparison_prompt: 'Can the following condition be found in the following medical
+    article and is it connected to the key findings extracted from the article? Medical
+    article: {{ left.fulltext_processed }} Key observations: {{ left.transformed_reactions
+    }} Condition we are looking for: {{ right.reaction }} Determine if {{ right.reaction
+    }} is described in the medical article, considering the context and meaning beyond
+    just the presence of individual words.'
+  embedding_model: text-embedding-3-small
+  model: azure/gpt-4o-mini
+  name: match_reactions
+  type: equijoin
+  limit_comparisons: 12250
+- model: azure/gpt-4o-mini
+  name: synthesized_transformed_reactions_extraction
+  output:
+    schema:
+      transformed_reactions: string
+  prompt: 'Extract the most significant medical observations and findings related
+    to adverse reactions or conditions described in the article. Focus specifically
+    on reactions that could be relevant to the conditions listed in the right dataset.
+    Return a concise string that captures this information from the following medical
+    article: {{ input.fulltext_processed }}'
+  type: map
+
+pipeline:
+  output:
+    path: agenticpreprint/biodex/results/extracted_reactions_docetl_jan2025.json
+    type: file
+  steps:
+  - input: biodex_sample
+    name: synthesized_transformed_reactions_extraction
+    operations:
+    - synthesized_transformed_reactions_extraction
+  - name: match_reactions
+    operations:
+    - match_reactions:
+        left: synthesized_transformed_reactions_extraction
+        right: biodex_terms
+  - input: match_reactions
+    name: group_reactions
+    operations:
+    - group_reactions

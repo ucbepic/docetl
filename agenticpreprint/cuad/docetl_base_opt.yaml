@@ -1,0 +1,199 @@
+datasets:
+  contracts_data:
+    path: agenticpreprint/cuad/raw.json
+    type: file
+default_model: azure/gpt-4o-mini
+operations:
+- model: azure/gpt-4o-mini
+  name: submap_extract_contract_info
+  bypass_cache: true
+  output:
+    schema:
+      clauses: 'list[{clause_type: string, text_span: string}]'
+  prompt: 'Convert the following contract information into a structured list of clauses.
+
+    Here is the document we are working with:
+    {{ input.document }}
+
+    Extract all clauses from the document and organize them according to the categories below.
+
+    For each of the following categories, identify the relevant clause text from the document:
+    - Document Name: {{ input.document_name }}
+    - Parties: {{ input.parties }}
+    - Agreement Date: {{ input.agreement_date }}
+    - Effective Date: {{ input.effective_date }}
+    - Expiration Date: {{ input.expiration_date }}
+    - Renewal Term: {{ input.renewal_term }}
+    - Notice to Terminate Renewal: {{ input.notice_to_terminate_renewal }}
+    - Termination for Convenience: {{ input.termination_for_convenience }}
+    - Governing Law: {{ input.governing_law }}
+    - Anti-Assignment: {{ input.anti_assignment }}
+    - Change of Control: {{ input.change_of_control }}
+    - Non-Compete: {{ input.non_compete }}
+    - Exclusivity: {{ input.exclusivity }}
+    - No-Solicit of Customers: {{ input.no_solicit_of_customers }}
+    - IP Ownership Assignment: {{ input.ip_ownership_assignment }}
+    - Joint IP Ownership: {{ input.joint_ip_ownership }}
+    - License Grant: {{ input.license_grant }}
+    - Revenue/Profit Sharing: {{ input.revenue_profit_sharing }}
+    - Price Restriction: {{ input.price_restriction }}
+    - Minimum Commitment: {{ input.minimum_commitment }}
+    - Uncapped Liability: {{ input.uncapped_liability }}
+    - Cap on Liability: {{ input.cap_on_liability }}
+    - Liquidated Damages: {{ input.liquidated_damages }}
+    - Audit Rights: {{ input.audit_rights }}
+    - Insurance: {{ input.insurance }}
+    - Third Party Beneficiary: {{ input.third_party_beneficiary }}
+
+    Format the output as a JSON array of objects with the following structure:
+    ```json
+    [
+      {
+        "clause_type": "string", // The category name (e.g., "governing_law")
+        "text_span": "string"    // The exact text from the document
+      }
+    ]
+    ```
+
+    If the extracted detail for the clause says the clause is not present in the document, do not include it in the output list.'
+  type: map
+- model: azure/gpt-4o-mini
+  name: extract_contract_info_parallel_map
+  bypass_cache: true
+  output:
+    schema:
+      agreement_date: string
+      anti_assignment: string
+      audit_rights: string
+      cap_on_liability: string
+      change_of_control: string
+      document_name: string
+      effective_date: string
+      exclusivity: string
+      expiration_date: string
+      governing_law: string
+      insurance: string
+      ip_ownership_assignment: string
+      joint_ip_ownership: string
+      license_grant: string
+      liquidated_damages: string
+      minimum_commitment: string
+      no_solicit_of_customers: string
+      non_compete: string
+      notice_to_terminate_renewal: string
+      parties: string
+      price_restriction: string
+      renewal_term: string
+      revenue_profit_sharing: string
+      termination_for_convenience: string
+      third_party_beneficiary: string
+      uncapped_liability: string
+  prompts:
+  - name: extract_basic_contract_information
+    output_keys:
+    - document_name
+    - parties
+    - agreement_date
+    - effective_date
+    - expiration_date
+    prompt: 'From the following contract document: {{ input.document }}
+           Extract the following basic information:
+           - Document Name: The name of the contract
+           - Parties: The two or more parties who signed the contract
+           - Agreement Date: The date of the contract
+           - Effective Date: The date when the contract is effective
+           - Expiration Date: On what date will the contract''s initial term expire?'
+  - name: extract_renewal_and_termination_clauses
+    output_keys:
+    - renewal_term
+    - notice_to_terminate_renewal
+    - termination_for_convenience
+    prompt: 'From the following contract document: {{ input.document }}
+           Extract the following clauses related to renewal and termination:
+           - Renewal Term: What is the renewal term after the initial term expires?
+           - Notice to Terminate Renewal: What is the notice period required to terminate renewal?
+           - Termination for Convenience: Can a party terminate this contract without cause?'
+  - name: extract_legal_governance_clauses
+    output_keys:
+    - governing_law
+    - anti_assignment
+    - change_of_control
+    prompt: 'From the following contract document: {{ input.document }}
+           Extract the following legal governance clauses:
+           - Governing Law: Which state/country''s law governs the interpretation of the contract?
+           - Anti-Assignment: Is consent or notice required of a party if the contract is assigned to a third party?
+           - Change of Control: Does one party have the right to terminate or is consent or notice required if such
+           party undergoes a change of control?'
+  - name: extract_competitive_clauses
+    output_keys:
+    - non_compete
+    - exclusivity
+    - no_solicit_of_customers
+    prompt: 'From the following contract document: {{ input.document }}
+           Extract the following competitive clauses:
+           - Non-Compete: Is there a restriction on the ability of a party to compete with the counterparty?
+           - Exclusivity: Is there an exclusive dealing commitment with the counterparty?
+           - No-Solicit of Customers: Is a party restricted from soliciting customers of the counterparty?'
+  - name: extract_intellectual_property_clauses
+    output_keys:
+    - ip_ownership_assignment
+    - joint_ip_ownership
+    - license_grant
+    prompt: 'From the following contract document: {{ input.document }}
+           Extract the following intellectual property clauses:
+           - IP Ownership Assignment: Does intellectual property created by one party become the property of the
+           counterparty?
+           - Joint IP Ownership: Is there any clause providing for joint or shared ownership of intellectual property?
+           - License Grant: Does the contract contain a license granted by one party to its counterparty?'
+  - name: extract_financial_clauses
+    output_keys:
+    - revenue_profit_sharing
+    - price_restriction
+    - minimum_commitment
+    prompt: 'From the following contract document: {{ input.document }}
+           Extract the following financial clauses:
+           - Revenue/Profit Sharing: Is one party required to share revenue or profit with the counterparty?
+           - Price Restriction: Is there a restriction on the ability of a party to raise or reduce prices?
+           - Minimum Commitment: Is there a minimum order size or amount that one party must buy from the counterparty?'
+  - name: extract_liability_clauses
+    output_keys:
+    - uncapped_liability
+    - cap_on_liability
+    - liquidated_damages
+    prompt: 'From the following contract document: {{ input.document }}
+           Extract the following liability clauses:
+           - Uncapped Liability: Is a party''s liability uncapped upon the breach of its obligation in the contract?
+           - Cap on Liability: Does the contract include a cap on liability upon the breach of a party''s obligation?
+           - Liquidated Damages: Does the contract contain a clause that would award either party liquidated damages for
+           breach?'
+  - name: extract_miscellaneous_clauses
+    output_keys:
+    - audit_rights
+    - insurance
+    - third_party_beneficiary
+    prompt: 'From the following contract document: {{ input.document }}
+           Extract the following miscellaneous clauses:
+           - Audit Rights: Does a party have the right to audit the books, records, or physical locations of the
+           counterparty?
+           - Insurance: Is there a requirement for insurance that must be maintained by one party for the benefit of the
+           counterparty?
+           - Third Party Beneficiary: Is there a non-contracting party who is a beneficiary to some or all of the
+           clauses in the contract?'
+  type: parallel_map
+- method: first
+  model: azure/gpt-4o-mini
+  name: sample_contracts
+  samples: 50
+  type: sample
+pipeline:
+  output:
+    intermediate_dir: agenticpreprint/cuad/results/intermediate
+    path: agenticpreprint/cuad/results/extracted_contract_info.json
+    type: file
+  steps:
+  - input: contracts_data
+    name: contract_analysis
+    operations:
+    - sample_contracts
+    - extract_contract_info_parallel_map
+    - submap_extract_contract_info

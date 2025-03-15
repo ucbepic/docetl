@@ -1,0 +1,57 @@
+datasets:
+  biodex_sample:
+    type: file
+    path: agenticpreprint/biodex/biodex_sample.json
+  biodex_terms:
+    type: file
+    path: agenticpreprint/biodex/biodex_terms.json
+
+default_model: azure/gpt-4o-mini
+
+operations:
+  - name: match_reactions
+    type: equijoin
+    optimize: true
+    embedding_model: text-embedding-3-small
+    limit_comparisons: 12750
+    comparison_prompt: |
+      Can the following condition be found in the following medical article?
+      Medical article: {{ left.fulltext_processed }}
+
+      Condition we are looking for: {{ right.reaction }}
+
+      Determine if {{ right.reaction }} is described in the medical article, considering the context and meaning beyond just the presence of individual words.
+
+  - name: group_reactions
+    type: reduce
+    reduce_key:
+      - id
+    prompt: |
+      Given the following medical article, rank the following conditions in order of most confident to least confident that the article is describing the condition:
+      {{ inputs[0].fulltext_processed }}
+
+      Conditions: {% for value in inputs %}{{ value.reaction }}{% if not loop.last %}, {% endif %}{% endfor %}
+
+      There may be conditions described in the article that are not in the list. Do not include them in the ranked list. Only focus on the conditions in the list.
+    optimize: false
+    output:
+      schema:
+        ranked_conditions: list[string]
+    pass_through: true
+
+pipeline:
+  steps:
+    - name: match_reactions
+      operations:
+        - match_reactions:
+            left: biodex_sample
+            right: biodex_terms
+
+    - name: group_reactions
+      input: match_reactions
+      operations:
+        - group_reactions
+
+  output:
+    type: file
+    path: "agenticpreprint/biodex/results/extracted_reactions_docetl.json"

@@ -1,0 +1,92 @@
+datasets:
+  biodex_sample:
+    path: agenticpreprint/biodex/biodex_sample.json
+    type: file
+  biodex_terms:
+    path: agenticpreprint/biodex/biodex_terms.json
+    type: file
+default_model: azure/gpt-4o-mini
+operations:
+- model: azure/gpt-4o-mini
+  name: group_reactions
+  output:
+    schema:
+      ranked_conditions: list[string]
+  pass_through: true
+  prompt: 'Given the following medical article, rank the following conditions in order
+    of most confident to least confident that the article is describing the condition:
+
+    {{ inputs[0].fulltext_processed }}
+
+
+    Conditions: {% for value in inputs %}{{ value.reaction }}{% if not loop.last %},
+    {% endif %}{% endfor %}
+
+
+    There may be conditions described in the article that are not in the list. Do
+    not include them in the ranked list. Only focus on the conditions in the list.
+
+    '
+  reduce_key:
+  - id
+  type: reduce
+- blocking_conditions:
+  - all(word in left['extracted_conditions'].lower() for word in right['reaction'].lower().split())
+  - any(word in right['reaction'].lower().split() for word in left['extracted_conditions'].lower().split())
+  - all(word in right['reaction'].lower().split() for word in left['fulltext_processed'].lower().split())
+  - any(word in left['fulltext_processed'].lower().split() for word in right['reaction'].lower().split())
+  - all(word in left['extracted_conditions'].lower().split() for word in right['reaction'].lower().split())
+  blocking_keys:
+    left:
+    - extracted_conditions
+    right:
+    - reaction
+  blocking_threshold: 0.3434
+  comparison_prompt: 'Can the following condition be found in the following medical
+    article?
+
+
+    Medical article: {{ left.extracted_conditions }}
+
+
+    Condition we are looking for: {{ right.reaction }}
+
+
+    Determine if {{ right.reaction }} is described in the medical article, considering
+    the context and meaning beyond just the presence of individual words.'
+  embedding_model: text-embedding-3-small
+  limit_comparisons: 12750
+  model: azure/gpt-4o-mini
+  name: match_reactions
+  type: equijoin
+- model: azure/gpt-4o-mini
+  name: synthesized_extracted_conditions_extraction
+  output:
+    schema:
+      extracted_conditions: string
+  prompt: 'Extract the key medical conditions, reactions, or diseases mentioned in
+    the following medical article. Focus on those that are significant or central
+    to the article''s content. Ensure the extracted information is concise and relevant
+    to potential medical conditions or reactions that could be compared to other datasets.
+
+
+    Medical article: {{ input.fulltext_processed }}'
+  type: map
+pipeline:
+  output:
+    path: agenticpreprint/biodex/results/extracted_reactions_docetl_1.json
+    type: file
+  steps:
+  - input: biodex_sample
+    name: synthesized_extracted_conditions_extraction
+    operations:
+    - synthesized_extracted_conditions_extraction
+  - name: match_reactions
+    operations:
+    - match_reactions:
+        left: synthesized_extracted_conditions_extraction
+        right: biodex_terms
+  - input: match_reactions
+    name: group_reactions
+    operations:
+    - group_reactions

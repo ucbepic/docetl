@@ -1,0 +1,382 @@
+default_model: azure/gpt-4o-mini
+
+datasets:
+  contracts_data:
+    type: file
+    path: "agenticpreprint/cuad/raw.json"
+
+operations:
+  - name: extract_contract_info_parallel
+    type: parallel_map
+    sample: 50
+    random_sample: false
+    output:
+      schema:
+        document_name: str
+        parties: str
+        agreement_date: str
+        effective_date: str
+        expiration_date: str
+        renewal_term: str
+        notice_to_terminate_renewal: str
+        governing_law: str
+        most_favored_nation: str
+        non_compete: str
+        exclusivity: str
+        no_solicit_of_customers: str
+        competitive_restriction_exception: str
+        no_solicit_of_employees: str
+        non_disparagement: str
+        termination_for_convenience: str
+        right_of_first_refusal: str
+        change_of_control: str
+        anti_assignment: str
+        revenue_profit_sharing: str
+        price_restriction: str
+        minimum_commitment: str
+        volume_restriction: str
+        ip_ownership_assignment: str
+        joint_ip_ownership: str
+        license_grant: str
+        non_transferable_license: str
+        affiliate_ip_license_licensor: str
+        affiliate_ip_license_licensee: str
+        unlimited_license: str
+        irrevocable_or_perpetual_license: str
+        source_code_escrow: str
+        post_termination_services: str
+        audit_rights: str
+        uncapped_liability: str
+        cap_on_liability: str
+        liquidated_damages: str
+        warranty_duration: str
+        insurance: str
+        covenant_not_to_sue: str
+        third_party_beneficiary: str
+    prompts:
+      - name: Extract Basic Contract Info
+        output_keys:
+          - document_name
+          - parties
+          - agreement_date
+          - effective_date
+          - expiration_date
+        prompt: |
+          From the given contract document, extract the following:
+
+          - Document Name: The name of the contract
+          - Parties: The two or more parties who signed the contract
+          - Agreement Date: The date of the contract (mm/dd/yyyy)
+          - Effective Date: The date when the contract is effective (mm/dd/yyyy)
+          - Expiration Date: The date when the contract's initial term will expire
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Term Related Info
+        output_keys:
+          - renewal_term
+          - notice_to_terminate_renewal
+          - governing_law
+        prompt: |
+          From the given contract document, extract the following:
+
+          - Renewal Term: The renewal term after the initial term expires
+          - Notice to Terminate Renewal: The notice period required to terminate renewal
+          - Governing Law: Which state/country's law governs the interpretation of the contract
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Competition Related Clauses
+        output_keys:
+          - most_favored_nation
+          - non_compete
+          - exclusivity
+        prompt: |
+          From the given contract document, extract the following clauses:
+
+          - Most Favored Nation: Clause for better terms on licensing or sale of technology/goods/services
+          - Non-Compete: Restriction on ability to compete with the counterparty
+          - Exclusivity: Exclusive dealing commitment with the counterparty
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Non-Solicit and Competitive Restriction Exception Clauses
+        output_keys:
+          - no_solicit_of_customers
+          - competitive_restriction_exception
+        prompt: |
+          From the given contract document, identify and extract these clauses:
+
+          - No-Solicit of Customers: Restriction from contracting or soliciting customers or partners
+          - Competitive Restriction Exception: Exceptions or carveouts to Non-Compete, Exclusivity, and No-Solicit of Customers
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Employment Restriction and Disparagement Clauses
+        output_keys:
+          - no_solicit_of_employees
+          - non_disparagement
+        prompt: |
+          From the given contract document, extract the following information:
+
+          - No-Solicit of Employees: Restriction on soliciting or hiring employees and/or contractors
+          - Non-Disparagement: Requirement not to disparage the counterparty
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Convenience Termination and First Rights Clauses
+        output_keys:
+          - termination_for_convenience
+          - right_of_first_refusal
+        prompt: |
+          From the given contract document, extract the following clauses:
+
+          - Termination for Convenience: Ability to terminate the contract without cause
+          - Right of First Refusal, Offer, or Negotiation: Clause granting ROFR/ROFO/ROFN
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Control and Assignment Clauses
+        output_keys:
+          - change_of_control
+          - anti_assignment
+        prompt: |
+          From the given contract document, extract the following:
+
+          - Change of Control: Right to terminate or consent required for change of control
+          - Anti-Assignment: Consent or notice required for contract assignment
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Commercial Terms
+        output_keys:
+          - revenue_profit_sharing
+          - price_restriction
+          - minimum_commitment
+          - volume_restriction
+        prompt: |
+          From the given contract document, extract the following commercial terms:
+
+          - Revenue/Profit Sharing: Requirement to share revenue or profit
+          - Price Restriction: Restriction on ability to raise or reduce prices
+          - Minimum Commitment: Minimum order size or amount requirement
+          - Volume Restriction: Fee increase or consent requirement for exceeding usage threshold
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract IP Ownership Clauses
+        output_keys:
+          - ip_ownership_assignment
+          - joint_ip_ownership
+        prompt: |
+          From the given contract document, extract clauses related to intellectual property rights:
+
+          - IP Ownership Assignment: IP created by one party becomes property of counterparty
+          - Joint IP Ownership: Clause for joint or shared ownership of IP
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract License Terms
+        output_keys:
+          - license_grant
+          - non_transferable_license
+        prompt: |
+          From the given contract document, identify and extract the following licensing clauses:
+
+          - License Grant: Contract contains a license granted by one party to its counterparty
+          - Non-Transferable License: Limitation on ability to transfer the license to a third party
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Affiliate IP Licensing Clauses
+        output_keys:
+          - affiliate_ip_license_licensor
+          - affiliate_ip_license_licensee
+        prompt: |
+          From the given contract document, extract the licensing clauses related to affiliates:
+
+          - Affiliate IP License-Licensor: License grant by affiliates of the licensor
+          - Affiliate IP License-Licensee: License grant to a licensee and its affiliates
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Unlimited and Perpetual License Terms
+        output_keys:
+          - unlimited_license
+          - irrevocable_or_perpetual_license
+        prompt: |
+          From the given contract document, extract the following license terms:
+
+          - Unlimited/All-You-Can-Eat License: Clause granting unlimited usage license
+          - Irrevocable or Perpetual License: License grant that is irrevocable or perpetual
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Source Code Escrow and Post-Termination Services Clauses
+        output_keys:
+          - source_code_escrow
+          - post_termination_services
+        prompt: |
+          From the given contract document, extract the following:
+
+          - Source Code Escrow: Requirement to deposit source code into escrow
+          - Post-Termination Services: Obligations after termination or expiration of contract
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Audit Rights and Liability Clauses
+        output_keys:
+          - audit_rights
+          - uncapped_liability
+          - cap_on_liability
+        prompt: |
+          From the given contract document, identify and extract the following:
+
+          - Audit Rights: Right to audit books, records, or physical locations
+          - Uncapped Liability: Party's liability is uncapped upon breach of obligation
+          - Cap on Liability: Cap on liability upon breach of obligation
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Liquidated Damages and Warranty Duration
+        output_keys:
+          - liquidated_damages
+          - warranty_duration
+        prompt: |
+          From the given contract document, extract the following:
+
+          - Liquidated Damages: Clause for liquidated damages or termination fee
+          - Warranty Duration: Duration of warranty against defects or errors
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Insurance and Covenant Not to Sue Clauses
+        output_keys:
+          - insurance
+          - covenant_not_to_sue
+        prompt: |
+          From the given contract document, extract the following clauses:
+
+          - Insurance: Requirement for insurance to be maintained by one party
+          - Covenant Not to Sue: Restriction from contesting validity of IP ownership or bringing unrelated claims
+
+          If any clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+      - name: Extract Third Party Beneficiary Clause
+        output_keys:
+          - third_party_beneficiary
+        prompt: |
+          From the given contract document, extract the following information:
+
+          - Third Party Beneficiary: Non-contracting party who is a beneficiary to contract clauses
+
+          If the clause is not present or cannot be determined, return an empty string.
+
+          {{ input.document }}
+
+  - name: combine_to_clauses
+    type: reduce
+    reduce_key: id
+    pass_through: true
+    output:
+      schema:
+        clauses: "list[{clause_type: string, text_span: string}]"
+    prompt: |
+      Convert the following contract information into a structured list of clauses.
+      Create an entry for each field with:
+      - clause_type: The field name (e.g., document_name, parties, agreement_date, etc.)
+      - text_span: The extracted text
+
+      Make sure your answer includes ALL the clauses below. If a clause type is not present, return an empty string for the text_span.
+
+      {% for doc in inputs %}
+      document_name: {{ doc.document_name }}
+      parties: {{ doc.parties }}
+      agreement_date: {{ doc.agreement_date }}
+      effective_date: {{ doc.effective_date }}
+      expiration_date: {{ doc.expiration_date }}
+      renewal_term: {{ doc.renewal_term }}
+      notice_to_terminate_renewal: {{ doc.notice_to_terminate_renewal }}
+      governing_law: {{ doc.governing_law }}
+      most_favored_nation: {{ doc.most_favored_nation }}
+      non_compete: {{ doc.non_compete }}
+      exclusivity: {{ doc.exclusivity }}
+      no_solicit_of_customers: {{ doc.no_solicit_of_customers }}
+      competitive_restriction_exception: {{ doc.competitive_restriction_exception }}
+      no_solicit_of_employees: {{ doc.no_solicit_of_employees }}
+      non_disparagement: {{ doc.non_disparagement }}
+      termination_for_convenience: {{ doc.termination_for_convenience }}
+      right_of_first_refusal: {{ doc.right_of_first_refusal }}
+      change_of_control: {{ doc.change_of_control }}
+      anti_assignment: {{ doc.anti_assignment }}
+      revenue_profit_sharing: {{ doc.revenue_profit_sharing }}
+      price_restriction: {{ doc.price_restriction }}
+      minimum_commitment: {{ doc.minimum_commitment }}
+      volume_restriction: {{ doc.volume_restriction }}
+      ip_ownership_assignment: {{ doc.ip_ownership_assignment }}
+      joint_ip_ownership: {{ doc.joint_ip_ownership }}
+      license_grant: {{ doc.license_grant }}
+      non_transferable_license: {{ doc.non_transferable_license }}
+      affiliate_ip_license_licensor: {{ doc.affiliate_ip_license_licensor }}
+      affiliate_ip_license_licensee: {{ doc.affiliate_ip_license_licensee }}
+      unlimited_license: {{ doc.unlimited_license }}
+      irrevocable_or_perpetual_license: {{ doc.irrevocable_or_perpetual_license }}
+      source_code_escrow: {{ doc.source_code_escrow }}
+      post_termination_services: {{ doc.post_termination_services }}
+      audit_rights: {{ doc.audit_rights }}
+      uncapped_liability: {{ doc.uncapped_liability }}
+      cap_on_liability: {{ doc.cap_on_liability }}
+      liquidated_damages: {{ doc.liquidated_damages }}
+      warranty_duration: {{ doc.warranty_duration }}
+      insurance: {{ doc.insurance }}
+      covenant_not_to_sue: {{ doc.covenant_not_to_sue }}
+      third_party_beneficiary: {{ doc.third_party_beneficiary }}
+      {% endfor %}
+
+      Your answer should be a JSON object with the following structure:
+      [{"clause_type": "document_name", "text_span": ...}, {"clause_type": "parties", "text_span": ...}, ...]
+
+pipeline:
+  steps:
+    - name: contract_analysis
+      input: contracts_data
+      operations:
+        - extract_contract_info_parallel
+        - combine_to_clauses
+
+  output:
+    type: file
+    path: "agenticpreprint/cuad/results/extracted_contract_info_preprint.json"
+    intermediate_dir: "agenticpreprint/cuad/results/intermediate_preprint"

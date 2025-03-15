@@ -9,7 +9,7 @@ from docetl.operations.clustering_utils import get_embeddings_for_clustering
 class SampleOperation(BaseOperation):
     """
     Params:
-    - method: "uniform", "stratify", "outliers", "custom"
+    - method: "uniform", "stratify", "outliers", "custom", "first"
     - samples: int, float, or list
     - method_kwargs: dict, optional
         - embedding_model: str, optional
@@ -35,7 +35,7 @@ class SampleOperation(BaseOperation):
         if "method" not in self.config:
             raise ValueError("Must specify 'method' in SampleOperation configuration")
 
-        valid_methods = ["uniform", "stratify", "outliers", "custom"]
+        valid_methods = ["uniform", "stratify", "outliers", "custom", "first"]
         if self.config["method"] not in valid_methods:
             raise ValueError(f"'method' must be one of {valid_methods}")
 
@@ -120,6 +120,9 @@ class SampleOperation(BaseOperation):
         cost = 0
         if not input_data:
             return [], cost
+        
+        if self.config["method"] == "first":
+            return input_data[: self.config["samples"]], cost
 
         if self.config["method"] == "outliers":
             # Outlier functionality

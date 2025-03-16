@@ -1,0 +1,2 @@
+1. Does the output accurately extract all relevant text spans for each category listed in the task prompt, ensuring no instances are missed, especially for categories with multiple possible text spans?
+2. Is the extracted information presented in the correct format, with text spans properly separated by commas where applicable, and are there any errors or inconsistencies in the extracted data?

@@ -1,0 +1,19 @@
+You are evaluating the quality of information extracted from a contract document. The extraction task required identifying 41 specific categories of contract information including document details, party information, dates, legal clauses, and various contractual terms.
+
+Review the original contract document and the extracted information, then answer the following questions:
+
+1. COMPLETENESS: Did the extraction identify all relevant information for each of the 41 categories that are actually present in the document? Pay special attention to:
+   - Were all parties to the contract correctly identified?
+   - Were all key dates (agreement, effective, expiration) accurately extracted?
+   - Were all restrictive clauses (non-compete, exclusivity, etc.) properly identified?
+   - Were all IP-related provisions completely captured?
+   - Were any categories incorrectly left blank when information was actually present in the document?
+
+2. ACCURACY & FORMAT: Is the extracted information accurate and properly formatted according to the requirements?
+   - Is each extracted text span directly quoted from the document rather than paraphrased?
+   - For categories with multiple instances, are they properly presented as comma-separated lists?
+   - Are there any false positives where information was extracted for categories that don't actually appear in the document?
+   - Is the information assigned to the correct categories (e.g., not confusing Effective Date with Agreement Date)?
+   - Are the extracted spans complete (not cutting off relevant parts of clauses)?
+
+Provide specific examples of any missed information or inaccuracies you identify, referencing the relevant sections of the original document.

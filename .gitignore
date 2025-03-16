@@ -59,3 +59,5 @@ website/next-env.d.ts
 experiments/*.json
 
 metrics_vs_cost.png
+
+agenticpreprint.zip

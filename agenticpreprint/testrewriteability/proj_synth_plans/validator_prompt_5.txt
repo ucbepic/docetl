@@ -1,0 +1,2 @@
+1. For each category listed in the task prompt, does the output include all relevant text spans extracted from the contract document, ensuring no instances are missing? Please specify any categories where information was not fully captured.
+2. Is the extracted information presented in the correct format, with text spans properly separated by commas where applicable, and are there any inconsistencies or errors in the extracted data that need to be addressed?

@@ -30,14 +30,18 @@ def process_lotus_data(csv_path: str, labels_path: str, k_values: List[int]) -> 
         extracted = sorted_group['reaction'].tolist()
         
         # Get ground truth for this ID
-        ground_truth = labels_df[labels_df['id'] == id_]['ground_truth_reactions'].iloc[0]
-        
-        # Calculate RP@k
-        result = {"id": id_}
-        for k in k_values:
-            rp_at_k = calculate_rp_at_k(extracted, ground_truth, k)
-            result[f"RP@{k}"] = rp_at_k
-        results.append(result)
+        try:
+            ground_truth = labels_df[labels_df['id'] == id_]['ground_truth_reactions'].iloc[0]
+            
+            # Calculate RP@k
+            result = {"id": id_}
+            for k in k_values:
+                rp_at_k = calculate_rp_at_k(extracted, ground_truth, k)
+                result[f"RP@{k}"] = rp_at_k
+            results.append(result)
+        except (IndexError, KeyError) as e:
+            print(f"Warning: Could not find ground truth for ID {id_}")
+            continue
     
     return results
 
@@ -171,6 +175,34 @@ def main():
         table_data.append(row_data)
     except Exception as e:
         print(f"Error processing Lotus results: {e}")
+        print(f"Error details: {str(e)}")
+    
+    # Process Baseline results
+    print("\nProcessing Baseline results...")
+    try:
+        baseline_results = process_lotus_data(
+            "agenticpreprint/biodex/results/baseline_output.csv",
+            ground_truth_path,
+            k_values
+        )
+
+        # Print Baseline results
+        print("\nBaseline Results:")
+        
+        # Calculate averages for table
+        row_data = {"Model": "Baseline (Keyword Matching)"}
+        for k in k_values:
+            if baseline_results:
+                avg_rp_at_k = sum(item[f"RP@{k}"] for item in baseline_results) / len(baseline_results)
+                row_data[f"RP@{k}"] = avg_rp_at_k
+                print(f"Average RP@{k}: {avg_rp_at_k:.4f}")
+            else:
+                row_data[f"RP@{k}"] = 0.0
+                print(f"Average RP@{k}: 0.0000 (No valid results)")
+        table_data.append(row_data)
+    except Exception as e:
+        print(f"Error processing Baseline results: {e}")
+        print(f"Error details: {str(e)}")
 
     # Print pretty table with all results
     print("\n\n")
@@ -185,11 +217,12 @@ def main():
     docetl_base = [row for row in sorted_table_data if row["Model"].startswith("DocETL_")]
     docetl_combined = [row for row in sorted_table_data if "Combined" in row["Model"]]
     lotus = [row for row in sorted_table_data if row["Model"] == "Lotus"]
+    baseline = [row for row in sorted_table_data if "Baseline" in row["Model"]]
     historical = [row for row in sorted_table_data if "docetl_aug2024" in row["Model"] or "docetl_jan2025" in row["Model"]]
     optimized_new = [row for row in sorted_table_data if "docet_base_opt" in row["Model"]]
     
     # Reorder table data by category
-    ordered_table_data = docetl_base + docetl_combined + lotus + historical + optimized_new
+    ordered_table_data = docetl_base + docetl_combined + lotus + baseline + historical + optimized_new
     
     try:
         # Try using tabulate for a nice table

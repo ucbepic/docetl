@@ -5,9 +5,9 @@ datasets:
   biodex_terms:
     path: agenticpreprint/biodex/biodex_terms.json
     type: file
-default_model: gpt-4o-mini
+default_model: azure/gpt-4o-mini
 operations:
-- model: gpt-4o-mini
+- model: azure/gpt-4o-mini
   name: group_reactions
   output:
     schema:
@@ -59,10 +59,10 @@ operations:
     }} to assist in determining if the condition is described.'
   embedding_model: text-embedding-3-small
   limit_comparisons: 12750
-  model: gpt-4o-mini
+  model: azure/gpt-4o-mini
   name: match_reactions
   type: equijoin
-- model: gpt-4o-mini
+- model: azure/gpt-4o-mini
   name: synthesized_extracted_conditions_extraction
   output:
     schema:

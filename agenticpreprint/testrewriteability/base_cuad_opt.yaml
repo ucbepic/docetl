@@ -1,0 +1,184 @@
+datasets:
+  contracts_data:
+    path: agenticpreprint/cuad/raw.json
+    type: file
+default_model: gpt-4o-mini
+operations:
+- model: gpt-4o-mini
+  name: extract_contract_info_subtask_3
+  output:
+    schema:
+      clauses: 'list[{clause_type: string, text_span: string}]'
+      ip_liability_info: string
+  prompt: "Given the following contract document:\n\n{{ input.document }}\n\nAnd the\
+    \ previously extracted information:\n\nBasic Contract Information: {{ input.basic_contract_info\
+    \ }}\nBusiness Terms Information: {{ input.business_terms_info }}\n\nExtract the\
+    \ text spans (if they exist) for each of the following IP and liability categories.\
+    \ If a category is not present or cannot be determined, return an empty string.\
+    \ If there are multiple text spans for a category, return them as a comma-separated\
+    \ list of text spans.\n\n21. Price Restriction: Is there a restriction on the\
+    \ ability of a party to raise or reduce prices of technology, goods, or services\
+    \ provided?\n22. Minimum Commitment: Is there a minimum order size or minimum\
+    \ amount or units per-time period that one party must buy from the counterparty\
+    \ under the contract?\n23. Volume Restriction: Is there a fee increase or consent\
+    \ requirement, etc. if one party's use of the product/services exceeds certain\
+    \ threshold?\n24. IP Ownership Assignment: Does intellectual property created\
+    \ by one party become the property of the counterparty?\n25. Joint IP Ownership:\
+    \ Is there any clause providing for joint or shared ownership of intellectual\
+    \ property between the parties to the contract?\n26. License Grant: Does the contract\
+    \ contain a license granted by one party to its counterparty?\n27. Non-Transferable\
+    \ License: Does the contract limit the ability of a party to transfer the license\
+    \ being granted to a third party?\n28. Affiliate IP License-Licensor: Does the\
+    \ contract contain a license grant by affiliates of the licensor or that includes\
+    \ intellectual property of affiliates of the licensor?\n29. Affiliate IP License-Licensee:\
+    \ Does the contract contain a license grant to a licensee and the affiliates of\
+    \ such licensee/sublicensor?\n30. Unlimited/All-You-Can-Eat License: Is there\
+    \ a clause granting one party an \"enterprise,\" \"all you can eat\" or unlimited\
+    \ usage license?\n31. Irrevocable or Perpetual License: Does the contract contain\
+    \ a license grant that is irrevocable or perpetual?\n32. Source Code Escrow: Is\
+    \ one party required to deposit its source code into escrow with a third party?\n\
+    33. Post-Termination Services: Is a party subject to obligations after the termination\
+    \ or expiration of a contract?\n34. Audit Rights: Does a party have the right\
+    \ to audit the books, records, or physical locations of the counterparty to ensure\
+    \ compliance with the contract?\n35. Uncapped Liability: Is a party's liability\
+    \ uncapped upon the breach of its obligation in the contract?\n36. Cap on Liability:\
+    \ Does the contract include a cap on liability upon the breach of a party's obligation?\n\
+    37. Liquidated Damages: Does the contract contain a clause that would award either\
+    \ party liquidated damages for breach or a fee upon the termination of a contract?\n\
+    38. Warranty Duration: What is the duration of any warranty against defects or\
+    \ errors in technology, products, or services provided under the contract?\n39.\
+    \ Insurance: Is there a requirement for insurance that must be maintained by one\
+    \ party for the benefit of the counterparty?\n40. Covenant Not to Sue: Is a party\
+    \ restricted from contesting the validity of the counterparty's ownership of intellectual\
+    \ property or otherwise bringing a claim against the counterparty for matters\
+    \ unrelated to the contract?\n41. Third Party Beneficiary: Is there a non-contracting\
+    \ party who is a beneficiary to some or all of the clauses in the contract and\
+    \ therefore can enforce its rights against a contracting party?\n\nThen, combine\
+    \ all the extracted information from all three steps into a final output following\
+    \ this format:\n\n```json\n{\n  \"clauses\": [\n    {\"clause_type\": \"Document\
+    \ Name\", \"text_span\": \"[extracted text]\"},\n    {\"clause_type\": \"Parties\"\
+    , \"text_span\": \"[extracted text]\"},\n    ...\n  ]\n}\n```\n\nInclude all 41\
+    \ categories in the final output, with empty strings for any categories where\
+    \ no relevant text was found."
+  type: map
+- model: gpt-4o-mini
+  name: extract_contract_info_subtask_2
+  output:
+    schema:
+      business_terms_info: string
+  prompt: 'Given the following contract document:
+
+
+    {{ input.document }}
+
+
+    Extract the text spans (if they exist) for each of the following business terms
+    categories. If a category is not present or cannot be determined, return an empty
+    string. If there are multiple text spans for a category, return them as a comma-separated
+    list of text spans.
+
+
+    9. Most Favored Nation: Is there a clause that if a third party gets better terms
+    on the licensing or sale of technology/goods/services described in the contract,
+    the buyer of such technology/goods/services under the contract shall be entitled
+    to those better terms?
+
+    10. Non-Compete: Is there a restriction on the ability of a party to compete with
+    the counterparty or operate in a certain geography or business or technology sector?
+
+    11. Exclusivity: Is there an exclusive dealing commitment with the counterparty?
+
+    12. No-Solicit of Customers: Is a party restricted from contracting or soliciting
+    customers or partners of the counterparty?
+
+    13. Competitive Restriction Exception: This category includes the exceptions or
+    carveouts to Non-Compete, Exclusivity and No-Solicit of Customers above.
+
+    14. No-Solicit of Employees: Is there a restriction on a party''s soliciting or
+    hiring employees and/or contractors from the counterparty?
+
+    15. Non-Disparagement: Is there a requirement on a party not to disparage the
+    counterparty?
+
+    16. Termination for Convenience: Can a party terminate this contract without cause?
+
+    17. Right of First Refusal, Offer or Negotiation: Is there a clause granting one
+    party a right of first refusal, right of first offer or right of first negotiation?
+
+    18. Change of Control: Does one party have the right to terminate or is consent
+    or notice required of the counterparty if such party undergoes a change of control?
+
+    19. Anti-Assignment: Is consent or notice required of a party if the contract
+    is assigned to a third party?
+
+    20. Revenue/Profit Sharing: Is one party required to share revenue or profit with
+    the counterparty?
+
+
+    For each category, provide the exact text span from the document that contains
+    the relevant information. Format your response as a JSON object with the category
+    names as keys and the extracted text spans as values.'
+  type: map
+- model: gpt-4o-mini
+  name: extract_contract_info_subtask_1
+  output:
+    schema:
+      basic_contract_info: string
+  prompt: 'Given the following contract document:
+
+
+    {{ input.document }}
+
+
+    Extract the text spans (if they exist) for each of the following basic categories.
+    If a category is not present or cannot be determined, return an empty string.
+    If there are multiple text spans for a category, return them as a comma-separated
+    list of text spans.
+
+
+    1. Document Name: The name of the contract
+
+    2. Parties: The two or more parties who signed the contract
+
+    3. Agreement Date: The date of the contract
+
+    4. Effective Date: The date when the contract is effective
+
+    5. Expiration Date: On what date will the contract''s initial term expire?
+
+    6. Renewal Term: What is the renewal term after the initial term expires? This
+    includes automatic extensions and unilateral extensions with prior notice.
+
+    7. Notice to Terminate Renewal: What is the notice period required to terminate
+    renewal?
+
+    8. Governing Law: Which state/country''s law governs the interpretation of the
+    contract?
+
+
+    For each category, provide the exact text span from the document that contains
+    the relevant information. Format your response as a JSON object with the category
+    names as keys and the extracted text spans as values.'
+  type: map
+- method: first
+  model: gpt-4o-mini
+  name: sample_contracts
+  samples: 50
+  type: sample
+optimizer_config:
+  rewrite_agent_model: claude-3-7-sonnet-20250219
+  run_proj_synthesis_experiment: true
+  sample_sizes:
+    map: 3
+pipeline:
+  output:
+    path: agenticpreprint/testrewriteability/results/extracted_contract_info.json
+    type: file
+  steps:
+  - input: contracts_data
+    name: contract_analysis
+    operations:
+    - sample_contracts
+    - extract_contract_info_subtask_1
+    - extract_contract_info_subtask_2
+    - extract_contract_info_subtask_3

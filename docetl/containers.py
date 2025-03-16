@@ -682,16 +682,12 @@ class OpContainer:
             yield []
             return
 
-        # Limit the number of combinations to avoid explosion
-        max_combinations = 5
         combination_count = 0
 
         # Generate cartesian product of child plans
         import itertools
 
         for combo in itertools.product(*child_plan_combinations):
-            if combination_count >= max_combinations:
-                break
             yield combo
             combination_count += 1
 

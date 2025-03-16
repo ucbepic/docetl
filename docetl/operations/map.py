@@ -41,6 +41,7 @@ class MapOperation(BaseOperation):
         batch_prompt: Optional[str] = None
         litellm_completion_kwargs: Dict[str, Any] = {}
         pdf_url_key: Optional[str] = None
+        flush_partial_result: bool = True
 
         @field_validator("drop_keys")
         def validate_drop_keys(cls, v):
@@ -368,19 +369,20 @@ class MapOperation(BaseOperation):
                 desc=f"Processing {self.config['name']} (map) on all documents",
                 console=self.console,
             )
-            for i in pbar:
-                result_list, item_cost = futures[i].result()
+            for batch_index in pbar:
+                result_list, item_cost = futures[batch_index].result()
                 if result_list:
                     if "drop_keys" in self.config:
                         result_list = [
-                            {
-                                k: v
-                                for k, v in result.items()
-                                if k not in self.config["drop_keys"]
-                            }
+                            {k: v for k, v in result.items() if k not in self.config["drop_keys"]}
                             for result in result_list
                         ]
                     results.extend(result_list)
+                    # --- BEGIN: Flush partial checkpoint ---
+                    if self.config.get("flush_partial_results", False):
+                        op_name = self.config["name"]
+                        self.runner._flush_partial_results(op_name, batch_index, result_list)
+                    # --- END: Flush partial checkpoint ---
                 total_cost += item_cost
 
         if self.status:

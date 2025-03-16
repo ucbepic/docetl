@@ -142,6 +142,7 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `sample`                     | Number of samples to use for the operation                                                      | Processes all data            |
 | `tools`                           | List of tool definitions for LLM use                                                            | None                          |
 | `validate`                        | List of Python expressions to validate the output                                               | None                          |
+| `flush_partial_results`           | Write results of individual batches of map operation to disk for faster inspection              | True
 | `num_retries_on_validate_failure` | Number of retry attempts on validation failure                                                  | 0                             |
 | `gleaning`                        | Configuration for advanced validation and LLM-based refinement                                  | None                          |
 | `drop_keys`                       | List of keys to drop from the input before processing                                           | None                          |

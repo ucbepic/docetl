@@ -384,4 +384,53 @@ def test_map_operation_with_verbose(simple_map_config, map_sample_data, api_wrap
         any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
 
+def test_map_operation_partial_checkpoint(
+    tmp_path, map_config_with_batching, default_model, max_threads, map_sample_data, api_wrapper
+):
+    """
+    Test that MapOperation flushes partial results to disk when checkpoint_partial is enabled.
+    
+    This test:
+    - Sets the intermediate_dir to a temporary directory.
+    - Enables checkpoint_partial in the operation config.
+    - Executes the map operation.
+    - Verifies that a subfolder named '<operation_name>_batches' is created.
+    - Verifies that at least one partial checkpoint file (e.g. batch_0.json) is present and contains valid JSON.
+    """
+    import json
+    import os
 
+    # Set up the intermediate directory in the temporary path.
+    intermediate_dir = tmp_path / "intermediate_results"
+    intermediate_dir.mkdir()
+
+    # Enable partial checkpointing in the config.
+    map_config_with_batching["flush_partial_results"] = True
+    map_config_with_batching.setdefault("bypass_cache", True)
+
+    # Set the runner's intermediate_dir.
+    # In our tests, 'api_wrapper' acts as the runner.
+    api_wrapper.intermediate_dir = str(intermediate_dir)
+
+    # Create and run the MapOperation.
+    operation = MapOperation(api_wrapper, map_config_with_batching, default_model, max_threads)
+    results, cost = operation.execute(map_sample_data)
+
+    # Determine the expected batch folder based on the operation name.
+    op_name = map_config_with_batching["name"]  # e.g. "extract_medications"
+    batch_folder = intermediate_dir / f"{op_name}_batches"
+    assert batch_folder.exists(), f"Partial checkpoint folder {batch_folder} does not exist"
+
+    # List all partial checkpoint files (expecting names like "batch_0.json", etc.)
+    batch_files = sorted(batch_folder.glob("batch_*.json"))
+    assert batch_files, "No partial checkpoint files were created"
+
+    # Optionally, check the first batch file contains valid, non-empty JSON data.
+    with open(batch_files[0], "r") as f:
+        data = json.load(f)
+    if map_sample_data:  # Only check if there was input
+        assert isinstance(data, list), "Data in checkpoint file is not a list"
+        assert data, "Partial checkpoint file is empty"
+
+    # Optionally, print the log for visual confirmation (comment out for CI)
+    print(f"Partial checkpoint files created: {[os.path.basename(f) for f in batch_files]}")

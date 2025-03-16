@@ -14,6 +14,7 @@ from docetl.optimizers.map_optimizer.evaluator import Evaluator
 from docetl.optimizers.map_optimizer.plan_generators import PlanGenerator
 from docetl.optimizers.map_optimizer.prompt_generators import PromptGenerator
 from docetl.optimizers.map_optimizer.utils import select_evaluation_samples
+from docetl.optimizers.utils import PlanResult
 from docetl.utils import StageType, count_tokens
 
 
@@ -43,6 +44,7 @@ class MapOptimizer:
         timeout: int = 10,
         is_filter: bool = False,
         depth: int = 1,
+        num_desired_plans: int = 1,
     ):
         """
         Initialize the MapOptimizer.
@@ -63,6 +65,7 @@ class MapOptimizer:
         self._num_plans_to_evaluate_in_parallel = 5
         self.is_filter = is_filter
         self.k_to_pairwise_compare = 6
+        self.num_desired_plans = num_desired_plans
 
         self.plan_generator = PlanGenerator(
             runner,
@@ -105,6 +108,7 @@ class MapOptimizer:
             validator_prompt,
             assessment,
             data_exceeds_limit,
+            _,
         ) = self._should_optimize_helper(op_config, input_data)
         if data_exceeds_limit or assessment.get("needs_improvement", True):
             assessment_str = (
@@ -173,7 +177,9 @@ class MapOptimizer:
 
         # Execute the original operation on the sample data
         no_change_start = time.time()
-        output_data = self._run_operation(op_config, input_data, is_build=True)
+        output_data, no_change_cost = self._run_operation(
+            op_config, input_data, is_build=True, return_cost=True
+        )
         no_change_runtime = time.time() - no_change_start
 
         # Capture output for the sample run
@@ -235,6 +241,7 @@ class MapOptimizer:
             validator_prompt,
             assessment,
             data_exceeds_limit,
+            no_change_cost,
         )
 
     def optimize(
@@ -242,7 +249,7 @@ class MapOptimizer:
         op_config: Dict[str, Any],
         input_data: List[Dict[str, Any]],
         plan_types: Optional[List[str]] = ["chunk", "proj_synthesis", "glean"],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    ) -> Tuple[List[PlanResult], float]:
         """
         Optimize the given operation configuration for the input data.
         Uses a staged evaluation approach:
@@ -267,18 +274,38 @@ class MapOptimizer:
             validator_prompt,
             assessment,
             data_exceeds_limit,
+            no_change_cost,
         ) = self._should_optimize_helper(op_config, input_data)
 
-        if not self.config.get("optimizer_config", {}).get("force_decompose", False):
-            if not data_exceeds_limit and not assessment.get("needs_improvement", True):
-                self.console.log(
-                    f"[green]No improvement needed for operation {op_config['name']}[/green]"
-                )
-                return (
-                    [op_config],
-                    output_data,
-                    self.plan_generator.subplan_optimizer_cost,
-                )
+        # NOTE: it actually makes sense to comment this out because we want to force decompose / rewrite with cheaper models if possible
+        # if not self.config.get("optimizer_config", {}).get("force_decompose", False):
+        #     if not data_exceeds_limit and not assessment.get("needs_improvement", True):
+        #         self.console.log(
+        #             f"[green]No improvement needed for operation {op_config['name']}[/green]"
+        #         )
+
+        #         # See if a cheaper model can do it
+        #         other_model_plans = {"no_change": [op_config]}
+        #         for model_choice in self.runner.optimizer.model_choices:
+        #             if model_choice == op_config.get("model", self.runner.optimizer.default_model):
+        #                 continue
+        #             copy_config = copy.deepcopy(op_config)
+        #             copy_config["model"] = model_choice
+        #             other_model_plans[f"no_change_{model_choice}"] = [copy_config]
+
+        #         # Evaluate the other models
+        #         other_model_results = self._evaluate_plans(
+        #             other_model_plans, op_config, input_data, validator_prompt, no_change_runtime
+        #         )
+        #         # Select the best plan
+        #         top_plan_objects, _ = self._select_best_plan(
+        #             other_model_results, op_config, input_data, validator_prompt, other_model_plans
+        #         )
+
+        #         return (
+        #             top_plan_objects,
+        #             self.plan_generator.subplan_optimizer_cost,
+        #         )
 
         # Select consistent evaluation samples
         num_evaluations = min(5, len(input_data))
@@ -353,10 +380,12 @@ class MapOptimizer:
             pairwise_rankings = self.evaluator._pairwise_compare_plans(
                 filtered_results, validator_prompt, op_config, evaluation_samples
             )
-            best_plan_name = max(pairwise_rankings, key=pairwise_rankings.get)
+            top_plan_names = sorted(
+                pairwise_rankings, key=pairwise_rankings.get, reverse=True
+            )[: self.num_desired_plans]
         else:
             pairwise_rankings = {k: 0 for k in results.keys()}
-            best_plan_name = next(iter(filtered_results))
+            top_plan_names = list(results.keys())
 
         # Display results table
         self.console.log(
@@ -366,34 +395,54 @@ class MapOptimizer:
         table.add_column("Plan", style="dim")
         table.add_column("Score", justify="right", width=10)
         table.add_column("Runtime", justify="right", width=10)
+        table.add_column("Cost", justify="right", width=10)
         table.add_column("Pairwise Wins", justify="right", width=10)
 
-        for plan_name, (score, runtime, _) in sorted_results:
+        for plan_name, (score, runtime, _, plan_cost) in sorted_results:
             table.add_row(
                 plan_name,
                 f"{score:.2f}",
                 f"{runtime:.2f}s",
+                f"{plan_cost:.2f}",
                 f"{pairwise_rankings.get(plan_name, 0)}",
             )
 
         self.console.log(table)
         self.console.log("\n")
 
-        try:
-            best_plan = candidate_plans[best_plan_name]
-            best_output = results[best_plan_name][2]
-        except KeyError:
-            raise ValueError(
-                f"Best plan name {best_plan_name} not found in candidate plans. Candidate plan names: {candidate_plans.keys()}"
-            )
-
+        best_plan_name = top_plan_names[0]
         self.console.log(
             f"[green]Current best plan: {best_plan_name} for operation {op_config['name']} "
             f"(Score: {results[best_plan_name][0]:.2f}, "
             f"Runtime: {results[best_plan_name][1]:.2f}s)[/green]"
         )
 
-        return best_plan, best_output, best_plan_name, pairwise_rankings
+        top_plan_objects = []
+        min_pairwise_ranking = min(pairwise_rankings.values())
+        max_pairwise_ranking = max(pairwise_rankings.values())
+
+        for plan_name in top_plan_names:
+            try:
+                # Min-max normalize the pairwise ranking
+                normalized_pairwise_ranking = (
+                    pairwise_rankings.get(plan_name, min_pairwise_ranking)
+                    - min_pairwise_ranking
+                ) / (max_pairwise_ranking - min_pairwise_ranking)
+                top_plan_objects.append(
+                    PlanResult(
+                        plan_name=plan_name,
+                        ops=candidate_plans[plan_name],
+                        cost=results[plan_name][3],
+                        score=normalized_pairwise_ranking,
+                        output=results[plan_name][2],
+                    )
+                )
+            except KeyError:
+                raise ValueError(
+                    f"Top plan name {plan_name} not found in candidate plans. Candidate plan names: {candidate_plans.keys()}"
+                )
+
+        return top_plan_objects, pairwise_rankings
 
     def _staged_evaluation(
         self,
@@ -407,6 +456,14 @@ class MapOptimizer:
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
         """Stage 1: Try gleaning and proj synthesis plans first"""
         candidate_plans = {"no_change": [op_config]}
+        for model_choice in self.runner.optimizer.model_choices:
+            if model_choice == op_config.get(
+                "model", self.runner.optimizer.default_model
+            ):
+                continue
+            copy_config = copy.deepcopy(op_config)
+            copy_config["model"] = model_choice
+            candidate_plans[f"no_change_{model_choice}"] = [copy_config]
 
         # Generate initial plans (gleaning and proj synthesis)
         if "glean" in plan_types:
@@ -445,15 +502,15 @@ class MapOptimizer:
         )
 
         # Get best initial plan
-        best_plan, best_output, best_plan_name, pairwise_rankings = (
-            self._select_best_plan(
-                initial_results,
-                op_config,
-                evaluation_samples,
-                validator_prompt,
-                candidate_plans,
-            )
+        top_plan_objects, _ = self._select_best_plan(
+            initial_results,
+            op_config,
+            evaluation_samples,
+            validator_prompt,
+            candidate_plans,
         )
+        best_plan_name = top_plan_objects[0].plan_name
+        best_plan = top_plan_objects[0].ops
         best_is_better_than_baseline = best_plan_name != "no_change"
 
         # Stage 2: Decide whether/how to try chunking plans
@@ -473,6 +530,7 @@ class MapOptimizer:
                     sample_plans = dict(
                         random.sample(chunk_items, min(2, len(chunk_items)))
                     )
+
                     sample_results = self._evaluate_plans(
                         sample_plans, op_config, evaluation_samples, validator_prompt
                     )
@@ -481,21 +539,23 @@ class MapOptimizer:
                     current_best = {best_plan_name: initial_results[best_plan_name]}
                     current_best.update(sample_results)
 
-                    _, _, new_best_name, new_pairwise_rankings = self._select_best_plan(
-                        current_best,
-                        op_config,
-                        evaluation_samples,
-                        validator_prompt,
-                        {**{best_plan_name: best_plan}, **sample_plans},
+                    new_top_plan_objects, new_pairwise_rankings = (
+                        self._select_best_plan(
+                            current_best,
+                            op_config,
+                            evaluation_samples,
+                            validator_prompt,
+                            {**{best_plan_name: best_plan}, **sample_plans},
+                        )
                     )
+                    new_best_name = new_top_plan_objects[0].plan_name
 
                     if new_best_name == best_plan_name:
                         self.console.log(
                             "[yellow]Sample chunking plans did not improve results. Keeping current best plan.[/yellow]"
                         )
                         return (
-                            best_plan,
-                            best_output,
+                            new_top_plan_objects,
                             self.plan_generator.subplan_optimizer_cost,
                         )
 
@@ -523,7 +583,7 @@ class MapOptimizer:
                 candidate_plans.update(chunk_plans)
 
         # Final selection of best plan
-        best_plan, best_output, _, final_pairwise_rankings = self._select_best_plan(
+        top_plan_objects, final_pairwise_rankings = self._select_best_plan(
             initial_results,
             op_config,
             evaluation_samples,
@@ -547,7 +607,7 @@ class MapOptimizer:
         )
 
         self.console.post_optimizer_status(StageType.END)
-        return best_plan, best_output, self.plan_generator.subplan_optimizer_cost
+        return top_plan_objects, self.plan_generator.subplan_optimizer_cost
 
     def _evaluate_plans(
         self,
@@ -580,8 +640,10 @@ class MapOptimizer:
                 for future in as_completed(futures):
                     plan_name = futures[future]
                     try:
-                        score, runtime, output = future.result(timeout=self.timeout)
-                        results[plan_name] = (score, runtime, output)
+                        score, runtime, output, plan_cost = future.result(
+                            timeout=self.timeout
+                        )
+                        results[plan_name] = (score, runtime, output, plan_cost)
                     except concurrent.futures.TimeoutError:
                         self.console.log(
                             f"[yellow]Plan {plan_name} timed out and will be skipped.[/yellow]"
@@ -596,6 +658,7 @@ class MapOptimizer:
                 results["no_change"][0],
                 no_change_runtime,
                 results["no_change"][2],
+                results["no_change"][3],
             )
 
         return results
@@ -628,6 +691,7 @@ class MapOptimizer:
                 chunk_size_plans = self.plan_generator._generate_chunk_size_plans(
                     op_config, input_data, validator_prompt, model_input_context_length
                 )
+
                 candidate_plans.update(chunk_size_plans)
             elif plan_type == "proj_synthesis":
                 if not self.is_filter:
@@ -671,7 +735,7 @@ class MapOptimizer:
         )
 
         # Select best plan using the centralized method
-        best_plan, best_output, _, pairwise_rankings = self._select_best_plan(
+        top_plan_objects, pairwise_rankings = self._select_best_plan(
             results, op_config, evaluation_samples, validator_prompt, candidate_plans
         )
 
@@ -691,4 +755,4 @@ class MapOptimizer:
         )
 
         self.console.post_optimizer_status(StageType.END)
-        return best_plan, best_output, self.plan_generator.subplan_optimizer_cost
+        return top_plan_objects, self.plan_generator.subplan_optimizer_cost

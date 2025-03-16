@@ -269,10 +269,11 @@ class PlanGenerator:
         optimized_reduce_ops = [reduce_op]  # Default to original reduce op
         if not self.is_filter and op_config.get("recursively_optimize", False):
             try:
-                optimized_reduce_ops, _, cost = ReduceOptimizer(
+                optimized_reduce_plans, _, cost = ReduceOptimizer(
                     self.runner,
                     self._run_operation,
                 ).optimize(reduce_op, sample_output)
+                optimized_reduce_ops = optimized_reduce_plans[0].ops
                 self.subplan_optimizer_cost += cost
             except Exception as e:
                 import traceback
@@ -361,6 +362,40 @@ class PlanGenerator:
             # Add all plans to the candidates
             for plan_name, plan in plan_results:
                 plans[plan_name] = plan
+
+        # Also add other models
+        plan_tuples = list(plans.items())
+        for model_choice in self.runner.optimizer.model_choices:
+            for plan_name, plan in plan_tuples:
+                # First, find the first op that has a model
+                first_model = None
+                for op in plan:
+                    if op.get("model"):
+                        first_model = op.get("model")
+                        break
+                if not first_model:
+                    continue
+
+                # If the first op has the same model, skip
+                if model_choice == first_model:
+                    continue
+
+                # Otherwise, change either the map models or the reduce models
+                map_change_copy = copy.deepcopy(plan)
+                for op in map_change_copy:
+                    # If it's a map op, change the model
+                    if op.get("type") == "map":
+                        op["model"] = model_choice
+
+                # Add the new plan
+                plans[f"{plan_name}_{model_choice}_map"] = map_change_copy
+
+                # Also change the reduce models
+                reduce_change_copy = copy.deepcopy(plan)
+                for op in reduce_change_copy:
+                    if op.get("type") == "reduce":
+                        op["model"] = model_choice
+                plans[f"{plan_name}_{model_choice}_reduce"] = reduce_change_copy
 
         return plans
 
@@ -570,6 +605,19 @@ class PlanGenerator:
                 "validation_prompt": validation_prompt,
             }
             plans[f"gleaning_{gleaning_round}_rounds"] = [op_config_copy]
+
+            # Also add other models
+            for model_choice in self.runner.optimizer.model_choices:
+                if model_choice == op_config.get(
+                    "model", self.runner.optimizer.default_model
+                ):
+                    continue
+                op_config_copy = copy.deepcopy(op_config)
+                op_config_copy["model"] = model_choice
+                plans[f"gleaning_{gleaning_round}_rounds_{model_choice}"] = [
+                    op_config_copy
+                ]
+
         return plans
 
     def _generate_parallel_plans(
@@ -819,6 +867,35 @@ class PlanGenerator:
                 else:  # Reduce operation
                     self.console.log(f"Transform prompt: {op['prompt'][:500]}...")
 
+        # Also add other models
+        # Precompute tuples of (plan_name, plan)
+        plan_tuples = list(plans.items())
+        for plan_name, plan in plan_tuples:
+            for model_choice in self.runner.optimizer.model_choices:
+                # If there's only one op in the plan, update that op
+                if len(plan) == 1:
+                    if model_choice == plan[0].get(
+                        "model", self.runner.optimizer.default_model
+                    ):
+                        continue
+
+                    op_copy = copy.deepcopy(plan[0])
+                    op_copy["model"] = model_choice
+                    plans[f"{plan_name}_{model_choice}"] = [op_copy]
+                    continue
+
+                # Otherwise, give each op a new model choice
+                for idx, op in enumerate(plan):
+                    if model_choice == op.get(
+                        "model", self.runner.optimizer.default_model
+                    ):
+                        continue
+
+                    # Just change the model for this op
+                    plan_copy = copy.deepcopy(plan)
+                    plan_copy[idx]["model"] = model_choice
+                    plans[f"{plan_name}_{model_choice}_{idx}"] = plan_copy
+
         return plans
 
     def _generate_chain_plans(
@@ -1003,7 +1080,22 @@ class PlanGenerator:
             self.console.log("")  # Add a blank line between subtasks
         self.console.log("\n")  # Add a newline for better readability
 
-        return {"chain_decomposition": chain_plan}
+        # Also add other models
+        plans = {"chain_decomposition": chain_plan}
+        for model_choice in self.runner.optimizer.model_choices:
+            # Let all the models be the same
+            if model_choice == op_config.get(
+                "model", self.runner.optimizer.default_model
+            ):
+                continue
+
+            # Otherwise change all the models
+            chain_plan_copy = copy.deepcopy(chain_plan)
+            for subtask in chain_plan_copy:
+                subtask["model"] = model_choice
+            plans[f"chain_decomposition_{model_choice}"] = chain_plan_copy
+
+        return plans
 
     def _recursively_optimize_subtask(
         self,
@@ -1035,10 +1127,10 @@ class PlanGenerator:
         )
 
         try:
-            optimized_plan, _, cost = subtask_optimizer.optimize(
+            best_plan_objects, optimizer_cost = subtask_optimizer.optimize(
                 subtask_config, input_data, plan_types
             )
-            return optimized_plan, cost
+            return best_plan_objects[0].ops, optimizer_cost
 
         except Exception as e:
             self.console.log(

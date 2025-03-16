@@ -329,13 +329,13 @@ class DSLRunner(ConfigWrapper):
 
         self.console.log("[green]✓ All operations passed syntax check[/green]")
 
-    def print_query_plan(self, show_boundaries=False):
+    def print_query_plan(self, last_op_container, show_boundaries=False):
         """
         Print a visual representation of the entire query plan using indentation and arrows.
         Operations are color-coded by step to show the pipeline structure while maintaining
         dependencies between steps.
         """
-        if not self.last_op_container:
+        if not last_op_container:
             self.console.log("\n[bold]Pipeline Steps:[/bold]")
             self.console.log(
                 Panel("No operations in pipeline", title="Query Plan", width=100)
@@ -375,6 +375,10 @@ class DSLRunner(ConfigWrapper):
             color = step_colors.get(step_name, "white")
             output.append(f"{indent_str}[{color}][bold]{op.name}[/bold][/{color}]")
             output.append(f"{indent_str}Type: {op.config['type']}")
+
+            # Add the model if available
+            if "model" in op.config:
+                output.append(f"{indent_str}Model: {op.config['model']}")
 
             # Add schema if available
             if "output" in op.config and "schema" in op.config["output"]:
@@ -420,7 +424,7 @@ class DSLRunner(ConfigWrapper):
             self.console.log(f"[{color}]■[/{color}] {step_name}")
 
         # Print the full query plan starting from the last step boundary
-        query_plan = _print_op(self.last_op_container, step_colors=step_colors)
+        query_plan = _print_op(last_op_container, step_colors=step_colors)
         self.console.log(Panel(query_plan, title="Query Plan", width=100))
         self.console.log()
 
@@ -437,7 +441,7 @@ class DSLRunner(ConfigWrapper):
         output_path = self.get_output_path(require=True)
 
         # Print the query plan
-        self.print_query_plan()
+        self.print_query_plan(self.last_op_container)
 
         start_time = time.time()
 
@@ -683,7 +687,7 @@ class DSLRunner(ConfigWrapper):
             **kwargs,
         )
         self.optimizer = builder
-        llm_api_cost = builder.optimize()
+        llm_api_cost, candidate_plans = builder.optimize()
         operations_cost = self.total_cost
         self.total_cost += llm_api_cost
 
@@ -710,13 +714,24 @@ class DSLRunner(ConfigWrapper):
                 builder.save_optimized_config(f"{self.base_name}_opt.yaml")
                 self.optimized_config_path = f"{self.base_name}_opt.yaml"
 
+        if self.config.get("optimizer_config", {}).get("save_all_plans", False):
+            # Save each plan to a folder "optimized_plans"
+            save_path = f"{self.base_name}_optimized_plans"
+            os.makedirs(save_path, exist_ok=True)
+            for i, plan in enumerate(candidate_plans):
+                plan_path = os.path.join(save_path, f"plan_{i}.yaml")
+                builder.save_candidate_plan(plan, plan_path)
+
         if return_pipeline:
             return (
-                DSLRunner(builder.clean_optimized_config(), self.max_threads),
+                DSLRunner(
+                    builder.clean_optimized_config(self.last_op_container),
+                    self.max_threads,
+                ),
                 self.total_cost,
             )
 
-        return builder.clean_optimized_config(), self.total_cost
+        return builder.clean_optimized_config(self.last_op_container), self.total_cost
 
     def _run_operation(
         self,
@@ -724,6 +739,7 @@ class DSLRunner(ConfigWrapper):
         input_data: Union[List[Dict[str, Any]], Dict[str, Any]],
         return_instance: bool = False,
         is_build: bool = False,
+        return_cost: bool = False,
     ) -> Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation, float]]:
         """
         Run a single operation based on its configuration.
@@ -735,11 +751,14 @@ class DSLRunner(ConfigWrapper):
             op_config (Dict[str, Any]): The configuration of the operation to run.
             input_data (List[Dict[str, Any]]): The input data for the operation.
             return_instance (bool, optional): If True, return the operation instance along with the output data.
+            is_build (bool, optional): If True, the operation is being run as part of the build phase.
+            return_cost (bool, optional): If True, return the cost of the operation.
 
         Returns:
             Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation, float]]:
             If return_instance is False, returns the output data.
             If return_instance is True, returns a tuple of the output data, the operation instance, and the cost.
+            If return_cost is True, returns the cost of the operation.
         """
         operation_class = get_operation(op_config["type"])
 
@@ -764,7 +783,10 @@ class DSLRunner(ConfigWrapper):
         self.total_cost += cost
 
         if return_instance:
-            return output_data, operation_instance
+            if return_cost:
+                return output_data, operation_instance, cost
+            else:
+                return output_data, operation_instance
         else:
             return output_data
 
@@ -798,3 +820,7 @@ class DSLRunner(ConfigWrapper):
             f"[green]✓[/green] [italic]Partial checkpoint saved for '{operation_name}', "
             f"batch {batch_index} at '{checkpoint_path}'[/italic]"
         )
+            if return_cost:
+                return output_data, cost
+            else:
+                return output_data

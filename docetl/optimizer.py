@@ -14,7 +14,7 @@ import copy
 import hashlib
 import os
 import random
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import yaml
 from rich.panel import Panel
@@ -133,6 +133,11 @@ class Optimizer:
 
         if not self.runner._from_df_accessors:
             self.print_optimizer_config()
+
+        self.default_model = self.config.get("default_model", "gpt-4o-mini")
+        self.model_choices = self.config.get("optimizer_config", {}).get(
+            "model_choices", [self.default_model]
+        )
 
     def print_optimizer_config(self):
         """
@@ -420,6 +425,11 @@ class Optimizer:
         Optimizes the entire pipeline by walking the operation DAG and applying
         operation-specific optimizers where marked. Returns the total optimization cost.
         """
+
+        self.console.rule("[bold cyan]Estimating Selectivities[/bold cyan]")
+        # Estimate selectivities for all operations
+        self.runner.last_op_container.estimate_selectivities()
+
         self.console.rule("[bold cyan]Beginning Pipeline Rewrites[/bold cyan]")
 
         # If self.resume is True and there's a checkpoint, load it
@@ -445,11 +455,27 @@ class Optimizer:
 
         flush_cache(self.console)
 
-        # Print the query plan
-        self.console.rule("[bold cyan]Optimized Query Plan[/bold cyan]")
-        self.runner.print_query_plan()
+        # Compile the optimized operations
+        candidate_plans = self.runner.last_op_container.compile_optimized_plans()
 
-        return self.llm_client.total_cost
+        # Sort candidate plans by score
+        candidate_plans.sort(key=lambda x: x.score, reverse=True)
+
+        # Print all query plans with their costs
+        for i, cp in enumerate(candidate_plans):
+            cost = cp.cost
+            score = cp.score
+            container = cp.container
+            title = "Optimized Query Plan" if i == 0 else "Candidate Plan"
+            self.console.rule(
+                f"[bold cyan]{title} ([green]${cost:.8f}[/green], score: [blue]{score:.4f}[/blue])[/bold cyan]"
+            )
+            self.runner.print_query_plan(container)
+
+        # Set the best plan to highest scoring plan
+        self.runner.last_op_container = candidate_plans[0].container
+
+        return self.llm_client.total_cost, candidate_plans
 
     def _optimize_equijoin(
         self,
@@ -509,7 +535,7 @@ class Optimizer:
                 "name": f"synthesized_{output_key}_extraction",
                 "type": "map",
                 "prompt": map_prompt,
-                "model": self.config.get("default_model", "gpt-4o-mini"),
+                "model": self.default_model,
                 "output": {"schema": {output_key: "string"}},
                 "optimize": False,
             }
@@ -567,7 +593,7 @@ class Optimizer:
         Generates the clean config and saves it to the self.optimized_ops_path
         This is used to resume optimization from a previous run
         """
-        clean_config = self.clean_optimized_config()
+        clean_config = self.clean_optimized_config(self.runner.last_op_container)
         with open(self.optimized_ops_path, "w") as f:
             yaml.safe_dump(clean_config, f, default_flow_style=False, width=80)
 
@@ -592,12 +618,12 @@ class Optimizer:
         else:
             return data
 
-    def clean_optimized_config(self) -> Dict:
+    def clean_optimized_config(self, container: Optional[OpContainer] = None) -> Dict:
         """
         Creates a clean YAML configuration from the optimized operation containers,
         removing internal fields and organizing operations into proper pipeline steps.
         """
-        if not self.runner.last_op_container:
+        if not container:
             return self.config
 
         # Create a clean copy of the config
@@ -641,7 +667,10 @@ class Optimizer:
         def process_container(container, current_step=None):
             """Process an operation container and its dependencies"""
             # Skip step boundaries
-            if isinstance(container, StepBoundary):
+            if (
+                isinstance(container, StepBoundary)
+                or container.config.get("type") == "step_boundary"
+            ):
                 if container.children:
                     return process_container(container.children[0], current_step)
                 return None, None
@@ -701,7 +730,7 @@ class Optimizer:
             return container, current_step
 
         # Start processing from the last container
-        process_container(self.runner.last_op_container)
+        process_container(container)
 
         # Add inputs to steps based on their first operation
         for step in clean_config["pipeline"]["steps"]:
@@ -736,10 +765,28 @@ class Optimizer:
         Saves the optimized configuration to a YAML file after resolving all references
         and cleaning up internal optimization artifacts.
         """
-        resolved_config = self.clean_optimized_config()
+        resolved_config = self.clean_optimized_config(self.runner.last_op_container)
 
         with open(optimized_config_path, "w") as f:
             yaml.safe_dump(resolved_config, f, default_flow_style=False, width=80)
             self.console.log(
                 f"[green italic]💾 Optimized config saved to {optimized_config_path}[/green italic]"
+            )
+
+    def save_candidate_plan(self, candidate_plan, plan_path: str):
+        """
+        Saves a candidate plan to a YAML file.
+        """
+        # Get the container from the candidate plan
+        container = candidate_plan.container
+
+        # Get the clean optimized config
+        resolved_config = self.clean_optimized_config(container)
+
+        # Save the resolved config
+        with open(plan_path, "w") as f:
+            yaml.safe_dump(resolved_config, f, default_flow_style=False, width=80)
+
+            self.console.log(
+                f"[green italic]💾 Candidate plan saved to {plan_path}[/green italic]"
             )

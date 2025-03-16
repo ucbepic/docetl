@@ -1,13 +1,44 @@
 import math
+import os
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
+import litellm
 import pyrate_limiter
 from litellm import RateLimitError, completion
+from litellm.cache import Cache
+from pydantic import BaseModel
 
-from docetl.operations.utils import truncate_messages
+from docetl.operations.utils import DOCETL_HOME_DIR, truncate_messages
 from docetl.ratelimiter import create_bucket_factory
 from docetl.utils import completion_cost
+
+# Set diskcache for litellm
+litellm.cache = Cache(
+    type="disk", disk_cache_dir=os.path.join(DOCETL_HOME_DIR, "agent_cache")
+)
+
+
+class PlanResult(BaseModel):
+    plan_name: str
+    ops: List[Dict[str, Any]]
+    cost: float
+    score: float
+    output: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
+
+
+class CandidatePlan(BaseModel):
+    """
+    Represents a candidate execution plan with its container, cost, and score.
+    Used to track and compare different execution plans during optimization.
+    """
+
+    container: Any  # OpContainer type (avoiding circular import)
+    cost: float
+    score: float
+
+    class Config:
+        arbitrary_types_allowed = True  # Allow the OpContainer type
 
 
 class LLMClient:
@@ -79,6 +110,7 @@ class LLMClient:
         while rate_limited_attempt < 6:
             try:
                 response = completion(
+                    caching=True,
                     model=model,
                     messages=[
                         {

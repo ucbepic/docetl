@@ -237,8 +237,12 @@ class Evaluator:
 
         output_data = input_data
         start_time = time.time()
+        plan_cost = 0
         for op in plan:
-            output_data = self._run_operation(op, output_data, is_build=True)
+            output_data, op_cost = self._run_operation(
+                op, output_data, is_build=True, return_cost=True
+            )
+            plan_cost += op_cost
         runtime = time.time() - start_time
 
         # Reorder output_data to match input_data
@@ -268,7 +272,7 @@ class Evaluator:
 
         average_score = sum(scores) / len(scores)
 
-        return average_score, runtime, output_data
+        return average_score, runtime, output_data, plan_cost
 
     def _assess_operation(
         self,

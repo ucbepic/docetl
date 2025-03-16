@@ -92,6 +92,11 @@ def truncate_messages(
         model_cost_info = model_cost.get(model.split("/")[-1], {})
 
     model_input_context_length = model_cost_info.get("max_input_tokens", 8192)
+    if model_input_context_length == 8192:
+        # Log a warning
+        rprint(
+            f"[yellow]Warning:[/yellow] Model {model.split('/')[-1]} has a max input context length of 8192 tokens."
+        )
 
     total_tokens = sum(count_tokens(json.dumps(msg), model) for msg in messages)
 

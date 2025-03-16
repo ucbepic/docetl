@@ -1321,8 +1321,7 @@ class ReduceOptimizer:
 
         # Generate 6 candidate batch sizes
         batch_sizes = [
-            max(1, int(max_batch_size * ratio))
-            for ratio in [0.1, 0.2, 0.4, 0.6, 0.75, 0.9]
+            max(1, int(max_batch_size * ratio)) for ratio in [0.1, 0.2, 0.75, 0.9]
         ]
         # Log the generated batch sizes
         self.console.log("[cyan]Generating plans for batch sizes:[/cyan]")
@@ -1704,7 +1703,7 @@ Remember, you must fold the new data into the existing output, do not start fres
             evaluation_sample, plan["reduce_key"]
         )
 
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+        with ThreadPoolExecutor(max_workers=8) as executor:
             futures = [
                 executor.submit(
                     self._evaluate_single_plan,
@@ -1737,12 +1736,16 @@ Remember, you must fold the new data into the existing output, do not start fres
             f"\n[green]Selected best plan with score: {best_score:.2f} and batch size: {best_plan['fold_batch_size']}[/green]"
         )
 
+        # Min-max normalize the scores
+        min_score = min(plan_scores, key=lambda x: x[1])[1]
+        max_score = max(plan_scores, key=lambda x: x[1])[1]
+
         best_plans = [
             PlanResult(
                 plan_name=f"{plan['name']}_{i}",
                 ops=[plan],
                 cost=plan_op_costs[id(plan)],
-                score=score,
+                score=(score - min_score) / (max_score - min_score),
                 output=plan_outputs[id(plan)],
             )
             for i, (plan, score) in enumerate(sorted_plans)

@@ -510,13 +510,13 @@ class MapOptimizer:
             candidate_plans,
         )
         best_plan_name = top_plan_objects[0].plan_name
-        best_plan = top_plan_objects[0].ops
+        # best_plan = top_plan_objects[0].ops
         best_is_better_than_baseline = best_plan_name != "no_change"
 
         # Stage 2: Decide whether/how to try chunking plans
         if "chunk" in plan_types:
             if best_is_better_than_baseline:
-                # Try 2 random chunking plans first
+                # Try 4 random chunking plans first
                 self.console.log(
                     "[bold magenta]Trying sample of chunking plans...[/bold magenta]"
                 )
@@ -525,18 +525,19 @@ class MapOptimizer:
                 )
 
                 if chunk_plans:
-                    # Sample 2 random plans
+                    # Sample 4 random plans
                     chunk_items = list(chunk_plans.items())
                     sample_plans = dict(
-                        random.sample(chunk_items, min(2, len(chunk_items)))
+                        random.sample(chunk_items, min(4, len(chunk_items)))
                     )
 
                     sample_results = self._evaluate_plans(
                         sample_plans, op_config, evaluation_samples, validator_prompt
                     )
 
-                    # Do pairwise comparison between sampled plans and current best
-                    current_best = {best_plan_name: initial_results[best_plan_name]}
+                    # Do pairwise comparison between sampled plans, current best, and initial results
+                    current_best = {}
+                    current_best.update(initial_results)
                     current_best.update(sample_results)
 
                     new_top_plan_objects, new_pairwise_rankings = (
@@ -545,7 +546,7 @@ class MapOptimizer:
                             op_config,
                             evaluation_samples,
                             validator_prompt,
-                            {**{best_plan_name: best_plan}, **sample_plans},
+                            {**candidate_plans, **sample_plans},
                         )
                     )
                     new_best_name = new_top_plan_objects[0].plan_name

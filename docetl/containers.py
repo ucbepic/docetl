@@ -16,6 +16,14 @@ from docetl.dataset import Dataset
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
 from docetl.optimizers import JoinOptimizer, MapOptimizer, ReduceOptimizer
+from docetl.optimizers.directives import DECOMPOSITIONS
+from docetl.optimizers.rewrite_utils import (
+    SkeletonNode,
+    build_chain_from_skeleton,
+    clone_chain,
+    generate_children_skeletons,
+    get_last_node,
+)
 from docetl.optimizers.utils import CandidatePlan
 from docetl.utils import smart_sample
 
@@ -1067,6 +1075,82 @@ class OpContainer:
             self.runner.console.log(
                 f"[green]✓ Estimated selectivity:[/green] {self.name} [dim]({self.config['type']})[/dim] | Selectivity: [bold green]{self.selectivity:.4f}[/bold green] | Input: [yellow]{input_len}[/yellow] | Output: [yellow]{output_size}[/yellow]"
             )
+
+    def generate_skeletons(self):
+        """
+        Recursively generate candidate skeleton trees for the subtree rooted at this node.
+        Each candidate is a tree of SkeletonNode objects.
+
+        The method works bottom-up:
+          1. First, recursively compute candidate skeletons for each child.
+          2. Then, form a candidate for the current node in two ways:
+             a. Unchanged: create a SkeletonNode with the same op type as self and attach
+                all candidate trees from the children.
+             b. For each applicable rewrite directive (where directive["pattern"][0] equals self's op type),
+                build a new chain (from the directive’s skeleton) and attach the candidate trees for the children
+                to the last node in that new chain.
+        """
+        # Step 1: Recursively compute candidate skeletons for children.
+        children_candidates = generate_children_skeletons(self.children)
+
+        # Option A: Unchanged candidate for current node.
+        unchanged_candidates = []
+        for cand in children_candidates:
+            node = SkeletonNode(self.config.get("type"), self, synthesized=False)
+            node.children = (
+                cand  # Attach the candidate skeleton trees for all children.
+            )
+            unchanged_candidates.append(node)
+
+        # Option B: Rewriting candidates.
+        rewriting_candidates = []
+        for directive in DECOMPOSITIONS:
+            # If the directive is just one op, we rewrite the current node
+            if len(directive["pattern"]) == 1 and directive["pattern"][
+                0
+            ] == self.config.get("type"):
+                # Build a new chain from the directive's skeleton.
+                new_chain = build_chain_from_skeleton(
+                    directive["skeleton"], original_op=self
+                )
+                # Attach candidate skeletons for the children to the last node of the new chain.
+                for cand in children_candidates:
+                    chain_copy = clone_chain(new_chain)
+                    get_last_node(chain_copy).children.extend(cand)
+                    rewriting_candidates.append(chain_copy)
+
+            # If the directive is more than one op, we need to check if there's any suffix matching
+            if len(directive["pattern"]) > 1 and directive["pattern"][
+                -1
+            ] == self.config.get("type"):
+                for cand in children_candidates:
+                    # Check if the suffix of the candidate matches the pattern (except the last element)
+                    pattern_length = len(directive["pattern"])
+                    if pattern_length > 1 and len(cand) >= pattern_length - 1:
+                        # Extract the suffix of the candidate
+                        candidate_suffix = [
+                            node.op_type for node in cand[-(pattern_length - 1) :]
+                        ]
+                        # Check if the suffix + current node's op type matches the directive pattern
+                        if (
+                            candidate_suffix + [self.config.get("type")]
+                            == directive["pattern"]
+                        ):
+                            # Build a new chain from the directive's skeleton
+                            new_chain = build_chain_from_skeleton(
+                                directive["skeleton"], original_op=self
+                            )
+                            # Get the non-suffix part of the candidate
+                            non_suffix_part = cand[: -(pattern_length - 1)]
+                            # Attach the non-suffix part to the last node of the new chain
+                            if non_suffix_part:
+                                get_last_node(new_chain).children.extend(
+                                    non_suffix_part
+                                )
+                            rewriting_candidates.append(new_chain)
+
+        # Return the union of unchanged and rewriting candidates.
+        return unchanged_candidates + rewriting_candidates
 
 
 class StepBoundary(OpContainer):

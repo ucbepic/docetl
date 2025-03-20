@@ -1,0 +1,77 @@
+datasets:
+  articles:
+    type: file
+    path: experiments/gemini/declassified/blackvault_articles_pdfs.json
+
+default_model: gemini/gemini-2.0-flash
+default_bypass_cache: true
+optimizer_config:
+  judge_agent_model: azure/gpt-4o-mini
+  rewrite_agent_model: azure/gpt-4o
+  sample_sizes:
+    resolve: 50
+  model_choices:
+    - gemini/gemini-2.0-flash
+    - gemini/gemini-2.0-flash-lite-preview-02-05
+  save_all_plans: true
+
+operations:
+  - type: sample
+    method: uniform
+    random_state: 42
+    samples: 50
+    name: sample_articles
+  - name: extract_event_type
+    type: map
+    optimize: true
+    prompt: |
+      Given the following document content from the black vault, identify and extract the type of extraterrestrial or paranormal event being described:
+
+      {{ input.content }}
+
+      {% if input.pdf_content %}
+      Additional PDF content:
+      {{ input.pdf_content | truncate(1000000) }}
+      {% endif %}
+
+      Provide a single, specific event type category.
+    output:
+      schema:
+        event_type: str
+
+  - name: aggregate_locations
+    type: reduce
+    reduce_key: event_type
+    optimize: true
+    prompt: |
+      For extraterrestrial/paranormal events of type "{{ reduce_key }}", analyze these incident reports:
+
+      {% for report in inputs %}
+      Report {{ loop.index }}:
+      {{ report.content }}
+      {% if report.pdf_content %}
+      Additional PDF content:
+      {{ report.pdf_content | truncate(10000) }}
+      {% endif %}
+      {% endfor %}
+
+      Extract and list all unique locations of observation mentioned across these reports. They should be real locations on Earth.
+    output:
+      schema:
+        locations: list[str]
+
+  
+
+pipeline:
+  steps:
+    - name: analyze_events
+      input: articles
+      operations:
+        - sample_articles
+        - extract_event_type
+        - aggregate_locations
+
+  output:
+    type: file
+    path: experiments/skeleton/map_test.json
+    intermediate_dir: experiments/skeleton/intermediate

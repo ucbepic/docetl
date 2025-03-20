@@ -1,0 +1,55 @@
+datasets:
+  articles:
+    type: file
+    path: experiments/gemini/declassified/blackvault_articles_pdfs.json
+
+default_model: gemini/gemini-2.0-flash
+default_bypass_cache: true
+optimizer_config:
+  judge_agent_model: azure/gpt-4o-mini
+  rewrite_agent_model: claude-3-7-sonnet-20250219
+  sample_sizes:
+    resolve: 50
+  model_choices:
+    - gemini/gemini-2.0-flash
+    - gemini/gemini-2.0-flash-lite-preview-02-05
+  save_all_plans: true
+
+operations:
+  - type: sample
+    method: uniform
+    random_state: 42
+    samples: 50
+    name: sample_articles
+  - name: extract_event_type
+    type: map
+    optimize: true
+    prompt: |
+      Given the following document content from the black vault, identify and extract the type of extraterrestrial or paranormal event being described:
+
+      {{ input.content }}
+
+      {% if input.pdf_content %}
+      Additional PDF content:
+      {{ input.pdf_content | truncate(1000000) }}
+      {% endif %}
+
+      Provide a single, specific event type category.
+    output:
+      schema:
+        event_type: str
+
+  
+
+pipeline:
+  steps:
+    - name: analyze_events
+      input: articles
+      operations:
+        - sample_articles
+        - extract_event_type
+
+  output:
+    type: file
+    path: experiments/skeleton/map_test.json
+    intermediate_dir: experiments/skeleton/intermediate

@@ -43,6 +43,7 @@ from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation, get_operations
 from docetl.operations.base import BaseOperation
 from docetl.optimizer import Optimizer
+from docetl.optimizers.instantiation import invoke_rewrite_agent
 
 from . import schemas
 from .utils import classproperty
@@ -732,6 +733,44 @@ class DSLRunner(ConfigWrapper):
             )
 
         return builder.clean_optimized_config(self.last_op_container), self.total_cost
+
+    def rewrite(self):
+        """
+        Rewrite the pipeline (experimental)
+        """
+        if not self.last_op_container:
+            raise ValueError("No operations in pipeline. Cannot optimize.")
+
+        self.load()
+
+        # On the last operation, call the rewrite method
+        candidates = self.last_op_container.generate_skeletons()
+
+        print("Candidate skeleton trees:")
+        for idx, candidate in enumerate(candidates, 1):
+            print(f"Candidate {idx}: {candidate}")
+
+        kwargs = {}
+        # Augment the kwargs with the runner's config if not already provided
+        kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
+            "litellm_kwargs", {}
+        )
+        kwargs["rewrite_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "rewrite_agent_model", "gpt-4o"
+        )
+        kwargs["judge_agent_model"] = self.config.get("optimizer_config", {}).get(
+            "judge_agent_model", "gpt-4o-mini"
+        )
+
+        builder = Optimizer(
+            self,
+            **kwargs,
+        )
+
+        for candidate in candidates[1:]:
+            invoke_rewrite_agent(
+                candidate, self.config, builder.llm_client, None, self.console
+            )
 
     def _run_operation(
         self,

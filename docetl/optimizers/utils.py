@@ -5,8 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import litellm
 import pyrate_limiter
-from litellm import RateLimitError, completion
-from litellm.cache import Cache
+from litellm import Cache, RateLimitError, completion
 from pydantic import BaseModel
 
 from docetl.operations.utils import DOCETL_HOME_DIR, truncate_messages

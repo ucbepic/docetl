@@ -755,3 +755,34 @@ class DSLRunner(ConfigWrapper):
             return output_data, operation_instance
         else:
             return output_data
+
+    def _flush_partial_results(
+        self, operation_name: str, batch_index: int, data: List[Dict]
+    ) -> None:
+        """
+        Save partial (batch-level) results from an operation to a directory named
+        '<operation_name>_batches' inside the intermediate directory.
+
+        Args:
+            operation_name (str): The name of the operation, e.g. 'extract_medications'.
+            batch_index (int): Zero-based index of the batch.
+            data (List[Dict]): Batch results to write to disk.
+        """
+        if not self.intermediate_dir:
+            return
+
+        op_batches_dir = os.path.join(
+            self.intermediate_dir, f"{operation_name}_batches"
+        )
+        os.makedirs(op_batches_dir, exist_ok=True)
+
+        # File name: 'batch_0.json', 'batch_1.json', etc.
+        checkpoint_path = os.path.join(op_batches_dir, f"batch_{batch_index}.json")
+
+        with open(checkpoint_path, "w") as f:
+            json.dump(data, f)
+
+        self.console.log(
+            f"[green]✓[/green] [italic]Partial checkpoint saved for '{operation_name}', "
+            f"batch {batch_index} at '{checkpoint_path}'[/italic]"
+        )

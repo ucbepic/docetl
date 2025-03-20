@@ -433,4 +433,4 @@ def test_map_operation_partial_checkpoint(
         assert data, "Partial checkpoint file is empty"
 
     # Optionally, print the log for visual confirmation (comment out for CI)
-    print(f"Partial checkpoint files created: {[os.path.basename(f) for f in batch_files]}")
+    # print(f"Partial checkpoint files created: {[os.path.basename(f) for f in batch_files]}")

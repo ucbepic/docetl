@@ -1,227 +1,158 @@
 [
   {
-    "symptoms": [
+    "fruits_or_veggies_list": [
       {
-        "disease_name": "Influenza",
-        "symptoms": [
-          "fever",
-          "chills",
-          "sore throat",
-          "muscle aches",
-          "fatigue",
-          "cough",
-          "congestion"
-        ]
+        "name": "dragon fruit",
+        "count": 1
       },
       {
-        "disease_name": "Common Cold",
-        "symptoms": [
-          "runny nose",
-          "sneezing",
-          "sore throat"
-        ]
+        "name": "loquat",
+        "count": 1
       },
       {
-        "disease_name": "COVID-19",
-        "symptoms": [
-          "fever",
-          "cough",
-          "fatigue",
-          "difficulty breathing",
-          "loss of taste or smell",
-          "body aches"
-        ]
+        "name": "mangosteen",
+        "count": 2
       },
       {
-        "disease_name": "Bronchitis",
-        "symptoms": [
-          "persistent cough",
-          "mucus production",
-          "fatigue"
-        ]
+        "name": "blackcurrant",
+        "count": 2
       },
       {
-        "disease_name": "Diabetes",
-        "symptoms": [
-          "extreme thirst",
-          "frequent urination",
-          "blurred vision",
-          "unexplained weight loss",
-          "fatigue",
-          "excessive hunger",
-          "slow wound healing"
-        ]
+        "name": "jackfruit",
+        "count": 4
       },
       {
-        "disease_name": "Type 1 Diabetes",
-        "symptoms": [
-          "extreme thirst",
-          "frequent urination",
-          "blurred vision",
-          "unexplained weight loss"
-        ]
+        "name": "camu camu",
+        "count": 2
       },
       {
-        "disease_name": "Type 2 Diabetes",
-        "symptoms": [
-          "fatigue",
-          "excessive hunger",
-          "slow wound healing"
-        ]
+        "name": "a\u00e7a\u00ed berries",
+        "count": 1
       },
       {
-        "disease_name": "Hyperthyroidism",
-        "symptoms": [
-          "excessive sweating",
-          "weight loss",
-          "increased appetite"
-        ]
+        "name": "soursop",
+        "count": 1
       },
       {
-        "disease_name": "Malaria",
-        "symptoms": [
-          "cyclical fevers",
-          "chills",
-          "headaches",
-          "nausea",
-          "vomiting",
-          "extreme fatigue"
-        ]
+        "name": "african horned melon",
+        "count": 1
       },
       {
-        "disease_name": "Dengue Fever",
-        "symptoms": [
-          "high fever",
-          "severe headaches",
-          "joint and muscle pain",
-          "rash",
-          "bleeding"
-        ]
+        "name": "tamarind",
+        "count": 1
       },
       {
-        "disease_name": "Multiple Sclerosis",
-        "symptoms": [
-          "numbness or weakness in limbs",
-          "vision problems",
-          "balance issues",
-          "cognitive changes"
-        ]
+        "name": "cherimoya",
+        "count": 1
       },
       {
-        "disease_name": "Guillain-Barr\u00e9 Syndrome",
-        "symptoms": [
-          "weakness",
-          "tingling",
-          "paralysis starting in the feet and legs"
-        ]
+        "name": "maracuja",
+        "count": 1
       },
       {
-        "disease_name": "Tuberculosis",
-        "symptoms": [
-          "persistent cough lasting more than three weeks",
-          "chest pain",
-          "coughing up blood",
-          "fever",
-          "night sweats",
-          "weight loss"
-        ]
+        "name": "pulasan",
+        "count": 1
       },
       {
-        "disease_name": "Pneumonia",
-        "symptoms": [
-          "cough",
-          "fever",
-          "chills",
-          "difficulty breathing"
-        ]
+        "name": "lucuma",
+        "count": 1
+      },
+      {
+        "name": "maqui berry",
+        "count": 1
+      },
+      {
+        "name": "cupuacu",
+        "count": 1
+      },
+      {
+        "name": "gooseberries",
+        "count": 1
+      },
+      {
+        "name": "bilberries",
+        "count": 1
+      },
+      {
+        "name": "mangaba",
+        "count": 1
+      },
+      {
+        "name": "ugli fruit",
+        "count": 1
+      },
+      {
+        "name": "salak",
+        "count": 1
+      },
+      {
+        "name": "elderberries",
+        "count": 1
+      },
+      {
+        "name": "persimmons",
+        "count": 1
+      },
+      {
+        "name": "jabuticaba",
+        "count": 1
+      },
+      {
+        "name": "langsat",
+        "count": 1
+      },
+      {
+        "name": "medlar",
+        "count": 1
+      },
+      {
+        "name": "nance",
+        "count": 1
+      },
+      {
+        "name": "pawpaw",
+        "count": 1
+      },
+      {
+        "name": "rose apple",
+        "count": 1
+      },
+      {
+        "name": "sapodilla",
+        "count": 1
+      },
+      {
+        "name": "surinam cherry",
+        "count": 1
+      },
+      {
+        "name": "velvet apple",
+        "count": 1
+      },
+      {
+        "name": "white mulberries",
+        "count": 1
+      },
+      {
+        "name": "yellow mombin",
+        "count": 1
+      },
+      {
+        "name": "ziziphus",
+        "count": 1
+      },
+      {
+        "name": "apple",
+        "count": 9
       }
     ],
-    "diseases": [
-      {
-        "name": "Influenza",
-        "count": 1
-      },
-      {
-        "name": "Common Cold",
-        "count": 1
-      },
-      {
-        "name": "COVID-19",
-        "count": 1
-      },
-      {
-        "name": "Bronchitis",
-        "count": 1
-      },
-      {
-        "name": "Diabetes",
-        "count": 1
-      },
-      {
-        "name": "Type 1 Diabetes",
-        "count": 1
-      },
-      {
-        "name": "Type 2 Diabetes",
-        "count": 1
-      },
-      {
-        "name": "Hyperthyroidism",
-        "count": 1
-      },
-      {
-        "name": "Malaria",
-        "count": 1
-      },
-      {
-        "name": "Dengue Fever",
-        "count": 1
-      },
-      {
-        "name": "Asthma",
-        "count": 2
-      },
-      {
-        "name": "COPD",
-        "count": 2
-      },
-      {
-        "name": "Cancer",
-        "count": 2
-      },
-      {
-        "name": "Parkinson's disease",
-        "count": 2
-      },
-      {
-        "name": "Alzheimer's disease",
-        "count": 2
-      },
-      {
-        "name": "Epilepsy",
-        "count": 2
-      },
-      {
-        "name": "Stroke",
-        "count": 2
-      },
-      {
-        "name": "Multiple Sclerosis",
-        "count": 1
-      },
-      {
-        "name": "Guillain-Barr\u00e9 Syndrome",
-        "count": 1
-      },
-      {
-        "name": "Tuberculosis",
-        "count": 1
-      },
-      {
-        "name": "Pneumonia",
-        "count": 1
-      }
+    "top_5_ranking": [
+      "apple",
+      "jackfruit",
+      "mangosteen",
+      "blackcurrant",
+      "camu camu"
     ],
-    "_counts_prereduce_get_diseases": 10
+    "_counts_prereduce_get_fruits": 8
   }
 ]

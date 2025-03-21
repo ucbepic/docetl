@@ -1,0 +1,58 @@
+datasets:
+  input:
+    type: file
+    path: politcsdata.json
+    source: local
+default_model: gpt-4o-mini
+sample: 5
+operations:
+  - type: reduce
+    name: get_debates
+    prompt: >-
+      You are going to be given many articles about presidential debates. 
+
+
+      {% for input in inputs %}
+
+      article title: {{ input.title }}
+      article body: {{ input.content }}
+
+      {% endfor %}
+
+
+      SEARCH THROUGH ALL CONTENT and provide me all presidents as well as their key points. You can update the key points as you see more articles about it.
+    fold_batch_size: 5
+    fold_prompt: >-
+      Update the existing list of presidents and their key points 
+
+      {% for input in inputs %}
+
+        article title: {{ input.title }}
+      article body: {{ input.content }}
+
+      {% endfor %}
+
+      Update the existing list with either new presidential candidates, or give more key points about their arguments.
+
+
+      Existing data:
+      data: {{ output }}
+
+    output:
+      schema:
+        presidential_candidates: "list[str]"
+        key_points: "list[{candidate_name:str, points: list[str]}]"
+    reduce_key:
+      - _all
+    model: gpt-4o-mini
+pipeline:
+  steps:
+    - name: data_processing
+      input: input
+      operations:
+        - get_debates
+  output:
+    type: file
+    path: results.json
+    intermediate_dir: intermediate_results
+system_prompt: {}

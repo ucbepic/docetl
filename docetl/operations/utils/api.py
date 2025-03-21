@@ -150,7 +150,6 @@ class APIWrapper(object):
 
     def process_func_calls_freq(self, func_calls, state=None):
         state = self.process_func_calls(func_calls, state)
-
         if not state:
             return {}
 
@@ -263,6 +262,9 @@ class APIWrapper(object):
 
                     updated_state = self.processor(
                         func_calls, {} if isinstance(scratchpad, str) else scratchpad)
+
+                    self.runner.console.log("UPDATED")
+                    self.runner.console.log(updated_state)
 
                     total_cost += completion_cost(response)
                 else:
@@ -663,14 +665,16 @@ class APIWrapper(object):
 the function calls available for these batches are:
 ADD(key:string) -> updates state by adding data to the intermediate state
 INCREMENT(key:string) -> updates state by incrementing previosuly existing data to the intermediate state
-UPDATE_SUMMARY(key: string, data:string) -> this function is not related to counts, so decide wheter you should use it or not. It should only be called when you need to keep track of data other than counts related to specific instances. The first argument of the function should be the same key as what you use for ADD or INCREMENT(ex. when trying to see different symptoms of diseases)
+UPDATE_SUMMARY(key: string, data:string) -> THIS FUNCTION MUST TAKE TWO ARGUMENTS; Call this function after every ADD or INCREMENT function for new note-worthy that is presented that isn't already in the state. It should only be called when you need to keep track of data other than counts related to specific instances. The first argument of the function should be the same key as what you use for ADD or INCREMENT(ex. when trying to see different symptoms of diseases)
 
 WHEN CALLING ANY FUNCTION CALLS THE KEY MUST BE THE SAME WHEN REFERRING TO THE SAME SUBJECT.
 
 
 DO NOT INCLUDE ANY COUNTS OR ":" in the argument for the ADD or INCREMENT functions. 
 
-To take care of duplicate keys being found, you can just append multiple function calls to the func_calls list.
+To take care of duplicate keys being found, you can just append multiple INCREMENT calls to the func_calls list.
+
+USE THE INCREMENT FUNCTION AS MANY TIMES AS YOU SEE YOU CAN
 
 
 As you process each batch:
@@ -679,7 +683,7 @@ As you process each batch:
 
 You may also use the UPDATE_SUMMARY function and use the same key as you do for the ADD or INCREMENT functions. 
 
-For example, for a dataset of fruits, an example func_calls list via `send_output` would look something like: func_calls: ['ADD("apple")', 'ADD("orange")', 'INC("apple")', 'ADD("grape")', 'INC("grape")']
+For example, for a dataset of fruits, an example func_calls list via `send_output` would look something like: func_calls: ['ADD("apple")', 'UPDATE_SUMMARY('apple', 'a very healthy fruit')' 'ADD("orange")', 'UPDATE_SUMMARY('orange', 'a very healthy fruit')', 'INCREMENT("apple")', 'ADD("grape")', 'UPDATE_SUMMARY('grape', 'a very healthy fruit')', 'INCREMENT("orange")']
 """
 
         if scratchpad:
@@ -692,7 +696,7 @@ You are incrementally processing data across multiple batches. You will see:
 
 
 For Counts:
-if the key already exists in the scratchpad, you can use the INCREMENT function, but if it doesn't exist, use the ADD function, initially, and if you see it again, use INCREMENT from then on out.
+if the key already exists in the scratchpad, you can use the INCREMENT function, but if it doesn't exist, use the ADD function, initially, and if you see it again, use INCREMENT from then on out. 
 
 
 AFTER DECIDING THE FUNCTION CALLS, update the func_calls via the `send_output` function

@@ -1,0 +1,57 @@
+datasets:
+  input:
+    type: file
+    path: aberrated.json
+    source: local
+default_model: gpt-4o-mini
+operations:
+  - type: reduce
+    name: get_fruits
+    prompt: >-
+      You are going to be given many articles. 
+
+
+      {% for input in inputs %}
+
+      article: {{ input.src }}
+
+      {% endfor %}
+
+
+      SEARCH THROUGH ALL CONTENT OF THE articles of fruits or veggies.
+
+       I want you to provide me a list of the different fruits or veggies mentioned and the amount of times each one was said in all of the articles. Additionally, provide me a list of the top 5 healthiest fruits based on the data in the articles.
+    fold_batch_size: 3
+    fold_prompt: >-
+      Update the existing list of fruits or veggies and facts based on the additional articles content
+
+      {% for input in inputs %}
+
+      article: {{ input.src }}
+
+      {% endfor %}
+
+      Update the existing list with the proper count and name of each fruit or veggie; if a new fruit or veggie is seen, add it to the list;  Repeating fruit or veggie names in the list is allowed, please do it.
+
+
+      Existing data:
+      data: {{ output }}
+    sample: 9
+    output:
+      schema:
+        fruits_or_veggies_list: "list[{name:str, count: int}]"
+        top_5_ranking: "list[str]"
+    reduce_key:
+      - _all
+    model: gpt-4o-mini
+pipeline:
+  steps:
+    - name: data_processing
+      input: input
+      operations:
+        - get_fruits
+  output:
+    type: file
+    path: results.json
+    intermediate_dir: intermediate_results
+system_prompt: {}

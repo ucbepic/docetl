@@ -20,7 +20,7 @@ operations:
 
       SEARCH THROUGH ALL CONTENT OF THE articles of diseases.
 
-       I want you to provide me the name of the disease which showed up the most within all of the articles. In addition, provide me the symptoms of all the diseases mentioned, and rank which one is the worst.
+       I want you to provide me the name of the disease which showed up the most within all of the articles. In addition, provide me the symptoms of all the diseases mentioned, and rank which one is the worst, along with an explanation on why it is the most harmful or worst disease to have.
     fold_batch_size: 5
     fold_prompt: >-
       Update the existing list of diseases and facts based on the additional articles content
@@ -34,14 +34,15 @@ operations:
       Update the existing list with the proper count and name of each disease; if a new disease is seen, add it to the list;  Repeating disease names in the list is allowed, please do it.
 
 
-      Existing list of fruit/veggie names:
-      data: {{ output.diseases, output.symptoms  }}
+      Existing data:
+      data: {{ output  }}
 
     output:
       schema:
         symptoms: "list[{disease_name:string, symptoms: list[str]}]"
         top_disease_mentioned: "str"
         most_harmful_disease: "str"
+        explanation_of_most_harmful_disease: "str"
     reduce_key:
       - _all
     model: gpt-4o-mini

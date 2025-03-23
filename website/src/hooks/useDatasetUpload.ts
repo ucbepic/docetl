@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { File } from "@/app/types";
 import { getBackendUrl } from "@/lib/api-config";
-import Papa from "papaparse";
 
 interface UseDatasetUploadOptions {
   namespace: string;
@@ -17,64 +16,6 @@ export function useDatasetUpload({
 }: UseDatasetUploadOptions) {
   const { toast } = useToast();
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
-
-  async function validateJsonDataset(data: unknown): Promise<void> {
-    // Check if it's an array
-    if (!Array.isArray(data)) {
-      throw new Error(
-        "Dataset must be an array of objects, like this: [{key: value}, {key: value}]"
-      );
-    }
-
-    // Check if array is not empty
-    if (data.length === 0) {
-      throw new Error("Dataset cannot be empty");
-    }
-
-    // Check if first item is an object
-    if (typeof data[0] !== "object" || data[0] === null) {
-      throw new Error("Dataset must contain objects");
-    }
-
-    // Get keys of first object
-    const firstObjectKeys = Object.keys(data[0]).sort();
-
-    // Check if all objects have the same keys
-    const hasConsistentKeys = data.every((item) => {
-      if (typeof item !== "object" || item === null) return false;
-      const currentKeys = Object.keys(item).sort();
-      return (
-        currentKeys.length === firstObjectKeys.length &&
-        currentKeys.every((key, index) => key === firstObjectKeys[index])
-      );
-    });
-
-    if (!hasConsistentKeys) {
-      throw new Error("All objects in dataset must have the same keys");
-    }
-  }
-
-  const convertCsvToJson = (csvText: string): Promise<unknown[]> => {
-    return new Promise((resolve, reject) => {
-      Papa.parse(csvText, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          if (results.errors.length > 0) {
-            reject(
-              new Error(`CSV parsing error: ${results.errors[0].message}`)
-            );
-          } else {
-            resolve(results.data);
-          }
-        },
-        error: (error) => {
-          reject(new Error(`CSV parsing error: ${error.message}`));
-        },
-      });
-    });
-  };
 
   const uploadLocalDataset = async (file: File) => {
     const fileExtension = file.name.toLowerCase().split(".").pop();
@@ -96,30 +37,14 @@ export function useDatasetUpload({
     setUploadingFiles((prev) => new Set(prev).add(file.name));
 
     try {
-      let jsonData: unknown;
-
-      if (fileExtension === "csv") {
-        const csvText = await file.blob.text();
-        jsonData = await convertCsvToJson(csvText);
-      } else {
-        const text = await file.blob.text();
-        try {
-          jsonData = JSON.parse(text);
-        } catch {
-          throw new Error("Invalid JSON format");
-        }
-      }
-
-      await validateJsonDataset(jsonData);
-
-      // Convert the JSON data back to a blob for upload
-      const jsonBlob = new Blob([JSON.stringify(jsonData)], {
-        type: "application/json",
-      });
+      // Instead of processing the file client-side, we'll send it directly to the server
       const formData = new FormData();
+
       // Always save as .json regardless of input format
       const fileName = file.name.replace(/\.(json|csv)$/, ".json");
-      formData.append("file", jsonBlob, fileName);
+
+      // Send the original file blob directly to the server
+      formData.append("file", file.blob, file.name);
       formData.append("namespace", namespace);
 
       const response = await fetch(`${getBackendUrl()}/fs/upload-file`, {
@@ -128,7 +53,8 @@ export function useDatasetUpload({
       });
 
       if (!response.ok) {
-        throw new Error("Upload failed");
+        const errorDetails = await response.json().catch(() => ({}));
+        throw new Error(errorDetails.detail || "Upload failed");
       }
 
       const data = await response.json();
@@ -148,7 +74,7 @@ export function useDatasetUpload({
         description: "Dataset uploaded successfully",
       });
     } catch (error) {
-      console.error(error);
+      console.error("Upload error:", error);
       toast({
         variant: "destructive",
         title: "Error",

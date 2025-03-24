@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import vegaEmbed, { Mode } from "vega-embed";
+import { Button } from "@/components/ui/button";
 
 interface MarkdownCellProps {
   content: string;
@@ -115,15 +116,20 @@ interface VegaVisualizerProps {
   mode: Mode;
 }
 
+/**
+ * Renders Vega or Vega-Lite graphs
+ * It can toggle between showing visualization or JSON code.
+ */
 const VegaVisualizer = ({ spec, mode }: VegaVisualizerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [showCode, setShowCode] = useState(false);
 
   useEffect(() => {
-    if (containerRef.current) {
+    if (containerRef.current && !showCode) {
       try {
         const parsedSpec = JSON.parse(spec);
         vegaEmbed(containerRef.current, parsedSpec, {
-          mode: mode as Mode,
+          mode,
           actions: true,
           ast: true,
         }).catch(console.error);
@@ -131,15 +137,33 @@ const VegaVisualizer = ({ spec, mode }: VegaVisualizerProps) => {
         console.error("Failed to parse Vega spec:", error);
       }
     }
-  }, [spec, mode]);
+  }, [spec, mode, showCode]);
 
   return (
-    <div className="my-2">
-      <div
-        ref={containerRef}
-        className="border border-slate-200 rounded p-2"
-        style={{ minHeight: "200px" }}
-      ></div>
+    <div className="flex flex-col my-2">
+      <div className="flex justify-end mb-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowCode(!showCode)}
+        >
+          {showCode ? "Show Graph" : "Show Code"}
+        </Button>
+      </div>
+
+      {showCode ? (
+        <pre className="bg-slate-100 p-2 rounded">
+          <code className={`language-json`}>
+            {spec}
+          </code>
+        </pre>
+      ) : (
+        <div
+          ref={containerRef}
+          className="rounded p-2"
+          style={{ minHeight: "180px" }}
+        />
+      )}
     </div>
   );
 };

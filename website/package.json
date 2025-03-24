@@ -75,7 +75,10 @@
     "recharts": "^2.10.3",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
+    "vega": "^5.33.0",
+    "vega-embed": "^6.29.0",
+    "vega-lite": "^5.23.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

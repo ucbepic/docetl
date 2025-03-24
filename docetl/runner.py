@@ -746,10 +746,6 @@ class DSLRunner(ConfigWrapper):
         # On the last operation, call the rewrite method
         candidates = self.last_op_container.generate_skeletons()
 
-        print("Candidate skeleton trees:")
-        for idx, candidate in enumerate(candidates, 1):
-            print(f"Candidate {idx}: {candidate}")
-
         kwargs = {}
         # Augment the kwargs with the runner's config if not already provided
         kwargs["litellm_kwargs"] = self.config.get("optimizer_config", {}).get(
@@ -766,11 +762,49 @@ class DSLRunner(ConfigWrapper):
             self,
             **kwargs,
         )
+        self.optimizer = builder
+        # TODO(shreyashankar): ignore the step names right now
+        op_names_to_configs = {
+            k.split("/")[-1]: v.config for k, v in self.op_container_map.items()
+        }
 
-        for candidate in candidates[1:]:
-            invoke_rewrite_agent(
-                candidate, self.config, builder.llm_client, None, self.console
+        # Run the container that is the first scan operation, to get the sample docs
+        first_scan_op_name = f"{self.config['pipeline']['steps'][0]['name']}/scan_{self.config['pipeline']['steps'][0]['input']}"
+        first_scan_op_container = self.op_container_map[first_scan_op_name]
+        sample_docs, _, _ = first_scan_op_container.next(
+            is_build=True, sample_size_needed=5
+        )
+
+        # Compute avg size of sample docs
+        avg_doc_size = sum(len(doc) for doc in sample_docs) / len(sample_docs)
+
+        # Compute number of sample docs needed to get 100k characters
+        num_sample_docs = max(5, int(100000 / avg_doc_size))
+        sample_docs, _, _ = first_scan_op_container.next(
+            is_build=True, sample_size_needed=num_sample_docs
+        )
+
+        skeleton_to_instantiated_pipelines = {}
+
+        for candidate in candidates:
+            skeleton_to_instantiated_pipelines[candidate] = invoke_rewrite_agent(
+                candidate,
+                self.config,
+                op_names_to_configs,
+                builder.llm_client,
+                sample_docs,
+                self.console,
+                runner=self,  # Pass the runner instance for syntax checking
             )
+
+        total_num_pipelines = sum(
+            len(instantiated_pipelines)
+            for instantiated_pipelines in skeleton_to_instantiated_pipelines.values()
+        )
+        self.console.log(
+            f"[bold green]Rewrite agent completed:[/bold green] [blue]${self.optimizer.llm_client.total_cost:.4f}[/blue] total cost, "
+            f"[yellow]{total_num_pipelines}[/yellow] instantiated pipelines"
+        )
 
     def _run_operation(
         self,

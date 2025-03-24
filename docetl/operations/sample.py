@@ -10,11 +10,13 @@ class SampleOperation(BaseOperation):
     """
     Params:
     - method: "uniform", "stratify", "outliers", "custom", "first"
+    - random_state: int, optional
     - samples: int, float, or list
     - method_kwargs: dict, optional
         - embedding_model: str, optional
         - embedding_keys: list, optional
         - center: dict, optional
+        - random: bool, optional (for stratified sampling only. if false, takes the first samples)
     """
 
     def __init__(
@@ -181,13 +183,31 @@ class SampleOperation(BaseOperation):
                         for data in input_data
                     ]
 
-                import sklearn.model_selection
+                if self.config.get("random", True):
+                    import sklearn.model_selection
 
-                output_data, _ = sklearn.model_selection.train_test_split(
-                    input_data,
-                    train_size=samples,
-                    random_state=self.config.get("random_state", None),
-                    stratify=stratify,
-                )
+                    output_data, _ = sklearn.model_selection.train_test_split(
+                        input_data,
+                        train_size=samples,
+                        random_state=self.config.get("random_state", None),
+                        stratify=stratify,
+                    )
+                else:
+                    # If samples is an int, we want to figure out what that fraction is
+                    if isinstance(samples, int):
+                        samples = float(samples / len(input_data))
+
+                    output_data = []
+                    for fold in set(stratify):
+                        fold_data = [
+                            data
+                            for data in input_data
+                            if data[
+                                self.config.get("method_kwargs", {})["stratify_key"]
+                            ]
+                            == fold
+                        ]
+                        num_samples = max(1, int(samples * len(fold_data)))
+                        output_data.extend(fold_data[:num_samples])
 
         return output_data, cost

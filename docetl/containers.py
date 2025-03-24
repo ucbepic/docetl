@@ -8,6 +8,7 @@ import copy
 import json
 import math
 import os
+import uuid
 from typing import TYPE_CHECKING, Dict, List, Tuple
 
 from rich.panel import Panel
@@ -16,10 +17,10 @@ from docetl.dataset import Dataset
 from docetl.operations import get_operation
 from docetl.operations.utils import flush_cache
 from docetl.optimizers import JoinOptimizer, MapOptimizer, ReduceOptimizer
-from docetl.optimizers.directives import DECOMPOSITIONS
+from docetl.optimizers.directives import DECOMPOSITIONS, InstantiatedDecomposition
 from docetl.optimizers.rewrite_utils import (
     SkeletonNode,
-    build_chain_from_skeleton,
+    build_chain_from_directive,
     clone_chain,
     generate_children_skeletons,
     get_last_node,
@@ -1086,7 +1087,7 @@ class OpContainer:
           2. Then, form a candidate for the current node in two ways:
              a. Unchanged: create a SkeletonNode with the same op type as self and attach
                 all candidate trees from the children.
-             b. For each applicable rewrite directive (where directive["pattern"][0] equals self's op type),
+             b. For each applicable rewrite directive (where directive.pattern[0] equals self's op type),
                 build a new chain (from the directive’s skeleton) and attach the candidate trees for the children
                 to the last node in that new chain.
         """
@@ -1106,12 +1107,16 @@ class OpContainer:
         rewriting_candidates = []
         for directive in DECOMPOSITIONS:
             # If the directive is just one op, we rewrite the current node
-            if len(directive["pattern"]) == 1 and directive["pattern"][
-                0
-            ] == self.config.get("type"):
+            if len(directive.pattern) == 1 and directive.pattern[0] == self.config.get(
+                "type"
+            ):
                 # Build a new chain from the directive's skeleton.
-                new_chain = build_chain_from_skeleton(
-                    directive["skeleton"], original_op=self
+                instantiated_rewrite = InstantiatedDecomposition(
+                    decomposition=directive,
+                    identifier=str(uuid.uuid4()),
+                )
+                new_chain = build_chain_from_directive(
+                    instantiated_rewrite, original_op=self
                 )
                 # Attach candidate skeletons for the children to the last node of the new chain.
                 for cand in children_candidates:
@@ -1120,12 +1125,12 @@ class OpContainer:
                     rewriting_candidates.append(chain_copy)
 
             # If the directive is more than one op, we need to check if there's any suffix matching
-            if len(directive["pattern"]) > 1 and directive["pattern"][
-                -1
-            ] == self.config.get("type"):
+            if len(directive.pattern) > 1 and directive.pattern[-1] == self.config.get(
+                "type"
+            ):
                 for cand in children_candidates:
                     # Check if the suffix of the candidate matches the pattern (except the last element)
-                    pattern_length = len(directive["pattern"])
+                    pattern_length = len(directive.pattern)
                     if pattern_length > 1 and len(cand) >= pattern_length - 1:
                         # Extract the suffix of the candidate
                         candidate_suffix = [
@@ -1134,11 +1139,15 @@ class OpContainer:
                         # Check if the suffix + current node's op type matches the directive pattern
                         if (
                             candidate_suffix + [self.config.get("type")]
-                            == directive["pattern"]
+                            == directive.pattern
                         ):
                             # Build a new chain from the directive's skeleton
-                            new_chain = build_chain_from_skeleton(
-                                directive["skeleton"], original_op=self
+                            instantiated_rewrite = InstantiatedDecomposition(
+                                decomposition=directive,
+                                identifier=str(uuid.uuid4()),
+                            )
+                            new_chain = build_chain_from_directive(
+                                instantiated_rewrite, original_op=self
                             )
                             # Get the non-suffix part of the candidate
                             non_suffix_part = cand[: -(pattern_length - 1)]

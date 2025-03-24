@@ -1,5 +1,7 @@
 import itertools
-from typing import List
+from typing import List, Optional
+
+from docetl.optimizers.directives import InstantiatedDecomposition, OpSkeleton
 
 
 class SkeletonNode:
@@ -7,7 +9,9 @@ class SkeletonNode:
         self,
         op_type: str,
         original_op: "OpContainer",  # noqa: F821
-        synthesized: bool = False,
+        synthesized: bool,
+        instantiated_rewrite: Optional[InstantiatedDecomposition] = None,
+        op_skeleton_metadata: Optional[OpSkeleton] = None,
     ):
         self.op_type = op_type  # The operator type for this skeleton node.
         self.original_op = (
@@ -17,10 +21,20 @@ class SkeletonNode:
             synthesized  # True if this node was generated via a rewrite directive.
         )
         self.children = []  # List of child SkeletonNode objects (supporting a tree).
+        self.instantiated_rewrite = instantiated_rewrite
+        self.op_skeleton_metadata = op_skeleton_metadata
 
     def __str__(self):
         tag = " (synth)" if self.synthesized else ""
-        s = f"{self.op_type}{tag}[orig:{self.original_op.config.get('type')}]"
+        rewrite_info = ""
+        if self.synthesized and self.instantiated_rewrite:
+            rewrite_id = self.instantiated_rewrite.identifier
+            pattern = self.instantiated_rewrite.decomposition.pattern
+            skeleton = [
+                op.op_type for op in self.instantiated_rewrite.decomposition.skeleton
+            ]
+            rewrite_info = f" [rewrite:{rewrite_id[:8]}:pattern={','.join(pattern)}:skeleton={','.join(skeleton)}]"
+        s = f"{self.op_type}{tag}[orig:{self.original_op.config.get('type')}]{rewrite_info}"
         if self.children:
             child_strs = [str(child) for child in self.children]
             s += "\n" + "\n".join(
@@ -51,18 +65,31 @@ def generate_children_skeletons(
         return [list(combo) for combo in combinations]
 
 
-def build_chain_from_skeleton(
-    skeleton_list: List[str], original_op: "OpContainer"  # noqa: F821
+def build_chain_from_directive(
+    directive: InstantiatedDecomposition, original_op: "OpContainer"  # noqa: F821
 ) -> "SkeletonNode":
     """
     Build a linked chain (tree) of SkeletonNode objects from the given list of op types.
     Every node in the chain is tagged with the pointer original_op and marked as synthesized.
     """
+    skeleton_list = directive.decomposition.skeleton
     reversed_skeleton_list = skeleton_list[::-1]
-    head = SkeletonNode(reversed_skeleton_list[0], original_op, synthesized=True)
+    head = SkeletonNode(
+        reversed_skeleton_list[0].op_type,
+        original_op,
+        synthesized=True,
+        instantiated_rewrite=directive,
+        op_skeleton_metadata=reversed_skeleton_list[0],
+    )
     current = head
-    for op_type in reversed_skeleton_list[1:]:
-        new_node = SkeletonNode(op_type, original_op, synthesized=True)
+    for op_skeleton in reversed_skeleton_list[1:]:
+        new_node = SkeletonNode(
+            op_skeleton.op_type,
+            original_op,
+            synthesized=True,
+            instantiated_rewrite=directive,
+            op_skeleton_metadata=op_skeleton,
+        )
         current.children.append(new_node)  # For a chain, add as the only child.
         current = new_node
 
@@ -83,7 +110,13 @@ def clone_node(node):
     """
     Clone a SkeletonNode without its children.
     """
-    return SkeletonNode(node.op_type, node.original_op, node.synthesized)
+    return SkeletonNode(
+        node.op_type,
+        node.original_op,
+        node.synthesized,
+        node.instantiated_rewrite,
+        node.op_skeleton_metadata,
+    )
 
 
 def clone_chain(chain_head):

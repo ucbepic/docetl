@@ -1,7 +1,7 @@
 datasets:
   articles:
     type: file
-    path: experiments/gemini/declassified/blackvault_articles_pdfs.json
+    path: experiments/skeleton/blackvault_articles_trunc.json
 
 default_model: gemini/gemini-2.0-flash
 default_bypass_cache: true
@@ -27,12 +27,7 @@ operations:
     prompt: |
       Given the following document content from the black vault, identify and extract the type of extraterrestrial or paranormal event being described:
 
-      {{ input.content }}
-
-      {% if input.pdf_content %}
-      Additional PDF content:
-      {{ input.pdf_content | truncate(1000000) }}
-      {% endif %}
+      {{ input.all_content }}
 
       Provide a single, specific event type category.
     output:
@@ -48,11 +43,7 @@ operations:
 
       {% for report in inputs %}
       Report {{ loop.index }}:
-      {{ report.content }}
-      {% if report.pdf_content %}
-      Additional PDF content:
-      {{ report.pdf_content | truncate(10000) }}
-      {% endif %}
+      {{ report.all_content }}
       {% endfor %}
 
       Extract and list all unique locations of observation mentioned across these reports. They should be real locations on Earth.

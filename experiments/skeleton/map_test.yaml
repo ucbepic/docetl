@@ -1,7 +1,7 @@
 datasets:
   articles:
     type: file
-    path: experiments/gemini/declassified/blackvault_articles_pdfs.json
+    path: experiments/skeleton/blackvault_articles_trunc.json
 
 default_model: gemini/gemini-2.0-flash
 default_bypass_cache: true
@@ -14,6 +14,7 @@ optimizer_config:
     - gemini/gemini-2.0-flash
     - gemini/gemini-2.0-flash-lite-preview-02-05
   save_all_plans: true
+  debug: true
 
 operations:
   - type: sample
@@ -27,12 +28,7 @@ operations:
     prompt: |
       Given the following document content from the black vault, identify and extract the type of extraterrestrial or paranormal event being described:
 
-      {{ input.content }}
-
-      {% if input.pdf_content %}
-      Additional PDF content:
-      {{ input.pdf_content | truncate(1000000) }}
-      {% endif %}
+      {{ input.all_content }}
 
       Provide a single, specific event type category.
     output:

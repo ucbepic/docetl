@@ -1,4 +1,5 @@
 import itertools
+import json
 from typing import List, Optional
 
 from docetl.optimizers.directives import InstantiatedDecomposition, OpSkeleton
@@ -44,6 +45,44 @@ class SkeletonNode:
                 ]
             )
         return s
+
+    def to_dict(self):
+        """
+        Convert the SkeletonNode to a dictionary suitable for JSON serialization.
+        """
+        result = {
+            "op_type": self.op_type,
+            "original_op_type": self.original_op.config.get("type"),
+            "synthesized": self.synthesized,
+        }
+
+        if self.synthesized and self.instantiated_rewrite:
+            rewrite_id = self.instantiated_rewrite.identifier
+            pattern = self.instantiated_rewrite.decomposition.pattern
+            skeleton = [
+                op.op_type for op in self.instantiated_rewrite.decomposition.skeleton
+            ]
+            result["rewrite"] = {
+                "id": rewrite_id,
+                "pattern": pattern,
+                "skeleton": skeleton,
+            }
+
+        if self.children:
+            result["children"] = [child.to_dict() for child in self.children]
+
+        return result
+
+
+class SkeletonNodeEncoder(json.JSONEncoder):
+    """
+    JSON encoder for SkeletonNode objects.
+    """
+
+    def default(self, obj):
+        if isinstance(obj, SkeletonNode):
+            return obj.to_dict()
+        return super().default(obj)
 
 
 def generate_children_skeletons(

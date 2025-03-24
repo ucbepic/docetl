@@ -1,8 +1,11 @@
 import copy
 import json
+import re
 from itertools import product
+from typing import Any, Dict, List, Tuple
 
 import yaml
+from litellm import model_cost
 
 from docetl.containers import OpContainer
 from docetl.utils import extract_jinja_variables
@@ -456,8 +459,8 @@ def generate_op_config_prompt(
         for key, value in sample_doc.items():
             value_type = type(value).__name__
             value_preview = str(value)
-            if len(value_preview) > 50:
-                value_preview = value_preview[:50] + "...[truncated]"
+            if len(value_preview) > 100:
+                value_preview = value_preview[:100] + "...[truncated]"
             sample_docs_info += f"  - {key} ({value_type}): {value_preview}\n"
 
         # Show more detailed first few documents if they're small
@@ -763,7 +766,9 @@ def invoke_rewrite_agent(
         runner: The DSLRunner instance for syntax checking (default: None)
 
     Returns:
-        List of operation configurations in execution order
+        List of tuples containing (pipeline, estimated_cost) where pipeline is a list of
+        operation configurations in execution order and estimated_cost is the total
+        estimated cost for the pipeline
     """
     # Create a visual separator for the beginning of the pipeline rewrite process
     console.rule("[bold]Pipeline Rewrite Process[/bold]")
@@ -1700,21 +1705,78 @@ Make sure to:
             )
         )
 
-    # Generate all possible pipeline combinations using the cross product
-    def generate_pipelines(config_lists):
-        return list(product(*config_lists))
+    # Create a shared token cache for model-agnostic caching
+    token_cache = {}
 
-    pipeline_combinations = generate_pipelines(complete_pipeline)
+    # Generate all possible pipeline combinations using the cross product
+    def generate_pipelines(config_lists, token_cache):
+        pipeline_combinations = list(product(*config_lists))
+        pipelines_with_costs = []
+
+        # Track how many calculations we're saving with the cache
+        token_cache_hits = 0
+        total_ops = 0
+
+        for pipeline_config in pipeline_combinations:
+            total_cost = 0.0
+
+            # Initialize metadata with document statistics from sample docs
+            if sample_docs and len(sample_docs) > 0:
+                avg_token_size = (
+                    sum(len(str(doc)) for doc in sample_docs) / len(sample_docs) / 4
+                )
+            else:
+                avg_token_size = 100  # Default assumption
+
+            metadata = {
+                "doc_count": len(sample_docs) if sample_docs else 1,
+                "avg_token_size": avg_token_size,  # Approximate token count
+            }
+
+            # Calculate the cost of each operation in the pipeline
+            for op_config in pipeline_config:
+                total_ops += 1
+
+                # Check if this operation's token count is in the cache
+                op_name = op_config.get("name", "")
+                op_type = op_config.get("type", "")
+                metadata_key = f"docs:{metadata.get('doc_count', 0)}:tokens:{metadata.get('avg_token_size', 0)}"
+                cache_key = f"{op_name}:{op_type}:{metadata_key}"
+
+                # Track cache hits for our statistics
+                if cache_key in token_cache:
+                    token_cache_hits += 1
+
+                # Calculate the cost (will use cached token counts if available)
+                op_cost, metadata, token_cache = estimate_operation_cost(
+                    op_config, sample_docs, metadata, token_cache
+                )
+                total_cost += op_cost
+
+            # Store the pipeline config and its estimated cost
+            pipelines_with_costs.append((pipeline_config, total_cost))
+
+        # Sort pipelines by cost (cheapest first)
+        pipelines_with_costs.sort(key=lambda x: x[1])
+
+        # Print cache efficiency stats if we have a significant number of operations
+        if total_ops > 10:
+            cache_efficiency = (
+                (token_cache_hits / total_ops) * 100 if total_ops > 0 else 0
+            )
+            console.log(
+                f"Token cache efficiency: {cache_efficiency:.1f}% ({token_cache_hits}/{total_ops} operations)"
+            )
+
+        return pipelines_with_costs, token_cache
+
+    pipeline_combinations, token_cache = generate_pipelines(
+        complete_pipeline, token_cache
+    )
 
     # Print pipeline combinations summary
     total_combinations = len(pipeline_combinations)
-    console.print(
-        create_panel(
-            "Pipeline Combinations",
-            Text(f"Generated {total_combinations} possible pipeline configurations"),
-            style=SUCCESS_STYLE,
-        )
-    )
+    console.log(f"Generated {total_combinations} possible pipeline configurations")
 
     # Print a summary of a few representative pipelines
     sample_size = min(3, total_combinations)
@@ -1723,9 +1785,10 @@ Make sure to:
         samples_table.add_column("Pipeline #", style="bold")
         samples_table.add_column("Operations", style="cyan")
         samples_table.add_column("Models Used", style="magenta")
+        samples_table.add_column("Est. Cost ($)", style="green")
 
         for i in range(sample_size):
-            pipeline = pipeline_combinations[i]
+            pipeline, cost = pipeline_combinations[i]
             op_names = [op["name"] for op in pipeline]
             models = [
                 op.get("model", "default")
@@ -1737,6 +1800,7 @@ Make sure to:
                 str(i + 1),
                 ", ".join(op_names),
                 ", ".join(models) if models else "No LLM models",
+                f"${cost:.2f}",
             )
 
         console.print(
@@ -1748,19 +1812,283 @@ Make sure to:
         )
 
     # Convert pipeline combinations to list of complete pipelines
-    pipelines = [list(pipeline) for pipeline in pipeline_combinations]
+    pipelines = [list(pipeline) for pipeline, _ in pipeline_combinations]
+    pipelines_with_costs = [
+        (list(pipeline), cost) for pipeline, cost in pipeline_combinations
+    ]
+
+    # Sort pipelines by cost (cheapest first)
+    pipelines_with_costs.sort(key=lambda x: x[1])
 
     # Print summary of the complete pipelines
     pipeline_summary = Table(title=None, box=None, expand=True)
     pipeline_summary.add_column("Total Pipelines", style="bold")
     pipeline_summary.add_column("Operations Per Pipeline", style="cyan")
+    pipeline_summary.add_column("Cost Range", style="green")
+    pipeline_summary.add_column("Avg Cost", style="green")
+
+    average_op_count = (
+        sum(len(pipeline) for pipeline in pipelines) / len(pipelines)
+        if pipelines
+        else 0
+    )
+    min_cost = (
+        min(cost for _, cost in pipelines_with_costs) if pipelines_with_costs else 0
+    )
+    max_cost = (
+        max(cost for _, cost in pipelines_with_costs) if pipelines_with_costs else 0
+    )
+    avg_cost = (
+        sum(cost for _, cost in pipelines_with_costs) / len(pipelines_with_costs)
+        if pipelines_with_costs
+        else 0
+    )
 
     pipeline_summary.add_row(
-        str(len(pipelines)), str(len(pipelines[0]) if pipelines else 0)
+        str(len(pipelines)),
+        f"{average_op_count:.1f}",
+        f"${min_cost:.6f} - ${max_cost:.6f}",
+        f"${avg_cost:.6f}",
     )
 
     console.print(
-        create_panel("Complete Pipeline Summary", pipeline_summary, style=SUCCESS_STYLE)
+        create_panel(
+            "Pipeline Summary",
+            pipeline_summary,
+            style=SUCCESS_STYLE,
+        )
     )
 
-    return pipelines
+    # If we have at least one pipeline with cost > 0, show the cost breakdown for the cheapest one
+    if pipelines_with_costs and pipelines_with_costs[0][1] > 0:
+        cheapest_pipeline, cheapest_cost = pipelines_with_costs[0]
+
+        cost_breakdown = Table(title=None, box=None, expand=True)
+        cost_breakdown.add_column("Operation", style="cyan")
+        cost_breakdown.add_column("Type", style="yellow")
+        cost_breakdown.add_column("Model", style="magenta")
+        cost_breakdown.add_column("Est. Cost", style="green")
+        cost_breakdown.add_column("Doc Count", style="blue")
+        cost_breakdown.add_column("Tokens", style="yellow")
+
+        # Calculate costs for individual operations in the cheapest pipeline
+        metadata = {
+            "doc_count": len(sample_docs) if sample_docs else 1,
+            "avg_token_size": (
+                sum(len(str(doc)) for doc in sample_docs) / len(sample_docs) / 4
+                if sample_docs
+                else 100
+            ),
+        }
+
+        for op_config in cheapest_pipeline:
+            op_cost, metadata, token_cache = estimate_operation_cost(
+                op_config, sample_docs, metadata, token_cache
+            )
+            op_name = op_config.get("name", "Unknown")
+            op_type = op_config.get("type", "Unknown")
+            model = (
+                op_config.get("model", "N/A")
+                if op_type in ["map", "parallel_map", "reduce"]
+                else "N/A"
+            )
+
+            # Get token count from cache
+            metadata_key = f"docs:{metadata.get('doc_count', 0)}:tokens:{metadata.get('avg_token_size', 0)}"
+            cache_key = f"{op_name}:{op_type}:{metadata_key}"
+            input_tokens = token_cache.get(cache_key, (0, {}))[0]
+
+            cost_breakdown.add_row(
+                op_name,
+                op_type,
+                model,
+                f"${op_cost:.6f}",
+                f"{int(metadata['doc_count'])}",
+                f"{input_tokens}",
+            )
+
+        console.print(
+            create_panel(
+                "Cost Breakdown (Cheapest Pipeline)",
+                cost_breakdown,
+                style=INFO_STYLE,
+            )
+        )
+
+    return pipelines_with_costs
+
+
+def estimate_operation_cost(
+    op_config: Dict[str, Any],
+    sample_docs: List[Dict[str, Any]],
+    pipeline_metadata: Dict[str, Any] = None,
+    token_cache: Dict[str, Tuple[int, Dict[str, Any]]] = None,
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    Estimates the cost of an operation based on its type, configuration, and sample documents.
+
+    Args:
+        op_config: The operation configuration
+        sample_docs: Sample documents to use for token estimation
+        pipeline_metadata: Metadata about the pipeline state, including document flow
+        token_cache: Optional cache of already computed token counts to avoid redundant calculations
+
+    Returns:
+        Tuple of (estimated_cost, updated_metadata)
+    """
+    # Use provided cache or create a new one
+    if token_cache is None:
+        token_cache = {}
+
+    # Initialize metadata if not provided
+    if pipeline_metadata is None:
+        pipeline_metadata = {
+            "doc_count": len(sample_docs) if sample_docs else 1,
+            "avg_token_size": 0,  # Will be calculated from sample docs
+        }
+
+    # Create a model-agnostic cache key from operation name, type, and relevant metadata
+    op_name = op_config.get("name", "")
+    op_type = op_config.get("type", "")
+
+    # For the cache key, we only need the fields that affect token count (not model-specific)
+    metadata_key = f"docs:{pipeline_metadata.get('doc_count', 0)}:tokens:{pipeline_metadata.get('avg_token_size', 0)}"
+
+    # Create a model-agnostic unique cache key
+    cache_key = f"{op_name}:{op_type}:{metadata_key}"
+
+    # Check if we've already calculated tokens for this
+    if cache_key in token_cache:
+        input_tokens, updated_metadata = token_cache[cache_key]
+
+        # Calculate cost based on the cached token count and the current model
+        model_name = op_config.get("model", "gpt-4o-mini")
+        input_cost_per_token = model_cost.get(model_name, {}).get(
+            "input_cost_per_token", 0
+        )
+        doc_count = updated_metadata["doc_count"]
+        estimated_cost = input_tokens * input_cost_per_token * doc_count
+
+        return estimated_cost, updated_metadata, token_cache
+
+    # Get a sample document for token estimation
+    sample_doc = sample_docs[0] if sample_docs and len(sample_docs) > 0 else {}
+
+    # Calculate average token size if not already set
+    if (
+        "avg_token_size" not in pipeline_metadata
+        or pipeline_metadata["avg_token_size"] == 0
+    ):
+        if sample_docs and len(sample_docs) > 0:
+            # Approximate token count as string length / 4 (reasonable estimate)
+            avg_token_size = (
+                sum(len(str(doc)) for doc in sample_docs) / len(sample_docs) / 4
+            )
+            pipeline_metadata["avg_token_size"] = avg_token_size
+        else:
+            pipeline_metadata["avg_token_size"] = 100  # Default assumption
+
+    # Create a copy of metadata to update
+    updated_metadata = pipeline_metadata.copy()
+
+    # Early return for operations that don't use LLMs
+    if op_type not in ["map", "parallel_map", "reduce"]:
+        # Update document flow metadata based on operation type
+        if op_type == "split":
+            # Calculate how many chunks each document gets split into
+            chunk_size = op_config.get("method_kwargs", {}).get("num_tokens", 1000)
+            if chunk_size > 0:
+                # Estimate the number of chunks each document will be split into
+                chunks_per_doc = max(
+                    1, (pipeline_metadata["avg_token_size"] * 4) / chunk_size
+                )
+                # Update the document count based on the split factor
+                updated_metadata["doc_count"] = (
+                    pipeline_metadata["doc_count"] * chunks_per_doc
+                )
+                # Each chunk is approximately chunk_size tokens
+                updated_metadata["avg_token_size"] = chunk_size / 4
+
+        elif op_type == "gather":
+            # For gather operations, reduce document count but increase token size
+            prev_chunk_count = op_config.get("peripheral_config", {}).get(
+                "previous", {}
+            ).get("head", {}).get("count", 0) + op_config.get(
+                "peripheral_config", {}
+            ).get(
+                "previous", {}
+            ).get(
+                "tail", {}
+            ).get(
+                "count", 0
+            )
+            next_chunk_count = op_config.get("peripheral_config", {}).get(
+                "next", {}
+            ).get("head", {}).get("count", 0) + op_config.get(
+                "peripheral_config", {}
+            ).get(
+                "next", {}
+            ).get(
+                "tail", {}
+            ).get(
+                "count", 0
+            )
+            num_chunks = prev_chunk_count + next_chunk_count
+
+            if num_chunks > 0:
+                # Keep the doc_count the same but multiply the avg_token_size by the number of chunks
+                updated_metadata["doc_count"] = pipeline_metadata["doc_count"]
+                updated_metadata["avg_token_size"] = (
+                    pipeline_metadata["avg_token_size"] * num_chunks
+                )
+
+        elif op_type == "sample":
+            # Update document count based on sample size
+            sample_size = op_config.get("samples", 1)
+            if isinstance(sample_size, float):
+                sample_size = max(1, int(sample_size * pipeline_metadata["doc_count"]))
+
+            updated_metadata["doc_count"] = sample_size
+
+        # Cache and return result - token count is 0 for non-LLM operations
+        token_cache[cache_key] = (0, updated_metadata)
+        return 0.0, updated_metadata, token_cache
+
+    # For LLM operations, calculate token count
+    # Extract prompt template
+    prompt_template = op_config.get("prompt", "")
+
+    # Extract variables from Jinja template that start with 'input.'
+    input_vars = re.findall(r"{{\s*input\.([a-zA-Z0-9_]+)\s*}}", prompt_template)
+
+    # Create a simplified prompt by replacing Jinja variables with sample values where possible
+    simplified_prompt = prompt_template
+    for var in input_vars:
+        if var in sample_doc:
+            value = str(sample_doc[var])
+            simplified_prompt = simplified_prompt.replace(
+                f"{{{{ input.{var} }}}}", value
+            )
+        else:
+            # Assume constant value of 100 tokens
+            hundred_char_str = "a" * 100 * 4
+            simplified_prompt = simplified_prompt.replace(
+                f"{{{{ input.{var} }}}}", hundred_char_str
+            )
+
+    # Estimate input tokens (simplified approximation: characters / 4)
+    input_tokens = int(len(simplified_prompt) / 4)
+
+    # For reduce and filter operations, assume fixed selectivity of 50%
+    if op_type == "reduce" or op_type == "filter":
+        updated_metadata["doc_count"] = pipeline_metadata["doc_count"] / 2
+
+    # Now calculate actual cost based on the model
+    model_name = op_config.get("model", "gpt-4o-mini")
+    input_cost_per_token = model_cost.get(model_name, {}).get("input_cost_per_token", 0)
+    estimated_cost = input_tokens * input_cost_per_token * updated_metadata["doc_count"]
+
+    # Cache the token count and updated metadata (model-agnostic)
+    token_cache[cache_key] = (input_tokens, updated_metadata)
+
+    return estimated_cost, updated_metadata, token_cache

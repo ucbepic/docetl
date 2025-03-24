@@ -44,6 +44,7 @@ from docetl.operations import get_operation, get_operations
 from docetl.operations.base import BaseOperation
 from docetl.optimizer import Optimizer
 from docetl.optimizers.instantiation import invoke_rewrite_agent
+from docetl.optimizers.rewrite_utils import SkeletonNodeEncoder
 
 from . import schemas
 from .utils import classproperty
@@ -784,10 +785,15 @@ class DSLRunner(ConfigWrapper):
             is_build=True, sample_size_needed=num_sample_docs
         )
 
-        skeleton_to_instantiated_pipelines = {}
+        self.skeleton_to_instantiated_pipelines = {}
+
+        # Log the number of candidate skeletons
+        self.console.log(
+            f"[bold blue]Found {len(candidates)} candidate skeletons[/bold blue] for optimization"
+        )
 
         for candidate in candidates:
-            skeleton_to_instantiated_pipelines[candidate] = invoke_rewrite_agent(
+            self.skeleton_to_instantiated_pipelines[candidate] = invoke_rewrite_agent(
                 candidate,
                 self.config,
                 op_names_to_configs,
@@ -799,12 +805,307 @@ class DSLRunner(ConfigWrapper):
 
         total_num_pipelines = sum(
             len(instantiated_pipelines)
-            for instantiated_pipelines in skeleton_to_instantiated_pipelines.values()
+            for instantiated_pipelines in self.skeleton_to_instantiated_pipelines.values()
         )
+
+        # Calculate the min, max, and average cost across all pipelines
+        all_costs = []
+        for pipelines in self.skeleton_to_instantiated_pipelines.values():
+            for _, cost in pipelines:
+                all_costs.append(cost)
+
+        min_cost = min(all_costs) if all_costs else 0
+        max_cost = max(all_costs) if all_costs else 0
+        avg_cost = sum(all_costs) / len(all_costs) if all_costs else 0
+        median_cost = sorted(all_costs)[len(all_costs) // 2] if all_costs else 0
+
         self.console.log(
-            f"[bold green]Rewrite agent completed:[/bold green] [blue]${self.optimizer.llm_client.total_cost:.4f}[/blue] total cost, "
-            f"[yellow]{total_num_pipelines}[/yellow] instantiated pipelines"
+            f"[bold green]Rewrite agent completed:[/bold green] [blue]${self.optimizer.llm_client.total_cost:.4f}[/blue] agent cost\n"
+            f"[yellow]{total_num_pipelines}[/yellow] instantiated pipelines with estimated costs:\n"
+            f"  [green]Min:[/green] ${min_cost:.6f}\n"
+            f"  [green]Median:[/green] ${median_cost:.6f}\n"
+            f"  [green]Average:[/green] ${avg_cost:.6f}\n"
+            f"  [green]Max:[/green] ${max_cost:.6f}"
         )
+
+        # Save pipeline cost histogram to a log file
+        if all_costs:
+            import datetime
+            import json
+            import os
+            from collections import defaultdict
+
+            # Create the optimizer logs directory if it doesn't exist
+            log_dir = os.path.dirname(self.base_name)
+            if not log_dir:
+                raise ValueError(
+                    "No log directory found. Cannot save pipeline cost histogram."
+                )
+
+            # Get the base filename without extension
+            base_filename = os.path.basename(self.base_name)
+            log_path = os.path.join(log_dir, f"{base_filename}.optimizer_logs")
+            os.makedirs(log_path, exist_ok=True)
+
+            # Generate timestamp for the filename
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = os.path.join(log_path, f"pipeline_costs_{timestamp}.json")
+
+            # Sort costs for histogram
+            sorted_costs = sorted(all_costs)
+
+            # Create cost buckets for the histogram (10 buckets)
+            if len(sorted_costs) > 1:
+                cost_range = max_cost - min_cost
+                bucket_size = cost_range / 10 if cost_range > 0 else 1
+
+                # Count pipelines in each bucket
+                histogram = defaultdict(int)
+                for cost in sorted_costs:
+                    if bucket_size > 0:
+                        bucket = (
+                            min_cost
+                            + int((cost - min_cost) / bucket_size) * bucket_size
+                        )
+                        bucket_label = f"${bucket:.6f} - ${bucket + bucket_size:.6f}"
+                    else:
+                        bucket_label = f"${min_cost:.6f}"
+                    histogram[bucket_label] += 1
+
+                # Create a more detailed histogram data structure
+                detailed_histogram = {
+                    "timestamp": timestamp,
+                    "total_pipelines": len(all_costs),
+                    "cost_statistics": {
+                        "min_cost": min_cost,
+                        "max_cost": max_cost,
+                        "median_cost": median_cost,
+                        "average_cost": avg_cost,
+                        "percentiles": {
+                            "10th": (
+                                sorted_costs[int(len(sorted_costs) * 0.1)]
+                                if len(sorted_costs) >= 10
+                                else sorted_costs[0]
+                            ),
+                            "25th": (
+                                sorted_costs[int(len(sorted_costs) * 0.25)]
+                                if len(sorted_costs) >= 4
+                                else sorted_costs[0]
+                            ),
+                            "75th": (
+                                sorted_costs[int(len(sorted_costs) * 0.75)]
+                                if len(sorted_costs) >= 4
+                                else sorted_costs[-1]
+                            ),
+                            "90th": (
+                                sorted_costs[int(len(sorted_costs) * 0.9)]
+                                if len(sorted_costs) >= 10
+                                else sorted_costs[-1]
+                            ),
+                        },
+                    },
+                    "agent_cost": self.optimizer.llm_client.total_cost,
+                    "histogram": {
+                        "bucket_size": bucket_size,
+                        "buckets": [
+                            {"range": k, "count": v} for k, v in histogram.items()
+                        ],
+                    },
+                    "all_costs": sorted_costs,
+                    "skeletons": list(self.skeleton_to_instantiated_pipelines.keys()),
+                    "generation_parameters": {
+                        "optimizer_config": self.config.get("optimizer_config", {})
+                    },
+                }
+
+                # Add top 5 cheapest pipelines
+                if len(all_costs) >= 5:
+                    top_pipelines = []
+                    top_counter = 0
+                    for (
+                        skeleton,
+                        pipelines,
+                    ) in self.skeleton_to_instantiated_pipelines.items():
+                        for pipeline, cost in sorted(pipelines, key=lambda x: x[1]):
+                            op_names = [
+                                op_config.get("name", "unknown")
+                                for op_config in pipeline
+                            ]
+                            top_pipelines.append(
+                                {
+                                    "cost": cost,
+                                    "operations": op_names,
+                                    "skeleton": str(skeleton),
+                                }
+                            )
+                            top_counter += 1
+                            if top_counter >= 5:
+                                break
+                        if top_counter >= 5:
+                            break
+
+                    detailed_histogram["top_pipelines"] = top_pipelines
+
+                # Save to file
+                with open(log_file, "w") as f:
+                    json.dump(detailed_histogram, f, indent=2, cls=SkeletonNodeEncoder)
+
+                self.console.log(f"Pipeline cost data saved to: {log_file}")
+
+                # Generate visualization with matplotlib
+                try:
+                    import matplotlib.pyplot as plt
+                    import numpy as np
+                    from matplotlib.ticker import FuncFormatter
+
+                    # Create a figure with two subplots
+                    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+
+                    # Subplot 1: Cost histogram
+                    n, bins, patches = ax1.hist(
+                        sorted_costs,
+                        bins=min(20, len(sorted_costs)),
+                        alpha=0.7,
+                        color="skyblue",
+                    )
+                    ax1.set_title("Pipeline Cost Distribution")
+                    ax1.set_xlabel("Cost ($)")
+                    ax1.set_ylabel("Number of Pipelines")
+                    # Format x-axis as dollars
+                    ax1.xaxis.set_major_formatter(
+                        FuncFormatter(lambda x, _: f"${x:.6f}")
+                    )
+                    ax1.grid(alpha=0.3)
+
+                    # Add CDF (Cumulative Distribution Function) on the same plot
+                    ax1_twin = ax1.twinx()
+                    y = np.arange(1, len(sorted_costs) + 1) / len(sorted_costs)
+                    ax1_twin.plot(
+                        sorted_costs,
+                        y,
+                        marker=".",
+                        linestyle="-",
+                        color="red",
+                        alpha=0.7,
+                    )
+                    ax1_twin.set_ylabel("Cumulative Probability", color="red")
+                    ax1_twin.tick_params(axis="y", colors="red")
+
+                    # Subplot 2: Scatter plot of costs vs. number of operations
+                    # Collect operation counts for each pipeline
+                    costs_and_op_counts = []
+                    for (
+                        skeleton,
+                        pipelines,
+                    ) in self.skeleton_to_instantiated_pipelines.items():
+                        for pipeline, cost in pipelines:
+                            op_count = len(pipeline)
+                            costs_and_op_counts.append((op_count, cost))
+
+                    # Extract x and y coordinates
+                    op_counts = [item[0] for item in costs_and_op_counts]
+                    costs = [item[1] for item in costs_and_op_counts]
+
+                    # Create scatter plot with a single color
+                    ax2.scatter(op_counts, costs, alpha=0.7, color="royalblue", s=50)
+                    ax2.set_title("Costs vs. Number of Operations")
+                    ax2.set_xlabel("Number of Operations in Pipeline")
+                    ax2.set_ylabel("Cost ($)")
+                    ax2.yaxis.set_major_formatter(
+                        FuncFormatter(lambda x, _: f"${x:.6f}")
+                    )
+                    ax2.grid(alpha=0.3)
+
+                    # Add statistics as text
+                    stats_text = (
+                        f"Total Pipelines: {len(all_costs)}\n"
+                        f"Min Cost: ${min_cost:.6f}\n"
+                        f"Max Cost: ${max_cost:.6f}\n"
+                        f"Mean Cost: ${avg_cost:.6f}\n"
+                        f"Median Cost: ${median_cost:.6f}\n"
+                    )
+                    fig.text(
+                        0.15,
+                        0.01,
+                        stats_text,
+                        fontsize=10,
+                        bbox=dict(facecolor="white", alpha=0.5),
+                    )
+
+                    # Add timestamp and title
+                    fig.suptitle(f"Pipeline Cost Analysis - {timestamp}", fontsize=16)
+                    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+
+                    # Save visualization
+                    viz_path = os.path.join(log_path, f"pipeline_costs_{timestamp}.png")
+                    plt.savefig(viz_path, dpi=300, bbox_inches="tight")
+                    plt.close()
+
+                    self.console.log(
+                        f"[green]Cost visualization saved to: {viz_path}[/green]"
+                    )
+
+                except ImportError:
+                    self.console.log(
+                        "[yellow]Matplotlib not found. Install with: pip install matplotlib[/yellow]"
+                    )
+                except Exception as e:
+                    self.console.log(
+                        f"[yellow]Failed to generate visualization: {str(e)}[/yellow]"
+                    )
+
+        # If there are pipelines, provide information about the cheapest
+        if all_costs and self.config.get("optimizer_config", {}).get("debug", False):
+            # Find the cheapest pipeline
+            cheapest_pipeline = None
+            cheapest_cost = float("inf")
+
+            for skeleton, pipelines in self.skeleton_to_instantiated_pipelines.items():
+                for pipeline, cost in pipelines:
+                    if cost < cheapest_cost:
+                        cheapest_cost = cost
+                        cheapest_pipeline = (skeleton, pipeline)
+
+            if cheapest_pipeline:
+                skeleton, pipeline = cheapest_pipeline
+                op_names = [op_config["name"] for op_config in pipeline]
+                self.console.log(
+                    f"\n[bold green]Cheapest pipeline:[/bold green] ${cheapest_cost:.6f}\n"
+                    f"  [cyan]Skeleton:[/cyan] {skeleton}\n"
+                    f"  [cyan]Operations:[/cyan] {', '.join(op_names)}"
+                )
+
+        return self.skeleton_to_instantiated_pipelines
+
+    def get_pipelines_by_cost(self, top_n=None):
+        """
+        Return the rewritten pipelines sorted by estimated cost (lowest first).
+
+        Args:
+            top_n (int, optional): If provided, return only the top N lowest-cost pipelines.
+
+        Returns:
+            List of tuples: [(pipeline_config, estimated_cost), ...] sorted by cost.
+
+        Note:
+            Must call rewrite() before using this method.
+        """
+        if not hasattr(self, "skeleton_to_instantiated_pipelines"):
+            raise ValueError("No rewritten pipelines available. Call rewrite() first.")
+
+        # Flatten all pipelines from all skeletons into a single list
+        all_pipelines = []
+        for pipelines in self.skeleton_to_instantiated_pipelines.values():
+            all_pipelines.extend(pipelines)
+
+        # Sort by cost (already done in invoke_rewrite_agent, but ensuring here)
+        all_pipelines.sort(key=lambda x: x[1])
+
+        # Return top_n pipelines if specified
+        if top_n is not None:
+            return all_pipelines[:top_n]
+
+        return all_pipelines
 
     def _run_operation(
         self,

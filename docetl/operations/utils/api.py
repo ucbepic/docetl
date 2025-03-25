@@ -230,6 +230,7 @@ class APIWrapper(object):
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
+        function_call_schema = {'func_calls': 'list[str]'}
         total_cost = 0.0
         validated = False
         updated_state = {}
@@ -249,24 +250,21 @@ class APIWrapper(object):
                         litellm_completion_kwargs,
                     )
 
-                    self.runner.console.log(response)
+                    # reduce operator -> function calling schema
+                    if function_call_schema:
+                        # Copy response object to inject updated_scratchpad for next batch
+                        newRes = copy.deepcopy(response)
 
-                    # Copy response object to inject updated_scratchpad for next batch
-                    newRes = copy.deepcopy(response)
+                        arguments_str = newRes.choices[0].message.tool_calls[0].function.arguments
 
-                    arguments_str = newRes.choices[0].message.tool_calls[0].function.arguments
+                        # Gather list of function calls in json format
+                        arguments_dict = json.loads(arguments_str)
+                        func_calls = arguments_dict["func_calls"]
 
-                    # Gather list of function calls in json format
-                    arguments_dict = json.loads(arguments_str)
-                    func_calls = arguments_dict["func_calls"]
+                        updated_state = self.processor(
+                            func_calls, {} if isinstance(scratchpad, str) else scratchpad)
 
-                    updated_state = self.processor(
-                        func_calls, {} if isinstance(scratchpad, str) else scratchpad)
-
-                    self.runner.console.log("UPDATED")
-                    self.runner.console.log(updated_state)
-
-                    total_cost += completion_cost(response)
+                        total_cost += completion_cost(response)
                 else:
                     response = initial_result
 
@@ -563,11 +561,8 @@ class APIWrapper(object):
         Returns:
             str: The response from the LLM.
         """
-        print("TESTING")
         props = {key: convert_val(value)
                  for key, value in output_schema.items()}
-        self.runner.console.log("OLD PROPS")
-        self.runner.console.log(props)
 
         newProps = {"func_calls": []}
         use_tools = True
@@ -633,29 +628,6 @@ class APIWrapper(object):
             "many inputs:one output" if op_type == "reduce" else "one input:one output"
         )
 
-
-####
-# Below comments were in previous prompt, but I commented it out for now for testing.
-
-# IMPORTANT: Only use the scratchpad if your task specifically requires tracking items that appear multiple times across batches. If you only need to track distinct/unique items, leave the scratchpad empty and set updated_scratchpad to null.
-
-# The intermediate output contains the result that directly answers the user's task, for **all** the data processed so far, including the current batch. You must return this via the send_output function.
-
-# Example task that NEEDS scratchpad - counting words that appear >2 times:
-# # Words seen 3+ times - this is your actual result
-# - Call send_output with: {{"frequent_words": ["the", "and"]}}
-# # Must track words seen 1-2 times
-# - Set updated_scratchpad to: {{"pending": {{"cat": 2, "dog": 1}}}}
-
-# Example task that does NOT need scratchpad - collecting unique locations:
-# # Just the unique items
-# - Call send_output with: {{"locations": ["New York", "Paris"]}}
-# # No need to track counts since we only want distinct items
-# - Set updated_scratchpad to: null
-# 3. Set updated_scratchpad accordingly
-
-    # check scratchpad is updating every call
-
         system_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {
             op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible. return a list of function calls, based on the definitions below, via the `send_output` function"
         system_prompt += f"""
@@ -665,16 +637,15 @@ class APIWrapper(object):
 the function calls available for these batches are:
 ADD(key:string) -> updates state by adding data to the intermediate state
 INCREMENT(key:string) -> updates state by incrementing previosuly existing data to the intermediate state
-UPDATE_SUMMARY(key: string, data:string) -> THIS FUNCTION MUST TAKE TWO ARGUMENTS; Call this function after every ADD or INCREMENT function for new note-worthy that is presented that isn't already in the state. It should only be called when you need to keep track of data other than counts related to specific instances. The first argument of the function should be the same key as what you use for ADD or INCREMENT(ex. when trying to see different symptoms of diseases)
+UPDATE_SUMMARY(key: string, data:string) -> THIS FUNCTION MUST TAKE TWO ARGUMENTS;  It should only be called when you need to keep track of data other than counts related to specific instances. The first argument of the function should be the same key as what you use for ADD or INCREMENT(ex. when trying to see different symptoms of diseases)
 
 WHEN CALLING ANY FUNCTION CALLS THE KEY MUST BE THE SAME WHEN REFERRING TO THE SAME SUBJECT.
 
 
 DO NOT INCLUDE ANY COUNTS OR ":" in the argument for the ADD or INCREMENT functions. 
 
-To take care of duplicate keys being found, you can just append multiple INCREMENT calls to the func_calls list.
 
-USE THE INCREMENT FUNCTION AS MANY TIMES AS YOU SEE YOU CAN
+USE THE INCREMENT FUNCTION AS MANY TIMES AS YOU SEE YOU CAN FOR ANY INSTANCE YOU FIND.
 
 
 As you process each batch:
@@ -698,6 +669,10 @@ You are incrementally processing data across multiple batches. You will see:
 For Counts:
 if the key already exists in the scratchpad, you can use the INCREMENT function, but if it doesn't exist, use the ADD function, initially, and if you see it again, use INCREMENT from then on out. 
 
+There is infinite space in the func_list array, fill it up as much as you can and need.
+
+For example. If the name "John" was listed 32 times in a document, and a user wanted to know how many times his name was said you can fill up the array like so
+func_calls: ['ADD("John")', 'INCREMENT("John")', 'INCREMENT("John")', 'INCREMENT("John")',...]
 
 AFTER DECIDING THE FUNCTION CALLS, update the func_calls via the `send_output` function
 
@@ -826,8 +801,6 @@ Your main result must be sent via send_output."""
         # Check if there are no tools and the schema has a single key-value pair
         if not tools and len(schema) == 1 and not tool_calls:
             key = next(iter(schema))
-            self.runner.console.log("PARSING KEYS")
-            self.runner.console.log({key: response.choices[0].message.content})
             return [{key: response.choices[0].message.content}]
 
         # Parse the response based on the provided tools
@@ -837,8 +810,6 @@ Your main result must be sent via send_output."""
             results = []
             for tool_call in tool_calls:
                 for tool in tools:
-                    self.runner.console.log("PARSER")
-                    self.runner.console.log(tool["function"]["name"])
                     if tool_call.function.name == tool["function"]["name"]:
                         try:
                             function_args = json.loads(

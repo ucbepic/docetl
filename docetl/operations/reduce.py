@@ -814,6 +814,8 @@ class ReduceOperation(BaseOperation):
 
             current_output = folded_output
 
+           # convert to final result with llm call
+       # give an updated state
         current_output = completion(
             model="gpt-4o-mini",
             messages=[
@@ -837,6 +839,7 @@ class ReduceOperation(BaseOperation):
             ]
         )
 
+        # update cost of operation
         total_cost += completion_cost(current_output)
 
         return json.loads(
@@ -889,7 +892,7 @@ class ReduceOperation(BaseOperation):
             self.config.get("model", self.default_model),
             "reduce",
             [{"role": "user", "content": fold_prompt}],
-            {"func_calls": "list[str]"},
+            {"func_calls": "list[str]"},  # function calling schema
             scratchpad=scratchpad,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get(
@@ -1063,7 +1066,7 @@ class ReduceOperation(BaseOperation):
             self.config.get("model", self.default_model),
             "reduce",
             [{"role": "user", "content": prompt}],
-            {"func_calls": "list[str]"},
+            {"func_calls": "list[str]"},  # function calling schema
             scratchpad=scratchpad,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get(
@@ -1083,9 +1086,6 @@ class ReduceOperation(BaseOperation):
             litellm_completion_kwargs=self.config.get(
                 "litellm_completion_kwargs", {}),
         )
-
-        self.runner.console.log("LOGGING NEW CHANGE")
-        self.runner.console.log(response)
 
         item_cost += response.total_cost
 

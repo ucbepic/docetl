@@ -2,156 +2,224 @@
   {
     "fruits_or_veggies_list": [
       {
+        "name": "persimmon",
+        "count": 2
+      },
+      {
+        "name": "lychee",
+        "count": 2
+      },
+      {
+        "name": "jackfruit",
+        "count": 7
+      },
+      {
         "name": "dragon fruit",
-        "count": 1
+        "count": 4
       },
       {
         "name": "loquat",
-        "count": 1
+        "count": 2
       },
       {
         "name": "mangosteen",
-        "count": 2
+        "count": 4
       },
       {
         "name": "blackcurrant",
         "count": 2
       },
       {
-        "name": "jackfruit",
+        "name": "camu camu",
         "count": 4
       },
       {
-        "name": "camu camu",
+        "name": "acerola cherry",
         "count": 2
       },
       {
-        "name": "a\u00e7a\u00ed berries",
-        "count": 1
-      },
-      {
-        "name": "soursop",
-        "count": 1
-      },
-      {
-        "name": "african horned melon",
-        "count": 1
-      },
-      {
-        "name": "tamarind",
-        "count": 1
-      },
-      {
-        "name": "cherimoya",
-        "count": 1
-      },
-      {
-        "name": "maracuja",
-        "count": 1
-      },
-      {
-        "name": "pulasan",
-        "count": 1
-      },
-      {
-        "name": "lucuma",
-        "count": 1
-      },
-      {
-        "name": "maqui berry",
-        "count": 1
-      },
-      {
-        "name": "cupuacu",
-        "count": 1
-      },
-      {
-        "name": "gooseberries",
-        "count": 1
-      },
-      {
-        "name": "bilberries",
-        "count": 1
-      },
-      {
-        "name": "mangaba",
-        "count": 1
-      },
-      {
-        "name": "ugli fruit",
-        "count": 1
-      },
-      {
-        "name": "salak",
-        "count": 1
-      },
-      {
-        "name": "elderberries",
-        "count": 1
-      },
-      {
-        "name": "persimmons",
-        "count": 1
+        "name": "durian",
+        "count": 2
       },
       {
         "name": "jabuticaba",
-        "count": 1
+        "count": 4
+      },
+      {
+        "name": "pomegranate",
+        "count": 2
+      },
+      {
+        "name": "breadfruit",
+        "count": 2
+      },
+      {
+        "name": "tamarillo",
+        "count": 2
+      },
+      {
+        "name": "goji berry",
+        "count": 2
+      },
+      {
+        "name": "baobab",
+        "count": 2
+      },
+      {
+        "name": "golden berry",
+        "count": 2
+      },
+      {
+        "name": "longan",
+        "count": 2
+      },
+      {
+        "name": "rambutan",
+        "count": 2
+      },
+      {
+        "name": "noni",
+        "count": 2
+      },
+      {
+        "name": "starfruit",
+        "count": 2
+      },
+      {
+        "name": "black sapote",
+        "count": 2
+      },
+      {
+        "name": "chayote",
+        "count": 2
+      },
+      {
+        "name": "miracle fruit",
+        "count": 2
+      },
+      {
+        "name": "a\u00e7a\u00ed berry",
+        "count": 4
+      },
+      {
+        "name": "soursop",
+        "count": 4
+      },
+      {
+        "name": "African horned melon",
+        "count": 4
+      },
+      {
+        "name": "tamarind",
+        "count": 4
+      },
+      {
+        "name": "cherimoya",
+        "count": 4
+      },
+      {
+        "name": "maracuja",
+        "count": 4
+      },
+      {
+        "name": "pulasan",
+        "count": 4
+      },
+      {
+        "name": "lucuma",
+        "count": 4
+      },
+      {
+        "name": "maqui berry",
+        "count": 4
+      },
+      {
+        "name": "cupuacu",
+        "count": 4
+      },
+      {
+        "name": "gooseberries",
+        "count": 4
+      },
+      {
+        "name": "bilberries",
+        "count": 4
+      },
+      {
+        "name": "mangaba",
+        "count": 4
+      },
+      {
+        "name": "ugli fruit",
+        "count": 4
+      },
+      {
+        "name": "salak",
+        "count": 4
+      },
+      {
+        "name": "elderberries",
+        "count": 2
+      },
+      {
+        "name": "persimmons",
+        "count": 2
       },
       {
         "name": "langsat",
-        "count": 1
+        "count": 2
       },
       {
         "name": "medlar",
-        "count": 1
+        "count": 2
       },
       {
         "name": "nance",
-        "count": 1
+        "count": 2
       },
       {
         "name": "pawpaw",
-        "count": 1
+        "count": 2
       },
       {
         "name": "rose apple",
-        "count": 1
+        "count": 2
       },
       {
         "name": "sapodilla",
-        "count": 1
+        "count": 2
       },
       {
         "name": "surinam cherry",
-        "count": 1
+        "count": 2
       },
       {
         "name": "velvet apple",
-        "count": 1
+        "count": 2
       },
       {
         "name": "white mulberries",
-        "count": 1
+        "count": 2
       },
       {
         "name": "yellow mombin",
-        "count": 1
+        "count": 2
       },
       {
         "name": "ziziphus",
-        "count": 1
+        "count": 2
       },
       {
         "name": "apple",
-        "count": 9
+        "count": 2
       }
     ],
     "top_5_ranking": [
-      "apple",
       "jackfruit",
-      "mangosteen",
-      "blackcurrant",
-      "camu camu"
+      "a\u00e7a\u00ed berry",
+      "soursop",
+      "tamarind",
+      "jabuticaba"
     ],
     "_counts_prereduce_get_fruits": 8
   }

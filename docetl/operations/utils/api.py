@@ -102,19 +102,8 @@ class APIWrapper(object):
 
     # Given a list of function calls from llm
     # be able to update a localized state which can be used for the next batch
-    def process_func_calls(self, func_calls, state=None):
-        for call in func_calls:
-            match = re.match(r'(ADD|INCREMENT)\("(.+?)"\)', call)
-            if match:
-                action, item = match.groups()
-                if action == "ADD":
-                    state[item] = state.get(item, 0) + 1
-                elif action == "INCREMENT" and item in state:
-                    state[item] += 1
-
-        return state
-
     # updated process function
+
     def processor(self, func_calls, state=None):
         if state is None:
             state = {}
@@ -148,8 +137,9 @@ class APIWrapper(object):
 
         return state
 
+    # unused for now; will potentially look into later
     def process_func_calls_freq(self, func_calls, state=None):
-        state = self.process_func_calls(func_calls, state)
+        state = self.processor(func_calls, state)
         if not state:
             return {}
 

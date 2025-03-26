@@ -968,8 +968,8 @@ class DSLRunner(ConfigWrapper):
                         alpha=0.7,
                         color="skyblue",
                     )
-                    ax1.set_title("Pipeline Cost Distribution")
-                    ax1.set_xlabel("Cost ($)")
+                    ax1.set_title("Pipeline Estimated Cost Distribution")
+                    ax1.set_xlabel("Estimated Cost ($)")
                     ax1.set_ylabel("Number of Pipelines")
                     # Format x-axis as dollars
                     ax1.xaxis.set_major_formatter(
@@ -1008,9 +1008,9 @@ class DSLRunner(ConfigWrapper):
 
                     # Create scatter plot with a single color
                     ax2.scatter(op_counts, costs, alpha=0.7, color="royalblue", s=50)
-                    ax2.set_title("Costs vs. Number of Operations")
+                    ax2.set_title("Estimated Costs vs. Number of Operations")
                     ax2.set_xlabel("Number of Operations in Pipeline")
-                    ax2.set_ylabel("Cost ($)")
+                    ax2.set_ylabel("Estimated Cost ($)")
                     ax2.yaxis.set_major_formatter(
                         FuncFormatter(lambda x, _: f"${x:.6f}")
                     )

@@ -7,8 +7,11 @@ from typing import Tuple
 from rich.console import Console, RenderableType
 from rich.status import Status
 from rich.style import StyleType
+from rich.traceback import install
 
 from docetl.utils import StageType, get_stage_description
+
+install(show_locals=False)
 
 
 class ThreadSafeConsole(Console):

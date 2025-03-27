@@ -123,18 +123,22 @@ interface VegaVisualizerProps {
 const VegaVisualizer = ({ spec, mode }: VegaVisualizerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showCode, setShowCode] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
 
   useEffect(() => {
     if (containerRef.current && !showCode) {
       try {
         const parsedSpec = JSON.parse(spec);
+        setParseError(null);
         vegaEmbed(containerRef.current, parsedSpec, {
           mode,
           actions: true,
           ast: true,
-        }).catch(console.error);
+        }).catch(error => {
+          setParseError(error.message);
+        });
       } catch (error) {
-        console.error("Failed to parse Vega spec:", error);
+        setParseError(`${error}`);
       }
     }
   }, [spec, mode, showCode]);
@@ -158,11 +162,28 @@ const VegaVisualizer = ({ spec, mode }: VegaVisualizerProps) => {
           </code>
         </pre>
       ) : (
-        <div
-          ref={containerRef}
-          className="rounded p-2"
-          style={{ minHeight: "180px" }}
-        />
+        <>
+          {parseError ? (
+            <div>
+              <div className="text-red-500 text-sm mt-2 p-2 bg-red-50 rounded " style={{
+                width: '100%',
+                whiteSpace: "pre-wrap",
+                wordWrap: "break-word",
+              }}>
+                JSON.parse(): {parseError}
+              </div>
+              <code>
+                {spec}
+              </code>
+            </div>
+          ) : (
+            <div
+              ref={containerRef}
+              className="rounded p-2"
+              style={{ minHeight: "180px" }}
+            />
+          )}
+        </>
       )}
     </div>
   );

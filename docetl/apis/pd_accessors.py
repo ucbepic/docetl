@@ -39,6 +39,8 @@ from docetl.operations.filter import FilterOperation
 from docetl.operations.map import MapOperation
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
+from docetl.operations.split import SplitOperation 
+from docetl.operations.gather import GatherOperation 
 from docetl.optimizer import Optimizer
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.runner import DSLRunner
@@ -47,7 +49,7 @@ from docetl.runner import DSLRunner
 class OpHistory(NamedTuple):
     """Record of an operation that was run."""
 
-    op_type: str  # 'map', 'filter', 'merge', 'agg'
+    op_type: str  # 'map', 'filter', 'merge', 'agg', 'split', 'gather'
     config: Dict[str, Any]  # Full config used
     output_columns: List[str]  # Columns created/modified
 
@@ -643,6 +645,89 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         results, cost = filter_op.execute(input_data)
 
         return self._record_operation(results, "filter", filter_config, cost)
+    
+    def split(self, prompt: str, output_schema: Dict[str, Any], **kwargs) -> pd.DataFrame:
+        """
+        Semantically split each row into multiple rows using a language model.
+
+        Documentation: https://ucbepic.github.io/docetl/operators/split/
+
+        Args:
+            prompt: Jinja template string instructing how to split the input.
+                    Use {{input.column}} to reference input fields.
+            output_schema: Dictionary defining the structure of the split output.
+            **kwargs: Additional configuration options similar to the map operation.
+        
+        Returns:
+            pd.DataFrame: A new DataFrame containing the split rows.
+
+        Examples:
+            >>> # Split a text column into sentences
+            >>> df.semantic.split(
+            ...     prompt="Split the text in {{input.text}} into individual sentences.",
+            ...     output_schema={"sentence": "str"}
+            ... )
+        """
+        input_data = self._df.to_dict("records")
+        split_config = {
+            "type": "split",
+            "name": f"semantic_split_{len(self._history)}",
+            "prompt": prompt,
+            "output": {"schema": output_schema},
+            **kwargs,
+        }
+        split_op = SplitOperation(
+            runner=self.runner,
+            config=split_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = split_op.execute(input_data)
+        return self._record_operation(results, "split", split_config, cost)
+
+    def gather(self, prompt: str, output_schema: Dict[str, Any], **kwargs) -> pd.DataFrame:
+        """
+        Semantically gather multiple rows into a consolidated result using a language model.
+
+        Documentation: https://ucbepic.github.io/docetl/operators/gather/
+
+        Args:
+            prompt: Jinja template string instructing how to gather the input rows.
+                    Use {{input.column}} to reference input fields.
+            output_schema: Dictionary defining the structure of the gathered output.
+            **kwargs: Additional configuration options similar to the map operation.
+        
+        Returns:
+            pd.DataFrame: A new DataFrame containing the gathered result.
+
+        Examples:
+            >>> # Gather multiple texts into a single summary
+            >>> df.semantic.gather(
+            ...     prompt="Summarize the following texts: {{input.text}}",
+            ...     output_schema={"summary": "str"}
+            ... )
+        """
+        input_data = self._df.to_dict("records")
+        gather_config = {
+            "type": "gather",
+            "name": f"semantic_gather_{len(self._history)}",
+            "prompt": prompt,
+            "output": {"schema": output_schema},
+            **kwargs,
+        }
+        gather_op = GatherOperation(
+            runner=self.runner,
+            config=gather_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = gather_op.execute(input_data)
+        return self._record_operation(results, "gather", gather_config, cost)
+
 
     @property
     def total_cost(self) -> float:

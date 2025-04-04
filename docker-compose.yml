@@ -38,6 +38,16 @@ services:
       # Mount the named volume "docetl-data" to /docetl-data in the container.
       - docetl-data:/docetl-data
 
+  docetl-aws:
+    extends:
+      service: docetl
+    environment:
+      - AWS_PROFILE=${AWS_PROFILE:-default}
+      - AWS_REGION=${AWS_REGION:-us-west-2}
+    volumes:
+      - ~/.aws:/root/.aws:ro
+    profiles:
+      - aws
+
 volumes:
-  # Define a named volume for persistent data.
   docetl-data:

@@ -2,6 +2,7 @@ import { createAzure } from "@ai-sdk/azure";
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText } from "ai";
 import { createClient } from "@supabase/supabase-js";
+import { encode } from "gpt-tokenizer";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -14,6 +15,7 @@ const supabase =
     : null;
 
 const MAX_TOTAL_CHARS = 500000;
+const MAX_NUMBER_TOKENS = 120000;
 
 function truncateMessages(messages: ChatMessage[]): ChatMessage[] {
   // Calculate total length
@@ -29,6 +31,18 @@ function truncateMessages(messages: ChatMessage[]): ChatMessage[] {
 
   while (totalLength > MAX_TOTAL_CHARS) {
     console.log(`Messages are too long (${totalLength} chars), truncating...`);
+
+    // Estimate token count for the entire content
+    const allContent = truncatedMessages.map((msg) => msg.content).join(" ");
+    const tokenEstimation = encode(allContent).length;
+    const avgRatio = tokenEstimation / totalLength;
+
+    // Calculate how many tokens need to be removed
+    const tokensToRemove = Math.max(0, tokenEstimation - MAX_NUMBER_TOKENS);
+
+    // Convert tokens to characters using the average ratio
+    const charsToRemove = Math.ceil(tokensToRemove / avgRatio);
+
     // Find longest message
     let longestMsgIndex = 0;
     let maxLength = 0;
@@ -44,10 +58,14 @@ function truncateMessages(messages: ChatMessage[]): ChatMessage[] {
     const message = truncatedMessages[longestMsgIndex];
     const contentLength = message.content.length;
 
-    // Calculate the middle section to remove
-    const quarterLength = Math.floor(contentLength / 4);
-    const startPos = quarterLength;
-    const endPos = contentLength - quarterLength;
+    // Calculate the middle section to remove based on token estimation
+    // Ensure we don't remove more than half the message
+    const removeLength = Math.min(charsToRemove, Math.floor(contentLength / 2));
+    const middlePoint = Math.floor(contentLength / 2);
+    const halfRemoveLength = Math.floor(removeLength / 2);
+
+    const startPos = Math.max(0, middlePoint - halfRemoveLength);
+    const endPos = Math.min(contentLength, middlePoint + halfRemoveLength);
 
     // Truncate the middle section
     message.content =

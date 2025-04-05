@@ -141,6 +141,8 @@ Environment variables:
 - `AWS_PROFILE`: Your AWS CLI profile (default: 'default')
 - `AWS_REGION`: AWS region (default: 'us-west-2')
 
+Bedrock models are pefixed with `bedrock`. See liteLLM [docs](https://docs.litellm.ai/docs/providers/bedrock#supported-aws-bedrock-models) for more details.
+
 #### Option B: Manual Setup (Development)
 
 For development or if you prefer not to use Docker:

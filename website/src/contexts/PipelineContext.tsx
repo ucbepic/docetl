@@ -138,9 +138,9 @@ const serializeState = async (state: PipelineState): Promise<string> => {
             .join("\n");
         }
 
-        // Take up to 5 samples
+        // Take up to 10 samples
         const samples = outputs
-          .slice(0, 5)
+          .slice(0, 10)
           .map((row: Record<string, unknown>) => {
             const sampleRow: Record<string, unknown> = {};
 

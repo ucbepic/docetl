@@ -67,7 +67,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
 
   const openAiKey = useMemo(() => {
     const key = apiKeys.find((key) => key.name === "OPENAI_API_KEY")?.value;
-    console.log("Chat Panel: OpenAI key present:", !!key);
+    // console.log("Chat Panel: OpenAI key present:", !!key);
     return key;
   }, [apiKeys]);
 
@@ -165,7 +165,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ onClose }) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    console.log("📝 Submitting message with API key present:", !!openAiKey);
+    // console.log("📝 Submitting message with API key present:", !!openAiKey);
 
     setError(null);
 

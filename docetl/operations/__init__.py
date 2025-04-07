@@ -7,6 +7,7 @@ from docetl.operations.gather import GatherOperation
 from docetl.operations.map import MapOperation
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
+from docetl.operations.order import OrderOperation
 from docetl.operations.split import SplitOperation
 from docetl.operations.sample import SampleOperation
 from docetl.operations.unnest import UnnestOperation
@@ -24,6 +25,7 @@ mapping = {
     "map": MapOperation,
     "reduce": ReduceOperation,
     "resolve": ResolveOperation,
+    "order": OrderOperation,
     "split": SplitOperation,
     "sample": SampleOperation,
     "unnest": UnnestOperation,

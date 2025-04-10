@@ -113,6 +113,36 @@ To clean up Docker resources (note that this will delete the Docker volume):
 make docker-clean
 ```
 
+##### AWS Bedrock
+
+This framework supports integration with AWS Bedrock. To enable:
+
+1. Configure AWS credentials:
+```bash
+aws configure
+```
+
+2. Test your AWS credentials:
+```bash
+make test-aws
+```
+
+3. Run with AWS support:
+```bash
+AWS_PROFILE=your-profile AWS_REGION=your-region make docker
+```
+
+Or using Docker Compose:
+```bash
+AWS_PROFILE=your-profile AWS_REGION=your-region docker compose --profile aws up
+```
+
+Environment variables:
+- `AWS_PROFILE`: Your AWS CLI profile (default: 'default')
+- `AWS_REGION`: AWS region (default: 'us-west-2')
+
+Bedrock models are pefixed with `bedrock`. See liteLLM [docs](https://docs.litellm.ai/docs/providers/bedrock#supported-aws-bedrock-models) for more details.
+
 #### Option B: Manual Setup (Development)
 
 For development or if you prefer not to use Docker:

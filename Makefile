@@ -46,12 +46,23 @@ run-ui:
 
 # Single Docker command to build and run
 docker:
-	docker volume create docetl-data && \
-	docker build -t docetl . && \
+	docker volume create docetl-data
+	docker build -t docetl .
+
+	@if [ -n "$${AWS_PROFILE}" ]; then \
+		echo "[INFO] Detected AWS_PROFILE — including AWS credentials."; \
+		DOCKER_AWS_FLAGS="-v ~/.aws:/root/.aws:ro \
+			-e AWS_PROFILE=$${AWS_PROFILE} \
+			-e AWS_REGION=$${AWS_REGION:-us-west-2}"; \
+	else \
+		echo "[INFO] No AWS_PROFILE set — skipping AWS credentials."; \
+		DOCKER_AWS_FLAGS=""; \
+	fi && \
 	docker run --rm -it \
 		-p 3000:3000 \
 		-p 8000:8000 \
 		-v docetl-data:/docetl-data \
+		$$DOCKER_AWS_FLAGS \
 		-e FRONTEND_HOST=0.0.0.0 \
 		-e FRONTEND_PORT=3000 \
 		-e BACKEND_HOST=0.0.0.0 \
@@ -61,6 +72,43 @@ docker:
 # Add new command for cleaning up docker resources
 docker-clean:
 	docker volume rm docetl-data
+
+# Test AWS connectivity
+test-aws:
+	@if ! command -v aws > /dev/null; then \
+		echo "[WARNING] AWS CLI is not installed locally. Skipping local AWS credentials test."; \
+	else \
+		if [ ! -d ~/.aws ]; then \
+			echo "[ERROR] AWS directory ~/.aws not found!"; \
+			echo "👉 Configure AWS CLI first: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html"; \
+			exit 1; \
+		fi; \
+		if [ -z "$${AWS_PROFILE}" ]; then \
+			echo "[WARNING] AWS_PROFILE is not set, using 'default' profile."; \
+		fi; \
+		if [ -z "$${AWS_REGION}" ]; then \
+			echo "[WARNING] AWS_REGION is not set, using 'us-west-2' region."; \
+		fi; \
+		AWS_PROFILE_FLAG=$${AWS_PROFILE:+--profile $$AWS_PROFILE}; \
+		echo "[INFO] Testing AWS credentials locally via cli..."; \
+		if ! aws sts get-caller-identity $$AWS_PROFILE_FLAG > /dev/null; then \
+			echo "[ERROR] Local AWS credentials test failed!"; \
+			exit 1; \
+		else \
+			echo "[SUCCESS] Local AWS credentials are valid."; \
+		fi; \
+	fi
+	@echo "[INFO] Testing AWS credentials inside Docker..."; \
+	if ! docker run --rm -it \
+		-v ~/.aws:/root/.aws:ro \
+		-e AWS_PROFILE=$${AWS_PROFILE:-default} \
+		-e AWS_REGION=$${AWS_REGION:-us-west-2} \
+		amazon/aws-cli sts get-caller-identity > /dev/null; then \
+		echo "[ERROR] Docker AWS credentials test failed!"; \
+		exit 1; \
+	else \
+		echo "[SUCCESS] Docker AWS credentials are valid."; \
+	fi
 
 # Help command
 help:
@@ -76,4 +124,5 @@ help:
 	@echo "  make run-ui       : Run UI production server"
 	@echo "  make docker       : Build and run docetl in Docker"
 	@echo "  make docker-clean : Remove docetl Docker volume"
+	@echo "  make test-aws     : Test AWS credentials configuration"
 	@echo "  make help         : Show this help message"

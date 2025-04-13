@@ -28,6 +28,10 @@ class ConfigWrapper(object):
         config = load_config(yaml_file)
         return cls(config, base_name=base_name, yaml_file_suffix=suffix, **kwargs)
 
+    @classmethod
+    def from_config(cls, config: Dict, **kwargs):
+        return cls(config, **kwargs)
+
     def __init__(
         self,
         config: Dict,

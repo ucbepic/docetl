@@ -418,9 +418,9 @@ def generate_op_config_prompt(
                 p_op = p_op_list[-1]
                 if p_op.get("type") == "gather":
                     content_key = p_op.get("content_key", "unknown")
-                    previous_ops_info += f"\nCRITICAL INSTRUCTION: You MUST reference the gathered content as '{{{{ input.{content_key}_chunk_rendered }}}}' in your prompt.\n"
+                    previous_ops_info += f"\nCRITICAL INSTRUCTION: You MUST reference the gathered content as '{{{{ input.{content_key}_rendered }}}}' in your prompt.\n"
                     previous_ops_info += f"DO NOT use '{{{{ input.{content_key} }}}}' as this will not include the context from surrounding chunks.\n"
-                    previous_ops_info += f"The '{content_key}_chunk_rendered' field contains the main content plus context from other chunks.\n"
+                    previous_ops_info += f"The '{content_key}_rendered' field contains the main content plus context from other chunks.\n"
                     break
 
         # Check if this is part of a map* chain
@@ -574,7 +574,7 @@ If this map operation follows a gather operation:
 - You MUST reference the gathered content with '_chunk_rendered' suffix
   * Example: If the content_key in gather was 'transcript', use {{ input.transcript_chunk_rendered }}
   * NOT just {{ input.transcript }}
-- The _chunk_rendered version includes the surrounding context from other chunks
+- The _chunk_rendered version includes the surrounding context from other chunks.
 """
         example_config = """
 Example of a Map Operation:
@@ -636,7 +636,7 @@ These IDs will be referenced by gather operations.
         type_specific_instructions = """
 For a gather operation, specify:
 - content_key (the key containing content to gather)
-  * This MUST match the split_key used in the preceding split operation
+  * This MUST match the split_key used in the preceding split operation, suffixed with '_chunk'
 - doc_id_key (ID field from split operation)
   * This MUST be 'split_{split_op_name}_id' matching the ID field from the split operation
 - order_key (chunk order field from split)
@@ -656,7 +656,7 @@ Example of a Gather Operation:
 ```yaml
 - name: context_gatherer
   type: gather
-  content_key: transcript
+  content_key: transcript_chunk
   doc_id_key: split_transcript_id  # _id from split op name
   order_key: split_transcript_chunk_num  # _chunk_num from split op name
   peripheral_chunks:
@@ -1263,7 +1263,7 @@ def invoke_rewrite_agent(
                     "Could not find a preceding split operation for gather. A gather operation must follow a split operation in the pipeline."
                 )
 
-            split_key = split_op_configs[0]["split_key"]
+            split_key = split_op_configs[0]["split_key"] + "_chunk"
 
             # Create multiple gather configurations with different context settings
             gather_configs = []
@@ -1285,7 +1285,7 @@ def invoke_rewrite_agent(
                         context_settings.extend(
                             [
                                 {
-                                    "previous": {"content_key": summary_key},
+                                    "previous": {"head": {"content_key": summary_key}},
                                 },
                                 {
                                     "previous": {
@@ -1302,13 +1302,16 @@ def invoke_rewrite_agent(
                     {},
                     {
                         "previous": {
-                            "count": 1,
-                            "content_key": split_key,
+                            "tail": {"count": 1, "content_key": split_key},
                         }
                     },  # No context
                     {
-                        "previous": {"count": 1, "content_key": split_key},
-                        "next": {"count": 1, "content_key": split_key},
+                        "previous": {
+                            "tail": {"count": 1, "content_key": split_key},
+                        },
+                        "next": {
+                            "head": {"count": 1, "content_key": split_key},
+                        },
                     },  # 1 previous, 1 next
                     {
                         "previous": {
@@ -1364,7 +1367,7 @@ def invoke_rewrite_agent(
 
                 # Handle next chunks context
                 if "next" in cfg["peripheral_chunks"]:
-                    next_count = cfg["peripheral_chunks"]["next"]["count"]
+                    next_count = cfg["peripheral_chunks"]["next"]["head"]["count"]
                     context_info.append(f"Next: {next_count}")
 
                 # Join context information or use "None" if empty

@@ -45,6 +45,7 @@ from docetl.operations.base import BaseOperation
 from docetl.optimizer import Optimizer
 from docetl.optimizers.instantiation import invoke_rewrite_agent
 from docetl.optimizers.rewrite_utils import SkeletonNodeEncoder
+from docetl.optimizers.sampler import sample_pipeline_execution
 
 from . import schemas
 from .utils import classproperty
@@ -829,7 +830,9 @@ class DSLRunner(ConfigWrapper):
         )
 
         # Save pipeline cost histogram to a log file
-        if all_costs:
+        if all_costs and self.config.get("optimizer_config", {}).get(
+            "plot_results", False
+        ):
             import datetime
             import json
             import os
@@ -1075,7 +1078,36 @@ class DSLRunner(ConfigWrapper):
                     f"  [cyan]Operations:[/cyan] {', '.join(op_names)}"
                 )
 
-        return self.skeleton_to_instantiated_pipelines
+        # Start sampling pipelines
+        if self.config.get("optimizer_config", {}).get("plot_results", False):
+            # Create the optimizer logs directory if it doesn't exist
+            log_dir = os.path.dirname(self.base_name)
+            if not log_dir:
+                raise ValueError(
+                    "No log directory found. Cannot save pipeline cost histogram."
+                )
+
+            # Get the base filename without extension
+            base_filename = os.path.basename(self.base_name)
+            log_dir = os.path.join(log_dir, f"{base_filename}.optimizer_logs")
+        else:
+            log_dir = None
+
+        sample_pipeline_execution(
+            sample_docs,
+            self.console,
+            self.skeleton_to_instantiated_pipelines,
+            self._run_operation,
+            self.optimizer.llm_client,
+            self.config,
+            scoring_func=eval(
+                self.config.get("optimizer_config", {}).get(
+                    "scoring_func", "lambda x: 1"
+                )
+            ),
+            sample_size=self.config.get("optimizer_config", {}).get("sample_size", 10),
+            log_dir=log_path,
+        )
 
     def get_pipelines_by_cost(self, top_n=None):
         """

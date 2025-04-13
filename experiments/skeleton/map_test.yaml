@@ -13,8 +13,11 @@ optimizer_config:
   model_choices:
     - gemini/gemini-2.0-flash
     - gemini/gemini-2.0-flash-lite-preview-02-05
+    # - gemini/gemini-2.5-pro-preview-03-25
   save_all_plans: true
   debug: true
+  scoring_func: "lambda x: len(x['locations'])"
+  plot_results: true
 
 operations:
   - type: sample
@@ -22,18 +25,20 @@ operations:
     random_state: 42
     samples: 50
     name: sample_articles
-  - name: extract_event_type
+  - name: extract_locations
     type: map
     optimize: true
     prompt: |
-      Given the following document content from the black vault, identify and extract the type of extraterrestrial or paranormal event being described:
+      Given the following document content from the black vault, identify and extract all unique locations mentioned in the document:
 
       {{ input.all_content }}
 
-      Provide a single, specific event type category.
+      Extract all unique location names (cities, states, countries, military bases, etc.) mentioned in the document.
+      They should be real locations on the planet Earth.
+      Provide a list of all unique locations, with each location being specific and clearly identified.
     output:
       schema:
-        event_type: str
+        locations: list[str]
 
   
 
@@ -43,7 +48,7 @@ pipeline:
       input: articles
       operations:
         - sample_articles
-        - extract_event_type
+        - extract_locations
 
   output:
     type: file

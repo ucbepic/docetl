@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from docetl.operations.utils import clear_cache as cc
 from docetl.runner import DSLRunner
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_enable=False)
 
 
 @app.command()

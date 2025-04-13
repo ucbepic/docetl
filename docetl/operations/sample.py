@@ -1,3 +1,4 @@
+import random
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -183,15 +184,41 @@ class SampleOperation(BaseOperation):
                         for data in input_data
                     ]
 
+                if samples > len(input_data):
+                    # Return all the documents
+                    return input_data, cost
+
                 if self.config.get("random", True):
                     import sklearn.model_selection
 
-                    output_data, _ = sklearn.model_selection.train_test_split(
-                        input_data,
-                        train_size=samples,
-                        random_state=self.config.get("random_state", None),
-                        stratify=stratify,
-                    )
+                    if isinstance(samples, float):
+                        samples = max(1, int(samples * len(input_data)))
+
+                    try:
+                        output_data, _ = sklearn.model_selection.train_test_split(
+                            input_data,
+                            train_size=samples,
+                            random_state=self.config.get("random_state", None),
+                            stratify=stratify,
+                        )
+                    except ValueError:
+                        # Sample at least one per class, and then fill the rest with random samples
+                        output_data = []
+                        for fold in set(stratify):
+                            fold_data = [
+                                data
+                                for data in input_data
+                                if data[
+                                    self.config.get("method_kwargs", {})["stratify_key"]
+                                ]
+                                == fold
+                            ]
+                            num_samples = max(1, int(samples / len(fold_data)))
+                            random_fold_data = random.sample(
+                                fold_data, min(num_samples, len(fold_data))
+                            )
+                            output_data.extend(random_fold_data)
+
                 else:
                     # If samples is an int, we want to figure out what that fraction is
                     if isinstance(samples, int):

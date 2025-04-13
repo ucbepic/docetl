@@ -31,7 +31,7 @@ from docetl.utils import CapturedOutput
 if TYPE_CHECKING:
     from docetl.runner import DSLRunner
 
-install(show_locals=True)
+install(show_locals=False)
 
 SAMPLE_SIZE_MAP = {
     "reduce": 40,

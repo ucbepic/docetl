@@ -31,7 +31,7 @@ def sample_pipeline_execution(
     sample_size: int = 5,
     log_dir: Optional[str] = None,
     budget_num_pipelines: int = 40,
-    sampling_strategy: Literal["random", "ucb", "thompson", "all"] = "all",
+    sampling_strategy: Literal["random", "ucb", "thompson", "all"] = ["random", "ucb"],
     ucb_exploration_weight: float = 2.0,
     ucb_dampening_factor: float = 0.8,
 ) -> Dict[
@@ -68,7 +68,7 @@ def sample_pipeline_execution(
     results = {}
 
     # Run random sampling if requested or both
-    if sampling_strategy in ["random", "all"]:
+    if any(strategy in sampling_strategy for strategy in ["random", "all"]):
         console.log("\n=== RUNNING RANDOM SAMPLING STRATEGY ===\n")
         random_results, random_cost = _run_random_sampling(
             sample_docs=sample_docs,
@@ -84,7 +84,7 @@ def sample_pipeline_execution(
         results["random"] = (random_results, random_cost)
 
     # Run Thompson sampling if requested or both
-    if sampling_strategy in ["thompson", "all"]:
+    if any(strategy in sampling_strategy for strategy in ["thompson", "all"]):
         console.log("\n=== RUNNING THOMPSON SAMPLING STRATEGY ===\n")
         thompson_results, thompson_cost = sample_pipeline_execution_with_thompson(
             sample_docs=sample_docs,
@@ -100,7 +100,7 @@ def sample_pipeline_execution(
         results["thompson"] = (thompson_results, thompson_cost)
 
     # Run UCB sampling if requested or both
-    if sampling_strategy in ["ucb", "all"]:
+    if any(strategy in sampling_strategy for strategy in ["ucb", "all"]):
         console.log("\n=== RUNNING UCB SAMPLING STRATEGY ===\n")
         try:
             ucb_results, ucb_cost = sample_pipeline_execution_with_ucb(
@@ -121,7 +121,7 @@ def sample_pipeline_execution(
             console.log("UCB sampling requested but module not available")
 
     # If both strategies were run, print a comparison of the top pipelines
-    if len(sampling_strategy) > 1 or sampling_strategy == "all":
+    if len(sampling_strategy) > 1 or sampling_strategy == ["all"]:
         compare_sampling_strategies(results, console, budget_num_pipelines, log_dir)
 
     return results
@@ -204,7 +204,7 @@ def _run_random_sampling(
 
                 # Store results for this skeleton if there are output docs
                 if len(output_docs) > 0:
-                    results.append((pipeline, actual_cost, output_docs))
+                    results.append((pipeline, estimated_cost, actual_cost, output_docs))
                 sampling_cost += actual_cost
         else:
             # Handle empty pipelines case

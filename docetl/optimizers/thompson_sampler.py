@@ -627,7 +627,7 @@ def sample_pipeline_execution_with_thompson(
 
             # Store results for this pipeline if there are output docs
             if len(output_docs) > 0:
-                results.append((pipeline, actual_cost, output_docs))
+                results.append((pipeline, estimated_cost, actual_cost, output_docs))
             sampling_cost += actual_cost
             sampled_in_phase1 += 1
 
@@ -720,7 +720,7 @@ def sample_pipeline_execution_with_thompson(
 
                 # Store results for this pipeline if there are output docs
                 if len(output_docs) > 0:
-                    results.append((pipeline, actual_cost, output_docs))
+                    results.append((pipeline, estimated_cost, actual_cost, output_docs))
                 sampling_cost += actual_cost
 
                 # Log remaining unsampled pipelines

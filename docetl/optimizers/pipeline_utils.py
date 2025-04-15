@@ -93,12 +93,12 @@ def execute_pipeline(
 
 
 def rank_pipeline_outputs_with_llm(
-    pipeline_results: List[Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]]]],
+    pipeline_results: List[Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]]]],
     original_pipeline_config: Dict[str, Any],
     llm_client: LLMClient,
     console: Console,
     scoring_func: Callable,
-) -> List[Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]], Dict[str, Any]]]:
+) -> List[Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]], Dict[str, Any]]]:
     """
     Ranks multiple pipeline outputs using both LLM as a judge and a scoring function
     to determine which best meets the intended goals of the original pipeline.
@@ -121,6 +121,7 @@ def rank_pipeline_outputs_with_llm(
                 p[0],
                 p[1],
                 p[2],
+                p[3],
                 {
                     "pipeline_id": f"P1_{hash(str(p[0])) % 10000}",
                     "llm_rank": 1,
@@ -136,7 +137,7 @@ def rank_pipeline_outputs_with_llm(
 
     # Assign unique IDs to each pipeline
     pipeline_ids = []
-    for i, (pipeline, _, _) in enumerate(pipeline_results):
+    for i, (pipeline, _, _, _) in enumerate(pipeline_results):
         # Create a simple hash of the pipeline structure
         pipeline_str = str(pipeline)
         pipeline_hash = hash(pipeline_str) % 10000  # Limit to 4 digits for readability
@@ -144,12 +145,12 @@ def rank_pipeline_outputs_with_llm(
         pipeline_ids.append(pipeline_id)
 
     # Find the minimum length of output docs across all pipelines
-    min_docs_length = min(len(pipeline[2]) for pipeline in pipeline_results)
+    min_docs_length = min(len(pipeline[-1]) for pipeline in pipeline_results)
 
     if min_docs_length == 0:
         console.log("Warning: Some pipelines produced no output documents")
         # Filter out pipelines with no outputs
-        valid_pipelines = [p for p in pipeline_results if len(p[2]) > 0]
+        valid_pipelines = [p for p in pipeline_results if len(p[3]) > 0]
         if not valid_pipelines:
             console.log("No valid pipelines with outputs to rank")
             return pipeline_results
@@ -180,7 +181,7 @@ def rank_pipeline_outputs_with_llm(
 
 
 def evaluate_with_scoring_function(
-    pipeline_results: List[Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]]]],
+    pipeline_results: List[Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]]]],
     pipeline_ids: List[str],
     scoring_func: Callable,
     min_docs_length: int,
@@ -203,7 +204,7 @@ def evaluate_with_scoring_function(
 
     # Score pipelines using the scoring function
     scoring_function_scores = []
-    for i, (_, _, output_docs) in enumerate(pipeline_results):
+    for i, (_, _, _, output_docs) in enumerate(pipeline_results):
         try:
             # Calculate score for each document and average them
             doc_scores = []
@@ -242,7 +243,7 @@ def evaluate_with_scoring_function(
 
 
 def evaluate_with_llm_judge(
-    pipeline_results: List[Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]]]],
+    pipeline_results: List[Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]]]],
     original_pipeline_config: Dict[str, Any],
     pipeline_ids: List[str],
     llm_client: LLMClient,
@@ -289,7 +290,7 @@ def evaluate_with_llm_judge(
         random.shuffle(pipeline_indices)
 
         for order_idx, original_idx in enumerate(pipeline_indices):
-            pipeline_config, cost, output_docs = pipeline_results[original_idx]
+            pipeline_config, estimated_cost, actual_cost, output_docs = pipeline_results[original_idx]
             if doc_idx < len(output_docs):
                 # Use letter label instead of numerical ID
                 letter_label = letters[order_idx]
@@ -452,12 +453,12 @@ OUTPUTS TO EVALUATE:
 
 
 def combine_ranking_results(
-    pipeline_results: List[Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]]]],
+    pipeline_results: List[Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]]]],
     llm_results: Dict[int, Dict[str, Any]],
     scoring_results: Dict[int, Dict[str, Any]],
     pipeline_ids: List[str],
     console: Console,
-) -> List[Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]], Dict[str, Any]]]:
+) -> List[Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]], Dict[str, Any]]]:
     """
     Combines LLM judge and scoring function results and sorts by LLM ranking.
 
@@ -478,7 +479,7 @@ def combine_ranking_results(
     combined_results = []
     ranking_info = []
 
-    for i, (pipeline, cost, output_docs) in enumerate(pipeline_results):
+    for i, (pipeline, estimated_cost, actual_cost, output_docs) in enumerate(pipeline_results):
         # Combine ranking information
         combined_info = {
             "pipeline_id": pipeline_ids[i],
@@ -488,7 +489,7 @@ def combine_ranking_results(
             "scoring_value": scoring_results.get(i, {}).get("scoring_value", 0),
         }
 
-        combined_results.append((pipeline, cost, output_docs, combined_info))
+        combined_results.append((pipeline, estimated_cost, actual_cost, output_docs, combined_info))
         ranking_info.append((i, combined_info))
 
     # Sort by LLM rank if available, otherwise by scoring rank
@@ -514,7 +515,7 @@ def combine_ranking_results(
 
 def print_ranking_comparison_table(
     ranked_results: List[
-        Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]], Dict[str, Any]]
+        Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]], Dict[str, Any]]
     ],
     console: Console,
     title: str = "Pipeline Ranking Comparison",
@@ -537,7 +538,7 @@ def print_ranking_comparison_table(
     table.add_column("Scoring Func Value", justify="right")
 
     # Add rows to the table
-    for pipeline, cost, _, ranking_info in ranked_results:
+    for pipeline, estimated_cost, actual_cost, _, ranking_info in ranked_results:
         pipeline_id = ranking_info["pipeline_id"]
         llm_rank = ranking_info["llm_rank"]
         scoring_rank = ranking_info["scoring_rank"]
@@ -547,7 +548,7 @@ def print_ranking_comparison_table(
         table.add_row(
             pipeline_id,
             str(len(pipeline)),
-            f"{cost:.6f}",
+            f"{actual_cost:.6f}",
             str(llm_rank) if llm_rank != -1 else "N/A",
             str(scoring_rank) if scoring_rank != -1 else "N/A",
             str(llm_score) if llm_score != -1 else "N/A",
@@ -566,7 +567,7 @@ def compare_sampling_strategies(
         str,
         Tuple[
             List[
-                Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]], Dict[str, Any]]
+                Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]], Dict[str, Any]]
             ],
             float,
         ],
@@ -599,12 +600,12 @@ def compare_sampling_strategies(
     for strategy, (ranked_results, cost) in results.items():
         # Get information about the best pipeline
         if ranked_results:
-            best_pipeline, best_cost, _, best_info = ranked_results[0]
+            best_pipeline, best_estimated_cost, best_actual_cost, _, best_info = ranked_results[0]
             best_pipeline_id = best_info.get("pipeline_id", "N/A")
             best_pipeline_ops = len(best_pipeline)
         else:
             best_pipeline_id = "None found"
-            best_cost = 0
+            best_actual_cost = 0
             best_pipeline_ops = 0
 
         table.add_row(
@@ -615,7 +616,7 @@ def compare_sampling_strategies(
             str(len(ranked_results)),  # Successful
             f"{cost:.6f}",
             best_pipeline_id,
-            f"{best_cost:.6f}" if best_cost > 0 else "N/A",
+            f"{best_actual_cost:.6f}" if best_actual_cost > 0 else "N/A",
             str(best_pipeline_ops),
         )
 
@@ -635,11 +636,13 @@ def compare_sampling_strategies(
         from datetime import datetime
 
         import matplotlib.pyplot as plt
+        import matplotlib.cm as cm
+        from matplotlib.colors import Normalize
         import numpy as np
 
         console.log("\n=== GENERATING VISUALIZATION ===\n")
 
-        # Create the figure
+        # Create the figure for the first plot
         plt.figure(figsize=(10, 6))
 
         # Define colors for different strategies
@@ -651,9 +654,9 @@ def compare_sampling_strategies(
             scores = []
             labels = []
 
-            for pipeline, cost, _, info in ranked_results:
+            for pipeline, estimated_cost, actual_cost, _, info in ranked_results:
                 # Extract cost and scoring value
-                costs.append(cost)
+                costs.append(actual_cost)
                 score = info.get("scoring_value", 0)
                 scores.append(score)
                 labels.append(info.get("pipeline_id", ""))
@@ -681,9 +684,9 @@ def compare_sampling_strategies(
         # Add trend lines (optional)
         for strategy, (ranked_results, _) in results.items():
             if len(ranked_results) > 1:
-                costs = [result[1] for result in ranked_results]
+                costs = [result[2] for result in ranked_results]
                 scores = [
-                    result[3].get("scoring_value", 0) for result in ranked_results
+                    result[4].get("scoring_value", 0) for result in ranked_results
                 ]
 
                 if len(costs) > 1:
@@ -713,14 +716,16 @@ def compare_sampling_strategies(
         plt.legend()
         plt.grid(True, alpha=0.3)
 
+        # Generate timestamp for the filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
         # Save the plot if log_dir is provided
         if log_dir:
             try:
                 # Make sure the directory exists
                 os.makedirs(log_dir, exist_ok=True)
 
-                # Generate timestamp for the filename
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                # Generate filename for the first plot
                 filename = os.path.join(log_dir, f"pipeline_comparison_{timestamp}.png")
 
                 # Save the figure
@@ -729,7 +734,112 @@ def compare_sampling_strategies(
             except Exception as e:
                 console.log(f"Could not save plot: {e}")
 
-        # Close the figure to free memory
+        # Close the first figure
+        plt.close()
+        
+        # Create a new figure for the cost comparison (second plot)
+        plt.figure(figsize=(10, 6))
+        
+        # Track min and max operations across all strategies for consistent color scaling
+        min_ops = float('inf')
+        max_ops = 0
+
+        # First pass to find min/max operations for color normalization
+        for strategy, (ranked_results, _) in results.items():
+            for pipeline, _, _, _, _ in ranked_results:
+                num_ops = len(pipeline)
+                min_ops = min(min_ops, num_ops)
+                max_ops = max(max_ops, num_ops)
+
+        # Create the color normalization
+        norm = Normalize(vmin=min_ops, vmax=max_ops)
+        cmap = cm.viridis
+
+        # Keep reference to one scatter plot for the colorbar
+        scatter_for_colorbar = None
+
+        # Plot data for each strategy
+        for strategy, (ranked_results, _) in results.items():
+            estimated_costs = []
+            actual_costs = []
+            num_operations = []
+            labels = []
+
+            for pipeline, estimated_cost, actual_cost, _, info in ranked_results:
+                estimated_costs.append(estimated_cost)
+                actual_costs.append(actual_cost)
+                num_operations.append(len(pipeline))
+                labels.append(info.get("pipeline_id", ""))
+            
+            # Create scatter plot with colors based on operation count
+            scatter = plt.scatter(
+                estimated_costs,
+                actual_costs,
+                c=num_operations,
+                cmap=cmap,
+                norm=norm,
+                alpha=0.7,
+                s=80
+            )
+            
+            # Save reference to one scatter plot for colorbar
+            if scatter_for_colorbar is None and len(num_operations) > 0:
+                scatter_for_colorbar = scatter
+            
+            # Add pipeline IDs as annotations
+            for i, label in enumerate(labels):
+                plt.annotate(
+                    label,
+                    (estimated_costs[i], actual_costs[i]),
+                    textcoords="offset points",
+                    xytext=(5, 5),
+                    fontsize=8,
+                )
+
+        # Add reference line for perfect estimation (y=x)
+        all_costs = []
+        for strategy, (ranked_results, _) in results.items():
+            all_costs.extend([r[1] for r in ranked_results])  # estimated costs
+            all_costs.extend([r[2] for r in ranked_results])  # actual costs
+
+        if all_costs:
+            min_cost = min(all_costs)
+            max_cost = max(all_costs)
+            plt.plot([min_cost, max_cost], [min_cost, max_cost], 'k--', alpha=0.5)
+
+        # Add colorbar for operation count - link to a specific scatter plot
+        if scatter_for_colorbar is not None:
+            cbar = plt.colorbar(scatter_for_colorbar)
+            cbar.set_label('Number of Operations')
+        else:
+            # Fallback if no scatter plots were created
+            sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+            sm.set_array([])
+            cbar = plt.colorbar(sm)
+            cbar.set_label('Number of Operations')
+
+        # Add details to the plot
+        plt.title("Pipeline Cost Estimation Analysis")
+        plt.xlabel("Estimated Pipeline Cost ($)")
+        plt.ylabel("Actual Pipeline Cost ($)")
+        plt.grid(True, alpha=0.3)
+
+        # Make the plot square to emphasize the reference line
+        plt.axis('equal')
+
+        # Save the plot if log_dir is provided
+        if log_dir:
+            try:
+                # Generate filename for the second plot
+                filename = os.path.join(log_dir, f"cost_comparison_{timestamp}.png")
+                
+                # Save the figure
+                plt.savefig(filename, dpi=300, bbox_inches="tight")
+                console.log(f"Cost comparison plot saved to: {filename}")
+            except Exception as e:
+                console.log(f"Could not save cost comparison plot: {e}")
+
+
         plt.close()
 
     except ImportError:

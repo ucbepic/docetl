@@ -1285,7 +1285,9 @@ def invoke_rewrite_agent(
                         context_settings.extend(
                             [
                                 {
-                                    "previous": {"head": {"content_key": summary_key, "count": 1}},
+                                    "previous": {
+                                        "head": {"content_key": summary_key, "count": 1}
+                                    },
                                 },
                                 {
                                     "previous": {

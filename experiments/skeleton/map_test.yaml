@@ -13,7 +13,7 @@ optimizer_config:
   model_choices:
     - gemini/gemini-2.0-flash
     - gemini/gemini-2.0-flash-lite-preview-02-05
-    # - gemini/gemini-2.5-pro-preview-03-25
+    - gemini/gemini-2.5-pro-preview-03-25
   save_all_plans: true
   debug: true
   scoring_func: "lambda x: len(x['locations'])"

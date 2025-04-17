@@ -38,7 +38,9 @@ nav:
           - Sample: operators/sample.md
           - Code: operators/code.md
       - APIs:
-          - Python API Guide: python-api.md
+          - Python API Guide: 
+              - Overview: python/index.md
+              - Examples: python/examples.md
           - Pandas Integration:
               - Overview: pandas/index.md
               - Operations: pandas/operations.md

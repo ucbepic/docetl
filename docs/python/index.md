@@ -6,10 +6,10 @@ The DocETL Python API provides a programmatic way to define, optimize, and run d
 
 The Python API consists of several classes:
 
-- Pipeline: The main class for defining and running a complete document processing pipeline.
 - Dataset: Represents a dataset with a type and path.
 - Various operation classes (e.g., MapOp, ReduceOp, FilterOp) for different types of data processing steps.
 - PipelineStep: Represents a step in the pipeline with input and operations.
+- Pipeline: The main class for defining and running a complete document processing pipeline.
 - PipelineOutput: Defines the output configuration for the pipeline.
 
 ## Example Usage
@@ -84,5 +84,3 @@ The API Reference provides detailed information about each class, including:
 - Method signatures
 - Return types
 - Usage examples
-
-By using the Python API, you can create more complex and dynamic pipelines that can adapt to your specific document processing needs.

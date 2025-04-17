@@ -540,11 +540,20 @@ class ParallelMapOperation(BaseOperation):
                     raise ValueError(
                         f"PDF URL key '{self.config['pdf_url_key']}' not found in input data"
                     )
+                # Download content
+                if pdf_url.startswith("http"):
+                    file_data = requests.get(pdf_url).content
+                else:
+                    with open(pdf_url, "rb") as f:
+                        file_data = f.read()
+                encoded_file = base64.b64encode(file_data).decode("utf-8")
+                base64_url = f"data:application/pdf;base64,{encoded_file}"
+
                 messages[0]["content"] = [
-                    {"type": "image_url", "image_url": {"url": pdf_url}},
+                    {"type": "image_url", "image_url": {"url": base64_url}},
                     {"type": "text", "text": prompt},
                 ]
-
+                
             local_output_schema = {
                 key: output_schema.get(key, "string")
                 for key in prompt_config["output_keys"]

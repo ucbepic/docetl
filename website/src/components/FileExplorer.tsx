@@ -430,9 +430,21 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         onFileUpload(originalFile);
       });
 
+      // Add the path to the result documents
+      const resultFiles = result.documents.map(
+        (doc: Record<string, string>) => {
+          const originalFile = savedDocs.files.find(
+            (f: Record<string, string>) => f.name === doc.filename
+          );
+          // Add the path to the result document
+          doc._file_path = originalFile?.path;
+          return doc;
+        }
+      );
+
       // Create and upload the JSON result file
       const jsonFile = new File(
-        [JSON.stringify(result.documents, null, 2)],
+        [JSON.stringify(resultFiles, null, 2)],
         `docs_${timestamp}.json`,
         { type: "application/json" }
       );

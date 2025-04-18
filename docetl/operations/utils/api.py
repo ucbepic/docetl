@@ -7,6 +7,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from litellm import ModelResponse, RateLimitError, completion, embedding
+from litellm.types.utils import ChatCompletionMessageToolCall, Function
 from rich import print as rprint
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -30,6 +31,11 @@ BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
 def is_deepseek_r1(model: str) -> bool:
     model = model.lower()
     return "deepseek-r1" in model or "deepseek-reasoner" in model
+
+
+def is_snowflake(model: str) -> bool:
+    model = model.lower()
+    return "snowflake" in model
 
 
 class APIWrapper(object):
@@ -508,16 +514,28 @@ class APIWrapper(object):
             if "gemini" not in model and "claude" not in model:
                 parameters["additionalProperties"] = False
 
-            tools = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "send_output",
-                        "description": "Send output back to the user",
-                        "parameters": parameters,
-                    },
-                }
-            ]
+            if is_snowflake(model):
+                tools = [
+                    {
+                        "tool_spec": {
+                            "type": "generic",
+                            "name": "send_output",
+                            "description": "Send output back to the user",
+                            "input_schema": parameters,
+                        }
+                    }
+                ]
+            else:
+                tools = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "send_output",
+                            "description": "Send output back to the user",
+                            "parameters": parameters,
+                        },
+                    }
+                ]
             if "claude" not in model:
                 tools[0]["additionalProperties"] = False
                 tools[0]["strict"] = True
@@ -713,12 +731,27 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         Raises:
             InvalidOutputError: If the response is not valid.
         """
-
-        tool_calls = (
-            response.choices[index].message.tool_calls
-            if "tool_calls" in dir(response.choices[index].message)
-            else []
-        )
+        if is_snowflake(response.model):
+            tool_calls = (
+                [
+                    ChatCompletionMessageToolCall(
+                        function=Function(
+                            name=content.get("tool_use", {}).get("name"),
+                            arguments=content.get("tool_use", {}).get("input"),
+                        )
+                    )
+                    for content in response.choices[index].message.content_list
+                    if content.get("type") == "tool_use"
+                ]
+                if "content_list" in dir(response.choices[index].message)
+                else []
+            )
+        else:
+            tool_calls = (
+                response.choices[index].message.tool_calls
+                if "tool_calls" in dir(response.choices[index].message)
+                else []
+            )
 
         # Check if there are no tools and the schema has a single key-value pair
         if not tools and len(schema) == 1 and not tool_calls:
@@ -754,7 +787,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 for tool in tools:
                     if tool_call.function.name == tool["function"]["name"]:
                         try:
-                            function_args = json.loads(tool_call.function.arguments)
+                            function_args = (
+                                json.loads(tool_call.function.arguments)
+                                if isinstance(tool_call.function.arguments, str)
+                                else tool_call.function.arguments
+                            )
                         except json.JSONDecodeError:
                             return [{}]
                         # Execute the function defined in the tool's code
@@ -782,9 +819,12 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                         response.choices,
                         tools,
                     )
-
                 try:
-                    output_dict = json.loads(tool_call.function.arguments)
+                    output_dict = (
+                        json.loads(tool_call.function.arguments)
+                        if isinstance(tool_call.function.arguments, str)
+                        else tool_call.function.arguments
+                    )
                     # Augment output_dict with empty values for any keys in the schema that are not in output_dict
                     for key in schema:
                         if key not in output_dict:

@@ -6,7 +6,13 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
-from litellm import ModelResponse, RateLimitError, completion, embedding
+from litellm import (
+    APIConnectionError,
+    ModelResponse,
+    RateLimitError,
+    completion,
+    embedding,
+)
 from rich import print as rprint
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -450,6 +456,11 @@ class APIWrapper(object):
                 )
                 time.sleep(sleep_time)
                 rate_limited_attempt += 1
+            except APIConnectionError:
+                self.runner.console.log(
+                    "[bold red]API connection error. Retrying...[/bold red]"
+                )
+                time.sleep(1)
             except TimeoutError:
                 if attempt == max_retries:
                     self.runner.console.log(

@@ -15,6 +15,7 @@ nav:
       - Overview: index.md
       - Installation: installation.md
       - Quick Start Tutorial: tutorial.md
+      - Quick Start Tutorial (Python API): tutorial-pythonapi.md
       - Best Practices: best-practices.md
   
   - User Guide:

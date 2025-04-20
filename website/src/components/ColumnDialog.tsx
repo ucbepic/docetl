@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useChat } from "ai/react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
@@ -16,6 +17,8 @@ import {
   ChevronRight,
   Wand2,
   Trash2,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import {
   HoverCard,
@@ -43,6 +46,17 @@ import {
   WordCountHistogram,
   CategoricalBarChart,
 } from "@/components/ResizableDataTable";
+
+import { usePipelineContext } from "@/contexts/PipelineContext";
+import * as LucideIcons from "lucide-react";
+import * as ShadcnUI from "@/components/ui";
+import * as Babel from "@babel/standalone";
+
+const scope = {
+  React,
+  ...LucideIcons,
+  ...ShadcnUI,
+};
 
 interface ObservabilityIndicatorProps {
   row: Record<string, unknown>;
@@ -272,6 +286,29 @@ export function ColumnDialog<T extends Record<string, unknown>>({
   const [isAllExpanded, setIsAllExpanded] = useState(false);
   const [feedbackColor, setFeedbackColor] = useState("#FF0000");
   const [showPreviousNotes, setShowPreviousNotes] = useState(false);
+  const [isPrettified, setIsPrettified] = useState(false);
+  const [prettifiedContentMap, setPrettifiedContentMap] = useState<
+    Record<number, string>
+  >({});
+  const { namespace } = usePipelineContext();
+
+  const chatHeaders = useMemo(() => {
+    const headers: Record<string, string> = {};
+    headers["x-namespace"] = namespace;
+    return headers;
+  }, [namespace]);
+
+  const {
+    messages,
+    append,
+    isLoading: isGenerating,
+  } = useChat({
+    api: "/api/chat",
+    headers: {
+      ...chatHeaders,
+      "x-source": "output_prettify",
+    },
+  });
 
   const currentRow = data[currentIndex];
   const compareRow = compareIndex !== null ? data[compareIndex] : null;
@@ -299,9 +336,257 @@ export function ColumnDialog<T extends Record<string, unknown>>({
     setIsAllExpanded(!isAllExpanded);
   };
 
+  // Reset to raw view when navigating between rows
+  useEffect(() => {
+    setIsPrettified(false);
+  }, [currentIndex]);
+
+  // Get the current prettified content for this document index
+  const prettifiedContent = useMemo(
+    () => prettifiedContentMap[currentIndex] || null,
+    [prettifiedContentMap, currentIndex]
+  );
+
+  // Generate prettified view using useChat
+  const generatePrettifiedView = useCallback(
+    async (value: unknown) => {
+      try {
+        // Get all relevant data for the visualization
+        const filteredRowContent = Object.fromEntries(
+          Object.entries(currentRow).filter(
+            ([key]) => !key.startsWith("_observability")
+          )
+        );
+
+        // Get 2-3 other random samples for comparison
+        const otherSamples = [];
+        const totalSamples = Math.min(3, data.length - 1);
+
+        if (totalSamples > 0) {
+          // Create an array of indices excluding the current index
+          const availableIndices = [];
+          for (let i = 0; i < data.length; i++) {
+            if (i !== currentIndex) {
+              availableIndices.push(i);
+            }
+          }
+
+          // Randomly select up to 3 other samples
+          for (
+            let i = 0;
+            i < totalSamples && availableIndices.length > 0;
+            i++
+          ) {
+            const randomIndex = Math.floor(
+              Math.random() * availableIndices.length
+            );
+            const sampleIndex = availableIndices[randomIndex];
+
+            const sampleRow = data[sampleIndex];
+            const filteredSample = Object.fromEntries(
+              Object.entries(sampleRow).filter(
+                ([key]) => !key.startsWith("_observability")
+              )
+            );
+
+            otherSamples.push({
+              index: sampleIndex,
+              data: filteredSample,
+              value: sampleRow[columnId],
+            });
+
+            // Remove the selected index from available indices
+            availableIndices.splice(randomIndex, 1);
+          }
+        }
+
+        // Create the prompt for GPT-4o
+        const prompt = `Generate a Shadcn UI React component to visualize this data from operation "${currentOperation}", column "${columnId}": 
+
+The shadcn ui components available are:
+export * from "./accordion";
+export * from "./alert";
+export * from "./avatar";
+export * from "./badge";
+export * from "./button";
+export * from "./card";
+export * from "./checkbox";
+export * from "./dialog";
+export * from "./dropdown-menu";
+export * from "./form";
+export * from "./hover-card";
+export * from "./input";
+export * from "./label";
+export * from "./popover";
+export * from "./radio-group";
+export * from "./resizable";
+export * from "./select";
+export * from "./separator";
+export * from "./sheet";
+export * from "./slider";
+export * from "./switch";
+export * from "./table";
+export * from "./textarea";
+export * from "./toast";
+export * from "./toggle";
+export * from "./tooltip";
+
+And use tailwind classes for styling. When in doubt, don't use a shadcn ui component; just create it yourself.
+
+Your visualization should be less text and more visual. Pull in quotes or relevant info from the source document.
+There should be as little text as possible and as much visual as possible.
+Lots of colors, 2D layout, charts, etc.
+It should fit the whole screen but scroll vertically if needed.
+If you have text at all (> 1 or 2 words), make it appear on hover (e.g., hovercard, tooltip, etc.)
+
+IMPORTANT: I'll provide the current document and some comparison documents. Your visualization should:
+1. Highlight key patterns or insights from the main document
+2. Show similarities and differences between this document and others
+3. Use visual cues (colors, positioning, icons) to represent relationships
+4. Create an interactive visualization that helps understand the document in context
+
+Main document (${currentIndex}): ${JSON.stringify(value, null, 2)}
+
+Main document context: ${JSON.stringify(filteredRowContent, null, 2)}
+
+${
+  otherSamples.length > 0
+    ? `Comparison documents (for finding similarities and differences):
+${otherSamples
+  .map(
+    (sample) => `
+Document ${sample.index}:
+${JSON.stringify(sample.value, null, 2)}
+
+Document ${sample.index} context:
+${JSON.stringify(sample.data, null, 2)}
+`
+  )
+  .join("\n")}`
+    : ""
+}
+
+Create a visually appealing, informative component using Shadcn UI that best represents this data. Return ONLY valid JSX/TSX code with no explanations or markdown. Use Tailwind classes for styling. The component should be self-contained and only use imports from "@/components/ui/*" and standard React hooks.
+Your code should be formatted properly; in \`\`\`tsx\`\`\` tags.`;
+
+        await append({
+          role: "user",
+          content: prompt,
+        });
+      } catch (error) {
+        console.error("Error generating prettified view:", error);
+      }
+    },
+    [append, columnId, currentOperation, currentRow, data, currentIndex]
+  );
+
+  // Listen for new messages and update the prettified content
+  useEffect(() => {
+    if (messages.length > 0 && !isGenerating) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === "assistant") {
+        // Extract code from ```tsx ``` blocks
+        const codeBlockRegex = /```tsx\s*([\s\S]*?)\s*```/;
+        const match = lastMessage.content.match(codeBlockRegex);
+
+        if (match && match[1]) {
+          // Store the prettified content for this specific document index
+          setPrettifiedContentMap((prev) => ({
+            ...prev,
+            [currentIndex]: match[1].trim(),
+          }));
+          setIsPrettified(true);
+        } else {
+          console.error("No valid code block found in the response");
+        }
+      }
+    }
+  }, [messages, isGenerating, currentIndex]);
+
+  const evaluateComponent = (code: string, scope: Record<string, any>) => {
+    code = code.replace(/^import .*?;?\n/gm, ""); // Removes all `import ...` lines
+    // Also remove all `export default` lines
+    // Extract the component name from export default statements
+    const exportMatch = code.match(/^export default (.*?)(?:;|\s|$)/m);
+    const componentName = exportMatch ? exportMatch[1].trim() : null;
+
+    // Remove export default statements
+    code = code.replace(/^export default .*?;?$/gm, "");
+
+    // Wrap everything inside an IIFE that returns the component
+    const wrappedCode = `
+      (function() {
+        ${code}
+        return ${componentName};
+      })()
+    `;
+
+    const transpiled = Babel.transform(wrappedCode, {
+      presets: ["react", "typescript"],
+      filename: "generated-component.tsx",
+    }).code!;
+
+    const args = Object.keys(scope);
+    const values = Object.values(scope);
+    const fn = new Function(...args, `return ${transpiled}`);
+    return fn(...values);
+  };
+
+  // Prettified view component renderer using dynamic import and eval
+  const PrettifiedView = useMemo(() => {
+    if (!prettifiedContent) return null;
+
+    try {
+      // Return a wrapper component that renders the generated component
+      const PrettifiedViewWrapper = function PrettifiedViewWrapper() {
+        try {
+          const DynamicComponent = evaluateComponent(prettifiedContent, scope);
+          return <DynamicComponent />;
+        } catch (error) {
+          console.error("Error rendering prettified component:", error);
+          return (
+            <div className="p-4 text-destructive border border-destructive rounded-md">
+              <p>Error rendering visualization.</p>
+              <pre className="mt-2 text-xs overflow-auto">{String(error)}</pre>
+              <div className="mt-4">
+                <p className="text-xs font-medium">Generated Code:</p>
+                <pre className="mt-1 text-xs overflow-auto p-2 bg-muted/50 rounded border max-h-[300px]">
+                  {prettifiedContent}
+                </pre>
+              </div>
+            </div>
+          );
+        }
+      };
+
+      PrettifiedViewWrapper.displayName = "PrettifiedViewWrapper";
+      return PrettifiedViewWrapper;
+    } catch (error) {
+      console.error("Error creating prettified component:", error);
+      const ErrorComponent = () => (
+        <div className="p-4 text-destructive border border-destructive rounded-md">
+          <p>Error creating visualization.</p>
+          <pre className="mt-2 text-xs overflow-auto">{String(error)}</pre>
+          <div className="mt-4">
+            <p className="text-xs font-medium">Generated Code:</p>
+            <pre className="mt-1 text-xs overflow-auto p-2 bg-muted/50 rounded border max-h-[300px]">
+              {prettifiedContent}
+            </pre>
+          </div>
+        </div>
+      );
+      ErrorComponent.displayName = "PrettifiedViewError";
+      return ErrorComponent;
+    }
+  }, [prettifiedContent]);
+
   const renderContent = (value: unknown) => {
     if (value === null || value === undefined) {
       return <span className="text-muted-foreground">No value</span>;
+    }
+
+    if (isPrettified && prettifiedContent && PrettifiedView) {
+      return <PrettifiedView />;
     }
 
     if (typeof value === "object") {
@@ -418,7 +703,43 @@ export function ColumnDialog<T extends Record<string, unknown>>({
                   data={data}
                   columnId={columnId}
                 />
-                <div className="px-4 py-2">{renderContent(value)}</div>
+                <div className="px-4 pt-2 pb-0 flex justify-end">
+                  {isGenerating ? (
+                    <Button disabled variant="outline" size="sm">
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Generating...
+                    </Button>
+                  ) : (
+                    <>
+                      {isPrettified && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsPrettified(false)}
+                        >
+                          Raw View
+                        </Button>
+                      )}
+                      <Button
+                        variant={isPrettified ? "outline" : "default"}
+                        size="sm"
+                        onClick={() => {
+                          if (!prettifiedContent) {
+                            generatePrettifiedView(value);
+                          } else {
+                            setIsPrettified(true);
+                          }
+                        }}
+                        disabled={isGenerating}
+                        className="ml-2"
+                      >
+                        <Sparkles className="h-4 w-4 mr-1" />
+                        Prettify
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <div className="px-4 py-2 relative">{renderContent(value)}</div>
               </div>
 
               <Tooltip>
@@ -646,6 +967,7 @@ export function ColumnDialog<T extends Record<string, unknown>>({
 
   return (
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
+      <DialogTitle>{columnHeader}</DialogTitle>
       <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full flex flex-col p-0 bg-background rounded-lg overflow-hidden">
         <div className="flex flex-col h-full">
           <div className="flex-none flex items-center justify-between px-6 py-3 border-b bg-background">
@@ -659,8 +981,14 @@ export function ColumnDialog<T extends Record<string, unknown>>({
                 <RowNavigator
                   currentRow={currentIndex}
                   totalRows={data.length}
-                  onNavigate={onNavigate}
-                  onJumpToRow={onJumpToRow}
+                  onNavigate={(direction) => {
+                    // Reset prettified mode implicitly through useEffect when currentIndex changes
+                    onNavigate(direction);
+                  }}
+                  onJumpToRow={(index) => {
+                    // Reset prettified mode implicitly through useEffect when currentIndex changes
+                    onJumpToRow(index);
+                  }}
                 />
                 <span className="text-sm text-muted-foreground">
                   Use ← → arrow keys to navigate
@@ -707,8 +1035,12 @@ export function ColumnDialog<T extends Record<string, unknown>>({
                                 ? Math.min((prev ?? 0) + 1, data.length - 1)
                                 : Math.max((prev ?? 0) - 1, 0)
                             );
+                            // Not resetting prettified mode for comparison view
                           }}
-                          onJumpToRow={(index) => setCompareIndex(index)}
+                          onJumpToRow={(index) => {
+                            setCompareIndex(index);
+                            // Not resetting prettified mode for comparison view
+                          }}
                           label="Compare Row"
                           compact={true}
                         />

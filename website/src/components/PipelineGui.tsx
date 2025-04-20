@@ -1,11 +1,4 @@
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-  useMemo,
-} from "react";
-import yaml from "js-yaml";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Operation, File } from "@/app/types";
 import {
   DropdownMenu,
@@ -30,18 +23,10 @@ import {
   GitBranch,
   Pencil,
   Plus,
-  AlertCircle,
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
 import { usePipelineContext } from "@/contexts/PipelineContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
   Tooltip,
@@ -50,21 +35,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import { Input } from "@/components/ui/input";
-import path from "path";
 import { schemaDictToItemSet } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { useOptimizeCheck } from "@/hooks/useOptimizeCheck";
 import { canBeOptimized } from "@/lib/utils";
-import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
 import { OptimizationDialog } from "@/components/OptimizationDialog";
 import {
@@ -78,6 +54,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { useRestorePipeline } from "@/hooks/useRestorePipeline";
+import PipelineSettings from "@/components/PipelineSettings";
 
 interface OperationMenuItemProps {
   name: string;
@@ -113,39 +90,6 @@ const OperationMenuItem: React.FC<OperationMenuItemProps> = ({
     </HoverCard>
   );
 };
-
-interface YAMLOperation {
-  id?: string;
-  type: string;
-  name?: string;
-  prompt?: string;
-  output?: {
-    schema: Record<string, unknown>;
-  };
-  validate?: unknown;
-  sample?: unknown;
-  [key: string]: unknown;
-}
-
-interface YAMLContent {
-  operations?: YAMLOperation[];
-  datasets?: Record<string, { type: string; path: string }>;
-  default_model?: string;
-}
-
-interface Dataset {
-  type: string;
-  path: string;
-}
-
-const PREDEFINED_MODELS = [
-  "gpt-4o-mini",
-  "gpt-4o",
-  "claude-3-7-sonnet-20250219",
-  "claude-3-opus-20240229",
-  "azure/<your-deployment-name>",
-  "gemini/gemini-2.0-flash",
-] as const;
 
 interface AddOperationDropdownProps {
   onAddOperation: (
@@ -248,56 +192,6 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
   );
 };
 
-const ModelInput: React.FC<{
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  suggestions?: readonly string[];
-}> = ({ value, onChange, placeholder, suggestions = PREDEFINED_MODELS }) => {
-  const [isFocused, setIsFocused] = useState(false);
-
-  return (
-    <div className="relative">
-      <Input
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full"
-        placeholder={placeholder}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => {
-          setTimeout(() => setIsFocused(false), 200);
-        }}
-      />
-      {isFocused &&
-        (value === "" ||
-          suggestions.some((model) =>
-            model.toLowerCase().includes(value?.toLowerCase() || "")
-          )) && (
-          <div className="absolute top-full left-0 w-full mt-1 bg-popover rounded-md border shadow-md z-50 max-h-[200px] overflow-y-auto">
-            {suggestions
-              .filter(
-                (model) =>
-                  value === "" ||
-                  model.toLowerCase().includes(value.toLowerCase())
-              )
-              .map((model) => (
-                <div
-                  key={model}
-                  className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground"
-                  onClick={() => {
-                    onChange(model);
-                    setIsFocused(false);
-                  }}
-                >
-                  {model}
-                </div>
-              ))}
-          </div>
-        )}
-    </div>
-  );
-};
-
 const PipelineGUI: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -329,16 +223,10 @@ const PipelineGUI: React.FC = () => {
     setSystemPrompt,
     namespace,
     apiKeys,
+    extraPipelineSettings,
+    setExtraPipelineSettings,
   } = usePipelineContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [tempPipelineName, setTempPipelineName] = useState(pipelineName);
-  const [tempAutoOptimizeCheck, setTempAutoOptimizeCheck] =
-    useState(autoOptimizeCheck);
-  const [tempOptimizerModel, setTempOptimizerModel] = useState(optimizerModel);
-  const [tempCurrentFile, setTempCurrentFile] = useState<File | null>(
-    currentFile
-  );
-  const [tempDefaultModel, setTempDefaultModel] = useState(defaultModel);
   const { toast } = useToast();
   const { connect, sendMessage, lastMessage, readyState, disconnect } =
     useWebSocket();
@@ -359,13 +247,7 @@ const PipelineGUI: React.FC = () => {
   });
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedPipelineName, setEditedPipelineName] = useState(pipelineName);
-  const [isLocalMode, setIsLocalMode] = useState(false);
-  const [isModelInputFocused, setIsModelInputFocused] = useState(false);
   const [isLeftSideCollapsed, setIsLeftSideCollapsed] = useState(false);
-
-  const hasOpenAIKey = useMemo(() => {
-    return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
-  }, [apiKeys]);
 
   const { submitTask } = useOptimizeCheck({
     onComplete: (result) => {
@@ -542,31 +424,31 @@ const PipelineGUI: React.FC = () => {
 
   useEffect(() => {
     if (pipelineName) {
-      setTempPipelineName(pipelineName);
+      setEditedPipelineName(pipelineName);
     }
   }, [pipelineName]);
 
   useEffect(() => {
     if (autoOptimizeCheck) {
-      setTempAutoOptimizeCheck(autoOptimizeCheck);
+      setAutoOptimizeCheck(autoOptimizeCheck);
     }
   }, [autoOptimizeCheck]);
 
   useEffect(() => {
     if (defaultModel) {
-      setTempDefaultModel(defaultModel);
+      setDefaultModel(defaultModel);
     }
   }, [defaultModel]);
 
   useEffect(() => {
     if (currentFile) {
-      setTempCurrentFile(currentFile);
+      setCurrentFile(currentFile);
     }
   }, [currentFile]);
 
   useEffect(() => {
     if (optimizerModel) {
-      setTempOptimizerModel(optimizerModel);
+      setOptimizerModel(optimizerModel);
     }
   }, [optimizerModel]);
 
@@ -626,6 +508,7 @@ const PipelineGUI: React.FC = () => {
           namespace: namespace,
           system_prompt: systemPrompt,
           optimizerModel: optimizerModel,
+          extraPipelineSettings: extraPipelineSettings,
         }),
       });
 
@@ -706,6 +589,7 @@ const PipelineGUI: React.FC = () => {
             namespace: namespace,
             apiKeys: currentApiKeys, // Use the latest API keys
             optimizerModel: optimizerModel,
+            extraPipelineSettings: extraPipelineSettings,
           }),
         });
 
@@ -753,6 +637,7 @@ const PipelineGUI: React.FC = () => {
       apiKeys, // Add apiKeys to the dependency array
       systemPrompt,
       namespace,
+      extraPipelineSettings,
     ]
   );
 
@@ -769,15 +654,6 @@ const PipelineGUI: React.FC = () => {
       visibility: true,
     };
     setOperations([...operations, newOperation]);
-  };
-
-  const handleSettingsSave = () => {
-    setPipelineName(tempPipelineName);
-    setCurrentFile(tempCurrentFile);
-    setDefaultModel(tempDefaultModel);
-    setIsSettingsOpen(false);
-    setOptimizerModel(tempOptimizerModel);
-    setAutoOptimizeCheck(tempAutoOptimizeCheck);
   };
 
   const handleStop = () => {
@@ -811,6 +687,7 @@ const PipelineGUI: React.FC = () => {
           namespace: namespace,
           apiKeys: apiKeys,
           optimizerModel: optimizerModel,
+          extraPipelineSettings: extraPipelineSettings,
         }),
       });
 
@@ -1208,114 +1085,24 @@ const PipelineGUI: React.FC = () => {
           />
         </div>
       </div>
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Pipeline Settings</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="flex flex-col space-y-1.5">
-              <Label htmlFor="currentFile">Dataset JSON</Label>
-              <Select
-                value={tempCurrentFile?.path || ""}
-                onValueChange={(value) =>
-                  setTempCurrentFile(
-                    files.find((file) => file.path === value) || null
-                  )
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a file" />
-                </SelectTrigger>
-                <SelectContent>
-                  {files
-                    .filter((file) => file.type === "json")
-                    .map((file) => (
-                      <SelectItem key={file.path} value={file.path}>
-                        {file.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col space-y-1.5">
-              <Label htmlFor="defaultModel">Default Model</Label>
-              <ModelInput
-                value={tempDefaultModel}
-                onChange={setTempDefaultModel}
-                placeholder="Enter or select a model..."
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter any LiteLLM model name or select from suggestions. Make
-                sure you&apos;ve set your API keys in Edit {">"} Edit API Keys
-                when using our hosted app.{" "}
-                <a
-                  href="https://docs.litellm.ai/docs/providers"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:underline"
-                >
-                  View all supported models {String.fromCharCode(8594)}
-                </a>
-              </p>
-            </div>
-
-            <div className="flex flex-col space-y-1.5">
-              <Label htmlFor="optimize">Optimizer Model</Label>
-              {!hasOpenAIKey && !isLocalMode ? (
-                <div className="bg-destructive/10 text-destructive rounded-md p-3 text-xs">
-                  <div className="flex gap-2">
-                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium">OpenAI API Key Required</p>
-                      <p className="mt-1">
-                        To use the optimizer, please add your OpenAI API key in
-                        Edit {">"} Edit API Keys.
-                      </p>
-                      <button
-                        className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
-                        onClick={() => setIsLocalMode(true)}
-                      >
-                        Skip if running locally with environment variables
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <ModelInput
-                    value={tempOptimizerModel}
-                    onChange={setTempOptimizerModel}
-                    placeholder="Enter optimizer model name..."
-                    suggestions={["gpt-4o", "gpt-4o-mini"]}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter any LiteLLM model name (e.g.,
-                    &quot;azure/gpt-4o&quot;) or select from suggestions above.
-                    Make sure the model supports JSON mode.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col space-y-1.5">
-              <Label htmlFor="autoOptimize">
-                Automatically Check Whether to Optimize
-              </Label>
-              <Switch
-                id="autoOptimize"
-                checked={tempAutoOptimizeCheck}
-                onCheckedChange={(checked) => setTempAutoOptimizeCheck(checked)}
-                disabled={!hasOpenAIKey && !isLocalMode}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleSettingsSave}>Save changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PipelineSettings
+        isOpen={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+        pipelineName={pipelineName}
+        setPipelineName={setPipelineName}
+        currentFile={currentFile}
+        setCurrentFile={setCurrentFile}
+        defaultModel={defaultModel}
+        setDefaultModel={setDefaultModel}
+        optimizerModel={optimizerModel}
+        setOptimizerModel={setOptimizerModel}
+        autoOptimizeCheck={autoOptimizeCheck}
+        setAutoOptimizeCheck={setAutoOptimizeCheck}
+        files={files}
+        apiKeys={apiKeys}
+        extraPipelineSettings={extraPipelineSettings}
+        setExtraPipelineSettings={setExtraPipelineSettings}
+      />
       <OptimizationDialog
         isOpen={optimizationDialog.isOpen}
         content={optimizationDialog.content}

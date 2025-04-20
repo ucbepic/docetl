@@ -85,7 +85,6 @@ interface OperationHeaderProps {
   isGleaningsExpanded: boolean;
   onEdit: (name: string) => void;
   onDelete: () => void;
-  onRunOperation: () => void;
   onToggleSettings: () => void;
   onShowOutput: () => void;
   onOptimize: () => void;
@@ -736,6 +735,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     namespace,
     apiKeys,
     systemPrompt,
+    extraPipelineSettings,
   } = usePipelineContext();
   const { toast } = useToast();
 
@@ -778,76 +778,6 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     [debouncedUpdate]
   );
 
-  const handleRunOperation = useCallback(async () => {
-    if (!operation) return;
-    setIsLoadingOutputs(true);
-    setNumOpRun((prevNum) => {
-      const newNum = prevNum + 1;
-      dispatch({ type: "SET_RUN_INDEX", payload: newNum });
-      return newNum;
-    });
-
-    setTerminalOutput("");
-
-    try {
-      const response = await fetch("/api/writePipelineConfig", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          default_model: defaultModel,
-          data: { path: currentFile?.path || "" },
-          operations,
-          operation_id: operation.id,
-          name: pipelineName,
-          sample_size: sampleSize,
-          namespace,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const { filePath, inputPath, outputPath } = await response.json();
-
-      setOutput({
-        operationId: operation.id,
-        path: outputPath,
-        inputPath: inputPath,
-      });
-
-      // Ensure the WebSocket is connected before sending the message
-      await connect();
-
-      sendMessage({
-        yaml_config: filePath,
-      });
-    } catch (error) {
-      console.error("Error writing pipeline config:", error);
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-      // Close the WebSocket connection
-      disconnect();
-      setIsLoadingOutputs(false);
-    }
-  }, [
-    operation,
-    currentFile,
-    operations,
-    setIsLoadingOutputs,
-    setNumOpRun,
-    sendMessage,
-    readyState,
-    defaultModel,
-    pipelineName,
-    sampleSize,
-  ]);
-
   const handleSettingsSave = useCallback(
     (newSettings: Record<string, string>) => {
       dispatch({ type: "UPDATE_SETTINGS", payload: newSettings });
@@ -862,11 +792,6 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     },
     [operation, setOperations]
   );
-
-  const handleSchemaUpdate = (newSchema: SchemaItem[]) => {
-    dispatch({ type: "UPDATE_SCHEMA", payload: newSchema });
-    debouncedUpdate();
-  };
 
   const hasOpenAIKey = useMemo(() => {
     return apiKeys.some((key) => key.name === "OPENAI_API_KEY");
@@ -907,6 +832,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
           namespace: namespace,
           apiKeys: apiKeys,
           optimizerModel: optimizerModel,
+          extraPipelineSettings: extraPipelineSettings,
         }),
       });
 
@@ -949,6 +875,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
     systemPrompt,
     namespace,
     apiKeys,
+    extraPipelineSettings,
   ]);
 
   const onShowOutput = useCallback(async () => {
@@ -968,6 +895,7 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
           name: pipelineName,
           sample_size: sampleSize,
           namespace,
+          extraPipelineSettings,
         }),
       });
 
@@ -1194,7 +1122,6 @@ export const OperationCard: React.FC<Props> = ({ index, id }) => {
           debouncedUpdate();
         }}
         onDelete={() => setShowDeleteDialog(true)}
-        onRunOperation={handleRunOperation}
         onToggleSettings={() => dispatch({ type: "TOGGLE_SETTINGS" })}
         onShowOutput={onShowOutput}
         onOptimize={onOptimize}

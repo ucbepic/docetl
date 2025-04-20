@@ -19,3 +19,4 @@ export const HIGH_LEVEL_GOAL_KEY = "docetl_highLevelGoal";
 export const SYSTEM_PROMPT_KEY = "docetl_systemPrompt";
 export const NAMESPACE_KEY = "docetl_namespace";
 export const EXTRA_PIPELINE_SETTINGS_KEY = "docetl_extraPipelineSettings";
+export const BOOKMARKS_KEY = "docetl_bookmarks";

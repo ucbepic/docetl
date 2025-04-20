@@ -14,10 +14,6 @@ import {
   mockPipelineName,
 } from "@/mocks/mockData";
 import * as localStorageKeys from "@/app/localStorageKeys";
-import {
-  BOOKMARKS_STORAGE_KEY,
-  EXTRA_PIPELINE_SETTINGS_KEY,
-} from "@/app/localStorageKeys";
 import { toast } from "@/hooks/use-toast";
 
 interface PipelineState {
@@ -102,7 +98,7 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 };
 
 const serializeState = async (state: PipelineState): Promise<string> => {
-  const bookmarks = loadFromLocalStorage(BOOKMARKS_STORAGE_KEY, []);
+  const bookmarks = loadFromLocalStorage(localStorageKeys.BOOKMARKS_KEY, []);
 
   // Get important output samples
   let outputSample = "";
@@ -328,7 +324,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     namespace: loadFromLocalStorage(localStorageKeys.NAMESPACE_KEY, null),
     apiKeys: [],
     extraPipelineSettings: loadFromLocalStorage(
-      EXTRA_PIPELINE_SETTINGS_KEY,
+      localStorageKeys.EXTRA_PIPELINE_SETTINGS_KEY,
       null
     ),
   }));
@@ -411,7 +407,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       JSON.stringify(stateRef.current.namespace)
     );
     localStorage.setItem(
-      EXTRA_PIPELINE_SETTINGS_KEY,
+      localStorageKeys.EXTRA_PIPELINE_SETTINGS_KEY,
       JSON.stringify(stateRef.current.extraPipelineSettings)
     );
     setUnsavedChanges(false);

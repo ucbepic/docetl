@@ -71,6 +71,7 @@ def approx_count_tokens(messages: List[Dict[str, str]]) -> int:
     """Approximately 4 characters per token. So count the number of characters in the messages and divide by 4."""
     return int(sum(len(msg["content"]) for msg in messages) / 4)
 
+
 def truncate_messages(
     messages: List[Dict[str, str]], model: str, from_agent: bool = False
 ) -> List[Dict[str, str]]:

@@ -51,7 +51,8 @@ export function generatePipelineConfig(
   apiKeys: APIKey[] = [],
   docetl_encryption_key: string = "",
   enable_observability: boolean = true,
-  optimizerModel: string = "gpt-4o"
+  optimizerModel: string = "gpt-4o",
+  extraPipelineSettings: Record<string, unknown> | null = null
 ) {
   const datasets = {
     input: {
@@ -214,7 +215,7 @@ export function generatePipelineConfig(
     );
 
   // Fix type errors by asserting the pipeline config type
-  const pipelineConfig: any = {
+  let pipelineConfig: any = {
     optimizer_model: optimizerModel,
     datasets,
     default_model,
@@ -280,6 +281,11 @@ export function generatePipelineConfig(
       // @ts-ignore
       pipelineConfig.system_prompt!.persona = system_prompt.persona;
     }
+  }
+
+  if (extraPipelineSettings) {
+    // merge extraPipelineSettings into pipelineConfig
+    pipelineConfig = { ...pipelineConfig, ...extraPipelineSettings };
   }
 
   // Get the inputPath from the intermediate_dir

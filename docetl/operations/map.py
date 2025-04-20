@@ -217,7 +217,6 @@ class MapOperation(BaseOperation):
                     return output, True
                 return output, False
 
-            self.runner.rate_limiter.try_acquire("llm_call", weight=1)
             if self.runner.is_cancelled:
                 raise asyncio.CancelledError("Operation was cancelled")
             llm_result = self.runner.api.call_llm(

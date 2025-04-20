@@ -19,6 +19,10 @@ rate_limits:
     - count: 10
       per: 5
       unit: hour
+  llm_tokens:
+    - count: 1000000
+      per: 1
+      unit: minute
 ```
 
 Your YAML configuration should have a `rate_limits` key with the config as shown above. This example sets limits for embedding calls and language model (LLM) calls, with multiple rules for LLM calls to accommodate different time scales.

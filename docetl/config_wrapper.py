@@ -1,9 +1,10 @@
 import datetime
-import math
 import os
+import time
 from typing import Dict, Optional
 
 import pyrate_limiter
+from pyrate_limiter import BucketFullException, LimiterDelayException
 from rich.console import Console
 
 from docetl.console import get_console
@@ -67,10 +68,29 @@ class ConfigWrapper(object):
             os.environ[key] = value
 
         bucket_factory = create_bucket_factory(self.config.get("rate_limits", {}))
-        self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=math.inf)
+        self.rate_limiter = pyrate_limiter.Limiter(bucket_factory, max_delay=200)
         self.is_cancelled = False
 
         self.api = APIWrapper(self)
 
     def reset_env(self):
         os.environ = self._original_env
+
+    def blocking_acquire(self, key: str, weight: int, wait_time=0.5):
+        while True:
+            try:
+                self.rate_limiter.try_acquire(key, weight=weight)
+                return  # Acquired successfully
+            except LimiterDelayException as e:
+                print(e.meta_info)
+                time_to_wait = e.meta_info["actual_delay"] / 1000
+                self.console.log(
+                    f"Rate limits met for {key}; sleeping for {max(time_to_wait, wait_time):.2f} seconds"
+                )
+                time.sleep(max(time_to_wait, wait_time))
+            except BucketFullException as e:
+                time_to_wait = e.meta_info["remaining_time"]
+                self.console.log(
+                    f"Rate limits met for {key}; sleeping for {max(time_to_wait, wait_time):.2f} seconds"
+                )
+                time.sleep(max(time_to_wait, wait_time))

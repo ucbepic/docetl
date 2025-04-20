@@ -16,7 +16,13 @@ from rich.text import Text
 from docetl.utils import completion_cost
 
 from .cache import cache, cache_key, freezeargs
-from .llm import InvalidOutputError, LLMResult, timeout, truncate_messages
+from .llm import (
+    InvalidOutputError,
+    LLMResult,
+    approx_count_tokens,
+    timeout,
+    truncate_messages,
+)
 from .validation import (
     convert_dict_schema_to_list_schema,
     convert_val,
@@ -77,7 +83,7 @@ class APIWrapper(object):
                 input = [item if item else "None" for item in input]
 
                 # FIXME: Should we use a different limit for embedding?
-                self.runner.rate_limiter.try_acquire("embedding_call", weight=1)
+                self.runner.blocking_acquire("embedding_call", weight=1)
                 if self.runner.is_cancelled:
                     raise asyncio.CancelledError("Operation was cancelled")
                 result = embedding(model=model, input=input)
@@ -206,7 +212,15 @@ class APIWrapper(object):
                             gleaning_config["validation_prompt"],
                             {"output": parsed_output},
                         )
-                        self.runner.rate_limiter.try_acquire("llm_call", weight=1)
+                        self.runner.blocking_acquire("llm_call", weight=1)
+                        # Approx the number of tokens in the messages
+                        approx_num_tokens = approx_count_tokens(
+                            validator_messages
+                            + [{"role": "user", "content": validator_prompt}]
+                        )
+                        self.runner.blocking_acquire(
+                            "llm_tokens", weight=approx_num_tokens
+                        )
 
                         # Get params for should refine
                         should_refine_params = {
@@ -613,7 +627,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         # Truncate messages if they exceed the model's context length
         messages = truncate_messages(messages, model)
 
-        self.runner.rate_limiter.try_acquire("llm_call", weight=1)
+        self.runner.blocking_acquire("llm_call", weight=1)
+
+        # Approx the number of tokens in the messages
+        approx_num_tokens = approx_count_tokens(messages)
+        self.runner.blocking_acquire("llm_tokens", weight=approx_num_tokens)
         if self.runner.is_cancelled:
             raise asyncio.CancelledError("Operation was cancelled")
 

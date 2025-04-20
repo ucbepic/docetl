@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       namespace,
       apiKeys,
       optimizerModel,
+      extraPipelineSettings,
     } = await request.json();
 
     if (!name) {
@@ -57,7 +58,8 @@ export async function POST(request: Request) {
       apiKeys,
       docetl_encryption_key,
       true,
-      optimizerModel
+      optimizerModel,
+      extraPipelineSettings
     );
 
     // Use the FastAPI endpoint to write the pipeline config

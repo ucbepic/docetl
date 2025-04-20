@@ -14,7 +14,6 @@ import {
   mockPipelineName,
 } from "@/mocks/mockData";
 import * as localStorageKeys from "@/app/localStorageKeys";
-import { BOOKMARKS_STORAGE_KEY } from "@/app/localStorageKeys";
 import { toast } from "@/hooks/use-toast";
 
 interface PipelineState {
@@ -42,6 +41,7 @@ interface PipelineState {
   systemPrompt: { datasetDescription: string | null; persona: string | null };
   namespace: string | null;
   apiKeys: APIKey[];
+  extraPipelineSettings: Record<string, unknown> | null;
 }
 
 interface PipelineContextType extends PipelineState {
@@ -80,6 +80,9 @@ interface PipelineContextType extends PipelineState {
   >;
   setNamespace: React.Dispatch<React.SetStateAction<string | null>>;
   setApiKeys: React.Dispatch<React.SetStateAction<APIKey[]>>;
+  setExtraPipelineSettings: React.Dispatch<
+    React.SetStateAction<Record<string, unknown> | null>
+  >;
 }
 
 const PipelineContext = createContext<PipelineContextType | undefined>(
@@ -95,7 +98,7 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 };
 
 const serializeState = async (state: PipelineState): Promise<string> => {
-  const bookmarks = loadFromLocalStorage(BOOKMARKS_STORAGE_KEY, []);
+  const bookmarks = loadFromLocalStorage(localStorageKeys.BOOKMARKS_KEY, []);
 
   // Get important output samples
   let outputSample = "";
@@ -320,6 +323,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     }),
     namespace: loadFromLocalStorage(localStorageKeys.NAMESPACE_KEY, null),
     apiKeys: [],
+    extraPipelineSettings: loadFromLocalStorage(
+      localStorageKeys.EXTRA_PIPELINE_SETTINGS_KEY,
+      null
+    ),
   }));
 
   const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -395,6 +402,14 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       localStorageKeys.SYSTEM_PROMPT_KEY,
       JSON.stringify(stateRef.current.systemPrompt)
     );
+    localStorage.setItem(
+      localStorageKeys.NAMESPACE_KEY,
+      JSON.stringify(stateRef.current.namespace)
+    );
+    localStorage.setItem(
+      localStorageKeys.EXTRA_PIPELINE_SETTINGS_KEY,
+      JSON.stringify(stateRef.current.extraPipelineSettings)
+    );
     setUnsavedChanges(false);
   }, []);
 
@@ -421,6 +436,7 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
       systemPrompt: { datasetDescription: null, persona: null },
       namespace: null,
       apiKeys: stateRef.current.apiKeys,
+      extraPipelineSettings: null,
     });
     setUnsavedChanges(false);
   }, []);
@@ -563,6 +579,10 @@ export const PipelineProvider: React.FC<{ children: React.ReactNode }> = ({
     ),
     setApiKeys: useCallback(
       (value) => setStateAndUpdate("apiKeys", value),
+      [setStateAndUpdate]
+    ),
+    setExtraPipelineSettings: useCallback(
+      (value) => setStateAndUpdate("extraPipelineSettings", value),
       [setStateAndUpdate]
     ),
   };

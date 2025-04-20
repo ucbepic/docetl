@@ -120,7 +120,7 @@ class SampleOperation(BaseOperation):
         cost = 0
         if not input_data:
             return [], cost
-        
+
         if self.config["method"] == "first":
             return input_data[: self.config["samples"]], cost
 

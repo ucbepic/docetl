@@ -724,7 +724,7 @@ class RankOperation(BaseOperation):
         budget = (
             self.config.get("rerank_call_budget", None)
             or self.config.get("call_budget", None)
-            or 100
+            or 10
         )
 
         # If k is None, set it to the length of input_data

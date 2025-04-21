@@ -22,16 +22,15 @@ Let's see a practical example of using the Rank operation to rank political deba
     Debates with the most controversial content should be ranked highest.
   input_keys: ["content", "title", "date"]
   direction: desc
-  k: 20 # optional for top k
   rerank_call_budget: 10 # max number of LLM calls to use; also optional
   initial_ordering_method: "likert"
 ```
 
 This Rank operation ranks debate transcripts from most controversial to least controversial by:
 
-1. First generating ordinal scores (on the Likert scale) for the ranking criteria and each document
-2. Creating an initial ranking based on the scores from step 1
-3. Using an LLM to perform more precise re-rankings on a sliding window of documents
+1. First generating ordinal scores (on the Likert scale) for the ranking criteria and each document. This executes an LLM call **per document**.
+2. Creating an initial ranking based on the scores from step 1.
+3. Using an LLM to perform more precise re-rankings on a sliding window of documents. This executes `rerank_call_budget` calls.
 
 ??? example "Sample Input and Output"
 
@@ -119,14 +118,14 @@ This approach is particularly effective because:
 | ---------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------- |
 | `model`                      | The language model to use for LLM-based ranking                                            | Falls back to `default_model` |
 | `embedding_model`            | The embedding model to use for similarity calculations                                     | "text-embedding-3-small"      |
-| `batch_size`                 | Maximum number of documents to process in a single LLM batch ranking                       | 10                            |
+| `batch_size`                 | Maximum number of documents to process in a single LLM batch rating (used for the first pass)                       | 10                            |
 | `timeout`                    | Timeout for each LLM call in seconds                                                       | 120                           |
-| `verbose`                    | Whether to log detailed ranking statistics                                                 | False                         |
+| `verbose`                    | Whether to log detailed LLM call statistics                                                 | False                         |
 | `litellm_completion_kwargs`  | Additional parameters to pass to LiteLLM completion calls                                  | {}                            |
 | `bypass_cache`               | If true, bypass the cache for this operation                                               | False                         |
 | `initial_ordering_method`    | Method to use for initial ranking: "likert" (default) or "embedding"                       | "likert"                   |
 | `k`                          | Number of top items to focus on in the final ranking                                       | None (ranks all items)        |
-| `call_budget`                | Maximum number of LLM API calls to make during ranking                                     | 100                           |
+| `call_budget`                | Maximum number of LLM API calls to make during ranking                                     | 10                           |
 | `num_top_items_per_window`   | Number of top items the LLM should select from each window                                 | 3                             |
 | `overlap_fraction`           | Fraction of overlap between windows                                                        | 0.5                           |
 
@@ -206,7 +205,5 @@ This approach:
 
 ## Performance Considerations
 
-- The rank operation scales with O(n) for embedding generation
-- LLM ranking requires O(k/batch_size) calls, focusing on the most important k documents
-- For large datasets (>100 documents), the operation will display a confirmation prompt
+- The rank operation scales with O(n)
 - The `verbose` flag adds detailed logging but doesn't affect performance or results

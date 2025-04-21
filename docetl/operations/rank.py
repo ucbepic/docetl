@@ -1,4 +1,3 @@
-import math
 import random
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Literal, Optional, Tuple
@@ -22,7 +21,7 @@ class RankOperation(BaseOperation):
         batch_size: int = 10
         initial_ordering_method: str = "embedding"
         k: Optional[int] = None
-        call_budget: int = 100
+        rerank_call_budget: int = 100
         num_top_items_per_window: int = 3
         overlap_fraction: float = 0.5
         timeout: Optional[int] = None
@@ -568,7 +567,7 @@ class RankOperation(BaseOperation):
         total_cost = 0
         ratings = {}
 
-        # Select a random sample of documents to provide context
+        # Select a random sample of 10 documents to provide context
         random.seed(42)
         context_size = min(10, len(input_data))
         context_indices = random.sample(range(len(input_data)), context_size)
@@ -704,319 +703,6 @@ class RankOperation(BaseOperation):
 
         return results_with_rank, total_cost
 
-    def _execute_tournament_window(
-        self, input_data: List[Dict], call_budget: int
-    ) -> Tuple[List[Dict], float]:
-        """
-        Implements a tournament-style windowed approach for finding the top K documents.
-        Starts with an embedding-based sort, then runs successive rounds of disjoint window
-        reranking, keeping the top half of documents in each round.
-
-        The function tracks all pairwise comparisons throughout the tournament
-        and uses them to create a full ordering at the end.
-
-        Args:
-            input_data (List[Dict]): The dataset to order.
-            call_budget (int): Maximum number of LLM calls allowed.
-
-        Returns:
-            Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
-        """
-        import numpy as np
-
-        if len(input_data) <= 1:
-            return input_data, 0
-
-        # Validate parameters
-        if call_budget <= 0:
-            raise ValueError("call_budget must be positive")
-
-        criteria = self.config["prompt"]
-        input_keys = self.config["input_keys"]
-        direction = self.config["direction"].lower()
-        model = self.config.get("model", self.default_model)
-        window_size = self.config.get("batch_size", 10)  # Default window size
-        verbose = self.config.get("verbose", False)
-        k = self.config.get("k", None) or len(input_data)
-
-        total_cost = 0
-
-        # Step 1: Get initial ordering using embedding-based rating
-        self.console.log(
-            "[bold blue]Step 1: Initial Ordering using Embeddings[/bold blue]"
-        )
-
-        # Use embedding-based rating for initial ordering
-        initial_results, initial_cost = self._execute_rating_embedding_qurk(input_data)
-        total_cost += initial_cost
-
-        # Extract the initial ranking
-        current_ranking = []
-        for doc in initial_results:
-            # Find the index of this document in the original input data
-            for i, original_doc in enumerate(input_data):
-                if doc.get("_rank") == original_doc.get("_rank") or doc == original_doc:
-                    current_ranking.append(i)
-                    break
-
-        # If we couldn't match the documents, fall back to their indices
-        if len(current_ranking) != len(input_data):
-            self.console.log(
-                "[yellow]Warning: Couldn't match all documents from initial ordering. Using indices as fallback.[/yellow]"
-            )
-            current_ranking = list(range(len(input_data)))
-
-        # Step 2: Tournament-style rounds
-        self.console.log("[bold blue]Step 2: Tournament Rounds[/bold blue]")
-
-        document_contents = [
-            self._extract_document_content(doc, input_keys) for doc in input_data
-        ]
-
-        # Initialize pairwise comparison tracking
-        n_documents = len(input_data)
-        comparison_counts = np.zeros((n_documents, n_documents))
-        comparison_wins = np.zeros((n_documents, n_documents))
-
-        # Add initial pairwise comparisons from embedding ranking
-        # Every document beats all documents ranked below it with 0.5 weight
-        for i in range(len(current_ranking)):
-            doc_i = current_ranking[i]
-            for j in range(i + 1, len(current_ranking)):
-                doc_j = current_ranking[j]
-                comparison_counts[doc_i, doc_j] += 0.5
-                comparison_counts[doc_j, doc_i] += 0.5
-                comparison_wins[doc_i, doc_j] += 0.5  # i beats j with weight 0.5
-
-        # Function to rank a window of documents using LLM and update pairwise comparisons
-        def rank_window(window_indices, window_name):
-            window_docs = [document_contents[idx] for idx in window_indices]
-
-            ranking, cost = self._batch_rank_documents(
-                window_docs,
-                criteria,
-                direction,
-                model,
-                timeout_seconds=self.config.get("timeout", 120),
-                batch_label=window_name,
-            )
-
-            if ranking is None:
-                # Fall back to the current ordering
-                return window_indices, cost, None
-            else:
-                # Map the LLM ranking back to the original indices
-                ranked_indices = [window_indices[i] for i in ranking]
-                return ranked_indices, cost, ranking
-
-        # Track actual LLM calls used
-        calls_used = 0
-
-        # Determine rounds and strategy based on call budget
-        n_documents = len(input_data)
-
-        # Calculate the advancement rate - how many documents move forward from each window
-        advancement_rate = 0.5  # Default - top half advances
-
-        # The number of LLM calls follows a geometric series: 2^0, 2^1, 2^2, ..., 2^(r-1)
-        # Sum of geometric series: (1 - 2^r) / (1 - 2) = 2^r - 1
-        # Therefore, if budget = 2^r - 1, then r = log2(budget + 1)
-        max_rounds = math.floor(math.log2(call_budget + 1))
-
-        # Calculate how many documents we can process in the first round
-        # Each window in first round can handle window_size documents
-        # First round has 2^(max_rounds-1) windows
-        first_round_windows = 2 ** (max_rounds - 1)
-        first_round_docs = first_round_windows * window_size
-
-        # Adjust if we have more docs than we can handle in our calculated rounds
-        if n_documents > first_round_docs:
-            if verbose:
-                self.console.log(
-                    "[yellow]Warning: Not all documents can be processed with the given budget.[/yellow]"
-                )
-                self.console.log(
-                    f"Processing {first_round_docs} of {n_documents} documents."
-                )
-            # We'll need to preselect documents based on embedding ranking
-            current_ranking = current_ranking[:first_round_docs]
-
-        # Create projected calls array
-        projected_calls = [2 ** (max_rounds - 1 - i) for i in range(max_rounds)]
-
-        total_projected_calls = sum(projected_calls)
-
-        if verbose:
-            self.console.log("[bold]Tournament approach parameters:[/bold]")
-            self.console.log(f"Documents: {n_documents}")
-            self.console.log(f"Window size: {window_size}")
-            self.console.log(f"Projected calls per round: {projected_calls}")
-            self.console.log(
-                f"Total projected calls: {total_projected_calls} (budget: {call_budget})"
-            )
-
-        # Run each round of the tournament based on the projected strategy
-        rounds_to_run = len(projected_calls)
-        docs_in_round = n_documents
-
-        for round_num in range(rounds_to_run):
-            self.console.log(f"[bold]Round {round_num+1}/{rounds_to_run}[/bold]")
-
-            # Create windows for this round, ensuring each window is at most window_size
-            windows = []
-            for i in range(0, len(current_ranking), window_size):
-                window = current_ranking[i : i + window_size]
-                if window:  # Only add non-empty windows
-                    windows.append((len(windows), window))
-
-            # Calculate how many windows we can process with remaining budget
-            windows_to_process = min(len(windows), call_budget - calls_used)
-
-            if windows_to_process <= 0 or docs_in_round <= k:
-                if verbose:
-                    if docs_in_round <= k:
-                        self.console.log(
-                            f"Already have {docs_in_round} ≤ {k} documents. Stopping."
-                        )
-                    else:
-                        self.console.log(
-                            f"Call budget exhausted. Stopping with {calls_used} calls used."
-                        )
-                break
-
-            self.console.log(
-                f"Processing {windows_to_process} windows in round {round_num+1}"
-            )
-
-            # If we can't process all windows, only process windows_to_process
-            windows = windows[:windows_to_process]
-
-            # Process windows in parallel
-            new_ranking = []
-            window_rankings = []
-
-            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                # Submit all window processing tasks
-                futures = []
-                window_map = {}  # Map futures to their windows
-                for i, window in windows:
-                    window_name = f"Round {round_num+1} - Window {i+1}/{len(windows)}"
-                    future = executor.submit(rank_window, window, window_name)
-                    futures.append(future)
-                    window_map[future] = (
-                        window  # Store the window associated with this future
-                    )
-
-                # Process results as they complete
-                for future in rich_as_completed(
-                    futures,
-                    total=len(futures),
-                    desc=f"Processing Round {round_num+1} windows",
-                    console=self.console,
-                ):
-                    try:
-                        ranked_window, cost, llm_ranking = future.result()
-
-                        # Update pairwise comparisons if we have a valid ranking
-                        if llm_ranking is not None:
-                            window = window_map[future]  # Get the original window
-
-                            # Update pairwise comparisons for this window
-                            for i in range(len(llm_ranking)):
-                                doc_i = window[llm_ranking[i]]
-                                # i beats all documents ranked below it
-                                for j in range(i + 1, len(llm_ranking)):
-                                    doc_j = window[llm_ranking[j]]
-                                    comparison_counts[doc_i, doc_j] += 1
-                                    comparison_counts[doc_j, doc_i] += 1
-                                    comparison_wins[doc_i, doc_j] += 1  # i beats j
-
-                        window_rankings.append(ranked_window)
-                        total_cost += cost
-                        calls_used += 1
-                    except Exception as e:
-                        self.console.log(
-                            f"[red]Error in window processing: {str(e)}[/red]"
-                        )
-
-            # Collect ranked documents from each window
-            for window_ranking in window_rankings:
-                # Add half of the window (or at least enough to eventually reach k)
-                docs_to_take = max(1, math.ceil(len(window_ranking) * advancement_rate))
-                new_ranking.extend(window_ranking[:docs_to_take])
-
-            # Update for next round
-            current_ranking = new_ranking
-            docs_in_round = len(current_ranking)
-
-            if verbose:
-                self.console.log(
-                    f"Round {round_num+1} complete. Keeping top {len(current_ranking)} documents."
-                )
-                self.console.log(f"Calls used so far: {calls_used}/{call_budget}")
-
-            # If we've reached our target window size, stop
-            if docs_in_round < window_size:
-                break
-
-        # Step 3: Generate full ordering using pairwise comparisons
-        self.console.log(
-            "[bold blue]Step 3: Generating full ordering using pairwise comparisons[/bold blue]"
-        )
-
-        # Calculate win rate for each document
-        win_rates = np.zeros(n_documents)
-
-        for i in range(n_documents):
-            total_comparisons = np.sum(comparison_counts[i, :]) + np.sum(
-                comparison_counts[:, i]
-            )
-            if total_comparisons > 0:
-                win_rates[i] = np.sum(comparison_wins[i, :]) / total_comparisons
-
-        # For any documents that have no comparisons, use their position in the initial ranking
-        for i, idx in enumerate(current_ranking):
-            if (
-                np.sum(comparison_counts[idx, :]) + np.sum(comparison_counts[:, idx])
-                == 0
-            ):
-                # Give it a win rate based on its position in the initial ranking
-                # Scale it to be lower than the lowest compared document
-                min_compared_win_rate = (
-                    np.min(win_rates[win_rates > 0]) if np.any(win_rates > 0) else 0.5
-                )
-                win_rates[idx] = min_compared_win_rate * (1 - i / len(current_ranking))
-
-        # Sort all documents by win rate
-        full_ranking = np.argsort(-win_rates)
-
-        # Make sure the top from the tournament are at the top
-        # We want to ensure that the tournament winners take precedence
-        top_k_set = set(current_ranking[: window_size // 2])
-        non_top_k = [idx for idx in full_ranking if idx not in top_k_set]
-
-        # Final ranking: top k from tournament followed by remaining docs sorted by win rate
-        final_ranking = list(current_ranking[: window_size // 2]) + [
-            idx for idx in non_top_k
-        ]
-
-        # Reorder the input data based on the final ranking
-        result = [input_data[idx] for idx in final_ranking]
-
-        # Add rank information to each document
-        results_with_rank = []
-        for i, item in enumerate(result):
-            item_copy = item.copy()
-            item_copy["_rank"] = i + 1
-            results_with_rank.append(item_copy)
-
-        if verbose:
-            self.console.log("[bold green]Tournament complete![/bold green]")
-            self.console.log(f"Total calls used: {calls_used}/{call_budget}")
-            self.console.log(f"Result contains {len(results_with_rank)} documents")
-
-        return results_with_rank, total_cost
-
     def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """
         Starts with an initial ordering based on the specified method, then applies "picky" windows.
@@ -1026,9 +712,6 @@ class RankOperation(BaseOperation):
 
         Args:
             input_data (List[Dict]): The dataset to order.
-            initial_ordering_method (str): Method to use for initial ordering ("embedding" or "likert").
-            k (Optional[int]): Number of top elements to focus on. If None, set to len(input_data).
-            call_budget (Optional[int]): Maximum number of LLM calls allowed. If None, set to 100.
 
         Returns:
             Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
@@ -1036,11 +719,13 @@ class RankOperation(BaseOperation):
         if len(input_data) <= 1:
             return input_data, 0
 
-        initial_ordering_method = self.config.get(
-            "initial_ordering_method", "embedding"
-        )
+        initial_ordering_method = self.config.get("initial_ordering_method", "likert")
         k = self.config.get("k", None)
-        budget = self.config.get("call_budget", None) or 100
+        budget = (
+            self.config.get("rerank_call_budget", None)
+            or self.config.get("call_budget", None)
+            or 100
+        )
 
         # If k is None, set it to the length of input_data
         if k is None:
@@ -1049,9 +734,13 @@ class RankOperation(BaseOperation):
             k = min(k, len(input_data))  # Ensure k doesn't exceed input_data length
 
         # Validate initial ordering method
-        if initial_ordering_method not in ["embedding", "likert"]:
+        if initial_ordering_method not in [
+            "embedding",
+            "likert",
+            "calibrated_embedding",
+        ]:
             raise ValueError(
-                "initial_ordering_method must be either 'embedding' or 'likert'"
+                "initial_ordering_method must be either 'embedding' or 'likert' or 'calibrated_embedding'"
             )
         num_top_items = self.config.get("num_top_items_per_window", 3)
         overlap_fraction = self.config.get("overlap_fraction", 0.5)
@@ -1068,6 +757,12 @@ class RankOperation(BaseOperation):
         if initial_ordering_method == "embedding":
             # Use embedding-based rating for initial ordering
             initial_results, initial_cost = self._execute_rating_embedding_qurk(
+                input_data
+            )
+            total_cost += initial_cost
+        elif initial_ordering_method == "calibrated_embedding":
+            # Use calibrated embedding for initial ordering
+            initial_results, initial_cost = self._execute_calibrated_embedding_sort(
                 input_data
             )
             total_cost += initial_cost

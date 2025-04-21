@@ -1,6 +1,7 @@
 # Rank Operation
 
-The Rank operation in DocETL sorts documents based on specified criteria using embedding similarity and LLM-based ranking.
+The Rank operation in DocETL sorts documents based on specified criteria.
+Note that this operation is designed to sort documents along some (latent) attribute in the data. **It is not specifically meant for top-k or retrieval-like queries.**
 
 ## 🚀 Example: Ranking Debates by Level of Controversy
 
@@ -22,16 +23,15 @@ Let's see a practical example of using the Rank operation to rank political deba
   input_keys: ["content", "title", "date"]
   direction: desc
   k: 20 # optional for top k
-  call_budget: 10 # max number of LLM calls to use; also optional
+  rerank_call_budget: 10 # max number of LLM calls to use; also optional
+  initial_ordering_method: "likert"
 ```
 
 This Rank operation ranks debate transcripts from most controversial to least controversial by:
 
-1. First generating embeddings for the ranking criteria and each document
-2. Creating an initial ranking based on embedding similarity
-3. Using an LLM to perform more precise rankings on batches of documents
-4. Merging the batch rankings into a coherent global ordering
-5. Adding ranking information to each document
+1. First generating ordinal scores (on the Likert scale) for the ranking criteria and each document
+2. Creating an initial ranking based on the scores from step 1
+3. Using an LLM to perform more precise re-rankings on a sliding window of documents
 
 ??? example "Sample Input and Output"
 
@@ -124,7 +124,7 @@ This approach is particularly effective because:
 | `verbose`                    | Whether to log detailed ranking statistics                                                 | False                         |
 | `litellm_completion_kwargs`  | Additional parameters to pass to LiteLLM completion calls                                  | {}                            |
 | `bypass_cache`               | If true, bypass the cache for this operation                                               | False                         |
-| `initial_ordering_method`    | Method to use for initial ranking: "embedding" (default) or "likert"                       | "embedding"                   |
+| `initial_ordering_method`    | Method to use for initial ranking: "likert" (default) or "embedding"                       | "likert"                   |
 | `k`                          | Number of top items to focus on in the final ranking                                       | None (ranks all items)        |
 | `call_budget`                | Maximum number of LLM API calls to make during ranking                                     | 100                           |
 | `num_top_items_per_window`   | Number of top items the LLM should select from each window                                 | 3                             |
@@ -168,6 +168,7 @@ For more complex ranking tasks, a two-step approach can be more effective:
           [... prompt details ...]
         input_keys: ["meanness_summary", "hostility_level", "key_examples", "title", "date"]
         direction: desc
+        rerank_call_budget: 10
 
     pipeline:
       steps:
@@ -181,7 +182,6 @@ For more complex ranking tasks, a two-step approach can be more effective:
 This approach:
 1. First extracts structured data about hostility in each debate
 2. Then ranks debates based on this pre-processed data
-3. Results in more accurate ranking by working with focused, structured information
 
 ## Best Practices
 

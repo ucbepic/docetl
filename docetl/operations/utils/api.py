@@ -10,6 +10,7 @@ from litellm import (
     APIConnectionError,
     ModelResponse,
     RateLimitError,
+    ServiceUnavailableError,
     completion,
     embedding,
 )
@@ -479,6 +480,11 @@ class APIWrapper(object):
             except APIConnectionError:
                 self.runner.console.log(
                     "[bold red]API connection error. Retrying...[/bold red]"
+                )
+                time.sleep(1)
+            except ServiceUnavailableError:
+                self.runner.console.log(
+                    "[bold red]Service unavailable. Retrying...[/bold red]"
                 )
                 time.sleep(1)
             except TimeoutError:

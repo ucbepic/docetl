@@ -178,7 +178,11 @@ class RankOperation(BaseOperation):
 
                 # See which indexes are missing and add them to the end of the ranking
                 # Deduplicate the ranking
-                ranking = list(set(ranking))
+                deduped_ranking = []
+                for num in ranking:
+                    if num not in deduped_ranking:
+                        deduped_ranking.append(num)
+                ranking = deduped_ranking
 
                 # Check if we have the right number of documents
                 if len(ranking) != len(batch):
@@ -210,7 +214,7 @@ class RankOperation(BaseOperation):
             return None, response.total_cost
 
     def _execute_comparison_qurk(
-        self, input_data: List[Dict]
+        self, input_data: List[Dict], sample: bool = False
     ) -> Tuple[List[Dict], float]:
         """
         Implements the comparison-based approach from the human-powered sort paper.
@@ -1309,3 +1313,99 @@ class RankOperation(BaseOperation):
             )
             # Fall back to first N indices in window
             return list(range(min(num_top_items, len(window_docs)))), 0
+
+    def _execute_calibrated_embedding_sort(
+        self, input_data: List[Dict]
+    ) -> Tuple[List[Dict], float]:
+        if len(input_data) <= 1:
+            return input_data, 0
+
+        input_keys = self.config["input_keys"]
+        embedding_model = self.config.get("embedding_model", "text-embedding-3-small")
+        total_cost = 0
+
+        document_contents = [
+            self._extract_document_content(doc, input_keys) for doc in input_data
+        ]
+
+        # First, do an all-pairs comparison with the qurk baseline on a sample of 20 documents
+        # Get a random sample of 20 documents
+        sample_size = min(20, len(input_data))
+        random.seed(42)
+        sample_indices = random.sample(range(len(input_data)), sample_size)
+        sample_docs = [input_data[i] for i in sample_indices]
+
+        # Run the all-pairs comparison with the qurk baseline
+        qurk_results, qurk_cost = self._execute_comparison_qurk(
+            sample_docs, sample=True
+        )
+        total_cost += qurk_cost
+
+        # Create embeddings for the qurk_results for calibration
+        sorted_sample_docs = [
+            self._extract_document_content(doc, input_keys) for doc in qurk_results
+        ]
+        sorted_sample_embeddings = self.runner.api.gen_embedding(
+            model=embedding_model, input=sorted_sample_docs
+        )
+        total_cost += completion_cost(sorted_sample_embeddings)
+
+        # Process documents in batches of 1000
+        document_embeddings = []
+        batch_size = 1000
+
+        for i in range(0, len(document_contents), batch_size):
+            batch = document_contents[i : i + batch_size]
+            batch_embeddings_response = self.runner.api.gen_embedding(
+                model=embedding_model, input=batch
+            )
+            total_cost += completion_cost(batch_embeddings_response)
+
+            # Extract embeddings from the batch response
+            batch_embeddings = [
+                data["embedding"] for data in batch_embeddings_response["data"]
+            ]
+            document_embeddings.extend(batch_embeddings)
+
+        # Calculate cosine similarity between all document embeddings and sorted sample embeddings in a vectorized way
+        import numpy as np
+
+        doc_embeddings_array = np.array(document_embeddings)
+        sample_embeddings_array = np.array(
+            [data["embedding"] for data in sorted_sample_embeddings["data"]]
+        )
+
+        # Calculate cosine similarity matrix between all document embeddings and all sample embeddings
+        # Shape: (num_documents, num_samples)
+        similarity_matrix = cosine_similarity(
+            doc_embeddings_array, sample_embeddings_array
+        )
+
+        # For each document, find the index of the most similar sample and its similarity score
+        max_similarity_indices = np.argmax(similarity_matrix, axis=1)
+        max_similarity_scores = np.max(similarity_matrix, axis=1)
+
+        # Create a list of (original_doc_index, sample_idx, similarity_score) tuples
+        doc_similarity_info = [
+            (i, max_similarity_indices[i], max_similarity_scores[i])
+            for i in range(len(input_data))
+        ]
+
+        # Sort by sample index (ascending) and then by similarity (descending) for tie-breaking
+        doc_similarity_info.sort(key=lambda x: (x[1], -x[2]))
+
+        # Return the ordered data, making sure to include all original documents
+        ordered_data = []
+        for i, (orig_idx, _, _) in enumerate(doc_similarity_info):
+            new_doc = input_data[
+                orig_idx
+            ].copy()  # Create a copy to avoid modifying the original
+            new_doc["_rank"] = i + 1
+            ordered_data.append(new_doc)
+
+        # Verify we have all documents
+        assert len(ordered_data) == len(
+            input_data
+        ), f"Expected {len(input_data)} documents but got {len(ordered_data)}"
+
+        return ordered_data, total_cost

@@ -17,10 +17,10 @@ from lotus.models import LM, LiteLLMRM
 from lotus.vector_store import FaissVS
 lm = LM(model="gemini/gemini-2.0-flash")
 rm = LiteLLMRM(model="text-embedding-3-small")
-vs = FaissVS()
+# vs = FaissVS()
 
 
-lotus.settings.configure(lm=lm, rm=rm, vs=vs)
+lotus.settings.configure(lm=lm, rm=rm)
 
 console = Console()
 
@@ -99,7 +99,7 @@ def test_order_square_dataset(api_wrapper):
         "input_keys": ["content"],
         "direction": "asc",
         "verbose": True,
-        "bypass_cache": True
+        # "bypass_cache": True
     }
     
     order_operation = RankOperation(
@@ -161,6 +161,15 @@ def test_order_square_dataset(api_wrapper):
         "cost": order_cost_rating
     }
     
+    # Apply calibrated embedding sort order operation
+    start_time = time.time()
+    order_results_calibrated_embedding_sort, order_cost_calibrated_embedding_sort = order_operation._execute_calibrated_embedding_sort(squares_data)
+    method_metrics["Calibrated Embedding Rating"] = {
+        "runtime": time.time() - start_time,
+        "cost": order_cost_calibrated_embedding_sort
+    }
+    
+    
     # Apply sliding window order operations
     start_time = time.time()
     order_results_sliding_window_embedding, order_cost_sliding_window_embedding = order_operation._execute_sliding_window_qurk(squares_data, initial_ordering_method="embedding")
@@ -213,6 +222,7 @@ def test_order_square_dataset(api_wrapper):
     sliding_window_likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_sliding_window_likert}
     likert_rating_ranks = {doc["id"]: doc["_rank"] for doc in order_results_likert_rating}
     lotus_ranks = {doc["id"]: doc["_rank"] for doc in lotus_results}
+    calibrated_embedding_sort_ranks = {doc["id"]: doc["_rank"] for doc in order_results_calibrated_embedding_sort}
     
     # Prepare lists for Kendall's Tau computation
     doc_ids = list(ground_truth_ranks.keys())
@@ -226,6 +236,7 @@ def test_order_square_dataset(api_wrapper):
     sliding_window_likert_rank_list = [sliding_window_likert_ranks[doc_id] for doc_id in doc_ids]
     likert_rating_rank_list = [likert_rating_ranks[doc_id] for doc_id in doc_ids]
     lotus_rank_list = [lotus_ranks.get(doc_id, 11) for doc_id in doc_ids]
+    calibrated_embedding_sort_rank_list = [calibrated_embedding_sort_ranks[doc_id] for doc_id in doc_ids]
     
     # Compute Kendall's Tau correlation coefficients against ground truth
     tau_standard, p_value_standard = kendalltau(ground_truth_rank_list, standard_rank_list)
@@ -236,6 +247,7 @@ def test_order_square_dataset(api_wrapper):
     tau_sliding_window_likert, p_value_sliding_window_likert = kendalltau(ground_truth_rank_list, sliding_window_likert_rank_list)
     tau_likert_rating, p_value_likert_rating = kendalltau(ground_truth_rank_list, likert_rating_rank_list)
     tau_lotus, p_value_lotus = kendalltau(ground_truth_rank_list, lotus_rank_list)
+    tau_calibrated_embedding_rating, p_value_calibrated_embedding_rating = kendalltau(ground_truth_rank_list, calibrated_embedding_sort_rank_list)
     
     # Store results in a list of tuples for sorting, including runtime and cost
     results = [
@@ -246,7 +258,8 @@ def test_order_square_dataset(api_wrapper):
         ("Embedding Sliding Window", tau_sliding_window_embedding, p_value_sliding_window_embedding, method_metrics["Embedding Sliding Window"]["runtime"], method_metrics["Embedding Sliding Window"]["cost"]),
         ("Likert Sliding Window", tau_sliding_window_likert, p_value_sliding_window_likert, method_metrics["Likert Sliding Window"]["runtime"], method_metrics["Likert Sliding Window"]["cost"]),
         ("Likert Rating", tau_likert_rating, p_value_likert_rating, method_metrics["Likert Rating"]["runtime"], method_metrics["Likert Rating"]["cost"]),
-        ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"])
+        ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"]),
+        ("Calibrated Embedding Rating", tau_calibrated_embedding_rating, p_value_calibrated_embedding_rating, method_metrics["Calibrated Embedding Rating"]["runtime"], method_metrics["Calibrated Embedding Rating"]["cost"])
     ]
     
     # Sort results by Kendall's tau value in descending order
@@ -296,7 +309,8 @@ def test_order_square_dataset(api_wrapper):
         ("Embedding Sliding Window", order_results_sliding_window_embedding, sliding_window_embedding_ranks),
         ("Likert Sliding Window", order_results_sliding_window_likert, sliding_window_likert_ranks),
         ("Likert Rating", order_results_likert_rating, likert_rating_ranks),
-        ("Lotus Top K", lotus_results, lotus_ranks)
+        ("Lotus Top K", lotus_results, lotus_ranks),
+        ("Calibrated Embedding Rating", order_results_calibrated_embedding_sort, calibrated_embedding_sort_ranks)
     ]
     
     # Calculate NDCG for each method
@@ -349,13 +363,13 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
         "type": "order",
         "batch_size": 10,
         "prompt": """
-            Order these medical transcripts based on how much pain the patient is experiencing or reporting.
+            Order these medical transcripts based on how much pain the patient is experiencing or reporting, from most pain to least pain.
         """,
         "input_keys": ["src"],
         "direction": "desc",  # Highest pain first
         "verbose": True,
         "call_budget": 10,
-        "bypass_cache": True
+        # "bypass_cache": True
     }
     
     order_operation = RankOperation(
@@ -410,6 +424,14 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
         "cost": order_cost_rating
     }
     
+    # Apply calibrated embedding sort order operation
+    start_time = time.time()
+    order_results_calibrated_embedding_sort, order_cost_calibrated_embedding_sort = order_operation._execute_calibrated_embedding_sort(medical_data)
+    method_metrics["Calibrated Embedding Rating"] = {
+        "runtime": time.time() - start_time,
+        "cost": order_cost_calibrated_embedding_sort
+    }
+    
     # Apply sliding window order operations
     start_time = time.time()
     order_results_sliding_window_embedding, order_cost_sliding_window_embedding = order_operation._execute_sliding_window_qurk(medical_data, initial_ordering_method="embedding")
@@ -462,7 +484,7 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
     sliding_window_likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_sliding_window_likert}
     likert_rating_ranks = {doc["id"]: doc["_rank"] for doc in order_results_likert_rating}
     lotus_ranks = {doc["id"]: doc["_rank"] for doc in lotus_results}
-    
+    calibrated_embedding_sort_ranks = {doc["id"]: doc["_rank"] for doc in order_results_calibrated_embedding_sort}
     # Prepare lists for Kendall's Tau computation
     doc_ids = list(baseline_ranks.keys())
     
@@ -474,6 +496,7 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
     sliding_window_likert_rank_list = [sliding_window_likert_ranks[doc_id] for doc_id in doc_ids]
     likert_rating_rank_list = [likert_rating_ranks[doc_id] for doc_id in doc_ids]
     lotus_rank_list = [lotus_ranks.get(doc_id, 11) for doc_id in doc_ids]
+    calibrated_embedding_sort_rank_list = [calibrated_embedding_sort_ranks[doc_id] for doc_id in doc_ids]
     
     # Compute Kendall's Tau correlation coefficients against baseline
     tau_standard, p_value_standard = kendalltau(baseline_rank_list, standard_rank_list)
@@ -483,6 +506,7 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
     tau_sliding_window_likert, p_value_sliding_window_likert = kendalltau(baseline_rank_list, sliding_window_likert_rank_list)
     tau_likert_rating, p_value_likert_rating = kendalltau(baseline_rank_list, likert_rating_rank_list)
     tau_lotus, p_value_lotus = kendalltau(baseline_rank_list, lotus_rank_list)
+    tau_calibrated_embedding_rating, p_value_calibrated_embedding_rating = kendalltau(baseline_rank_list, calibrated_embedding_sort_rank_list)
     
     # Store results in a list of tuples for sorting, including runtime and cost
     results = [
@@ -493,6 +517,7 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
         ("Likert Sliding Window", tau_sliding_window_likert, p_value_sliding_window_likert, method_metrics["Likert Sliding Window"]["runtime"], method_metrics["Likert Sliding Window"]["cost"]),
         ("Likert Rating", tau_likert_rating, p_value_likert_rating, method_metrics["Likert Rating"]["runtime"], method_metrics["Likert Rating"]["cost"]),
         ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"]),
+        ("Calibrated Embedding Rating", tau_calibrated_embedding_rating, p_value_calibrated_embedding_rating, method_metrics["Calibrated Embedding Rating"]["runtime"], method_metrics["Calibrated Embedding Rating"]["cost"])
     ]
     
     # Sort results by Kendall's tau value in descending order
@@ -566,7 +591,8 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
         ("Embedding Sliding Window", order_results_sliding_window_embedding),
         ("Likert Sliding Window", order_results_sliding_window_likert),
         ("Likert Rating", order_results_likert_rating),
-        ("Lotus Top K", lotus_results)
+        ("Lotus Top K", lotus_results),
+        ("Calibrated Embedding Rating", order_results_calibrated_embedding_sort)
     ]
     
     # Calculate NDCG for each method
@@ -1020,7 +1046,7 @@ def test_order_number_words(api_wrapper):
         "direction": "asc",  # Ascending order (lowest first)
         "verbose": True,
         "call_budget": 10,
-        "bypass_cache": True
+        # "bypass_cache": True
     }
     
     order_operation = RankOperation(
@@ -1081,6 +1107,14 @@ def test_order_number_words(api_wrapper):
         "cost": cost_embedding
     }
     
+    # Execute calibrated embedding sort
+    console.print("[bold blue]Sorting number words with calibrated embedding sort method[/bold blue]")
+    start_time = time.time()
+    order_results_calibrated_embedding, cost_calibrated_embedding = order_operation._execute_calibrated_embedding_sort(number_data)
+    method_metrics["Calibrated Embedding Sort"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_calibrated_embedding
+    }
     # Execute sliding window with embedding
     console.print("[bold blue]Sorting number words with sliding window (embedding) method[/bold blue]")
     start_time = time.time()
@@ -1143,6 +1177,7 @@ def test_order_number_words(api_wrapper):
     sliding_likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_sliding_likert}
     likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_likert}
     lotus_ranks = {doc["id"]: doc["_rank"] for doc in lotus_results}
+    calibrated_embedding_ranks = {doc["id"]: doc["_rank"] for doc in order_results_calibrated_embedding}
     
     # Create mapping for ground truth ranks by ID
     sorted_indices = sorted(range(len(number_words)), key=lambda i: number_words[i])
@@ -1160,6 +1195,7 @@ def test_order_number_words(api_wrapper):
     sliding_likert_rank_list = [sliding_likert_ranks[doc_id] for doc_id in doc_ids]
     likert_rating_rank_list = [likert_ranks[doc_id] for doc_id in doc_ids]
     lotus_rank_list = [lotus_ranks.get(doc_id, len(number_data) + 1) for doc_id in doc_ids]
+    calibrated_embedding_rank_list = [calibrated_embedding_ranks[doc_id] for doc_id in doc_ids]
     
     # Compute Kendall's Tau correlation coefficients against ground truth
     tau_picky_embedding, p_value_picky_embedding = kendalltau(ground_truth_rank_list, picky_embedding_rank_list)
@@ -1170,6 +1206,7 @@ def test_order_number_words(api_wrapper):
     tau_sliding_likert, p_value_sliding_likert = kendalltau(ground_truth_rank_list, sliding_likert_rank_list)
     tau_likert_rating, p_value_likert_rating = kendalltau(ground_truth_rank_list, likert_rating_rank_list)
     tau_lotus, p_value_lotus = kendalltau(ground_truth_rank_list, lotus_rank_list)
+    tau_calibrated_embedding, p_value_calibrated_embedding = kendalltau(ground_truth_rank_list, calibrated_embedding_rank_list)
     
     # Store results in a list of tuples for sorting
     results = [
@@ -1180,7 +1217,8 @@ def test_order_number_words(api_wrapper):
         ("Embedding Sliding Window", tau_sliding_embedding, p_value_sliding_embedding, method_metrics["Embedding Sliding Window"]["runtime"], method_metrics["Embedding Sliding Window"]["cost"]),
         ("Likert Sliding Window", tau_sliding_likert, p_value_sliding_likert, method_metrics["Likert Sliding Window"]["runtime"], method_metrics["Likert Sliding Window"]["cost"]),
         ("Likert Rating", tau_likert_rating, p_value_likert_rating, method_metrics["Likert Rating"]["runtime"], method_metrics["Likert Rating"]["cost"]),
-        ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"])
+        ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"]),
+        ("Calibrated Embedding Sort", tau_calibrated_embedding, p_value_calibrated_embedding, method_metrics["Calibrated Embedding Sort"]["runtime"], method_metrics["Calibrated Embedding Sort"]["cost"])
     ]
     
     # Sort results by Kendall's tau value in descending order
@@ -1232,7 +1270,8 @@ def test_order_number_words(api_wrapper):
         ("Embedding Sliding Window", order_results_sliding_embedding, sliding_embedding_ranks),
         ("Likert Sliding Window", order_results_sliding_likert, sliding_likert_ranks),
         ("Likert Rating", order_results_likert, likert_ranks),
-        ("Lotus Top K", lotus_results, lotus_ranks)
+        ("Lotus Top K", lotus_results, lotus_ranks),
+        ("Calibrated Embedding Sort", order_results_calibrated_embedding, calibrated_embedding_ranks)
     ]
     
     # Calculate NDCG for each method
@@ -1282,6 +1321,8 @@ def test_order_number_words(api_wrapper):
         best_results = order_results_likert
     elif best_method == "Lotus Top K":
         best_results = lotus_results
+    elif best_method == "Calibrated Embedding Sort":
+        best_results = order_results_calibrated_embedding
     
     # Create a table to show a portion of the best results
     if best_results:
@@ -1439,6 +1480,15 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
         "cost": cost_picky_likert
     }
     
+    # Execute calibrated embedding sort
+    console.print("[bold blue]Sorting abstracts with calibrated embedding sort method[/bold blue]")
+    start_time = time.time()
+    order_results_calibrated_embedding, cost_calibrated_embedding = order_operation._execute_calibrated_embedding_sort(abstract_results)
+    method_metrics["Calibrated Embedding Sort"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_calibrated_embedding
+    }
+    
     # Execute baseline comparison method
     console.print("[bold blue]Sorting abstracts with baseline comparison method[/bold blue]")
     start_time = time.time()
@@ -1519,6 +1569,7 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
     sliding_likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_sliding_likert}
     likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_likert}
     lotus_ranks = {doc["id"]: doc["_rank"] for doc in lotus_results}
+    calibrated_embedding_ranks = {doc["id"]: doc["_rank"] for doc in order_results_calibrated_embedding}
     
     # Create ground truth rankings based on original accuracy values
     # For ascending order (lowest to highest), smaller rank goes to smaller accuracy
@@ -1537,6 +1588,7 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
     sliding_likert_rank_list = [sliding_likert_ranks[doc_id] for doc_id in doc_ids]
     likert_rating_rank_list = [likert_ranks[doc_id] for doc_id in doc_ids]
     lotus_rank_list = [lotus_ranks.get(doc_id, len(abstract_results) + 1) for doc_id in doc_ids]
+    calibrated_embedding_rank_list = [calibrated_embedding_ranks[doc_id] for doc_id in doc_ids]
     
     # Compute Kendall's Tau correlation coefficients against ground truth
     tau_picky_embedding, p_value_picky_embedding = kendalltau(ground_truth_rank_list, picky_embedding_rank_list)
@@ -1547,6 +1599,7 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
     tau_sliding_likert, p_value_sliding_likert = kendalltau(ground_truth_rank_list, sliding_likert_rank_list)
     tau_likert_rating, p_value_likert_rating = kendalltau(ground_truth_rank_list, likert_rating_rank_list)
     tau_lotus, p_value_lotus = kendalltau(ground_truth_rank_list, lotus_rank_list)
+    tau_calibrated_embedding, p_value_calibrated_embedding = kendalltau(ground_truth_rank_list, calibrated_embedding_rank_list)
     
     # Store results in a list of tuples for sorting
     results = [
@@ -1557,7 +1610,8 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
         ("Embedding Sliding Window", tau_sliding_embedding, p_value_sliding_embedding, method_metrics["Embedding Sliding Window"]["runtime"], method_metrics["Embedding Sliding Window"]["cost"]),
         ("Likert Sliding Window", tau_sliding_likert, p_value_sliding_likert, method_metrics["Likert Sliding Window"]["runtime"], method_metrics["Likert Sliding Window"]["cost"]),
         ("Likert Rating", tau_likert_rating, p_value_likert_rating, method_metrics["Likert Rating"]["runtime"], method_metrics["Likert Rating"]["cost"]),
-        ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"])
+        ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"]),
+        ("Calibrated Embedding Sort", tau_calibrated_embedding, p_value_calibrated_embedding, method_metrics["Calibrated Embedding Sort"]["runtime"], method_metrics["Calibrated Embedding Sort"]["cost"])
     ]
     
     # Sort results by Kendall's tau value in descending order
@@ -1609,7 +1663,8 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
         ("Embedding Sliding Window", order_results_sliding_embedding, sliding_embedding_ranks),
         ("Likert Sliding Window", order_results_sliding_likert, sliding_likert_ranks),
         ("Likert Rating", order_results_likert, likert_ranks),
-        ("Lotus Top K", lotus_results, lotus_ranks)
+        ("Lotus Top K", lotus_results, lotus_ranks),
+        ("Calibrated Embedding Sort", order_results_calibrated_embedding, calibrated_embedding_ranks)
     ]
     
     # Calculate NDCG for each method
@@ -1659,6 +1714,8 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
         best_results = order_results_likert
     elif best_method == "Lotus Top K":
         best_results = lotus_results
+    elif best_method == "Calibrated Embedding Sort":
+        best_results = order_results_calibrated_embedding
     
     # Create a table to show a portion of the best results
     if best_results:
@@ -1788,7 +1845,7 @@ def scifact():
     # Print the average NDCG table
     console.print(avg_ndcg_table)
     
-if __name__ == "__main__":
+def run_abstract_tests():
     # Test configurations
     abstract_counts = [200]
     n_trials = 3
@@ -1922,3 +1979,504 @@ if __name__ == "__main__":
             console.print(f"[bold yellow]Average Lotus LLM calls: {avg_lotus_calls:.2f}[/bold yellow]")
     
     console.print("\n[bold green]All tests completed![/bold green]")
+    
+
+    
+
+
+def test_chat_harmfulness(api_wrapper, num_samples=200):
+    """
+    Test ranking chat transcripts by harmlessness.
+    Lower min_harmlessness_score_transcript values indicate more harmful content,
+    but we want to rank by harmlessness descending (less harmful at top).
+    """
+    from scipy.stats import kendalltau
+    import numpy as np
+    
+    console.print("[bold blue]Testing ranking chat transcripts by harmlessness...[/bold blue]")
+    
+    # Load the data
+    transcripts = []
+    file_path = "tests/data/anthropic-red-team-attempts.jsonl"
+    try:
+        # Use pandas to efficiently read jsonl files
+        import pandas as pd
+        df = pd.read_json(path_or_buf=file_path)
+        # Convert to list of dictionaries and limit to num_samples
+        transcripts = df.head(num_samples).to_dict(orient="records")
+    except FileNotFoundError:
+        console.print(f"[bold red]Error: File {file_path} not found[/bold red]")
+        return
+    
+    console.print(f"Loaded {len(transcripts)} transcripts")
+    
+    # Format transcripts for ordering
+    chat_data = []
+    for i, transcript in enumerate(transcripts):
+        chat_data.append({
+            "id": f"transcript_{i}",
+            "transcript": transcript["transcript"],
+            "min_harmlessness_score": transcript["min_harmlessness_score_transcript"]
+        })
+    
+    # Create the order operation config
+    order_config = {
+        "name": "order_by_harmlessness",
+        "type": "order",
+        "batch_size": 10,
+        "prompt": """
+            Rank these chat transcripts by how harmless the assistant is in its responses. Place the most harmless, most appropriate assistant ones at the top.
+        """,
+        "input_keys": ["transcript"],
+        "direction": "desc",  # Descending puts least harmful at top
+        "verbose": True,
+        "call_budget": 10,
+        "bypass_cache": True
+    }
+    
+    from docetl.operations.rank import RankOperation
+    
+    # Create order operation instance
+    order_operation = RankOperation(
+        api_wrapper,
+        order_config,
+        default_model="gemini/gemini-2.0-flash",
+        max_threads=64,
+    )
+    
+    # Track method metrics
+    method_metrics = {}
+    
+    # Execute picky method
+    console.print("[bold blue]Sorting transcripts with picky method (embedding initial)[/bold blue]")
+    start_time = time.time()
+    order_results_picky, cost_picky = order_operation.execute(chat_data)
+    method_metrics["Picky (Embedding)"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_picky
+    }
+    
+    # Execute with different initial ordering method
+    order_config_likert = order_config.copy()
+    order_config_likert["initial_ordering_method"] = "likert"
+    order_operation_likert = RankOperation(
+        api_wrapper,
+        order_config_likert,
+        default_model="gemini/gemini-2.0-flash",
+        max_threads=64,
+    )
+    
+    console.print("[bold blue]Sorting transcripts with picky method (likert initial)[/bold blue]")
+    start_time = time.time()
+    order_results_picky_likert, cost_picky_likert = order_operation_likert.execute(chat_data)
+    method_metrics["Picky (Likert)"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_picky_likert
+    }
+    
+    # Execute baseline comparison
+    console.print("[bold blue]Sorting transcripts with baseline comparison method[/bold blue]")
+    start_time = time.time()
+    order_results_baseline, cost_baseline = order_operation._execute_comparison_qurk(chat_data)
+    method_metrics["Baseline Comparison"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_baseline
+    }
+    
+    # Execute rating embedding
+    console.print("[bold blue]Sorting transcripts with embedding rating method[/bold blue]")
+    start_time = time.time()
+    order_results_embedding, cost_embedding = order_operation._execute_rating_embedding_qurk(chat_data)
+    method_metrics["Embedding Rating"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_embedding
+    }
+    
+    # Execute sliding window with embedding
+    console.print("[bold blue]Sorting transcripts with sliding window (embedding) method[/bold blue]")
+    start_time = time.time()
+    order_results_sliding_embedding, cost_sliding_embedding = order_operation._execute_sliding_window_qurk(
+        chat_data, 
+        initial_ordering_method="embedding"
+    )
+    method_metrics["Embedding Sliding Window"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_sliding_embedding
+    }
+    
+    # Execute sliding window with likert
+    console.print("[bold blue]Sorting transcripts with sliding window (likert) method[/bold blue]")
+    start_time = time.time()
+    order_results_sliding_likert, cost_sliding_likert = order_operation._execute_sliding_window_qurk(
+        chat_data, 
+        initial_ordering_method="likert"
+    )
+    method_metrics["Likert Sliding Window"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_sliding_likert
+    }
+    
+    # Execute likert rating method
+    console.print("[bold blue]Sorting transcripts with likert rating method[/bold blue]")
+    start_time = time.time()
+    order_results_likert, cost_likert = order_operation._execute_likert_rating_qurk(chat_data)
+    method_metrics["Likert Rating"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_likert
+    }
+    
+    # Execute calibrated embedding sort
+    console.print("[bold blue]Sorting transcripts with calibrated embedding sort method[/bold blue]")
+    start_time = time.time()
+    order_results_calibrated_embedding, cost_calibrated_embedding = order_operation._execute_calibrated_embedding_sort(chat_data)
+    method_metrics["Calibrated Embedding Sort"] = {
+        "runtime": time.time() - start_time,
+        "cost": cost_calibrated_embedding
+    }
+    
+    # Execute lotus top k
+    console.print("[bold blue]Sorting transcripts with Lotus top k method[/bold blue]")
+    start_time = time.time()
+    df = pd.DataFrame(chat_data)
+    sorted_df, stats = df.sem_topk(
+        "Which of the following chat transcripts has the most harmless assistant responses? Here is the chat transcript: {transcript}",
+        K=10,
+        return_stats=True,
+    )
+    print(stats)
+    end_time = time.time()
+    lotus_results = sorted_df.to_dict(orient="records")
+    lotus_num_calls = stats["total_llm_calls"]
+    lotus_cost = stats["total_tokens"] * 0.15 / 1000000
+    lotus_runtime = end_time - start_time
+    method_metrics["Lotus Top K"] = {
+        "runtime": lotus_runtime,
+        "cost": lotus_cost
+    }
+    
+    # Create ground truth rankings based on harmlessness scores
+    # Sort in descending order (most harmless at top)
+    sorted_indices = sorted(range(len(chat_data)), key=lambda i: chat_data[i]["min_harmlessness_score"], reverse=True)
+    ground_truth_ranks = {chat_data[i]["id"]: sorted_indices.index(i) + 1 for i in range(len(chat_data))}
+    
+    # Extract method rankings
+    picky_ranks = {doc["id"]: doc["_rank"] for doc in order_results_picky}
+    picky_likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_picky_likert}
+    baseline_ranks = {doc["id"]: doc["_rank"] for doc in order_results_baseline}
+    embedding_ranks = {doc["id"]: doc["_rank"] for doc in order_results_embedding}
+    sliding_embedding_ranks = {doc["id"]: doc["_rank"] for doc in order_results_sliding_embedding}
+    sliding_likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_sliding_likert}
+    likert_ranks = {doc["id"]: doc["_rank"] for doc in order_results_likert}
+    lotus_ranks = {doc["id"]: doc["_rank"] for doc in lotus_results}
+    calibrated_embedding_ranks = {doc["id"]: doc["_rank"] for doc in order_results_calibrated_embedding}
+    
+    # Prepare lists for Kendall's Tau computation
+    doc_ids = list(ground_truth_ranks.keys())
+    
+    ground_truth_rank_list = [ground_truth_ranks[doc_id] for doc_id in doc_ids]
+    picky_rank_list = [picky_ranks[doc_id] for doc_id in doc_ids]
+    picky_likert_rank_list = [picky_likert_ranks[doc_id] for doc_id in doc_ids]
+    baseline_rank_list = [baseline_ranks[doc_id] for doc_id in doc_ids]
+    embedding_rank_list = [embedding_ranks[doc_id] for doc_id in doc_ids]
+    sliding_embedding_rank_list = [sliding_embedding_ranks[doc_id] for doc_id in doc_ids]
+    sliding_likert_rank_list = [sliding_likert_ranks[doc_id] for doc_id in doc_ids]
+    likert_rating_rank_list = [likert_ranks[doc_id] for doc_id in doc_ids]
+    lotus_rank_list = [lotus_ranks.get(doc_id, len(chat_data) + 1) for doc_id in doc_ids]
+    calibrated_embedding_rank_list = [calibrated_embedding_ranks[doc_id] for doc_id in doc_ids]
+    
+    # Compute Kendall's Tau correlation coefficients against ground truth
+    tau_picky, p_value_picky = kendalltau(ground_truth_rank_list, picky_rank_list)
+    tau_picky_likert, p_value_picky_likert = kendalltau(ground_truth_rank_list, picky_likert_rank_list)
+    tau_baseline, p_value_baseline = kendalltau(ground_truth_rank_list, baseline_rank_list)
+    tau_embedding, p_value_embedding = kendalltau(ground_truth_rank_list, embedding_rank_list)
+    tau_sliding_embedding, p_value_sliding_embedding = kendalltau(ground_truth_rank_list, sliding_embedding_rank_list)
+    tau_sliding_likert, p_value_sliding_likert = kendalltau(ground_truth_rank_list, sliding_likert_rank_list)
+    tau_likert_rating, p_value_likert_rating = kendalltau(ground_truth_rank_list, likert_rating_rank_list)
+    tau_lotus, p_value_lotus = kendalltau(ground_truth_rank_list, lotus_rank_list)
+    tau_calibrated_embedding, p_value_calibrated_embedding = kendalltau(ground_truth_rank_list, calibrated_embedding_rank_list)
+    
+    # Store results in a list of tuples for sorting
+    results = [
+        ("Picky (Embedding)", tau_picky, p_value_picky, method_metrics["Picky (Embedding)"]["runtime"], method_metrics["Picky (Embedding)"]["cost"]),
+        ("Picky (Likert)", tau_picky_likert, p_value_picky_likert, method_metrics["Picky (Likert)"]["runtime"], method_metrics["Picky (Likert)"]["cost"]),
+        ("Baseline Comparison", tau_baseline, p_value_baseline, method_metrics["Baseline Comparison"]["runtime"], method_metrics["Baseline Comparison"]["cost"]),
+        ("Embedding Rating", tau_embedding, p_value_embedding, method_metrics["Embedding Rating"]["runtime"], method_metrics["Embedding Rating"]["cost"]),
+        ("Embedding Sliding Window", tau_sliding_embedding, p_value_sliding_embedding, method_metrics["Embedding Sliding Window"]["runtime"], method_metrics["Embedding Sliding Window"]["cost"]),
+        ("Likert Sliding Window", tau_sliding_likert, p_value_sliding_likert, method_metrics["Likert Sliding Window"]["runtime"], method_metrics["Likert Sliding Window"]["cost"]),
+        ("Likert Rating", tau_likert_rating, p_value_likert_rating, method_metrics["Likert Rating"]["runtime"], method_metrics["Likert Rating"]["cost"]),
+        ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"]),
+        ("Calibrated Embedding Sort", tau_calibrated_embedding, p_value_calibrated_embedding, method_metrics["Calibrated Embedding Sort"]["runtime"], method_metrics["Calibrated Embedding Sort"]["cost"])
+    ]
+    
+    # Sort results by Kendall's tau value in descending order
+    sorted_results = sorted(results, key=lambda x: x[1], reverse=True)
+    
+    # Create a Rich table for method comparison
+    table = Table(title="Harmfulness Ranking Results")
+    table.add_column("Method", style="cyan")
+    table.add_column("Kendall's Tau", justify="right", style="green")
+    table.add_column("p-value", justify="right", style="yellow")
+    table.add_column("Runtime (s)", justify="right", style="yellow")
+    table.add_column("Cost ($)", justify="right", style="yellow")
+    
+    # Add rows for each method
+    method_results = [
+        ("Picky (Embedding)", tau_picky, p_value_picky, method_metrics["Picky (Embedding)"]["runtime"], method_metrics["Picky (Embedding)"]["cost"]),
+        ("Picky (Likert)", tau_picky_likert, p_value_picky_likert, method_metrics["Picky (Likert)"]["runtime"], method_metrics["Picky (Likert)"]["cost"]),
+        ("Baseline Comparison", tau_baseline, p_value_baseline, method_metrics["Baseline Comparison"]["runtime"], method_metrics["Baseline Comparison"]["cost"]),
+        ("Embedding Rating", tau_embedding, p_value_embedding, method_metrics["Embedding Rating"]["runtime"], method_metrics["Embedding Rating"]["cost"]),
+        ("Embedding Sliding Window", tau_sliding_embedding, p_value_sliding_embedding, method_metrics["Embedding Sliding Window"]["runtime"], method_metrics["Embedding Sliding Window"]["cost"]),
+        ("Likert Sliding Window", tau_sliding_likert, p_value_sliding_likert, method_metrics["Likert Sliding Window"]["runtime"], method_metrics["Likert Sliding Window"]["cost"]),
+        ("Likert Rating", tau_likert_rating, p_value_likert_rating, method_metrics["Likert Rating"]["runtime"], method_metrics["Likert Rating"]["cost"]),
+        ("Lotus Top K", tau_lotus, p_value_lotus, method_metrics["Lotus Top K"]["runtime"], method_metrics["Lotus Top K"]["cost"]),
+        ("Calibrated Embedding Sort", tau_calibrated_embedding, p_value_calibrated_embedding, method_metrics["Calibrated Embedding Sort"]["runtime"], method_metrics["Calibrated Embedding Sort"]["cost"])
+    ]
+    
+    # Sort by Kendall's Tau
+    sorted_results = sorted(method_results, key=lambda x: x[1], reverse=True)
+    
+    for method, tau, p_value, runtime, cost in sorted_results:
+        table.add_row(
+            method,
+            f"{tau:.4f}",
+            f"{p_value:.4f}",
+            f"{runtime:.2f}",
+            f"{cost:.4f}"
+        )
+    
+    console.print(table)
+    
+    # Calculate NDCG
+    y_true = np.zeros(len(chat_data))
+    for i, doc in enumerate(chat_data):
+        # higher ranks are higher scores, so we invert the rank
+        doc_id = doc["id"]
+        y_true[i] = len(chat_data) - ground_truth_ranks[doc_id] + 1
+    
+    # Calculate NDCG for each method
+    ndcg_table = Table(title="NDCG@10 Results")
+    ndcg_table.add_column("Method", style="cyan") 
+    ndcg_table.add_column("NDCG@10", justify="right", style="green")
+    
+    ndcg_scores = []
+    
+    for method_name, _, _, _, _ in sorted_results:
+        # Get the ranks for this method
+        if method_name == "Picky (Embedding)":
+            method_ranks = picky_ranks
+        elif method_name == "Picky (Likert)":
+            method_ranks = picky_likert_ranks
+        elif method_name == "Baseline Comparison":
+            method_ranks = baseline_ranks
+        elif method_name == "Embedding Rating":
+            method_ranks = embedding_ranks
+        elif method_name == "Embedding Sliding Window":
+            method_ranks = sliding_embedding_ranks
+        elif method_name == "Likert Sliding Window":
+            method_ranks = sliding_likert_ranks
+        elif method_name == "Likert Rating":
+            method_ranks = likert_ranks
+        elif method_name == "Lotus Top K":
+            method_ranks = lotus_ranks
+        elif method_name == "Calibrated Embedding Sort":
+            method_ranks = calibrated_embedding_ranks
+        
+        # Calculate predicted relevance scores (higher for items ranked higher)
+        y_pred = np.zeros(len(chat_data))
+        for i, doc in enumerate(chat_data):
+            doc_id = doc["id"]
+            # Inverted rank (higher rank = higher relevance)
+            y_pred[i] = len(chat_data) - method_ranks.get(doc_id, len(chat_data)) + 1
+        
+        # Calculate NDCG
+        ndcg = calculate_ndcg(y_true, y_pred, k=10)
+        ndcg_scores.append((method_name, ndcg))
+    
+    # Sort by NDCG
+    sorted_ndcg = sorted(ndcg_scores, key=lambda x: x[1], reverse=True)
+    
+    # Add rows to the NDCG table
+    for method_name, ndcg in sorted_ndcg:
+        ndcg_table.add_row(method_name, f"{ndcg:.4f}")
+    
+    console.print(ndcg_table)
+    
+    # Show top 5 results from the best method
+    best_method_name = sorted_results[0][0]
+    console.print(f"\n[bold]Top 5 transcripts from best method ({best_method_name}):[/bold]")
+    
+    if best_method_name == "Picky (Embedding)":
+        best_results = order_results_picky
+    elif best_method_name == "Picky (Likert)":
+        best_results = order_results_picky_likert
+    elif best_method_name == "Baseline Comparison":
+        best_results = order_results_baseline
+    elif best_method_name == "Embedding Rating":
+        best_results = order_results_embedding
+    elif best_method_name == "Embedding Sliding Window":
+        best_results = order_results_sliding_embedding
+    elif best_method_name == "Likert Sliding Window":
+        best_results = order_results_sliding_likert
+    elif best_method_name == "Likert Rating":
+        best_results = order_results_likert
+    elif best_method_name == "Lotus Top K":
+        best_results = lotus_results
+    elif best_method_name == "Calibrated Embedding Sort":
+        best_results = order_results_calibrated_embedding
+    
+    for i, doc in enumerate(best_results[:5]):
+        doc_id = doc["id"]
+        original_index = int(doc_id.split("_")[1])
+        harmfulness_score = chat_data[original_index]["min_harmlessness_score"]
+        ground_rank = ground_truth_ranks[doc_id]
+        
+        console.print(f"{i+1}. {doc_id} (Ground truth rank: {ground_rank}, Harmfulness score: {harmfulness_score:.4f})")
+        # Show a short preview of the transcript
+        transcript_preview = doc["transcript"][:100].replace("\n", " ") + "..."
+        console.print(f"   Preview: {transcript_preview}")
+    
+    console.print("\n[bold green]Harmfulness ranking test completed![/bold green]")
+    return sorted_results, sorted_ndcg, lotus_num_calls
+
+def run_harmlessness_tests():
+    """
+    Run the chat harmfulness ranking test multiple times and compute average metrics.
+    """
+    n_trials = 3
+    sample_sizes = [200]  # Number of transcripts to test with
+    
+    # For each sample size
+    for num_samples in sample_sizes:
+        console.print(f"\n[bold green]===== TESTING WITH {num_samples} TRANSCRIPTS =====[/bold green]")
+        
+        # Initialize collection lists
+        results_collection = []
+        ndcg_collection = []
+        lotus_calls_collection = []
+        
+        # Run the test multiple times
+        for trial in range(n_trials):
+            console.print(f"\n[bold magenta]Running Trial {trial+1}/{n_trials} with {num_samples} transcripts[/bold magenta]\n")
+            
+            # Execute the test
+            trial_results, trial_ndcg, lotus_calls = test_chat_harmfulness(api_wrapper, num_samples=num_samples)
+            
+            # Store the results
+            results_collection.append(trial_results)
+            ndcg_collection.append(trial_ndcg)
+            lotus_calls_collection.append(lotus_calls)
+            
+            # Add a short delay between trials to avoid rate limits
+            if trial < n_trials - 1:
+                console.print("Waiting 10 seconds before next trial...")
+                time.sleep(10)
+        
+        # Process results
+        console.print(f"\n[bold cyan]===== AGGREGATE RESULTS FOR {num_samples} TRANSCRIPTS ({n_trials} TRIALS) =====[/bold cyan]")
+        
+        # Collect all unique method names
+        methods = set()
+        for trial_result in results_collection:
+            for method, _, _, _, _ in trial_result:
+                methods.add(method)
+        
+        # Initialize dictionaries to store aggregate metrics
+        avg_metrics = {
+            "tau": {},      # Kendall's Tau
+            "p_value": {},  # p-value
+            "runtime": {},  # Runtime in seconds
+            "cost": {}      # Cost in dollars
+        }
+        
+        for method in methods:
+            for metric in avg_metrics:
+                avg_metrics[metric][method] = []
+        
+        # Collect metrics for each method across all trials
+        for trial_result in results_collection:
+            for method, tau, p_value, runtime, cost in trial_result:
+                avg_metrics["tau"][method].append(tau)
+                avg_metrics["p_value"][method].append(p_value)
+                avg_metrics["runtime"][method].append(runtime)
+                avg_metrics["cost"][method].append(cost)
+        
+        # Create table for average Kendall's Tau results
+        tau_table = Table(title=f"Average Harmfulness Ranking Results ({num_samples} transcripts, {n_trials} trials)")
+        tau_table.add_column("Method", style="cyan")
+        tau_table.add_column("Avg Tau", justify="right", style="green")
+        tau_table.add_column("Avg p-value", justify="right", style="green")
+        tau_table.add_column("Avg Runtime (s)", justify="right", style="yellow")
+        tau_table.add_column("Avg Cost ($)", justify="right", style="yellow")
+        
+        # Calculate averages and populate the table
+        method_avgs = []
+        for method in methods:
+            if avg_metrics["tau"][method]:
+                avg_tau = sum(avg_metrics["tau"][method]) / len(avg_metrics["tau"][method])
+                avg_p = sum(avg_metrics["p_value"][method]) / len(avg_metrics["p_value"][method])
+                avg_runtime = sum(avg_metrics["runtime"][method]) / len(avg_metrics["runtime"][method])
+                avg_cost = sum(avg_metrics["cost"][method]) / len(avg_metrics["cost"][method])
+                
+                method_avgs.append((method, avg_tau, avg_p, avg_runtime, avg_cost))
+        
+        # Sort by average Tau in descending order
+        sorted_avgs = sorted(method_avgs, key=lambda x: x[1], reverse=True)
+        
+        # Add rows to the table
+        for method, avg_tau, avg_p, avg_runtime, avg_cost in sorted_avgs:
+            tau_table.add_row(
+                method,
+                f"{avg_tau:.4f}",
+                f"{avg_p:.4f}",
+                f"{avg_runtime:.2f}",
+                f"{avg_cost:.4f}"
+            )
+        
+        # Print the table
+        console.print(tau_table)
+        
+        # Calculate average NDCG scores
+        ndcg_averages = {}
+        
+        # Process NDCG results across all trials
+        for trial_ndcg in ndcg_collection:
+            for method_name, ndcg_value in trial_ndcg:
+                if method_name not in ndcg_averages:
+                    ndcg_averages[method_name] = {"sum": 0.0, "count": 0}
+                ndcg_averages[method_name]["sum"] += ndcg_value
+                ndcg_averages[method_name]["count"] += 1
+        
+        # Create table for average NDCG results
+        ndcg_table = Table(title=f"Average NDCG@10 Results ({num_samples} transcripts, {n_trials} trials)")
+        ndcg_table.add_column("Method", style="cyan")
+        ndcg_table.add_column("Avg NDCG@10", justify="right", style="green")
+        
+        # Calculate and sort average NDCG values
+        avg_ndcg_results = []
+        for method_name, data in ndcg_averages.items():
+            if data["count"] > 0:
+                avg_ndcg = data["sum"] / data["count"]
+                avg_ndcg_results.append((method_name, avg_ndcg))
+        
+        # Sort by NDCG in descending order
+        sorted_ndcg = sorted(avg_ndcg_results, key=lambda x: x[1], reverse=True)
+        
+        # Add rows to the table
+        for method_name, avg_ndcg in sorted_ndcg:
+            ndcg_table.add_row(method_name, f"{avg_ndcg:.4f}")
+        
+        # Print the table
+        console.print(ndcg_table)
+        
+        # Calculate average Lotus calls
+        if lotus_calls_collection:
+            avg_lotus_calls = sum(lotus_calls_collection) / len(lotus_calls_collection)
+            console.print(f"[bold yellow]Average Lotus LLM calls: {avg_lotus_calls:.2f}[/bold yellow]")
+    
+    console.print("\n[bold green]All harmfulness tests completed![/bold green]")
+
+
+if __name__ == "__main__":
+    # Uncomment the function you want to run:
+    # test_chat_harmfulness(api_wrapper)
+    run_harmlessness_tests()

@@ -311,7 +311,6 @@ const PipelineGUI: React.FC = () => {
     setFiles,
     setCurrentFile,
     setSystemPrompt,
-    currentFile,
     files,
     setOutput,
   });

@@ -1353,6 +1353,248 @@ export const SampleOperationComponent: React.FC<OperationComponentProps> = ({
   );
 };
 
+export const RankOperationComponent: React.FC<OperationComponentProps> = ({
+  operation,
+  onUpdate,
+  isSchemaExpanded,
+  onToggleSchema,
+}) => {
+  const handlePromptChange = (newPrompt: string) => {
+    onUpdate({ ...operation, prompt: newPrompt });
+  };
+
+  const handleDirectionChange = (direction: string) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        direction: direction,
+      },
+    });
+  };
+
+  const handleRerankCallBudgetChange = (value: string) => {
+    const numValue = parseInt(value);
+    // Only update if it's a valid number
+    if (!isNaN(numValue) && numValue > 0) {
+      onUpdate({
+        ...operation,
+        otherKwargs: {
+          ...operation.otherKwargs,
+          rerank_call_budget: numValue,
+        },
+      });
+    }
+  };
+
+  const handleInputKeysChange = (newInputKeys: string[]) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        input_keys: newInputKeys,
+      },
+    });
+  };
+
+  // Initialize with default values if they don't exist
+  useEffect(() => {
+    const updateIfMissing = {};
+
+    if (!operation.otherKwargs?.direction) {
+      updateIfMissing["direction"] = "desc";
+    }
+
+    if (!operation.otherKwargs?.rerank_call_budget) {
+      updateIfMissing["rerank_call_budget"] = 10;
+    }
+
+    if (!operation.otherKwargs?.input_keys) {
+      updateIfMissing["input_keys"] = [];
+    }
+
+    if (Object.keys(updateIfMissing).length > 0) {
+      onUpdate({
+        ...operation,
+        otherKwargs: {
+          ...operation.otherKwargs,
+          ...updateIfMissing,
+        },
+      });
+    }
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="mb-4">
+        <Label
+          htmlFor="sorting-criteria"
+          className="text-sm font-medium mb-1 block"
+        >
+          Sorting Criteria
+        </Label>
+        <PromptInput
+          prompt={operation.prompt || ""}
+          onChange={handlePromptChange}
+          disableValidation={true}
+          placeholder="Detail criteria to sort by (e.g., sort these debate transcripts by how mean the candidates are in the debate)"
+        />
+      </div>
+
+      <div className="mb-4">
+        <div className="flex items-center space-x-2">
+          <Label htmlFor="input-keys" className="text-sm font-medium">
+            Input Keys
+          </Label>
+          <HoverCard>
+            <HoverCardTrigger>
+              <Info size={16} className="text-primary cursor-help" />
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">Input Keys</h4>
+                <p className="text-sm text-muted-foreground">
+                  Specify which document fields to consider for ranking. These
+                  fields will be used by the LLM to rank documents.
+                </p>
+                <div className="mt-2 rounded-md bg-muted p-2">
+                  <p className="text-sm font-medium">Example:</p>
+                  <p className="text-xs text-muted-foreground">
+                    For a debate ranking task, you might include keys like
+                    &quot;content&quot; and &quot;title&quot;.
+                  </p>
+                </div>
+                <p className="text-xs text-gray-600 font-medium mt-1">
+                  Note: The ranking operation will only use these specified
+                  fields for comparison.
+                </p>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-1">
+          {(operation.otherKwargs?.input_keys || []).map((key, index) => (
+            <div key={index} className="flex items-center">
+              <Input
+                value={key}
+                onChange={(e) => {
+                  const newKeys = [
+                    ...(operation.otherKwargs?.input_keys || []),
+                  ];
+                  newKeys[index] = e.target.value;
+                  handleInputKeysChange(newKeys);
+                }}
+                className={`w-40 ${
+                  !key.trim() ? "border-red-500 focus:ring-red-500" : ""
+                }`}
+                placeholder="Enter input key"
+              />
+              {(operation.otherKwargs?.input_keys?.length || 0) > 1 && (
+                <Button
+                  onClick={() => {
+                    const newKeys = [
+                      ...(operation.otherKwargs?.input_keys || []),
+                    ];
+                    newKeys.splice(index, 1);
+                    handleInputKeysChange(newKeys);
+                  }}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <X size={12} />
+                </Button>
+              )}
+            </div>
+          ))}
+          <Button
+            onClick={() => {
+              const newKeys = [
+                ...(operation.otherKwargs?.input_keys || []),
+                "",
+              ];
+              handleInputKeysChange(newKeys);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <Plus size={16} />
+          </Button>
+        </div>
+        {(!operation.otherKwargs?.input_keys ||
+          operation.otherKwargs.input_keys.length === 0 ||
+          operation.otherKwargs.input_keys.some((key) => !key.trim())) && (
+          <div className="text-red-500 text-sm mt-1">
+            At least one non-empty input key is required for ranking
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-6" style={{ maxWidth: "500px" }}>
+        <div>
+          <Label htmlFor="direction" className="text-sm font-medium block mb-2">
+            Direction
+          </Label>
+          <Select
+            value={operation.otherKwargs?.direction || "desc"}
+            onValueChange={handleDirectionChange}
+          >
+            <SelectTrigger id="direction">
+              <SelectValue placeholder="Select direction" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="asc">Ascending</SelectItem>
+              <SelectItem value="desc">Descending</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <div className="flex items-center mb-2">
+            <Label htmlFor="rerank-call-budget" className="text-sm font-medium">
+              Rerank Call Budget
+            </Label>
+            <HoverCard>
+              <HoverCardTrigger>
+                <Info size={16} className="text-primary cursor-help ml-2" />
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80">
+                <div className="space-y-2">
+                  <h4 className="font-medium">Rerank Call Budget</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Maximum number of LLM calls to make during the refinement
+                    phase of ranking.
+                  </p>
+                  <div className="mt-2 rounded-md bg-muted p-2">
+                    <p className="text-sm font-medium">How it works:</p>
+                    <p className="text-xs text-muted-foreground">
+                      The ranking operation first does an initial ranking pass,
+                      then refines the ranking using a sliding window approach.
+                      This parameter limits how many LLM calls are made during
+                      refinement.
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-600 font-medium mt-1">
+                    Note: Higher values give more accurate rankings but cost
+                    more.
+                  </p>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          </div>
+          <Input
+            id="rerank-call-budget"
+            type="number"
+            value={operation.otherKwargs?.rerank_call_budget || 10}
+            onChange={(e) => handleRerankCallBudgetChange(e.target.value)}
+            min="1"
+            placeholder="Default: 10"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const CodeOperationComponent: React.FC<OperationComponentProps> = ({
   operation,
   onUpdate,
@@ -1441,8 +1683,8 @@ export const CodeOperationComponent: React.FC<OperationComponentProps> = ({
                       </div>
                       {!key.trim() && (
                         <p className="text-red-500 text-sm mt-1">
-                          There must be a reduce key. Set "_all" if you want all
-                          documents in a group.
+                          There must be a reduce key. Set &quot;_all&quot; if
+                          you want all documents in a group.
                         </p>
                       )}
                     </div>
@@ -1554,6 +1796,15 @@ export default function createOperationComponent(
     case "sample":
       return (
         <SampleOperationComponent
+          operation={operation}
+          onUpdate={onUpdate}
+          isSchemaExpanded={isSchemaExpanded}
+          onToggleSchema={onToggleSchema}
+        />
+      );
+    case "rank":
+      return (
+        <RankOperationComponent
           operation={operation}
           onUpdate={onUpdate}
           isSchemaExpanded={isSchemaExpanded}

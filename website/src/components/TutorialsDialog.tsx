@@ -299,7 +299,6 @@ export function TutorialsDialog({
     setFiles,
     setCurrentFile,
     setSystemPrompt,
-    currentFile,
     files,
     setOutput,
   });

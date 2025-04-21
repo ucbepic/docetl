@@ -154,7 +154,6 @@ const NaturalLanguagePipelineDialog: React.FC<
     setFiles,
     setCurrentFile,
     setSystemPrompt,
-    currentFile,
     files,
     setOutput,
   });

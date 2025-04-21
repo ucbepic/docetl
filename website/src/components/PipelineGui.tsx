@@ -138,6 +138,11 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
             onAddOperation("LLM", "parallel_map", "Untitled Parallel Map")
           }
         />
+        <OperationMenuItem
+          name="Rank"
+          description="Sorts documents based on the given criteria. This may drop documents if you are using the `k` parameter; otherwise it returns the same documents, but in a sorted order."
+          onClick={() => onAddOperation("LLM", "rank", "Untitled Rank")}
+        />
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="font-bold text-sm bg-muted/50 py-2">
           Add Non-LLM Operation
@@ -306,7 +311,6 @@ const PipelineGUI: React.FC = () => {
     setFiles,
     setCurrentFile,
     setSystemPrompt,
-    currentFile,
     files,
     setOutput,
   });
@@ -353,7 +357,8 @@ const PipelineGUI: React.FC = () => {
                 type === "reduce" ||
                 type === "resolve" ||
                 type === "filter" ||
-                type === "parallel_map"
+                type === "parallel_map" ||
+                type === "rank"
                   ? "LLM"
                   : "non-LLM",
               type: type,

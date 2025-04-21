@@ -1,14 +1,14 @@
-# Order Operation
+# Rank Operation
 
-The Order operation in DocETL sorts documents based on specified criteria using embedding similarity and LLM-based ranking.
+The Rank operation in DocETL sorts documents based on specified criteria using embedding similarity and LLM-based ranking.
 
 ## 🚀 Example: Ranking Debates by Level of Controversy
 
-Let's see a practical example of using the Order operation to rank political debates based on how controversial they are:
+Let's see a practical example of using the Rank operation to rank political debates based on how controversial they are:
 
 ```yaml
-- name: order_by_controversy
-  type: order
+- name: rank_by_controversy
+  type: rank
   prompt: |
     Order these debate transcripts based on how controversial the discussion is.
     Consider factors like:
@@ -21,12 +21,13 @@ Let's see a practical example of using the Order operation to rank political deb
     Debates with the most controversial content should be ranked highest.
   input_keys: ["content", "title", "date"]
   direction: desc
-  verbose: true
+  k: 20 # optional for top k
+  call_budget: 10 # max number of LLM calls to use; also optional
 ```
 
-This Order operation ranks debate transcripts from most controversial to least controversial by:
+This Rank operation ranks debate transcripts from most controversial to least controversial by:
 
-1. First generating embeddings for the ordering criteria and each document
+1. First generating embeddings for the ranking criteria and each document
 2. Creating an initial ranking based on embedding similarity
 3. Using an LLM to perform more precise rankings on batches of documents
 4. Merging the batch rankings into a coherent global ordering
@@ -68,48 +69,48 @@ This Order operation ranks debate transcripts from most controversial to least c
     ]
     ```
 
-This example demonstrates how the Order operation can semantically sort documents based on complex criteria, providing a ranking that would be difficult to achieve with keyword matching or rule-based approaches.
+This example demonstrates how the Rank operation can semantically sort documents based on complex criteria, providing a ranking that would be difficult to achieve with keyword matching or rule-based approaches.
 
 ## Algorithm and Implementation
 
-The Order operation works in these steps:
+The Rank operation works in these steps:
 
-1. **Embedding-Based Ranking**:
-   - Create an embedding vector for the ordering criteria prompt
-   - Create embedding vectors for each document using specified input_keys
-   - Calculate cosine similarity between the criteria vector and each document vector
-   - Sort documents by similarity score (high to low for desc, low to high for asc)
+1. **Initial Ranking**:
+   - The algorithm begins with either an embedding-based or Likert-scale rating approach:
+     - **Embedding-based**: Creates embedding vectors for the ranking criteria and each document, then calculates cosine similarity
+     - **Likert-based**: Uses the LLM to rate each document on a 7-point Likert scale based on the criteria
+   - Documents are initially sorted by their similarity scores or ratings (high to low for desc, low to high for asc)
 
-2. **Batch Processing for LLM Ranking**:
-   - Divide documents into batches of size `batch_size`
-   - For each batch:
-     - Generate a prompt containing all documents in the batch
-     - Ask the LLM to rank them according to the criteria
-     - Parse the response into a ranked list of indices
+2. **"Picky Window" Refinement**:
+   - Rather than processing all documents with equal focus, the algorithm employs a "picky window" approach
+   - Starting from the bottom of the currently ranked documents and working upward:
+     - A large window of documents is presented to the LLM
+     - The LLM is asked to identify only the top few documents (configured via `num_top_items_per_window`)
+     - These chosen documents are then moved to the beginning of the window
+   - The window slides upward through the document set with overlapping segments
+   - This approach enables the algorithm to process many documents while focusing LLM effort on identifying the best matches
 
-3. **Merging**:
-   - For datasets with <= 2*`num_grounding_examples` items:
-     - Combine the batch rankings, removing duplicates
-   - For larger datasets:
-     - Split the initial embedding-based ranking into chunks of size `chunk_size`
-     - For each chunk:
-       - If first chunk: include `num_grounding_examples` from batch rankings
-       - Ask LLM to rank the chunk
-       - Add ranked chunk to final ranking
-   - Add any missing document indices to the end
+3. **Efficient Resource Utilization**:
+   - The window size and step size are calculated based on the call budget to ensure optimal use of LLM calls
+   - Overlap between windows ensures robust ranking with minimal redundancy
+   - The algorithm tracks document positions using unique identifiers to maintain consistency 
 
 4. **Output Preparation**:
-   - Reorder the input documents based on the final ranking
-   - Add a `_rank` field to each document (1-indexed)
+   - After all windows have been processed, the algorithm assigns a `_rank` field to each document (1-indexed)
+   - Returns the documents in their final sorted order
 
-The operation handles fallback strategies when LLM ranking fails by reverting to embedding-based similarity for affected batches.
+This approach is particularly effective because:
+- It leverages both embedding-based initial sorting (fast, scalable) and LLM-based refinement (high quality, nuanced)
+- The "picky window" technique maximizes the value of each LLM call by focusing on selection rather than complete ranking
+- Processing from bottom to top ensures that documents gradually rise to their proper positions
+- The algorithm adapts to available resources through configurable parameters
 
 ## Required Parameters
 
 - `name`: A unique name for the operation.
-- `type`: Must be set to "order".
-- `prompt`: The prompt specifying the ordering criteria.
-- `input_keys`: List of document keys to consider for ordering.
+- `type`: Must be set to "rank".
+- `prompt`: The prompt specifying the ranking criteria.
+- `input_keys`: List of document keys to consider for ranking.
 - `direction`: Either "asc" (ascending) or "desc" (descending).
 
 ## Optional Parameters
@@ -118,22 +119,25 @@ The operation handles fallback strategies when LLM ranking fails by reverting to
 | ---------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------- |
 | `model`                      | The language model to use for LLM-based ranking                                            | Falls back to `default_model` |
 | `embedding_model`            | The embedding model to use for similarity calculations                                     | "text-embedding-3-small"      |
-| `num_grounding_examples`     | Number of examples from batch rankings to use for grounding chunk verification             | 5                             |
 | `batch_size`                 | Maximum number of documents to process in a single LLM batch ranking                       | 10                            |
-| `chunk_size`                 | Size of chunks for the verification phase                                                  | 5                             |
 | `timeout`                    | Timeout for each LLM call in seconds                                                       | 120                           |
-| `verbose`                    | Whether to log detailed ordering statistics                                                | False                         |
+| `verbose`                    | Whether to log detailed ranking statistics                                                 | False                         |
 | `litellm_completion_kwargs`  | Additional parameters to pass to LiteLLM completion calls                                  | {}                            |
 | `bypass_cache`               | If true, bypass the cache for this operation                                               | False                         |
+| `initial_ordering_method`    | Method to use for initial ranking: "embedding" (default) or "likert"                       | "embedding"                   |
+| `k`                          | Number of top items to focus on in the final ranking                                       | None (ranks all items)        |
+| `call_budget`                | Maximum number of LLM API calls to make during ranking                                     | 100                           |
+| `num_top_items_per_window`   | Number of top items the LLM should select from each window                                 | 3                             |
+| `overlap_fraction`           | Fraction of overlap between windows                                                        | 0.5                           |
 
-## Two-Step Ordering Approach
+## Two-Step Ranking Approach
 
-For more complex ordering tasks, a two-step approach can be more effective:
+For more complex ranking tasks, a two-step approach can be more effective:
 
 1. First use a `map` operation to extract and structure relevant information
-2. Then use the `order` operation to rank based on the extracted information
+2. Then use the `rank` operation to rank based on the extracted information
 
-??? example "Two-Step Ordering Example"
+??? example "Two-Step Ranking Example"
 
     ```yaml
     operations:
@@ -152,8 +156,8 @@ For more complex ordering tasks, a two-step approach can be more effective:
           Extract and summarize exchanges where candidates are mean or hostile to each other.
           [... prompt details ...]
 
-      - name: order_by_meanness
-        type: order
+      - name: rank_by_meanness
+        type: rank
         prompt: |
           Order these debate transcripts based on how mean or hostile the candidates are to each other.
           Focus on the meanness summaries and examples that have been extracted.
@@ -171,39 +175,38 @@ For more complex ordering tasks, a two-step approach can be more effective:
           input: debates
           operations:
             - extract_hostile_exchanges
-            - order_by_meanness
+            - rank_by_meanness
     ```
 
 This approach:
 1. First extracts structured data about hostility in each debate
-2. Then orders debates based on this pre-processed data
-3. Results in more accurate ordering by working with focused, structured information
+2. Then ranks debates based on this pre-processed data
+3. Results in more accurate ranking by working with focused, structured information
 
 ## Best Practices
 
-1. **Craft Clear Ordering Criteria**: Write clear, specific prompts that guide the LLM to understand the ordering priorities.
+1. **Craft Clear Ranking Criteria**: Write clear, specific prompts that guide the LLM to understand the ranking priorities.
 
-2. **Choose Appropriate Input Keys**: Only include document fields that are relevant to the ordering criteria to reduce noise.
+2. **Choose Appropriate Input Keys**: Only include document fields that are relevant to the ranking criteria to reduce noise.
 
-3. **Consider Pre-Processing**: For complex criteria, use a map operation first to extract structured data that makes ordering more effective.
+3. **Consider Pre-Processing**: For complex criteria, use a map operation first to extract structured data that makes ranking more effective.
 
-4. **Tune Batch and Chunk Sizes**:
-   - For larger documents, use smaller batch sizes
-   - For simpler ordering criteria, larger batches may be more efficient
+4. **Tune Window Parameters**:
+   - Adjust `num_top_items_per_window` based on how selective you need the ranking to be
+   - Modify `overlap_fraction` to balance redundancy and completeness
    - Start with defaults and adjust based on results
 
-5. **Use Verbose Mode During Development**: Enable the `verbose` flag during development to understand how the ordering process works and verify the results.
+5. **Use Verbose Mode During Development**: Enable the `verbose` flag during development to understand how the ranking process works and verify the results.
 
 6. **Direction Matters**: Choose "asc" or "desc" carefully based on your use case:
    - "desc" (descending) ranks the most matching items first
    - "asc" (ascending) ranks the least matching items first
 
-7. **Mind Cost Considerations**: The ordering operation makes multiple LLM calls and embedding requests. For large datasets, consider sampling first to test your approach.
+7. **Mind Cost Considerations**: The ranking operation makes multiple LLM calls and embedding requests. For large datasets, consider sampling first to test your approach. Use the embedding based first pass to significantly reduce cost.
 
 ## Performance Considerations
 
-- The order operation scales with O(n) for embedding generation
-- LLM batch ranking requires O(n/batch_size) calls
+- The rank operation scales with O(n) for embedding generation
+- LLM ranking requires O(k/batch_size) calls, focusing on the most important k documents
 - For large datasets (>100 documents), the operation will display a confirmation prompt
-- Using a smaller model for the `embedding_model` can reduce costs without significantly impacting quality
 - The `verbose` flag adds detailed logging but doesn't affect performance or results

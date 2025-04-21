@@ -29,11 +29,19 @@ import {
 interface PromptInputProps {
   prompt: string;
   onChange: (value: string) => void;
+  disableValidation?: boolean;
+  placeholder?: string;
 }
 
 export const PromptInput: React.FC<PromptInputProps> = React.memo(
-  ({ prompt, onChange }) => {
+  ({
+    prompt,
+    onChange,
+    disableValidation = false,
+    placeholder = "Enter prompt (must be a Jinja2 template)",
+  }) => {
     const validateJinjaTemplate = (value: string) => {
+      if (disableValidation) return true;
       const hasOpenBrace = value.includes("{{");
       const hasCloseBrace = value.includes("}}");
       return hasOpenBrace && hasCloseBrace;
@@ -42,7 +50,7 @@ export const PromptInput: React.FC<PromptInputProps> = React.memo(
     return (
       <>
         <Textarea
-          placeholder="Enter prompt (must be a Jinja2 template)"
+          placeholder={placeholder}
           className={`mb-1 rounded-sm text-sm font-mono ${
             !validateJinjaTemplate(prompt) ? "border-red-500" : ""
           }`}
@@ -67,6 +75,8 @@ PromptInput.displayName = "PromptInput";
 PromptInput.propTypes = {
   prompt: PropTypes.string.isRequired,
   onChange: PropTypes.func.isRequired,
+  disableValidation: PropTypes.bool,
+  placeholder: PropTypes.string,
 };
 
 interface SchemaFormProps {

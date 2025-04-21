@@ -15,6 +15,7 @@ export type Operation = {
     | "filter"
     | "resolve"
     | "parallel_map"
+    | "rank"
     | "unnest"
     | "split"
     | "gather"

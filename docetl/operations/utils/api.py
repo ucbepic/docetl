@@ -6,7 +6,14 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
-from litellm import ModelResponse, RateLimitError, completion, embedding
+from litellm import (
+    APIConnectionError,
+    ModelResponse,
+    RateLimitError,
+    ServiceUnavailableError,
+    completion,
+    embedding,
+)
 from litellm.types.utils import ChatCompletionMessageToolCall, Function
 from rich import print as rprint
 from rich.console import Console, Group
@@ -470,6 +477,16 @@ class APIWrapper(object):
                 )
                 time.sleep(sleep_time)
                 rate_limited_attempt += 1
+            except APIConnectionError:
+                self.runner.console.log(
+                    "[bold red]API connection error. Retrying...[/bold red]"
+                )
+                time.sleep(1)
+            except ServiceUnavailableError:
+                self.runner.console.log(
+                    "[bold red]Service unavailable. Retrying...[/bold red]"
+                )
+                time.sleep(1)
             except TimeoutError:
                 if attempt == max_retries:
                     self.runner.console.log(

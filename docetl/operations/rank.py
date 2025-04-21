@@ -7,6 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import rich_as_completed
+from docetl.operations.utils.progress import RichLoopBar
 from docetl.utils import completion_cost
 
 
@@ -14,7 +15,7 @@ class RankOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "order"
         prompt: str
-        input_keys: List[str]
+        input_keys: List[str] = Field(default_factory=list)
         direction: Literal["asc", "desc"]
         model: Optional[str] = None
         embedding_model: Optional[str] = None
@@ -89,6 +90,8 @@ class RankOperation(BaseOperation):
         Returns:
             str: The extracted content as a string.
         """
+        if not input_keys:
+            input_keys = document.keys()
         content_parts = []
         for key in input_keys:
             if key in document:
@@ -670,8 +673,15 @@ class RankOperation(BaseOperation):
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_batch, batch) for batch in batches]
 
+            pbar = RichLoopBar(
+                range(len(futures)),
+                desc=f"Processing {self.config['name']} (first coarse pass of likert rating)",
+                console=self.console,
+            )
+
             # Collect results as they complete
-            for future in futures:
+            for i in pbar:
+                future = futures[i]
                 result = future.result()
                 total_cost += result["cost"]
 
@@ -810,7 +820,13 @@ class RankOperation(BaseOperation):
             doc["_docetl_id"]: i for i, doc in enumerate(current_results)
         }
 
-        for i in range(k - 1, 0, -step_size):
+        pbar = RichLoopBar(
+            range(k - 1, 0, -step_size),
+            desc=f"Processing {self.config['name']} (sliding window refinement)",
+            console=self.console,
+        )
+
+        for i in pbar:
             iter_num += 1
             # Get the window
             end_idx = i
@@ -943,20 +959,25 @@ class RankOperation(BaseOperation):
 
         # Construct the prompt for picking top items only
         top_or_bottom = "top" if direction == "desc" else "bottom"
-        prompt = f"""
+        prompt = f"""You are tasked with ranking documents based on specific criteria.
+
+        CRITERIA:
         {criteria}
 
-        We are only interested in identifying the {top_or_bottom} {num_top_items} documents based on this criteria.
-        The direction we are ordering by is {direction}, so we are looking for the {top_or_bottom} {num_top_items} documents.
+        RANKING DIRECTION:
+        - We are ordering by '{direction}' (where 'desc' means highest-ranked first, 'asc' means lowest-ranked first)
+        - You need to select the {top_or_bottom} {num_top_items} documents that best match the criteria
 
-        Here are the documents:
-
+        DOCUMENTS TO EVALUATE:
         {documents_text}
 
-        Return ONLY the document numbers of the {top_or_bottom} {num_top_items} documents that best match the criteria.
-        Provide them in order from {'least' if direction == 'asc' else 'most'} to {'most' if direction == 'asc' else 'least'} matching.
-        Return only the document numbers as a list.
-        Format example: [3, 1, 4, 0, 2]
+        INSTRUCTIONS:
+        1. Evaluate each document against the criteria
+        2. Select the {num_top_items} documents that best match the criteria
+        3. Return ONLY a list of document numbers in {'ascending' if direction == 'asc' else 'descending'} order of relevance
+
+        RESPONSE FORMAT:
+        Return only a list of integers representing document numbers, like: [3, 1, 4, 0, 2]
         """
 
         # Call the LLM

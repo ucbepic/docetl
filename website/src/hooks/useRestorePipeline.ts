@@ -21,6 +21,7 @@ interface YAMLOperation {
   validate?: unknown;
   sample?: unknown;
   reduce_key?: string | string[];
+  input_keys?: string[];
   [key: string]: unknown;
 }
 
@@ -45,7 +46,6 @@ interface RestorePipelineConfig {
     datasetDescription: string | null;
     persona: string | null;
   }) => void;
-  currentFile: File | null;
   files: File[];
   setOutput: (output: OutputType | null) => void;
 }
@@ -58,7 +58,6 @@ export const useRestorePipeline = ({
   setFiles,
   setCurrentFile,
   setSystemPrompt,
-  currentFile,
   files,
   setOutput,
 }: RestorePipelineConfig) => {
@@ -90,28 +89,36 @@ export const useRestorePipeline = ({
                     sample,
                     // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     reduce_key, // Explicitly ignore reduce_key as it's handled in otherKwargs
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    input_keys, // Explicitly ignore input_keys as it's handled in otherKwargs
                     ...otherKwargs
                   } = op;
 
                   // Convert all otherKwargs values to strings
-                  const stringifiedKwargs: Record<string, any> = Object.entries(
-                    otherKwargs
-                  ).reduce(
-                    (acc, [key, value]) => ({
-                      ...acc,
-                      [key]:
-                        typeof value === "object"
-                          ? JSON.stringify(value)
-                          : String(value),
-                    }),
-                    {} as Record<string, string>
-                  );
+                  const stringifiedKwargs: Record<string, unknown> =
+                    Object.entries(otherKwargs).reduce(
+                      (acc, [key, value]) => ({
+                        ...acc,
+                        [key]:
+                          typeof value === "object"
+                            ? JSON.stringify(value)
+                            : String(value),
+                      }),
+                      {} as Record<string, string | string[]>
+                    );
 
                   // If the operation type is 'reduce', ensure reduce_key is a list of strings
                   if (type === "reduce" && op.reduce_key) {
                     stringifiedKwargs.reduce_key = Array.isArray(op.reduce_key)
                       ? op.reduce_key
                       : [op.reduce_key];
+                  }
+
+                  // If the operation type is 'rank', ensure input_keys is a list of strings
+                  if (type === "rank" && op.input_keys) {
+                    stringifiedKwargs.input_keys = Array.isArray(op.input_keys)
+                      ? op.input_keys
+                      : [op.input_keys];
                   }
 
                   return {

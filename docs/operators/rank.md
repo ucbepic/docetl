@@ -3,6 +3,8 @@
 The Rank operation in DocETL sorts documents based on specified criteria.
 Note that this operation is designed to sort documents along some (latent) attribute in the data. **It is not specifically meant for top-k or retrieval-like queries.**
 
+We adapt algorithms from Human-Powered Sorts and Joins ([VLDB 2012](https://www.vldb.org/pvldb/vol5/p013_adammarcus_vldb2012.pdf)).
+
 ## 🚀 Example: Ranking Debates by Level of Controversy
 
 Let's see a practical example of using the Rank operation to rank political debates based on how controversial they are:
@@ -75,28 +77,28 @@ This example demonstrates how the Rank operation can semantically sort documents
 The Rank operation works in these steps:
 
 1. **Initial Ranking**:
-   - The algorithm begins with either an embedding-based or Likert-scale rating approach:
-     - **Embedding-based**: Creates embedding vectors for the ranking criteria and each document, then calculates cosine similarity
-     - **Likert-based**: Uses the LLM to rate each document on a 7-point Likert scale based on the criteria
-   - Documents are initially sorted by their similarity scores or ratings (high to low for desc, low to high for asc)
-
+    1. The algorithm begins with either an embedding-based or Likert-scale rating approach:
+        1. **Embedding-based**: Creates embedding vectors for the ranking criteria and each document, then calculates cosine similarity
+        2. **Likert-based**: Uses the LLM to rate each document on a 7-point Likert scale based on the criteria
+    2. Documents are initially sorted by their similarity scores or ratings (high to low for desc, low to high for asc)
 2. **"Picky Window" Refinement**:
-   - Rather than processing all documents with equal focus, the algorithm employs a "picky window" approach
-   - Starting from the bottom of the currently ranked documents and working upward:
-     - A large window of documents is presented to the LLM
-     - The LLM is asked to identify only the top few documents (configured via `num_top_items_per_window`)
-     - These chosen documents are then moved to the beginning of the window
-   - The window slides upward through the document set with overlapping segments
-   - This approach enables the algorithm to process many documents while focusing LLM effort on identifying the best matches
-
+    1. Rather than processing all documents with equal focus, the algorithm employs a "picky window" approach
+    2. Starting from the bottom of the currently ranked documents and working upward:
+        1. A large window of documents is presented to the LLM
+        2. The LLM is asked to identify only the top few documents (configured via `num_top_items_per_window`)
+        3. These chosen documents are then moved to the beginning of the window
+    3. The window slides upward through the document set with overlapping segments
+    4. This approach enables the algorithm to process many documents while focusing LLM effort on identifying the best matches
 3. **Efficient Resource Utilization**:
-   - The window size and step size are calculated based on the call budget to ensure optimal use of LLM calls
-   - Overlap between windows ensures robust ranking with minimal redundancy
-   - The algorithm tracks document positions using unique identifiers to maintain consistency 
+   
+    1. The window size and step size are calculated based on the call budget to ensure optimal use of LLM calls
+    2. Overlap between windows ensures robust ranking with minimal redundancy
+    3. The algorithm tracks document positions using unique identifiers to maintain consistency 
 
 4. **Output Preparation**:
-   - After all windows have been processed, the algorithm assigns a `_rank` field to each document (1-indexed)
-   - Returns the documents in their final sorted order
+   
+    1. After all windows have been processed, the algorithm assigns a `_rank` field to each document (1-indexed)
+    2. Returns the documents in their final sorted order
 
 This approach is particularly effective because:
 - It leverages both embedding-based initial sorting (fast, scalable) and LLM-based refinement (high quality, nuanced)

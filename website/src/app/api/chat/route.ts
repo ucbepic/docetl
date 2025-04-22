@@ -137,8 +137,8 @@ export async function POST(req: Request) {
           if (!supabase) return;
 
           const cost =
-            (usage.promptTokens * 0.15) / 1_000_000 +
-            (usage.completionTokens * 0.6) / 1_000_000;
+            (usage.promptTokens * 2.5) / 1_000_000 +
+            (usage.completionTokens * 10) / 1_000_000;
 
           try {
             const { error } = await supabase

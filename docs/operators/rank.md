@@ -79,7 +79,7 @@ The Rank operation works in these steps:
 1. **Initial Ranking**:
     1. The algorithm begins with either an embedding-based or Likert-scale rating approach:
         1. **Embedding-based**: Creates embedding vectors for the ranking criteria and each document, then calculates cosine similarity
-        2. **Likert-based**: Uses the LLM to rate each document on a 7-point Likert scale based on the criteria
+        2. **Likert-based** (default): Uses the LLM to rate each document on a 7-point Likert scale based on the criteria. We do this in batches of `batch_size` documents (defaults to 10), and the prompt includes a random sample of `num_calibration_docs` (defaults to 10) documents to calibrate the LLM with.
     2. Documents are initially sorted by their similarity scores or ratings (high to low for desc, low to high for asc)
 2. **"Picky Window" Refinement**:
     1. Rather than processing all documents with equal focus, the algorithm employs a "picky window" approach
@@ -123,6 +123,7 @@ This approach is particularly effective because:
 | `batch_size`                 | Maximum number of documents to process in a single LLM batch rating (used for the first pass)                       | 10                            |
 | `timeout`                    | Timeout for each LLM call in seconds                                                       | 120                           |
 | `verbose`                    | Whether to log detailed LLM call statistics                                                 | False                         |
+| `num_calibration_docs`     | Number of documents to use for calibration (used for the first pass)                       | 10                            |
 | `litellm_completion_kwargs`  | Additional parameters to pass to LiteLLM completion calls                                  | {}                            |
 | `bypass_cache`               | If true, bypass the cache for this operation                                               | False                         |
 | `initial_ordering_method`    | Method to use for initial ranking: "likert" (default) or "embedding"                       | "likert"                   |

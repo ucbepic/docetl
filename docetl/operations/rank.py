@@ -26,6 +26,7 @@ class RankOperation(BaseOperation):
         num_top_items_per_window: int = 3
         overlap_fraction: float = 0.5
         timeout: Optional[int] = None
+        num_calibration_docs: int = 10
         verbose: bool = False
         litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
 
@@ -565,6 +566,7 @@ class RankOperation(BaseOperation):
         batch_size = self.config.get(
             "batch_size", 10
         )  # Rate more documents per batch for efficiency
+        num_calibration_docs = self.config.get("num_calibration_docs", 10)
         max_workers = self.max_threads
 
         total_cost = 0
@@ -572,7 +574,7 @@ class RankOperation(BaseOperation):
 
         # Select a random sample of 10 documents to provide context
         random.seed(42)
-        context_size = min(10, len(input_data))
+        context_size = min(num_calibration_docs, len(input_data))
         context_indices = random.sample(range(len(input_data)), context_size)
         context_docs = [input_data[idx] for idx in context_indices]
 

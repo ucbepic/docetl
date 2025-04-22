@@ -100,11 +100,6 @@ The Rank operation works in these steps:
     1. After all windows have been processed, the algorithm assigns a `_rank` field to each document (1-indexed)
     2. Returns the documents in their final sorted order
 
-This approach is particularly effective because:
-- It leverages both embedding-based initial sorting (fast, scalable) and LLM-based refinement (high quality, nuanced)
-- The "picky window" technique maximizes the value of each LLM call by focusing on selection rather than complete ranking
-- Processing from bottom to top ensures that documents gradually rise to their proper positions
-- The algorithm adapts to available resources through configurable parameters
 
 ## Required Parameters
 

@@ -304,6 +304,7 @@ const CodeEditorPipelineApp: React.FC = () => {
     setNamespace,
     setOperations,
     setPipelineName,
+    pipelineName,
     setSampleSize,
     setDefaultModel,
     setSystemPrompt,
@@ -351,15 +352,16 @@ const CodeEditorPipelineApp: React.FC = () => {
       });
 
       // Try modern API first, fall back to classic if not supported
+      const filename = `${pipelineName}-${namespace}-${Date.now()}.dtl`;
       try {
-        await saveToFile(data, "pipeline.dtl");
+        await saveToFile(data, filename, { currentFile, namespace });
       } catch (err) {
         if (
           err instanceof TypeError &&
           err.message.includes("showSaveFilePicker")
         ) {
           // Fall back to classic method if File System Access API is not supported
-          await saveToFileClassic(data, "pipeline.dtl");
+          await saveToFileClassic(data, filename, { currentFile, namespace });
         } else {
           throw err;
         }
@@ -379,14 +381,14 @@ const CodeEditorPipelineApp: React.FC = () => {
     try {
       let data;
       try {
-        data = await loadFromFile();
+        data = await loadFromFile({ setFiles, setCurrentFile });
       } catch (err) {
         if (
           err instanceof TypeError &&
           err.message.includes("showOpenFilePicker")
         ) {
           // Fall back to classic method if File System Access API is not supported
-          data = await loadFromFileClassic();
+          data = await loadFromFileClassic({ setFiles, setCurrentFile });
         } else {
           throw err;
         }
@@ -417,11 +419,17 @@ const CodeEditorPipelineApp: React.FC = () => {
 
   const handleNew = () => {
     clearPipelineState();
-    if (!namespace) {
-      setShowNamespaceDialog(true);
-    } else {
-      window.location.reload();
-    }
+    setShowNamespaceDialog(true);
+  };
+
+  const handleChangeNamespace = (newNamespace: string) => {
+    // Clear the pipeline state first, then set the new namespace
+    setNamespace(newNamespace);
+    localStorage.setItem(
+      localStorageKeys.NAMESPACE_KEY,
+      JSON.stringify(newNamespace)
+    );
+    setShowNamespaceDialog(false);
   };
 
   const topBarStyles =
@@ -480,8 +488,8 @@ const CodeEditorPipelineApp: React.FC = () => {
                   <MenubarItem onSelect={() => setShowNLPipelineDialog(true)}>
                     New from Natural Language
                   </MenubarItem>
-                  <MenubarItem onSelect={handleOpen}>Open</MenubarItem>
-                  <MenubarItem onSelect={handleSaveAs}>Save As</MenubarItem>
+                  {/* <MenubarItem onSelect={handleOpen}>Open</MenubarItem> */}
+                  {/* <MenubarItem onSelect={handleSaveAs}>Save As</MenubarItem> */}
                 </MenubarContent>
               </MenubarMenu>
               <MenubarMenu>
@@ -858,11 +866,7 @@ const CodeEditorPipelineApp: React.FC = () => {
           open={showNamespaceDialog}
           onOpenChange={setShowNamespaceDialog}
           currentNamespace={namespace}
-          onSave={(newNamespace) => {
-            setNamespace(newNamespace);
-            setShowNamespaceDialog(false);
-            saveProgress();
-          }}
+          onSave={handleChangeNamespace}
         />
         <APIKeysDialog
           open={showAPIKeysDialog}

@@ -7,12 +7,34 @@ interface SaveFileOptions {
 }
 
 interface RestoreFileHandlers {
-  setFiles: (files: File[]) => void;
+  setFiles: (updater: (prev: File[]) => File[]) => void;
   setCurrentFile: (file: File | null) => void;
 }
 
+// Define a type for the data structure being saved and loaded
+interface PipelineData {
+  currentFile?: {
+    name: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+// Type for file contents stored in saved pipeline data
+interface FileContentsMap {
+  [fileName: string]: {
+    content: Record<string, unknown>;
+    metadata: File;
+  };
+}
+
+// Type for data being saved with file contents
+interface PipelineDataWithFileContents extends PipelineData {
+  __fileContents?: FileContentsMap;
+}
+
 export const saveToFile = async (
-  data: any,
+  data: PipelineData,
   defaultFilename: string,
   options?: SaveFileOptions
 ) => {
@@ -69,7 +91,7 @@ export const saveToFile = async (
 
 export const loadFromFile = async (
   handlers?: RestoreFileHandlers
-): Promise<any> => {
+): Promise<PipelineData> => {
   try {
     // Use the showOpenFilePicker API for a better file selection experience
     const [handle] = await window.showOpenFilePicker({
@@ -93,7 +115,8 @@ export const loadFromFile = async (
 
     // Remove the file contents from the data before returning
     if (data.__fileContents) {
-      const { __fileContents, ...restData } = data;
+      // Use _ to indicate we're intentionally not using this variable
+      const { __fileContents: _, ...restData } = data;
       return restData;
     }
 
@@ -107,7 +130,7 @@ export const loadFromFile = async (
 
 // Fallback for browsers that don't support the File System Access API
 export const saveToFileClassic = async (
-  data: any,
+  data: PipelineData,
   defaultFilename: string,
   options?: SaveFileOptions
 ) => {
@@ -155,7 +178,7 @@ export const saveToFileClassic = async (
 
 export const loadFromFileClassic = async (
   handlers?: RestoreFileHandlers
-): Promise<any> => {
+): Promise<PipelineData> => {
   return new Promise((resolve, reject) => {
     const input = document.createElement("input");
     input.type = "file";
@@ -177,7 +200,8 @@ export const loadFromFileClassic = async (
 
         // Remove the file contents from the data before returning
         if (data.__fileContents) {
-          const { __fileContents, ...restData } = data;
+          // Use _ to indicate we're intentionally not using this variable
+          const { __fileContents: _, ...restData } = data;
           resolve(restData);
         } else {
           resolve(data);
@@ -193,18 +217,12 @@ export const loadFromFileClassic = async (
 
 // Helper function to process file contents
 async function processFileContents(
-  data: any,
+  data: PipelineDataWithFileContents,
   handlers?: RestoreFileHandlers
 ): Promise<void> {
   if (!data.__fileContents || !handlers) return;
 
-  const fileContents = data.__fileContents as Record<
-    string,
-    {
-      content: any;
-      metadata: File;
-    }
-  >;
+  const fileContents = data.__fileContents as FileContentsMap;
 
   // For each saved file, recreate it in the current session
   for (const [fileName, fileData] of Object.entries(fileContents)) {

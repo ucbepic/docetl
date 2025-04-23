@@ -32,7 +32,7 @@ class RankOperation(BaseOperation):
 
     def syntax_check(self) -> None:
         """
-        Checks the configuration of the OrderOperation for required keys and valid structure.
+        Checks the configuration of the RankOperation for required keys and valid structure.
 
         This method performs the following checks:
         1. Verifies the presence of required keys: 'prompt', 'input_keys', and 'direction'.
@@ -49,7 +49,7 @@ class RankOperation(BaseOperation):
         for key in required_keys:
             if key not in self.config:
                 raise ValueError(
-                    f"Missing required key '{key}' in OrderOperation configuration"
+                    f"Missing required key '{key}' in RankOperation configuration"
                 )
 
         # Check if input_keys is a list of strings

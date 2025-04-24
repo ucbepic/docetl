@@ -4,3 +4,8 @@ export const getBackendUrl = () => {
   const port = process.env.NEXT_PUBLIC_BACKEND_PORT;
   return `${protocol}://${host}:${port}`;
 };
+
+export const isDocWranglerHosted = () => {
+  const backendHost = process.env.NEXT_PUBLIC_BACKEND_HOST || "";
+  return backendHost.includes("modal.run") || true;
+};

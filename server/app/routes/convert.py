@@ -30,7 +30,51 @@ router = APIRouter()
 MODAL_ENDPOINT = "https://ucbepic--docling-converter-convert-documents.modal.run"
 # MODAL_ENDPOINT = "https://ucbepic--docling-converter-convert-documents-dev.modal.run"
 
-def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
+
+def process_document_with_azure_read(file_path: str, endpoint: str, key: str) -> str:
+    """
+    Process a single document with Azure Document Intelligence using the prebuilt-read model
+    
+    Args:
+        file_path: Path to the document file
+        endpoint: Azure Document Intelligence endpoint
+        key: Azure API key
+        
+    Returns:
+        Extracted text content from the document as a string
+    """
+    try:
+        # Initialize the Document Intelligence client
+        client = DocumentIntelligenceClient(
+            endpoint=endpoint,
+            credential=AzureKeyCredential(key)
+        )
+        
+        # Read and process the file
+        with open(file_path, "rb") as file:
+            file_bytes = file.read()
+            poller = client.begin_analyze_document(
+                "prebuilt-read",
+                AnalyzeDocumentRequest(bytes_source=file_bytes))
+            result = poller.result()
+        
+        # Extract text content from all pages
+        extracted_text = ""
+        for idx, page in enumerate(result.pages):
+            # Add page number as a header
+            page_number = page.pageNumber if hasattr(page, 'pageNumber') else idx + 1
+            extracted_text += f"Page {page_number}\n\n"
+            for line in page.lines:
+                extracted_text += line.content + "\n"
+            extracted_text += "\n"  # Extra line break between pages
+                
+        return extracted_text.strip()
+    
+    except Exception as e:
+        print(f"Error processing document: {str(e)}")
+        return f"Error processing document: {str(e)}"
+
+def process_document_with_azure_layout(file_path: str, endpoint: str, key: str) -> str:
     """Process a single document with Azure Document Intelligence"""
     try:
         document_analysis_client = DocumentIntelligenceClient(
@@ -192,10 +236,18 @@ async def convert_documents(
 async def azure_convert_documents(
     files: List[UploadFile] = File(...),
     azure_endpoint: Optional[str] = Header(None),
-    azure_key: Optional[str] = Header(None)
+    azure_key: Optional[str] = Header(None),
+    is_read: str = Header("false")
 ):
     if not azure_endpoint or not azure_key:
-        return {"error": "Azure credentials are required"}
+        # Use os.getenv keys
+        azure_endpoint = os.getenv("AZURE_DOCUMENTINTELLIGENCE_ENDPOINT")
+        azure_key = os.getenv("AZURE_DOCUMENTINTELLIGENCE_API_KEY")
+        
+        if not azure_endpoint or not azure_key:
+            return {"error": "Azure credentials are required"}
+    
+    is_read = is_read.lower() == "true"
 
     with tempfile.TemporaryDirectory() as temp_dir:
         # Save uploaded files and prepare for processing
@@ -218,7 +270,7 @@ async def azure_convert_documents(
             futures = []
             for file_path in file_paths:
                 future = executor.submit(
-                    process_document_with_azure,
+                    process_document_with_azure_read if is_read else process_document_with_azure_layout,
                     file_path,
                     azure_endpoint,
                     azure_key

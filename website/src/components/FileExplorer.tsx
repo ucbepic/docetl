@@ -57,7 +57,7 @@ import {
 } from "./ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useDatasetUpload } from "@/hooks/useDatasetUpload";
-import { getBackendUrl } from "@/lib/api-config";
+import { getBackendUrl, isDocWranglerHosted } from "@/lib/api-config";
 
 interface FileExplorerProps {
   files: File[];
@@ -148,7 +148,12 @@ async function getAllFiles(entry: FileSystemEntry): Promise<FileWithPath[]> {
   return files;
 }
 
-type ConversionMethod = "local" | "azure" | "docetl" | "custom-docling";
+type ConversionMethod =
+  | "local"
+  | "azure"
+  | "docetl"
+  | "custom-docling"
+  | "docwrangler-pdf";
 
 interface RemoteDatasetDialogProps {
   isOpen: boolean;
@@ -389,13 +394,27 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       if (conversionMethod === "azure") {
         headers["azure-endpoint"] = azureEndpoint;
         headers["azure-key"] = azureKey;
+        headers["is-read"] = "false";
       } else if (conversionMethod === "custom-docling") {
         headers["custom-docling-url"] = customDoclingUrl;
+      } else if (conversionMethod === "docwrangler-pdf") {
+        headers["azure-endpoint"] = "";
+        headers["azure-key"] = "";
+        headers["is-read"] = "true";
+
+        // Log to verify files are included in the FormData
+        console.log(
+          "DocWrangler PDF conversion files:",
+          Array.from(selectedFiles).map((f) => f.name)
+        );
       }
 
       // Determine conversion endpoint
       let targetUrl = `${getBackendUrl()}/api/convert-documents`;
-      if (conversionMethod === "azure") {
+      if (
+        conversionMethod === "azure" ||
+        conversionMethod === "docwrangler-pdf"
+      ) {
         targetUrl = `${getBackendUrl()}/api/azure-convert-documents`;
       } else if (conversionMethod === "docetl") {
         targetUrl = `${getBackendUrl()}/api/convert-documents?use_docetl_server=true`;
@@ -766,48 +785,72 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   }
                   className="mt-2 grid grid-cols-4 gap-2"
                 >
-                  <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
-                    <div className="flex items-start space-x-2.5">
-                      <RadioGroupItem
-                        value="local"
-                        id="local-server"
-                        className="mt-0.5"
-                      />
-                      <Label
-                        htmlFor="local-server"
-                        className="text-sm font-medium cursor-pointer"
-                      >
-                        Local Server
-                      </Label>
+                  {isDocWranglerHosted() ? (
+                    <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
+                      <div className="flex items-start space-x-2.5">
+                        <RadioGroupItem
+                          value="docwrangler-pdf"
+                          id="docwrangler-pdf"
+                          className="mt-0.5"
+                        />
+                        <Label
+                          htmlFor="docwrangler-pdf"
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          DocWrangler PDF Conversion
+                        </Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground pl-6">
+                        Convert documents using DocWrangler&apos;s hosted
+                        service
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground pl-6">
-                      Process documents privately on your machine (this can be
-                      slow for many documents)
-                    </p>
-                    {conversionMethod === "local" && (
-                      <div className="bg-destructive/10 text-destructive rounded-md p-2 mt-1 text-xs">
-                        <div className="flex gap-2">
-                          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-medium">Local Server Required</p>
-                            <p className="mt-1">
-                              This option requires running the application
-                              locally with the server component.
-                            </p>
-                            <button
-                              className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
-                            >
-                              Continue anyway if running locally
-                            </button>
+                  ) : (
+                    <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
+                      <div className="flex items-start space-x-2.5">
+                        <RadioGroupItem
+                          value="local"
+                          id="local-server"
+                          className="mt-0.5"
+                        />
+                        <Label
+                          htmlFor="local-server"
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          Local Server
+                        </Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground pl-6">
+                        Process documents privately on your machine (this can be
+                        slow for many documents)
+                      </p>
+                      {conversionMethod === "local" && (
+                        <div className="bg-destructive/10 text-destructive rounded-md p-2 mt-1 text-xs">
+                          <div className="flex gap-2">
+                            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-medium">
+                                Local Server Required
+                              </p>
+                              <p className="mt-1">
+                                This option requires running the application
+                                locally with the server component.
+                              </p>
+                              <button
+                                className="text-destructive underline hover:opacity-80 mt-1.5 font-medium"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                              >
+                                Continue anyway if running locally
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex flex-col space-y-1 p-2 rounded-md transition-colors hover:bg-gray-50 cursor-pointer border border-gray-100">
                     <div className="flex items-start space-x-2.5">
@@ -832,8 +875,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       </Label>
                     </div>
                     <p className="text-xs text-muted-foreground pl-6">
-                      Use our hosted server for fast and accurate processing
-                      across many documents
+                      Use our hosted server for slow (but more accurate)
+                      processing across many documents
                     </p>
                   </div>
 
@@ -852,7 +895,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       </Label>
                     </div>
                     <p className="text-xs text-muted-foreground pl-6">
-                      Enterprise-grade cloud processing
+                      Enterprise-grade cloud processing (provide your own Azure
+                      keys)
                     </p>
                   </div>
 

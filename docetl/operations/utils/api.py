@@ -2,6 +2,7 @@ import ast
 import asyncio
 import hashlib
 import json
+import os
 import re
 import time
 from typing import Any, Dict, List, Optional
@@ -78,6 +79,10 @@ class APIWrapper(object):
         # Create a unique key for the cache
         key = hashlib.md5(f"{model}_{input}".encode()).hexdigest()
         input = json.loads(input)
+
+        # If the model starts with "gpt" and there is no openai key, prefix the model with "azure"
+        if model.startswith("text-embedding") and not os.environ.get("OPENAI_API_KEY") and self.runner.config.get("from_docwrangler", False):
+            model = "azure/" + model
 
         with cache as c:
             # Try to get the result from cache
@@ -170,6 +175,9 @@ class APIWrapper(object):
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
+        if model.startswith("gpt") and not os.environ.get("OPENAI_API_KEY") and self.runner.config.get("from_docwrangler", False):
+            model = "azure/" + model
+        
         total_cost = 0.0
         validated = False
         with cache as c:

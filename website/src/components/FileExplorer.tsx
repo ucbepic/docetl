@@ -361,8 +361,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
     setIsConverting(true);
     const formData = new FormData();
-
-    // First, save all original documents
     const originalDocsFormData = new FormData();
     Array.from(selectedFiles).forEach((file) => {
       formData.append("files", file);
@@ -373,8 +371,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     });
     originalDocsFormData.append("namespace", namespace);
 
+    let savedDocs: { files: { name: string; path: string }[] } | null = null; // Store saved docs info temporarily
+
     try {
-      // Save original documents directly to FastAPI
+      // Step 1: Save original documents (necessary for conversion endpoint)
       const saveDocsResponse = await fetch(
         `${getBackendUrl()}/fs/save-documents`,
         {
@@ -384,12 +384,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       );
 
       if (!saveDocsResponse.ok) {
-        throw new Error("Failed to save original documents");
+        // If saving originals fails, stop here
+        throw new Error("Failed to save original documents before conversion.");
       }
+      savedDocs = await saveDocsResponse.json(); // Store response data
 
-      const savedDocs = await saveDocsResponse.json();
-
-      // Prepare headers for Azure if needed
+      // Step 2: Prepare and attempt conversion
       const headers: HeadersInit = {};
       if (conversionMethod === "azure") {
         headers["azure-endpoint"] = azureEndpoint;
@@ -401,15 +401,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         headers["azure-endpoint"] = "";
         headers["azure-key"] = "";
         headers["is-read"] = "true";
-
-        // Log to verify files are included in the FormData
-        console.log(
-          "DocWrangler PDF conversion files:",
-          Array.from(selectedFiles).map((f) => f.name)
-        );
       }
 
-      // Determine conversion endpoint
       let targetUrl = `${getBackendUrl()}/api/convert-documents`;
       if (
         conversionMethod === "azure" ||
@@ -420,48 +413,73 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         targetUrl = `${getBackendUrl()}/api/convert-documents?use_docetl_server=true`;
       }
 
-      // Convert documents
       const response = await fetch(targetUrl, {
         method: "POST",
         body: formData,
         headers,
       });
 
+      // Step 3: Validate conversion response (HTTP status)
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Internal Server Error");
+        let errorMessage = "Conversion failed. Please check server logs.";
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errorMessage = errorData.error;
+          } else {
+            errorMessage = `Server returned status ${response.status}: ${response.statusText}`;
+          }
+        } catch (jsonError) {
+          errorMessage = `Server returned status ${response.status}: ${response.statusText}`;
+        }
+        // NOTE: Originals were saved, but conversion failed. We throw, so UI isn't updated.
+        // Consider if cleanup of saved originals is needed on the backend in this case.
+        throw new Error(errorMessage);
       }
 
+      // Step 4: Validate conversion response (JSON content)
       const result = await response.json();
+      if (result && result.error) {
+        // NOTE: Originals were saved, but conversion reported an error (e.g., page limit). We throw, so UI isn't updated.
+        // Consider if cleanup of saved originals is needed on the backend in this case.
+        throw new Error(result.error);
+      }
 
-      // Create folder and upload files
+      // --- Conversion Successful - Proceed with UI updates and JSON upload ---
+
+      // Step 5: Create folder name and add original documents to UI
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const folderName = `converted_${timestamp}`;
 
-      // Add original documents to the file explorer
-      savedDocs.files.forEach((savedDoc: { name: string; path: string }) => {
+      // Ensure savedDocs is not null before proceeding
+      if (!savedDocs) {
+        throw new Error(
+          "Internal error: Saved documents data is missing after successful save."
+        );
+      }
+
+      savedDocs.files.forEach((savedDoc) => {
         const originalFile = {
           name: savedDoc.name,
           path: savedDoc.path,
           type: "document" as const,
           parentFolder: folderName,
         };
-        onFileUpload(originalFile);
+        onFileUpload(originalFile); // Add original doc to UI
       });
 
-      // Add the path to the result documents
-      const resultFiles = result.documents.map(
+      // Step 6: Prepare and upload the final JSON result
+      const resultFiles = (result.documents || []).map(
         (doc: Record<string, string>) => {
-          const originalFile = savedDocs.files.find(
-            (f: Record<string, string>) => f.name === doc.filename
+          const originalFile = savedDocs!.files.find(
+            // Use non-null assertion as savedDocs is checked
+            (f) => f.name === doc.filename
           );
-          // Add the path to the result document
           doc._file_path = originalFile?.path;
           return doc;
         }
       );
 
-      // Create and upload the JSON result file
       const jsonFile = new File(
         [JSON.stringify(resultFiles, null, 2)],
         `docs_${timestamp}.json`,
@@ -478,19 +496,22 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       });
 
       if (!uploadResponse.ok) {
-        throw new Error("Failed to upload converted file");
+        // If JSON upload fails, the originals are already in UI. This might be acceptable,
+        // or you might want to implement rollback logic (more complex).
+        throw new Error(
+          "Conversion succeeded, but failed to upload the final JSON result."
+        );
       }
 
+      // Step 7: Add the final JSON file to UI and finalize
       const uploadData = await uploadResponse.json();
-
       const newFile = {
         name: jsonFile.name,
         path: uploadData.path,
         type: "json" as const,
         parentFolder: folderName,
       };
-
-      onFileUpload(newFile);
+      onFileUpload(newFile); // Add JSON result to UI
       setCurrentFile(newFile);
       handleDialogClose();
 
@@ -500,12 +521,14 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           "Documents converted and uploaded successfully. We recommend downloading your dataset json file.",
       });
     } catch (error) {
-      console.error("Error processing files:", error);
+      // Catch block handles errors from any step (save originals, convert, upload JSON)
+      console.error("Error during conversion process:", error);
       toast({
         variant: "destructive",
-        title: "Error",
+        title: "Process Error", // More general title
         description: error instanceof Error ? error.message : String(error),
       });
+      // IMPORTANT: No files are added to the UI state if an error occurs at any step.
     } finally {
       setIsConverting(false);
     }
@@ -1088,7 +1111,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                         <div className="min-w-0 flex-1 overflow-hidden">
                           <div className="flex items-center">
                             <p className="text-sm font-medium text-gray-700 truncate">
-                              {/* @ts-expect-error FileWithPath type is not fully defined */}
                               {(file as FileWithPath).relativePath || file.name}
                             </p>
                           </div>

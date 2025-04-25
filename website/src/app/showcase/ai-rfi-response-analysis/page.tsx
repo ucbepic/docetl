@@ -99,8 +99,8 @@ export default function AiRfiResponseAnalysisPage() {
             </p>
             <p className="text-sm text-muted-foreground">
               This demo showcases DocETL's capabilities by processing these
-              responses to extract structured insights. Our pipeline analyzes
-              each submission to identify:
+              responses to extract structured insights. Our pipeline uses
+              gpt-4o-mini to analyze each submission to identify:
             </p>
             <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
               <li>

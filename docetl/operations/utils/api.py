@@ -778,7 +778,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     for content in response.choices[index].message.content_list
                     if content.get("type") == "tool_use"
                 ]
-                if "content_list" in dir(response.choices[index].message)
+                if hasattr(response.choices[index].message, "content_list")
                 else []
             )
         else:

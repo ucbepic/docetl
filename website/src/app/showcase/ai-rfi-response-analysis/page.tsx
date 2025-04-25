@@ -98,7 +98,7 @@ export default function AiRfiResponseAnalysisPage() {
               academia, industry, and other stakeholders.
             </p>
             <p className="text-sm text-muted-foreground">
-              This demo showcases DocETL's capabilities by processing these
+              This demo showcases DocETL&apos;s capabilities by processing these
               responses to extract structured insights. Our pipeline uses
               gpt-4o-mini to analyze each submission to identify:
             </p>
@@ -123,17 +123,22 @@ export default function AiRfiResponseAnalysisPage() {
               </li>
               <li>
                 <span className="font-medium">Summary</span>: Concise summary of
-                the submission's key points
+                the submission&apos;s key points
               </li>
             </ul>
-            <p className="text-sm text-muted-foreground mb-4">
-              The explorer below lets you search, filter, and make sense of the
-              responses.
-            </p>
             <p className="text-sm text-muted-foreground mb-4 italic">
               The entire pipeline processing cost just $3.01 to run on all
               10,068 documents.
             </p>
+            <div className="p-4 border border-yellow-300 bg-yellow-50 rounded-md mb-4">
+              <p className="text-sm font-medium text-yellow-800">
+                <strong>Disclaimer:</strong> Please note that this analysis may
+                contain errors. Potential sources of inaccuracy include OCR
+                processing of the PDF documents and limitations in the LLM agent
+                used for data processing. This demonstration is for illustrative
+                purposes only.
+              </p>
+            </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
               <Link
                 href="https://www.nitrd.gov/coordination-areas/ai/90-fr-9088-responses/"

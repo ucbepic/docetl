@@ -1,0 +1,63 @@
+datasets:
+  email_responses:
+    type: file
+    path: ai-responses/processed_responses.json
+
+default_model: gpt-4o-mini
+
+operations:
+  - name: generate_summary
+    type: map
+    prompt: |
+      **Background:** The Office of Science and Technology Policy (OSTP) via the Networking and Information Technology Research and Development (NITRD) National Coordination Office (NCO) and the National Science Foundation (NSF), published a Request for Information (RFI) on February 6, 2025 (closing March 15, 2025). This RFI sought public input from all interested parties (academia, industry, government, public) on priority actions for the Development of an Artificial Intelligence (AI) Action Plan. As directed by Executive Order 14179 (Jan 23, 2025), this Action Plan aims to define policies to sustain and enhance America's AI dominance while ensuring regulations do not unnecessarily burden private sector innovation.
+
+      **Task:** Analyze the following response submitted to this RFI. Distill the core message and identify the most important points, notable suggestions, or interesting ideas presented. Based on the content, determine the following:
+
+      1.  **concrete_proposal_described**: Does the response provide specific, actionable suggestions, data, or detailed feedback (true)? Or is it vague, a general statement of support/concern, or just an acknowledgement (false)?
+      
+      2.  **from_famous_entity**: Does the response appear to be from a well-known individual (e.g., prominent researcher, industry leader, famous person, or celebrity) or a major, recognizable institution/organization (e.g., large tech company, major university, significant non-profit) based on names, affiliations, or other context within the text (true)? Otherwise, assume false.
+      
+      3.  **entity_name**: Extract the full name of the submitter (first and last name) or the complete organization name. If the submitter is anonymous or no name is provided, use "Anonymous". Use the filename to determine the entity name if that is obvious. Do not just repeat a name in the text as the entity name, unless you are certain it is the entity name.
+      
+      4.  **age_bracket**: If the submitter indicates their age (e.g., high school student, college student, professional, etc.), indicate which bracket they fall into: "< 18", "18-25", "25-54", "55+". If there are multiple submitters or if age cannot be reasonably determined, use "N/A".
+      
+      5.  **main_topic**: Identify the principal concern or recommendation expressed in the response. Focus on the most prominent issue, fear, suggestion, or policy position (e.g., "Copyright Infringement by AI", "Job Displacement in Creative Fields", "Need for Creator Compensation", "Environmental Impact of AI Infrastructure", "AI Safety Risks", "Media Industry Disruption").
+      
+      6.  **summary**: Provide a concise summary (2-3 sentences) distilling the absolute key points, core arguments, main recommendations, and any particularly unique or interesting perspectives presented in the response. Focus on the essence of the submission.
+
+      When identifying interesting perspectives, look for:
+      - Specific policy proposals for balancing innovation and protection of rights
+      - Detailed mechanisms for compensating creators whose work is used in AI training
+      - Environmental concerns related to AI infrastructure
+      - Industry-specific impacts beyond general creative fields
+      - Novel approaches to AI governance and accountability
+      - Perspectives on AI's role in media, journalism, and information integrity
+      - Concerns about legal liability and proposed frameworks
+      - Impacts on small businesses and individual creators
+
+      Response Text:
+      {{ input.text }}
+
+      Provide the output as a JSON object matching the specified schema.
+    output:
+      schema:
+        concrete_proposal_described: bool
+        from_famous_entity: bool
+        entity_name: str
+        age_bracket: str
+        main_topic: str
+        summary: str
+    validate:
+      - output["entity_name"] != "Donald Trump" and output["entity_name"] != "Elon Musk"
+
+pipeline:
+  steps:
+    - name: analyze_events
+      input: email_responses
+      operations:
+        - generate_summary
+
+  output:
+    type: file
+    path: ai-responses/summarized_responses.json
+    intermediate_dir: ai-responses/intermediate

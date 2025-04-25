@@ -30,11 +30,11 @@ import {
   MessageCircle,
   Gamepad2,
   Menu,
+  GalleryVertical,
 } from "lucide-react";
 
 export default function Home() {
   const [showDemo, setShowDemo] = useState(false);
-  const [showVision, setShowVision] = useState(false);
 
   useEffect(() => {
     if (window.innerWidth >= 640) {
@@ -44,18 +44,7 @@ export default function Home() {
 
   const toggleDemo = () => {
     setShowDemo(!showDemo);
-    if (!showDemo) {
-      setShowVision(false);
-    }
     sendGAEvent("event", "buttonClicked", { value: "demo" });
-  };
-
-  const toggleVision = () => {
-    setShowVision(!showVision);
-    if (!showVision) {
-      setShowDemo(false);
-    }
-    sendGAEvent("event", "buttonClicked", { value: "vision" });
   };
 
   const newsItems = [
@@ -107,7 +96,7 @@ export default function Home() {
             A system for LLM-powered data processing
           </p>
 
-          <div className="max-w-lg mx-auto flex flex-col items-center mb-6">
+          {/* <div className="max-w-lg mx-auto flex flex-col items-center mb-6">
             <Popover>
               <PopoverTrigger asChild>
                 <div className="w-full overflow-hidden bg-primary/5 rounded-lg cursor-pointer hover:bg-primary/10 transition-colors">
@@ -225,7 +214,7 @@ export default function Home() {
                 </div>
               </PopoverContent>
             </Popover>
-          </div>
+          </div> */}
 
           <div className="flex flex-col items-center gap-6 mb-6 sm:mb-8">
             {/* Mobile Dropdowns */}
@@ -249,6 +238,12 @@ export default function Home() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
+                    <Link href="/demos">
+                      <GalleryVertical className="mr-2 h-4 w-4" />
+                      More Demos
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <a
                       href="https://github.com/ucbepic/docetl"
                       target="_blank"
@@ -268,10 +263,26 @@ export default function Home() {
                     Resources
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" className="w-48">
-                  <DropdownMenuItem onClick={toggleVision}>
-                    <FileCode className="mr-2 h-4 w-4" />
-                    Research Projects
+                <DropdownMenuContent align="center" className="w-56">
+                  <DropdownMenuItem asChild>
+                    <a
+                      href="https://arxiv.org/abs/2504.14764"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      DocWrangler Paper
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a
+                      href="https://arxiv.org/abs/2410.12189"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      DocETL Paper
+                    </a>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <a
@@ -292,15 +303,6 @@ export default function Home() {
                       Docs
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href="https://arxiv.org/abs/2410.12189"
-                      target="_blank"
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Paper
-                    </Link>
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -310,7 +312,7 @@ export default function Home() {
               <div className="flex flex-wrap justify-center gap-4 w-full max-w-xl">
                 <Button
                   onClick={toggleDemo}
-                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold"
+                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
                 >
                   <Play className="mr-2 h-4 w-4" />
                   Demo
@@ -323,7 +325,7 @@ export default function Home() {
 
                 <Button
                   asChild
-                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold"
+                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
                 >
                   <Link href="/playground">
                     <Gamepad2 className="mr-2 h-4 w-4" />
@@ -333,7 +335,17 @@ export default function Home() {
 
                 <Button
                   asChild
-                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold"
+                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
+                >
+                  <Link href="/demos">
+                    <GalleryVertical className="mr-2 h-4 w-4" />
+                    More Demos
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
                 >
                   <a
                     href="https://github.com/ucbepic/docetl"
@@ -347,18 +359,39 @@ export default function Home() {
               </div>
 
               <div className="flex flex-wrap justify-center gap-4 w-full max-w-xl">
-                <Button
-                  onClick={toggleVision}
-                  className="flex-1 h-10 bg-secondary/70 hover:bg-secondary/60 text-secondary-foreground flex items-center justify-center font-bold"
-                >
-                  <FileCode className="mr-2 h-4 w-4" />
-                  Projects
-                  {showVision ? (
-                    <ChevronUp className="ml-2 h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="ml-2 h-4 w-4" />
-                  )}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="flex-1 h-10 bg-secondary/70 hover:bg-secondary/60 text-secondary-foreground flex items-center justify-center font-bold">
+                      <FileText className="mr-2 h-4 w-4" />
+                      Papers
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="center" className="w-56">
+                    <DropdownMenuItem asChild>
+                      <a
+                        href="https://arxiv.org/abs/2504.14764"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center"
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        DocWrangler (Apr 2025)
+                      </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <a
+                        href="https://arxiv.org/abs/2410.12189"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center"
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        DocETL (Oct 2024)
+                      </a>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   asChild
                   className="flex-1 h-10 bg-secondary/70 hover:bg-secondary/60 text-secondary-foreground flex items-center justify-center font-bold"
@@ -384,114 +417,10 @@ export default function Home() {
                     Docs
                   </Link>
                 </Button>
-                <Button
-                  asChild
-                  className="flex-1 h-10 bg-secondary/70 hover:bg-secondary/60 text-secondary-foreground flex items-center justify-center font-bold"
-                >
-                  <Link href="https://arxiv.org/abs/2410.12189" target="_blank">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Paper
-                  </Link>
-                </Button>
               </div>
             </div>
           </div>
         </div>
-
-        {showVision && (
-          <Card className="max-w-4xl mx-auto bg-white shadow-md">
-            <CardContent className="p-6 space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">
-                  Building the Future of AI-Powered Data Systems 🚀
-                </h2>
-                <p className="text-sm text-muted-foreground mb-6">
-                  Traditional databases are great for structured data, but they
-                  weren&apos;t built for the Gen AI era. We&apos;re rethinking
-                  how data systems should work with LLMs - making them more
-                  reliable, cost-effective, and actually usable in production.
-                  Here&apos;s what we&apos;re working on:
-                </p>
-
-                <div className="grid gap-6">
-                  <div className="border rounded-md p-4">
-                    <h4 className="font-medium text-primary mb-2">
-                      Agentic Query Optimizer
-                    </h4>
-                    <p className="text-sm text-muted-foreground">
-                      Most LLM systems just try to cut costs, but accuracy is
-                      the real challenge. Our optimizer uses LLM agents to
-                      automatically break down complex operations into smaller,
-                      more focused tasks; kind of like having a smart teaching
-                      assistant that helps structure your work. Early results
-                      show this approach can significantly improve reliability.
-                      We are also working on finding plans that are both cheap
-                      and accurate.{" "}
-                      <a
-                        href="https://arxiv.org/abs/2410.12189"
-                        className="text-blue-500 hover:underline inline-flex items-center"
-                      >
-                        Check out our paper <span className="ml-1">→</span>
-                      </a>
-                    </p>
-                  </div>
-
-                  <div className="border rounded-md p-4">
-                    <h4 className="font-medium text-primary mb-2">
-                      High-Performance Execution Engine
-                    </h4>
-                    <p className="text-sm text-muted-foreground">
-                      Users consistently highlight map operations as the most
-                      powerful operationts, but they can get expensive fast -
-                      imagine paying for an LLM call on every single document if
-                      you have tens of thousands of documents. We&apos;re
-                      working on techniques to dramatically reduce these costs
-                      without compromising on quality. Approximate query
-                      processing will have its comeback!
-                    </p>
-                  </div>
-
-                  <div className="border rounded-md p-4">
-                    <h4 className="font-medium text-primary mb-2">
-                      Interactive Playground
-                    </h4>
-                    <p className="text-sm text-muted-foreground">
-                      Prompts are the primary interface between humans and
-                      LLM-powered data systems, but crafting them is more art
-                      than science. DocWrangler, our IDE, explores new ways to
-                      make prompt engineering systematic and intuitive, with
-                      interactive tools that help users express their intent
-                      clearly and debug unexpected behaviors.{" "}
-                      <a
-                        href="/playground"
-                        className="text-blue-500 hover:underline inline-flex items-center"
-                      >
-                        Try it yourself <span className="ml-1">→</span>
-                      </a>{" "}
-                      <span className="text-gray-500">
-                        (Paper coming January 2025)
-                      </span>
-                    </p>
-                  </div>
-                </div>
-
-                <p className="text-sm text-muted-foreground mt-6">
-                  We&apos;re working with universities, governments, and
-                  organizations to solve real-world data challenges - especially
-                  for teams without ML expertise. Want to use DocETL for your
-                  project or be part of our case studies? Drop a line at{" "}
-                  <a
-                    href="mailto:shreyashankar@berkeley.edu"
-                    className="text-blue-500 hover:underline"
-                  >
-                    shreyashankar@berkeley.edu
-                  </a>
-                  .
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {showDemo && (
           <div className="demo-wrapper show">

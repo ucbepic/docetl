@@ -229,18 +229,12 @@ export default function Home() {
                 <DropdownMenuContent align="center" className="w-48">
                   <DropdownMenuItem onClick={toggleDemo}>
                     <Play className="mr-2 h-4 w-4" />
-                    Demo
+                    Play Example
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/playground">
                       <Gamepad2 className="mr-2 h-4 w-4" />
                       Playground
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/demos">
-                      <GalleryVertical className="mr-2 h-4 w-4" />
-                      More Demos
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -252,6 +246,12 @@ export default function Home() {
                       <Github className="mr-2 h-4 w-4" />
                       GitHub
                     </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/showcase">
+                      <GalleryVertical className="mr-2 h-4 w-4" />
+                      Showcase
+                    </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -315,7 +315,7 @@ export default function Home() {
                   className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
                 >
                   <Play className="mr-2 h-4 w-4" />
-                  Demo
+                  Play Example
                   {showDemo ? (
                     <ChevronUp className="ml-2 h-4 w-4" />
                   ) : (
@@ -330,16 +330,6 @@ export default function Home() {
                   <Link href="/playground">
                     <Gamepad2 className="mr-2 h-4 w-4" />
                     Playground
-                  </Link>
-                </Button>
-
-                <Button
-                  asChild
-                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
-                >
-                  <Link href="/demos">
-                    <GalleryVertical className="mr-2 h-4 w-4" />
-                    More Demos
                   </Link>
                 </Button>
 
@@ -404,6 +394,15 @@ export default function Home() {
                     <MessageCircle className="mr-2 h-4 w-4" />
                     Discord
                   </a>
+                </Button>
+                <Button
+                  asChild
+                  className="flex-1 h-10 bg-secondary/70 hover:bg-secondary/60 text-secondary-foreground flex items-center justify-center font-bold"
+                >
+                  <Link href="/showcase">
+                    <GalleryVertical className="mr-2 h-4 w-4" />
+                    Showcase
+                  </Link>
                 </Button>
                 <Button
                   asChild

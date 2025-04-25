@@ -16,7 +16,7 @@ import { ExternalLink, Loader2, Scroll, ArrowLeft } from "lucide-react"; // <-- 
 
 // Simplify the dynamic import completely
 const RfiResponseExplorer = dynamic(
-  () => import("@/components/demos/rfi-response-explorer"),
+  () => import("@/components/showcase/rfi-response-explorer"),
   {
     ssr: false,
     loading: () => (
@@ -31,7 +31,7 @@ const RfiResponseExplorer = dynamic(
 export default function AiRfiResponseAnalysisPage() {
   const handleDownloadPipeline = () => {
     const link = document.createElement("a");
-    link.href = "/demos/rfi_pipeline.yaml";
+    link.href = "/showcase/rfi_pipeline.yaml";
     link.download = "rfi_pipeline.yaml";
     document.body.appendChild(link);
     link.click();
@@ -58,9 +58,9 @@ export default function AiRfiResponseAnalysisPage() {
         {/* Back Link */}
         <div className="mb-6">
           <Button variant="outline" size="sm" asChild>
-            <Link href="/demos">
+            <Link href="/showcase">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Demos
+              Back to Showcase
             </Link>
           </Button>
         </div>
@@ -146,7 +146,7 @@ export default function AiRfiResponseAnalysisPage() {
               </Link>
               <span className="text-muted-foreground hidden sm:inline">|</span>
               <Link
-                href="https://docetl.blob.core.windows.net/demos/processed_responses.json"
+                href="https://docetl.blob.core.windows.net/showcase/processed_responses.json"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-blue-600 hover:underline"
@@ -156,7 +156,7 @@ export default function AiRfiResponseAnalysisPage() {
               </Link>
               <span className="text-muted-foreground hidden sm:inline">|</span>
               <Link
-                href="https://docetl.blob.core.windows.net/demos/summarized_responses.json"
+                href="https://docetl.blob.core.windows.net/showcase/summarized_responses.json"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-blue-600 hover:underline"

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense } from "react";
+import React from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -10,25 +10,8 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { ExternalLink, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { Scroll, ArrowRight } from "lucide-react";
-
-const RfiResponseExplorer = dynamic(
-  () =>
-    import("@/components/demos/rfi-response-explorer").then(
-      (mod) => mod.RfiResponseExplorer
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center p-8 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        Loading Data Explorer...
-      </div>
-    ),
-  }
-);
 
 export default function DemosIndexPage() {
   return (
@@ -45,12 +28,15 @@ export default function DemosIndexPage() {
             </div>
           </Link>
           <p className="text-lg sm:text-xl text-muted-foreground">
-            Interactive Demos
+            Interactive Showcase
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <Link href="/demos/ai-rfi-response-analysis" className="block group">
+          <Link
+            href="/showcase/ai-rfi-response-analysis"
+            className="block group"
+          >
             <Card className="h-full hover:shadow-lg transition-shadow duration-200 hover:border-primary/50">
               <CardHeader>
                 <CardTitle className="text-lg group-hover:text-primary transition-colors">

@@ -3,7 +3,6 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import Field
-from sklearn.metrics.pairwise import cosine_similarity
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import rich_as_completed
@@ -343,6 +342,8 @@ class RankOperation(BaseOperation):
         Returns:
             Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
         """
+        from sklearn.metrics.pairwise import cosine_similarity
+        
         if len(input_data) <= 1:
             return input_data, 0
 
@@ -1037,6 +1038,8 @@ class RankOperation(BaseOperation):
     ) -> Tuple[List[Dict], float]:
         if len(input_data) <= 1:
             return input_data, 0
+        
+        from sklearn.metrics.pairwise import cosine_similarity
 
         input_keys = self.config["input_keys"]
         embedding_model = self.config.get("embedding_model", "text-embedding-3-small")

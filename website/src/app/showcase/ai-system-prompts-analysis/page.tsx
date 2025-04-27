@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense } from "react";
+import React, { Suspense, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -11,28 +11,28 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button"; // <-- Add Button import
-import { ExternalLink, Loader2, Scroll, ArrowLeft } from "lucide-react"; // <-- Add Scroll, ArrowLeft
+import { Button } from "@/components/ui/button";
+import { ExternalLink, Loader2, Scroll, ArrowLeft } from "lucide-react";
 
-// Simplify the dynamic import completely
-const RfiResponseExplorer = dynamic(
-  () => import("@/components/showcase/rfi-response-explorer"),
+// Dynamic import for the prompts explorer component
+const SystemPromptsExplorer = dynamic(
+  () => import("@/components/showcase/system-prompts-explorer"),
   {
     ssr: false,
     loading: () => (
       <div className="flex items-center justify-center p-8 text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        Loading Data Explorer...
+        Loading Prompts Explorer...
       </div>
     ),
   }
 );
 
-export default function AiRfiResponseAnalysisPage() {
+export default function AiSystemPromptsAnalysisPage() {
   const handleDownloadPipeline = () => {
     const link = document.createElement("a");
-    link.href = "/demos/rfi_pipeline.yaml";
-    link.download = "rfi_pipeline.yaml";
+    link.href = "/demos/prompts_pipeline.yaml";
+    link.download = "prompts_pipeline.yaml";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -41,8 +41,6 @@ export default function AiRfiResponseAnalysisPage() {
   return (
     <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
       <div className="max-w-6xl w-full">
-        {" "}
-        {/* Increased max-width for explorer */}
         {/* Header */}
         <div className="text-center mb-8 sm:mb-12">
           <Link href="/" className="inline-block">
@@ -67,91 +65,83 @@ export default function AiRfiResponseAnalysisPage() {
         {/* Demo Content */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="text-xl">AI RFI Response Analysis</CardTitle>
+            <CardTitle className="text-xl">
+              Prompt Engineering Strategies from Popular AI Assistants
+            </CardTitle>
             <CardDescription>
-              <em>Analyzing public responses to the U.S. Government&apos;s </em>
-              <Link
-                href="https://www.nitrd.gov/coordination-areas/ai/90-fr-9088-responses/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                Request for Information
-              </Link>{" "}
-              on AI Action Plan Development.
+              <em>
+                Analyzing system prompts from popular AI assistants to extract
+                common prompt engineering strategies.
+              </em>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              In February 2025, the U.S. Office of Science and Technology Policy
-              requested public input on developing an AI Action Plan as directed
-              by{" "}
+              Using the{" "}
               <Link
-                href="https://www.federalregister.gov/documents/2025/01/31/2025-02172/removing-barriers-to-american-leadership-in-artificial-intelligence"
+                href="https://github.com/dontriskit/awesome-ai-system-prompts"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline"
               >
-                Executive Order 14179
-              </Link>
-              . The government received over 10,000 responses from individuals,
-              academia, industry, and other stakeholders.
+                awesome-ai-system-prompts
+              </Link>{" "}
+              repository as source data, which contains leaked system prompts
+              from major AI systems like ChatGPT, Claude, Manus, and others,
+              we&apos;ve used DocETL to analyze and extract structured
+              information about strategies employed across these different AI
+              assistants.
             </p>
             <p className="text-sm text-muted-foreground">
-              This demo showcases DocETL&apos;s capabilities by processing these
-              responses to extract structured insights. Our pipeline uses
-              gpt-4o-mini to analyze each submission to identify:
+              Our pipeline identifies:
             </p>
             <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
               <li>
-                <span className="font-medium">Concrete proposals</span>: Whether
-                the response contains actionable policy suggestions
+                <span className="font-medium">Common strategies</span>:
+                Recurring patterns and approaches used across different AI
+                systems
               </li>
               <li>
-                <span className="font-medium">Notable entity</span>: Whether the
-                submission comes from a notable entity (a well-known individual,
-                e.g., researcher, industry leader, celebrity, etc., or
-                organization) or other
+                <span className="font-medium">
+                  Strategy implementation examples
+                </span>
+                : How specific AI systems implement these strategies
               </li>
               <li>
-                <span className="font-medium">Age demographics</span>: Estimated
-                age bracket of the submitter
-              </li>
-              <li>
-                <span className="font-medium">Main topic</span>: Primary concern
-                discussed in the response
-              </li>
-              <li>
-                <span className="font-medium">Summary</span>: Concise summary of
-                the submission&apos;s key points
+                <span className="font-medium">Strategy summaries</span>: Concise
+                explanations of each strategy and its implementation
+                considerations
               </li>
             </ul>
+            <p className="text-sm text-muted-foreground mb-4">
+              This analysis can help prompt engineers and AI developers identify
+              best practices and effective approaches when designing system
+              prompts for their own applications.
+            </p>
             <p className="text-sm text-muted-foreground mb-4 italic">
-              The entire pipeline processing cost just $3.01 to run on all
-              10,068 documents.
+              The entire pipeline processing cost just $0.18 to run for all 19
+              systems.
             </p>
             <div className="p-4 border border-yellow-300 bg-yellow-50 rounded-md mb-4">
               <p className="text-sm font-medium text-yellow-800">
-                <strong>Disclaimer:</strong> Please note that this analysis may
-                contain errors. Potential sources of inaccuracy include OCR
-                processing of the PDF documents and limitations in the LLM agent
-                used for data processing. This demonstration is for illustrative
-                purposes only.
+                <strong>Note:</strong> The strategies identified are extracted
+                through automated analysis and may not capture all nuances or
+                context. Use these insights as a starting point for your own
+                prompt engineering work.
               </p>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
               <Link
-                href="https://www.nitrd.gov/coordination-areas/ai/90-fr-9088-responses/"
+                href="https://github.com/dontriskit/awesome-ai-system-prompts"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-blue-600 hover:underline"
               >
-                View and Download Official RFI Responses as PDFs{" "}
-                <ExternalLink className="ml-1 h-4 w-4" />
+                View Source Repository <ExternalLink className="ml-1 h-4 w-4" />
               </Link>
               <span className="text-muted-foreground hidden sm:inline">|</span>
               <Link
-                href="https://docetl.blob.core.windows.net/showcase/processed_responses.json"
+                href="https://docetl.blob.core.windows.net/showcase/prompts.json"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-blue-600 hover:underline"
@@ -161,7 +151,7 @@ export default function AiRfiResponseAnalysisPage() {
               </Link>
               <span className="text-muted-foreground hidden sm:inline">|</span>
               <Link
-                href="https://docetl.blob.core.windows.net/showcase/summarized_responses.json"
+                href="https://docetl.blob.core.windows.net/demos/analyzed_strategies.json"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-blue-600 hover:underline"
@@ -180,17 +170,17 @@ export default function AiRfiResponseAnalysisPage() {
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-2 mt-4">
-                Explore the Output:
+                Explore System Prompt Strategies:
               </h3>
               <Suspense
                 fallback={
                   <div className="flex items-center justify-center p-8 text-muted-foreground">
                     <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    Loading Data Explorer...
+                    Loading Prompts Explorer...
                   </div>
                 }
               >
-                <RfiResponseExplorer />
+                <SystemPromptsExplorer />
               </Suspense>
             </div>
           </CardContent>

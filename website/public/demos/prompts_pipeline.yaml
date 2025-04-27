@@ -1,0 +1,115 @@
+datasets:
+  system_prompts:
+    type: file
+    path: system-prompts/prompts.json # Input dataset generated previously
+
+default_model: gpt-4o-mini
+
+operations:
+  - name: extract_strategies # Map operation
+    type: map
+    prompt: |
+      Analyze the following system prompt text for the system named "{{ input.system }}".
+      Identify and list the key general-purpose strategies, techniques, principles, or core instructions described in the prompt.
+      Focus on actionable patterns that could be applied across different AI systems, not just specific to this system.
+      
+      For example, strategies like "Always verify user input before processing", "Provide step-by-step explanations", or 
+      "Confirm understanding before proceeding with complex tasks".
+
+      System Prompt Text:
+      {{ input.prompt_text }}
+
+      Extract one or more general-purpose strategies that could be applied broadly across AI systems.
+      Each strategy must be formulated as a clear directive (e.g., "Always do X before Y") and include 
+      the snippet of text from the prompt as evidence. For the evidence, include the complete sentence or paragraph containing the strategy, along with 1-2 surrounding sentences if needed for context. The evidence should be comprehensive enough to make sense when read independently, without requiring the rest of the prompt for understanding.
+      
+      Important: The strategy name should not include the system name. It should be a generic, system-agnostic directive that could apply to any AI system. Keep strategy descriptions brief (around 5 words).
+    output:
+      schema:
+        strategies: "list[{strategy: str, evidence: str}]" # Expecting a list of strategy strings
+    validate:
+      - "all([output['system'].lower() not in o['strategy'].lower() for o in output['strategies']])"
+
+  - name: unnest_strategies # Unnest operation
+    type: unnest
+    unnest_key: strategies # The key from the previous step containing the list
+    recursive: true
+
+  - name: resolve_common_strategies # Resolve operation
+    type: resolve
+    optimize: true
+    blocking_keys:
+      - strategies # The key containing the individual strategy string after unnesting
+    blocking_threshold: 0.4646 # Adjust threshold as needed for similarity
+    comparison_model: gpt-4o-mini # Model for pairwise comparison
+    comparison_prompt: |
+      Compare the following two AI system strategies:
+
+      [Strategy 1]: {{ input1.strategy }}
+      Example: {{ input1.evidence }}
+      [Strategy 2]: {{ input2.strategy }}
+      Example: {{ input2.evidence }}
+
+      Do these two strategies describe the same core concept or technique, even if worded differently?
+      Respond with "True" if they represent the same underlying strategy, or "False" if they are distinct strategies.
+      
+      Important: Strategies should be considered the same if they describe the same core concept or technique, even with different implementations. When strategies share fundamental principles or primary goals, consider them the same. However, if they address distinctly different aspects of AI behavior or serve different primary purposes, they should be considered separate. When in doubt, lean slightly toward answering "True" but don't merge strategies that are clearly distinct.
+    embedding_model: text-embedding-3-small # Model for generating embeddings for blocking
+    output:
+      schema:
+        strategy: str # The canonical name for the merged strategy group
+    resolution_model: gpt-4o-mini # Model for generating the canonical name
+    resolution_prompt: |
+      Analyze the following similar strategies extracted from different AI system prompts:
+
+      {% for item in inputs %}
+      - {{ item.strategy }} (from system: {{ item.system }})
+      {% endfor %}
+
+      Generate a single, specific, and actionable name for the core strategy shared by these examples. 
+      The name should:
+      1. Be concrete and distinct (avoid vague terms like "Information Gathering" or "Verification")
+      2. Use action verbs and clear directives
+      3. Be 3-7 words in length
+      4. Precisely describe the specific technique or approach
+      5. Be implementable as a direct instruction
+
+      Bad examples: "Information Gathering and Verification", "User-Centric Communication", "Effective Response Generation"
+      Good examples: "Preserve Unknown Blocks Intact", "Test Diagrams For Accuracy", "Maintain Consistent Text Styling"
+
+      Return the canonical strategy name as a JSON object like: {"canonical_strategy": "Specific Action-Oriented Name"}
+
+  - name: summarize_strategies # Reduce operation
+    type: reduce
+    reduce_key: strategy # Group by the resolved canonical strategy name
+    optimize: true
+    output:
+      schema:
+        summary: str
+        systems_and_examples: "list[{system: str, example: str}]" # List of systems employing this strategy
+    prompt: |
+      The following AI systems employ variations of the strategy identified as "{{ inputs[0].strategy }}":
+
+      Systems:
+      {% for item in inputs %}
+      - System: {{ item.system }}
+      - Example: {{ item.evidence }}
+      {% endfor %}
+
+      1. Provide a concise, actionable summary of this strategy that another developer could implement in their own system. The summary should be simple and easy to understand. Include specific examples from the systems showing how this strategy is applied in practice, and highlight any key implementation details or considerations. Format your summary in markdown.
+      2. List the unique systems that use this strategy, and all the full examples.
+
+pipeline:
+  steps:
+    - name: analyze_system_prompts
+      input: system_prompts # Use the defined dataset
+      operations:
+        - extract_strategies
+        - unnest_strategies
+        - resolve_common_strategies
+        - summarize_strategies
+
+  output:
+    type: file
+    path: system-prompts/analyzed_strategies.json # Output file path
+    intermediate_dir: system-prompts/intermediate # Directory for intermediate results

@@ -66,11 +66,11 @@ export default function AiSystemPromptsAnalysisPage() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="text-xl">
-              AI System Prompts Analysis
+              AI Assistant System Prompts Analysis
             </CardTitle>
             <CardDescription>
-              Analyzing system prompts from popular AI tools and agents to
-              extract common patterns and strategies.
+              Analyzing system prompts from popular AI assistants to extract
+              common prompt engineering strategies.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

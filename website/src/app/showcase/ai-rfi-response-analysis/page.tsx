@@ -69,7 +69,7 @@ export default function AiRfiResponseAnalysisPage() {
           <CardHeader>
             <CardTitle className="text-xl">AI RFI Response Analysis</CardTitle>
             <CardDescription>
-              Analyzing public responses to the U.S. Government&apos;s{" "}
+              <em>Analyzing public responses to the U.S. Government&apos;s </em>
               <Link
                 href="https://www.nitrd.gov/coordination-areas/ai/90-fr-9088-responses/"
                 target="_blank"

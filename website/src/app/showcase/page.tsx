@@ -2,7 +2,6 @@
 
 import React from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import {
   Card,
   CardContent,
@@ -54,6 +53,48 @@ export default function DemosIndexPage() {
               </CardContent>
             </Card>
           </Link>
+
+          <Link
+            href="/showcase/ai-system-prompts-analysis"
+            className="block group"
+          >
+            <Card className="h-full hover:shadow-lg transition-shadow duration-200 hover:border-primary/50">
+              <CardHeader>
+                <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                  AI System Prompts Analysis
+                </CardTitle>
+                <CardDescription>
+                  Explore common patterns and strategies in system prompts from
+                  popular AI tools and agents.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-end items-center text-sm text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  View Demo <ArrowRight className="ml-1 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+
+        {/* Add Community Contribution Note */}
+        <div className="text-center text-muted-foreground mt-8 mb-12">
+          <p>
+            Want to add your own demo to the showcase? We welcome community
+            contributions!
+          </p>
+          <p>
+            Join our{" "}
+            <a
+              href="https://discord.gg/fHp7B2X3xx"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Discord server
+            </a>{" "}
+            to discuss your ideas.
+          </p>
         </div>
 
         <div className="mt-auto pt-8 flex justify-center items-center space-x-4 border-t">

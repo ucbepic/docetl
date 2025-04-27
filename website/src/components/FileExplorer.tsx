@@ -57,7 +57,8 @@ import {
 } from "./ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useDatasetUpload } from "@/hooks/useDatasetUpload";
-import { getBackendUrl, isDocWranglerHosted } from "@/lib/api-config";
+import { getBackendUrl } from "@/lib/api-config";
+import { isDocWranglerHosted } from "@/lib/utils";
 
 interface FileExplorerProps {
   files: File[];
@@ -1111,6 +1112,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                         <div className="min-w-0 flex-1 overflow-hidden">
                           <div className="flex items-center">
                             <p className="text-sm font-medium text-gray-700 truncate">
+                              {/* @ts-expect-error FileWithPath type is not fully defined */}
                               {(file as FileWithPath).relativePath || file.name}
                             </p>
                           </div>

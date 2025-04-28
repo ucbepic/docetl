@@ -216,6 +216,7 @@ export function generatePipelineConfig(
 
   // Fix type errors by asserting the pipeline config type
   let pipelineConfig: any = {
+    from_docwrangler: true,
     optimizer_model: optimizerModel,
     datasets,
     default_model,

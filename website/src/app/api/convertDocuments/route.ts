@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     if (azureEndpoint && azureKey) {
       headers["azure-endpoint"] = azureEndpoint;
       headers["azure-key"] = azureKey;
+      headers["is-read"] = "true";
     }
     if (customDoclingUrl) {
       headers["custom-docling-url"] = customDoclingUrl;

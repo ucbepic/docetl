@@ -10,6 +10,7 @@ import csv
 from io import StringIO
 from pathlib import Path
 from server.app.models import PipelineConfigRequest
+from . import vol
 
 router = APIRouter()
 
@@ -32,6 +33,8 @@ async def check_namespace(namespace: str):
         
         if not exists:
             namespace_dir.mkdir(parents=True, exist_ok=True)
+            
+        vol.commit()
             
         return {"exists": exists}
     except Exception as e:
@@ -159,6 +162,8 @@ async def upload_file(
             file_path = upload_dir / file.filename.replace('.csv', '.json')
             with file_path.open("wb") as f:
                 f.write(file_content)
+                
+            vol.commit()
             
         return {"path": str(file_path)}
     except Exception as e:
@@ -187,6 +192,9 @@ async def save_documents(files: List[UploadFile] = File(...), namespace: str = F
                 "path": str(file_path)
             })
             
+        # Commit the volume
+        
+            
         return {"files": saved_files}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save documents: {str(e)}")
@@ -207,6 +215,8 @@ async def write_pipeline_config(request: PipelineConfigRequest):
         with file_path.open("w") as f:
             f.write(request.config)
             
+        vol.commit()
+            
         return {
             "filePath": str(file_path),
             "inputPath": request.input_path,
@@ -223,28 +233,47 @@ async def read_file(path: str):
             # For HTTP URLs, we'll need to implement request handling
             raise HTTPException(status_code=400, detail="HTTP URLs not supported in this endpoint")
             
+        print(f"Reading path {path}")
+        vol.reload()
         file_path = Path(path)
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
             
         return FileResponse(path)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
 
 @router.get("/read-file-page")
-async def read_file_page(path: str, page: int = 0, chunk_size: int = 500000):
+async def read_file_page(path: str, page: int = 0, chunk_size: int = 1000000):
     """Read file contents by page"""
     try:
         file_path = Path(path)
+        vol.reload()
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
             
         file_size = file_path.stat().st_size
         start = page * chunk_size
         
+        # Check if start position is beyond file size
+        if start >= file_size:
+            return {
+                "content": "",
+                "totalSize": file_size,
+                "page": page,
+                "hasMore": False
+            }
+        
+        # Calculate actual bytes to read (don't read past end of file)
+        bytes_to_read = min(chunk_size, file_size - start)
+        
+        print(f"Reading file {file_path} from {start} to {start + bytes_to_read} (file size: {file_size})")
+        
         with file_path.open("rb") as f:
             f.seek(start)
-            content = f.read(chunk_size).decode("utf-8")
+            content = f.read(bytes_to_read).decode("utf-8")
             
         return {
             "content": content,
@@ -253,6 +282,8 @@ async def read_file_page(path: str, page: int = 0, chunk_size: int = 500000):
             "hasMore": start + len(content) < file_size
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
 
 @router.get("/serve-document/{path:path}")
@@ -262,6 +293,8 @@ async def serve_document(path: str):
         # Security check for path traversal
         if ".." in path:
             raise HTTPException(status_code=400, detail="Invalid file path")
+        
+        vol.reload()
             
         file_path = Path(path)
         if not file_path.exists():
@@ -279,6 +312,7 @@ async def serve_document(path: str):
 async def check_file(path: str):
     """Check if a file exists without reading it"""
     try:
+        vol.reload()
         file_path = Path(path)
         exists = file_path.exists()
         return {"exists": exists}

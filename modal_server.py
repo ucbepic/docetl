@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import modal
-from server.app.routes import pipeline, convert, filesystem
+from server.app.routes import pipeline, convert, filesystem, vol
 from dotenv import load_dotenv
 import docetl
 import server
@@ -25,7 +25,6 @@ app = modal.App(
     .pip_install("supabase")
     .run_commands(["poetry config virtualenvs.create false", "poetry install --all-extras --no-root && poetry install --all-extras", "pip install docetl --target=./lib1"])
 )
-vol = modal.Volume.from_name("docetl-backend-api", create_if_missing=True)
 
 
 @app.function(
@@ -35,7 +34,7 @@ vol = modal.Volume.from_name("docetl-backend-api", create_if_missing=True)
         modal.Secret.from_name("docetl-secrets"),
         modal.Secret.from_name("supabase-secret"),
     ],
-    keep_warm=1,
+    keep_warm=3,
     timeout=3600
 )
 @modal.asgi_app()

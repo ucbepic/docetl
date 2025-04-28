@@ -300,6 +300,28 @@ async def log_pipeline_run(yaml_config: str, namespace: str):
     except Exception as e:
         logging.error(f"Failed to log pipeline run: {e}")
         return None
+    
+async def log_pipeline_completion(namespace: str, config: str, cost: float, used_hosted_llm: bool):
+    # Initialize Supabase client
+    supabase = create_client(
+        supabase_url=os.environ.get("SUPABASE_URL"),
+        supabase_key=os.environ.get("SUPABASE_KEY")
+    )
+    
+    try:
+        data = {
+            "pipeline_yaml": config,
+            "namespace": namespace,
+            "cost": cost,
+            "used_hosted_llm": used_hosted_llm
+        }
+        
+        result = supabase.table("executed_pipelines").insert(data).execute()
+        return result.data[0]["id"]
+    except Exception as e:
+        logging.error(f"Failed to log pipeline completion: {e}")
+        return None
+
 
 # Modal queue setup
 pipeline_queue = modal.Queue.from_name("docetl-message-queue", create_if_missing=True)
@@ -400,6 +422,10 @@ async def process_pipeline(config: Dict[str, Any], client_id: str, task_id: str)
                 **final_result
             }
         }, partition=client_id)
+        
+        # Log the pipeline completion with the cost
+        used_hosted_llm = runner.config.get("llm_api_keys") is None
+        await log_pipeline_completion(namespace=client_id, config=config["yaml_config"], cost=cost, used_hosted_llm=used_hosted_llm)
 
     except Exception as e:
         import traceback

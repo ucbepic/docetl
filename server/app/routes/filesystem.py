@@ -193,8 +193,8 @@ async def save_documents(files: List[UploadFile] = File(...), namespace: str = F
             })
             
         # Commit the volume
+        vol.commit()
         
-            
         return {"files": saved_files}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save documents: {str(e)}")

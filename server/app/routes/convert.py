@@ -12,6 +12,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import base64
+import pypdfium2 as pdfium
 
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -30,7 +31,71 @@ router = APIRouter()
 MODAL_ENDPOINT = "https://ucbepic--docling-converter-convert-documents.modal.run"
 # MODAL_ENDPOINT = "https://ucbepic--docling-converter-convert-documents-dev.modal.run"
 
-def process_document_with_azure(file_path: str, endpoint: str, key: str) -> str:
+# Maximum page limit for Azure Document Intelligence
+MAX_AZURE_PAGE_LIMIT = 200
+
+def get_pdf_page_count(file_path: str) -> int:
+    """
+    Get the number of pages in a PDF document.
+    
+    Args:
+        file_path: Path to the PDF file
+        
+    Returns:
+        Number of pages in the PDF
+    """
+    try:
+        pdf = pdfium.PdfDocument(file_path)
+        return len(pdf)
+    except Exception as e:
+        print(f"Error counting PDF pages: {str(e)}")
+        # Return a large number to trigger the page limit check
+        return MAX_AZURE_PAGE_LIMIT + 1
+
+def process_document_with_azure_read(file_path: str, endpoint: str, key: str) -> str:
+    """
+    Process a single document with Azure Document Intelligence using the prebuilt-read model
+    
+    Args:
+        file_path: Path to the document file
+        endpoint: Azure Document Intelligence endpoint
+        key: Azure API key
+        
+    Returns:
+        Extracted text content from the document as a string
+    """
+    try:
+        # Initialize the Document Intelligence client
+        client = DocumentIntelligenceClient(
+            endpoint=endpoint,
+            credential=AzureKeyCredential(key)
+        )
+        
+        # Read and process the file
+        with open(file_path, "rb") as file:
+            file_bytes = file.read()
+            poller = client.begin_analyze_document(
+                "prebuilt-read",
+                AnalyzeDocumentRequest(bytes_source=file_bytes))
+            result = poller.result()
+        
+        # Extract text content from all pages
+        extracted_text = ""
+        for idx, page in enumerate(result.pages):
+            # Add page number as a header
+            page_number = page.pageNumber if hasattr(page, 'pageNumber') else idx + 1
+            extracted_text += f"Page {page_number}\n\n"
+            for line in page.lines:
+                extracted_text += line.content + "\n"
+            extracted_text += "\n"  # Extra line break between pages
+                
+        return extracted_text.strip()
+    
+    except Exception as e:
+        print(f"Error processing document: {str(e)}")
+        return f"Error processing document: {str(e)}"
+
+def process_document_with_azure_layout(file_path: str, endpoint: str, key: str) -> str:
     """Process a single document with Azure Document Intelligence"""
     try:
         document_analysis_client = DocumentIntelligenceClient(
@@ -192,10 +257,22 @@ async def convert_documents(
 async def azure_convert_documents(
     files: List[UploadFile] = File(...),
     azure_endpoint: Optional[str] = Header(None),
-    azure_key: Optional[str] = Header(None)
+    azure_key: Optional[str] = Header(None),
+    is_read: str = Header("false")
 ):
     if not azure_endpoint or not azure_key:
-        return {"error": "Azure credentials are required"}
+        # Use os.getenv keys
+        azure_endpoint = os.getenv("AZURE_DOCUMENTINTELLIGENCE_ENDPOINT")
+        azure_key = os.getenv("AZURE_DOCUMENTINTELLIGENCE_API_KEY")
+        
+        if not azure_endpoint or not azure_key:
+            return {"error": "Azure credentials are required"}
+        
+        # If there are > 50 files, return an error
+        if len(files) > 50:
+            return {"error": "We will only process up to 50 files; use your own Azure keys to process more."}
+    
+    is_read = is_read.lower() == "true"
 
     with tempfile.TemporaryDirectory() as temp_dir:
         # Save uploaded files and prepare for processing
@@ -210,15 +287,22 @@ async def azure_convert_documents(
                 content = await file.read()
                 buffer.write(content)
             
+            # Check page count before adding to processing queue
+            if file_path.lower().endswith('.pdf'):
+                page_count = get_pdf_page_count(file_path)
+                if page_count > MAX_AZURE_PAGE_LIMIT:
+                    # Return an error here
+                    return {"error": f"Document {file.filename} exceeds maximum page limit of {MAX_AZURE_PAGE_LIMIT} pages. This document has {page_count} pages."}
+            
             file_paths.append(file_path)
             original_filenames.append(file.filename)
 
         # Process documents concurrently using ThreadPoolExecutor
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=min(64, len(file_paths))) as executor:
             futures = []
             for file_path in file_paths:
                 future = executor.submit(
-                    process_document_with_azure,
+                    process_document_with_azure_read if is_read else process_document_with_azure_layout,
                     file_path,
                     azure_endpoint,
                     azure_key
@@ -239,7 +323,10 @@ async def azure_convert_documents(
             for filename, content in zip(original_filenames, results)
         ]
 
-        return {"documents": formatted_results}
+        # Return results, including information about skipped files
+        response = {"documents": formatted_results}
+
+        return response
     
 def get_supported_encodings():
     """Get list of supported encodings from environment or use default."""

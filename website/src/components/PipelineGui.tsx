@@ -55,6 +55,10 @@ import {
 } from "@/components/ui/hover-card";
 import { useRestorePipeline } from "@/hooks/useRestorePipeline";
 import PipelineSettings from "@/components/PipelineSettings";
+import {
+  DOCWRANGLER_HOSTED_COST_LIMIT,
+  isDocWranglerHosted,
+} from "@/lib/utils";
 
 interface OperationMenuItemProps {
   name: string;
@@ -216,6 +220,7 @@ const PipelineGUI: React.FC = () => {
     setIsLoadingOutputs,
     files,
     setCost,
+    cost,
     defaultModel,
     setDefaultModel,
     setTerminalOutput,
@@ -551,6 +556,23 @@ const PipelineGUI: React.FC = () => {
 
   const onRunAll = useCallback(
     async (clear_intermediate: boolean) => {
+      // Check if cost exceeds limit and no API keys are set
+      if (
+        isDocWranglerHosted() &&
+        cost > DOCWRANGLER_HOSTED_COST_LIMIT &&
+        (!apiKeys || Object.keys(apiKeys).length === 0)
+      ) {
+        toast({
+          title: "Cost Limit Exceeded",
+          description: `You're trying to run operations that may exceed the cost limit of $${DOCWRANGLER_HOSTED_COST_LIMIT.toFixed(
+            2
+          )}. Please add your API keys in settings to continue.`,
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
+      }
+
       // Find the last visible operation
       const lastVisibleOpIndex = operations.findLastIndex(
         (op) => op.visibility !== false
@@ -639,10 +661,11 @@ const PipelineGUI: React.FC = () => {
       defaultModel,
       pipelineName,
       sampleSize,
-      apiKeys, // Add apiKeys to the dependency array
+      apiKeys,
       systemPrompt,
       namespace,
       extraPipelineSettings,
+      cost,
     ]
   );
 

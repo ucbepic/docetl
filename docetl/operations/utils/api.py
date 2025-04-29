@@ -664,6 +664,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         extra_litellm_kwargs.update(litellm_completion_kwargs)
         if "n" in op_config.get("output", {}).keys():
             extra_litellm_kwargs["n"] = op_config["output"]["n"]
+        if is_snowflake(model):
+            extra_litellm_kwargs["allowed_openai_params"] = ["tools", "tool_choice"]
 
         if tools is not None:
             try:

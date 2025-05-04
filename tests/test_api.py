@@ -199,6 +199,10 @@ def test_pipeline_creation(
             type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
         ),
         default_model="gpt-4o-mini",
+        system_prompt={
+            "dataset_description": "a collection of personal information records",
+            "persona": "a data analyst processing and summarizing personal information",
+        }
     )
 
     assert isinstance(pipeline, Pipeline)

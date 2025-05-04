@@ -145,6 +145,7 @@ class Pipeline:
         default_model: Optional[str] = None,
         rate_limits: Optional[Dict[str, int]] = None,
         optimizer_config: Dict[str, Any] = {},
+        **kwargs,
     ):
         self.name = name
         self.datasets = datasets
@@ -164,6 +165,10 @@ class Pipeline:
         self.default_model = default_model
         self.rate_limits = rate_limits
         self.optimizer_config = optimizer_config
+
+        # Add other kwargs to self.other_config
+        self.other_config = kwargs
+
         self._load_env()
 
     def _load_env(self):
@@ -288,6 +293,7 @@ class Pipeline:
                 else None
             ),
             "optimizer_config": self.optimizer_config,
+            **self.other_config,
         }
         if self.rate_limits:
             d["rate_limits"] = self.rate_limits

@@ -58,7 +58,11 @@ pipeline = Pipeline(
     operations=operations,
     steps=steps,
     output=output,
-    default_model="gpt-4o-mini"
+    default_model="gpt-4o-mini",
+    system_prompt={
+        "dataset_description": "a collection of medical conversation transcripts",
+        "persona": "a healthcare analyst extracting and summarizing medication information",
+    }
 )
 
 # Optimize the pipeline

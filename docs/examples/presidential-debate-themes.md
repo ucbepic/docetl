@@ -50,7 +50,7 @@ pipeline:
           {{ input.content }}
 
           Extract the main themes discussed in this debate and the viewpoints of the candidates on these themes.
-          Return a list of themes and corresponding viewpoints in the following format:
+          Return a list of themes and corresponding viewpoints (including the specific quotes from the debate) in the following format:
           [
             {
               "theme": "Theme 1",

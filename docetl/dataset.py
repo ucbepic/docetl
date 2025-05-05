@@ -2,7 +2,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel
+import pandas as pd
+from pydantic import BaseModel, ConfigDict
 
 from docetl.base_schemas import ParsingTool
 from docetl.parsing_tools import get_parser, get_parsing_tools
@@ -70,8 +71,10 @@ class Dataset:
             of the previous tool as its input, allowing for chained processing of the data.
         """
 
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
         type: Literal["file", "memory"]
-        path: str
+        path: Union[str, List[Dict], pd.DataFrame]
         source: str = "local"
         parsing: Optional[List[Dict[str, str]]] = None
 
@@ -157,9 +160,9 @@ class Dataset:
             if not path_or_data.lower().endswith(valid_extensions):
                 raise ValueError(f"Path must end with one of {valid_extensions}")
         elif self.type == "memory":
-            if not isinstance(path_or_data, list):
+            if not isinstance(path_or_data, (list, pd.DataFrame)):
                 raise ValueError(
-                    "For type 'memory', path_or_data must be a list of dictionaries"
+                    "For type 'memory', path_or_data must be a list of dictionaries, or a pandas DataFrame"
                 )
         return path_or_data
 
@@ -244,12 +247,12 @@ class Dataset:
         result = func(item, **function_kwargs)
         return [item.copy() | res for res in result]
 
-    def _apply_parsing_tools(self, data: List[Dict]) -> List[Dict]:
+    def _apply_parsing_tools(self, data: Union[List[Dict], pd.DataFrame]) -> List[Dict]:
         """
         Apply parsing tools to the data.
 
         Args:
-            data (List[Dict]): The data to apply parsing tools to.
+            data (Union[List[Dict], pd.DataFrame]): The data to apply parsing tools to.
 
         Returns:
             List[Dict]: The data with parsing tools applied.
@@ -257,6 +260,9 @@ class Dataset:
         Raises:
             ValueError: If a parsing tool is not found or if an input key is missing from an item.
         """
+        if isinstance(data, pd.DataFrame):
+            data = data.to_dict(orient="records")
+
         for tool in self.parsing:
             function_kwargs = dict(tool)
             function_kwargs.pop("function")
@@ -327,7 +333,16 @@ class Dataset:
                 raise ValueError(
                     f"Sample size {n} is larger than dataset size {len(data)}"
                 )
-            sampled_data = rd.sample(data, n) if random else data[:n]
+            if random:
+                sampled_data = (
+                    data.sample(n=n)
+                    if isinstance(data, pd.DataFrame)
+                    else rd.sample(data, n)
+                )
+            else:
+                sampled_data = (
+                    data.iloc[:n] if isinstance(data, pd.DataFrame) else data[:n]
+                )
             return self._apply_parsing_tools(sampled_data)
 
         _, ext = os.path.splitext(self.path_or_data.lower())

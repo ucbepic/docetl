@@ -42,7 +42,6 @@ pydantic = "^2.9.2"
 litellm = "^1.59.10"
 httpx = { version = "^0.27.2", optional = true }
 boto3 = "^1.37.27"
-pandas = "^2.0.0"
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]

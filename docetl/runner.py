@@ -484,6 +484,18 @@ class DSLRunner(ConfigWrapper):
                 self.console.log(
                     f"[green]✓[/green] Loaded dataset '{name}' from {dataset_config['path']}"
                 )
+            elif dataset_config["type"] == "memory":
+                datasets[name] = Dataset(
+                    self,
+                    "memory",
+                    dataset_config["path"],
+                    source="local",
+                    parsing=dataset_config.get("parsing", []),
+                    user_defined_parsing_tool_map=self.parsing_tool_map,
+                )
+                self.console.log(
+                    f"[green]✓[/green] Loaded dataset '{name}' from in-memory data"
+                )
             else:
                 raise ValueError(f"Unsupported dataset type: {dataset_config['type']}")
 

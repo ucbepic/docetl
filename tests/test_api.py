@@ -2,6 +2,7 @@ import pytest
 import json
 import tempfile
 import os
+import pandas as pd
 from docetl.api import (
     Pipeline,
     Dataset,
@@ -42,6 +43,16 @@ def temp_input_file():
         )
     yield tmp.name
     os.unlink(tmp.name)
+
+
+@pytest.fixture(params=["file", "memory"])
+def temp_input_dataset(request, temp_input_file):
+    if request.param == "file":
+        return Dataset(type="file", path=temp_input_file)
+    else:
+        # this will be a DataFrame already
+        df = pd.read_json(temp_input_file)
+        return Dataset(type="memory", path=df)
 
 
 @pytest.fixture
@@ -181,11 +192,11 @@ def right_data(temp_input_file):
 
 
 def test_pipeline_creation(
-    map_config, reduce_config, temp_input_file, temp_output_file, temp_intermediate_dir
+    map_config, reduce_config, temp_input_dataset, temp_output_file, temp_intermediate_dir
 ):
     pipeline = Pipeline(
         name="test_pipeline",
-        datasets={"test_input": Dataset(type="file", path=temp_input_file)},
+        datasets={"test_input": temp_input_dataset},
         operations=[map_config, reduce_config],
         steps=[
             PipelineStep(
@@ -211,11 +222,11 @@ def test_pipeline_creation(
 
 
 def test_pipeline_optimization(
-    map_config, reduce_config, temp_input_file, temp_output_file, temp_intermediate_dir
+    map_config, reduce_config, temp_input_dataset, temp_output_file, temp_intermediate_dir
 ):
     pipeline = Pipeline(
         name="test_pipeline",
-        datasets={"test_input": Dataset(type="file", path=temp_input_file)},
+        datasets={"test_input": temp_input_dataset},
         operations=[map_config, reduce_config],
         steps=[
             PipelineStep(
@@ -245,11 +256,11 @@ def test_pipeline_optimization(
 
 
 def test_pipeline_execution(
-    map_config, temp_input_file, temp_output_file, temp_intermediate_dir
+    map_config, temp_input_dataset, temp_output_file, temp_intermediate_dir
 ):
     pipeline = Pipeline(
         name="test_pipeline",
-        datasets={"test_input": Dataset(type="file", path=temp_input_file)},
+        datasets={"test_input": temp_input_dataset},
         operations=[map_config],
         steps=[
             PipelineStep(

@@ -601,8 +601,17 @@ class Optimizer:
             return self.config
 
         # Create a clean copy of the config
+        datasets = {}
+        for dataset_name, dataset_config in self.config.get("datasets", {}).items():
+            if dataset_config["type"] == "memory":
+                dataset_config_copy = copy.deepcopy(dataset_config)
+                dataset_config_copy["path"] = "in-memory data"
+                datasets[dataset_name] = dataset_config_copy
+            else:
+                datasets[dataset_name] = dataset_config
+
         clean_config = {
-            "datasets": self.config.get("datasets", {}),
+            "datasets": datasets,
             "operations": [],
             "pipeline": self.runner.config.get(
                 "pipeline", {}

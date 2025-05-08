@@ -55,6 +55,8 @@ def is_snowflake(model: str) -> bool:
 class APIWrapper(object):
     def __init__(self, runner):
         self.runner = runner
+        self.default_lm_api_base = runner.config.get("default_lm_api_base", None)
+        self.default_embedding_api_base = runner.config.get("default_embedding_api_base", None)
 
     @freezeargs
     def gen_embedding(self, model: str, input: List[str]) -> List[float]:
@@ -98,7 +100,12 @@ class APIWrapper(object):
                 self.runner.blocking_acquire("embedding_call", weight=1)
                 if self.runner.is_cancelled:
                     raise asyncio.CancelledError("Operation was cancelled")
-                result = embedding(model=model, input=input)
+                
+                extra_kwargs = {}
+                if self.default_embedding_api_base:
+                    extra_kwargs["api_base"] = self.default_embedding_api_base
+
+                result = embedding(model=model, input=input, **extra_kwargs)
                 # Cache the result
                 c.set(key, result)
 
@@ -248,6 +255,13 @@ class APIWrapper(object):
                         }
                         if "gemini" not in model:
                             should_refine_params["additionalProperties"] = False
+                            
+                        # Add extra kwargs
+                        extra_kwargs = {}
+                        if self.default_lm_api_base:
+                            extra_kwargs["api_base"] = self.default_lm_api_base
+                        if is_snowflake(model):
+                            extra_kwargs["allowed_openai_params"] = ["tools", "tool_choice"]
 
                         validator_response = completion(
                             model=gleaning_config.get("model", model),
@@ -270,6 +284,7 @@ class APIWrapper(object):
                             ],
                             tool_choice="required",
                             **litellm_completion_kwargs,
+                            **extra_kwargs,
                         )
                         total_cost += completion_cost(validator_response)
 
@@ -666,6 +681,8 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             extra_litellm_kwargs["n"] = op_config["output"]["n"]
         if is_snowflake(model):
             extra_litellm_kwargs["allowed_openai_params"] = ["tools", "tool_choice"]
+        if self.default_lm_api_base:
+            extra_litellm_kwargs["api_base"] = self.default_lm_api_base
 
         if tools is not None:
             try:

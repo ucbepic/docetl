@@ -485,9 +485,9 @@ class APIWrapper(object):
                 )
                 time.sleep(sleep_time)
                 rate_limited_attempt += 1
-            except APIConnectionError:
+            except APIConnectionError as e:
                 self.runner.console.log(
-                    "[bold red]API connection error. Retrying...[/bold red]"
+                    f"[bold red]API connection error. Retrying...[/bold red] {e}"
                 )
                 time.sleep(1)
             except ServiceUnavailableError:

@@ -135,7 +135,7 @@ class ExtractOperation(BaseOperation):
         """
         # Get the text content from the document
         if doc_key not in item or not isinstance(item[doc_key], str):
-            if self.config.get("skip_on_error", False):
+            if self.config.get("skip_on_error", True):
                 self.console.log(f"[yellow]Warning: Key '{doc_key}' not found or not a string in document. Skipping.[/yellow]")
                 return [], 0.0
             else:
@@ -148,7 +148,29 @@ class ExtractOperation(BaseOperation):
         
         # Render the prompt
         extraction_instructions = strict_render(self.config["prompt"], {"input": item})
-        augmented_prompt_template = "You should extract the following information from the text provided, and return the information as a list of line ranges that we will programmatically extract from the text. Here are the instructions for what to extract: {{ extraction_instructions }}. Here is the text: {{ formatted_text }}\n\nPlease return the extracted line ranges as a list of start_line and end_line values."
+        augmented_prompt_template = """
+You are extracting specific content from text documents. Extract information according to these instructions: {{ extraction_instructions }}
+
+The text is formatted with line numbers as follows:
+{{ formatted_text }}
+
+INSTRUCTIONS:
+1. Analyze the text carefully and identify the exact line ranges that contain the requested information
+2. Return ONLY line ranges as a JSON list of objects with 'start_line' and 'end_line' properties
+3. Each range should be as precise as possible, including only relevant text
+4. If multiple separate sections match the criteria, return multiple range objects
+5. If no matching content is found, return an empty list
+
+EXPECTED OUTPUT FORMAT:
+{
+  "line_ranges": [
+    {"start_line": 12, "end_line": 15},
+    {"start_line": 28, "end_line": 32}
+  ]
+}
+
+Do not include explanatory text in your response, only the JSON object.
+"""
         
         rendered_prompt = strict_render(augmented_prompt_template, {"extraction_instructions": extraction_instructions, "formatted_text": formatted_text})
         
@@ -157,7 +179,7 @@ class ExtractOperation(BaseOperation):
         
         # Define the output schema for line number strategy
         line_number_schema = {
-            "extractions": "list[{'start_line': int, 'end_line': int}]",
+            "line_ranges": "list[{'start_line': int, 'end_line': int}]",
         }
         
         # Call the LLM
@@ -185,13 +207,17 @@ class ExtractOperation(BaseOperation):
             extracted_texts = []
             lines = formatted_text.split('\n')
             
-            for extraction in parsed_output.get("extractions", []):
-                start_line = extraction.get("start_line", 0)
-                end_line = extraction.get("end_line", 0)
+            if isinstance(parsed_output, str):
+                self.console.log(f"[bold red]Error parsing LLM response: {llm_result.response}. Skipping.[/bold red]")
+                return [], llm_result.total_cost
+            
+            for line_range in parsed_output.get("line_ranges", []):
+                start_line = line_range.get("start_line", 0)
+                end_line = line_range.get("end_line", 0)
                 
                 # Validate line numbers
                 if start_line < 1 or end_line < start_line or end_line > len(lines):
-                    if self.config.get("skip_on_error", False):
+                    if self.config.get("skip_on_error", True):
                         self.console.log(f"[yellow]Warning: Invalid line numbers {start_line}-{end_line} for document with {len(lines)} lines. Skipping this extraction.[/yellow]")
                         continue
                     else:
@@ -212,7 +238,7 @@ class ExtractOperation(BaseOperation):
             return extracted_texts, llm_result.total_cost
         
         except Exception as e:
-            if self.config.get("skip_on_error", False):
+            if self.config.get("skip_on_error", True):
                 self.console.log(f"[bold red]Error parsing LLM response: {str(e)}. Skipping.[/bold red]")
                 return [], llm_result.total_cost
             else:
@@ -233,7 +259,7 @@ class ExtractOperation(BaseOperation):
         
         # Get the text content from the document
         if doc_key not in item or not isinstance(item[doc_key], str):
-            if self.config.get("skip_on_error", False):
+            if self.config.get("skip_on_error", True):
                 self.console.log(f"[yellow]Warning: Key '{doc_key}' not found or not a string in document. Skipping.[/yellow]")
                 return [], 0.0
             else:
@@ -249,7 +275,37 @@ class ExtractOperation(BaseOperation):
         
         # Render the prompt
         extraction_instructions = strict_render(self.config["prompt"], context)
-        augmented_prompt_template = "You should extract the following information from the text provided, and return the information as a list of regex patterns that we will programmatically apply to the text. Here are the instructions for what to extract: {{ extraction_instructions }}. Here is the text: {{ text_content }}\n\nPlease return the regex patterns as a list that will match the relevant sections of text."
+        augmented_prompt_template = """
+You are creating regex patterns to extract specific content from text. Extract information according to these instructions: {{ extraction_instructions }}
+
+The text to analyze is:
+{{ text_content }}
+
+INSTRUCTIONS:
+1. Create precise regex patterns that will extract ONLY the requested information
+2. Return a JSON object with a list of regex patterns
+3. Each pattern should:
+   - Use proper regex syntax compatible with Python's re module
+   - Include capture groups to isolate the exact text needed
+   - Handle potential variations in formatting
+   - Account for multi-line content where appropriate using (?s) or other flags
+4. Test your patterns mentally against the sample text to verify they work
+
+EXPECTED OUTPUT FORMAT:
+{
+  "patterns": [
+    "pattern1",
+    "pattern2"
+  ]
+}
+
+EXAMPLE REGEX PATTERNS:
+- Simple extraction: "Name: ([\\w\\s]+)"
+- With flags for multiline: "(?s)Abstract:\\s*(.+?)\\n\\n"
+- For structured data: "<title>(.*?)</title>"
+
+Return only the JSON object with your patterns, no explanatory text.
+"""
         
         rendered_prompt = strict_render(augmented_prompt_template, {"extraction_instructions": extraction_instructions, "text_content": text_content})
         # Prepare messages for LLM
@@ -289,7 +345,7 @@ class ExtractOperation(BaseOperation):
                     matches = re.findall(pattern, text_content, re.DOTALL)
                     extracted_texts.extend(matches)
                 except re.error as e:
-                    if self.config.get("skip_on_error", False):
+                    if self.config.get("skip_on_error", True):
                         self.console.log(f"[yellow]Warning: Invalid regex pattern '{pattern}': {str(e)}. Skipping.[/yellow]")
                     else:
                         raise ValueError(f"Invalid regex pattern '{pattern}': {str(e)}")
@@ -297,7 +353,7 @@ class ExtractOperation(BaseOperation):
             return extracted_texts, llm_result.total_cost
         
         except Exception as e:
-            if self.config.get("skip_on_error", False):
+            if self.config.get("skip_on_error", True):
                 self.console.log(f"[bold red]Error parsing LLM response: {str(e)}. Skipping.[/bold red]")
                 return [], llm_result.total_cost
             else:
@@ -330,7 +386,7 @@ class ExtractOperation(BaseOperation):
                 # Process each document key in the item
                 for doc_key in self.config["document_keys"]:
                     if doc_key not in item or not isinstance(item[doc_key], str):
-                        if self.config.get("skip_on_error", False):
+                        if self.config.get("skip_on_error", True):
                             self.console.log(f"[yellow]Warning: Key '{doc_key}' not found or not a string in document. Skipping.[/yellow]")
                             continue
                         else:
@@ -378,7 +434,7 @@ class ExtractOperation(BaseOperation):
                         output_item[output_key] = extracted_texts
                     
                 except Exception as e:
-                    if self.config.get("skip_on_error", False):
+                    if self.config.get("skip_on_error", True):
                         self.console.log(f"[bold red]Error in extraction for document key '{doc_key}': {str(e)}. Skipping.[/bold red]")
                         # Set empty result
                         output_key = f"{doc_key}{self.extraction_key_suffix}"

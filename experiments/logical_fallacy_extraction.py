@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from docetl.runner import DSLRunner
 
 # Constants for the experiment
-MODELS = ["gpt-4.1-mini", "gemini/gemini-2.5-pro-preview-05-06"]
+MODELS = ["gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini"]
 EXTRACTION_METHODS = ["line_number", "regex"]
 # API base URL for Ollama models
 OLLAMA_API_BASE = "https://ucbepic--ollama-service-ollamaservice-server.modal.run"
@@ -50,8 +50,8 @@ def load_debate_data(filepath: str) -> List[Dict[str, Any]]:
             "content": debate.get("content", "")
         })
     
-    # Take first 10 documents
-    documents = documents[:10]
+    # # Take first 10 documents
+    # documents = documents[:10]
     
     return documents
 

@@ -126,7 +126,7 @@ This strategy asks the LLM to generate regex patterns matching the desired conte
 
 - `name`: Unique name for the operation
 - `type`: Must be "extract"
-- `prompt`: Instructions specifying what content to extract
+- `prompt`: Instructions specifying what content to extract. This does **not** need to be a Jinja template.
 - `document_keys`: List of document fields containing text to process
 
 ## Optional Parameters

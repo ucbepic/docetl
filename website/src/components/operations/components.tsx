@@ -76,6 +76,13 @@ interface OtherKwargs {
   peripheral_chunks?: PeripheralChunks;
   samples?: string | number;
   code?: string;
+  document_keys?: string[];
+  extraction_method?: string;
+  format_extraction?: boolean;
+  direction?: string;
+  rerank_call_budget?: number;
+  input_keys?: string[];
+  pdf_url_key?: string;
 }
 
 interface OperationComponentProps {
@@ -1595,6 +1602,238 @@ export const RankOperationComponent: React.FC<OperationComponentProps> = ({
   );
 };
 
+export const ExtractOperationComponent: React.FC<OperationComponentProps> = ({
+  operation,
+  onUpdate,
+  isSchemaExpanded,
+  onToggleSchema,
+}) => {
+  const handlePromptChange = (newPrompt: string) => {
+    onUpdate({ ...operation, prompt: newPrompt });
+  };
+
+  const handleDocumentKeysChange = (newDocumentKeys: string[]) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        document_keys: newDocumentKeys,
+      },
+    });
+  };
+
+  const handleExtractionMethodChange = (method: string) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        extraction_method: method,
+      },
+    });
+  };
+
+  const handleFormatExtractionChange = (value: boolean) => {
+    onUpdate({
+      ...operation,
+      otherKwargs: {
+        ...operation.otherKwargs,
+        format_extraction: value,
+      },
+    });
+  };
+
+  // Initialize with default values if they don't exist
+  useEffect(() => {
+    const updateIfMissing = {};
+
+    if (!operation.otherKwargs?.document_keys) {
+      updateIfMissing["document_keys"] = [];
+    }
+
+    if (operation.otherKwargs?.extraction_method === undefined) {
+      updateIfMissing["extraction_method"] = "line_number";
+    }
+
+    if (operation.otherKwargs?.format_extraction === undefined) {
+      updateIfMissing["format_extraction"] = true;
+    }
+
+    if (Object.keys(updateIfMissing).length > 0) {
+      onUpdate({
+        ...operation,
+        otherKwargs: {
+          ...operation.otherKwargs,
+          ...updateIfMissing,
+        },
+      });
+    }
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="mb-4">
+        <Label
+          htmlFor="extract-prompt"
+          className="text-sm font-medium mb-1 block"
+        >
+          Extraction Prompt
+        </Label>
+        <PromptInput
+          prompt={operation.prompt || ""}
+          onChange={handlePromptChange}
+          disableValidation={true}
+          placeholder="e.g., extract the portions from the paper that describe any experimental results"
+        />
+      </div>
+
+      <div className="mb-4">
+        <div className="flex items-center space-x-2">
+          <Label htmlFor="document-keys" className="text-sm font-medium">
+            Document Keys
+          </Label>
+          <HoverCard>
+            <HoverCardTrigger>
+              <Info size={16} className="text-primary cursor-help" />
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">Document Keys</h4>
+                <p className="text-sm text-muted-foreground">
+                  Specify document fields containing text to process for
+                  extraction. The extracted content will be added to new fields
+                  with the suffix "_extracted_{operation.name}".
+                </p>
+                <div className="mt-2 rounded-md bg-muted p-2">
+                  <p className="text-sm font-medium">Example:</p>
+                  <p className="text-xs text-muted-foreground">
+                    If your documents have a &quot;content&quot; field with text
+                    to extract from, enter &quot;content&quot; here.
+                  </p>
+                </div>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-1">
+          {(operation.otherKwargs?.document_keys || []).map((key, index) => (
+            <div key={index} className="flex items-center">
+              <Input
+                value={key}
+                onChange={(e) => {
+                  const newKeys = [
+                    ...(operation.otherKwargs?.document_keys || []),
+                  ];
+                  newKeys[index] = e.target.value;
+                  handleDocumentKeysChange(newKeys);
+                }}
+                className={`w-40 ${
+                  !key.trim() ? "border-red-500 focus:ring-red-500" : ""
+                }`}
+                placeholder="Enter document key"
+              />
+              {(operation.otherKwargs?.document_keys?.length || 0) > 1 && (
+                <Button
+                  onClick={() => {
+                    const newKeys = [
+                      ...(operation.otherKwargs?.document_keys || []),
+                    ];
+                    newKeys.splice(index, 1);
+                    handleDocumentKeysChange(newKeys);
+                  }}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <X size={12} />
+                </Button>
+              )}
+            </div>
+          ))}
+          <Button
+            onClick={() => {
+              const newKeys = [
+                ...(operation.otherKwargs?.document_keys || []),
+                "",
+              ];
+              handleDocumentKeysChange(newKeys);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <Plus size={16} />
+          </Button>
+        </div>
+        {(!operation.otherKwargs?.document_keys ||
+          operation.otherKwargs.document_keys.length === 0 ||
+          operation.otherKwargs.document_keys.some((key) => !key.trim())) && (
+          <div className="text-red-500 text-sm mt-1">
+            At least one non-empty document key is required for extraction
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        <div>
+          <Label
+            htmlFor="extraction-method"
+            className="text-sm font-medium block mb-2"
+          >
+            Extraction Method
+          </Label>
+          <Select
+            value={operation.otherKwargs?.extraction_method || "line_number"}
+            onValueChange={handleExtractionMethodChange}
+          >
+            <SelectTrigger id="extraction-method">
+              <SelectValue placeholder="Select extraction method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="line_number">Line Number</SelectItem>
+              <SelectItem value="regex">Regex</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Line Number: Good for paragraphs or sections. Regex: Good for
+            structured data (e.g., dates, numbers).
+          </p>
+        </div>
+
+        <div>
+          <Label
+            htmlFor="format-extraction"
+            className="text-sm font-medium block mb-2"
+          >
+            Format Extraction
+          </Label>
+          <Select
+            value={
+              (operation.otherKwargs?.format_extraction?.toString() as
+                | "true"
+                | "false") || "true"
+            }
+            onValueChange={(value) =>
+              handleFormatExtractionChange(value === "true")
+            }
+          >
+            <SelectTrigger id="format-extraction">
+              <SelectValue placeholder="Select format type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true">String (Join with newlines)</SelectItem>
+              <SelectItem value="false">
+                List (Keep as separate items)
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            String format for coherent content, list format for separate
+            processing of extractions.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const CodeOperationComponent: React.FC<OperationComponentProps> = ({
   operation,
   onUpdate,
@@ -1805,6 +2044,15 @@ export default function createOperationComponent(
     case "rank":
       return (
         <RankOperationComponent
+          operation={operation}
+          onUpdate={onUpdate}
+          isSchemaExpanded={isSchemaExpanded}
+          onToggleSchema={onToggleSchema}
+        />
+      );
+    case "extract":
+      return (
+        <ExtractOperationComponent
           operation={operation}
           onUpdate={onUpdate}
           isSchemaExpanded={isSchemaExpanded}

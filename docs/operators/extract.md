@@ -1,10 +1,18 @@
 # Extract Operation
 
-The Extract operation in DocETL identifies and extracts specific sections of text from documents based on provided criteria. It's particularly useful for isolating relevant content from larger documents for further processing or analysis.
+!!! tip "Why use Extract instead of Map?"
 
-## 🚀 Example: Extracting Key Findings from Research Reports
+    The Extract operation is specifically optimized for isolating portions of source text without synthesis or summarization. Unlike Map operations, which typically transform content, Extract pulls out specific sections verbatim. This provides three key advantages:
+    
+    1. **Cost efficiency**: Lower output token costs when extracting large chunks of text
+    2. **Precision**: Extracts exact text without introducing LLM interpretation or potential hallucination
+    3. **Simplified workflow**: No need to define output schemas - extractions maintain the original text format
 
-Let's see a practical example of using the Extract operation to pull out key findings from research reports:
+The Extract operation identifies and extracts specific sections of text from documents based on provided criteria. It's particularly useful for isolating relevant content from larger documents for further processing or analysis.
+
+## Example: Extracting Key Findings from Research Reports
+
+Here's a practical example of using the Extract operation to pull out key findings from research reports:
 
 ```yaml
 - name: findings
@@ -22,11 +30,7 @@ Let's see a practical example of using the Extract operation to pull out key fin
   model: "gpt-4.1-mini"
 ```
 
-This Extract operation processes each document to identify and extract key findings by:
-
-1. Converting the text into a format with line numbers for precise extraction
-2. Using an LLM to identify the line ranges containing key findings
-3. Extracting the text from those ranges and adding it to the document with the suffix "_extracted_findings"
+This operation converts text into a line-numbered format, uses an LLM to identify relevant content, and extracts the specified text ranges. The extracted content is added to the document with the suffix "_extracted_findings".
 
 ??? example "Sample Input and Output"
 
@@ -51,25 +55,23 @@ This Extract operation processes each document to identify and extract key findi
     ]
     ```
 
-This example demonstrates how the Extract operation can identify and isolate specific content based on semantic understanding, providing a focused subset of the original text for further analysis.
-
 ## Output Formats
 
-The Extract operation offers two different output formats controlled by the `format_extraction` parameter:
+The Extract operation offers two output formats controlled by the `format_extraction` parameter:
 
-### String Format (`format_extraction: true`)
+### String Format (Default)
 
-When `format_extraction` is set to `true` (the default), all extracted text segments are joined together with newlines into a single string:
+With `format_extraction: true`, extracted text segments are joined with newlines into a single string:
 
 ```yaml
 - name: findings
   type: extract
   prompt: "Extract the key findings from this research report."
   document_keys: ["report_text"]
-  format_extraction: true  # This is the default
+  format_extraction: true  # Default setting
 ```
 
-With this setting, the output looks like:
+The resulting output combines all extractions:
 
 ```json
 {
@@ -79,15 +81,11 @@ With this setting, the output looks like:
 }
 ```
 
-This format is ideal for:
-- Human readability
-- Further LLM processing of the extracted content
-- When the extractions are logically related and should be treated as a unit
-- Simpler downstream text processing
+This format works well for human readability, further LLM processing, and when extractions should be treated as a coherent unit.
 
-### List Format (`format_extraction: false`)
+### List Format
 
-When `format_extraction` is set to `false`, each extracted text segment is kept separate in a list:
+With `format_extraction: false`, each extracted text segment remains separate in a list:
 
 ```yaml
 - name: findings
@@ -97,7 +95,7 @@ When `format_extraction` is set to `false`, each extracted text segment is kept 
   format_extraction: false
 ```
 
-With this setting, the output looks like:
+The resulting output preserves each extraction as a distinct item:
 
 ```json
 {
@@ -110,95 +108,58 @@ With this setting, the output looks like:
 }
 ```
 
-This format is particularly useful when:
-- You need to process each extraction individually
-- The extractions represent distinct items that should be handled separately
-- You plan to filter, transform, or analyze individual extractions
-- You need to count or quantify how many distinct items were extracted
-- The extractions will be used in data processing pipelines
+This format is better for individual processing of extractions, counting distinct items, or creating structured data from separate extractions.
 
-For example, if you're extracting product features from reviews, setting `format_extraction: false` allows you to easily count unique features, apply sentiment analysis to each feature mention separately, or create structured data from each extraction.
+## Extraction Strategies
 
-## Algorithm and Implementation
-
-The Extract operation has two main extraction strategies:
+The Extract operation offers two main strategies:
 
 ### Line Number Strategy
 
-1. **Text Reformatting**:
-   - The input text is reformatted with line numbers added as prefixes
-   - Lines are wrapped to a specified width (default 80 characters) for consistent formatting
-
-2. **LLM Extraction**:
-   - The LLM is provided with the formatted text and extraction instructions
-   - The LLM identifies specific line ranges (start_line, end_line) containing relevant content
-   
-3. **Content Extraction**:
-   - The system extracts the specified line ranges from the original text
-   - Line number prefixes are removed from the extracted content
-   - Duplicate extractions are eliminated 
+This strategy reformats the input text with line numbers, then asks the LLM to identify relevant line ranges. The system extracts those specific ranges, removes line number prefixes, and eliminates duplicates. This works well for extracting multi-line passages or entire sections.
 
 ### Regex Strategy
 
-1. **Pattern Generation**:
-   - The LLM is provided with the text and extraction instructions
-   - The LLM generates regex patterns designed to match the relevant content
-
-2. **Pattern Application**:
-   - The system applies the generated regex patterns to the original text
-   - Matches are collected and duplicates are removed
-   
-3. **Output Preparation**:
-   - Extracted content is either formatted as a string (with newlines between extractions) or as a list of strings
+This strategy asks the LLM to generate regex patterns matching the desired content. The system applies these patterns to find matches in the original text. This works well for extracting structured data like dates, codes, or specific formatted information.
 
 ## Required Parameters
 
-- `name`: A unique name for the operation.
-- `type`: Must be set to "extract".
-- `prompt`: The prompt specifying what content to extract.
-- `document_keys`: List of document field keys containing text to process.
+- `name`: Unique name for the operation
+- `type`: Must be "extract"
+- `prompt`: Instructions specifying what content to extract
+- `document_keys`: List of document fields containing text to process
 
 ## Optional Parameters
 
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
-| `model` | The language model to use for extraction | Falls back to `default_model` |
-| `extraction_method` | Method to use for extraction: "line_number" or "regex" | "line_number" |
-| `format_extraction` | Whether to join extractions with newlines (`true`) or keep as a list of strings (`false`) | `true` |
-| `extraction_key_suffix` | Suffix to add to the original key for storing extractions | "_extracted_{name}" |
-| `timeout` | Timeout for each LLM call in seconds | 120 |
-| `skip_on_error` | Whether to continue processing if an error occurs | false |
-| `litellm_completion_kwargs` | Additional parameters to pass to LiteLLM completion calls | {} |
+| `model` | Language model to use | Falls back to `default_model` |
+| `extraction_method` | "line_number" or "regex" | "line_number" |
+| `format_extraction` | Join with newlines (`true`) or keep as list (`false`) | `true` |
+| `extraction_key_suffix` | Suffix for output field names | "_extracted_{name}" |
+| `timeout` | Timeout for LLM calls in seconds | 120 |
+| `skip_on_error` | Continue processing if errors occur | false |
+| `litellm_completion_kwargs` | Additional parameters for LiteLLM calls | {} |
 
 ## Best Practices
 
-1. **Craft Specific Extraction Prompts**: Be detailed about exactly what content should be extracted, including context clues and exclusion criteria.
+Create specific extraction prompts with clear criteria about what content to extract or exclude. Choose the appropriate extraction method based on your needs:
 
-2. **Choose the Right Extraction Method**:
-   - Use `line_number` for structural extraction where content spans multiple lines or paragraphs
-   - Use `regex` for pattern-based extraction like dates, identifiers, or specific formatted data
+- Use `line_number` for extracting paragraphs, sections, or content spanning multiple lines
+- Use `regex` for extracting specific patterns like dates, codes, or formatted data
 
-3. **Process Appropriate Document Keys**: Only include document fields that contain text relevant to your extraction needs.
+Process only document fields containing relevant text, and consider enabling `skip_on_error` for batch processing where individual failures shouldn't halt the entire operation.
 
-4. **Consider Error Handling**: Enable `skip_on_error` for large batch processing where individual failures shouldn't stop the entire operation.
-
-5. **Format Based on Downstream Needs**:
-   - Use `format_extraction: true` (default) when you want the extracted content as a single, readable text block
-     - Good for: human review, passing to another LLM, treating extractions as one unit
-     - Example: extracting a summary or conclusion that should be read as a whole
-   - Use `format_extraction: false` when you need programmatic access to each extracted segment
-     - Good for: counting extractions, individual processing, structured data creation
-     - Example: extracting individual claims, facts, or data points that need separate treatment
-     - Example: extracting product features that will be analyzed individually
-
-6. **Customize Output Keys**: Use `extraction_key_suffix` to create intuitive field names that indicate what was extracted.
+Format your output based on downstream requirements:
+- Use the default string format when the extractions form a coherent whole
+- Use the list format when each extraction needs individual processing or analysis
 
 ## Use Cases
 
-The Extract operation is particularly valuable for:
+The Extract operation is valuable for:
 
-1. **Document Summarization**: Extracting executive summaries, conclusions, or key findings
-2. **Data Mining**: Pulling structured data like dates, measurements, or specific values from unstructured text
-3. **Content Filtering**: Isolating relevant sections of long documents for further analysis
-4. **Evidence Collection**: Gathering supporting statements or quotes related to specific topics
-5. **Preprocessing**: Creating focused inputs for downstream LLM operations 
+- Document summarization - extracting executive summaries or key findings
+- Data extraction - isolating dates, measurements, or specific values from text
+- Content filtering - pulling relevant sections from lengthy documents
+- Evidence gathering - collecting specific statements on given topics
+- Preprocessing - creating focused inputs for downstream analysis 

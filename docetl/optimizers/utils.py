@@ -162,3 +162,6 @@ class LLMClient:
         return self._generate(
             messages, system_prompt, parameters, self.judge_agent_model
         )
+
+    def add_cost(self, cost: float):
+        self.total_cost += cost

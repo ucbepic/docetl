@@ -16,6 +16,7 @@ class OpSkeleton(BaseModel):
 class Decomposition(BaseModel):
     pattern: List[str]
     skeleton: List[OpSkeleton]
+    num_instantiations_needed: int = 1
 
 
 class InstantiatedDecomposition(BaseModel):
@@ -68,6 +69,7 @@ DECOMPOSITIONS = [
             ),
             OpSkeleton(op_type="reduce"),
         ],
+        num_instantiations_needed=2,
     ),
     Decomposition(
         pattern=["map"],
@@ -81,15 +83,47 @@ DECOMPOSITIONS = [
                 decomp_hint="Unify the outputs of the parallel map operations into a single output to match the original operation's output schema.",
             ),
         ],
+        num_instantiations_needed=2,
     ),
     Decomposition(
         pattern=["reduce"],
         skeleton=[
             OpSkeleton(
                 op_type="map",
-                decomp_hint="Create a smaller, focused representation of the document to pass to the reduce operation.",
+                decomp_hint="Create a smaller, focused representation of the document to pass to the reduce operation. For example, the map should extract or synthesize only the relevant information to pass to the reduce operation.",
             ),
             OpSkeleton(op_type="reduce"),
+        ],
+    ),
+    Decomposition(
+        pattern=["reduce"],
+        skeleton=[
+            OpSkeleton(
+                op_type="map",
+                decomp_hint="Create a smaller, focused representation of the document to pass to the reduce operation. For example, the map should extract or synthesize only the relevant information to pass to the reduce operation.",
+            ),
+            OpSkeleton(
+                op_type="sample",
+                decomp_hint="Reduce the number of documents to pass to the reduce operation, because the reduce operation does not actually need to read all the documents.",
+            ),
+            OpSkeleton(op_type="reduce"),
+        ],
+    ),
+    Decomposition(
+        pattern=["reduce"],
+        skeleton=[
+            OpSkeleton(
+                op_type="map",
+                decomp_hint="Classify the document (or repeat one of the keys in the document) such that the reduce operation can be run on a sub-group of documents, before rolling up to the final result. For example, if the user-defined reduce operation is to summarize feedback by reduce key = department, you can generate this map operation to classify the document by city, and the next operation will then summarize feedback by city, before the final reduce operation rolls up to the department level.",
+            ),
+            OpSkeleton(
+                op_type="reduce",
+                decomp_hint="Run the operation on a sub-group of documents, before rolling up to the final result. For example, if the user-defined reduce operation is to summarize feedback by reduce key = department, this first reduce operation could summarize feedback by department and some other reduce key that exists in the document, and then the second reduce operation could roll up the results by department.",
+            ),
+            OpSkeleton(
+                op_type="reduce",
+                decomp_hint="This is a small rewrite of the original reduce operation, which will be run on the finer-grained sub-groups from the previous operation.",
+            ),
         ],
     ),
 ]

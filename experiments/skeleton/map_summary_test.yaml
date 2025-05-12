@@ -17,7 +17,7 @@ optimizer_config:
     # - gemini/gemini-2.5-pro-preview-03-25
   save_all_plans: true
   debug: true
-  scoring_func: "lambda x: len(set(x['locations']))"
+  scoring_func: "lambda x: (1 if len(x.get('summary', '')) > 5 else 0) + (1 if 'location' in x.get('summary', '') else 0) + (1 if 'witness' in x.get('summary', '') else 0)"
   plot_results: true
 
 operations:
@@ -26,20 +26,22 @@ operations:
     random_state: 42
     samples: 50
     name: sample_articles
-  - name: extract_locations
+  - name: generate_summary
     type: map
     optimize: true
     prompt: |
-      Given the following document content from the black vault, identify and extract all unique locations mentioned in the document:
+      Given the following document content from the black vault, generate a concise summary that includes:
+      1. All unique real-world locations mentioned (cities, states, countries, military bases, etc.).
+      2. Descriptions of any witness accounts or testimonies.
+      3. Other key events, observations, or details reported in the document.
 
+      Document Content:
       {{ input.all_content }}
 
-      Extract all unique location names (cities, states, countries, military bases, etc.) mentioned in the document.
-      They should be real locations on the planet Earth.
-      Provide a list of all unique locations, with each location being specific and clearly identified.
+      Provide the summary as a single block of text.
     output:
       schema:
-        locations: list[str]
+        summary: str
 
   
 
@@ -49,9 +51,9 @@ pipeline:
       input: articles
       operations:
         - sample_articles
-        - extract_locations
+        - generate_summary
 
   output:
     type: file
-    path: experiments/skeleton/map_test.json
-    intermediate_dir: experiments/skeleton/intermediate
+    path: experiments/skeleton/map_summary_test.json
+    intermediate_dir: experiments/skeleton/intermediate_summary

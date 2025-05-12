@@ -1194,7 +1194,10 @@ class DSLRunner(ConfigWrapper):
             else:
                 return output_data, operation_instance
         else:
-            return output_data
+            if return_cost:
+                return output_data, cost
+            else:
+                return output_data
 
     def _flush_partial_results(
         self, operation_name: str, batch_index: int, data: List[Dict]
@@ -1226,7 +1229,3 @@ class DSLRunner(ConfigWrapper):
             f"[green]✓[/green] [italic]Partial checkpoint saved for '{operation_name}', "
             f"batch {batch_index} at '{checkpoint_path}'[/italic]"
         )
-            if return_cost:
-                return output_data, cost
-            else:
-                return output_data

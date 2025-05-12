@@ -5,13 +5,106 @@ It contains common functionality used by different sampling strategies.
 
 import copy
 import json
+import os  # Added for directory creation
 import time
+from datetime import datetime  # Added for timestamp
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from rich.console import Console
 from rich.table import Table
 
 from docetl.optimizers.utils import LLMClient
+
+# Try importing kendalltau, handle if scipy is not installed
+try:
+    from scipy.stats import kendalltau
+except ImportError:
+    kendalltau = None
+
+# Try importing metrics, handle if dependencies are not installed
+try:
+    from scipy.stats import spearmanr
+except ImportError:
+    spearmanr = None
+
+try:
+    import numpy as np  # Required for ndcg_score input format
+    from sklearn.metrics import ndcg_score
+except ImportError:
+    ndcg_score = None
+    np = None  # Ensure np is None if sklearn is not available
+
+
+# Default criteria if dynamic generation fails
+DEFAULT_EVALUATION_CRITERIA = """
+1.  **Relevance and Correctness (Precision):** Do the output documents accurately reflect the transformations and goals specified in the original pipeline? Are the results correct given the (unseen) input data? For instance, if the original pipeline aimed to extract specific entities, does the output contain only those entities and are they accurate?
+2.  **Completeness (Recall):** Does the output include all the expected information or results based on the original pipeline's purpose? For example, if the original pipeline aimed to extract *all unique* instances of X, does the output capture the maximum number of valid unique instances? If it aimed to generate reports covering specific topics (X, Y, Z), does the output cover these topics comprehensively?
+"""
+
+
+def _generate_evaluation_criteria(
+    original_pipeline_config: Dict[str, Any],
+    llm_client: LLMClient,
+    console: Console,
+) -> str:
+    """
+    Generates task-specific evaluation criteria using the rewrite LLM agent.
+
+    Args:
+        original_pipeline_config: The configuration of the original pipeline.
+        llm_client: The LLM client with a rewrite agent configured.
+        console: Console for logging.
+
+    Returns:
+        A string containing numbered evaluation criteria, or default criteria on failure.
+    """
+    console.log("Generating dynamic evaluation criteria for LLM judge...")
+    try:
+        original_config_str = json.dumps(original_pipeline_config, indent=2)
+        system_prompt = "You are an AI assistant expert in evaluating data processing pipelines. Your task is to define specific criteria for judging pipeline outputs based on an original pipeline's configuration."
+
+        prompt = f"""
+        Analyze the following original data pipeline configuration:
+        ```json
+        {original_config_str}
+        ```
+
+        Based *only* on this configuration, define 2-3 specific evaluation criteria (as a numbered list) that can be used to judge how well the output of a *rewritten* version of this pipeline achieves the original pipeline's intended purpose.
+
+        Focus on criteria related to:
+        - **Recall:** Does the output include all the necessary information? (e.g., finding *all* instances, covering *all* required topics). More is better.
+        - **Quality:** Is the output free of irrelevant information? Does it have high information density? Is it simple and concise?
+
+        **Example Task:** If the original pipeline extracts company names, criteria might be:
+        1. Does the output list include *all* company names present in the source? More is better.
+        2. Is the output format clean and focused, containing only the extracted company names without extraneous text, metadata, or formatting artifacts?
+
+        **Your Output:** Provide *only* the numbered list of criteria as a single string. Do not include any preamble or explanation.
+        """
+
+        parameters = {
+            "type": "object",
+            "properties": {"evaluation_criteria": {"type": "string"}},
+            "required": ["evaluation_criteria"],
+        }
+
+        response = llm_client.generate_rewrite(
+            messages=[{"role": "user", "content": prompt}],
+            system_prompt=system_prompt,
+            parameters=parameters,
+        )
+
+        criteria = json.loads(response.choices[0].message.content)[
+            "evaluation_criteria"
+        ]
+        console.log(f"Successfully generated evaluation criteria:\n{criteria}")
+        return criteria
+
+    except Exception as e:
+        console.log(
+            f"[bold yellow]Warning:[/bold yellow] Failed to generate dynamic evaluation criteria: {e}. Falling back to default criteria."
+        )
+        return DEFAULT_EVALUATION_CRITERIA
 
 
 def execute_pipeline(
@@ -100,6 +193,7 @@ def rank_pipeline_outputs_with_llm(
     llm_client: LLMClient,
     console: Console,
     scoring_func: Callable,
+    run_operation_func: Callable,
 ) -> List[
     Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]], Dict[str, Any]]
 ]:
@@ -130,7 +224,6 @@ def rank_pipeline_outputs_with_llm(
                     "pipeline_id": f"P1_{hash(str(p[0])) % 10000}",
                     "llm_rank": 1,
                     "scoring_rank": 1,
-                    "llm_score": 0,
                     "scoring_value": 0,
                 },
             )
@@ -166,7 +259,12 @@ def rank_pipeline_outputs_with_llm(
         pipeline_results, pipeline_ids, scoring_func, min_docs_length, console
     )
 
-    # Run LLM judge evaluation independently
+    # Generate dynamic evaluation criteria for the LLM judge
+    evaluation_criteria = _generate_evaluation_criteria(
+        original_pipeline_config, llm_client, console
+    )
+
+    # Run LLM judge evaluation independently using the generated criteria
     llm_results = evaluate_with_llm_judge(
         pipeline_results,
         original_pipeline_config,
@@ -174,6 +272,8 @@ def rank_pipeline_outputs_with_llm(
         llm_client,
         min_docs_length,
         console,
+        run_operation_func,
+        evaluation_criteria,  # Pass the generated criteria
     )
 
     # Combine results and sort by LLM judge ranking
@@ -257,6 +357,8 @@ def evaluate_with_llm_judge(
     llm_client: LLMClient,
     min_docs_length: int,
     console: Console,
+    run_operation_func: Callable,
+    evaluation_criteria: str,  # Added parameter for criteria
 ) -> Dict[int, Dict[str, Any]]:
     """
     Evaluates pipelines using an LLM as judge.
@@ -268,6 +370,8 @@ def evaluate_with_llm_judge(
         llm_client: LLM client for judging outputs
         min_docs_length: Minimum number of documents across all pipelines
         console: Console for logging
+        run_operation_func: Function to execute operations
+        evaluation_criteria: Task-specific criteria for the LLM judge.
 
     Returns:
         Dictionary mapping pipeline index to LLM judge results
@@ -277,186 +381,87 @@ def evaluate_with_llm_judge(
     # Convert original pipeline config to string representation
     original_config_str = json.dumps(original_pipeline_config, indent=2)
 
-    # For each document index, compare outputs across all pipelines using LLM
-    rankings = []
-    for doc_idx in range(min_docs_length):
-        console.log(
-            f"Comparing document at index {doc_idx} across {len(pipeline_results)} pipelines"
+    # Create a list of docs where each doc represents the outputs
+    outputs_as_docs = []
+    for original_idx in range(len(pipeline_results)):
+        pipeline_config, estimated_cost, actual_cost, output_docs = pipeline_results[
+            original_idx
+        ]
+        pipeline_config_str = json.dumps(pipeline_config, indent=2)
+        output_docs_str = json.dumps(output_docs[:10], indent=2)
+        output_doc = f"Sample Outputs:\n{output_docs_str}"
+        outputs_as_docs.append(
+            {
+                "idx": original_idx,
+                "output": output_doc,
+            }
         )
 
-        # Create letters for plan labels (A, B, C, etc.)
-        letters = [chr(65 + i) for i in range(len(pipeline_results))]
+    # Now create a rank operation config using the dynamic criteria
+    rank_op_config = {
+        "name": "rank_pipeline_outputs",
+        "type": "rank",
+        "model": llm_client.judge_agent_model,
+        "prompt": f"""
+You are an expert evaluator specializing in data processing pipelines. Your task is to rank several *rewritten* versions of an original data pipeline. You will be given the configuration of the **original pipeline** and the **output documents** produced by each **rewritten pipeline** when run on a sample of input data.
 
-        # Collect output document at this index from each pipeline
-        pipeline_outputs = []
-        letter_to_idx_map = {}  # Maps letter labels to original indices
+**Your goal is to determine which rewritten pipeline best achieves the *intended purpose* of the original pipeline, based *only* on the provided output documents.**
 
-        # Create a list of indices and shuffle it to randomize presentation order
-        pipeline_indices = list(range(len(pipeline_results)))
-        import random
-
-        random.shuffle(pipeline_indices)
-
-        for order_idx, original_idx in enumerate(pipeline_indices):
-            pipeline_config, estimated_cost, actual_cost, output_docs = (
-                pipeline_results[original_idx]
-            )
-            if doc_idx < len(output_docs):
-                # Use letter label instead of numerical ID
-                letter_label = letters[order_idx]
-                letter_to_idx_map[letter_label] = original_idx
-
-                # Add plan with letter label and its output
-                pipeline_outputs.append(
-                    {
-                        "plan_id": letter_label,
-                        "pipeline_config": f"Plan {letter_label}: {str(pipeline_config)[:200]}...",
-                        "output": output_docs[doc_idx],
-                    }
-                )
-
-        # Define the system prompt for the judge
-        system_prompt = """
-You are an expert evaluator of data pipeline outputs. Your task is to rank multiple pipeline implementations
-based on how well their outputs align with the original pipeline's intended purpose.
-
-The ranking criteria are:
-1. Accuracy and correctness of the output
-2. Completeness of information processing
-3. Adherence to the original pipeline's goals
-4. Quality and usability of the output
-
-You will receive information about the original pipeline configuration and outputs from different implementations.
-"""
-
-        # Define message content
-        message_content = f"""
-ORIGINAL PIPELINE CONFIGURATION:
+**Original Pipeline Configuration:**
+```json
 {original_config_str}
+```
 
-I will show you outputs from {len(pipeline_outputs)} different pipeline implementations for the same document.
-Please analyze these outputs and rank them from best to worst based on how well they align with the original pipeline's purpose.
+**Evaluation Criteria (Rank from best to worst):**
 
-Each plan is labeled with a letter (A, B, C, etc.). The order of presentation is random and does not indicate quality.
+Use these specific criteria, derived from the original pipeline's goals, to evaluate each rewritten pipeline's output:
+{evaluation_criteria}
 
-OUTPUTS TO EVALUATE:
-{json.dumps(pipeline_outputs, indent=2)}
-"""
+**Input Format:**
+You will some sample outputs from the rewritten pipeline. One "Document" is a collection of outputs from a _single_ rewritten pipeline.
 
-        # Define structured output schema for the response
-        parameters = {
-            "type": "object",
-            "properties": {
-                "rankings": {
-                    "type": "array",
-                    "description": "List of plan_ids (letters) ordered from best to worst",
-                    "items": {
-                        "type": "string",
-                        "description": "Plan letter identifier (A, B, C, etc.)",
-                    },
-                },
-                "explanation": {
-                    "type": "string",
-                    "description": "A brief explanation of your ranking rationale",
-                },
-            },
-            "required": ["rankings", "explanation"],
-        }
+**Task:**
+Analyze the `Sample Outputs` section for each provided rewritten pipeline. Evaluate them using the **Evaluation Criteria** provided above. Order them from meeting the criteria the best to worst.
+""",
+        "input_keys": ["output"],
+        "rerank_call_budget": 10,
+        "direction": "desc",
+        "batch_size": 1,
+        "num_calibration_docs": 3,
+        "num_top_items_per_window": 2,
+        "litellm_kwargs": {
+            "temperature": 0.2,
+        },
+    }
 
-        try:
-            # Query LLM for ranking using the structured output parameters
-            response = llm_client.generate_judge(
-                messages=[{"role": "user", "content": message_content}],
-                system_prompt=system_prompt,
-                parameters=parameters,
-            )
-
-            # Extract the structured response
-            ranking_data = response.choices[0].message.content
-
-            if isinstance(ranking_data, str):
-                # If it's a string for some reason, try to parse it
-                try:
-                    ranking_data = json.loads(ranking_data)
-                except json.JSONDecodeError:
-                    console.log("Warning: Failed to parse LLM response as JSON")
-                    console.log(f"Response content: {ranking_data}")
-                    continue
-
-            if "rankings" in ranking_data:
-                # Convert letter rankings back to original indices
-                try:
-                    plan_rankings = [
-                        letter_to_idx_map[letter]
-                        for letter in ranking_data["rankings"]
-                        if letter in letter_to_idx_map
-                    ]
-
-                    # Log the rankings with explanation
-                    console.log(f"LLM ranking for document {doc_idx}:")
-                    console.log(f"  Rankings (letters): {ranking_data['rankings']}")
-
-                    # Also show the mapping for clarity
-                    readable_mapping = [
-                        f"{letter}→{pipeline_ids[letter_to_idx_map[letter]]}"
-                        for letter in letter_to_idx_map.keys()
-                    ]
-                    console.log(
-                        f"  Letter to plan mapping: {', '.join(readable_mapping)}"
-                    )
-
-                    # Show rankings converted to original plan IDs
-                    ranked_plan_ids = [pipeline_ids[idx] for idx in plan_rankings]
-                    console.log(f"  Rankings (plan IDs): {ranked_plan_ids}")
-
-                    console.log(
-                        f"  Explanation: {ranking_data.get('explanation', 'No explanation provided')}"
-                    )
-
-                    rankings.append(plan_rankings)
-                except KeyError as e:
-                    console.log(
-                        f"Warning: Letter in rankings not found in mapping: {e}"
-                    )
-                    console.log(f"  Rankings: {ranking_data['rankings']}")
-                    console.log(
-                        f"  Available letters: {list(letter_to_idx_map.keys())}"
-                    )
-            else:
-                console.log("Warning: LLM response missing 'rankings' key")
-                console.log(f"Response content: {ranking_data}")
-
-        except Exception as e:
-            console.log(f"Error querying LLM for ranking: {e}")
-
-    # If we have no rankings, return empty results
-    if not rankings:
-        console.log("No LLM rankings were produced")
-        return {
-            i: {"llm_rank": -1, "llm_score": -1} for i in range(len(pipeline_results))
-        }
-
-    # Score each pipeline: lower is better (1st place = 0 points, 2nd place = 1 point, etc.)
-    llm_scores = [0] * len(pipeline_results)
-    for ranking in rankings:
-        for position, plan_idx in enumerate(ranking):
-            if 0 <= plan_idx < len(llm_scores):
-                llm_scores[plan_idx] += position
-
-    console.log(f"LLM scores for {len(llm_scores)} pipelines: {llm_scores}")
-
-    # Create sorted indices for LLM ranking (lower scores are better)
-    llm_ranked_indices = sorted(range(len(llm_scores)), key=lambda x: llm_scores[x])
+    # Execute the rank operation
+    try:
+        ranked_outputs, ranking_cost = run_operation_func(
+            rank_op_config,
+            outputs_as_docs,
+            return_instance=False,
+            return_cost=True,
+        )
+        llm_client.add_cost(ranking_cost)  # Assumes run_operation_func returns cost
+    except Exception as e:
+        console.log(
+            f"[bold red]Error:[/bold red] Failed to execute ranking operation: {e}"
+        )
+        # Handle failure: maybe return empty results or raise exception
+        return {idx: {"llm_rank": -1} for idx in range(len(pipeline_results))}
 
     # Assign LLM ranks
-    llm_rank_map = {idx: rank + 1 for rank, idx in enumerate(llm_ranked_indices)}
+    llm_rank_map = {
+        ranked_output["idx"]: ranked_output["_rank"] for ranked_output in ranked_outputs
+    }
 
     # Create result dictionary with all LLM judge information
     llm_results = {}
     for idx in range(len(pipeline_results)):
         llm_results[idx] = {
-            "llm_rank": llm_rank_map.get(idx, -1),
-            "llm_score": llm_scores[idx],
+            "llm_rank": llm_rank_map.get(
+                idx, len(ranked_outputs) + 1
+            ),  # Use -1 for unranked items
         }
 
     return llm_results
@@ -501,7 +506,6 @@ def combine_ranking_results(
             "pipeline_id": pipeline_ids[i],
             "llm_rank": llm_results.get(i, {}).get("llm_rank", -1),
             "scoring_rank": scoring_results.get(i, {}).get("scoring_rank", -1),
-            "llm_score": llm_results.get(i, {}).get("llm_score", -1),
             "scoring_value": scoring_results.get(i, {}).get("scoring_value", 0),
         }
 
@@ -552,7 +556,6 @@ def print_ranking_comparison_table(
     table.add_column("Cost ($)", justify="right")
     table.add_column("LLM Judge Rank", justify="center", style="green")
     table.add_column("Scoring Func Rank", justify="center", style="yellow")
-    table.add_column("LLM Score (lower is better)", justify="right")
     table.add_column("Scoring Func Value", justify="right")
 
     # Add rows to the table
@@ -560,7 +563,6 @@ def print_ranking_comparison_table(
         pipeline_id = ranking_info["pipeline_id"]
         llm_rank = ranking_info["llm_rank"]
         scoring_rank = ranking_info["scoring_rank"]
-        llm_score = ranking_info["llm_score"]
         scoring_value = ranking_info["scoring_value"]
 
         table.add_row(
@@ -569,7 +571,6 @@ def print_ranking_comparison_table(
             f"{actual_cost:.6f}",
             str(llm_rank) if llm_rank != -1 else "N/A",
             str(scoring_rank) if scoring_rank != -1 else "N/A",
-            str(llm_score) if llm_score != -1 else "N/A",
             (
                 f"{scoring_value:.2f}"
                 if isinstance(scoring_value, (int, float))
@@ -601,16 +602,21 @@ def compare_sampling_strategies(
     log_dir: Optional[str] = None,
 ) -> None:
     """
-    Compares the results of different sampling strategies and prints a comparison table.
-    Also generates a scatter plot of cost vs scoring function value if matplotlib is available.
+    Compares the results of different sampling strategies, prints a comparison table,
+    logs detailed results to JSON, and generates visualizations. Includes Kendall's Tau,
+    Spearman's Rho, and nDCG@10 to compare LLM judge ranking vs. scoring function ranking.
 
     Args:
         results: Dictionary mapping strategy names to (ranked_results, sampling_cost) tuples
         console: Console for logging
         budget_num_pipelines: Maximum number of pipelines sampled
-        log_dir: Directory to save the plot to (if None, plot is not saved)
+        log_dir: Directory to save plots and results JSON to (if None, not saved)
     """
     console.log("\n=== SAMPLING STRATEGIES COMPARISON ===\n")
+
+    # Generate timestamp once for consistent filenames
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    strategy_results_data = {}  # To store data for JSON logging
 
     table = Table(title="Sampling Strategies Comparison")
     table.add_column("Strategy", style="cyan")
@@ -619,10 +625,114 @@ def compare_sampling_strategies(
     table.add_column("Total Cost ($)", justify="right")
     table.add_column("Best Pipeline ID", style="green")
     table.add_column("Best Pipeline Cost ($)", justify="right")
-    table.add_column("Best Pipeline Operations", justify="right")
+    table.add_column("Best Pipeline Ops", justify="right")
+    table.add_column("Kendall's Tau", justify="right", style="magenta")
+    table.add_column("Spearman's Rho", justify="right", style="blue")  # New column
+    table.add_column("nDCG@10", justify="right", style="yellow")  # New column
 
     for strategy, (ranked_results, cost) in results.items():
-        # Get information about the best pipeline
+        # Initialize metric values
+        tau_value, rho_value, ndcg_value = "N/A", "N/A", "N/A"
+        tau_float, rho_float, ndcg_float = None, None, None
+        llm_ranks = []
+        scoring_ranks = []
+        llm_relevance_scores = []  # For nDCG: Higher score = better rank
+        scoring_relevance_scores = []  # For nDCG: Higher score = better rank
+        valid_rank_pairs = 0
+        max_rank = 0  # Keep track of the highest rank number
+
+        if len(ranked_results) >= 2:
+            # Prepare rank lists for correlation calculation
+            for _, _, _, _, info in ranked_results:
+                llm_rank = info.get("llm_rank", -1)
+                scoring_rank = info.get("scoring_rank", -1)
+                # Only include if both ranks are valid
+                if llm_rank != -1 and scoring_rank != -1:
+                    llm_ranks.append(llm_rank)
+                    scoring_ranks.append(scoring_rank)
+                    max_rank = max(max_rank, llm_rank, scoring_rank)  # Update max rank
+                    valid_rank_pairs += 1
+
+            # Calculate relevance scores after finding max_rank
+            if valid_rank_pairs > 0:
+                for _, _, _, _, info in ranked_results:
+                    llm_rank = info.get("llm_rank", -1)
+                    scoring_rank = info.get("scoring_rank", -1)
+                    if llm_rank != -1 and scoring_rank != -1:
+                        # Relevance score: higher is better (max_rank - rank + 1)
+                        llm_relevance_scores.append(max_rank - llm_rank + 1)
+                        scoring_relevance_scores.append(max_rank - scoring_rank + 1)
+
+            if valid_rank_pairs >= 2:
+                # Calculate Kendall's Tau
+                if kendalltau is None:
+                    tau_value = "SciPy missing"
+                else:
+                    try:
+                        tau, _ = kendalltau(llm_ranks, scoring_ranks)
+                        tau_value = f"{tau:.3f}"
+                        tau_float = tau
+                    except Exception as e:
+                        console.log(
+                            f"Could not calculate Kendall's Tau for {strategy}: {e}"
+                        )
+                        tau_value = "Error"
+
+                # Calculate Spearman's Rho
+                if spearmanr is None:
+                    rho_value = "SciPy missing"
+                else:
+                    try:
+                        rho, _ = spearmanr(llm_ranks, scoring_ranks)
+                        rho_value = f"{rho:.3f}"
+                        rho_float = rho
+                    except Exception as e:
+                        console.log(
+                            f"Could not calculate Spearman's Rho for {strategy}: {e}"
+                        )
+                        rho_value = "Error"
+
+            elif valid_rank_pairs < 2:
+                tau_value = "Too few pairs"
+                rho_value = "Too few pairs"
+
+            # Calculate nDCG@10 (needs at least 1 valid pair)
+            if valid_rank_pairs >= 1:
+                if ndcg_score is None or np is None:
+                    ndcg_value = "Sklearn missing"
+                else:
+                    try:
+                        # nDCG compares the ranking induced by scores against true relevance
+                        # y_true: relevance based on the LLM judge (ground truth)
+                        # y_score: scores that produced the scoring_func ranking (use its relevance)
+                        # We need them as 2D arrays [[scores]]
+                        true_relevance = np.asarray([llm_relevance_scores])
+                        predicted_scores = np.asarray([scoring_relevance_scores])
+
+                        ndcg = ndcg_score(true_relevance, predicted_scores, k=10)
+                        ndcg_value = f"{ndcg:.3f}"
+                        ndcg_float = ndcg
+                    except Exception as e:
+                        console.log(f"Could not calculate nDCG@10 for {strategy}: {e}")
+                        ndcg_value = "Error"
+            else:
+                ndcg_value = "Too few pairs"
+
+        else:  # Fewer than 2 results overall
+            tau_value = "Too few results"
+            rho_value = "Too few results"
+            ndcg_value = "Too few results"
+
+        # Store results for JSON logging
+        strategy_results_data[strategy] = {
+            "sampling_cost": cost,
+            "kendall_tau": tau_float,
+            "spearman_rho": rho_float,  # Add Spearman
+            "ndcg_at_10": ndcg_float,  # Add nDCG
+            "ranked_results": ranked_results,  # Store the full ranked results
+        }
+
+        # Get information about the best pipeline (based on LLM rank primarily)
         if ranked_results:
             best_pipeline, best_estimated_cost, best_actual_cost, _, best_info = (
                 ranked_results[0]
@@ -644,9 +754,24 @@ def compare_sampling_strategies(
             best_pipeline_id,
             f"{best_actual_cost:.6f}" if best_actual_cost > 0 else "N/A",
             str(best_pipeline_ops),
+            tau_value,
+            rho_value,  # Add Spearman value to row
+            ndcg_value,  # Add nDCG value to row
         )
 
     console.log(table)
+
+    # Log detailed results to JSON if log_dir is provided
+    if log_dir:
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            json_filename = os.path.join(log_dir, f"strategy_results_{timestamp}.json")
+            with open(json_filename, "w") as f:
+                # Use default=str to handle potential non-serializable types gracefully
+                json.dump(strategy_results_data, f, indent=2, default=str)
+            console.log(f"Detailed strategy results saved to: {json_filename}")
+        except Exception as e:
+            console.log(f"[bold red]Error:[/bold red] Could not save results JSON: {e}")
 
     # Print a table of top 3 pipelines from each strategy for comparison
     console.log("\n=== TOP PIPELINES BY STRATEGY ===\n")
@@ -656,218 +781,204 @@ def compare_sampling_strategies(
             ranked_results[:3], console, title=f"Top {strategy.upper()} Pipelines"
         )
 
-    # Create a visualization of cost vs scoring function value
-    try:
-        import os
-        from datetime import datetime
+    # Create visualizations (Cost vs Scoring Value and Cost Estimation Analysis)
+    # Check for dependencies before attempting to plot
+    if (
+        log_dir
+        and ("matplotlib" in sys.modules or "matplotlib.pyplot" in sys.modules)
+        and np
+    ):
+        try:
+            # import os # Already imported
+            # from datetime import datetime # Already imported
+            import matplotlib.cm as cm
+            import matplotlib.pyplot as plt
 
-        import matplotlib.cm as cm
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from matplotlib.colors import Normalize
+            # import numpy as np # Already imported at top
+            from matplotlib.colors import Normalize
 
-        console.log("\n=== GENERATING VISUALIZATION ===\n")
+            console.log("\n=== GENERATING VISUALIZATIONS ===\n")
 
-        # Create the figure for the first plot
-        plt.figure(figsize=(10, 6))
+            # --- Plot 1: Cost vs Scoring Value ---
+            plt.figure(figsize=(10, 6))
+            colors = {"random": "blue", "ucb": "red"}  # Example colors
 
-        # Define colors for different strategies
-        colors = {"random": "blue", "ucb": "red"}
+            for strategy, (ranked_results, _) in results.items():
+                costs = []
+                scores = []
+                labels = []
+                for pipeline, estimated_cost, actual_cost, _, info in ranked_results:
+                    costs.append(actual_cost)
+                    score = info.get("scoring_value", 0)
+                    if not isinstance(score, (int, float)):
+                        score = 0
+                    scores.append(score)
+                    labels.append(info.get("pipeline_id", ""))
 
-        # Plot each strategy's results
-        for strategy, (ranked_results, _) in results.items():
-            costs = []
-            scores = []
-            labels = []
-
-            for pipeline, estimated_cost, actual_cost, _, info in ranked_results:
-                # Extract cost and scoring value
-                costs.append(actual_cost)
-                score = info.get("scoring_value", 0)
-                scores.append(score)
-                labels.append(info.get("pipeline_id", ""))
-
-            # Plot this strategy's points
-            plt.scatter(
-                costs,
-                scores,
-                color=colors.get(strategy, "gray"),
-                alpha=0.7,
-                label=strategy.upper(),
-                s=80,
-            )
-
-            # Add pipeline IDs as annotations
-            for i, label in enumerate(labels):
-                plt.annotate(
-                    label,
-                    (costs[i], scores[i]),
-                    textcoords="offset points",
-                    xytext=(5, 5),
-                    fontsize=8,
-                )
-
-        # Add trend lines (optional)
-        for strategy, (ranked_results, _) in results.items():
-            if len(ranked_results) > 1:
-                costs = [result[2] for result in ranked_results]
-                scores = [
-                    result[4].get("scoring_value", 0) for result in ranked_results
-                ]
-
-                if len(costs) > 1:
-                    try:
-                        # Simple linear regression
-                        z = np.polyfit(costs, scores, 1)
-                        p = np.poly1d(z)
-
-                        # Plot trend line
-                        x_trend = np.linspace(min(costs), max(costs), 100)
-                        plt.plot(
-                            x_trend,
-                            p(x_trend),
-                            linestyle="--",
-                            color=colors.get(strategy, "gray"),
-                            alpha=0.5,
+                if costs and scores:
+                    plt.scatter(
+                        costs,
+                        scores,
+                        color=colors.get(strategy, "gray"),
+                        alpha=0.7,
+                        label=strategy.upper(),
+                        s=80,
+                    )
+                    for i, label in enumerate(labels):
+                        plt.annotate(
+                            label,
+                            (costs[i], scores[i]),
+                            textcoords="offset points",
+                            xytext=(5, 5),
+                            fontsize=8,
                         )
+
+            # Optional: Add trend lines (excluding outliers)
+            for strategy, (ranked_results, _) in results.items():
+                costs, scores = [], []
+                for _, _, actual_cost, _, info in ranked_results:
+                    score = info.get("scoring_value", 0)
+                    if isinstance(score, (int, float)):
+                        costs.append(actual_cost)
+                        scores.append(score)
+
+                if len(scores) >= 3:
+                    try:
+                        scores_np, costs_np = np.array(scores), np.array(costs)
+                        min_idx, max_idx = np.argmin(scores_np), np.argmax(scores_np)
+                        mask = np.ones(len(scores_np), dtype=bool)
+                        for idx in {min_idx, max_idx}:
+                            mask[idx] = False
+                        filtered_costs, filtered_scores = (
+                            costs_np[mask],
+                            scores_np[mask],
+                        )
+
+                        if len(filtered_costs) >= 2:
+                            z = np.polyfit(filtered_costs, filtered_scores, 1)
+                            p = np.poly1d(z)
+                            x_trend = np.linspace(min(costs_np), max(costs_np), 100)
+                            plt.plot(
+                                x_trend,
+                                p(x_trend),
+                                linestyle="--",
+                                color=colors.get(strategy, "gray"),
+                                alpha=0.5,
+                                label=f"{strategy.upper()} Trend (excl. outliers)",
+                            )
+                        else:
+                            console.log(
+                                f"Skipping trend line for {strategy}: Not enough points after removing min/max score."
+                            )
                     except Exception as e:
                         console.log(
-                            f"Could not generate trend line for {strategy}: {e}"
+                            f"Could not generate trend line for {strategy} (excluding outliers): {e}"
+                        )
+                elif len(scores) > 0:
+                    console.log(
+                        f"Skipping trend line for {strategy}: Needs at least 3 points to exclude min/max."
+                    )
+
+            plt.title("Pipeline Comparison: Cost vs Scoring Value")
+            plt.xlabel("Pipeline Execution Cost ($)")
+            plt.ylabel("Scoring Function Value (higher is better)")
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            filename1 = os.path.join(log_dir, f"pipeline_comparison_{timestamp}.png")
+            plt.savefig(filename1, dpi=300, bbox_inches="tight")
+            console.log(f"Plot saved to: {filename1}")
+            plt.close()  # Close the figure
+
+            # --- Plot 2: Cost Estimation Analysis ---
+            plt.figure(figsize=(10, 6))
+            min_ops, max_ops = float("inf"), 0
+            for strategy, (ranked_results, _) in results.items():
+                for pipeline, _, _, _, _ in ranked_results:
+                    num_ops = len(pipeline)
+                    min_ops, max_ops = min(min_ops, num_ops), max(max_ops, num_ops)
+
+            norm = Normalize(vmin=min_ops, vmax=max_ops)
+            cmap = cm.viridis
+            scatter_for_colorbar = None
+
+            for strategy, (ranked_results, _) in results.items():
+                est_costs, act_costs, num_ops_list, labels = [], [], [], []
+                for pipeline, est_cost, act_cost, _, info in ranked_results:
+                    est_costs.append(est_cost)
+                    act_costs.append(act_cost)
+                    num_ops_list.append(len(pipeline))
+                    labels.append(info.get("pipeline_id", ""))
+
+                if est_costs:  # Check if there's data to plot
+                    scatter = plt.scatter(
+                        est_costs,
+                        act_costs,
+                        c=num_ops_list,
+                        cmap=cmap,
+                        norm=norm,
+                        alpha=0.7,
+                        s=80,
+                    )
+                    if scatter_for_colorbar is None:
+                        scatter_for_colorbar = scatter
+                    for i, label in enumerate(labels):
+                        plt.annotate(
+                            label,
+                            (est_costs[i], act_costs[i]),
+                            textcoords="offset points",
+                            xytext=(5, 5),
+                            fontsize=8,
                         )
 
-        # Add details to the plot
-        plt.title("Pipeline Comparison: Cost vs Scoring Value")
-        plt.xlabel("Pipeline Execution Cost ($)")
-        plt.ylabel("Scoring Function Value (higher is better)")
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-
-        # Generate timestamp for the filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Save the plot if log_dir is provided
-        if log_dir:
-            try:
-                # Make sure the directory exists
-                os.makedirs(log_dir, exist_ok=True)
-
-                # Generate filename for the first plot
-                filename = os.path.join(log_dir, f"pipeline_comparison_{timestamp}.png")
-
-                # Save the figure
-                plt.savefig(filename, dpi=300, bbox_inches="tight")
-                console.log(f"Plot saved to: {filename}")
-            except Exception as e:
-                console.log(f"Could not save plot: {e}")
-
-        # Close the first figure
-        plt.close()
-
-        # Create a new figure for the cost comparison (second plot)
-        plt.figure(figsize=(10, 6))
-
-        # Track min and max operations across all strategies for consistent color scaling
-        min_ops = float("inf")
-        max_ops = 0
-
-        # First pass to find min/max operations for color normalization
-        for strategy, (ranked_results, _) in results.items():
-            for pipeline, _, _, _, _ in ranked_results:
-                num_ops = len(pipeline)
-                min_ops = min(min_ops, num_ops)
-                max_ops = max(max_ops, num_ops)
-
-        # Create the color normalization
-        norm = Normalize(vmin=min_ops, vmax=max_ops)
-        cmap = cm.viridis
-
-        # Keep reference to one scatter plot for the colorbar
-        scatter_for_colorbar = None
-
-        # Plot data for each strategy
-        for strategy, (ranked_results, _) in results.items():
-            estimated_costs = []
-            actual_costs = []
-            num_operations = []
-            labels = []
-
-            for pipeline, estimated_cost, actual_cost, _, info in ranked_results:
-                estimated_costs.append(estimated_cost)
-                actual_costs.append(actual_cost)
-                num_operations.append(len(pipeline))
-                labels.append(info.get("pipeline_id", ""))
-
-            # Create scatter plot with colors based on operation count
-            scatter = plt.scatter(
-                estimated_costs,
-                actual_costs,
-                c=num_operations,
-                cmap=cmap,
-                norm=norm,
-                alpha=0.7,
-                s=80,
-            )
-
-            # Save reference to one scatter plot for colorbar
-            if scatter_for_colorbar is None and len(num_operations) > 0:
-                scatter_for_colorbar = scatter
-
-            # Add pipeline IDs as annotations
-            for i, label in enumerate(labels):
-                plt.annotate(
-                    label,
-                    (estimated_costs[i], actual_costs[i]),
-                    textcoords="offset points",
-                    xytext=(5, 5),
-                    fontsize=8,
+            all_costs = []
+            for _, (ranked_results, _) in results.items():
+                all_costs.extend([r[1] for r in ranked_results])  # estimated
+                all_costs.extend([r[2] for r in ranked_results])  # actual
+            if all_costs:
+                min_c, max_c = min(all_costs) if all_costs else 0, (
+                    max(all_costs) if all_costs else 1
+                )
+                plt.plot(
+                    [min_c, max_c],
+                    [min_c, max_c],
+                    "k--",
+                    alpha=0.5,
+                    label="Perfect Estimation (y=x)",
                 )
 
-        # Add reference line for perfect estimation (y=x)
-        all_costs = []
-        for strategy, (ranked_results, _) in results.items():
-            all_costs.extend([r[1] for r in ranked_results])  # estimated costs
-            all_costs.extend([r[2] for r in ranked_results])  # actual costs
+            if scatter_for_colorbar:
+                cbar = plt.colorbar(scatter_for_colorbar)
+                cbar.set_label("Number of Operations")
+            else:  # Fallback if no data was plotted
+                sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+                sm.set_array([])
+                cbar = plt.colorbar(sm)
+                cbar.set_label("Number of Operations")
 
-        if all_costs:
-            min_cost = min(all_costs)
-            max_cost = max(all_costs)
-            plt.plot([min_cost, max_cost], [min_cost, max_cost], "k--", alpha=0.5)
+            plt.title("Pipeline Cost Estimation Analysis")
+            plt.xlabel("Estimated Pipeline Cost ($)")
+            plt.ylabel("Actual Pipeline Cost ($)")
+            plt.grid(True, alpha=0.3)
+            plt.axis("equal")  # Make axes equal for y=x line emphasis
+            plt.legend()  # Show legend including the y=x line
+            filename2 = os.path.join(log_dir, f"cost_comparison_{timestamp}.png")
+            plt.savefig(filename2, dpi=300, bbox_inches="tight")
+            console.log(f"Cost comparison plot saved to: {filename2}")
+            plt.close()  # Close the figure
 
-        # Add colorbar for operation count - link to a specific scatter plot
-        if scatter_for_colorbar is not None:
-            cbar = plt.colorbar(scatter_for_colorbar)
-            cbar.set_label("Number of Operations")
-        else:
-            # Fallback if no scatter plots were created
-            sm = cm.ScalarMappable(norm=norm, cmap=cmap)
-            sm.set_array([])
-            cbar = plt.colorbar(sm)
-            cbar.set_label("Number of Operations")
+        except ImportError:
+            console.log(
+                "[bold yellow]Warning:[/bold yellow] Could not generate visualization - matplotlib or numpy not available."
+            )
+        except Exception as e:
+            console.log(
+                f"[bold red]Error:[/bold red] Error generating visualization: {e}"
+            )
+    elif log_dir:
+        console.log(
+            "[bold yellow]Warning:[/bold yellow] Skipping visualization generation - matplotlib or numpy not imported."
+        )
 
-        # Add details to the plot
-        plt.title("Pipeline Cost Estimation Analysis")
-        plt.xlabel("Estimated Pipeline Cost ($)")
-        plt.ylabel("Actual Pipeline Cost ($)")
-        plt.grid(True, alpha=0.3)
 
-        # Make the plot square to emphasize the reference line
-        plt.axis("equal")
-
-        # Save the plot if log_dir is provided
-        if log_dir:
-            try:
-                # Generate filename for the second plot
-                filename = os.path.join(log_dir, f"cost_comparison_{timestamp}.png")
-
-                # Save the figure
-                plt.savefig(filename, dpi=300, bbox_inches="tight")
-                console.log(f"Cost comparison plot saved to: {filename}")
-            except Exception as e:
-                console.log(f"Could not save cost comparison plot: {e}")
-
-        plt.close()
-
-    except ImportError:
-        console.log("Could not generate visualization - matplotlib not available")
-    except Exception as e:
-        console.log(f"Error generating visualization: {e}")
+# Need to import sys for the check above
+import sys

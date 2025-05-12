@@ -600,29 +600,28 @@ class RankOperation(BaseOperation):
             documents_text = "\n\n".join(document_texts)
 
             # Construct the prompt for Likert scale rating
-            prompt = f"""
-            Your task is to rate each document based on this criteria:
+            prompt = f"""Your task is to rate each document based on this criteria:
+```
+{criteria}
+```
+Rate each document on a 7-point Likert scale where:
+1 = Strongly disagree that the document matches the criteria
+2 = Disagree
+3 = Somewhat disagree
+4 = Neither agree nor disagree
+5 = Somewhat agree
+6 = Agree
+7 = Strongly agree that the document matches the criteria
 
-            {criteria}
+For context, here are some example documents from the dataset:
+{context_text}
 
-            Rate each document on a 7-point Likert scale where:
-            1 = Strongly disagree that the document matches the criteria
-            2 = Disagree
-            3 = Somewhat disagree
-            4 = Neither agree nor disagree
-            5 = Somewhat agree
-            6 = Agree
-            7 = Strongly agree that the document matches the criteria
+Now, please rate the following document(s):
+{documents_text}
 
-            For context, here are some example documents from the dataset:
-            {context_text}
-
-            Now, please rate the following documents:
-            {documents_text}
-
-            Provide an integer rating from 1-7 for each document, in the same order as presented.
-            Your response should be a list of {len(batch_docs)} integers.
-            """
+Provide an integer rating from 1-7 for each document, in the same order as presented.
+Your response should be a list of {len(batch_docs)} integers.
+"""
 
             # Call the LLM with list[int] output format
             response = self.runner.api.call_llm(
@@ -696,6 +695,10 @@ class RankOperation(BaseOperation):
         for idx in range(len(input_data)):
             if idx not in ratings:
                 # Assign a neutral rating
+                if self.config.get("verbose", False):
+                    self.console.log(
+                        f"[yellow]Document {idx} not rated. Assigning neutral rating.[/yellow]"
+                    )
                 ratings[idx] = 4
 
         # Create final ranking based on ratings

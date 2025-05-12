@@ -6,7 +6,7 @@ for intelligent exploration and exploitation in pipeline optimization.
 import copy
 import math
 import random
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Set, Tuple
 
 from rich.console import Console
 
@@ -21,8 +21,9 @@ class UCBSampler:
     """
     Implements UCB (Upper Confidence Bound) algorithm for pipeline sampling.
 
-    This class maintains state about pipeline rewards and samples to enable
-    intelligent exploration and exploitation when evaluating pipeline alternatives.
+    This class maintains state about pipeline rewards (direct, skeleton-based, model-based)
+    and samples to enable intelligent exploration and exploitation when evaluating
+    pipeline alternatives.
     """
 
     def __init__(
@@ -30,38 +31,56 @@ class UCBSampler:
         run_operation_func: Callable,
         console: Console,
         exploration_weight: float = 2.0,
-        dampening_factor: float = 0.8,
+        direct_reward_weight: float = 1.0,
+        skeleton_reward_weight: float = 0.5,
+        model_reward_weight: float = 0.3,
     ):
         """
         Initialize the UCB sampler.
 
         Args:
-            run_operation_func: Function to execute operations in the pipeline
-            console: Console for logging
-            exploration_weight: Weight for the exploration term in UCB formula (default: 2.0)
-            dampening_factor: Factor to dampen rewards when propagating to related pipelines (default: 0.8)
+            run_operation_func: Function to execute operations in the pipeline.
+            console: Console for logging.
+            exploration_weight: Weight for the exploration term in UCB formula.
+            direct_reward_weight: Weight for the pipeline's direct average reward in UCB score.
+            skeleton_reward_weight: Weight for the pipeline's average skeleton peer reward.
+            model_reward_weight: Weight for the pipeline's average model peer reward.
         """
         # Pipeline state tracking
-        self.pipeline_rewards = {}  # Maps pipeline hash to cumulative reward
-        self.pipeline_samples = {}  # Maps pipeline hash to number of samples
-        self.skeleton_to_pipelines = {}  # Maps skeleton hash to list of pipeline hashes
-        self.pipeline_to_skeleton = {}  # Maps pipeline hash to its skeleton hash
-        self.sampled_pipelines = (
+        self.pipeline_direct_rewards: Dict[str, float] = {}
+        self.pipeline_direct_samples: Dict[str, int] = {}
+        self.pipeline_skeleton_rewards: Dict[str, float] = {}
+        self.pipeline_skeleton_samples: Dict[str, int] = {}
+        self.pipeline_model_rewards: Dict[str, float] = {}
+        self.pipeline_model_samples: Dict[str, int] = {}
+
+        self.skeleton_map: Dict[str, List[str]] = (
+            {}
+        )  # Skeleton hash -> List[pipeline hashes]
+        self.model_map: Dict[str, List[str]] = {}  # Model name -> List[pipeline hashes]
+        self.pipeline_to_skeleton_map: Dict[str, str] = (
+            {}
+        )  # Pipeline hash -> Skeleton hash
+        self.pipeline_to_models_map: Dict[str, List[str]] = (
+            {}
+        )  # Pipeline hash -> List[model names]
+
+        self.sampled_pipelines: Set[str] = (
             set()
-        )  # Set of pipeline hashes that have already been sampled
-        self.sampled_skeletons = (
-            set()
-        )  # Set of skeleton hashes that have already been sampled
-        self.estimated_rewards = {}  # Maps pipeline hash to initial estimated reward
+        )  # Set of pipeline hashes directly executed
+        self.total_samples: int = 0  # Total number of direct pipeline executions
 
         # Configuration
         self.exploration_weight = exploration_weight
-        self.dampening_factor = dampening_factor
-        self.total_samples = 0
+        self.direct_reward_weight = direct_reward_weight
+        self.skeleton_reward_weight = skeleton_reward_weight
+        self.model_reward_weight = model_reward_weight
 
         # Runner components
         self.run_operation_func = run_operation_func
         self.console = console
+        # Large constant for initial exploration bonus for un-sampled pipelines
+        self.INITIAL_EXPLORATION_BONUS = 1e6  # 1,000,000
 
     def _hash_pipeline(self, pipeline: List[Dict[str, Any]]) -> str:
         """
@@ -74,8 +93,8 @@ class UCBSampler:
             String hash identifying the pipeline
         """
         # Simple string-based hash for now - can be improved later
-        pipeline_str = str(pipeline)
-        return str(hash(pipeline_str) % 10000000)
+        pipeline_str = str(sorted(pipeline, key=lambda op: op.get("name", "")))
+        return str(hash(pipeline_str))
 
     def _hash_skeleton(self, skeleton: Any) -> str:
         """
@@ -89,343 +108,240 @@ class UCBSampler:
         """
         # Simple string-based hash - can be improved later
         skeleton_str = str(skeleton)
-        return str(hash(skeleton_str) % 10000000)
+        return str(hash(skeleton_str))
 
     def initialize_pipelines(
         self,
         skeleton_to_pipelines: Mapping,
-        scoring_func: Optional[Callable] = None,
-        sample_docs: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """
         Initialize tracking for a set of pipelines organized by skeleton.
-        If scoring_func and sample_docs are provided, estimates initial rewards.
+        Populates internal maps and resets reward/sample counts.
 
         Args:
             skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples
-            scoring_func: Optional function to score pipeline outputs (higher is better)
-            sample_docs: Optional sample documents to use for initial reward estimation
         """
         # Reset state
-        self.pipeline_rewards = {}
-        self.pipeline_samples = {}
-        self.skeleton_to_pipelines = {}
-        self.pipeline_to_skeleton = {}
+        self.pipeline_direct_rewards = {}
+        self.pipeline_direct_samples = {}
+        self.pipeline_skeleton_rewards = {}
+        self.pipeline_skeleton_samples = {}
+        self.pipeline_model_rewards = {}
+        self.pipeline_model_samples = {}
+        self.skeleton_map = {}
+        self.model_map = {}
+        self.pipeline_to_skeleton_map = {}
+        self.pipeline_to_models_map = {}
         self.sampled_pipelines = set()
-        self.sampled_skeletons = set()
-        self.estimated_rewards = {}
         self.total_samples = 0
 
         # Process each skeleton and its pipelines
         for skeleton, pipelines in skeleton_to_pipelines.items():
             skeleton_hash = self._hash_skeleton(skeleton)
-            self.skeleton_to_pipelines[skeleton_hash] = []
+            self.skeleton_map[skeleton_hash] = []
 
-            for pipeline, _ in pipelines:
-                pipeline_hash = self._hash_pipeline(pipeline)
-                self.pipeline_rewards[pipeline_hash] = 0
-                self.pipeline_samples[pipeline_hash] = 0
-                self.skeleton_to_pipelines[skeleton_hash].append(pipeline_hash)
-                self.pipeline_to_skeleton[pipeline_hash] = skeleton_hash
-
-        # Estimate initial rewards if scoring function and sample docs are provided
-        if scoring_func and sample_docs and len(sample_docs) > 0:
-            self._estimate_initial_rewards(
-                skeleton_to_pipelines, scoring_func, sample_docs
-            )
-
-    def _estimate_initial_rewards(
-        self,
-        skeleton_to_pipelines: Mapping,
-        scoring_func: Callable,
-        sample_docs: List[Dict[str, Any]],
-    ) -> None:
-        """
-        Estimate initial rewards for pipelines using static analysis and/or lightweight runs.
-
-        Args:
-            skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples
-            scoring_func: Function to score pipeline outputs (higher is better)
-            sample_docs: Sample documents to use for estimation
-        """
-        self.console.log("Estimating initial rewards for UCB sampling...")
-
-        # Use a single sample document to reduce overhead
-        estimation_doc = sample_docs[0] if sample_docs else None
-        if not estimation_doc:
-            self.console.log(
-                "No sample documents available for initial reward estimation"
-            )
-            return
-
-        # For each pipeline, create a rough estimate
-        for skeleton, pipelines in skeleton_to_pipelines.items():
-            for pipeline, estimated_cost in pipelines:
+            for pipeline, _ in pipelines:  # Ignore estimated_cost
                 pipeline_hash = self._hash_pipeline(pipeline)
 
-                # Use pipeline characteristics to estimate quality
-                initial_reward = 0.0
+                # Initialize rewards and samples
+                self.pipeline_direct_rewards[pipeline_hash] = 0.0
+                self.pipeline_direct_samples[pipeline_hash] = 0
+                self.pipeline_skeleton_rewards[pipeline_hash] = 0.0
+                self.pipeline_skeleton_samples[pipeline_hash] = 0
+                self.pipeline_model_rewards[pipeline_hash] = 0.0
+                self.pipeline_model_samples[pipeline_hash] = 0
 
-                # Factor 1: Operation count - more operations might be more complete
-                # but could also introduce more error, so use a curve that peaks
-                op_count = len(pipeline)
-                if op_count > 0:
-                    # Operations increase reward up to a point, then decrease
-                    op_factor = min(op_count / 5.0, 2.0 - (op_count / 10.0))
-                    op_factor = max(
-                        0.1, min(1.0, op_factor)
-                    )  # Clamp between 0.1 and 1.0
-                    initial_reward += op_factor * 0.3  # 30% weight to operation count
+                # Populate skeleton maps
+                self.skeleton_map[skeleton_hash].append(pipeline_hash)
+                self.pipeline_to_skeleton_map[pipeline_hash] = skeleton_hash
 
-                # Factor 2: Estimated cost - higher cost might correlate with quality
-                # but with diminishing returns
-                if estimated_cost > 0:
-                    # Log scale for cost to account for diminishing returns
-                    cost_factor = min(1.0, 0.1 + 0.3 * math.log(1 + estimated_cost))
-                    initial_reward += cost_factor * 0.2  # 20% weight to cost
+                # Extract models and populate model maps
+                pipeline_models: Set[str] = set()
+                for operation in pipeline:
+                    model_name = operation.get("model")
+                    if model_name and isinstance(model_name, str):
+                        pipeline_models.add(model_name)
+                        if model_name not in self.model_map:
+                            self.model_map[model_name] = []
+                        # Avoid adding duplicates to model_map list
+                        if pipeline_hash not in self.model_map[model_name]:
+                            self.model_map[model_name].append(pipeline_hash)
 
-                # Add some randomness to encourage exploration
-                random_factor = random.uniform(0.01, 0.1)
-                initial_reward += random_factor
-
-                # Store the estimated reward
-                self.estimated_rewards[pipeline_hash] = initial_reward
-
-                # Log the estimate
-                if (
-                    len(self.estimated_rewards) <= 5 or random.random() < 0.05
-                ):  # Log only some to avoid spam
-                    self.console.log(
-                        f"Pipeline {pipeline_hash[:8]} initial reward estimate: {initial_reward:.4f}"
-                    )
+                self.pipeline_to_models_map[pipeline_hash] = list(pipeline_models)
 
         self.console.log(
-            f"Estimated initial rewards for {len(self.estimated_rewards)} pipelines"
+            f"Initialized UCB Sampler with {len(self.pipeline_direct_rewards)} pipelines."
         )
+        self.console.log(f"Found {len(self.skeleton_map)} skeletons.")
+        self.console.log(f"Found {len(self.model_map)} unique models.")
 
     def calculate_ucb_score(self, pipeline_hash: str) -> float:
         """
-        Calculate the UCB score for a pipeline.
+        Calculate the UCB score for a pipeline based on direct, skeleton, and model rewards.
+        Prioritizes un-sampled pipelines based on peer rewards.
 
         Args:
             pipeline_hash: Hash of the pipeline to score
 
         Returns:
             UCB score (higher means more promising for sampling)
-            Returns -inf for already sampled pipelines to exclude them
+            Returns -inf for already directly sampled pipelines to exclude them
         """
-        # If already sampled, return negative infinity to exclude
+        # If already directly sampled, return negative infinity to exclude
         if pipeline_hash in self.sampled_pipelines:
             return float("-inf")
 
-        # If never sampled, use the estimated reward plus a large exploration bonus
-        if self.pipeline_samples.get(pipeline_hash, 0) == 0:
-            estimated_reward = self.estimated_rewards.get(
-                pipeline_hash, 0.5
-            )  # Default to 0.5 if no estimate
-            exploration_bonus = self.exploration_weight * math.sqrt(
-                2
-            )  # Larger bonus for unsampled
-            return estimated_reward + exploration_bonus
+        direct_samples = self.pipeline_direct_samples.get(pipeline_hash, 0)
 
-        # Get average reward for this pipeline
-        reward = self.pipeline_rewards.get(pipeline_hash, 0)
-        samples = self.pipeline_samples.get(pipeline_hash, 0)
-        avg_reward = reward / samples if samples > 0 else 0
-
-        # Calculate exploration term
-        exploration = math.sqrt(
-            self.exploration_weight * math.log(self.total_samples) / samples
+        # Calculate average peer rewards (handle division by zero)
+        skeleton_samples = self.pipeline_skeleton_samples.get(pipeline_hash, 0)
+        skeleton_reward = self.pipeline_skeleton_rewards.get(pipeline_hash, 0.0)
+        avg_skeleton = (
+            skeleton_reward / skeleton_samples if skeleton_samples > 0 else 0.0
         )
 
-        # UCB score = average reward + exploration term
-        return avg_reward + exploration
+        model_samples = self.pipeline_model_samples.get(pipeline_hash, 0)
+        model_reward = self.pipeline_model_rewards.get(pipeline_hash, 0.0)
+        avg_model = model_reward / model_samples if model_samples > 0 else 0.0
+
+        # Calculate weighted peer reward component (used in both cases)
+        peer_reward_component = (
+            self.skeleton_reward_weight * avg_skeleton
+            + self.model_reward_weight * avg_model
+        )
+
+        # If never directly sampled, score is based only on peer rewards + tie-breaker
+        if direct_samples == 0:
+            # Add small random value to break ties among un-sampled pipelines
+            # Using a very small multiplier to ensure peer reward is the primary factor
+            base_score = peer_reward_component  # Reverted
+            return base_score + random.random() * 1e-6
+
+        # --- Calculate score for pipelines that HAVE been directly sampled ---
+
+        # Calculate average direct reward
+        direct_reward = self.pipeline_direct_rewards.get(pipeline_hash, 0.0)
+        avg_direct = direct_reward / direct_samples  # direct_samples > 0 here
+
+        # Calculate weighted exploitation term (direct + peer rewards)
+        exploitation_term = (
+            self.direct_reward_weight * avg_direct
+            + peer_reward_component  # Reuse calculated peer component
+        )
+
+        # Calculate exploration term (based on direct samples)
+        # Ensure total_samples is at least 1 for log calculation
+        safe_total_samples = max(1, self.total_samples)
+        exploration_term = math.sqrt(
+            self.exploration_weight * math.log(safe_total_samples) / direct_samples
+        )
+
+        # UCB score = weighted exploitation + exploration
+        return exploitation_term + exploration_term
 
     def update_reward(self, pipeline: List[Dict[str, Any]], reward: float) -> None:
         """
-        Update rewards for a pipeline and propagate to related pipelines.
+        Update rewards for a directly executed pipeline and propagate the full
+        reward to its skeleton and model peers.
 
         Args:
-            pipeline: Pipeline that was executed
-            reward: Reward value for this pipeline execution
+            pipeline: Pipeline configuration that was executed
+            reward: Reward value obtained from this pipeline execution
         """
         pipeline_hash = self._hash_pipeline(pipeline)
 
-        # Mark this pipeline as sampled
-        self.sampled_pipelines.add(pipeline_hash)
-
-        # Mark this skeleton as sampled
-        skeleton_hash = self.pipeline_to_skeleton.get(pipeline_hash)
-        if skeleton_hash:
-            self.sampled_skeletons.add(skeleton_hash)
-
-        # Update pipeline's own reward and sample count
-        self.pipeline_rewards[pipeline_hash] = (
-            self.pipeline_rewards.get(pipeline_hash, 0) + reward
+        # --- 1. Update Direct Reward and Samples ---
+        self.pipeline_direct_rewards[pipeline_hash] = (
+            self.pipeline_direct_rewards.get(pipeline_hash, 0.0) + reward
         )
-        self.pipeline_samples[pipeline_hash] = (
-            self.pipeline_samples.get(pipeline_hash, 0) + 1
+        self.pipeline_direct_samples[pipeline_hash] = (
+            self.pipeline_direct_samples.get(pipeline_hash, 0) + 1
         )
         self.total_samples += 1
+        self.sampled_pipelines.add(pipeline_hash)  # Mark as directly sampled
 
-        # Propagate dampened reward to other pipelines in the same skeleton
+        # --- 2. Propagate Skeleton Reward ---
+        skeleton_hash = self.pipeline_to_skeleton_map.get(pipeline_hash)
         if skeleton_hash:
-            related_pipelines = self.skeleton_to_pipelines.get(skeleton_hash, [])
-            for related_hash in related_pipelines:
-                if related_hash != pipeline_hash:
-                    # Add dampened reward but don't increment sample count
-                    dampened_reward = reward * self.dampening_factor
-                    self.pipeline_rewards[related_hash] = (
-                        self.pipeline_rewards.get(related_hash, 0) + dampened_reward
+            skeleton_peers = self.skeleton_map.get(skeleton_hash, [])
+            for peer_hash in skeleton_peers:
+                if peer_hash != pipeline_hash:  # Don't update itself
+                    self.pipeline_skeleton_rewards[peer_hash] = (
+                        self.pipeline_skeleton_rewards.get(peer_hash, 0.0) + reward
+                    )
+                    self.pipeline_skeleton_samples[peer_hash] = (
+                        self.pipeline_skeleton_samples.get(peer_hash, 0) + 1
                     )
 
-    def get_unsampled_pipeline_count(self, skeleton_to_pipelines: Mapping) -> int:
-        """
-        Count the number of unsampled pipelines remaining.
+        # --- 3. Propagate Model Reward ---
+        pipeline_models = self.pipeline_to_models_map.get(pipeline_hash, [])
 
-        Args:
-            skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples
-
-        Returns:
-            Number of pipelines that have not been sampled yet
-        """
-        total_pipelines = 0
-        sampled_count = 0
-
-        for skeleton, pipelines in skeleton_to_pipelines.items():
-            total_pipelines += len(pipelines)
-            for pipeline, _ in pipelines:
-                pipeline_hash = self._hash_pipeline(pipeline)
-                if pipeline_hash in self.sampled_pipelines:
-                    sampled_count += 1
-
-        return total_pipelines - sampled_count
-
-    def get_unsampled_skeleton_count(self, skeleton_to_pipelines: Mapping) -> int:
-        """
-        Count the number of skeletons that have not had any pipeline sampled yet.
-
-        Args:
-            skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples
-
-        Returns:
-            Number of skeletons that have not been sampled yet
-        """
-        total_skeletons = len(skeleton_to_pipelines)
-        sampled_skeletons = len(self.sampled_skeletons)
-
-        return total_skeletons - sampled_skeletons
-
-    def sample_pipeline_from_unsampled_skeleton(
-        self, skeleton_to_pipelines: Mapping
-    ) -> Tuple[Any, List[Dict[str, Any]], float]:
-        """
-        Sample a pipeline from a skeleton that has not been sampled yet.
-
-        Args:
-            skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples
-
-        Returns:
-            Tuple containing:
-              - The selected skeleton
-              - The selected pipeline configuration
-              - Estimated cost of the selected pipeline
-
-        Raises:
-            ValueError: If all skeletons have been sampled or no pipelines are available
-        """
-        unsampled_skeletons = []
-
-        # Find skeletons that haven't been sampled yet
-        for skeleton in skeleton_to_pipelines.keys():
-            skeleton_hash = self._hash_skeleton(skeleton)
-            if skeleton_hash not in self.sampled_skeletons:
-                unsampled_skeletons.append((skeleton, skeleton_hash))
-
-        if not unsampled_skeletons:
-            raise ValueError("All skeletons have already been sampled")
-
-        # Randomly select an unsampled skeleton
-        selected_skeleton, selected_skeleton_hash = random.choice(unsampled_skeletons)
-
-        # Get pipelines for this skeleton
-        pipelines = skeleton_to_pipelines[selected_skeleton]
-
-        # Find unsampled pipelines for this skeleton
-        unsampled_pipelines = []
-        for pipeline, estimated_cost in pipelines:
-            pipeline_hash = self._hash_pipeline(pipeline)
-            if pipeline_hash not in self.sampled_pipelines:
-                unsampled_pipelines.append((pipeline, pipeline_hash, estimated_cost))
-
-        if not unsampled_pipelines:
-            # This should be rare, as it means all pipelines from this skeleton
-            # were somehow sampled but the skeleton wasn't marked as sampled
-            self.sampled_skeletons.add(selected_skeleton_hash)
-            return self.sample_pipeline_from_unsampled_skeleton(skeleton_to_pipelines)
-
-        # Randomly select an unsampled pipeline from this skeleton
-        selected_pipeline, _, selected_cost = random.choice(unsampled_pipelines)
-
-        return selected_skeleton, selected_pipeline, selected_cost
+        for model_name in pipeline_models:
+            model_peers = self.model_map.get(model_name, [])
+            for peer_hash in model_peers:
+                # Don't update itself
+                if peer_hash != pipeline_hash:  # MODIFIED: Only check against self
+                    self.pipeline_model_rewards[peer_hash] = (
+                        self.pipeline_model_rewards.get(peer_hash, 0.0) + reward
+                    )
+                    self.pipeline_model_samples[peer_hash] = (
+                        self.pipeline_model_samples.get(peer_hash, 0) + 1
+                    )
 
     def sample_pipeline(
         self, skeleton_to_pipelines: Mapping
     ) -> Tuple[Any, List[Dict[str, Any]], float]:
         """
-        Sample a pipeline using UCB algorithm, never sampling the same pipeline twice.
+        Sample a pipeline using the UCB algorithm, prioritizing pipelines
+        that have not been directly executed yet.
 
         Args:
-            skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples
+            skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples.
+                                   Used to retrieve original objects and costs.
 
         Returns:
             Tuple containing:
-              - The selected skeleton
+              - The selected skeleton object
               - The selected pipeline configuration
               - Estimated cost of the selected pipeline
 
         Raises:
-            ValueError: If all pipelines have been sampled or no pipelines are available
+            ValueError: If all pipelines have been directly sampled or no pipelines are available.
         """
-        # Check if we've already sampled all pipelines
-        unsampled_count = self.get_unsampled_pipeline_count(skeleton_to_pipelines)
-        if unsampled_count == 0:
-            raise ValueError("All pipelines have already been sampled")
-
-        # Map of skeleton objects to their hashes
-        skeleton_hash_map = {
-            self._hash_skeleton(skeleton): skeleton
-            for skeleton in skeleton_to_pipelines.keys()
-        }
-
-        # Calculate UCB scores for all pipelines
-        pipeline_scores = {}
-        pipeline_objects = {}
-        pipeline_costs = {}
+        # Build necessary lookups from the input mapping
+        pipeline_hash_to_objects: Dict[str, Tuple[Any, List[Dict[str, Any]], float]] = (
+            {}
+        )
+        all_pipeline_hashes: List[str] = []
 
         for skeleton, pipelines in skeleton_to_pipelines.items():
             for pipeline, estimated_cost in pipelines:
                 pipeline_hash = self._hash_pipeline(pipeline)
+                if pipeline_hash not in pipeline_hash_to_objects:  # Ensure uniqueness
+                    pipeline_hash_to_objects[pipeline_hash] = (
+                        skeleton,
+                        pipeline,
+                        estimated_cost,
+                    )
+                    all_pipeline_hashes.append(pipeline_hash)
 
-                # Skip already sampled pipelines
-                if pipeline_hash in self.sampled_pipelines:
-                    continue
-
-                pipeline_scores[pipeline_hash] = self.calculate_ucb_score(pipeline_hash)
-                pipeline_objects[pipeline_hash] = pipeline
-                pipeline_costs[pipeline_hash] = estimated_cost
+        # Calculate UCB scores only for pipelines not yet directly sampled
+        pipeline_scores: Dict[str, float] = {}
+        for pipeline_hash in all_pipeline_hashes:
+            if pipeline_hash not in self.sampled_pipelines:
+                score = self.calculate_ucb_score(pipeline_hash)
+                pipeline_scores[pipeline_hash] = score
 
         # Select pipeline with highest UCB score
         if not pipeline_scores:
-            raise ValueError("No unsampled pipelines available")
+            raise ValueError("All pipelines have already been sampled directly.")
 
         best_pipeline_hash = max(pipeline_scores, key=pipeline_scores.get)
-        selected_pipeline = pipeline_objects[best_pipeline_hash]
-        selected_cost = pipeline_costs[best_pipeline_hash]
 
-        # Determine which skeleton this pipeline belongs to
-        skeleton_hash = self.pipeline_to_skeleton.get(best_pipeline_hash)
-        selected_skeleton = skeleton_hash_map.get(skeleton_hash)
+        # Retrieve the original objects using the hash
+        selected_skeleton, selected_pipeline, selected_cost = pipeline_hash_to_objects[
+            best_pipeline_hash
+        ]
 
         return selected_skeleton, selected_pipeline, selected_cost
 
@@ -444,8 +360,10 @@ class UCBSampler:
         Returns:
             Tuple of (total_cost, output_documents)
         """
+        # Ensure deep copy of input docs for isolated execution
+        current_input_docs = copy.deepcopy(input_docs)
         return execute_pipeline(
-            input_docs, pipeline, self.run_operation_func, self.console
+            current_input_docs, pipeline, self.run_operation_func, self.console
         )
 
 
@@ -460,90 +378,97 @@ def sample_pipeline_execution_with_ucb(
     sample_size: int = 5,
     budget_num_pipelines: int = 20,
     exploration_weight: float = 2.0,
-    dampening_factor: float = 0.8,
+    direct_reward_weight: float = 1.0,
+    skeleton_reward_weight: float = 0.5,
+    model_reward_weight: float = 0.3,
 ) -> Tuple[
-    List[Tuple[List[Dict[str, Any]], float, List[Dict[str, Any]], Dict[str, Any]]],
+    List[
+        Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]], Dict[str, Any]]
+    ],
     float,
 ]:
     """
-    Samples execution of pipelines using UCB algorithm to intelligently explore and exploit
-    the space of possible pipelines. Each pipeline is sampled at most once, with at least one
-    pipeline from each skeleton sampled first before UCB selection begins.
+    Samples execution of pipelines using a UCB algorithm that considers direct,
+    skeleton-based, and model-based rewards. Each pipeline is directly sampled
+    at most once.
 
     Args:
-        sample_docs: A list of sample documents to use as input
-        console: Console for logging
-        skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples
-        run_operation_func: Reference to the runner's _run_operation function
-        llm_client: LLM client for querying and ranking
-        original_pipeline_config: The original pipeline configuration
-        scoring_func: Function to score pipeline outputs (higher is better)
-        sample_size: Number of documents to use in sampling (default: 5)
-        budget_num_pipelines: Maximum number of pipelines to sample (default: 20)
-        exploration_weight: Weight for exploration in UCB formula (default: 2.0)
-        dampening_factor: Factor to dampen rewards when propagating (default: 0.8)
+        sample_docs: A list of sample documents to use as input.
+        console: Console for logging.
+        skeleton_to_pipelines: Mapping of skeleton objects to lists of (pipeline, estimated_cost) tuples.
+        run_operation_func: Reference to the runner's _run_operation function.
+        llm_client: LLM client for querying and ranking.
+        original_pipeline_config: The original pipeline configuration.
+        scoring_func: Function to score pipeline outputs (higher is better).
+        sample_size: Number of documents to use in sampling (default: 5).
+        budget_num_pipelines: Maximum number of pipelines to sample directly (default: 20).
+        exploration_weight: Weight for exploration in UCB formula.
+        direct_reward_weight: Weight for direct reward component in UCB score.
+        skeleton_reward_weight: Weight for skeleton reward component in UCB score.
+        model_reward_weight: Weight for model reward component in UCB score.
 
     Returns:
         Tuple containing:
-          - List of tuples, each containing (pipeline configuration, actual cost, output_docs, ranking_info)
+          - List of tuples, each containing (pipeline configuration, estimated_cost, actual_cost, output_docs, ranking_info)
           - Total sampling cost
     """
-    # Initialize UCB sampler
+    # Initialize UCB sampler without cost weight
     ucb = UCBSampler(
         run_operation_func=run_operation_func,
         console=console,
         exploration_weight=exploration_weight,
-        dampening_factor=dampening_factor,
+        direct_reward_weight=direct_reward_weight,
+        skeleton_reward_weight=skeleton_reward_weight,
+        model_reward_weight=model_reward_weight,
     )
 
-    # Pass the scoring function and sample docs for initial reward estimation
-    ucb.initialize_pipelines(
-        skeleton_to_pipelines,
-        scoring_func=scoring_func,
-        sample_docs=sample_docs[:1],  # Use just one document for estimation
-    )
+    # Initialize the sampler with the pipeline structures
+    ucb.initialize_pipelines(skeleton_to_pipelines)
 
-    results = []
+    results_data: List[
+        Tuple[List[Dict[str, Any]], float, float, List[Dict[str, Any]]]
+    ] = []  # Store (pipeline, estimated_cost, actual_cost, output_docs)
 
     # Use a limited number of docs for sampling
     input_docs = copy.deepcopy(sample_docs[:sample_size])
-    console.log(f"Sampling with {len(input_docs)} documents using UCB algorithm")
-    console.log("Each pipeline will be sampled at most once")
-    sampling_cost = 0
+    console.log(f"Sampling with {len(input_docs)} documents using UCB algorithm.")
+    console.log("Each pipeline will be directly sampled at most once.")
+    sampling_cost = 0.0
 
-    # Calculate the total number of available pipelines and skeletons
-    total_pipelines = sum(
-        len(pipelines) for pipelines in skeleton_to_pipelines.values()
-    )
-    total_skeletons = len(skeleton_to_pipelines)
+    # Calculate the total number of available pipelines
+    total_pipelines = len(ucb.pipeline_direct_rewards)  # Get count after initialization
     actual_budget = min(budget_num_pipelines, total_pipelines)
 
     console.log(f"Total available pipelines: {total_pipelines}")
-    console.log(f"Total available skeletons: {total_skeletons}")
-    console.log(f"Sampling budget: {actual_budget}")
+    console.log(f"Sampling budget (max direct executions): {actual_budget}")
 
-    # PHASE 1: Sample at least one pipeline from each skeleton
-    console.log("\n--- PHASE 1: Sampling one pipeline from each skeleton ---")
-    sampled_in_phase1 = 0
-
-    while sampled_in_phase1 < min(total_skeletons, actual_budget):
+    # --- Single Sampling Loop using UCB ---
+    console.log("\n--- UCB Sampling Phase ---")
+    for iteration in range(actual_budget):
         try:
-            # Sample a pipeline from an unsampled skeleton
-            skeleton, pipeline, estimated_cost = (
-                ucb.sample_pipeline_from_unsampled_skeleton(skeleton_to_pipelines)
+            # Sample a pipeline using UCB
+            # Pass skeleton_to_pipelines again to retrieve original objects/costs
+            skeleton, pipeline, estimated_cost = ucb.sample_pipeline(
+                skeleton_to_pipelines
             )
+            pipeline_hash = ucb._hash_pipeline(pipeline)  # Get hash for logging
 
             # Log the selected pipeline
+            console.log(f"\nUCB Sampling iteration {iteration+1}/{actual_budget}")
+            ucb_score = ucb.calculate_ucb_score(
+                pipeline_hash
+            )  # Recalculate for logging (before it becomes -inf)
             console.log(
-                f"PHASE 1 - Sampling from unsampled skeleton {sampled_in_phase1+1}/{total_skeletons}"
+                f"Selected pipeline hash: {pipeline_hash[:12]} (Score: {ucb_score:.4f})"
             )
-            console.log(f"Selected pipeline for skeleton: {str(skeleton)[:50]}...")
+            console.log(f"  Skeleton: {str(skeleton)[:60]}...")
             console.log(
-                f"Operations: {len(pipeline)}, Estimated cost: ${estimated_cost:.6f}"
+                f"  Operations: {len(pipeline)}, Estimated cost: ${estimated_cost:.6f}"
             )
 
             # Execute the pipeline on sample docs
             actual_cost, output_docs = ucb.execute_pipeline(input_docs, pipeline)
+            sampling_cost += actual_cost
 
             # Log the cost comparison
             cost_diff = actual_cost - estimated_cost
@@ -559,123 +484,62 @@ def sample_pipeline_execution_with_ucb(
             console.log(f"  Cost difference: ${cost_diff:.6f} ({cost_diff_pct:.1f}%)")
 
             # Calculate reward from scoring function
-            reward = 0
+            reward = 0.0
             if output_docs:
                 try:
                     # Calculate reward as average of scoring function across documents
                     doc_rewards = [scoring_func(doc) for doc in output_docs]
-                    reward = sum(doc_rewards) / len(doc_rewards)
+                    if doc_rewards:  # Avoid division by zero if no valid scores
+                        reward = sum(doc_rewards) / len(doc_rewards)
                     console.log(f"  Pipeline reward: {reward:.4f}")
                 except Exception as e:
-                    console.log(f"  Error calculating reward: {e}")
+                    console.log(f"[bold red]  Error calculating reward: {e}[/bold red]")
+            else:
+                console.log("  No output documents generated, reward is 0.")
 
             # Update UCB sampler with reward
             ucb.update_reward(pipeline, reward)
 
             # Store results for this pipeline if there are output docs
             if len(output_docs) > 0:
-                results.append((pipeline, estimated_cost, actual_cost, output_docs))
-            sampling_cost += actual_cost
-            sampled_in_phase1 += 1
+                results_data.append(
+                    (pipeline, estimated_cost, actual_cost, output_docs)
+                )
 
-            # Log remaining unsampled skeletons
-            unsampled_skeleton_count = ucb.get_unsampled_skeleton_count(
-                skeleton_to_pipelines
+            # Log remaining pipelines to sample directly
+            remaining_to_sample = total_pipelines - len(ucb.sampled_pipelines)
+            console.log(
+                f"  Remaining pipelines to sample directly: {remaining_to_sample}"
             )
-            console.log(f"  Remaining unsampled skeletons: {unsampled_skeleton_count}")
 
-            # Check if we've exhausted our budget
-            if sampled_in_phase1 >= actual_budget:
-                console.log("Sampling budget exhausted during Phase 1")
-                break
-
-        except ValueError:
-            console.log("All skeletons have been sampled. Moving to Phase 2.")
+        except ValueError as e:
+            # This happens when sample_pipeline raises error (all pipelines sampled)
+            console.log(f"\n[bold yellow]Stopping UCB sampling: {str(e)}[/bold yellow]")
             break
         except Exception as e:
-            console.log(f"Error in Phase 1 sampling: {e}")
-            break
-
-    # PHASE 2: Use UCB algorithm to sample remaining budget
-    remaining_budget = actual_budget - sampled_in_phase1
-
-    if remaining_budget > 0:
-        console.log(
-            f"\n--- PHASE 2: UCB sampling for remaining budget ({remaining_budget}) ---"
-        )
-
-        for iteration in range(remaining_budget):
-            try:
-                # Sample a pipeline using UCB
-                skeleton, pipeline, estimated_cost = ucb.sample_pipeline(
-                    skeleton_to_pipelines
-                )
-
-                # Log the selected pipeline
-                console.log(
-                    f"PHASE 2 - UCB Sampling iteration {iteration+1}/{remaining_budget}"
-                )
-                console.log(f"Selected pipeline for skeleton: {str(skeleton)[:50]}...")
-                console.log(
-                    f"Operations: {len(pipeline)}, Estimated cost: ${estimated_cost:.6f}"
-                )
-
-                # Execute the pipeline on sample docs
-                actual_cost, output_docs = ucb.execute_pipeline(input_docs, pipeline)
-
-                # Log the cost comparison
-                cost_diff = actual_cost - estimated_cost
-                cost_diff_pct = (
-                    (cost_diff / estimated_cost) * 100
-                    if estimated_cost > 0
-                    else float("inf")
-                )
-
-                console.log(
-                    f"  Actual cost: ${actual_cost:.6f} ({len(output_docs)} output docs)"
-                )
-                console.log(
-                    f"  Cost difference: ${cost_diff:.6f} ({cost_diff_pct:.1f}%)"
-                )
-
-                # Calculate reward from scoring function
-                reward = 0
-                if output_docs:
-                    try:
-                        # Calculate reward as average of scoring function across documents
-                        doc_rewards = [scoring_func(doc) for doc in output_docs]
-                        reward = sum(doc_rewards) / len(doc_rewards)
-                        console.log(f"  Pipeline reward: {reward:.4f}")
-                    except Exception as e:
-                        console.log(f"  Error calculating reward: {e}")
-
-                # Update UCB sampler with reward
-                ucb.update_reward(pipeline, reward)
-
-                # Store results for this pipeline if there are output docs
-                if len(output_docs) > 0:
-                    results.append((pipeline, estimated_cost, actual_cost, output_docs))
-                sampling_cost += actual_cost
-
-                # Log remaining unsampled pipelines
-                unsampled_count = ucb.get_unsampled_pipeline_count(
-                    skeleton_to_pipelines
-                )
-                console.log(f"  Remaining unsampled pipelines: {unsampled_count}")
-
-            except ValueError as e:
-                console.log(f"Stopping UCB sampling: {str(e)}")
-                break
-            except Exception as e:
-                console.log(f"Error in UCB sampling iteration: {e}")
-                continue
-    else:
-        console.log("No remaining budget for Phase 2 UCB sampling")
+            console.log(
+                f"\n[bold red]Error during UCB sampling iteration {iteration+1}: {e}[/bold red]"
+            )
+            # Optionally continue to the next iteration or break
+            continue  # Continue for now
 
     # Rank the results using LLM as a judge and scoring function
-    console.log(f"Ranking {len(results)} pipeline results based on output quality...")
+    console.log(
+        f"\nRanking {len(results_data)} pipeline results based on output quality..."
+    )
+    if not results_data:
+        console.log("[yellow]No successful pipeline executions to rank.[/yellow]")
+        return [], sampling_cost
+
+    # Pass results_data which now includes estimated_cost
+    # Assume rank_pipeline_outputs_with_llm preserves all necessary info, including estimated_cost
     ranked_results = rank_pipeline_outputs_with_llm(
-        results, original_pipeline_config, llm_client, console, scoring_func
+        results_data,  # Input: List[Tuple[pipeline, estimated_cost, actual_cost, output_docs]]
+        original_pipeline_config,
+        llm_client,
+        console,
+        scoring_func,
+        run_operation_func,
     )
 
     return ranked_results, sampling_cost

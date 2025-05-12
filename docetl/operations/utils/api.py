@@ -851,7 +851,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         else:
             if not tool_calls:
                 raise InvalidOutputError(
-                    "No tool calls in LLM response", [{}], schema, response.choices, []
+                    f"No tool calls in LLM response: {response.choices[index]}",
+                    [{}],
+                    schema,
+                    response.choices,
+                    [],
                 )
 
             outputs = []

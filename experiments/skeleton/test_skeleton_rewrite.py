@@ -16,7 +16,7 @@ def rewrite(yaml_file: Path, max_threads=None, resume=False, save_path=None):
     runner.rewrite()
 
 def main():
-    yaml_file = Path("experiments/skeleton/map_test.yaml")
+    yaml_file = Path("experiments/skeleton/map_summary_test.yaml")
     rewrite(yaml_file)
 
 if __name__ == "__main__":

@@ -128,6 +128,7 @@ Examples of Different Operation Types:
 ```yaml
 - name: summarize_feedback
   type: reduce
+  pass_through: true
   reduce_key: department
   prompt: |
     Summarize the customer feedback for the {{ inputs[0].department }} department:
@@ -547,6 +548,7 @@ Example of a Reduce Operation:
 - name: summarize_feedback
   type: reduce
   reduce_key: department
+  pass_through: true
   prompt: |
     Summarize the customer feedback for the {{ inputs[0].department }} department:
 

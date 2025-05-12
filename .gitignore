@@ -69,5 +69,9 @@ experiments/gemini/declassified/plans/intermediate*
 experiments/gemini/reviews/intermediate/*
 experiments/skeleton/*.json
 experiments/skeleton/*.optimizer_logs*
+experiments/skeleton/intermediate*
+experiments/skeleton/map_summary_test/*
+experiments/skeleton/map_summary/*
+experiments/skeleton/map_test/*
 
 metrics_vs_cost.png

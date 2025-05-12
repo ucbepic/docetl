@@ -13,6 +13,7 @@ from docetl.operations.sample import SampleOperation
 from docetl.operations.unnest import UnnestOperation
 from docetl.operations.scan import ScanOperation
 from docetl.operations.add_uuid import AddUuidOperation
+from docetl.operations.extract import ExtractOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -30,7 +31,8 @@ mapping = {
     "sample": SampleOperation,
     "unnest": UnnestOperation,
     "scan": ScanOperation,
-    "add_uuid": AddUuidOperation
+    "add_uuid": AddUuidOperation,
+    "extract": ExtractOperation
 }
 
 def get_operation(operation_type: str):

@@ -4,12 +4,13 @@ Pipelines in DocETL are the core structures that define the flow of data process
 
 ## Components of a Pipeline
 
-A pipeline in DocETL consists of four main components:
+A pipeline in DocETL consists of five main components:
 
 1. **Default Model**: The language model to use for the pipeline.
-2. **Datasets**: The input data sources for your pipeline.
-3. **Operators**: The processing steps that transform your data.
-4. **Pipeline Specification**: The sequence of steps and the output configuration.
+2. **System Prompts**: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data.
+3. **Datasets**: The input data sources for your pipeline.
+4. **Operators**: The processing steps that transform your data.
+5. **Pipeline Specification**: The sequence of steps and the output configuration.
 
 ### Default Model
 
@@ -18,6 +19,34 @@ You can set the default model for a pipeline in the YAML configuration file. If 
 ```yaml
 default_model: gpt-4o-mini
 ```
+
+You can also specify default API base URLs for language models and embeddings if you're hosting your own models with an OpenAI-compatible API:
+
+!!! note
+    If you're hosting your own models with an OpenAI-compatible API, you can specify the base URLs:
+    
+    ```yaml
+    default_lm_api_base: https://your-custom-llm-endpoint.com/v1
+    default_embedding_api_base: https://your-custom-embedding-endpoint.com/v1
+    ```
+    
+    This is particularly useful when working with self-hosted models or services like Ollama, LM Studio, or other API-compatible LLM servers.
+
+### System Prompts
+
+System prompts provide context to the language model about the data it's processing and the role it should adopt. This helps guide the model's responses to be more relevant and domain-appropriate. There are two key components to system prompts in DocETL:
+
+1. **Dataset Description**: A concise explanation of what kind of data the model will be processing.
+2. **Persona**: The role or perspective the model should adopt when analyzing the data.
+
+Here's an example of how to define system prompts in your pipeline configuration:
+
+```yaml
+system_prompt:
+  dataset_description: a collection of transcripts of doctor visits
+  persona: a medical practitioner analyzing patient symptoms and reactions to medications
+```
+
 
 ### Datasets
 

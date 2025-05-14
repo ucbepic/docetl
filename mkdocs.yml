@@ -32,6 +32,7 @@ nav:
           - Filter: operators/filter.md
           - Equijoin: operators/equijoin.md
           - Rank: operators/rank.md
+          - Extract: operators/extract.md
           - Cluster: operators/cluster.md
       - Auxiliary Operators:
           - Split: operators/split.md

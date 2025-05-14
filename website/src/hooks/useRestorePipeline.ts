@@ -121,6 +121,15 @@ export const useRestorePipeline = ({
                       : [op.input_keys];
                   }
 
+                  // If the operation type is 'extract', ensure document_keys is a list of strings
+                  if (type === "extract" && op.document_keys) {
+                    stringifiedKwargs.document_keys = Array.isArray(
+                      op.document_keys
+                    )
+                      ? op.document_keys
+                      : [op.document_keys];
+                  }
+
                   return {
                     id: id || uuidv4(),
                     llmType:

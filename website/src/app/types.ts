@@ -16,6 +16,7 @@ export type Operation = {
     | "resolve"
     | "parallel_map"
     | "rank"
+    | "extract"
     | "unnest"
     | "split"
     | "gather"

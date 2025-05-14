@@ -147,6 +147,11 @@ const AddOperationDropdown: React.FC<AddOperationDropdownProps> = ({
           description="Sorts documents based on the given criteria. This may drop documents if you are using the `k` parameter; otherwise it returns the same documents, but in a sorted order."
           onClick={() => onAddOperation("LLM", "rank", "Untitled Rank")}
         />
+        <OperationMenuItem
+          name="Extract"
+          description="Extracts specific sections of text from documents based on provided criteria."
+          onClick={() => onAddOperation("LLM", "extract", "Untitled Extract")}
+        />
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="font-bold text-sm bg-muted/50 py-2">
           Add Non-LLM Operation
@@ -363,7 +368,8 @@ const PipelineGUI: React.FC = () => {
                 type === "resolve" ||
                 type === "filter" ||
                 type === "parallel_map" ||
-                type === "rank"
+                type === "rank" ||
+                type === "extract"
                   ? "LLM"
                   : "non-LLM",
               type: type,

@@ -105,7 +105,7 @@ The Rank operation works in these steps:
 
 - `name`: A unique name for the operation.
 - `type`: Must be set to "rank".
-- `prompt`: The prompt specifying the ranking criteria.
+- `prompt`: The prompt specifying the ranking criteria. This does **not** need to be a Jinja template.
 - `input_keys`: List of document keys to consider for ranking.
 - `direction`: Either "asc" (ascending) or "desc" (descending).
 

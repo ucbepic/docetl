@@ -80,12 +80,22 @@ The easiest way to get the DocWrangler playground running:
 Create `.env` in the root directory:
 ```bash
 OPENAI_API_KEY=your_api_key_here
+# BACKEND configuration
 BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-BACKEND_HOST=0.0.0.0
+BACKEND_HOST=localhost
 BACKEND_PORT=8000
 BACKEND_RELOAD=True
+
+# FRONTEND configuration
 FRONTEND_HOST=0.0.0.0
 FRONTEND_PORT=3000
+
+# Host port mapping for docker-compose (if not set, defaults are used in docker-compose.yml)
+FRONTEND_DOCKER_COMPOSE_PORT=3031
+BACKEND_DOCKER_COMPOSE_PORT=8081
+
+# Supported text file encodings
+TEXT_FILE_ENCODINGS=utf-8,latin1,cp1252,iso-8859-1
 ```
 
 Create `.env.local` in the `website` directory:
@@ -96,6 +106,7 @@ MODEL_NAME=gpt-4o-mini
 
 NEXT_PUBLIC_BACKEND_HOST=localhost
 NEXT_PUBLIC_BACKEND_PORT=8000
+NEXT_PUBLIC_HOSTED_DOCWRANGLER=false
 ```
 
 2. Run Docker:
@@ -156,12 +167,22 @@ cd docetl
 2. Set up environment variables in `.env` in the root/top-level directory:
 ```bash
 OPENAI_API_KEY=your_api_key_here
+# BACKEND configuration
 BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 BACKEND_HOST=localhost
 BACKEND_PORT=8000
 BACKEND_RELOAD=True
+
+# FRONTEND configuration
 FRONTEND_HOST=0.0.0.0
 FRONTEND_PORT=3000
+
+# Host port mapping for docker-compose (if not set, defaults are used in docker-compose.yml)
+FRONTEND_DOCKER_COMPOSE_PORT=3031
+BACKEND_DOCKER_COMPOSE_PORT=8081
+
+# Supported text file encodings
+TEXT_FILE_ENCODINGS=utf-8,latin1,cp1252,iso-8859-1
 ```
 
 And create an .env.local file in the `website` directory with the following:
@@ -172,6 +193,7 @@ MODEL_NAME=gpt-4o-mini
 
 NEXT_PUBLIC_BACKEND_HOST=localhost
 NEXT_PUBLIC_BACKEND_PORT=8000
+NEXT_PUBLIC_HOSTED_DOCWRANGLER=false
 ```
 
 3. Install dependencies:

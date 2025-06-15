@@ -434,3 +434,75 @@ def test_map_operation_partial_checkpoint(
     if map_sample_data:  # Only check if there was input
         assert isinstance(data, list), "Data in checkpoint file is not a list"
         assert data, "Partial checkpoint file is empty"
+
+
+def test_map_operation_with_calibration(simple_map_config, map_sample_data, api_wrapper):
+    """
+    Test that MapOperation performs calibration when enabled.
+    
+    This test:
+    - Enables calibration in the map config.
+    - Executes the map operation with calibration enabled.
+    - Verifies that results are returned for all input items.
+    - Verifies that the calibration process doesn't break the normal operation.
+    """
+    # Create a map config with calibration enabled
+    map_config_with_calibration = {
+        **simple_map_config,
+        "calibrate": True,
+        "num_calibration_docs": 3,  # Small number for testing
+        "bypass_cache": True
+    }
+
+    operation = MapOperation(api_wrapper, map_config_with_calibration, "gpt-4o-mini", 4)
+    
+    # Execute the operation with calibration
+    results, cost = operation.execute(map_sample_data)
+
+    # Assert that we have results for all input items
+    assert len(results) == len(map_sample_data)
+
+    # Check that all results have a sentiment
+    assert all("sentiment" in result for result in results)
+
+    # Verify that all sentiments are valid
+    valid_sentiments = ["positive", "negative", "neutral"]
+    assert all(
+        any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
+    )
+
+    # Verify that cost is greater than 0 (includes calibration cost)
+    assert cost > 0
+
+
+def test_map_operation_calibration_with_larger_sample(simple_map_config, map_sample_data_large, api_wrapper):
+    """
+    Test calibration with a larger dataset to ensure proper sampling.
+    """
+    # Create a map config with calibration enabled
+    map_config_with_calibration = {
+        **simple_map_config,
+        "calibrate": True,
+        "num_calibration_docs": 5,  # Test with 5 docs from larger dataset
+        "bypass_cache": True
+    }
+
+    operation = MapOperation(api_wrapper, map_config_with_calibration, "gpt-4o-mini", 4)
+    
+    # Execute the operation with calibration on larger dataset
+    results, cost = operation.execute(map_sample_data_large)
+
+    # Assert that we have results for all input items
+    assert len(results) == len(map_sample_data_large)
+
+    # Check that all results have a sentiment
+    assert all("sentiment" in result for result in results)
+
+    # Verify that all sentiments are valid
+    valid_sentiments = ["positive", "negative", "neutral"]
+    assert all(
+        any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
+    )
+
+    # Verify that cost is greater than 0
+    assert cost > 0

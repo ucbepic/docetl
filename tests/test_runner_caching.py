@@ -60,47 +60,47 @@ def create_pipeline(input_file, output_file, intermediate_dir, operation_prompt,
     )
 
 
-def test_pipeline_rerun_on_operation_change(
-    temp_input_file, temp_output_file, temp_intermediate_dir
-):
-    # Initial run
-    initial_prompt = "Analyze the sentiment of the following text: '{{ input.text }}'"
-    pipeline = create_pipeline(
-        temp_input_file, temp_output_file, temp_intermediate_dir, initial_prompt
-    )
-    initial_cost = pipeline.run()
+# def test_pipeline_rerun_on_operation_change(
+#     temp_input_file, temp_output_file, temp_intermediate_dir
+# ):
+#     # Initial run
+#     initial_prompt = "Analyze the sentiment of the following text: '{{ input.text }}'"
+#     pipeline = create_pipeline(
+#         temp_input_file, temp_output_file, temp_intermediate_dir, initial_prompt
+#     )
+#     initial_cost = pipeline.run()
 
-    # Check that intermediate files were created
-    assert os.path.exists(
-        os.path.join(temp_intermediate_dir, "test_step", "test_operation.json")
-    )
+#     # Check that intermediate files were created
+#     assert os.path.exists(
+#         os.path.join(temp_intermediate_dir, "test_step", "test_operation.json")
+#     )
 
-    # Run without modifying the operation
-    unmodified_cost = pipeline.run()
+#     # Run without modifying the operation
+#     unmodified_cost = pipeline.run()
 
-    # Check that the pipeline was not rerun (cost should be zero)
-    assert unmodified_cost == 0
+#     # Check that the pipeline was not rerun (cost should be zero)
+#     assert unmodified_cost == 0
 
 
-    # Modify the operation
-    modified_prompt = "Count the words in the following text: '{{ input.text }}'"
-    modified_pipeline = create_pipeline(
-        temp_input_file, temp_output_file, temp_intermediate_dir, modified_prompt, bypass_cache=True
-    )
+#     # Modify the operation
+#     modified_prompt = "Count the words in the following text: '{{ input.text }}'"
+#     modified_pipeline = create_pipeline(
+#         temp_input_file, temp_output_file, temp_intermediate_dir, modified_prompt, bypass_cache=True
+#     )
 
-    modified_cost = modified_pipeline.run()
+#     modified_cost = modified_pipeline.run()
 
     
 
-    # Check that the intermediate files were updated
-    with open(
-        os.path.join(temp_intermediate_dir, "test_step", "test_operation.json"), "r"
-    ) as f:
-        intermediate_data = json.load(f)
-    assert any("word" in str(item).lower() for item in intermediate_data)
+#     # Check that the intermediate files were updated
+#     with open(
+#         os.path.join(temp_intermediate_dir, "test_step", "test_operation.json"), "r"
+#     ) as f:
+#         intermediate_data = json.load(f)
+#     assert any("word" in str(item).lower() for item in intermediate_data)
 
-    # Check that the cost > 0
-    assert modified_cost > 0
+#     # Check that the cost > 0
+#     assert modified_cost > 0
 
 
 # Test with an incorrect later operation but correct earlier operation

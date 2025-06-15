@@ -67,32 +67,36 @@ class MapOperation(BaseOperation):
         """
         Generate calibration context by running the operation on a sample of documents
         and using an LLM to suggest prompt improvements for consistency.
-        
+
         Returns:
             str: Additional context to add to the original prompt
         """
         import random
-        
+
         # Set seed for reproducibility
         random.seed(42)
-        
+
         # Sample documents for calibration
-        num_calibration_docs = min(self.config.get("num_calibration_docs", 10), len(input_data))
+        num_calibration_docs = min(
+            self.config.get("num_calibration_docs", 10), len(input_data)
+        )
         if num_calibration_docs == len(input_data):
             calibration_sample = input_data
         else:
             calibration_sample = random.sample(input_data, num_calibration_docs)
-        
-        self.console.log(f"[bold blue]Running calibration on {num_calibration_docs} documents...[/bold blue]")
-        
+
+        self.console.log(
+            f"[bold blue]Running calibration on {num_calibration_docs} documents...[/bold blue]"
+        )
+
         # Temporarily disable calibration to avoid infinite recursion
         original_calibrate = self.config.get("calibrate", False)
         self.config["calibrate"] = False
-        
+
         try:
             # Run the map operation on the calibration sample
             calibration_results, _ = self.execute(calibration_sample)
-            
+
             # Prepare the calibration analysis prompt
             calibration_prompt = f"""
 The following prompt was applied to sample documents to generate these input-output pairs:
@@ -101,12 +105,14 @@ The following prompt was applied to sample documents to generate these input-out
 
 Sample inputs and their outputs:
 """
-            
-            for i, (input_doc, output_doc) in enumerate(zip(calibration_sample, calibration_results)):
+
+            for i, (input_doc, output_doc) in enumerate(
+                zip(calibration_sample, calibration_results)
+            ):
                 calibration_prompt += f"\n--- Example {i+1} ---\n"
                 calibration_prompt += f"Input: {input_doc}\n"
                 calibration_prompt += f"Output: {output_doc}\n"
-            
+
             calibration_prompt += """
 Based on these examples, provide reference anchors that will be appended to the prompt to help maintain consistency when processing all documents.
 
@@ -124,7 +130,7 @@ Reference anchors:"""
             messages = [{"role": "user", "content": calibration_prompt}]
             completion_kwargs = self.config.get("litellm_completion_kwargs", {})
             completion_kwargs["temperature"] = 0.0
-            
+
             llm_result = self.runner.api.call_llm(
                 self.config.get("model", self.default_model),
                 "calibration",
@@ -136,9 +142,9 @@ Reference anchors:"""
                 litellm_completion_kwargs=completion_kwargs,
                 op_config=self.config,
             )
-            
+
             # Parse the response
-            if hasattr(llm_result, 'response'):
+            if hasattr(llm_result, "response"):
                 calibration_context = self.runner.api.parse_llm_response(
                     llm_result.response,
                     schema={"calibration_context": "string"},
@@ -146,9 +152,9 @@ Reference anchors:"""
                 )[0].get("calibration_context", "")
             else:
                 calibration_context = ""
-            
+
             return calibration_context
-            
+
         finally:
             # Restore original calibration setting
             self.config["calibrate"] = original_calibrate
@@ -174,10 +180,12 @@ Reference anchors:"""
         # Validate calibration parameters
         if config.calibrate and not isinstance(config.calibrate, bool):
             raise TypeError("'calibrate' must be a boolean")
-        
-        if config.num_calibration_docs and not isinstance(config.num_calibration_docs, int):
+
+        if config.num_calibration_docs and not isinstance(
+            config.num_calibration_docs, int
+        ):
             raise TypeError("'num_calibration_docs' must be an integer")
-        
+
         if config.num_calibration_docs and config.num_calibration_docs <= 0:
             raise ValueError("'num_calibration_docs' must be a positive integer")
 
@@ -274,10 +282,16 @@ Reference anchors:"""
                 # Store original prompt for potential restoration
                 self._original_prompt = self.config["prompt"]
                 # Augment the prompt with calibration context
-                self.config["prompt"] = f"{self.config['prompt']}\n\n{calibration_context}"
-                self.console.log(f"[bold green]New map ({self.config['name']}) prompt augmented with context on how to improve consistency:[/bold green] {self.config['prompt']}")
+                self.config["prompt"] = (
+                    f"{self.config['prompt']}\n\n{calibration_context}"
+                )
+                self.console.log(
+                    f"[bold green]New map ({self.config['name']}) prompt augmented with context on how to improve consistency:[/bold green] {self.config['prompt']}"
+                )
             else:
-                self.console.log(f"[bold yellow]Extra context on how to improve consistency failed to generate for map ({self.config['name']}); continuing with prompt as is.[/bold yellow]")
+                self.console.log(
+                    f"[bold yellow]Extra context on how to improve consistency failed to generate for map ({self.config['name']}); continuing with prompt as is.[/bold yellow]"
+                )
 
         if self.status:
             self.status.stop()

@@ -343,7 +343,7 @@ class RankOperation(BaseOperation):
             Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
         """
         from sklearn.metrics.pairwise import cosine_similarity
-        
+
         if len(input_data) <= 1:
             return input_data, 0
 
@@ -1038,7 +1038,7 @@ class RankOperation(BaseOperation):
     ) -> Tuple[List[Dict], float]:
         if len(input_data) <= 1:
             return input_data, 0
-        
+
         from sklearn.metrics.pairwise import cosine_similarity
 
         input_keys = self.config["input_keys"]

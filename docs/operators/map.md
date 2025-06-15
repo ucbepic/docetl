@@ -153,6 +153,8 @@ This example demonstrates how the Map operation can transform long, unstructured
 | `skip_on_error` | If true, skip the operation if the LLM returns an error. | False                          |
 | `bypass_cache` | If true, bypass the cache for this operation. | False                          |
 | `pdf_url_key` | If specified, the key in the input that contains the URL of the PDF to process. | None                          |
+| `calibrate` | Improve consistency across documents by using sample data as reference anchors. | False                          |
+| `num_calibration_docs` | Number of documents to use sample and generate outputs for, for calibration. | 10                          |
 
 Note: If `drop_keys` is specified, `prompt` and `output` become optional parameters.
 
@@ -202,6 +204,71 @@ When using batch processing:
     - Larger batches may be more efficient but risk hitting token limits
     - Start with smaller batches (3-5 documents) and adjust based on your needs
     - Consider document length when setting batch size
+
+### Calibration for Consistency
+
+The Map operation supports calibration to improve consistency across documents, especially for classification tasks or operations that require relative positioning (like rating scales). When enabled, calibration samples a subset of your documents, processes them with the original prompt, and then uses those results to generate reference anchors that help maintain consistency across all documents.
+
+This is particularly useful for:
+- **Classification tasks** where documents need to be evaluated relative to each other
+- **Rating/scoring operations** where you want consistent scales
+- **Subjective judgments** that benefit from concrete examples
+
+??? example "Document Priority Classification with Calibration"
+
+    Imagine you're processing a large collection of customer support tickets and want to classify them by priority. Without calibration, the LLM might be inconsistent - a "medium" priority ticket early in processing might be classified as "high" later when the LLM sees more severe issues.
+
+    ```yaml
+    - name: classify_ticket_priority
+      type: map
+      calibrate: true  # Enable calibration
+      num_calibration_docs: 15  # Use 15 tickets for calibration
+      prompt: |
+        Classify the following customer support ticket by priority level:
+        
+        Subject: {{ input.subject }}
+        Description: {{ input.description }}
+        Customer Tier: {{ input.customer_tier }}
+        
+        Classify as: low, medium, high, or critical
+      output:
+        schema:
+          priority: string
+          reasoning: string
+      model: gpt-4o-mini
+    ```
+
+    **How calibration works:**
+
+    1. **Sample**: Randomly selects 15 tickets from your dataset (using seed=42 for reproducibility)
+    2. **Process**: Runs the original prompt on these 15 tickets
+    3. **Analyze**: An LLM analyzes the sample results and generates reference anchors
+    4. **Augment**: Appends these reference anchors to your original prompt
+    5. **Execute**: Processes all tickets with the augmented prompt
+
+    **Example calibration output:**
+    ```yaml
+    # Original prompt gets augmented with something like:
+    # 
+    # For reference, consider 'Server completely down for 500+ users' → critical as your baseline for critical issues.
+    # Documents similar to 'Login button not working for one user' → low priority.
+    # For reference, consider 'Payment processing delays affecting checkout' → high as your standard for high priority issues.
+    ```
+
+!!! tip "When to Use Calibration"
+
+    Calibration is most beneficial when:
+    
+    - Your task requires relative judgments (rating scales, classifications)
+    - You're processing documents that vary widely in characteristics
+    - Consistency across the entire dataset is more important than individual accuracy
+    - You have enough data for meaningful sampling (at least 20+ documents)
+
+!!! note "Calibration Considerations"
+
+    - Adds a small overhead cost (processes calibration samples + calibration analysis)
+    - Uses a fixed seed (42) for reproducible sampling
+    - The calibration LLM call uses temperature=0.0 for consistent results
 
 ## Advanced Features
 

@@ -56,7 +56,9 @@ class APIWrapper(object):
     def __init__(self, runner):
         self.runner = runner
         self.default_lm_api_base = runner.config.get("default_lm_api_base", None)
-        self.default_embedding_api_base = runner.config.get("default_embedding_api_base", None)
+        self.default_embedding_api_base = runner.config.get(
+            "default_embedding_api_base", None
+        )
 
     @freezeargs
     def gen_embedding(self, model: str, input: List[str]) -> List[float]:
@@ -83,7 +85,11 @@ class APIWrapper(object):
         input = json.loads(input)
 
         # If the model starts with "gpt" and there is no openai key, prefix the model with "azure"
-        if model.startswith("text-embedding") and not os.environ.get("OPENAI_API_KEY") and self.runner.config.get("from_docwrangler", False):
+        if (
+            model.startswith("text-embedding")
+            and not os.environ.get("OPENAI_API_KEY")
+            and self.runner.config.get("from_docwrangler", False)
+        ):
             model = "azure/" + model
 
         with cache as c:
@@ -100,7 +106,7 @@ class APIWrapper(object):
                 self.runner.blocking_acquire("embedding_call", weight=1)
                 if self.runner.is_cancelled:
                     raise asyncio.CancelledError("Operation was cancelled")
-                
+
                 extra_kwargs = {}
                 if self.default_embedding_api_base:
                     extra_kwargs["api_base"] = self.default_embedding_api_base
@@ -182,9 +188,13 @@ class APIWrapper(object):
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
-        if model.startswith("gpt") and not os.environ.get("OPENAI_API_KEY") and self.runner.config.get("from_docwrangler", False):
+        if (
+            model.startswith("gpt")
+            and not os.environ.get("OPENAI_API_KEY")
+            and self.runner.config.get("from_docwrangler", False)
+        ):
             model = "azure/" + model
-        
+
         total_cost = 0.0
         validated = False
         with cache as c:
@@ -255,13 +265,16 @@ class APIWrapper(object):
                         }
                         if "gemini" not in model:
                             should_refine_params["additionalProperties"] = False
-                            
+
                         # Add extra kwargs
                         extra_kwargs = {}
                         if self.default_lm_api_base:
                             extra_kwargs["api_base"] = self.default_lm_api_base
                         if is_snowflake(model):
-                            extra_kwargs["allowed_openai_params"] = ["tools", "tool_choice"]
+                            extra_kwargs["allowed_openai_params"] = [
+                                "tools",
+                                "tool_choice",
+                            ]
 
                         validator_response = completion(
                             model=gleaning_config.get("model", model),

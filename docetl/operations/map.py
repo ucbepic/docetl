@@ -552,7 +552,7 @@ class ParallelMapOperation(BaseOperation):
                     {"type": "image_url", "image_url": {"url": base64_url}},
                     {"type": "text", "text": prompt},
                 ]
-                
+
             local_output_schema = {
                 key: output_schema.get(key, "string")
                 for key in prompt_config["output_keys"]

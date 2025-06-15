@@ -133,39 +133,80 @@ async def convert_documents(
                     content = await file.read()
                     base64_content = base64.b64encode(content).decode('utf-8')
                     
-                    # Prepare request payload according to Docling server spec
-                    payload = {
-                        "file_source": {
-                            "base64_string": base64_content,
-                            "filename": file.filename
-                        },
-                        "options": {
-                            "output_docling_document": False,
-                            "output_markdown": True,
-                            "output_html": False,
-                            "do_ocr": True,
-                            "do_table_structure": True,
-                            "include_images": False
+                    # Try new v1alpha API first
+                    new_api_success = False
+                    try:
+                        # Prepare request payload for new v1alpha API
+                        new_payload = {
+                            "options": {
+                                "to_formats": ["md"],
+                                "include_images": False
+                            },
+                            "file_sources": [
+                                {
+                                    "base64_string": base64_content,
+                                    "filename": file.filename
+                                }
+                            ]
                         }
-                    }
-                    
-                    async with session.post(
-                        urljoin(custom_docling_url, 'convert'),
-                        json=payload,
-                        timeout=120
-                    ) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            if result["status"] in ("success", '4'):
-                                results.append({
-                                    "filename": file.filename,
-                                    "markdown": result["document"]["markdown"]
-                                })
+                        
+                        async with session.post(
+                            urljoin(custom_docling_url, 'v1alpha/convert/source'),
+                            json=new_payload,
+                            timeout=120
+                        ) as response:
+                            if response.status == 200:
+                                result = await response.json()
+                                # Handle new API response format
+                                if result.get("status") == "success" and "document" in result:
+                                    doc = result["document"]  # Assuming single file processing
+                                    results.append({
+                                        "filename": file.filename,
+                                        "markdown": doc.get("md_content", "")
+                                    })
+                                    new_api_success = True
+                                else:
+                                    print(f"New API failed for {file.filename}, trying legacy API...")
                             else:
-                                return {"error": f"Docling server failed to convert {file.filename}: {result.get('errors', [])}"}
-                        else:
-                            error_msg = await response.text()
-                            return {"error": f"Custom Docling server returned error for {file.filename}: {error_msg}"}
+                                print(f"New API endpoint returned {response.status}, trying legacy API...")
+                    except Exception as e:
+                        print(f"New API failed for {file.filename}: {str(e)}, trying legacy API...")
+                    
+                    # Fall back to legacy API if new API failed
+                    if not new_api_success:
+                        # Prepare request payload according to legacy Docling server spec
+                        legacy_payload = {
+                            "file_source": {
+                                "base64_string": base64_content,
+                                "filename": file.filename
+                            },
+                            "options": {
+                                "output_docling_document": False,
+                                "output_markdown": True,
+                                "output_html": False,
+                                "do_ocr": True,
+                                "do_table_structure": True,
+                                "include_images": False
+                            }
+                        }
+                        
+                        async with session.post(
+                            urljoin(custom_docling_url, 'convert'),
+                            json=legacy_payload,
+                            timeout=120
+                        ) as response:
+                            if response.status == 200:
+                                result = await response.json()
+                                if result["status"] in ("success", '4'):
+                                    results.append({
+                                        "filename": file.filename,
+                                        "markdown": result["document"]["markdown"]
+                                    })
+                                else:
+                                    return {"error": f"Docling server failed to convert {file.filename}: {result.get('errors', [])}"}
+                            else:
+                                error_msg = await response.text()
+                                return {"error": f"Custom Docling server returned error for {file.filename}: {error_msg}"}
                 
                 return {"documents": results}
             

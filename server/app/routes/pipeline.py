@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from server.app.models import OptimizeResult, TaskStatus, OptimizeRequest, PipelineRequest
 
+from server.app.routes import vol
+
 # Setup logging
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -120,6 +122,7 @@ async def submit_optimize_task(request: OptimizeRequest):
 @router.get("/should_optimize/{task_id}")
 async def get_optimize_status(task_id: str) -> OptimizeResult:
     """Get the current status of an optimization task"""
+    vol.reload()
     if task_id not in tasks:
         raise HTTPException(
             status_code=404, 
@@ -316,7 +319,7 @@ async def log_pipeline_completion(namespace: str, config: str, cost: float, used
             "used_hosted_llm": used_hosted_llm
         }
         
-        result = supabase.table("executed_pipelines").insert(data).execute()
+        result = supabase.table("pipeline_runs").insert(data).execute()
         return result.data[0]["id"]
     except Exception as e:
         logging.error(f"Failed to log pipeline completion: {e}")
@@ -331,6 +334,9 @@ async def process_pipeline(config: Dict[str, Any], client_id: str, task_id: str)
     runner = None
     last_console_output = ""
     last_output_time = 0
+    
+    # Reload the volume
+    vol.reload()
     
     try:
         runner = DSLRunner.from_yaml(config["yaml_config"])
@@ -412,6 +418,9 @@ async def process_pipeline(config: Dict[str, Any], client_id: str, task_id: str)
                 "cost": cost,
                 "yaml_config": config["yaml_config"]
             }
+            
+        # Before sending the result, commit the volume
+        vol.commit()
 
         # Send final result
         pipeline_queue.put({
@@ -425,11 +434,15 @@ async def process_pipeline(config: Dict[str, Any], client_id: str, task_id: str)
         
         # Log the pipeline completion with the cost
         used_hosted_llm = runner.config.get("llm_api_keys") is None
-        await log_pipeline_completion(namespace=client_id, config=config["yaml_config"], cost=cost, used_hosted_llm=used_hosted_llm)
+        # Get the actual config as a string
+        runner_config_str = yaml.safe_dump(runner.config)
+        
+        await log_pipeline_completion(namespace=client_id, config=runner_config_str, cost=cost, used_hosted_llm=used_hosted_llm)
 
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
+        logging.error(f"Error occurred:\n{error_traceback}")
         pipeline_queue.put({
             "type": "error",
             "task_id": task_id,
@@ -551,6 +564,7 @@ async def websocket_run_pipeline(websocket: WebSocket, client_id: str):
                 "data": str(e),
                 "traceback": error_traceback
             })
+            
     finally:
         if send_task and not send_task.done():
             send_task.cancel()

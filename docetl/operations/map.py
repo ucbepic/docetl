@@ -42,6 +42,9 @@ class MapOperation(BaseOperation):
         litellm_completion_kwargs: Dict[str, Any] = {}
         pdf_url_key: Optional[str] = None
         flush_partial_result: bool = False
+        # Calibration parameters
+        calibrate: bool = False
+        num_calibration_docs: int = 10
 
         @field_validator("drop_keys")
         def validate_drop_keys(cls, v):
@@ -60,6 +63,96 @@ class MapOperation(BaseOperation):
         )
         self.clustering_method = "random"
 
+    def _generate_calibration_context(self, input_data: List[Dict]) -> str:
+        """
+        Generate calibration context by running the operation on a sample of documents
+        and using an LLM to suggest prompt improvements for consistency.
+        
+        Returns:
+            str: Additional context to add to the original prompt
+        """
+        import random
+        
+        # Set seed for reproducibility
+        random.seed(42)
+        
+        # Sample documents for calibration
+        num_calibration_docs = min(self.config.get("num_calibration_docs", 10), len(input_data))
+        if num_calibration_docs == len(input_data):
+            calibration_sample = input_data
+        else:
+            calibration_sample = random.sample(input_data, num_calibration_docs)
+        
+        self.console.log(f"[bold blue]Running calibration on {num_calibration_docs} documents...[/bold blue]")
+        
+        # Temporarily disable calibration to avoid infinite recursion
+        original_calibrate = self.config.get("calibrate", False)
+        self.config["calibrate"] = False
+        
+        try:
+            # Run the map operation on the calibration sample
+            calibration_results, _ = self.execute(calibration_sample)
+            
+            # Prepare the calibration analysis prompt
+            calibration_prompt = f"""
+The following prompt was applied to sample documents to generate these input-output pairs:
+
+"{self.config["prompt"]}"
+
+Sample inputs and their outputs:
+"""
+            
+            for i, (input_doc, output_doc) in enumerate(zip(calibration_sample, calibration_results)):
+                calibration_prompt += f"\n--- Example {i+1} ---\n"
+                calibration_prompt += f"Input: {input_doc}\n"
+                calibration_prompt += f"Output: {output_doc}\n"
+            
+            calibration_prompt += """
+Based on these examples, provide reference anchors that will be appended to the prompt to help maintain consistency when processing all documents.
+
+DO NOT provide generic advice. Instead, use specific examples from above as calibration points.
+Note that the outputs might be incorrect, because the user's prompt was not calibrated or rich in the first place.
+You can ignore the outputs if they are incorrect, and focus on the diversity of the inputs.
+
+Format as concrete reference points:
+- "For reference, consider '[specific input text]' → [output] as a baseline for [category/level]"
+- "Documents similar to '[specific input text]' should be classified as [output]"
+
+Reference anchors:"""
+
+            # Call LLM to get calibration suggestions
+            messages = [{"role": "user", "content": calibration_prompt}]
+            completion_kwargs = self.config.get("litellm_completion_kwargs", {})
+            completion_kwargs["temperature"] = 0.0
+            
+            llm_result = self.runner.api.call_llm(
+                self.config.get("model", self.default_model),
+                "calibration",
+                messages,
+                {"calibration_context": "string"},
+                timeout_seconds=self.config.get("timeout", 120),
+                max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                bypass_cache=self.config.get("bypass_cache", False),
+                litellm_completion_kwargs=completion_kwargs,
+                op_config=self.config,
+            )
+            
+            # Parse the response
+            if hasattr(llm_result, 'response'):
+                calibration_context = self.runner.api.parse_llm_response(
+                    llm_result.response,
+                    schema={"calibration_context": "string"},
+                    manually_fix_errors=self.manually_fix_errors,
+                )[0].get("calibration_context", "")
+            else:
+                calibration_context = ""
+            
+            return calibration_context
+            
+        finally:
+            # Restore original calibration setting
+            self.config["calibrate"] = original_calibrate
+
     def syntax_check(self) -> None:
         """
             Checks the configuration of the MapOperation for required keys and valid structure.
@@ -77,6 +170,16 @@ class MapOperation(BaseOperation):
             raise ValueError(
                 "If 'drop_keys' is not specified, both 'prompt' and 'output' must be present in the configuration"
             )
+
+        # Validate calibration parameters
+        if config.calibrate and not isinstance(config.calibrate, bool):
+            raise TypeError("'calibrate' must be a boolean")
+        
+        if config.num_calibration_docs and not isinstance(config.num_calibration_docs, int):
+            raise TypeError("'num_calibration_docs' must be an integer")
+        
+        if config.num_calibration_docs and config.num_calibration_docs <= 0:
+            raise ValueError("'num_calibration_docs' must be a positive integer")
 
         if config.batch_prompt:
             try:
@@ -143,11 +246,12 @@ class MapOperation(BaseOperation):
             Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
 
         This method performs the following steps:
-        1. If a prompt is specified, it processes each input item using the specified prompt and LLM model
-        2. Applies gleaning if configured
-        3. Validates the output
-        4. If drop_keys is specified, it drops the specified keys from each document
-        5. Aggregates results and calculates total cost
+        1. If calibration is enabled, runs calibration to improve prompt consistency
+        2. If a prompt is specified, it processes each input item using the specified prompt and LLM model
+        3. Applies gleaning if configured
+        4. Validates the output
+        5. If drop_keys is specified, it drops the specified keys from each document
+        6. Aggregates results and calculates total cost
 
         The method uses parallel processing to improve performance.
         """
@@ -161,6 +265,19 @@ class MapOperation(BaseOperation):
                 }
                 dropped_results.append(new_item)
             return dropped_results, 0.0  # Return the modified data with no cost
+
+        # Generate calibration context if enabled
+        calibration_context = ""
+        if self.config.get("calibrate", False) and "prompt" in self.config:
+            calibration_context = self._generate_calibration_context(input_data)
+            if calibration_context:
+                # Store original prompt for potential restoration
+                self._original_prompt = self.config["prompt"]
+                # Augment the prompt with calibration context
+                self.config["prompt"] = f"{self.config['prompt']}\n\n{calibration_context}"
+                self.console.log(f"[bold green]New map ({self.config['name']}) prompt augmented with context on how to improve consistency:[/bold green] {self.config['prompt']}")
+            else:
+                self.console.log(f"[bold yellow]Extra context on how to improve consistency failed to generate for map ({self.config['name']}); continuing with prompt as is.[/bold yellow]")
 
         if self.status:
             self.status.stop()

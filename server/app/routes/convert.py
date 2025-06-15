@@ -122,6 +122,9 @@ async def convert_documents(
 ):
     use_docetl_server = use_docetl_server.lower() == "true" # TODO: make this a boolean
 
+    # TODO: Clean up deprecated docling-serve legacy API support
+    # The legacy /convert endpoint support should be removed once all docling-serve 
+    # instances are upgraded to support the new /v1alpha/convert/source endpoint
     
     # If custom Docling URL is provided, forward the request there
     if custom_docling_url:
@@ -133,7 +136,7 @@ async def convert_documents(
                     content = await file.read()
                     base64_content = base64.b64encode(content).decode('utf-8')
                     
-                    # Try new v1alpha API first
+                    # Try new v1alpha API first (current standard)
                     new_api_success = False
                     try:
                         # Prepare request payload for new v1alpha API
@@ -172,9 +175,13 @@ async def convert_documents(
                     except Exception as e:
                         print(f"New API failed for {file.filename}: {str(e)}, trying legacy API...")
                     
-                    # Fall back to legacy API if new API failed
+                    # TODO: Remove legacy API fallback after all docling-serve instances are upgraded
+                    # DEPRECATED: Legacy docling-serve API fallback - scheduled for removal
                     if not new_api_success:
-                        # Prepare request payload according to legacy Docling server spec
+                        print(f"WARNING: Using deprecated docling-serve legacy API for {file.filename}. Please upgrade your docling-serve instance.")
+                        
+                        # DEPRECATED: Prepare request payload according to legacy Docling server spec
+                        # This uses the old /convert endpoint which will be removed in future versions
                         legacy_payload = {
                             "file_source": {
                                 "base64_string": base64_content,
@@ -190,6 +197,7 @@ async def convert_documents(
                             }
                         }
                         
+                        # DEPRECATED: Legacy /convert endpoint - use /v1alpha/convert/source instead
                         async with session.post(
                             urljoin(custom_docling_url, 'convert'),
                             json=legacy_payload,

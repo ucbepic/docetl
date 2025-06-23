@@ -486,6 +486,7 @@ class ReduceOptimizer:
                 },
             }
             optimized_resolve_config, resolve_cost = JoinOptimizer(
+                self.runner,
                 self.config,
                 resolve_config,
                 self.console,

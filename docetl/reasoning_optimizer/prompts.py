@@ -1,369 +1,112 @@
 """
-Prompt Library for DocETL Operations
-
-This module contains a collection of prompt templates for various DocETL operations.
-Each function returns a Jinja2 template string that can be used in DocETL configurations.
+Prompt Library for DocETL Operations and Rewrite Directives
 """
 
-from typing import Dict, Any, Optional
-
-
 class PromptLibrary:
-    """
-    A library of prompt templates for DocETL operations.
-    
-    Each method returns a Jinja2 template string that can be used directly
-    in DocETL operation configurations.
-    """
     
     @staticmethod
     def map_operator() -> str:
-        """
-        Basic map operation prompt template.
-        
-        Returns:
-            str: Jinja2 template for map operations
-        """
         prompt = """
-        Analyze the following document and extract key information:
-
-        Document: {{ input.text }}
-
-        Please provide a structured analysis of this document.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def filter_operator() -> str:
-        """
-        Basic filter operation prompt template.
-        
-        Returns:
-            str: Jinja2 template for filter operations
-        """
-        prompt = """
-        Determine if the following document meets the specified criteria:
-
-        Document: {{ input.text }}
-
-        Evaluate whether this document should be included based on the criteria.
+        The map operator applies a semantic projection to each document in the dataset independently using the specified prompt. 
         """
         return prompt.strip()
     
     @staticmethod
     def reduce_operator() -> str:
-        """
-        Basic reduce operation prompt template.
-        
-        Returns:
-            str: Jinja2 template for reduce operations
-        """
         prompt = """
-        Combine and synthesize the following documents:
-
-        {% for item in inputs %}
-        Document {{ loop.index }}: {{ item.text }}
-        {% endfor %}
-
-        Provide a comprehensive summary that consolidates all the information.
+        The reduce operator aggregates information across multiple documents based on a set of user-specified keys, 
+        ultimately producing one output document per unique combination of attribute values. 
+        If the given group of documents is too large for the LLM to correctly process, we apply a batched folding 
+        approach that starts with an empty accumulator and sequentially folds in batches of more than one document at a time. 
         """
         return prompt.strip()
     
     @staticmethod
     def resolve_operator() -> str:
-        """
-        Basic resolve operation prompt template.
-        
-        Returns:
-            str: Jinja2 template for resolve operations
-        """
         prompt = """
-        Compare the following two documents and determine if they refer to the same entity:
-
-        Document 1: {{ input1.text }}
-        Document 2: {{ input2.text }}
-
-        Analyze the similarity and provide a resolution.
+        This operator canonicalises one or more keys across documents that represent slight variations of the 
+        same entity for subsequent grouping and aggregation. 
         """
         return prompt.strip()
     
     @staticmethod
-    def sentiment_analysis() -> str:
-        """
-        Sentiment analysis prompt template.
-        
-        Returns:
-            str: Jinja2 template for sentiment analysis
-        """
+    def gather_operator() -> str:
         prompt = """
-        Analyze the sentiment of the following text:
+        The gather operation complements the split operation by augmenting individual chunks with peripheral 
+        information  necessary for understanding the chunk’s content.
+        """
+        return prompt.strip()
+    
 
-        Text: {{ input.text }}
+    # Below are the rewrite directives
+    @staticmethod
+    def document_chunking() -> str:
+        prompt = """
+        Use this directive when a map operation is applied to large documents that exceed LLM context windows or effective reasoning capabilities. 
 
-        Determine the overall sentiment and provide a confidence score.
+        This directive rewrites a map operation into a pipeline: split -> gather -> map -> reduce. 
+
+        Split: Split the document into smaller chunks creating as many new docs as there are chunks. 
+        You can suggest a reasonable chunk size for this splitting step so that each chunk can fit comfortably 
+        within the LLM’s context limit. 
+
+        Gather: For each chunk, augment with relevant context from nearby chunks to help understand the chunk’s content. 
+        You need to decide which surrounding chunks to include and how many. You have choices of inclusion of full chunks, 
+        portions of chunks, or transformations (e.g.,  summaries) of chunks.
+
+        Map: Apply a modified map operation per chunk.
+
+        Reduce: Aggregate the individual chunk-level results into a single, coherent output that represents the analysis of 
+        the entire original document.
+
+        Example:
+            Before:
+                map: summarize the entire document
+            After:
+                split: split the document into contiguous chunks
+                gather: gather k neighboring chunks before/after as context
+                map: generate summarization per chunk
+                reduce: global summarization across all chunks
+
         """
         return prompt.strip()
     
     @staticmethod
-    def entity_extraction() -> str:
-        """
-        Entity extraction prompt template.
-        
-        Returns:
-            str: Jinja2 template for entity extraction
-        """
+    def multi_level_agg() -> str:
         prompt = """
-        Extract named entities from the following text:
+        Use this directive when a reduce operation aggregates a large set of documents at once, or if aggregations
+        might lose nuance when performed in a single step, use this directive.
+        This directive rewrites a reduce operation into a pipeline: fine-grained-reduce → roll-up-reduce.
 
-        Text: {{ input.text }}
+        Fine-Grained Reduce: Perform aggregation within smaller, logical subgroups.
+        Roll-Up Reduce: Next, aggregate these subgroup results into the final desired output.
 
-        Identify and extract all named entities including people, organizations, locations, and dates.
+        Example:
+        Before:
+            reduce: summarizing voting patterns by state
+        After:
+            reduce1: aggregate data by state and city
+            reduce2: combine these city-level summaries to the state level
+        """
+        return prompt.strip()
+
+    @staticmethod
+    def dup_key_resolution() -> str:
+        prompt = """
+        Use this directive when a reduce operation needs to aggregate by keys that have ambiguous or semantically 
+        equivalent values (e.g., "NYC", "New York City").
+
+        This directive rewrites a reduce operation into a pipeline: resolve → reduce.
+
+        resolve: use a resolve operation on each key independently to canonicalize duplicate values.
+        reduce: perform the intended reduce operation on the cleaned, deduplicated keys. 
         """
         return prompt.strip()
     
-    @staticmethod
-    def summarization() -> str:
-        """
-        Text summarization prompt template.
-        
-        Returns:
-            str: Jinja2 template for text summarization
-        """
-        prompt = """
-        Create a concise summary of the following text:
-
-        Text: {{ input.text }}
-
-        Provide a clear and comprehensive summary that captures the main points.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def classification() -> str:
-        """
-        Text classification prompt template.
-        
-        Returns:
-            str: Jinja2 template for text classification
-        """
-        prompt = """
-        Classify the following text into the appropriate category:
-
-        Text: {{ input.text }}
-
-        Determine the most suitable category for this text.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def question_answering() -> str:
-        """
-        Question answering prompt template.
-        
-        Returns:
-            str: Jinja2 template for question answering
-        """
-        prompt = """
-        Answer the following question based on the provided context:
-
-        Context: {{ input.context }}
-        Question: {{ input.question }}
-
-        Provide a clear and accurate answer based on the context.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def translation() -> str:
-        """
-        Translation prompt template.
-        
-        Returns:
-            str: Jinja2 template for translation
-        """
-        prompt = """
-        Translate the following text to the target language:
-
-        Text: {{ input.text }}
-        Target Language: {{ input.target_language }}
-
-        Provide an accurate translation that maintains the original meaning.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def code_generation() -> str:
-        """
-        Code generation prompt template.
-        
-        Returns:
-            str: Jinja2 template for code generation
-        """
-        prompt = """
-        Generate code based on the following requirements:
-
-        Requirements: {{ input.requirements }}
-        Programming Language: {{ input.language }}
-
-        Create clean, well-documented code that meets the specified requirements.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def data_extraction() -> str:
-        """
-        Data extraction prompt template.
-        
-        Returns:
-            str: Jinja2 template for data extraction
-        """
-        prompt = """
-        Extract structured data from the following text:
-
-        Text: {{ input.text }}
-
-        Identify and extract all relevant data points in a structured format.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def content_moderation() -> str:
-        """
-        Content moderation prompt template.
-        
-        Returns:
-            str: Jinja2 template for content moderation
-        """
-        prompt = """
-        Evaluate the following content for moderation:
-
-        Content: {{ input.text }}
-
-        Assess whether this content violates any community guidelines or policies.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def topic_modeling() -> str:
-        """
-        Topic modeling prompt template.
-        
-        Returns:
-            str: Jinja2 template for topic modeling
-        """
-        prompt = """
-        Identify the main topics in the following text:
-
-        Text: {{ input.text }}
-
-        Extract and categorize the primary topics discussed in this content.
-        """
-        return prompt.strip()
-    
-    @staticmethod
-    def custom_prompt(template: str) -> str:
-        """
-        Create a custom prompt from a template string.
-        
-        Args:
-            template (str): The custom template string
-            
-        Returns:
-            str: The custom prompt template
-        """
-        return template.strip()
-    
-    @staticmethod
-    def get_prompt_by_name(name: str) -> Optional[str]:
-        """
-        Get a prompt by its name.
-        
-        Args:
-            name (str): The name of the prompt to retrieve
-            
-        Returns:
-            Optional[str]: The prompt template if found, None otherwise
-        """
-        prompt_methods = {
-            'map': PromptLibrary.map_operator,
-            'filter': PromptLibrary.filter_operator,
-            'reduce': PromptLibrary.reduce_operator,
-            'resolve': PromptLibrary.resolve_operator,
-            'sentiment': PromptLibrary.sentiment_analysis,
-            'entity': PromptLibrary.entity_extraction,
-            'summary': PromptLibrary.summarization,
-            'classify': PromptLibrary.classification,
-            'qa': PromptLibrary.question_answering,
-            'translate': PromptLibrary.translation,
-            'code': PromptLibrary.code_generation,
-            'extract': PromptLibrary.data_extraction,
-            'moderate': PromptLibrary.content_moderation,
-            'topic': PromptLibrary.topic_modeling,
-        }
-        
-        method = prompt_methods.get(name.lower())
-        return method() if method else None
-    
-    @staticmethod
-    def list_available_prompts() -> list:
-        """
-        Get a list of all available prompt names.
-        
-        Returns:
-            list: List of available prompt names
-        """
-        return [
-            'map',
-            'filter', 
-            'reduce',
-            'resolve',
-            'sentiment',
-            'entity',
-            'summary',
-            'classify',
-            'qa',
-            'translate',
-            'code',
-            'extract',
-            'moderate',
-            'topic'
-        ]
 
 
-# Convenience functions for easy access
-def get_prompt(name: str) -> Optional[str]:
-    """
-    Get a prompt template by name.
-    
-    Args:
-        name (str): The name of the prompt
-        
-    Returns:
-        Optional[str]: The prompt template if found
-    """
-    return PromptLibrary.get_prompt_by_name(name)
-
-
-def list_prompts() -> list:
-    """
-    Get a list of all available prompts.
-    
-    Returns:
-        list: List of available prompt names
-    """
-    return PromptLibrary.list_available_prompts()
-
-
-# Example usage:
 if __name__ == "__main__":
-    # Print all available prompts
-    print("Available prompts:")
-    for prompt_name in list_prompts():
-        print(f"  - {prompt_name}")
     
     print("\nExample map prompt:")
     print(PromptLibrary.map_operator())
-    
-    print("\nExample sentiment analysis prompt:")
-    print(PromptLibrary.sentiment_analysis())
 

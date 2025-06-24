@@ -678,7 +678,15 @@ If you use the scratchpad, keep it concise (~500 chars) and easily parsable usin
 Your main result must be sent via send_output. The updated_scratchpad is only for tracking state between batches, and should be null unless you specifically need to track frequencies."""
 
         # Truncate messages if they exceed the model's context length
-        messages = truncate_messages(messages, model)
+        messages_with_system_prompt = truncate_messages(
+            [
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+            ] + messages,
+            model,
+        )
 
         self.runner.blocking_acquire("llm_call", weight=1)
 
@@ -701,13 +709,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             try:
                 response = completion(
                     model=model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt,
-                        },
-                    ]
-                    + messages,
+                    messages=messages_with_system_prompt,
                     tools=tools,
                     tool_choice=tool_choice,
                     **extra_litellm_kwargs,
@@ -724,13 +726,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             try:
                 response = completion(
                     model=model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt,
-                        },
-                    ]
-                    + messages,
+                    messages=messages_with_system_prompt,
                     **extra_litellm_kwargs,
                 )
             except Exception as e:

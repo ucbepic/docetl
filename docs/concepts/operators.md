@@ -207,18 +207,18 @@ Gleaning is an iterative process that refines LLM outputs using context-aware va
 
 4. **Decision**: The system interprets the assessment:
 
-   - If there's no error or room for improvement, the current output is returned.
-   - If improvements are suggested, the process continues.
+    - If there's no error or room for improvement, the current output is returned.
+    - If improvements are suggested, the process continues.
 
 5. **Refinement**: If improvements are needed:
 
-   - A new prompt is created, including the original operation prompt, the original output, and the validator feedback.
-   - This is submitted to the LLM to generate an improved output.
+    - A new prompt is created, including the original operation prompt, the original output, and the validator feedback.
+    - This is submitted to the LLM to generate an improved output.
 
 6. **Iteration**: Steps 2-5 are repeated until either:
 
-   - The validator has no more feedback (i.e., the evaluation passes), or
-   - The number of iterations exceeds `num_rounds`.
+    - The validator has no more feedback (i.e., the evaluation passes), or
+    - The number of iterations exceeds `num_rounds`.
 
 7. **Final Output**: The last refined output is returned.
 

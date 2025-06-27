@@ -203,7 +203,7 @@ Gleaning is an iterative process that refines LLM outputs using context-aware va
 
 2. **Validation**: The validation prompt is appended to the chat thread, along with the original operation prompt and output. This is submitted to the LLM. _Note that the validation prompt doesn't need any variables, since it's appended to the chat thread._
 
-3. **Assessment**: The LLM responds with an assessment of the output according to the validation prompt. The model used for this step is specified by the `model` field in the `gleaning_config` field, or defaults to the model specified for that operation.
+3. **Assessment**: The LLM responds with an assessment of the output according to the validation prompt. The model used for this step is specified by the `model` field in the `gleaning` dictionary field, or defaults to the model specified for that operation.
 
 4. **Decision**: The system interprets the assessment:
 

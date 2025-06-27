@@ -4,6 +4,7 @@ import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from statistics import mean
 from typing import Any, Callable, Dict, List, Tuple, Union
+import uuid
 
 from jinja2 import Template
 from litellm import model_cost
@@ -473,6 +474,7 @@ class ReduceOptimizer:
 
         if first_reduce_config.get("synthesize_resolve", True):
             resolve_config = {
+                "name": f"synthesized_resolve_{uuid.uuid4().hex[:8]}",
                 "type": "resolve",
                 "empty": True,
                 "embedding_model": "text-embedding-3-small",

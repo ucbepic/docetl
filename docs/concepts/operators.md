@@ -155,6 +155,7 @@ To enable gleaning, specify:
 
 - `validation_prompt`: Instructions for the LLM to evaluate and improve the output.
 - `num_rounds`: The maximum number of refinement iterations.
+- `model` (optional): The model to use for the LLM executing the validation prompt. Defaults to the model specified for that operation.
 
 Example:
 
@@ -170,6 +171,30 @@ gleaning:
 
 This approach allows for _context-aware_ validation and refinement of LLM outputs. Note that it is expensive, since it at least doubles the number of LLM calls required for each operator.
 
+Example map operation (with a different model for the validation prompt):
+
+```yaml
+- name: extract_insights
+  type: map
+  model: gpt-4o
+  prompt: |
+    From the user log below, list 2-3 concise insights (1-2 words each) and 1-2 supporting actions per insight.
+    Return as a list of dictionaries with 'insight' and 'supporting_actions'.
+    Log: {{ input.log }}
+  output:
+    schema:
+      insights_summary: "string"
+  gleaning:
+    num_rounds: 2 # Will refine the output up to 2 times, if the judge LLM (gpt-4o-mini) suggests improvements
+    model: gpt-4o-mini
+    validation_prompt: |
+      There should be at least 2 insights, and each insight should have at least 1 supporting action.
+```
+
+!!! tip "Choosing a Different Model for Validation"
+
+    You may want to use a different model for the validation prompt. For example, you can use a more powerful (and expensive) model for generating outputs, but a cheaper model for validation—especially if the validation only checks a single aspect. This approach helps reduce costs while still ensuring quality, since the final output is always produced by the more capable model.
+
 ### How Gleaning Works
 
 Gleaning is an iterative process that refines LLM outputs using context-aware validation. Here's how it works:
@@ -178,7 +203,7 @@ Gleaning is an iterative process that refines LLM outputs using context-aware va
 
 2. **Validation**: The validation prompt is appended to the chat thread, along with the original operation prompt and output. This is submitted to the LLM. _Note that the validation prompt doesn't need any variables, since it's appended to the chat thread._
 
-3. **Assessment**: The LLM responds with an assessment of the output according to the validation prompt.
+3. **Assessment**: The LLM responds with an assessment of the output according to the validation prompt. The model used for this step is specified by the `model` field in the `gleaning_config` field, or defaults to the model specified for that operation.
 
 4. **Decision**: The system interprets the assessment:
 
@@ -196,7 +221,5 @@ Gleaning is an iterative process that refines LLM outputs using context-aware va
    - The number of iterations exceeds `num_rounds`.
 
 7. **Final Output**: The last refined output is returned.
-
-This process allows for nuanced, context-aware validation and refinement of LLM outputs. It's particularly useful for complex tasks where simple rule-based validation might miss subtleties or context-dependent aspects of the output.
 
 Note that gleaning can significantly increase the number of LLM calls for each operator, potentially doubling it at minimum. While this increases cost and latency, it can lead to higher quality outputs for complex tasks.

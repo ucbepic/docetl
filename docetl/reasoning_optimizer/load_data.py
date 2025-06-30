@@ -140,31 +140,25 @@ def count_tokens_in_data(data, model="gpt-4o"):
         print(f"  [WARNING] Could not count tokens: {e}")
         return None
 
-
-def main():
-    
-    parser = argparse.ArgumentParser(description="Load datasets from a DocETL YAML config.")
-    parser.add_argument("config", type=str, help="Path to the YAML config file.")
-    args = parser.parse_args()
-
+def load_input_doc(yaml_path):
+    doc_info = ""
     load_dotenv()
-
     try:
-        config = load_config(args.config)
+        config = load_config(yaml_path)
     except Exception as e:
         print(f"[ERROR] Failed to load config: {e}")
-        sys.exit(1)
-
+        return doc_info
+    
     parsing_tool_map = create_parsing_tool_map(config.get("parsing_tools", None))
     datasets_config = config.get("datasets", {})
     if not datasets_config:
         print("[ERROR] No datasets found in config.")
-        sys.exit(1)
+        return doc_info
 
-    print(f"Found {len(datasets_config)} datasets in config.\n")
-    
+    print(f"Found {len(datasets_config)} datasets in config.\n\n")
+
     for name, dataset_config in datasets_config.items():
-        print(f"Loading dataset: {name}")
+        doc_info += f"Dataset: {name}\n"
         try:
             ds = Dataset(
                 runner=None,
@@ -177,27 +171,32 @@ def main():
             data = ds.load()
             
             if data:
-                print(f"  Type: {ds.type}")
-                print(f"  Records loaded: {len(data)}")
-                
+                doc_info += f"  Type: {ds.type}\n"
+                doc_info += f"  Records loaded: {len(data)}\n"
                 schema = extract_input_schema(data)
-                print(f"  Input schema:")
+                doc_info += f"  Input schema:\n"
                 for field, field_info in schema.items():
-                    print(f"    {field}: {field_info['type']} (avg: {field_info['avg_tokens']} tokens)")
-                
+                    doc_info += f"    {field}: {field_info['type']} (avg: {field_info['avg_tokens']} tokens)\n"
                 token_count = count_tokens_in_data(data)
                 if token_count is not None:
-                    print(f"  Total tokens: {token_count:,}")
-            else:
-                print("  No records loaded.")
-            
-            print()
+                    doc_info += f"  Total tokens: {token_count:,}\n"
             
         except Exception as e:
-            print(f"  [ERROR] Failed to load dataset '{name}': {e}\n")
+            doc_info += f"  [ERROR] Failed to load dataset '{name}': {e}\n"
+    return doc_info
 
-    
+def main():
+    import argparse
 
+    parser = argparse.ArgumentParser(description="Analyze DocETL YAML schema and print output as a string.")
+    parser.add_argument("yaml_path", nargs="?", help="Path to the YAML config file")
+    args = parser.parse_args()
+
+    if not args.yaml_path:
+        args.yaml_path = input("Enter the path to your YAML config file: ").strip()
+
+    result_str = load_input_doc(args.yaml_path)
+    print(result_str)
 
 if __name__ == "__main__":
     main() 

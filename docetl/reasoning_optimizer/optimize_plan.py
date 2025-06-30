@@ -9,6 +9,7 @@ from typing import Dict
 from docetl.reasoning_optimizer.load_data import load_input_doc
 import argparse
 
+
 # Global dictionary of rate limiters per model
 model_rate_limiters: Dict[str, 'TokenRateLimiter'] = {}
 
@@ -45,11 +46,6 @@ def count_tokens(messages):
     total_chars = sum(len(m.get("content", "")) for m in messages if isinstance(m, dict))
     return max(1, total_chars // 4)
 
-class CalendarEvent(BaseModel):
-    name: str
-    date: str
-    participants: list[str]
-
 class Step(BaseModel):
     operation: str
     description: str
@@ -62,7 +58,7 @@ class Rewritten_plan(BaseModel):
     stepwise_pipeline: list[Step]
     reason: str
 
-def get_openai_response(input_query, input_schema, model="gpt-4.1-nano", max_tpm=5000000):
+def get_openai_response(input_query, input_schema, model="o3", max_tpm=5000000):
     """
     Calls litellm.completion to generate a response to the user's message using Azure OpenAI.
     Enforces per-model rate limits if applicable.
@@ -108,7 +104,7 @@ def get_openai_response(input_query, input_schema, model="gpt-4.1-nano", max_tpm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Chat with OpenAI with per-model token rate limiting.")
-    parser.add_argument("--model", type=str, default="gpt-4.1-nano", help="Model name (default: gpt-4.1-nano)")
+    parser.add_argument("--model", type=str, default="o3", help="Model name")
     parser.add_argument("--max_tpm", type=int, default=5000000, help="Token per minute limit for the model")
     parser.add_argument("--yaml_path", type=str, help="Path to the YAML file")
     args = parser.parse_args()
@@ -119,4 +115,6 @@ if __name__ == "__main__":
     input_schema = load_input_doc(args.yaml_path)
     reply = get_openai_response(input_query, input_schema, model=args.model, max_tpm=args.max_tpm)
     print("AI:", reply)
+
+
 

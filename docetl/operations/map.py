@@ -708,7 +708,6 @@ class ParallelMapOperation(BaseOperation):
                     "litellm_completion_kwargs", {}
                 ),
                 op_config=self.config,
-                gleaning_config=prompt_config.get("gleaning", None),
             )
             output = self.runner.api.parse_llm_response(
                 response.response,

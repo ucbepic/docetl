@@ -33,6 +33,14 @@ class PromptLibrary:
         return prompt.strip()
     
     @staticmethod
+    def split_operator() -> str:
+        prompt = """
+        Split:
+        The Split operation divides long text content into smaller, manageable chunks. Chunks will not overlap in content.
+        """
+        return prompt.strip()
+    
+    @staticmethod
     def gather_operator() -> str:
         prompt = """
         Gather:
@@ -146,6 +154,27 @@ class PromptLibrary:
         For example the pipeline “map -> filter -> reduce” can be reordered into “filter -> map -> reduce”
         """
         return prompt.strip()
+
+    @staticmethod
+    def metadata_extraction() -> str:
+        prompt = """
+        Metadata Extraction:
+
+        This is essentially a map operation that extracts important metadata from the full document for accurate processing of document chunks. 
+        It can be added in the pipeline before the split operation when there is potential presence of crucial information in metadata 
+        (e.g., a table of contents, or a table of information in the beginning of the document) that might not be present in the chunks themselves.
+        """
+        return prompt.strip()
+    
+    @staticmethod
+    def header_extraction() -> str:
+        prompt = """
+        Header Extraction:
+
+        This is essentially a map operation that extracts headers from each chunk. It can be added in the pipeline between the split operation and the gather operation. 
+        """
+        return prompt.strip()
+
 
 
 

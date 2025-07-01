@@ -1,9 +1,11 @@
+import random
 from docetl.reasoning_optimizer.prompts import PromptLibrary
 import litellm
 import os
 import threading
 import time
 import yaml  
+import json
 from pydantic import BaseModel
 from typing import Dict
 from docetl.reasoning_optimizer.load_data import load_input_doc
@@ -58,24 +60,27 @@ class Rewritten_plan(BaseModel):
     stepwise_pipeline: list[Step]
     reason: str
 
-def get_openai_response(input_query, input_schema, model="o3", max_tpm=5000000):
+def get_openai_response(input_query, input_schema, input_data_sample, model="o3", max_tpm=5000000):
     """
-    Calls litellm.completion to generate a response to the user's message using Azure OpenAI.
-    Enforces per-model rate limits if applicable.
-    Assumes AZURE_API_KEY, AZURE_API_BASE, and AZURE_API_VERSION are set in environment variables.
+    The first LLM call. Generates a rewrite plan given the rewrite directives. 
     """
 
     user_message = f"""
+    
     We have a set of LLM-powered operations for processing long documents and rewrite directives to improve accuracy and cost-effectiveness. Multiple rewrite directives can be combined iteratively or sequentially in optimization plans.
     Task: Apply rewrite directives to suggest 1 optimized query plan that improves both accuracy and cost-effectiveness over the original user query.
     Operations: 
-    {PromptLibrary.map_operator(), PromptLibrary.reduce_operator(), PromptLibrary.resolve_operator(), 
+    {PromptLibrary.map_operator(), PromptLibrary.reduce_operator(), PromptLibrary.resolve_operator(), PromptLibrary.split_operator(),
     PromptLibrary.gather_operator(), PromptLibrary.filter_operator(), PromptLibrary.extract_operator()}
     
     Rewrite directives: 
     {PromptLibrary.document_chunking(), PromptLibrary.multi_level_agg(), PromptLibrary.chaining(), PromptLibrary.reordering()}
 
+    Additional techniques:
+    {PromptLibrary.metadata_extraction(), PromptLibrary.header_extraction()}
+
     Input document schema with token statistics: {input_schema}
+    Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]}
     User query in YAML format using our operations: {input_query}
     """
 
@@ -97,7 +102,8 @@ def get_openai_response(input_query, input_schema, model="o3", max_tpm=5000000):
         api_base=os.environ.get("AZURE_API_BASE"),
         api_version=os.environ.get("AZURE_API_VERSION"),
         azure=True,
-        response_format = Rewritten_plan
+        response_format = Rewritten_plan,
+        reasoning_effort = "high",
     )
     return response.choices[0].message['content']
 
@@ -109,11 +115,14 @@ if __name__ == "__main__":
     parser.add_argument("--yaml_path", type=str, help="Path to the YAML file")
     args = parser.parse_args()
 
+    with open('/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD_random_sample.json', 'r') as f:
+        random_sample = json.load(f)
+
     with open(args.yaml_path, "r") as f:
         input_query = f.read()
     
     input_schema = load_input_doc(args.yaml_path)
-    reply = get_openai_response(input_query, input_schema, model=args.model, max_tpm=args.max_tpm)
+    reply = get_openai_response(input_query, input_schema, random_sample, model=args.model, max_tpm=args.max_tpm)
     print("AI:", reply)
 
 

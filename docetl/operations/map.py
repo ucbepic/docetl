@@ -702,6 +702,7 @@ class ParallelMapOperation(BaseOperation):
                 tools=prompt_config.get("tools", None),
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
+                gleaning_config=prompt_config.get("gleaning", None),
                 bypass_cache=self.config.get("bypass_cache", False),
                 litellm_completion_kwargs=self.config.get(
                     "litellm_completion_kwargs", {}

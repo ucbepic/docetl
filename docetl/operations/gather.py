@@ -295,6 +295,11 @@ class GatherOperation(BaseOperation):
 
         # Find the largest/highest level in the current chunk
         current_chunk_headers = current_chunk.get(doc_header_key, [])
+
+        # If there are no headers in the current chunk, return an empty string
+        if not current_chunk_headers:
+            return ""
+
         highest_level = float("inf")  # Initialize with positive infinity
         for header_info in current_chunk_headers:
             try:

@@ -66,12 +66,39 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     """
 
     user_message = f"""
+    I need one optimized query plan for a given user query on document processing.
+    I have a set of LLM-powered operations for processing long documents and rewrite directives to improve accuracy and cost-effectiveness. Multiple rewrite directives can be combined iteratively or sequentially in optimization plans.
+    You can choose to use the additional techniques Metadata Extraction and Header Extraction along with the rewrite directives. 
+    You also need to carefully choose the parameters for each operation as the parameters can significantly impact the accuracy and cost-effectiveness of the plan.
     
-    We have a set of LLM-powered operations for processing long documents and rewrite directives to improve accuracy and cost-effectiveness. Multiple rewrite directives can be combined iteratively or sequentially in optimization plans.
-    Task: Apply rewrite directives to suggest 1 optimized query plan that improves both accuracy and cost-effectiveness over the original user query.
-    Operations: 
-    {PromptLibrary.map_operator(), PromptLibrary.reduce_operator(), PromptLibrary.resolve_operator(), PromptLibrary.split_operator(),
-    PromptLibrary.gather_operator(), PromptLibrary.filter_operator(), PromptLibrary.extract_operator()}
+    Return a YAML file with the optimized query plan. Each operation in the rewritten plan should have the required parameters specified. The parameter required for each operation is specified in the operation description. 
+    
+    Make sure you apply existing rewrite directives and use only existing operations provided below. Ensure that your YAML file is valid.
+
+    Pipeline:
+    Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
+    - Default Model: The language model to use for the pipeline. \n
+    - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
+    - Datasets: The input data sources for your pipeline. \n
+    - Operators: The processing steps that transform your data. \n
+    - Pipeline Specification: The sequence of steps and the output configuration. \n
+
+    Operation descriptions: 
+    Operators form the building blocks of data processing pipelines. All operators share the following common attributes: \n
+    - name: A unique identifier for the operator. \n
+    - type: Specifies the type of operation (e.g., "map", "reduce", "filter"). \n
+    LLM-based operators (including Map, Reduce, Resolve, Filter, and Extract) have additional attributes:\n
+    - prompt: A Jinja2 template that defines the instruction for the language model. \n
+    - output: Specifies the schema for the output from the LLM call. \n
+    - model (optional): Allows specifying a different model from the pipeline default. \n
+    Additional parameters required by each operation are specified in the operation's description.
+    {PromptLibrary.map_operator()}\n
+    {PromptLibrary.reduce_operator()}\n
+    {PromptLibrary.resolve_operator()}\n
+    {PromptLibrary.split_operator()}\n
+    {PromptLibrary.gather_operator()}\n
+    {PromptLibrary.filter_operator()}\n
+    {PromptLibrary.extract_operator()}\n
     
     Rewrite directives: 
     {PromptLibrary.document_chunking(), PromptLibrary.multi_level_agg(), PromptLibrary.chaining(), PromptLibrary.reordering()}
@@ -102,7 +129,6 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         api_base=os.environ.get("AZURE_API_BASE"),
         api_version=os.environ.get("AZURE_API_VERSION"),
         azure=True,
-        response_format = Rewritten_plan,
         reasoning_effort = "high",
     )
     return response.choices[0].message['content']
@@ -123,6 +149,10 @@ if __name__ == "__main__":
     
     input_schema = load_input_doc(args.yaml_path)
     reply = get_openai_response(input_query, input_schema, random_sample, model=args.model, max_tpm=args.max_tpm)
+   
+    with open("o3_CUAD_opt_plan_v2.yaml", 'w', encoding='utf-8') as f:
+        f.write(reply)
+       
     print("AI:", reply)
 
 

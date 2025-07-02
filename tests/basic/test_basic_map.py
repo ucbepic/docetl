@@ -506,3 +506,19 @@ def test_map_operation_calibration_with_larger_sample(simple_map_config, map_sam
 
     # Verify that cost is greater than 0
     assert cost > 0
+
+def test_should_glean_condition(api_wrapper):
+    """Unit-test the conditional gleaning logic on DSLRunner.api.should_glean."""
+
+    wrapper = api_wrapper.api  # APIWrapper instance attached to the runner
+
+    # Case 1: condition evaluates to True
+    gleaning_config = {"if": "output['flag'] == True"}
+    assert wrapper.should_glean(gleaning_config, {"flag": True}) is True
+
+    # Case 2: condition evaluates to False
+    assert wrapper.should_glean(gleaning_config, {"flag": False}) is False
+
+    # Case 3: No condition key -> default to True
+    assert wrapper.should_glean({}, {"flag": False}) is True
+    assert wrapper.should_glean(None, {"flag": False}) is True

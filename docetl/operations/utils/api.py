@@ -239,6 +239,9 @@ class APIWrapper(object):
                     )
 
                     for rnd in range(num_gleaning_rounds):
+                        # Break early if gleaning condition is not met
+                        if not self.should_glean(gleaning_config, parsed_output):
+                            break
                         # Prepare validator prompt
                         validator_prompt = strict_render(
                             gleaning_config["validation_prompt"],
@@ -963,3 +966,32 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 console.log(f"[yellow]Output:[/yellow] {output}")
                 return False
         return True
+
+    def should_glean(self, gleaning_config: Optional[Dict[str, Any]], output: Dict[str, Any]) -> bool:
+        """Determine whether to execute a gleaning round based on an optional conditional expression.
+
+        If ``gleaning_config`` contains an ``"if"`` key, its value is treated as a Python
+        boolean expression that will be evaluated with the current ``output`` bound to the
+        name ``output`` using :pyfunc:`safe_eval`. When the expression evaluates to
+        ``True`` the gleaning round proceeds. If it evaluates to ``False`` (or raises an
+        exception) the gleaning loop should terminate early.
+
+        If no ``"if"`` key is present the method defaults to returning ``True`` so that
+        gleaning proceeds normally.
+        """
+        # No gleaning_config or no conditional -> always glean
+        if not gleaning_config or "if" not in gleaning_config:
+            return True
+
+        condition = gleaning_config.get("if")
+        if not isinstance(condition, str):
+            raise ValueError(f"Invalid gleaning condition (should be a string): {condition}")
+
+        try:
+            return safe_eval(condition, output)
+        except Exception as exc:
+            # If evaluation fails, default to not glean and log for visibility
+            self.runner.console.log(
+                f"[bold red]Error evaluating gleaning condition '{condition}': {exc}; executing gleaning round anyway[/bold red]"
+            )
+            return False

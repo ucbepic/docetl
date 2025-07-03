@@ -12,6 +12,7 @@ from typing import Dict
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from op_descriptions import *
 from ChainingDirective import *
+from GleaningDirective import *
 from docetl.utils import load_config
 import argparse
 
@@ -87,7 +88,7 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     {op_resolve.to_string()}\n
     
     Rewrite directives: 
-    {ChainingDirective().to_string_for_plan()}
+    {GleaningDirective().to_string_for_plan()}
 
     Input document schema with token statistics: {input_schema}
     Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]}
@@ -160,6 +161,10 @@ if __name__ == "__main__":
 
     if directive == "chaining":
         new_ops_list = ChainingDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=args.model, message_history=message_history)
+        print("new_ops_list:")
+        print(new_ops_list)
+    elif directive == "gleaning":
+        new_ops_list = GleaningDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=args.model, message_history=message_history)
         print("new_ops_list:")
         print(new_ops_list)
 

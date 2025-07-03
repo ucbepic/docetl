@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Dict
 from pydantic import field_validator
 import re
 
@@ -86,7 +86,6 @@ class ChainingInstantiateSchema(BaseModel):
             ValueError: If any required input key is not referenced in any prompt,
                         or if the final op's output_keys do not match expected_output_keys.
         """
-        import re
 
         # Check each required input key is referenced in at least one prompt
         for key in required_input_keys:
@@ -102,3 +101,27 @@ class ChainingInstantiateSchema(BaseModel):
             raise ValueError(
                 f"The output_keys of the final op ({final_output_keys}) do not match the expected output_keys ({expected_output_keys})."
             )
+
+class GleaningConfig(BaseModel):
+    """
+    Configuration for gleaning.
+
+    Attributes:
+        validation_prompt (str): Instructions for the LLM to evaluate and improve the output. The validation prompt doesn't need any variables, since it's appended to the chat thread.
+        num_rounds (int): The maximum number of refinement iterations..
+        model (str): The model to use for validation.
+    """
+
+    validation_prompt: str = Field(..., description="The prompt to evaluate and improve the output of the upstream operator.")
+    num_rounds: int = Field(..., description="The maximum number of refinement iterations.")
+    model: str = Field(default="gpt-4o-mini", description="The LLM model to use.")
+
+class GleaningInstantiateSchema(BaseModel):
+    """
+    Schema for gleaning operations in a data processing pipeline.
+    """
+
+    gleaning_config: GleaningConfig = Field(
+        ...,
+        description="The gleaning configuration to apply to the target operation."
+    )

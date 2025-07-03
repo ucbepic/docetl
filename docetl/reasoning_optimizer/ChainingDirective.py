@@ -16,9 +16,7 @@ class ChainingDirective(Directive):
     formal_description: str = Field(default="Op => Map* -> Op")
     nl_description: str = Field(default="Decompose a complex operation into a sequence by inserting one or more Map steps that rewrite the input for the next operation. Each Map step outputs a 'result' string, and the downstream operation uses this result in its prompt.")
     when_to_use: str = Field(default="When the original task is too complex for one step and should be split into a series (e.g., first extract key facts, then generate a summary based on those facts).")
-    
-    # Remove from Pydantic fields, make it a plain class variable
-    instantiate_schema_type: Type[BaseModel] = Field(default=ChainingInstantiateSchema)
+    instantiate_schema_type: Type[BaseModel] = ChainingInstantiateSchema
     
     example: str = Field(
         default=(
@@ -55,16 +53,6 @@ class ChainingDirective(Directive):
             "]"
         ),
     )
-    
-    def to_string_for_plan(self) -> str:
-        """Serialize directive for prompts."""
-        parts = [
-            f"### {self.name}",
-            f"**Format:** {self.formal_description}",
-            f"**Description:** {self.nl_description}",
-            f"**When to Use:** {self.when_to_use}",
-        ]
-        return "\n\n".join(parts)
     
     def to_string_for_instantiate(self, original_op: Dict) -> str:
         """
@@ -108,7 +96,7 @@ class ChainingDirective(Directive):
         Returns:
             ChainingInstantiateSchema: The structured output from the LLM.
         """
-        # Always extend message_history with dicts
+        
         message_history.extend([
             {"role": "system", "content": "You are a helpful AI assistant for document processing pipelines."},
             {"role": "user", "content": self.to_string_for_instantiate(original_op)},
@@ -194,7 +182,6 @@ class ChainingDirective(Directive):
         
         # Get the expected input/output keys
         expected_output_keys = list(target_op_config["output"]["schema"].keys())
-        
         
         # Extract expected input keys from the target op's prompt template
         prompt_template = target_op_config["prompt"]

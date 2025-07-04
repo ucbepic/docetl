@@ -134,7 +134,12 @@ class DSLRunner(ConfigWrapper):
         )
         # Initialize checkpoint manager for efficient storage
         if self.intermediate_dir:
-            self.checkpoint_manager = CheckpointManager(self.intermediate_dir)
+            try:
+                self.checkpoint_manager = CheckpointManager(self.intermediate_dir)
+            except RuntimeError:
+                # PyArrow not available, disable checkpointing
+                self.console.log("[yellow]Warning: PyArrow not available, checkpointing disabled[/yellow]")
+                self.checkpoint_manager = None
         else:
             self.checkpoint_manager = None
 
@@ -590,22 +595,16 @@ class DSLRunner(ConfigWrapper):
                 # Get checkpoint info for logging
                 checkpoint_info = self.checkpoint_manager.get_checkpoint_info(step_name, operation_name)
                 if checkpoint_info:
-                    if 'arrow' in checkpoint_info:
-                        format_info = f"Arrow/Parquet ({checkpoint_info['arrow']['size_bytes']} bytes)"
-                        checkpoint_path = checkpoint_info['arrow']['path']
-                    elif 'json' in checkpoint_info:
-                        format_info = f"JSON ({checkpoint_info['json']['size_bytes']} bytes)"
-                        checkpoint_path = checkpoint_info['json']['path']
-                    else:
-                        format_info = "unknown format"
-                        checkpoint_path = "unknown path"
+                    size_bytes = checkpoint_info.get('size_bytes', 0)
+                    num_rows = checkpoint_info.get('num_rows', 0)
+                    self.console.log(
+                        f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' "
+                        f"({num_rows} rows, {size_bytes} bytes)[/italic]"
+                    )
                 else:
-                    format_info = "unknown format"
-                    checkpoint_path = "unknown path"
-
-                self.console.log(
-                    f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' from {checkpoint_path} ({format_info})[/italic]"
-                )
+                    self.console.log(
+                        f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}'[/italic]"
+                    )
 
             return data
         return None
@@ -677,18 +676,16 @@ class DSLRunner(ConfigWrapper):
         # Get checkpoint info for better logging
         checkpoint_info = self.checkpoint_manager.get_checkpoint_info(step_name, operation_name)
         if checkpoint_info:
-            if 'arrow' in checkpoint_info:
-                format_info = f"Arrow/Parquet ({checkpoint_info['arrow']['size_bytes']} bytes)"
-            elif 'json' in checkpoint_info:
-                format_info = f"JSON ({checkpoint_info['json']['size_bytes']} bytes)"
-            else:
-                format_info = "unknown format"
+            size_bytes = checkpoint_info.get('size_bytes', 0)
+            num_rows = checkpoint_info.get('num_rows', 0)
+            self.console.log(
+                f"[green]✓ [italic]Checkpoint saved for operation '{operation_name}' in step '{step_name}' "
+                f"({num_rows} rows, {size_bytes} bytes)[/italic][/green]"
+            )
         else:
-            format_info = "unknown format"
-
-        self.console.log(
-            f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path} ({format_info})[/italic][/green]"
-        )
+            self.console.log(
+                f"[green]✓ [italic]Checkpoint saved for operation '{operation_name}' in step '{step_name}'[/italic][/green]"
+            )
 
     def should_optimize(
         self, step_name: str, op_name: str, **kwargs
@@ -848,15 +845,7 @@ class DSLRunner(ConfigWrapper):
             operation_name, batch_index, data
         )
 
-        # Determine format for logging
-        if checkpoint_path.endswith('.parquet'):
-            format_info = "Arrow/Parquet"
-        elif checkpoint_path.endswith('.json'):
-            format_info = "JSON"
-        else:
-            format_info = "unknown format"
-
         self.console.log(
             f"[green]✓[/green] [italic]Partial checkpoint saved for '{operation_name}', "
-            f"batch {batch_index} at '{checkpoint_path}' ({format_info})[/italic]"
+            f"batch {batch_index} ({len(data)} rows)[/italic]"
         )

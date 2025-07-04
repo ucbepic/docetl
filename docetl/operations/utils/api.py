@@ -170,7 +170,6 @@ class APIWrapper(object):
         initial_result: Optional[Any] = None,
         litellm_completion_kwargs: Dict[str, Any] = {},
         op_config: Dict[str, Any] = {},
-        use_structured_output: bool = False,
     ) -> LLMResult:
         """
         Cached version of the call_llm function.
@@ -196,6 +195,9 @@ class APIWrapper(object):
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
+        # Extract output mode from op_config
+        output_mode = op_config.get("output", {}).get("mode", "tools")
+        use_structured_output = (output_mode == "structured_output")
         if (
             model.startswith("gpt")
             and not os.environ.get("OPENAI_API_KEY")
@@ -231,7 +233,7 @@ class APIWrapper(object):
                     num_gleaning_rounds = gleaning_config.get("num_rounds", 2)
 
                     parsed_output = (
-                        self.parse_llm_response(response, output_schema, tools, False, use_structured_output)[0]
+                        self.parse_llm_response(response, output_schema, json.loads(tools) if tools else None, False, use_structured_output)[0]
                         if isinstance(response, ModelResponse)
                         else response
                     )
@@ -436,7 +438,6 @@ class APIWrapper(object):
         initial_result: Optional[Any] = None,
         litellm_completion_kwargs: Dict[str, Any] = {},
         op_config: Dict[str, Any] = {},
-        use_structured_output: bool = False,  # New optional parameter
     ) -> LLMResult:
         """
         Wrapper function that uses caching for LLM calls.
@@ -455,12 +456,21 @@ class APIWrapper(object):
             max_retries_per_timeout (int): The maximum number of retries per timeout.
             bypass_cache (bool): Whether to bypass the cache.
             initial_result (Optional[Any]): The initial result to use for the operation, if exists.
+            op_config (Dict[str, Any]): Operation configuration, may contain output.mode.
         Returns:
             LLMResult: The result from the cached LLM call.
 
         Raises:
             TimeoutError: If the call times out after retrying.
         """
+        # Extract and validate output mode from op_config
+        output_mode = op_config.get("output", {}).get("mode")
+        if output_mode is None:
+            output_mode = "tools"  # Default to tools mode
+        elif output_mode not in ["tools", "structured_output"]:
+            raise ValueError(f"Invalid output mode '{output_mode}'. Must be 'tools' or 'structured_output'.")
+        
+        use_structured_output = (output_mode == "structured_output")
         key = cache_key(
             model,
             op_type,
@@ -491,7 +501,6 @@ class APIWrapper(object):
                     initial_result=initial_result,
                     litellm_completion_kwargs=litellm_completion_kwargs,
                     op_config=op_config,
-                    use_structured_output=use_structured_output,
                 )
                 # Log input and output if verbose
                 if verbose:

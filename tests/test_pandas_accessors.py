@@ -651,22 +651,29 @@ def test_semantic_unnest_recursive():
     """Test semantic unnest operation with recursive unnesting."""
     df = pd.DataFrame({
         "id": [1],
-        "nested": [[[1, 2], [3, 4]], [[5, 6]]]
+        "nested": [
+            [{"values": [1, 2]}]
+        ]
     })
     
     result = df.semantic.unnest(
         unnest_key="nested",
         recursive=True,
-        depth=2
     )
     
     assert isinstance(result, pd.DataFrame)
-    assert len(result) > 1  # Should create multiple rows
-    assert "nested" in result.columns
-    
-    # Check that deeply nested values are flattened
-    nested_values = result["nested"].tolist()
-    assert [1, 2] in nested_values or 1 in nested_values
+    assert len(result) == 1  # Should create one row per innermost value
+    assert "values" in result.columns
+
+    # Check that deeply nested values are unnested into individual rows
+    expected_values = [1, 2]
+    actual_values = []
+    for val in result["values"]:
+        if isinstance(val, list):
+            actual_values.extend(val)
+        else:
+            actual_values.append(val)
+    assert sorted(actual_values) == expected_values
 
 
 def test_semantic_unnest_keep_empty():

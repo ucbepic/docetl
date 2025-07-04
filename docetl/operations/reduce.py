@@ -25,6 +25,9 @@ from docetl.operations.clustering_utils import (
     get_embeddings_for_clustering,
 )
 from docetl.operations.utils import rich_as_completed, strict_render
+
+# Import OutputMode enum for structured output checks
+from docetl.operations.utils.api import OutputMode
 from docetl.utils import completion_cost
 
 
@@ -765,9 +768,14 @@ class ReduceOperation(BaseOperation):
         return current_output, prompts, total_cost
 
     def validation_fn(self, response: Dict[str, Any]):
+        structured_mode = (
+            self.config.get("output", {}).get("mode")
+            == OutputMode.STRUCTURED_OUTPUT.value
+        )
         output = self.runner.api.parse_llm_response(
             response,
             schema=self.config["output"]["schema"],
+            use_structured_output=structured_mode,
         )[0]
         if self.runner.api.validate_output(self.config, output, self.console):
             return output, True
@@ -834,10 +842,15 @@ class ReduceOperation(BaseOperation):
         self._update_fold_time(end_time - start_time)
 
         if response.validated:
+            structured_mode = (
+                self.config.get("output", {}).get("mode")
+                == OutputMode.STRUCTURED_OUTPUT.value
+            )
             folded_output = self.runner.api.parse_llm_response(
                 response.response,
                 schema=self.config["output"]["schema"],
                 manually_fix_errors=self.manually_fix_errors,
+                use_structured_output=structured_mode,
             )[0]
 
             folded_output.update(dict(zip(self.config["reduce_key"], key)))
@@ -897,10 +910,15 @@ class ReduceOperation(BaseOperation):
         self._update_merge_time(end_time - start_time)
 
         if response.validated:
+            structured_mode = (
+                self.config.get("output", {}).get("mode")
+                == OutputMode.STRUCTURED_OUTPUT.value
+            )
             merged_output = self.runner.api.parse_llm_response(
                 response.response,
                 schema=self.config["output"]["schema"],
                 manually_fix_errors=self.manually_fix_errors,
+                use_structured_output=structured_mode,
             )[0]
             merged_output.update(dict(zip(self.config["reduce_key"], key)))
             merge_cost = response.total_cost
@@ -1010,10 +1028,15 @@ class ReduceOperation(BaseOperation):
         item_cost += response.total_cost
 
         if response.validated:
+            structured_mode = (
+                self.config.get("output", {}).get("mode")
+                == OutputMode.STRUCTURED_OUTPUT.value
+            )
             output = self.runner.api.parse_llm_response(
                 response.response,
                 schema=self.config["output"]["schema"],
                 manually_fix_errors=self.manually_fix_errors,
+                use_structured_output=structured_mode,
             )[0]
             output.update(dict(zip(self.config["reduce_key"], key)))
 

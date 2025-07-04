@@ -91,9 +91,62 @@ output:
     possible_sentiments: "list[enum[positive, negative, neutral]]"
 ```
 
-## Structured Outputs and Tool API
+## How We Enforce Schemas
 
 DocETL uses structured outputs or tool API to enforce schema typing. This ensures that the LLM outputs adhere to the specified schema, making the results more consistent and easier to process in subsequent operations.
+
+DocETL supports two output modes that determine how the LLM generates structured outputs:
+
+### Tools Mode (Default)
+
+Uses the OpenAI tools/function calling API to enforce schema structure. This is the default mode and provides robust schema validation.
+
+```yaml
+output:
+  schema:
+    summary: string
+    sentiment: string
+  mode: "tools"  # Optional - this is the default
+```
+
+### Structured Output Mode
+
+Uses LiteLLM's structured output feature with JSON schema validation. This mode can provide more reliable schema adherence for complex outputs.
+
+```yaml
+output:
+  schema:
+    insights: "list[{insight: string, confidence: number}]"
+  mode: "structured_output"
+```
+
+!!! tip "When to Use Structured Output Mode"
+
+    Consider using `structured_output` mode when:
+    
+    - You have complex nested schemas with lists and objects
+    - You need more consistent schema adherence
+    - You're experiencing schema validation issues with tools mode
+    
+    The tools mode remains the default and works well for most use cases.
+
+### Mode Configuration
+
+The output mode can be configured in the `output` section of any operation:
+
+```yaml
+operations:
+  - name: analyze_text
+    type: map
+    prompt: "Analyze the following text..."
+    output:
+      schema:
+        topics: "list[{topic: string, relevance: number}]"
+      mode: "structured_output"  # or "tools"
+    model: gpt-4o-mini
+```
+
+If no mode is specified, DocETL defaults to `"tools"` mode for backward compatibility.
 
 ## Best Practices
 

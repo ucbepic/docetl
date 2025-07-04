@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from docetl.runner import DSLRunner
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def config_yaml(synthetic_fruits_data):
 
 @pytest.mark.parametrize("use_runner", [True])
 def test_synthetic_output_count(
-    synthetic_fruits_data, config_yaml, api_wrapper, use_runner
+    synthetic_fruits_data, config_yaml, runner, use_runner
 ):
     """
     Test that ensures the synthetic workload generates the expected number of outputs.

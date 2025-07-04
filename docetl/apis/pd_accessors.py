@@ -42,6 +42,9 @@ from docetl.operations.resolve import ResolveOperation
 from docetl.optimizer import Optimizer
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.runner import DSLRunner
+from docetl.operations.split import SplitOperation
+from docetl.operations.gather import GatherOperation
+from docetl.operations.unnest import UnnestOperation
 
 
 class OpHistory(NamedTuple):
@@ -664,3 +667,167 @@ Record 2: {record_template.replace('input0', 'input2')}"""
                             including their configurations and affected columns
         """
         return self._history.copy()
+
+    def split(
+        self,
+        *,
+        split_key: str,
+        method: str,
+        method_kwargs: Dict[str, Any],
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Split text (or other iterable content) in *split_key* into smaller units.
+
+        Documentation: https://ucbepic.github.io/docetl/operators/split/
+
+        This is a lightweight helper that wraps the :class:`docetl.operations.split.SplitOperation`
+        so it can be invoked directly from a pandas ``DataFrame`` via the
+        ``.semantic`` accessor.
+
+        Parameters
+        ----------
+        split_key:
+            Column in the current ``DataFrame`` that should be split.
+        method:
+            Splitting strategy. Supported values are ``"token_count"`` and
+            ``"delimiter"`` – see the operator docs for details.
+        method_kwargs:
+            Extra arguments required by *method* (e.g. ``{"num_tokens": 100}`` or
+            ``{"delimiter": "\n\n"}``).
+        **kwargs:
+            Additional optional parameters accepted by the underlying operator
+            (for example ``model`` if using token based splitting).
+
+        Returns
+        -------
+        pandas.DataFrame
+            A new ``DataFrame`` with three additional columns containing the
+            chunk text, a document-level identifier and the chunk index, as
+            described in the operator documentation.
+        """
+
+        input_data = self._df.to_dict("records")
+
+        split_config = {
+            "type": "split",
+            "name": f"semantic_split_{len(self._history)}",
+            "split_key": split_key,
+            "method": method,
+            "method_kwargs": method_kwargs,
+            **kwargs,
+        }
+
+        split_op = SplitOperation(
+            runner=self.runner,
+            config=split_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = split_op.execute(input_data)
+
+        # cost is zero for this operation but keep for consistency
+        return self._record_operation(results, "split", split_config, cost)
+
+    def gather(
+        self,
+        *,
+        content_key: str,
+        doc_id_key: str,
+        order_key: str,
+        peripheral_chunks: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Gather neighbouring context around each chunk.
+
+        Documentation: https://ucbepic.github.io/docetl/operators/gather/
+
+        This wraps :class:`docetl.operations.gather.GatherOperation`.
+
+        Parameters
+        ----------
+        content_key, doc_id_key, order_key:
+            Columns describing the chunk content, its parent document ID and
+            the chunk sequence order respectively.
+        peripheral_chunks:
+            Configuration dict controlling how many surrounding chunks to
+            include before/after the main chunk.  Consult the operator docs for
+            details.  If *None*, no peripheral context will be added.
+        **kwargs:
+            Any additional optional config accepted by the underlying operator
+            (e.g. ``doc_header_key``, ``main_chunk_start``).
+        """
+
+        input_data = self._df.to_dict("records")
+
+        gather_config = {
+            "type": "gather",
+            "name": f"semantic_gather_{len(self._history)}",
+            "content_key": content_key,
+            "doc_id_key": doc_id_key,
+            "order_key": order_key,
+            **({"peripheral_chunks": peripheral_chunks} if peripheral_chunks is not None else {}),
+            **kwargs,
+        }
+
+        gather_op = GatherOperation(
+            runner=self.runner,
+            config=gather_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = gather_op.execute(input_data)
+
+        return self._record_operation(results, "gather", gather_config, cost)
+
+    def unnest(
+        self,
+        *,
+        unnest_key: str,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Flatten list- or dict-like structures into individual rows.
+
+        Documentation: https://ucbepic.github.io/docetl/operators/unnest/
+
+        This is a convenience wrapper around
+        :class:`docetl.operations.unnest.UnnestOperation`.
+
+        Parameters
+        ----------
+        unnest_key:
+            Column that should be unnested.
+        **kwargs:
+            Additional parameters such as ``expand_fields``, ``recursive``,
+            ``keep_empty`` and ``depth`` – see the operator documentation for
+            the full list.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A ``DataFrame`` with the unnested records.
+        """
+
+        input_data = self._df.to_dict("records")
+
+        unnest_config = {
+            "type": "unnest",
+            "name": f"semantic_unnest_{len(self._history)}",
+            "unnest_key": unnest_key,
+            **kwargs,
+        }
+
+        unnest_op = UnnestOperation(
+            runner=self.runner,
+            config=unnest_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = unnest_op.execute(input_data)
+
+        return self._record_operation(results, "unnest", unnest_config, cost)

@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from typing import Dict, Any, List, Tuple
 from tests.conftest import (
     parallel_map_config,
-    parallel_map_sample_data,
     default_model,
     max_threads,
     runner,
@@ -14,6 +13,23 @@ from tests.conftest import (
 
 load_dotenv()
 
+
+# =============================================================================
+# FIXTURES SPECIFIC TO PARALLEL MAP OPERATION TESTS
+# =============================================================================
+
+@pytest.fixture
+def parallel_map_sample_data():
+    return [
+        {"text": "This is a positive sentence."},
+        {"text": "This is a negative sentence."},
+        {"text": "This is a neutral sentence."},
+    ]
+
+
+# =============================================================================
+# TEST FUNCTIONS
+# =============================================================================
 
 def test_parallel_map_operation(
     parallel_map_config,

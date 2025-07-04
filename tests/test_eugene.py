@@ -17,7 +17,7 @@ def max_threads():
 
 
 @pytest.fixture
-def synthetic_data():
+def database_survey_data():
     return [
         {
             "survey_response": "the database normalization stuff was pretty hard but super interesting. breaking down tables into their most efficient form was confusing at first, but as we did more examples, i started to see how cool well-normalized schemas are. the SQL queries were really fun to learn, especially when we got into the complicated joins and subqueries. i liked how the teacher gave us real-world examples of where we'd use this stuff, it helped me understand better.",
@@ -138,7 +138,7 @@ def summarize_themes_config():
 
 
 def test_database_survey_pipeline(
-    synthetic_data,
+    database_survey_data,
     extract_themes_config,
     unnest_themes_config,
     resolve_themes_config,
@@ -151,9 +151,9 @@ def test_database_survey_pipeline(
     extract_op = MapOperation(
         runner, extract_themes_config, default_model, max_threads
     )
-    extracted_results, extract_cost = extract_op.execute(synthetic_data)
+    extracted_results, extract_cost = extract_op.execute(database_survey_data)
 
-    assert len(extracted_results) == len(synthetic_data)
+    assert len(extracted_results) == len(database_survey_data)
     assert all("theme" in result for result in extracted_results)
     assert all(len(result["theme"]) >= 2 for result in extracted_results)
 

@@ -9,14 +9,106 @@ from tests.conftest import (
     map_sample_data,
     map_sample_data_large,
     map_config,
-    test_map_operation_instance,
-    map_config_with_drop_keys,
-    map_sample_data_with_extra_keys,
-    map_config_with_drop_keys_no_prompt,
+    synthetic_data,
 )
 import pytest
 import docetl
 
+
+# =============================================================================
+# FIXTURES SPECIFIC TO MAP OPERATION TESTS
+# =============================================================================
+
+@pytest.fixture
+def map_config_with_drop_keys():
+    return {
+        "name": "sentiment_analysis_with_drop",
+        "type": "map",
+        "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+        "output": {"schema": {"sentiment": "string"}},
+        "model": "gpt-4o-mini",
+        "drop_keys": ["to_be_dropped"],
+    }
+
+
+@pytest.fixture
+def map_config_with_drop_keys_no_prompt():
+    return {
+        "name": "drop_keys_only",
+        "type": "map",
+        "drop_keys": ["to_be_dropped"],
+        "model": "gpt-4o-mini",
+    }
+
+
+@pytest.fixture
+def map_sample_data_with_extra_keys():
+    return [
+        {
+            "text": "This is a positive sentence.",
+            "original_sentiment": "positive",
+            "to_be_dropped": "extra",
+        },
+        {
+            "text": "This is a negative sentence.",
+            "original_sentiment": "negative",
+            "to_be_dropped": "extra",
+        },
+        {
+            "text": "This is a neutral sentence.",
+            "original_sentiment": "neutral",
+            "to_be_dropped": "extra",
+        },
+    ]
+
+
+@pytest.fixture
+def map_config_with_tools():
+    return {
+        "type": "map",
+        "name": "word_count",
+        "prompt": "Count the number of words in the following text: '{{ input.text }}'",
+        "output": {"schema": {"word_count": "integer"}},
+        "model": "gpt-4o-mini",
+        "tools": [
+            {
+                "required": True,
+                "code": """
+def count_words(text):
+    return {"word_count": len(text.split())}
+                """,
+                "function": {
+                    "name": "count_words",
+                    "description": "Count the number of words in a text string.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "text": {
+                                "type": "string",
+                            }
+                        },
+                        "required": ["text"],
+                    },
+                },
+            }
+        ],
+        "validate": ["len(output['text']) > 0"],
+        "num_retries_on_validate_failure": 3,
+    }
+
+
+@pytest.fixture
+def test_map_operation_instance(
+    map_config_with_batching, default_model, max_threads, runner
+):
+    return MapOperation(
+        runner, map_config_with_batching, default_model, max_threads
+    )
+
+
+# =============================================================================
+# TEST FUNCTIONS
+# =============================================================================
 
 def test_map_operation(
     test_map_operation_instance,

@@ -916,7 +916,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                                 # Try to parse as JSON if it looks like JSON
                                 if value.strip().startswith('{') or value.strip().startswith('['):
                                     parsed_value = json.loads(value)
-                                    parsed_content[key] = parsed_value
+                                    # If the parsed JSON has the same key, extract that value
+                                    if isinstance(parsed_value, dict) and key in parsed_value:
+                                        parsed_content[key] = parsed_value[key]
+                                    else:
+                                        parsed_content[key] = parsed_value
                             except (json.JSONDecodeError, ValueError):
                                 # If parsing fails, keep the original string value
                                 pass
@@ -934,7 +938,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                             # Try to parse as JSON if it looks like JSON
                             if value.strip().startswith('{') or value.strip().startswith('['):
                                 parsed_value = json.loads(value)
-                                parsed_output[key] = parsed_value
+                                # If the parsed JSON has the same key, extract that value
+                                if isinstance(parsed_value, dict) and key in parsed_value:
+                                    parsed_output[key] = parsed_value[key]
+                                else:
+                                    parsed_output[key] = parsed_value
                         except (json.JSONDecodeError, ValueError):
                             # If parsing fails, keep the original string value
                             pass

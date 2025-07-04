@@ -196,9 +196,11 @@ class APIWrapper(object):
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
-        # Extract output mode from op_config
-        output_mode = op_config.get("output", {}).get("mode", "tools")
-        use_structured_output = output_mode == "structured_output"
+        # Determine output mode using central enum
+        output_mode_str = op_config.get("output", {}).get(
+            "mode", OutputMode.TOOLS.value
+        )
+        use_structured_output = output_mode_str == OutputMode.STRUCTURED_OUTPUT.value
         if (
             model.startswith("gpt")
             and not os.environ.get("OPENAI_API_KEY")
@@ -470,13 +472,13 @@ class APIWrapper(object):
         Raises:
             TimeoutError: If the call times out after retrying.
         """
-        # Extract and validate output mode from op_config
-        output_mode = op_config.get("output", {}).get("mode")
-        if output_mode is None:
-            output_mode = "tools"  # Default to tools mode
-        elif output_mode not in ["tools", "structured_output"]:
+        # Determine output mode using central enum
+        output_mode_str = op_config.get("output", {}).get(
+            "mode", OutputMode.TOOLS.value
+        )
+        if output_mode_str not in [mode.value for mode in OutputMode]:
             raise ValueError(
-                f"Invalid output mode '{output_mode}'. Must be 'tools' or 'structured_output'."
+                f"Invalid output mode '{output_mode_str}'. Must be 'tools' or 'structured_output'."
             )
 
         key = cache_key(
@@ -891,77 +893,88 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         """
         # Handle structured output mode
         if use_structured_output:
-            try:
-                content = response.choices[index].message.content
+            # Raw assistant content
+            content = response.choices[index].message.content
 
-                # Handle deepseek-r1 models' think tags
-                if is_deepseek_r1(response.model):
-                    result = {}
-                    think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
-                    if think_match:
-                        result["think"] = think_match.group(1).strip()
-                        # Get the remaining content after </think>
-                        main_content = re.split(r"</think>", content, maxsplit=1)[
-                            -1
-                        ].strip()
-                        parsed_content = json.loads(main_content)
-                    else:
-                        # If no think tags, parse the content as JSON
-                        parsed_content = json.loads(content)
+            # Special-case deepseek-r1 style <think> tags
+            if is_deepseek_r1(response.model):
+                think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+                if think_match:
+                    think_content = think_match.group(1).strip()
+                    # Content after </think>
+                    main_content = re.split(r"</think>", content, maxsplit=1)[
+                        -1
+                    ].strip()
+                else:
+                    think_content = None
+                    main_content = content
 
-                    # Parse any JSON string values in the parsed content
-                    for key, value in parsed_content.items():
-                        if isinstance(value, str):
-                            try:
-                                # Try to parse as JSON if it looks like JSON
-                                if value.strip().startswith('{') or value.strip().startswith('['):
-                                    parsed_value = json.loads(value)
-                                    parsed_content[key] = parsed_value
-                            except (json.JSONDecodeError, ValueError):
-                                # If parsing fails, keep the original string value
-                                pass
+                # Parse the main JSON content
+                try:
+                    parsed_output = json.loads(main_content)
+                except json.JSONDecodeError:
+                    raise InvalidOutputError(
+                        "Could not decode structured output JSON response",
+                        main_content,
+                        schema,
+                        response.choices,
+                        tools or [],
+                    )
 
-                    result.update(parsed_content)
-                    return [result]
+                if think_content is not None:
+                    parsed_output = {"think": think_content, **parsed_output}
 
-                # For other models, parse as JSON
-                parsed_output = json.loads(content)
-
-                # Parse any JSON string values in the output
-                for key, value in parsed_output.items():
-                    if isinstance(value, str):
+                # Attempt to parse any top-level values that are JSON-encoded strings
+                for k, v in parsed_output.items():
+                    if isinstance(v, str):
                         try:
-                            # Try to parse as JSON if it looks like JSON
-                            if value.strip().startswith('{') or value.strip().startswith('['):
-                                parsed_value = json.loads(value)
-                                parsed_output[key] = parsed_value
-                        except (json.JSONDecodeError, ValueError):
-                            # If parsing fails, keep the original string value
+                            if v.strip().startswith("{") or v.strip().startswith("["):
+                                parsed_output[k] = json.loads(v)
+                        except json.JSONDecodeError:
+                            # leave value as-is if parsing fails
                             pass
 
-                # Augment with missing schema keys
-                for key in schema:
-                    if key not in parsed_output:
-                        parsed_output[key] = "Not found"
+                # Unwrap nested dict that redundantly nests the same key
+                if (
+                    isinstance(parsed_output[k], dict)
+                    and len(parsed_output[k]) == 1
+                    and k in parsed_output[k]
+                ):
+                    parsed_output[k] = parsed_output[k][k]
 
                 return [parsed_output]
 
+            # Default: just load JSON for structured output
+            try:
+                parsed_output = json.loads(content)
             except json.JSONDecodeError:
                 raise InvalidOutputError(
                     "Could not decode structured output JSON response",
                     content,
                     schema,
                     response.choices,
-                    [],
+                    tools or [],
                 )
-            except Exception as e:
-                raise InvalidOutputError(
-                    f"Error parsing structured output: {e}",
-                    content,
-                    schema,
-                    response.choices,
-                    [],
-                )
+
+            # Attempt to parse any top-level values that are JSON-encoded strings
+            for k, v in parsed_output.items():
+                if isinstance(v, str):
+                    try:
+                        if v.strip().startswith("{") or v.strip().startswith("["):
+                            parsed_output[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        # leave value as-is if parsing fails
+                        pass
+
+                # Unwrap nested dict that redundantly nests the same key
+                if (
+                    isinstance(parsed_output[k], dict)
+                    and len(parsed_output[k]) == 1
+                    and k in parsed_output[k]
+                ):
+                    parsed_output[k] = parsed_output[k][k]
+
+            return [parsed_output]
         if is_snowflake(response.model):
             tool_calls = (
                 [

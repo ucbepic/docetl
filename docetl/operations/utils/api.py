@@ -909,11 +909,35 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                         # If no think tags, parse the content as JSON
                         parsed_content = json.loads(content)
 
+                    # Parse any JSON string values in the parsed content
+                    for key, value in parsed_content.items():
+                        if isinstance(value, str):
+                            try:
+                                # Try to parse as JSON if it looks like JSON
+                                if value.strip().startswith('{') or value.strip().startswith('['):
+                                    parsed_value = json.loads(value)
+                                    parsed_content[key] = parsed_value
+                            except (json.JSONDecodeError, ValueError):
+                                # If parsing fails, keep the original string value
+                                pass
+
                     result.update(parsed_content)
                     return [result]
 
                 # For other models, parse as JSON
                 parsed_output = json.loads(content)
+
+                # Parse any JSON string values in the output
+                for key, value in parsed_output.items():
+                    if isinstance(value, str):
+                        try:
+                            # Try to parse as JSON if it looks like JSON
+                            if value.strip().startswith('{') or value.strip().startswith('['):
+                                parsed_value = json.loads(value)
+                                parsed_output[key] = parsed_value
+                        except (json.JSONDecodeError, ValueError):
+                            # If parsing fails, keep the original string value
+                            pass
 
                 # Augment with missing schema keys
                 for key in schema:

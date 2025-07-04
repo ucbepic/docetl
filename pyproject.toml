@@ -22,7 +22,6 @@ typer = "^0.12.5"
 asteval = "^1.0.4"
 scikit-learn = "^1.5.2"
 pyrate-limiter = "^3.7.0"
-pyarrow = "^18.1.0"
 openpyxl = { version = "^3.1.5", optional = true }
 python-docx = { version = "^1.1.2", optional = true }
 pydub = { version = "^0.25.1", optional = true }
@@ -44,6 +43,7 @@ boto3 = "^1.37.27"
 pandas = "^2.3.0"
 python-multipart = "^0.0.20"
 fastapi = { version = "^0.115.4", optional = true }
+pyarrow = "^20.0.0"
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]

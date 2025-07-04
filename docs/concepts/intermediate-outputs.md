@@ -4,68 +4,47 @@ When running complex data processing pipelines, especially those involving LLM o
 
 ## Why Inspect Intermediate Outputs?
 
-### 🐛 **Debugging & Development**
-- **Identify issues**: See exactly where your pipeline might be failing or producing unexpected results
-- **Validate transformations**: Inspect data after each operation to ensure transformations are working correctly
-- **Iterative development**: Modify downstream operations without re-running expensive upstream LLM calls
-
-### 📊 **Data Quality Assurance**
-- **Schema validation**: Verify that each step produces data in the expected format
-- **Content inspection**: Sample and review actual outputs to ensure quality
-- **Pipeline monitoring**: Track data flow and transformations across complex workflows
+When developing pipelines, you often need to debug issues or validate that operations are working as expected. Intermediate outputs let you see exactly what data looks like after each step, making it much easier to identify problems and iterate on your pipeline without re-running expensive LLM operations.
 
 ## Enabling Checkpoints
 
 To save intermediate outputs, specify an `intermediate_dir` when creating your pipeline:
 
-=== "YAML Configuration"
+```yaml
+# config.yaml
+dataset:
+  type: file
+  path: "data.jsonl"
 
-    ```yaml
-    # config.yaml
-    default:
-      intermediate_dir: "./intermediate_outputs"
-    
-    dataset:
-      type: file
-      path: "data.jsonl"
-    
-    operations:
-      - name: extract_themes
-        type: map
-        prompt: "Extract key themes from this text: {{ content }}"
-        output:
-          schema:
-            themes: "list[str]"
-      
-      - name: categorize_themes  
-        type: map
-        prompt: "Categorize these themes: {{ themes }}"
-        output:
-          schema:
-            category: "str"
-            subcategory: "str"
-    
-    pipeline:
-      steps:
-        - name: extraction
-          operations:
-            - extract_themes
-        - name: categorization
-          operations:
-            - categorize_themes
-      output:
-        type: file
-        path: "results.jsonl"
-    ```
+operations:
+  - name: extract_themes
+    type: map
+    prompt: "Extract key themes from this text: {{ content }}"
+    output:
+      schema:
+        themes: "list[str]"
+  
+  - name: categorize_themes  
+    type: map
+    prompt: "Categorize these themes: {{ themes }}"
+    output:
+      schema:
+        category: "str"
+        subcategory: "str"
 
-=== "Python API"
-
-    ```python
-    from docetl import DSLRunner
-    
-    runner = DSLRunner.from_yaml("config.yaml")
-    results = runner.run()
-    ```
+pipeline:
+  steps:
+    - name: extraction
+      operations:
+        - extract_themes
+    - name: categorization
+      operations:
+        - categorize_themes
+  output:
+    type: file
+    path: "results.json"
+  intermediate_dir: "./intermediate_outputs"
+```
 
 ## Inspecting Intermediate Outputs
 

@@ -91,11 +91,9 @@ output:
     possible_sentiments: "list[enum[positive, negative, neutral]]"
 ```
 
-## Structured Outputs and Tool API
+## How We Enforce Schemas
 
 DocETL uses structured outputs or tool API to enforce schema typing. This ensures that the LLM outputs adhere to the specified schema, making the results more consistent and easier to process in subsequent operations.
-
-## Output Modes
 
 DocETL supports two output modes that determine how the LLM generates structured outputs:
 

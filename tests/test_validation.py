@@ -1,6 +1,6 @@
 import pytest
 from docetl.operations.map import MapOperation
-from tests.conftest import api_wrapper, default_model, max_threads
+from tests.conftest import runner, default_model, max_threads
 
 
 @pytest.fixture
@@ -29,11 +29,11 @@ def sample_data():
 
 
 def test_map_operation_with_validation(
-    map_config_with_validation, sample_data, api_wrapper, default_model, max_threads
+    map_config_with_validation, sample_data, runner, default_model, max_threads
 ):
     map_config_with_validation["bypass_cache"] = True
     operation = MapOperation(
-        api_wrapper, map_config_with_validation, default_model, max_threads
+        runner, map_config_with_validation, default_model, max_threads
     )
     results, cost = operation.execute(sample_data)
 

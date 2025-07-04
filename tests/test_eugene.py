@@ -3,7 +3,7 @@ from docetl.operations.map import MapOperation
 from docetl.operations.unnest import UnnestOperation
 from docetl.operations.resolve import ResolveOperation
 from docetl.operations.reduce import ReduceOperation
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def max_threads():
 
 
 @pytest.fixture
-def synthetic_data():
+def database_survey_data():
     return [
         {
             "survey_response": "the database normalization stuff was pretty hard but super interesting. breaking down tables into their most efficient form was confusing at first, but as we did more examples, i started to see how cool well-normalized schemas are. the SQL queries were really fun to learn, especially when we got into the complicated joins and subqueries. i liked how the teacher gave us real-world examples of where we'd use this stuff, it helped me understand better.",
@@ -138,28 +138,28 @@ def summarize_themes_config():
 
 
 def test_database_survey_pipeline(
-    synthetic_data,
+    database_survey_data,
     extract_themes_config,
     unnest_themes_config,
     resolve_themes_config,
     summarize_themes_config,
     default_model,
     max_threads,
-    api_wrapper,
+    runner,
 ):
     # Extract themes
     extract_op = MapOperation(
-        api_wrapper, extract_themes_config, default_model, max_threads
+        runner, extract_themes_config, default_model, max_threads
     )
-    extracted_results, extract_cost = extract_op.execute(synthetic_data)
+    extracted_results, extract_cost = extract_op.execute(database_survey_data)
 
-    assert len(extracted_results) == len(synthetic_data)
+    assert len(extracted_results) == len(database_survey_data)
     assert all("theme" in result for result in extracted_results)
     assert all(len(result["theme"]) >= 2 for result in extracted_results)
 
     # Unnest themes
     unnest_op = UnnestOperation(
-        api_wrapper, unnest_themes_config, default_model, max_threads
+        runner, unnest_themes_config, default_model, max_threads
     )
     unnested_results, unnest_cost = unnest_op.execute(extracted_results)
 
@@ -168,7 +168,7 @@ def test_database_survey_pipeline(
 
     # Resolve themes
     resolve_op = ResolveOperation(
-        api_wrapper, resolve_themes_config, default_model, max_threads
+        runner, resolve_themes_config, default_model, max_threads
     )
     resolved_results, resolve_cost = resolve_op.execute(unnested_results)
 
@@ -177,7 +177,7 @@ def test_database_survey_pipeline(
 
     # Summarize themes
     summarize_op = ReduceOperation(
-        api_wrapper, summarize_themes_config, default_model, max_threads
+        runner, summarize_themes_config, default_model, max_threads
     )
     summarized_results, summarize_cost = summarize_op.execute(resolved_results)
 

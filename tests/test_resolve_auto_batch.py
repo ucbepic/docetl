@@ -1,7 +1,7 @@
 
 import pytest
 from docetl.operations.resolve import ResolveOperation
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 @pytest.fixture(scope='session')
 def resolve_config():
     return {
@@ -112,10 +112,10 @@ def resolve_sample_data():
 
 
 def test_resolve_operation(
-    resolve_config, max_threads, resolve_sample_data, api_wrapper
+    resolve_config, max_threads, resolve_sample_data, runner
 ):
     operation = ResolveOperation(
-        api_wrapper, resolve_config, "text-embedding-3-small", max_threads
+        runner, resolve_config, "text-embedding-3-small", max_threads
     )
     results, cost = operation.execute(resolve_sample_data[:25])
 

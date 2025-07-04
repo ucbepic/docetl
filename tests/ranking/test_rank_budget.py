@@ -19,7 +19,7 @@ import random
 
 from docetl.runner import DSLRunner
 
-api_wrapper = DSLRunner(
+runner = DSLRunner(
     {
         "default_model": "gpt-4o-mini",
         "operations": [],
@@ -220,7 +220,7 @@ def load_synthetic_abstracts_data(num_abstracts=200):
         "num_retries_on_validate_failure": 2,
     }
     map_operation = MapOperation(
-        api_wrapper,
+        runner,
         map_config,
         default_model="gpt-4o-mini",
         max_threads=64,
@@ -287,7 +287,7 @@ def load_medical_data(num_samples=200):
     }
     
     operation = RankOperation(
-        api_wrapper,
+        runner,
         order_config,
         default_model="gpt-4o-mini",
         max_threads=64,
@@ -302,7 +302,7 @@ def load_medical_data(num_samples=200):
     
     return medical_data, ground_truth_ranks
 
-def test_ranking_with_budget_variation(api_wrapper, dataset, ground_truth_ranks, dataset_name):
+def test_ranking_with_budget_variation(runner, dataset, ground_truth_ranks, dataset_name):
     """
     Test ranking with varying budget parameters.
     
@@ -313,7 +313,7 @@ def test_ranking_with_budget_variation(api_wrapper, dataset, ground_truth_ranks,
     - Picky Window with Calibrated Embedding initial (varying rerank_call_budget)
     
     Args:
-        api_wrapper: API wrapper for LLM calls
+        runner: API wrapper for LLM calls
         dataset: List of documents to rank
         ground_truth_ranks: Dictionary mapping document IDs to ground truth ranks
         dataset_name: Name of the dataset being used
@@ -351,7 +351,7 @@ def test_ranking_with_budget_variation(api_wrapper, dataset, ground_truth_ranks,
         config["batch_size"] = batch_size
         
         operation = RankOperation(
-            api_wrapper,
+            runner,
             config,
             default_model="gpt-4o-mini",
             max_threads=64,
@@ -404,7 +404,7 @@ def test_ranking_with_budget_variation(api_wrapper, dataset, ground_truth_ranks,
         config["batch_size"] = batch_size
         
         operation = RankOperation(
-            api_wrapper,
+            runner,
             config,
             default_model="gpt-4o-mini",
             max_threads=64,
@@ -462,7 +462,7 @@ def test_ranking_with_budget_variation(api_wrapper, dataset, ground_truth_ranks,
         config["initial_ordering_method"] = "likert"
         
         operation = RankOperation(
-            api_wrapper,
+            runner,
             config,
             default_model="gpt-4o-mini",
             max_threads=64,
@@ -517,7 +517,7 @@ def test_ranking_with_budget_variation(api_wrapper, dataset, ground_truth_ranks,
         config["initial_ordering_method"] = "calibrated_embedding"
         
         operation = RankOperation(
-            api_wrapper,
+            runner,
             config,
             default_model="gpt-4o-mini",
             max_threads=64,
@@ -774,7 +774,7 @@ def run_budget_tests(dataset_name="harmfulness", num_samples=200):
         return {}
     
     # Run tests
-    results = test_ranking_with_budget_variation(api_wrapper, data, ground_truth_ranks, dataset_name)
+    results = test_ranking_with_budget_variation(runner, data, ground_truth_ranks, dataset_name)
     
     # Create plots
     create_budget_performance_plots(results, output_filename)

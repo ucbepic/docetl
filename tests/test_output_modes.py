@@ -3,20 +3,11 @@ Tests for output modes: tools vs structured_output
 Tests both map and reduce operations with complex schemas
 """
 
+import pytest
 import tempfile
 import os
 import json
 from typing import List, Dict, Any, Optional
-
-try:
-    import pytest
-    parametrize = pytest.mark.parametrize
-except ImportError:
-    # Mock parametrize decorator when pytest isn't available
-    def parametrize(*args, **kwargs):
-        def decorator(func):
-            return func
-        return decorator
 
 from docetl.runner import DSLRunner
 
@@ -66,111 +57,14 @@ SYNTHETIC_DOCUMENTS = [
 ]
 
 
-def create_temp_config(operation_type: str, output_mode: str, fold_config: Optional[Dict] = None) -> Dict[str, Any]:
-    """Create a temporary configuration for testing."""
-    
-    if operation_type == "map":
-        config = {
-            "datasets": {
-                "fruits_docs": {
-                    "type": "memory",
-                    "data": SYNTHETIC_DOCUMENTS
-                }
-            },
-            "operations": [
-                {
-                    "name": "extract_fruits_and_veggies",
-                    "type": "map",
-                    "prompt": "Analyze the text and extract all fruits mentioned, along with the most similar vegetable for each fruit based on characteristics like color, texture, or nutritional content.",
-                    "output": {
-                        "schema": {
-                            "fruits_and_veggies": "list[{fruit: str, most_similar_veggie: str, reasoning: str}]"
-                        },
-                        "mode": output_mode
-                    },
-                    "model": "gpt-4o-mini"
-                }
-            ],
-            "pipeline": {
-                "steps": [
-                    {
-                        "name": "extract_fruits_and_veggies",
-                        "input": "fruits_docs",
-                        "operations": ["extract_fruits_and_veggies"]
-                    }
-                ],
-                "output": {
-                    "type": "memory"
-                }
-            }
-        }
-    
-    elif operation_type == "reduce":
-        base_reduce_op = {
-            "name": "find_duplicate_fruits",
-            "type": "reduce",
-            "prompt": "Find all fruits that are mentioned more than once across the documents. Count the occurrences accurately.",
-            "output": {
-                "schema": {
-                    "duplicate_fruits": "list[{fruit: str, count: int, document_ids: list[int]}]"
-                },
-                "mode": output_mode
-            },
-            "model": "gpt-4o-mini"
-        }
-        
-        # Add fold configuration if provided
-        if fold_config:
-            base_reduce_op.update(fold_config)
-            
-        config = {
-            "datasets": {
-                "fruits_docs": {
-                    "type": "memory", 
-                    "data": SYNTHETIC_DOCUMENTS
-                }
-            },
-            "operations": [base_reduce_op],
-            "pipeline": {
-                "steps": [
-                    {
-                        "name": "find_duplicate_fruits",
-                        "input": "fruits_docs",
-                        "operations": ["find_duplicate_fruits"]
-                    }
-                ],
-                "output": {
-                    "type": "memory"
-                }
-            }
-        }
-    
-    else:
-        raise ValueError(f"Unknown operation type: {operation_type}")
-    
-    return config
-
-
-def run_operation(config: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Run the operation and return results."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config_path = os.path.join(temp_dir, "test_config.yaml")
-        
-        # Write config to file
-        import yaml
-        with open(config_path, 'w') as f:
-            yaml.dump(config, f)
-        
-        # Create runner and execute pipeline
-        runner = DSLRunner.from_yaml(config_path)
-        runner.load()
-        
-        # Execute the pipeline and get results
-        if runner.last_op_container:
-            output, _, _ = runner.last_op_container.next()
-            return output
-        else:
-            return []
+@pytest.fixture
+def temp_output_file():
+    """Create a temporary output file."""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp:
+        pass
+    yield tmp.name
+    if os.path.exists(tmp.name):
+        os.unlink(tmp.name)
 
 
 def count_extracted_items(results: List[Dict[str, Any]], operation_type: str) -> int:
@@ -237,13 +131,56 @@ def assess_accuracy(results: List[Dict[str, Any]], operation_type: str) -> Dict[
     return {}
 
 
-@parametrize("output_mode", ["tools", "structured_output"])
-def test_map_operation_complex_schema(output_mode):
+@pytest.mark.parametrize("output_mode", ["tools", "structured_output"])
+def test_map_operation_complex_schema(output_mode, temp_output_file):
     """Test map operation with complex schema using both output modes."""
     print(f"\n=== Testing MAP operation with {output_mode} mode ===")
     
-    config = create_temp_config("map", output_mode)
-    results = run_operation(config)
+    config = {
+        "datasets": {
+            "fruits_docs": {
+                "type": "memory",
+                "data": SYNTHETIC_DOCUMENTS
+            }
+        },
+        "operations": [
+            {
+                "name": "extract_fruits_and_veggies",
+                "type": "map",
+                "prompt": "Analyze the text and extract all fruits mentioned, along with the most similar vegetable for each fruit based on characteristics like color, texture, or nutritional content.",
+                "output": {
+                    "schema": {
+                        "fruits_and_veggies": "list[{fruit: str, most_similar_veggie: str, reasoning: str}]"
+                    },
+                    "mode": output_mode
+                },
+                "model": "gpt-4o-mini"
+            }
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "extract_step",
+                    "input": "fruits_docs",
+                    "operations": ["extract_fruits_and_veggies"]
+                }
+            ],
+            "output": {
+                "type": "file",
+                "path": temp_output_file
+            }
+        }
+    }
+    
+    # Create runner and execute
+    runner = DSLRunner(config, max_threads=4)
+    runner.load()
+    
+    # Execute the pipeline and get results
+    if runner.last_op_container:
+        results, _, _ = runner.last_op_container.next()
+    else:
+        results = []
     
     # Basic assertions
     assert isinstance(results, list), f"Results should be a list for {output_mode} mode"
@@ -270,19 +207,58 @@ def test_map_operation_complex_schema(output_mode):
     }
 
 
-@parametrize("output_mode", ["tools", "structured_output"])
-def test_reduce_operation_with_folding(output_mode):
+@pytest.mark.parametrize("output_mode", ["tools", "structured_output"])
+def test_reduce_operation_with_folding(output_mode, temp_output_file):
     """Test reduce operation with folding using both output modes."""
     print(f"\n=== Testing REDUCE operation with {output_mode} mode ===")
     
-    # Configure reduce operation with folding
-    fold_config = {
-        "fold_batch_size": 3,
-        "fold_prompt": "Summarize the fruits mentioned in these documents and their counts. Combine duplicate entries and maintain accurate counts."
+    config = {
+        "datasets": {
+            "fruits_docs": {
+                "type": "memory",
+                "data": SYNTHETIC_DOCUMENTS
+            }
+        },
+        "operations": [
+            {
+                "name": "find_duplicate_fruits",
+                "type": "reduce",
+                "prompt": "Find all fruits that are mentioned more than once across the documents. Count the occurrences accurately.",
+                "fold_batch_size": 3,
+                "fold_prompt": "Summarize the fruits mentioned in these documents and their counts. Combine duplicate entries and maintain accurate counts.",
+                "output": {
+                    "schema": {
+                        "duplicate_fruits": "list[{fruit: str, count: int, document_ids: list[int]}]"
+                    },
+                    "mode": output_mode
+                },
+                "model": "gpt-4o-mini"
+            }
+        ],
+        "pipeline": {
+            "steps": [
+                {
+                    "name": "reduce_step",
+                    "input": "fruits_docs",
+                    "operations": ["find_duplicate_fruits"]
+                }
+            ],
+            "output": {
+                "type": "file",
+                "path": temp_output_file
+            }
+        }
     }
     
-    config = create_temp_config("reduce", output_mode, fold_config)
-    results = run_operation(config)
+    # Create runner and execute
+    runner = DSLRunner(config, max_threads=4)
+    runner.load()
+    
+    # Execute the pipeline and get results
+    if runner.last_op_container:
+        results, _, _ = runner.last_op_container.next()
+    else:
+        results = []
     
     # Basic assertions
     assert isinstance(results, list), f"Results should be a list for {output_mode} mode"
@@ -308,7 +284,7 @@ def test_reduce_operation_with_folding(output_mode):
     }
 
 
-def test_compare_output_modes():
+def test_compare_output_modes(temp_output_file):
     """Compare the performance of both output modes."""
     print("\n" + "="*60)
     print("COMPARING OUTPUT MODES")
@@ -318,7 +294,7 @@ def test_compare_output_modes():
     map_results = {}
     for mode in ["tools", "structured_output"]:
         try:
-            result = test_map_operation_complex_schema(mode)
+            result = test_map_operation_complex_schema(mode, temp_output_file)
             map_results[mode] = result
         except Exception as e:
             print(f"Error testing {mode} for map: {e}")
@@ -328,7 +304,7 @@ def test_compare_output_modes():
     reduce_results = {}
     for mode in ["tools", "structured_output"]:
         try:
-            result = test_reduce_operation_with_folding(mode)
+            result = test_reduce_operation_with_folding(mode, temp_output_file)
             reduce_results[mode] = result
         except Exception as e:
             print(f"Error testing {mode} for reduce: {e}")
@@ -381,8 +357,3 @@ def test_compare_output_modes():
                 print("🤝 Both modes performed equally for REDUCE operation")
     
     print("\n" + "="*60)
-
-
-if __name__ == "__main__":
-    # Run the comparison test
-    test_compare_output_modes()

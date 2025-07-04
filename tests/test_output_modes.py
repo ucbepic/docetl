@@ -67,6 +67,19 @@ def temp_output_file():
         os.unlink(tmp.name)
 
 
+@pytest.fixture
+def temp_dataset_file():
+    """Write SYNTHETIC_DOCUMENTS to a temporary JSON file and yield its path."""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w") as tmp:
+        json.dump(SYNTHETIC_DOCUMENTS, tmp)
+        tmp.flush()
+    try:
+        yield tmp.name
+    finally:
+        if os.path.exists(tmp.name):
+            os.unlink(tmp.name)
+
+
 def count_extracted_items(results: List[Dict[str, Any]], operation_type: str) -> int:
     """Count the number of items extracted from results."""
     total_items = 0
@@ -132,21 +145,23 @@ def assess_accuracy(results: List[Dict[str, Any]], operation_type: str) -> Dict[
 
 
 @pytest.mark.parametrize("output_mode", ["tools", "structured_output"])
-def test_map_operation_complex_schema(output_mode, temp_output_file):
+def test_map_operation_complex_schema(output_mode, temp_output_file, temp_dataset_file):
     """Test map operation with complex schema using both output modes."""
-    print(f"\n=== Testing MAP operation with {output_mode} mode ===")
+    print(f"\n=== Testing MAP operation with {output_mode} mode; path: {temp_output_file} ===")
     
     config = {
         "datasets": {
             "fruits_docs": {
-                "type": "memory",
-                "data": SYNTHETIC_DOCUMENTS
+                "type": "file",
+                "path": temp_dataset_file
             }
         },
+        "default_model": "gpt-4o-mini",
         "operations": [
             {
                 "name": "extract_fruits_and_veggies",
                 "type": "map",
+                "bypass_cache": True,
                 "prompt": "Analyze the text and extract all fruits mentioned, along with the most similar vegetable for each fruit based on characteristics like color, texture, or nutritional content.",
                 "output": {
                     "schema": {
@@ -208,24 +223,27 @@ def test_map_operation_complex_schema(output_mode, temp_output_file):
 
 
 @pytest.mark.parametrize("output_mode", ["tools", "structured_output"])
-def test_reduce_operation_with_folding(output_mode, temp_output_file):
+def test_reduce_operation_with_folding(output_mode, temp_output_file, temp_dataset_file):
     """Test reduce operation with folding using both output modes."""
     print(f"\n=== Testing REDUCE operation with {output_mode} mode ===")
     
     config = {
         "datasets": {
             "fruits_docs": {
-                "type": "memory",
-                "data": SYNTHETIC_DOCUMENTS
+                "type": "file",
+                "path": temp_dataset_file
             }
         },
+        "default_model": "gpt-4o-mini",
         "operations": [
             {
                 "name": "find_duplicate_fruits",
+                "reduce_key": "_all",
                 "type": "reduce",
-                "prompt": "Find all fruits that are mentioned more than once across the documents. Count the occurrences accurately.",
+                "bypass_cache": True,
+                "prompt": "Find all fruits that are mentioned more than once across the documents in {{ inputs }}. Count the occurrences accurately.",
                 "fold_batch_size": 3,
-                "fold_prompt": "Summarize the fruits mentioned in these documents and their counts. Combine duplicate entries and maintain accurate counts.",
+                "fold_prompt": "Given the previous output {{ output }} and the new batch of documents {{ inputs }}, summarize the fruits mentioned and their counts. Combine duplicate entries and maintain accurate counts.",
                 "output": {
                     "schema": {
                         "duplicate_fruits": "list[{fruit: str, count: int, document_ids: list[int]}]"
@@ -284,7 +302,7 @@ def test_reduce_operation_with_folding(output_mode, temp_output_file):
     }
 
 
-def test_compare_output_modes(temp_output_file):
+def test_compare_output_modes(temp_output_file, temp_dataset_file):
     """Compare the performance of both output modes."""
     print("\n" + "="*60)
     print("COMPARING OUTPUT MODES")
@@ -294,7 +312,7 @@ def test_compare_output_modes(temp_output_file):
     map_results = {}
     for mode in ["tools", "structured_output"]:
         try:
-            result = test_map_operation_complex_schema(mode, temp_output_file)
+            result = test_map_operation_complex_schema(mode, temp_output_file, temp_dataset_file)
             map_results[mode] = result
         except Exception as e:
             print(f"Error testing {mode} for map: {e}")
@@ -304,7 +322,7 @@ def test_compare_output_modes(temp_output_file):
     reduce_results = {}
     for mode in ["tools", "structured_output"]:
         try:
-            result = test_reduce_operation_with_folding(mode, temp_output_file)
+            result = test_reduce_operation_with_folding(mode, temp_output_file, temp_dataset_file)
             reduce_results[mode] = result
         except Exception as e:
             print(f"Error testing {mode} for reduce: {e}")

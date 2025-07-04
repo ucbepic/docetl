@@ -2,7 +2,7 @@ import pytest
 from docetl.operations.split import SplitOperation
 from docetl.operations.map import MapOperation
 from docetl.operations.gather import GatherOperation
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 
 
 @pytest.fixture
@@ -106,7 +106,7 @@ def input_data():
 
 
 def test_split_map_gather_operations(
-    api_wrapper,
+    runner,
     split_config,
     map_config,
     gather_config,
@@ -114,9 +114,9 @@ def test_split_map_gather_operations(
     default_model,
     max_threads,
 ):
-    split_op = SplitOperation(api_wrapper, split_config, default_model, max_threads)
-    map_op = MapOperation(api_wrapper, map_config, default_model, max_threads)
-    gather_op = GatherOperation(api_wrapper, gather_config, default_model, max_threads)
+    split_op = SplitOperation(runner, split_config, default_model, max_threads)
+    map_op = MapOperation(runner, map_config, default_model, max_threads)
+    gather_op = GatherOperation(runner, gather_config, default_model, max_threads)
 
     # Execute split operation
     split_results, split_cost = split_op.execute(input_data)
@@ -189,11 +189,11 @@ def test_split_map_gather_operations(
 
 
 def test_split_map_gather_empty_input(
-    api_wrapper, split_config, map_config, gather_config, default_model, max_threads
+    runner, split_config, map_config, gather_config, default_model, max_threads
 ):
-    split_op = SplitOperation(api_wrapper, split_config, default_model, max_threads)
-    map_op = MapOperation(api_wrapper, map_config, default_model, max_threads)
-    gather_op = GatherOperation(api_wrapper, gather_config, default_model, max_threads)
+    split_op = SplitOperation(runner, split_config, default_model, max_threads)
+    map_op = MapOperation(runner, map_config, default_model, max_threads)
+    gather_op = GatherOperation(runner, gather_config, default_model, max_threads)
 
     split_results, split_cost = split_op.execute([])
     assert len(split_results) == 0
@@ -209,7 +209,7 @@ def test_split_map_gather_empty_input(
 
 
 def test_split_delimiter_no_summarization(
-    api_wrapper, split_config_delimiter, default_model, max_threads
+    runner, split_config_delimiter, default_model, max_threads
 ):
     input_data = [
         {"id": "1", "content": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6"},
@@ -217,7 +217,7 @@ def test_split_delimiter_no_summarization(
     ]
 
     split_op = SplitOperation(
-        api_wrapper, split_config_delimiter, default_model, max_threads, api_wrapper
+        runner, split_config_delimiter, default_model, max_threads
     )
     results, cost = split_op.execute(input_data)
 

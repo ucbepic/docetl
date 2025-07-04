@@ -5,11 +5,11 @@ from docetl.operations.map import ParallelMapOperation
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Tuple
 from tests.conftest import (
-    parallel_map_config as parallel_map_config,
-    parallel_map_sample_data as parallel_map_sample_data,
-    default_model as default_model,
-    max_threads as max_threads,
-    api_wrapper as api_wrapper,
+    parallel_map_config,
+    parallel_map_sample_data,
+    default_model,
+    max_threads,
+    runner,
 )
 
 load_dotenv()
@@ -20,11 +20,11 @@ def test_parallel_map_operation(
     default_model,
     max_threads,
     parallel_map_sample_data,
-    api_wrapper,
+    runner,
 ):
     parallel_map_config["bypass_cache"] = True
     operation = ParallelMapOperation(
-        api_wrapper, parallel_map_config, default_model, max_threads
+        runner, parallel_map_config, default_model, max_threads
     )
     results, cost = operation.execute(parallel_map_sample_data)
 
@@ -39,10 +39,10 @@ def test_parallel_map_operation(
 
 
 def test_parallel_map_operation_empty_input(
-    parallel_map_config, default_model, max_threads, api_wrapper
+    parallel_map_config, default_model, max_threads, runner
 ):
     operation = ParallelMapOperation(
-        api_wrapper, parallel_map_config, default_model, max_threads
+        runner, parallel_map_config, default_model, max_threads
     )
     results, cost = operation.execute([])
 
@@ -51,10 +51,10 @@ def test_parallel_map_operation_empty_input(
 
 
 def test_parallel_map_operation_with_empty_input(
-    parallel_map_config, default_model, max_threads, api_wrapper
+    parallel_map_config, default_model, max_threads, runner
 ):
     operation = ParallelMapOperation(
-        api_wrapper, parallel_map_config, default_model, max_threads
+        runner, parallel_map_config, default_model, max_threads
     )
     results, cost = operation.execute([])
 

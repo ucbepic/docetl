@@ -1,7 +1,7 @@
 import pytest
 import random
 from docetl.operations.reduce import ReduceOperation
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def large_sample_data():
     return data
 
 
-def test_random_sampling(api_wrapper, default_model, max_threads, large_sample_data):
+def test_random_sampling(runner, default_model, max_threads, large_sample_data):
     config = {
         "name": "reduce_value_sampling",
         "type": "reduce",
@@ -42,7 +42,7 @@ def test_random_sampling(api_wrapper, default_model, max_threads, large_sample_d
         "output": {"schema": {"summary": "string"}},
     }
 
-    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
+    operation = ReduceOperation(runner, config, default_model, max_threads)
     results, cost = operation.execute(large_sample_data)
 
     assert len(results) == 3, "Should have results for all three groups A, B, and C"
@@ -51,7 +51,7 @@ def test_random_sampling(api_wrapper, default_model, max_threads, large_sample_d
         assert len(result["summary"]) > 0, "Summary should not be empty"
 
 
-def test_first_n_sampling(api_wrapper, default_model, max_threads, large_sample_data):
+def test_first_n_sampling(runner, default_model, max_threads, large_sample_data):
     config = {
         "name": "reduce_value_sampling",
         "type": "reduce",
@@ -61,7 +61,7 @@ def test_first_n_sampling(api_wrapper, default_model, max_threads, large_sample_
         "output": {"schema": {"summary": "string"}},
     }
 
-    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
+    operation = ReduceOperation(runner, config, default_model, max_threads)
     results, cost = operation.execute(large_sample_data)
 
     assert len(results) == 3, "Should have results for all three groups A, B, and C"
@@ -70,7 +70,7 @@ def test_first_n_sampling(api_wrapper, default_model, max_threads, large_sample_
         assert len(result["summary"]) > 0, "Summary should not be empty"
 
 
-def test_cluster_sampling(api_wrapper, default_model, max_threads, large_sample_data):
+def test_cluster_sampling(runner, default_model, max_threads, large_sample_data):
     config = {
         "name": "reduce_value_sampling",
         "type": "reduce",
@@ -86,7 +86,7 @@ def test_cluster_sampling(api_wrapper, default_model, max_threads, large_sample_
         "output": {"schema": {"summary": "string"}},
     }
 
-    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
+    operation = ReduceOperation(runner, config, default_model, max_threads)
     results, cost = operation.execute(large_sample_data)
 
     assert len(results) == 3, "Should have results for all three groups A, B, and C"
@@ -96,7 +96,7 @@ def test_cluster_sampling(api_wrapper, default_model, max_threads, large_sample_
 
 
 def test_semantic_similarity_sampling(
-    api_wrapper, default_model, max_threads, large_sample_data
+    runner, default_model, max_threads, large_sample_data
 ):
     config = {
         "name": "reduce_value_sampling",
@@ -114,7 +114,7 @@ def test_semantic_similarity_sampling(
         "output": {"schema": {"summary": "string"}},
     }
 
-    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
+    operation = ReduceOperation(runner, config, default_model, max_threads)
     results, cost = operation.execute(large_sample_data)
 
     assert len(results) == 3, "Should have results for all three groups A, B, and C"
@@ -130,7 +130,7 @@ def test_semantic_similarity_sampling(
 
 
 def test_invalid_sampling_method(
-    api_wrapper, default_model, max_threads, large_sample_data
+    runner, default_model, max_threads, large_sample_data
 ):
     config = {
         "name": "reduce_value_sampling",
@@ -146,4 +146,4 @@ def test_invalid_sampling_method(
     }
 
     with pytest.raises(ValueError, match="Invalid 'method'"):
-        ReduceOperation(api_wrapper, config, default_model, max_threads)
+        ReduceOperation(runner, config, default_model, max_threads)

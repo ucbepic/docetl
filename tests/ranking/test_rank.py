@@ -24,7 +24,7 @@ lotus.settings.configure(lm=lm, rm=rm)
 
 console = Console()
 
-api_wrapper = DSLRunner(
+runner = DSLRunner(
     {
         "default_model": "gemini/gemini-2.0-flash",
         "operations": [],
@@ -57,7 +57,7 @@ def calculate_ndcg(y_true, y_pred, k=10):
     
     return ndcg_score(y_true, y_pred, k=k)
 
-def test_order_square_dataset(api_wrapper):
+def test_order_square_dataset(runner):
     """
     Test ordering methods using a synthetic dataset of ASCII squares.
     Each square is n × n pixels, where n starts at 20 and increases by 3 for each subsequent square.
@@ -103,7 +103,7 @@ def test_order_square_dataset(api_wrapper):
     }
     
     order_operation = RankOperation(
-        api_wrapper,
+        runner,
         order_config,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -111,7 +111,7 @@ def test_order_square_dataset(api_wrapper):
     likert_initial_config = order_config.copy()
     likert_initial_config["initial_ordering_method"] = "likert"
     order_operation_likert_initial = RankOperation(
-        api_wrapper,
+        runner,
         likert_initial_config,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -343,7 +343,7 @@ def test_order_square_dataset(api_wrapper):
     # Return the sorted results and NDCG scores
     return sorted_results, sorted_ndcg, lotus_num_calls
 
-def test_order_medical_transcripts_by_pain(api_wrapper):
+def test_order_medical_transcripts_by_pain(runner):
     """
     Test ordering methods for medical transcripts from workloads/medical/raw.json
     based on patient pain levels in descending order (most pain first).
@@ -373,7 +373,7 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
     }
     
     order_operation = RankOperation(
-        api_wrapper,
+        runner,
         order_config,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -382,7 +382,7 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
     order_config_likert_initial = order_config.copy()
     order_config_likert_initial["initial_ordering_method"] = "likert"
     order_operation_likert_initial = RankOperation(
-        api_wrapper,
+        runner,
         order_config_likert_initial,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -630,7 +630,7 @@ def test_order_medical_transcripts_by_pain(api_wrapper):
     # Return the same structure as test_order_square_dataset
     return sorted_results, sorted_ndcg, lotus_num_calls
 
-def test_order_scifact_dataset(api_wrapper):
+def test_order_scifact_dataset(runner):
     """
     Test ordering methods on the scifact dataset.
     For each of 5 sampled claims from queries.jsonl, we rank the corpus.jsonl
@@ -762,7 +762,7 @@ def test_order_scifact_dataset(api_wrapper):
             }
             
             order_operation = RankOperation(
-                api_wrapper,
+                runner,
                 order_config,
                 default_model="gemini/gemini-2.0-flash",
                 max_threads=64,
@@ -983,7 +983,7 @@ def test_order_scifact_dataset(api_wrapper):
     # Return the same structure as other test methods, with placeholder value for lotus calls
     return sorted_results, sorted_ndcg, 0  # Using 0 as placeholder for lotus_num_calls
 
-def test_order_number_words(api_wrapper):
+def test_order_number_words(runner):
     """
     Test sorting a list of number words ("one", "two", "three", ...,"five hundred")
     in ascending numerical order using different ordering methods and compare their accuracy.
@@ -1050,7 +1050,7 @@ def test_order_number_words(api_wrapper):
     }
     
     order_operation = RankOperation(
-        api_wrapper,
+        runner,
         order_config,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -1059,7 +1059,7 @@ def test_order_number_words(api_wrapper):
     order_config_copy = order_config.copy()
     order_config_copy["initial_ordering_method"] = "likert"
     order_operation_likert = RankOperation(
-        api_wrapper,
+        runner,
         order_config_copy,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -1351,7 +1351,7 @@ def test_order_number_words(api_wrapper):
     
     return sorted_results, sorted_ndcg, lotus_num_calls
 
-def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
+def test_order_synthetic_abstracts(runner, num_abstracts=200):
     """
     Test sorting a list of synthetic paper abstracts in ascending order by the accuracy values 
     they report using different ordering methods and compare their performance.
@@ -1407,7 +1407,7 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
     
     # Create MapOperation instance
     map_operation = MapOperation(
-        api_wrapper,
+        runner,
         map_config,
         default_model="gpt-4o-mini",
         max_threads=64
@@ -1444,7 +1444,7 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
     }
     
     order_operation = RankOperation(
-        api_wrapper,
+        runner,
         order_config,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -1453,7 +1453,7 @@ def test_order_synthetic_abstracts(api_wrapper, num_abstracts=200):
     order_config_likert = order_config.copy()
     order_config_likert["initial_ordering_method"] = "likert"
     order_operation_likert = RankOperation(
-        api_wrapper,
+        runner,
         order_config_likert,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -1761,7 +1761,7 @@ def scifact():
         
         # Run the scifact test
         console.print(f"\n[bold cyan]Testing SciFact Dataset (Trial {trial+1})[/bold cyan]\n")
-        trial_scifact_results, trial_scifact_ndcg, _ = test_order_scifact_dataset(api_wrapper)
+        trial_scifact_results, trial_scifact_ndcg, _ = test_order_scifact_dataset(runner)
         scifact_results.append(trial_scifact_results)
         scifact_ndcg_results.append(trial_scifact_ndcg)
     
@@ -1864,7 +1864,7 @@ def run_abstract_tests():
             console.print(f"\n[bold magenta]Running Trial {trial+1}/{n_trials} with {num_abstracts} abstracts[/bold magenta]\n")
             
             # Execute the test
-            trial_results, trial_ndcg, lotus_calls = test_order_synthetic_abstracts(api_wrapper, num_abstracts=num_abstracts)
+            trial_results, trial_ndcg, lotus_calls = test_order_synthetic_abstracts(runner, num_abstracts=num_abstracts)
             
             # Store the results
             results_collection.append(trial_results)
@@ -1984,7 +1984,7 @@ def run_abstract_tests():
     
 
 
-def test_chat_harmfulness(api_wrapper, num_samples=200):
+def test_chat_harmfulness(runner, num_samples=200):
     """
     Test ranking chat transcripts by harmlessness.
     Lower min_harmlessness_score_transcript values indicate more harmful content,
@@ -2038,7 +2038,7 @@ def test_chat_harmfulness(api_wrapper, num_samples=200):
     
     # Create order operation instance
     order_operation = RankOperation(
-        api_wrapper,
+        runner,
         order_config,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -2060,7 +2060,7 @@ def test_chat_harmfulness(api_wrapper, num_samples=200):
     order_config_likert = order_config.copy()
     order_config_likert["initial_ordering_method"] = "likert"
     order_operation_likert = RankOperation(
-        api_wrapper,
+        runner,
         order_config_likert,
         default_model="gemini/gemini-2.0-flash",
         max_threads=64,
@@ -2359,7 +2359,7 @@ def run_harmlessness_tests():
             console.print(f"\n[bold magenta]Running Trial {trial+1}/{n_trials} with {num_samples} transcripts[/bold magenta]\n")
             
             # Execute the test
-            trial_results, trial_ndcg, lotus_calls = test_chat_harmfulness(api_wrapper, num_samples=num_samples)
+            trial_results, trial_ndcg, lotus_calls = test_chat_harmfulness(runner, num_samples=num_samples)
             
             # Store the results
             results_collection.append(trial_results)
@@ -2478,5 +2478,5 @@ def run_harmlessness_tests():
 
 if __name__ == "__main__":
     # Uncomment the function you want to run:
-    test_chat_harmfulness(api_wrapper)
+    test_chat_harmfulness(runner)
     # run_harmlessness_tests()

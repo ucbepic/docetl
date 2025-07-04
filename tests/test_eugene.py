@@ -3,7 +3,7 @@ from docetl.operations.map import MapOperation
 from docetl.operations.unnest import UnnestOperation
 from docetl.operations.resolve import ResolveOperation
 from docetl.operations.reduce import ReduceOperation
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 
 
 @pytest.fixture
@@ -145,11 +145,11 @@ def test_database_survey_pipeline(
     summarize_themes_config,
     default_model,
     max_threads,
-    api_wrapper,
+    runner,
 ):
     # Extract themes
     extract_op = MapOperation(
-        api_wrapper, extract_themes_config, default_model, max_threads
+        runner, extract_themes_config, default_model, max_threads
     )
     extracted_results, extract_cost = extract_op.execute(synthetic_data)
 
@@ -159,7 +159,7 @@ def test_database_survey_pipeline(
 
     # Unnest themes
     unnest_op = UnnestOperation(
-        api_wrapper, unnest_themes_config, default_model, max_threads
+        runner, unnest_themes_config, default_model, max_threads
     )
     unnested_results, unnest_cost = unnest_op.execute(extracted_results)
 
@@ -168,7 +168,7 @@ def test_database_survey_pipeline(
 
     # Resolve themes
     resolve_op = ResolveOperation(
-        api_wrapper, resolve_themes_config, default_model, max_threads
+        runner, resolve_themes_config, default_model, max_threads
     )
     resolved_results, resolve_cost = resolve_op.execute(unnested_results)
 
@@ -177,7 +177,7 @@ def test_database_survey_pipeline(
 
     # Summarize themes
     summarize_op = ReduceOperation(
-        api_wrapper, summarize_themes_config, default_model, max_threads
+        runner, summarize_themes_config, default_model, max_threads
     )
     summarized_results, summarize_cost = summarize_op.execute(resolved_results)
 

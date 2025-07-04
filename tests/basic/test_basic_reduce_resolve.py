@@ -2,7 +2,7 @@
 import pytest
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 
 
 @pytest.fixture
@@ -40,10 +40,10 @@ def reduce_sample_data_with_list_key():
 
 
 def test_reduce_operation(
-    reduce_config, default_model, max_threads, reduce_sample_data, api_wrapper
+    reduce_config, default_model, max_threads, reduce_sample_data, runner
 ):
     reduce_config["bypass_cache"] = True
-    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
+    operation = ReduceOperation(runner, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 3  # 3 unique groups
@@ -55,10 +55,10 @@ def test_reduce_operation(
 
 
 def test_reduce_operation_with_all_key(
-    reduce_config, default_model, max_threads, reduce_sample_data, api_wrapper
+    reduce_config, default_model, max_threads, reduce_sample_data, runner
 ):
     reduce_config["reduce_key"] = "_all"
-    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
+    operation = ReduceOperation(runner, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data)
 
     assert len(results) == 1
@@ -69,11 +69,11 @@ def test_reduce_operation_with_list_key(
     default_model,
     max_threads,
     reduce_sample_data_with_list_key,
-    api_wrapper,
+    runner,
 ):
     reduce_config["reduce_key"] = ["group", "category"]
 
-    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
+    operation = ReduceOperation(runner, reduce_config, default_model, max_threads)
     results, cost = operation.execute(reduce_sample_data_with_list_key)
 
     assert len(results) == 3  # 3 unique groups
@@ -87,9 +87,9 @@ def test_reduce_operation_with_list_key(
 
 
 def test_reduce_operation_empty_input(
-    reduce_config, default_model, max_threads, api_wrapper
+    reduce_config, default_model, max_threads, runner
 ):
-    operation = ReduceOperation(api_wrapper, reduce_config, default_model, max_threads)
+    operation = ReduceOperation(runner, reduce_config, default_model, max_threads)
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -124,10 +124,10 @@ def resolve_sample_data():
 
 
 def test_resolve_operation(
-    resolve_config, max_threads, resolve_sample_data, api_wrapper
+    resolve_config, max_threads, resolve_sample_data, runner
 ):
     operation = ResolveOperation(
-        api_wrapper, resolve_config, "text-embedding-3-small", max_threads
+        runner, resolve_config, "text-embedding-3-small", max_threads
     )
     results, cost = operation.execute(resolve_sample_data)
 
@@ -135,9 +135,9 @@ def test_resolve_operation(
     assert len(distinct_names) < len(results)
 
 
-def test_resolve_operation_empty_input(resolve_config, max_threads, api_wrapper):
+def test_resolve_operation_empty_input(resolve_config, max_threads, runner):
     operation = ResolveOperation(
-        api_wrapper, resolve_config, "text-embedding-3-small", max_threads
+        runner, resolve_config, "text-embedding-3-small", max_threads
     )
     results, cost = operation.execute([])
 
@@ -146,13 +146,13 @@ def test_resolve_operation_empty_input(resolve_config, max_threads, api_wrapper)
 
 
 def test_reduce_operation_with_lineage(
-    reduce_config, max_threads, reduce_sample_data, api_wrapper
+    reduce_config, max_threads, reduce_sample_data, runner
 ):
     # Add lineage configuration to reduce_config
     reduce_config["output"]["lineage"] = ["name", "email"]
 
     operation = ReduceOperation(
-        api_wrapper, reduce_config, "text-embedding-3-small", max_threads
+        runner, reduce_config, "text-embedding-3-small", max_threads
     )
     results, cost = operation.execute(reduce_sample_data)
 
@@ -166,7 +166,7 @@ def test_reduce_operation_with_lineage(
         assert all("name" in item and "email" in item for item in lineage)
 
 
-def test_reduce_with_list_key(api_wrapper, default_model, max_threads):
+def test_reduce_with_list_key(runner, default_model, max_threads):
     """Test reduce operation with a list-type key"""
     
     # Test data with list-type classifications
@@ -205,7 +205,7 @@ def test_reduce_with_list_key(api_wrapper, default_model, max_threads):
     }
 
     # Create and execute reduce operation
-    operation = ReduceOperation(api_wrapper, config, default_model, max_threads)
+    operation = ReduceOperation(runner, config, default_model, max_threads)
     results, _ = operation.execute(input_data)
 
     # Verify results

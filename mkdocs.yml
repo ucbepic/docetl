@@ -23,6 +23,7 @@ nav:
           - Operators & Validation: concepts/operators.md
           - Output Schemas: concepts/schemas.md
           - Pipelines: concepts/pipelines.md
+          - Intermediate Outputs: concepts/intermediate-outputs.md
           - Optimization: concepts/optimization.md
       - LLM-Powered Operators:
           - Map: operators/map.md

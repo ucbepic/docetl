@@ -224,7 +224,7 @@ print(f"Optimized pipeline execution completed. Total cost: ${cost:.2f}")
 
 ??? question "How can I use the pandas integration?"
 
-    DocETL provides a pandas integration for a few operators (map, filter, merge, agg). Here's an example of how to use it with the medication analysis:
+    DocETL provides a pandas integration for several operators (map, filter, merge, agg, split, gather, unnest). Here's an example of how to use it with the medication analysis:
 
     ```python
     import pandas as pd

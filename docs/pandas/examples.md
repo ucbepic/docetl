@@ -292,3 +292,271 @@ best_headlines = variations.semantic.filter(
 ```
 
 This example will generate 15 total variations (3 products × 5 variations each). You can adjust the `n` parameter to generate more or fewer variations as needed.
+
+## Example 8: Document Processing with Split and Gather
+
+Process long documents by splitting them into chunks and adding contextual information:
+
+```python
+# Long documents that need to be processed in chunks
+df = pd.DataFrame({
+    "document_id": ["doc1", "doc2"],
+    "title": ["Technical Manual", "Research Paper"],
+    "content": [
+        "Chapter 1: Introduction\n\nThis manual provides comprehensive guidance for system installation and configuration. The installation process involves several critical steps that must be followed in order.\n\nChapter 2: Prerequisites\n\nBefore beginning installation, ensure all system requirements are met. This includes hardware specifications, software dependencies, and network connectivity.\n\nChapter 3: Installation\n\nThe installation wizard guides users through the setup process. Select appropriate configuration options based on your deployment environment.",
+        "Abstract\n\nThis research investigates the impact of machine learning on data processing efficiency. Our methodology involved testing multiple algorithms across diverse datasets.\n\nIntroduction\n\nMachine learning has revolutionized data processing across industries. Previous studies have shown significant improvements in processing speed and accuracy.\n\nMethodology\n\nWe conducted experiments using three different ML algorithms: neural networks, decision trees, and support vector machines. Each algorithm was tested on datasets ranging from 1,000 to 1,000,000 records."
+    ]
+})
+
+# Step 1: Split documents into manageable chunks
+chunks = df.semantic.split(
+    split_key="content",
+    method="delimiter",
+    method_kwargs={"delimiter": "\n\n", "num_splits_to_group": 1}
+)
+
+print(f"Original documents: {len(df)}")
+print(f"Generated chunks: {len(chunks)}")
+
+# Step 2: Add contextual information to each chunk
+enhanced_chunks = chunks.semantic.gather(
+    content_key="content_chunk",
+    doc_id_key="semantic_split_0_id",
+    order_key="semantic_split_0_chunk_num",
+    peripheral_chunks={
+        "previous": {"head": {"count": 1}},  # Include 1 previous chunk
+        "next": {"head": {"count": 1}}       # Include 1 next chunk
+    }
+)
+
+# Step 3: Extract structured information from each chunk with context
+analyzed_chunks = enhanced_chunks.semantic.map(
+    prompt="""Analyze this document chunk with its surrounding context and extract:
+    1. Main topic or section
+    2. Key concepts discussed
+    3. Action items or requirements (if any)
+    
+    Document chunk with context:
+    {{input.content_chunk_rendered}}""",
+    output_schema={
+        "section_topic": "str",
+        "key_concepts": "list[str]",
+        "action_items": "list[str]"
+    }
+)
+
+# Step 4: Aggregate insights by document
+document_summaries = analyzed_chunks.semantic.agg(
+    reduce_keys=["document_id"],
+    reduce_prompt="""Create a comprehensive summary of this document based on all its chunks:
+    
+    Document chunks:
+    {% for chunk in inputs %}
+    Section: {{chunk.section_topic}}
+    Key concepts: {{chunk.key_concepts | join(', ')}}
+    Action items: {{chunk.action_items | join(', ')}}
+    ---
+    {% endfor %}""",
+    output_schema={
+        "document_summary": "str",
+        "all_key_concepts": "list[str]",
+        "all_action_items": "list[str]"
+    }
+)
+
+print(f"Final document summaries: {len(document_summaries)}")
+print(f"Total processing cost: ${document_summaries.semantic.total_cost}")
+```
+
+## Example 9: Data Structure Processing with Unnest
+
+Handle complex nested data structures commonly found in JSON APIs or survey responses:
+
+```python
+# Survey data with nested responses
+survey_df = pd.DataFrame({
+    "respondent_id": [1, 2, 3],
+    "demographics": [
+        {"age": 25, "location": "NYC", "education": "Bachelor's"},
+        {"age": 34, "location": "SF", "education": "Master's"},
+        {"age": 28, "location": "Chicago", "education": "PhD"}
+    ],
+    "interests": [
+        ["technology", "sports", "music"],
+        ["science", "reading"],
+        ["art", "travel", "cooking", "photography"]
+    ],
+    "ratings": [
+        {"product_quality": 4, "customer_service": 5, "value": 3},
+        {"product_quality": 5, "customer_service": 4, "value": 4},
+        {"product_quality": 3, "customer_service": 3, "value": 5}
+    ]
+})
+
+# Step 1: Unnest demographics into separate columns
+with_demographics = survey_df.semantic.unnest(
+    unnest_key="demographics",
+    expand_fields=["age", "location", "education"]
+)
+
+# Step 2: Unnest interests (each interest becomes a separate row)
+individual_interests = with_demographics.semantic.unnest(
+    unnest_key="interests"
+)
+
+# Step 3: For ratings, expand all fields 
+with_ratings = individual_interests.semantic.unnest(
+    unnest_key="ratings",
+    expand_fields=["product_quality", "customer_service", "value"]
+)
+
+print(f"Original survey responses: {len(survey_df)}")
+print(f"Individual interest entries: {len(individual_interests)}")
+print(f"Final flattened dataset: {len(with_ratings)}")
+
+# Now you can analyze individual interests by demographics
+interest_analysis = with_ratings.semantic.map(
+    prompt="""Analyze this person's interest in the context of their demographics:
+    
+    Person: {{input.age}} years old, {{input.education}}, from {{input.location}}
+    Interest: {{input.interests}}
+    Product ratings: Quality={{input.product_quality}}, Service={{input.customer_service}}, Value={{input.value}}
+    
+    Provide insights about how this interest might relate to their demographics and satisfaction.""",
+    output_schema={
+        "demographic_insight": "str",
+        "interest_category": "str",
+        "satisfaction_correlation": "str"
+    }
+)
+
+# Aggregate insights by interest category
+category_insights = interest_analysis.semantic.agg(
+    reduce_keys=["interest_category"],
+    reduce_prompt="""Summarize insights about people interested in {{inputs[0].interest_category}}:
+    
+    {% for person in inputs %}
+    - {{person.age}} year old {{person.education}} from {{person.location}}: {{person.demographic_insight}}
+    {% endfor %}""",
+    output_schema={
+        "category_summary": "str",
+        "typical_demographics": "str",
+        "satisfaction_patterns": "str"
+    }
+)
+```
+
+## Example 10: Combined Document Workflow
+
+A comprehensive example combining multiple operations for end-to-end document processing:
+
+```python
+# Research papers with metadata
+papers_df = pd.DataFrame({
+    "paper_id": ["P001", "P002", "P003"],
+    "title": [
+        "Deep Learning for Natural Language Processing",
+        "Quantum Computing Applications in Cryptography", 
+        "Sustainable Energy Storage Solutions"
+    ],
+    "abstract": ["This paper explores...", "We investigate...", "This study examines..."],
+    "full_text": [
+        "Introduction\n\nDeep learning has revolutionized NLP...\n\nMethodology\n\nWe employed transformer architectures...\n\nResults\n\nOur experiments show significant improvements...\n\nConclusion\n\nThe findings demonstrate...",
+        "Introduction\n\nQuantum computing promises...\n\nBackground\n\nClassical cryptography relies...\n\nQuantum Algorithms\n\nShor's algorithm can factor...\n\nConclusion\n\nQuantum computing will require...",
+        "Introduction\n\nRenewable energy adoption...\n\nCurrent Challenges\n\nEnergy storage remains...\n\nProposed Solutions\n\nWe propose novel battery...\n\nResults\n\nOur testing shows..."
+    ],
+    "authors": [
+        ["Dr. Smith", "Prof. Johnson", "Dr. Lee"],
+        ["Prof. Chen", "Dr. Wilson"],
+        ["Dr. Brown", "Prof. Davis", "Dr. Taylor", "Prof. Anderson"]
+    ]
+})
+
+# Step 1: Unnest authors for author-level analysis
+author_papers = papers_df.semantic.unnest(unnest_key="authors")
+
+# Step 2: Split full text into sections
+paper_sections = papers_df.semantic.split(
+    split_key="full_text",
+    method="delimiter",
+    method_kwargs={"delimiter": "\n\n", "num_splits_to_group": 1}
+)
+
+# Step 3: Add context to each section
+contextual_sections = paper_sections.semantic.gather(
+    content_key="full_text_chunk",
+    doc_id_key="semantic_split_0_id",
+    order_key="semantic_split_0_chunk_num",
+    peripheral_chunks={
+        "previous": {"head": {"count": 1}},
+        "next": {"head": {"count": 1}}
+    }
+)
+
+# Step 4: Extract insights from each section
+section_insights = contextual_sections.semantic.map(
+    prompt="""Analyze this paper section in context:
+
+Paper: {{input.title}}
+Section content: {{input.full_text_chunk_rendered}}
+
+Extract:
+1. Section type (Introduction, Methodology, Results, etc.)
+2. Key findings or claims
+3. Technical concepts mentioned
+4. Research gaps or future work mentioned""",
+    output_schema={
+        "section_type": "str",
+        "key_findings": "list[str]",
+        "technical_concepts": "list[str]",
+        "future_work": "list[str]"
+    }
+)
+
+# Step 5: Aggregate insights by paper
+paper_summaries = section_insights.semantic.agg(
+    reduce_keys=["paper_id"],
+    reduce_prompt="""Create a comprehensive analysis of this research paper:
+
+Paper: {{inputs[0].title}}
+
+Sections analyzed:
+{% for section in inputs %}
+{{section.section_type}}: {{section.key_findings | join(', ')}}
+Technical concepts: {{section.technical_concepts | join(', ')}}
+{% endfor %}
+
+Provide a structured summary.""",
+    output_schema={
+        "comprehensive_summary": "str",
+        "main_contributions": "list[str]",
+        "methodology_type": "str",
+        "research_field": "str"
+    }
+)
+
+# Step 6: Cross-paper analysis
+field_analysis = paper_summaries.semantic.agg(
+    reduce_keys=["research_field"],
+    fuzzy=True,  # Group similar research fields
+    reduce_prompt="""Analyze research trends in this field based on these papers:
+
+{% for paper in inputs %}
+Paper: {{paper.title}}
+Summary: {{paper.comprehensive_summary}}
+Contributions: {{paper.main_contributions | join(', ')}}
+---
+{% endfor %}""",
+    output_schema={
+        "field_trends": "str",
+        "common_methodologies": "list[str]",
+        "emerging_themes": "list[str]"
+    }
+)
+
+print(f"Papers processed: {len(papers_df)}")
+print(f"Authors identified: {len(author_papers)}")
+print(f"Sections analyzed: {len(section_insights)}")
+print(f"Research fields identified: {len(field_analysis)}")
+print(f"Total processing cost: ${field_analysis.semantic.total_cost}")
+```

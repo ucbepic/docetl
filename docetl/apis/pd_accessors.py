@@ -2,7 +2,7 @@
 Pandas DataFrame accessor that provides semantic operations using large language models.
 
 This accessor adds semantic capabilities to pandas DataFrames through the .semantic namespace,
-enabling LLM-powered operations like mapping, filtering, merging, and aggregation.
+enabling LLM-powered operations like mapping, filtering, merging, aggregation, splitting, gathering, and unnesting.
 
 Basic Usage:
     >>> import pandas as pd
@@ -22,6 +22,9 @@ Documentation Links:
 - Filter Operation: https://ucbepic.github.io/docetl/operators/filter/
 - Resolve Operation: https://ucbepic.github.io/docetl/operators/resolve/
 - Reduce Operation: https://ucbepic.github.io/docetl/operators/reduce/
+- Split Operation: https://ucbepic.github.io/docetl/operators/split/
+- Gather Operation: https://ucbepic.github.io/docetl/operators/gather/
+- Unnest Operation: https://ucbepic.github.io/docetl/operators/unnest/
 
 Cost Tracking:
     All operations track their LLM usage costs:
@@ -36,9 +39,12 @@ from rich.panel import Panel
 
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.filter import FilterOperation
+from docetl.operations.gather import GatherOperation
 from docetl.operations.map import MapOperation
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
+from docetl.operations.split import SplitOperation
+from docetl.operations.unnest import UnnestOperation
 from docetl.optimizer import Optimizer
 from docetl.optimizers.join_optimizer import JoinOptimizer
 from docetl.runner import DSLRunner
@@ -47,7 +53,7 @@ from docetl.runner import DSLRunner
 class OpHistory(NamedTuple):
     """Record of an operation that was run."""
 
-    op_type: str  # 'map', 'filter', 'merge', 'agg'
+    op_type: str  # 'map', 'filter', 'merge', 'agg', 'split', 'gather', 'unnest'
     config: Dict[str, Any]  # Full config used
     output_columns: List[str]  # Columns created/modified
 
@@ -643,6 +649,234 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         results, cost = filter_op.execute(input_data)
 
         return self._record_operation(results, "filter", filter_config, cost)
+
+    def split(
+        self,
+        split_key: str,
+        method: str,
+        method_kwargs: Dict[str, Any],
+        **kwargs
+    ) -> pd.DataFrame:
+        """
+        Split DataFrame rows into multiple chunks based on content.
+
+        Documentation: https://ucbepic.github.io/docetl/operators/split/
+
+        Args:
+            split_key: The column containing content to split
+            method: Splitting method, either "token_count" or "delimiter"
+            method_kwargs: Dictionary containing method-specific parameters:
+                - For "token_count": {"num_tokens": int, "model": str (optional)}
+                - For "delimiter": {"delimiter": str, "num_splits_to_group": int (optional)}
+            **kwargs: Additional configuration options:
+                - model: LLM model to use for tokenization (default: from config)
+
+        Returns:
+            pd.DataFrame: DataFrame with split content, including:
+                - {split_key}_chunk: The content of each chunk
+                - {operation_name}_id: Unique identifier for the original document
+                - {operation_name}_chunk_num: Sequential chunk number within the document
+
+        Examples:
+            >>> # Split by token count
+            >>> df.semantic.split(
+            ...     split_key="content",
+            ...     method="token_count",
+            ...     method_kwargs={"num_tokens": 100}
+            ... )
+
+            >>> # Split by delimiter
+            >>> df.semantic.split(
+            ...     split_key="text",
+            ...     method="delimiter",
+            ...     method_kwargs={"delimiter": "\n\n", "num_splits_to_group": 2}
+            ... )
+        """
+        # Convert DataFrame to list of dicts
+        input_data = self._df.to_dict("records")
+
+        # Create split operation config
+        split_config = {
+            "type": "split",
+            "name": f"semantic_split_{len(self._history)}",
+            "split_key": split_key,
+            "method": method,
+            "method_kwargs": method_kwargs,
+            **kwargs,
+        }
+
+        # Create and execute split operation
+        split_op = SplitOperation(
+            runner=self.runner,
+            config=split_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = split_op.execute(input_data)
+
+        return self._record_operation(results, "split", split_config, cost)
+
+    def gather(
+        self,
+        content_key: str,
+        doc_id_key: str,
+        order_key: str,
+        peripheral_chunks: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> pd.DataFrame:
+        """
+        Gather contextual information from surrounding chunks to enhance each chunk.
+
+        Documentation: https://ucbepic.github.io/docetl/operators/gather/
+
+        Args:
+            content_key: The column containing the main content to be enhanced
+            doc_id_key: The column containing document identifiers to group chunks
+            order_key: The column containing chunk order numbers within documents
+            peripheral_chunks: Configuration for surrounding context:
+                - previous: {"head": {"count": int}, "tail": {"count": int}, "middle": {}}
+                - next: {"head": {"count": int}, "tail": {"count": int}, "middle": {}}
+            **kwargs: Additional configuration options:
+                - main_chunk_start: Start marker for main chunk (default: "--- Begin Main Chunk ---")
+                - main_chunk_end: End marker for main chunk (default: "--- End Main Chunk ---")
+                - doc_header_key: Column containing document headers (optional)
+
+        Returns:
+            pd.DataFrame: DataFrame with enhanced content including:
+                - {content_key}_rendered: The main content with surrounding context
+
+        Examples:
+            >>> # Basic gathering with surrounding context
+            >>> df.semantic.gather(
+            ...     content_key="chunk_content",
+            ...     doc_id_key="document_id",
+            ...     order_key="chunk_number",
+            ...     peripheral_chunks={
+            ...         "previous": {"head": {"count": 2}, "tail": {"count": 1}},
+            ...         "next": {"head": {"count": 1}, "tail": {"count": 2}}
+            ...     }
+            ... )
+
+            >>> # Simple gathering without peripheral chunks
+            >>> df.semantic.gather(
+            ...     content_key="content",
+            ...     doc_id_key="doc_id",
+            ...     order_key="order"
+            ... )
+        """
+        # Convert DataFrame to list of dicts
+        input_data = self._df.to_dict("records")
+
+        # Create gather operation config
+        gather_config = {
+            "type": "gather",
+            "name": f"semantic_gather_{len(self._history)}",
+            "content_key": content_key,
+            "doc_id_key": doc_id_key,
+            "order_key": order_key,
+            **kwargs,
+        }
+
+        # Add peripheral_chunks config if provided
+        if peripheral_chunks is not None:
+            gather_config["peripheral_chunks"] = peripheral_chunks
+
+        # Create and execute gather operation
+        gather_op = GatherOperation(
+            runner=self.runner,
+            config=gather_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = gather_op.execute(input_data)
+
+        return self._record_operation(results, "gather", gather_config, cost)
+
+    def unnest(
+        self,
+        unnest_key: str,
+        keep_empty: bool = False,
+        expand_fields: Optional[List[str]] = None,
+        recursive: bool = False,
+        depth: Optional[int] = None,
+        **kwargs
+    ) -> pd.DataFrame:
+        """
+        Unnest list-like or dictionary values into multiple rows.
+
+        Documentation: https://ucbepic.github.io/docetl/operators/unnest/
+
+        Args:
+            unnest_key: The column containing list-like or dictionary values to unnest
+            keep_empty: Whether to keep rows with empty/null values (default: False)
+            expand_fields: For dictionary values, which fields to expand (default: all)
+            recursive: Whether to recursively unnest nested structures (default: False)
+            depth: Maximum depth for recursive unnesting (default: 1, or unlimited if recursive=True)
+            **kwargs: Additional configuration options
+
+        Returns:
+            pd.DataFrame: DataFrame with unnested values, where:
+                - For lists: Each list element becomes a separate row
+                - For dicts: Specified fields are expanded into the parent row
+
+        Examples:
+            >>> # Unnest a list column
+            >>> df.semantic.unnest(
+            ...     unnest_key="tags"
+            ... )
+            # Input:  [{"id": 1, "tags": ["a", "b"]}]
+            # Output: [{"id": 1, "tags": "a"}, {"id": 1, "tags": "b"}]
+
+            >>> # Unnest a dictionary column with specific fields
+            >>> df.semantic.unnest(
+            ...     unnest_key="user_info",
+            ...     expand_fields=["name", "age"]
+            ... )
+            # Input:  [{"id": 1, "user_info": {"name": "Alice", "age": 30, "email": "alice@example.com"}}]
+            # Output: [{"id": 1, "user_info": {...}, "name": "Alice", "age": 30}]
+
+            >>> # Recursive unnesting
+            >>> df.semantic.unnest(
+            ...     unnest_key="nested_lists",
+            ...     recursive=True,
+            ...     depth=2
+            ... )
+        """
+        # Convert DataFrame to list of dicts
+        input_data = self._df.to_dict("records")
+
+        # Create unnest operation config
+        unnest_config = {
+            "type": "unnest",
+            "name": f"semantic_unnest_{len(self._history)}",
+            "unnest_key": unnest_key,
+            "keep_empty": keep_empty,
+            "recursive": recursive,
+            **kwargs,
+        }
+
+        # Add optional parameters if provided
+        if expand_fields is not None:
+            unnest_config["expand_fields"] = expand_fields
+        if depth is not None:
+            unnest_config["depth"] = depth
+
+        # Create and execute unnest operation
+        unnest_op = UnnestOperation(
+            runner=self.runner,
+            config=unnest_config,
+            default_model=self.runner.config["default_model"],
+            max_threads=self.runner.max_threads,
+            console=self.runner.console,
+            status=self.runner.status,
+        )
+        results, cost = unnest_op.execute(input_data)
+
+        return self._record_operation(results, "unnest", unnest_config, cost)
 
     @property
     def total_cost(self) -> float:

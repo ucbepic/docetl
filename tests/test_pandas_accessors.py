@@ -477,4 +477,293 @@ def test_context_preservation_in_agg(sample_df):
     # Check that context includes both previous operations
     resolve_config = result.semantic.history[-2].config  # Second to last operation is resolve
     prompt = resolve_config["comparison_prompt"]
-    assert "topic' was created using this prompt: Extract topic and sentiment" in prompt 
+    assert "topic' was created using this prompt: Extract topic and sentiment" in prompt
+
+
+def test_semantic_split_token(sample_df):
+    """Test semantic split operation with token count method."""
+    result = sample_df.semantic.split(
+        split_key="text",
+        method="token_count",
+        method_kwargs={"num_tokens": 10}
+    )
+    
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) >= len(sample_df)  # Should create more rows
+    assert "text_chunk" in result.columns
+    assert f"semantic_split_0_id" in result.columns
+    assert f"semantic_split_0_chunk_num" in result.columns
+    
+    # Check that all chunks have sequential numbering
+    for doc_id in result[f"semantic_split_0_id"].unique():
+        doc_chunks = result[result[f"semantic_split_0_id"] == doc_id]
+        chunk_nums = sorted(doc_chunks[f"semantic_split_0_chunk_num"].tolist())
+        assert chunk_nums == list(range(1, len(chunk_nums) + 1))
+
+
+def test_semantic_split_delimiter():
+    """Test semantic split operation with delimiter method."""
+    df = pd.DataFrame({
+        "content": [
+            "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.",
+            "Another doc.\n\nWith multiple.\n\nParagraphs here."
+        ],
+        "id": [1, 2]
+    })
+    
+    result = df.semantic.split(
+        split_key="content",
+        method="delimiter", 
+        method_kwargs={"delimiter": "\n\n", "num_splits_to_group": 1}
+    )
+    
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) > len(df)  # Should create more rows
+    assert "content_chunk" in result.columns
+    assert f"semantic_split_0_id" in result.columns
+    assert f"semantic_split_0_chunk_num" in result.columns
+    
+    # Check that each chunk contains one paragraph
+    for chunk in result["content_chunk"]:
+        assert "\n\n" not in chunk  # Delimiter should be removed from chunks
+
+
+def test_semantic_gather_basic():
+    """Test semantic gather operation basic functionality."""
+    # Create test data that simulates document chunks
+    df = pd.DataFrame({
+        "doc_id": ["doc1", "doc1", "doc1", "doc2", "doc2"],
+        "chunk_num": [1, 2, 3, 1, 2],
+        "content": [
+            "First chunk of document 1",
+            "Second chunk of document 1", 
+            "Third chunk of document 1",
+            "First chunk of document 2",
+            "Second chunk of document 2"
+        ]
+    })
+    
+    result = df.semantic.gather(
+        content_key="content",
+        doc_id_key="doc_id",
+        order_key="chunk_num"
+    )
+    
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == len(df)  # Same number of rows
+    assert "content_rendered" in result.columns
+    
+    # Check that rendered content includes the original content
+    for i, row in result.iterrows():
+        assert row["content"] in row["content_rendered"]
+
+
+def test_semantic_gather_with_peripheral():
+    """Test semantic gather operation with peripheral chunks configuration."""
+    # Create test data with more chunks for context
+    df = pd.DataFrame({
+        "doc_id": ["doc1"] * 5,
+        "chunk_num": [1, 2, 3, 4, 5],
+        "content": [f"Chunk {i} content" for i in range(1, 6)]
+    })
+    
+    result = df.semantic.gather(
+        content_key="content",
+        doc_id_key="doc_id",
+        order_key="chunk_num",
+        peripheral_chunks={
+            "previous": {"head": {"count": 1}, "tail": {"count": 1}},
+            "next": {"head": {"count": 1}, "tail": {"count": 1}}
+        }
+    )
+    
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == len(df)
+    assert "content_rendered" in result.columns
+    
+    # Check that middle chunks have context from surrounding chunks
+    middle_chunk = result[result["chunk_num"] == 3].iloc[0]
+    rendered = middle_chunk["content_rendered"]
+    
+    # Should contain previous and next context markers
+    assert "--- Previous Context ---" in rendered
+    assert "--- Next Context ---" in rendered
+    assert "--- Begin Main Chunk ---" in rendered
+    assert "--- End Main Chunk ---" in rendered
+
+
+def test_semantic_unnest_list():
+    """Test semantic unnest operation with list values."""
+    df = pd.DataFrame({
+        "id": [1, 2],
+        "tags": [["python", "pandas", "data"], ["ml", "ai"]]
+    })
+    
+    result = df.semantic.unnest(unnest_key="tags")
+    
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == 5  # 3 + 2 tags
+    assert all(result.columns == ["id", "tags"])
+    
+    # Check that each tag becomes a separate row
+    expected_tags = ["python", "pandas", "data", "ml", "ai"]
+    actual_tags = result["tags"].tolist()
+    assert set(actual_tags) == set(expected_tags)
+    
+    # Check that original data is preserved
+    python_rows = result[result["tags"] == "python"]
+    assert len(python_rows) == 1
+    assert python_rows.iloc[0]["id"] == 1
+
+
+def test_semantic_unnest_dict():
+    """Test semantic unnest operation with dictionary values."""
+    df = pd.DataFrame({
+        "id": [1, 2],
+        "user_info": [
+            {"name": "Alice", "age": 30, "email": "alice@example.com"},
+            {"name": "Bob", "age": 25, "email": "bob@example.com"}
+        ]
+    })
+    
+    result = df.semantic.unnest(
+        unnest_key="user_info",
+        expand_fields=["name", "age"]
+    )
+    
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == 2  # Same number of rows for dict unnesting
+    assert "name" in result.columns
+    assert "age" in result.columns
+    assert "user_info" in result.columns  # Original dict preserved
+    
+    # Check expanded values
+    alice_row = result[result["name"] == "Alice"].iloc[0]
+    assert alice_row["age"] == 30
+    assert alice_row["id"] == 1
+    
+    bob_row = result[result["name"] == "Bob"].iloc[0]
+    assert bob_row["age"] == 25
+    assert bob_row["id"] == 2
+
+
+def test_semantic_unnest_recursive():
+    """Test semantic unnest operation with recursive unnesting."""
+    df = pd.DataFrame({
+        "id": [1],
+        "nested": [[[1, 2], [3, 4]], [[5, 6]]]
+    })
+    
+    result = df.semantic.unnest(
+        unnest_key="nested",
+        recursive=True,
+        depth=2
+    )
+    
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) > 1  # Should create multiple rows
+    assert "nested" in result.columns
+    
+    # Check that deeply nested values are flattened
+    nested_values = result["nested"].tolist()
+    assert [1, 2] in nested_values or 1 in nested_values
+
+
+def test_semantic_unnest_keep_empty():
+    """Test semantic unnest operation with keep_empty option."""
+    df = pd.DataFrame({
+        "id": [1, 2, 3],
+        "tags": [["a", "b"], [], ["c"]]
+    })
+    
+    result = df.semantic.unnest(
+        unnest_key="tags",
+        keep_empty=True
+    )
+    
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == 4  # 2 + 1 (empty) + 1 tags
+    
+    # Check that empty list row is preserved
+    empty_rows = result[result["tags"].isna()]
+    assert len(empty_rows) == 1
+    assert empty_rows.iloc[0]["id"] == 2
+
+
+def test_new_operations_in_history():
+    """Test that new operations are properly recorded in history."""
+    df = pd.DataFrame({
+        "content": ["Some text to split"],
+        "tags": [["a", "b"]]
+    })
+    
+    # Test split operation history
+    split_result = df.semantic.split(
+        split_key="content",
+        method="token_count",
+        method_kwargs={"num_tokens": 3}
+    )
+    
+    assert len(split_result.semantic.history) == 1
+    assert split_result.semantic.history[0].op_type == "split"
+    assert "content_chunk" in split_result.semantic.history[0].output_columns
+    
+    # Test unnest operation history
+    unnest_result = split_result.semantic.unnest(unnest_key="tags")
+    
+    assert len(unnest_result.semantic.history) == 2
+    assert unnest_result.semantic.history[1].op_type == "unnest"
+    
+    # Test gather operation history (need appropriate data structure)
+    gather_df = pd.DataFrame({
+        "doc_id": ["doc1", "doc1"],
+        "chunk_num": [1, 2],
+        "content": ["chunk1", "chunk2"]
+    })
+    
+    gather_result = gather_df.semantic.gather(
+        content_key="content",
+        doc_id_key="doc_id", 
+        order_key="chunk_num"
+    )
+    
+    assert len(gather_result.semantic.history) == 1
+    assert gather_result.semantic.history[0].op_type == "gather"
+    assert "content_rendered" in gather_result.semantic.history[0].output_columns
+
+
+def test_chained_split_gather_workflow():
+    """Test a realistic workflow combining split and gather operations."""
+    # Start with a document
+    df = pd.DataFrame({
+        "document": [
+            "This is the first paragraph of a long document. " * 5 + 
+            "This is the second paragraph with different content. " * 5 +
+            "This is the third and final paragraph. " * 5
+        ],
+        "doc_id": ["doc1"]
+    })
+    
+    # Split the document into chunks
+    split_result = df.semantic.split(
+        split_key="document",
+        method="token_count",
+        method_kwargs={"num_tokens": 20}
+    )
+    
+    # Gather context for each chunk
+    gather_result = split_result.semantic.gather(
+        content_key="document_chunk",
+        doc_id_key="semantic_split_0_id",
+        order_key="semantic_split_0_chunk_num",
+        peripheral_chunks={
+            "previous": {"head": {"count": 1}},
+            "next": {"head": {"count": 1}}
+        }
+    )
+    
+    assert len(gather_result) >= len(df)  # Should have multiple chunks
+    assert "document_chunk_rendered" in gather_result.columns
+    assert len(gather_result.semantic.history) == 2
+    assert gather_result.semantic.history[0].op_type == "split"
+    assert gather_result.semantic.history[1].op_type == "gather" 

@@ -2,12 +2,41 @@ import json
 import os
 import tempfile
 import shutil
-from typing import Dict, List, Any
+import random
+import string
+from typing import Dict, List, Any, Optional
 import pytest  # type: ignore
 
 import pyarrow as pa  # type: ignore
 import pandas as pd  # type: ignore
 from docetl.checkpoint_manager import CheckpointManager
+
+
+def generate_synthetic_record(record_id: int, base_content: Optional[str] = None) -> Dict[str, Any]:
+    """Generate a synthetic record for testing."""
+    if base_content is None:
+        base_content = ''.join(random.choices(string.ascii_letters + string.digits, k=100))
+    
+    return {
+        "id": record_id,
+        "name": f"person_{record_id}",
+        "content": base_content,
+        "score": round(random.uniform(0, 100), 2),
+        "metadata": {
+            "category": random.choice(["A", "B", "C", "D"]),
+            "tags": random.choices(["tag1", "tag2", "tag3", "tag4", "tag5"], k=random.randint(1, 3)),
+            "active": random.choice([True, False]),
+            "timestamp": f"2024-01-{random.randint(1, 28):02d}T{random.randint(0, 23):02d}:{random.randint(0, 59):02d}:00Z"
+        },
+        "nested_data": {
+            "level1": {
+                "level2": {
+                    "values": [random.randint(1, 1000) for _ in range(10)],
+                    "description": f"This is a description for record {record_id} with some lengthy text content that simulates real-world data."
+                }
+            }
+        }
+    }
 
 
 class TestCheckpointManager:
@@ -62,6 +91,147 @@ class TestCheckpointManager:
             }
         ]
     
+    def test_storage_footprint_benchmark(self, temp_dir):
+        """
+        Benchmark test that measures storage footprint reduction with large datasets.
+        
+        This test simulates a realistic pipeline scenario with:
+        - Large datasets with complex nested structures
+        - Overlapping data across pipeline steps
+        - Various levels of duplication
+        """
+        print("\n" + "="*80)
+        print("CHECKPOINT STORAGE FOOTPRINT BENCHMARK")
+        print("="*80)
+        
+        manager = CheckpointManager(temp_dir)
+        
+        # Generate base records that will be reused across steps
+        base_records_count = 1000
+        overlap_records_count = 300  # Records that appear in multiple checkpoints
+        unique_records_per_step = 200  # Unique records per step
+        
+        print(f"Generating synthetic dataset:")
+        print(f"  - Base records: {base_records_count}")
+        print(f"  - Overlapping records per step: {overlap_records_count}")
+        print(f"  - Unique records per step: {unique_records_per_step}")
+        
+        # Generate base dataset with some common content for better deduplication
+        common_contents = [
+            ''.join(random.choices(string.ascii_letters + string.digits, k=100)) 
+            for _ in range(50)
+        ]
+        
+        base_records = []
+        for i in range(base_records_count):
+            # Use common content for some records to simulate real-world patterns
+            base_content = random.choice(common_contents) if random.random() < 0.3 else None
+            base_records.append(generate_synthetic_record(i, base_content))
+        
+        # Simulate a multi-step pipeline with overlapping data
+        pipeline_steps = [
+            ("extract", "parse_documents"),
+            ("extract", "clean_text"),
+            ("transform", "enrich_data"),
+            ("transform", "filter_records"),
+            ("load", "prepare_output"),
+            ("load", "validate_data")
+        ]
+        
+        total_logical_records = 0
+        
+        print(f"\nSimulating pipeline execution with {len(pipeline_steps)} steps...")
+        
+        for step_idx, (step_name, operation_name) in enumerate(pipeline_steps):
+            # Create dataset for this step:
+            # - Include some overlapping records from base dataset
+            # - Add some unique records for this step
+            
+            # Select overlapping records (simulate data flowing through pipeline)
+            overlap_start = step_idx * 50  # Shift the overlap window
+            overlapping_records = base_records[overlap_start:overlap_start + overlap_records_count]
+            
+            # Generate unique records for this step
+            unique_records = []
+            for i in range(unique_records_per_step):
+                record_id = base_records_count + step_idx * unique_records_per_step + i
+                unique_records.append(generate_synthetic_record(record_id))
+            
+            # Combine overlapping and unique records
+            step_data = overlapping_records + unique_records
+            total_logical_records += len(step_data)
+            
+            # Save checkpoint
+            manager.save_checkpoint(step_name, operation_name, step_data)
+            
+            print(f"  ✓ {step_name}/{operation_name}: {len(step_data)} records")
+        
+        # Get storage statistics
+        stats = manager.get_storage_stats()
+        summary = manager.get_checkpoint_summary()
+        
+        # Calculate naive storage size (if each checkpoint was stored separately)
+        naive_storage_bytes = 0
+        for step_name, operation_name in pipeline_steps:
+            checkpoint_data = manager.load_checkpoint(step_name, operation_name)
+            if checkpoint_data:
+                # Estimate size by JSON serialization (rough approximation)
+                json_size = len(json.dumps(checkpoint_data).encode('utf-8'))
+                naive_storage_bytes += json_size
+        
+        # Calculate actual storage efficiency
+        actual_storage_bytes = stats['total_size_bytes']
+        space_saved_bytes = naive_storage_bytes - actual_storage_bytes
+        space_saved_percentage = (space_saved_bytes / naive_storage_bytes) * 100 if naive_storage_bytes > 0 else 0
+        
+        # Print detailed results
+        print(f"\n" + "-"*60)
+        print("STORAGE EFFICIENCY RESULTS:")
+        print("-"*60)
+        print(f"Total logical records (sum across all steps): {stats['total_logical_records']:,}")
+        print(f"Unique records actually stored:              {stats['total_unique_records']:,}")
+        print(f"Deduplication ratio:                         {stats['deduplication_ratio']:.3f}")
+        print(f"")
+        print(f"Storage Footprint Comparison:")
+        print(f"  Naive approach (separate files):          {naive_storage_bytes:,} bytes ({naive_storage_bytes/1024/1024:.2f} MB)")
+        print(f"  Incremental approach (deduplicated):      {actual_storage_bytes:,} bytes ({actual_storage_bytes/1024/1024:.2f} MB)")
+        print(f"  Space saved:                               {space_saved_bytes:,} bytes ({space_saved_bytes/1024/1024:.2f} MB)")
+        print(f"  Footprint reduction:                       {space_saved_percentage:.1f}%")
+        print(f"")
+        print(f"Storage Breakdown:")
+        print(f"  Dataset file:                              {stats['dataset_size_bytes']:,} bytes")
+        print(f"  Index file:                                {stats['index_size_bytes']:,} bytes")
+        print(f"  Average record size:                       {stats['avg_record_size_bytes']:.1f} bytes")
+        print(f"")
+        print(f"Pipeline Checkpoints:")
+        for checkpoint in summary['checkpoints']:
+            print(f"  {checkpoint['step_name']}/{checkpoint['operation_name']}: {checkpoint['num_rows']:,} records")
+        
+        print("="*80)
+        
+        # Assertions to ensure the benchmark shows meaningful results
+        assert stats['total_logical_records'] > stats['total_unique_records'], "Should have deduplication"
+        assert stats['space_saved_ratio'] > 0, "Should save some space through deduplication"
+        assert space_saved_percentage > 0, "Should reduce storage footprint"
+        assert actual_storage_bytes < naive_storage_bytes, "Incremental storage should be smaller"
+        
+        # Verify that we can still load all checkpoints correctly
+        for step_name, operation_name in pipeline_steps:
+            loaded_data = manager.load_checkpoint(step_name, operation_name)
+            assert loaded_data is not None, f"Should be able to load {step_name}/{operation_name}"
+            assert len(loaded_data) > 0, f"Should have data for {step_name}/{operation_name}"
+        
+        print(f"✓ All {len(pipeline_steps)} checkpoints verified successfully!")
+        print(f"✓ Achieved {space_saved_percentage:.1f}% storage footprint reduction")
+        
+        return {
+            'space_saved_percentage': space_saved_percentage,
+            'space_saved_bytes': space_saved_bytes,
+            'deduplication_ratio': stats['deduplication_ratio'],
+            'total_logical_records': stats['total_logical_records'],
+            'unique_records': stats['total_unique_records']
+        }
+
     def test_checkpoint_manager_init(self, temp_dir):
         """Test CheckpointManager initialization."""
         manager = CheckpointManager(temp_dir)

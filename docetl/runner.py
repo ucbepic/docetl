@@ -43,6 +43,7 @@ from docetl.dataset import Dataset, create_parsing_tool_map
 from docetl.operations import get_operation, get_operations
 from docetl.operations.base import BaseOperation
 from docetl.optimizer import Optimizer
+from docetl.checkpoint_manager import CheckpointManager
 
 from . import schemas
 from .utils import classproperty
@@ -131,6 +132,11 @@ class DSLRunner(ConfigWrapper):
         self.intermediate_dir = (
             self.config.get("pipeline", {}).get("output", {}).get("intermediate_dir")
         )
+        # Initialize checkpoint manager for efficient storage
+        if self.intermediate_dir:
+            self.checkpoint_manager = CheckpointManager(self.intermediate_dir)
+        else:
+            self.checkpoint_manager = None
 
     def _setup_parsing_tools(self) -> None:
         """Set up parsing tools from configuration"""
@@ -544,7 +550,7 @@ class DSLRunner(ConfigWrapper):
     def _load_from_checkpoint_if_exists(
         self, step_name: str, operation_name: str
     ) -> Optional[List[Dict]]:
-        if self.intermediate_dir is None:
+        if self.intermediate_dir is None or self.checkpoint_manager is None:
             return None
 
         intermediate_config_path = os.path.join(
@@ -571,21 +577,37 @@ class DSLRunner(ConfigWrapper):
         ):
             return None
 
-        checkpoint_path = os.path.join(
-            self.intermediate_dir, step_name, f"{operation_name}.json"
-        )
-        # check if checkpoint exists
-        if os.path.exists(checkpoint_path):
-            if f"{step_name}_{operation_name}" not in self.datasets:
-                self.datasets[f"{step_name}_{operation_name}"] = Dataset(
-                    self, "file", checkpoint_path, "local"
+        # Use checkpoint manager to load data
+        data = self.checkpoint_manager.load_checkpoint(step_name, operation_name)
+        if data is not None:
+            dataset_key = f"{step_name}_{operation_name}"
+            if dataset_key not in self.datasets:
+                # Create an in-memory dataset with the loaded data
+                self.datasets[dataset_key] = Dataset(
+                    self, "memory", data, "local"
                 )
+
+                # Get checkpoint info for logging
+                checkpoint_info = self.checkpoint_manager.get_checkpoint_info(step_name, operation_name)
+                if checkpoint_info:
+                    if 'arrow' in checkpoint_info:
+                        format_info = f"Arrow/Parquet ({checkpoint_info['arrow']['size_bytes']} bytes)"
+                        checkpoint_path = checkpoint_info['arrow']['path']
+                    elif 'json' in checkpoint_info:
+                        format_info = f"JSON ({checkpoint_info['json']['size_bytes']} bytes)"
+                        checkpoint_path = checkpoint_info['json']['path']
+                    else:
+                        format_info = "unknown format"
+                        checkpoint_path = "unknown path"
+                else:
+                    format_info = "unknown format"
+                    checkpoint_path = "unknown path"
 
                 self.console.log(
-                    f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' from {checkpoint_path}[/italic]"
+                    f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' from {checkpoint_path} ({format_info})[/italic]"
                 )
 
-                return self.datasets[f"{step_name}_{operation_name}"].load()
+            return data
         return None
 
     def clear_intermediate(self) -> None:
@@ -605,9 +627,9 @@ class DSLRunner(ConfigWrapper):
         """
         Save a checkpoint of the current data after an operation.
 
-        This method creates a JSON file containing the current state of the data
-        after an operation has been executed. The checkpoint is saved in a directory
-        structure that reflects the step and operation names.
+        This method creates a checkpoint file containing the current state of the data
+        after an operation has been executed. Uses PyArrow/Parquet format for efficiency
+        when available, falling back to JSON format for compatibility.
 
         Args:
             step_name (str): The name of the current step in the pipeline.
@@ -618,13 +640,11 @@ class DSLRunner(ConfigWrapper):
             The checkpoint is saved only if a checkpoint directory has been specified
             when initializing the DSLRunner.
         """
-        checkpoint_path = os.path.join(
-            self.intermediate_dir, step_name, f"{operation_name}.json"
-        )
-        if os.path.dirname(checkpoint_path):
-            os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
-        with open(checkpoint_path, "w") as f:
-            json.dump(data, f)
+        if self.checkpoint_manager is None:
+            return
+
+        # Save checkpoint using the efficient manager
+        checkpoint_path = self.checkpoint_manager.save_checkpoint(step_name, operation_name, data)
 
         # Update the intermediate config file with the hash for this step/operation
         # so that future runs can validate and reuse this checkpoint.
@@ -654,8 +674,20 @@ class DSLRunner(ConfigWrapper):
             with open(intermediate_config_path, "w") as cfg_file:
                 json.dump(intermediate_config, cfg_file, indent=2)
 
+        # Get checkpoint info for better logging
+        checkpoint_info = self.checkpoint_manager.get_checkpoint_info(step_name, operation_name)
+        if checkpoint_info:
+            if 'arrow' in checkpoint_info:
+                format_info = f"Arrow/Parquet ({checkpoint_info['arrow']['size_bytes']} bytes)"
+            elif 'json' in checkpoint_info:
+                format_info = f"JSON ({checkpoint_info['json']['size_bytes']} bytes)"
+            else:
+                format_info = "unknown format"
+        else:
+            format_info = "unknown format"
+
         self.console.log(
-            f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
+            f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path} ({format_info})[/italic][/green]"
         )
 
     def should_optimize(
@@ -808,21 +840,23 @@ class DSLRunner(ConfigWrapper):
             batch_index (int): Zero-based index of the batch.
             data (List[Dict]): Batch results to write to disk.
         """
-        if not self.intermediate_dir:
+        if not self.intermediate_dir or self.checkpoint_manager is None:
             return
 
-        op_batches_dir = os.path.join(
-            self.intermediate_dir, f"{operation_name}_batches"
+        # Use checkpoint manager for efficient batch storage
+        checkpoint_path = self.checkpoint_manager.save_batch_checkpoint(
+            operation_name, batch_index, data
         )
-        os.makedirs(op_batches_dir, exist_ok=True)
 
-        # File name: 'batch_0.json', 'batch_1.json', etc.
-        checkpoint_path = os.path.join(op_batches_dir, f"batch_{batch_index}.json")
-
-        with open(checkpoint_path, "w") as f:
-            json.dump(data, f)
+        # Determine format for logging
+        if checkpoint_path.endswith('.parquet'):
+            format_info = "Arrow/Parquet"
+        elif checkpoint_path.endswith('.json'):
+            format_info = "JSON"
+        else:
+            format_info = "unknown format"
 
         self.console.log(
             f"[green]✓[/green] [italic]Partial checkpoint saved for '{operation_name}', "
-            f"batch {batch_index} at '{checkpoint_path}'[/italic]"
+            f"batch {batch_index} at '{checkpoint_path}' ({format_info})[/italic]"
         )

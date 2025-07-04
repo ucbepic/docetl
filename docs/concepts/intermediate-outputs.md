@@ -14,7 +14,7 @@ To save intermediate outputs, specify an `intermediate_dir` when creating your p
 # config.yaml
 dataset:
   type: file
-  path: "data.jsonl"
+  path: "data.json"
 
 operations:
   - name: extract_themes
@@ -43,7 +43,7 @@ pipeline:
   output:
     type: file
     path: "results.json"
-  intermediate_dir: "./intermediate_outputs"
+    intermediate_dir: "./intermediate_outputs"
 ```
 
 ## Inspecting Intermediate Outputs

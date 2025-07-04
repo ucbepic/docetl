@@ -134,12 +134,7 @@ class DSLRunner(ConfigWrapper):
         )
         # Initialize checkpoint manager for efficient storage
         if self.intermediate_dir:
-            try:
-                self.checkpoint_manager = CheckpointManager(self.intermediate_dir)
-            except RuntimeError:
-                # PyArrow not available, disable checkpointing
-                self.console.log("[yellow]Warning: PyArrow not available, checkpointing disabled[/yellow]")
-                self.checkpoint_manager = None
+            self.checkpoint_manager = CheckpointManager(self.intermediate_dir)
         else:
             self.checkpoint_manager = None
 

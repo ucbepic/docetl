@@ -18,15 +18,8 @@ import sys
 import os
 from typing import Optional
 
-try:
-    from docetl.checkpoint_manager import CheckpointManager
-    import pandas as pd  # type: ignore
-    CHECKPOINT_AVAILABLE = True
-except ImportError as e:
-    print(f"Error: Required packages not available: {e}")
-    print("Install with: pip install pyarrow pandas")
-    CHECKPOINT_AVAILABLE = False
-    sys.exit(1)
+from docetl.checkpoint_manager import CheckpointManager
+import pandas as pd  # type: ignore
 
 
 def inspect_pipeline_outputs(intermediate_dir: str) -> None:

@@ -5,14 +5,9 @@ import shutil
 from typing import Dict, List, Any
 import pytest  # type: ignore
 
-# Test whether PyArrow is available
-try:
-    import pyarrow as pa  # type: ignore
-    import pandas as pd  # type: ignore
-    from docetl.checkpoint_manager import CheckpointManager
-    PYARROW_AVAILABLE = True
-except ImportError:
-    PYARROW_AVAILABLE = False
+import pyarrow as pa  # type: ignore
+import pandas as pd  # type: ignore
+from docetl.checkpoint_manager import CheckpointManager
 
 
 class TestCheckpointManager:
@@ -67,19 +62,31 @@ class TestCheckpointManager:
             }
         ]
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
     def test_checkpoint_manager_init(self, temp_dir):
         """Test CheckpointManager initialization."""
         manager = CheckpointManager(temp_dir)
         assert manager.intermediate_dir == temp_dir
     
-    @pytest.mark.skipif(PYARROW_AVAILABLE, reason="PyArrow is available")
-    def test_checkpoint_manager_init_no_pyarrow(self, temp_dir):
-        """Test CheckpointManager initialization when PyArrow is not available."""
-        with pytest.raises(RuntimeError, match="PyArrow is required"):
-            CheckpointManager(temp_dir)
+    def test_incremental_storage_deduplication(self, temp_dir, sample_data):
+        """Test that incremental storage properly deduplicates records."""
+        manager = CheckpointManager(temp_dir)
+        
+        # Save same data twice with different step names
+        manager.save_checkpoint("step1", "op1", sample_data)
+        manager.save_checkpoint("step2", "op1", sample_data)  # Same data, different step
+        
+        # Both should load the same data
+        data1 = manager.load_checkpoint("step1", "op1")
+        data2 = manager.load_checkpoint("step2", "op1")
+        assert data1 == data2 == sample_data
+        
+        # Check storage stats - should show deduplication
+        stats = manager.get_storage_stats()
+        assert stats['total_logical_records'] == len(sample_data) * 2  # Counted twice
+        assert stats['total_unique_records'] == len(sample_data)  # But stored once
+        assert stats['space_saved_ratio'] > 0  # Some space was saved
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_save_and_load_checkpoint(self, temp_dir, sample_data):
         """Test basic save and load functionality."""
         manager = CheckpointManager(temp_dir)
@@ -100,7 +107,7 @@ class TestCheckpointManager:
             assert original["name"] == loaded["name"]
             assert abs(original["score"] - loaded["score"]) < 0.01  # Float precision
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_save_and_load_complex_data(self, temp_dir, complex_data):
         """Test save and load with complex nested data structures."""
         manager = CheckpointManager(temp_dir)
@@ -119,7 +126,7 @@ class TestCheckpointManager:
             assert original["profile"] == loaded["profile"]
             assert original["activity"] == loaded["activity"]
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_load_nonexistent_checkpoint(self, temp_dir):
         """Test loading a checkpoint that doesn't exist."""
         manager = CheckpointManager(temp_dir)
@@ -127,7 +134,7 @@ class TestCheckpointManager:
         result = manager.load_checkpoint("nonexistent_step", "nonexistent_op")
         assert result is None
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_save_empty_data(self, temp_dir):
         """Test saving and loading empty data."""
         manager = CheckpointManager(temp_dir)
@@ -139,7 +146,7 @@ class TestCheckpointManager:
         loaded_data = manager.load_checkpoint("step1", "empty_op")
         assert loaded_data == []
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_batch_checkpoints(self, temp_dir, sample_data):
         """Test batch checkpoint functionality."""
         manager = CheckpointManager(temp_dir)
@@ -154,7 +161,7 @@ class TestCheckpointManager:
         assert "batch_0.parquet" in path1
         assert "batch_1.parquet" in path2
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_list_checkpoints(self, temp_dir, sample_data):
         """Test listing available checkpoints."""
         manager = CheckpointManager(temp_dir)
@@ -173,7 +180,7 @@ class TestCheckpointManager:
         expected = [("step1", "op1"), ("step1", "op2"), ("step2", "op1")]
         assert sorted(checkpoints) == sorted(expected)
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_load_checkpoint_as_dataframe(self, temp_dir, sample_data):
         """Test loading checkpoint as pandas DataFrame."""
         manager = CheckpointManager(temp_dir)
@@ -193,7 +200,7 @@ class TestCheckpointManager:
         assert df["id"].tolist() == [1, 2, 3, 4]
         assert df["name"].tolist() == ["Alice", "Bob", "Charlie", "Diana"]
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_get_checkpoint_info(self, temp_dir, sample_data):
         """Test getting checkpoint information."""
         manager = CheckpointManager(temp_dir)
@@ -214,7 +221,7 @@ class TestCheckpointManager:
         info = manager.get_checkpoint_info("nonexistent", "nonexistent")
         assert info is None
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_get_checkpoint_summary(self, temp_dir, sample_data):
         """Test getting checkpoint summary."""
         manager = CheckpointManager(temp_dir)
@@ -236,7 +243,7 @@ class TestCheckpointManager:
         assert summary["total_rows"] == len(sample_data) + 2
         assert len(summary["checkpoints"]) == 2
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_load_checkpoint_sample(self, temp_dir, sample_data):
         """Test loading a sample of checkpoint data."""
         manager = CheckpointManager(temp_dir)
@@ -260,7 +267,7 @@ class TestCheckpointManager:
         sample = manager.load_checkpoint_sample("nonexistent", "nonexistent")
         assert sample is None
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_data_type_preservation(self, temp_dir):
         """Test that different data types are preserved correctly."""
         manager = CheckpointManager(temp_dir)
@@ -304,7 +311,7 @@ class TestCheckpointManager:
         assert record1["list_field"] == [1, 2, 3]
         assert record1["dict_field"] == {"nested": "value"}
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available")
+    
     def test_checkpoint_path_structure(self, temp_dir, sample_data):
         """Test that checkpoint files are saved in correct directory structure."""
         manager = CheckpointManager(temp_dir)
@@ -321,7 +328,7 @@ class TestCheckpointManager:
         step_dir = os.path.join(temp_dir, "my_step")
         assert os.path.isdir(step_dir)
     
-    @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="PyArrow not available") 
+     
     def test_checkpoint_overwrite(self, temp_dir, sample_data):
         """Test that checkpoints can be overwritten."""
         manager = CheckpointManager(temp_dir)

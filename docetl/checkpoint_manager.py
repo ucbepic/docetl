@@ -134,34 +134,89 @@ class CheckpointManager:
         with open(checkpoint_path, "w") as f:
             json.dump(data, f)
 
+    def _sanitize_for_parquet(self, data: List[Dict]) -> List[Dict]:
+        """Sanitize data to make it compatible with PyArrow/Parquet serialization."""
+
+        def sanitize_value(value):
+            """Recursively sanitize a value for PyArrow compatibility."""
+            if isinstance(value, dict):
+                if not value:  # Empty dict
+                    return {"__empty_dict__": True}
+                return {k: sanitize_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                if not value:  # Empty list
+                    return ["__empty_list__"]
+                return [sanitize_value(item) for item in value]
+            elif value is None:
+                return "__null__"
+            else:
+                return value
+
+        def sanitize_record(record):
+            """Sanitize a single record."""
+            if not isinstance(record, dict):
+                return record
+            return {k: sanitize_value(v) for k, v in record.items()}
+
+        return [sanitize_record(record) for record in data]
+
+    def _desanitize_from_parquet(self, data: List[Dict]) -> List[Dict]:
+        """Restore original data structure from sanitized Parquet data."""
+        import numpy as np
+
+        def desanitize_value(value):
+            """Recursively restore original value structure."""
+            # Handle numpy arrays (from pandas conversion)
+            if isinstance(value, np.ndarray):
+                # Convert to list first, then check for empty list markers
+                value_list = value.tolist()
+                if value_list == ["__empty_list__"]:
+                    return []
+                return [desanitize_value(item) for item in value_list]
+            elif isinstance(value, dict):
+                if value == {"__empty_dict__": True}:
+                    return {}
+                return {k: desanitize_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                if value == ["__empty_list__"]:
+                    return []
+                return [desanitize_value(item) for item in value]
+            elif value == "__null__":
+                return None
+            elif pd.isna(value):  # Handle pandas NaN values
+                return None
+            else:
+                return value
+
+        def desanitize_record(record):
+            """Desanitize a single record."""
+            if not isinstance(record, dict):
+                return record
+            return {k: desanitize_value(v) for k, v in record.items()}
+
+        return [desanitize_record(record) for record in data]
+
     def _save_as_parquet(self, checkpoint_path: str, data: List[Dict]) -> None:
-        """Save checkpoint data as Parquet with fallback to JSON for problematic data."""
+        """Save checkpoint data as Parquet with data sanitization."""
         if not data:
             # Handle empty data case
             empty_table = pa.Table.from_arrays([], names=[])
             pq.write_table(empty_table, checkpoint_path, compression="snappy")
             return
 
+        # Sanitize data to make it PyArrow-compatible
+        sanitized_data = self._sanitize_for_parquet(data)
+
         try:
-            df = pd.DataFrame(data)
+            df = pd.DataFrame(sanitized_data)
             table = pa.Table.from_pandas(df)
             pq.write_table(table, checkpoint_path, compression="snappy")
-        except (pa.ArrowNotImplementedError, pa.ArrowTypeError, ValueError) as e:
-            # PyArrow can't handle complex nested structures, empty structs, etc.
-            # Fall back to JSON storage with a warning
-            self._log(
-                f"[yellow]Warning: PyArrow serialization failed ({str(e)[:100]}...), "
-                f"falling back to JSON format for this checkpoint[/yellow]"
+        except Exception as e:
+            # If sanitization still doesn't work, raise the error
+            raise RuntimeError(
+                f"Failed to serialize data to Parquet format even after sanitization. "
+                f"This indicates a more fundamental incompatibility. Original error: {str(e)}"
             )
-
-            # Save as JSON instead with .json extension
-            json_path = checkpoint_path.replace(".parquet", ".json")
-            with open(json_path, "w") as f:
-                json.dump(data, f)
-
-            # Remove any partial parquet file that might have been created
-            if os.path.exists(checkpoint_path):
-                os.remove(checkpoint_path)
 
     def load_checkpoint(
         self, step_name: str, operation_name: str, operation_hash: str
@@ -227,10 +282,12 @@ class CheckpointManager:
             return json.load(f)
 
     def _load_from_parquet(self, checkpoint_path: str) -> List[Dict]:
-        """Load checkpoint data from Parquet."""
+        """Load checkpoint data from Parquet and desanitize."""
         table = pq.read_table(checkpoint_path)
         df = table.to_pandas()
-        return df.to_dict("records")
+        data = df.to_dict("records")
+        # Restore original data structure from sanitized data
+        return self._desanitize_from_parquet(data)
 
     def _update_config(
         self, step_name: str, operation_name: str, operation_hash: str

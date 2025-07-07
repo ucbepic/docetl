@@ -39,7 +39,7 @@ Here are some additional notes to help you get the most out of your pipeline:
 - **Storage Format**: You can choose the storage format for intermediate checkpoints using the `storage_type` parameter in your pipeline's output configuration:
 
   - **JSON Format** (`storage_type: json`): Human-readable format that's easy to inspect and debug. This is the default format for backward compatibility.
-  - **PyArrow Format** (`storage_type: arrow`): Compressed binary format using Parquet files. Offers better performance and smaller file sizes for large datasets. Note: If PyArrow cannot serialize complex nested data structures (e.g., empty structs), it automatically falls back to JSON format with a warning.
+  - **PyArrow Format** (`storage_type: arrow`): Compressed binary format using Parquet files. Offers better performance and smaller file sizes for large datasets. Complex nested data structures are automatically sanitized for PyArrow compatibility while preserving the original data structure when loaded.
 
   Example configurations:
 

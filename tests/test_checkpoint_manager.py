@@ -1652,9 +1652,9 @@ def test_case_insensitive_storage_type(temp_dir):
     assert cm_mixed.storage_type == "arrow"
 
 
-def test_pyarrow_serialization_fallback(temp_dir, mock_console):
-    """Test that PyArrow falls back to JSON for problematic data structures."""
-    arrow_manager = CheckpointManager(temp_dir, console=mock_console, storage_type="arrow")
+def test_pyarrow_sanitization_handling(temp_dir):
+    """Test that PyArrow sanitizes and desanitizes problematic data structures."""
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
     
     # Create data that PyArrow has trouble with (empty nested structures)
     problematic_data = [
@@ -1664,6 +1664,8 @@ def test_pyarrow_serialization_fallback(temp_dir, mock_console):
             "empty_struct": {},  # Empty dict
             "nested_empty": {"level1": {"level2": {}}},  # Deeply nested empty
             "mixed_list": [1, "text", {}],  # Mixed types with empty dict
+            "null_value": None,  # None values
+            "empty_list": [],  # Empty list
         },
         {
             "id": 2, 
@@ -1682,40 +1684,43 @@ def test_pyarrow_serialization_fallback(temp_dir, mock_console):
     # This should not fail, even with problematic data
     arrow_manager.save_checkpoint(step_name, operation_name, problematic_data, operation_hash)
     
-    # Should be able to load the data back
+    # Should be able to load the data back exactly as it was
     loaded_data = arrow_manager.load_checkpoint(step_name, operation_name, operation_hash)
     assert loaded_data == problematic_data
     
-    # Check that a warning was logged
-    mock_console.log.assert_called()
-    log_calls = [str(call) for call in mock_console.log.call_args_list]
-    assert any("Warning: PyArrow serialization failed" in call for call in log_calls)
+    # Verify that a .parquet file was created (not JSON fallback)
+    checkpoint_path = arrow_manager._get_checkpoint_path(step_name, operation_name)
+    assert checkpoint_path.endswith('.parquet')
+    assert os.path.exists(checkpoint_path)
 
 
-def test_pyarrow_fallback_file_handling(temp_dir):
-    """Test that fallback creates correct file extensions."""
+def test_pyarrow_sanitization_methods(temp_dir):
+    """Test the sanitization and desanitization methods directly."""
     arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
     
-    # Data that will likely cause PyArrow issues
-    problematic_data = [{"empty_struct": {}, "normal": "value"}]
+    # Test data with various edge cases
+    original_data = [
+        {
+            "empty_dict": {},
+            "empty_list": [],
+            "null_value": None,
+            "nested_empty": {"level1": {"empty": {}, "list": []}},
+            "normal": "value"
+        }
+    ]
     
-    step_name = "fallback_step"
-    operation_name = "fallback_op"
-    operation_hash = "fallback_hash"
+    # Test sanitization
+    sanitized = arrow_manager._sanitize_for_parquet(original_data)
     
-    arrow_manager.save_checkpoint(step_name, operation_name, problematic_data, operation_hash)
+    # Verify sanitized structure
+    assert sanitized[0]["empty_dict"] == {"__empty_dict__": True}
+    assert sanitized[0]["empty_list"] == ["__empty_list__"]
+    assert sanitized[0]["null_value"] == "__null__"
+    assert sanitized[0]["normal"] == "value"
     
-    # Check that either parquet or json file exists (depending on whether PyArrow succeeded)
-    step_dir = os.path.join(temp_dir, step_name)
-    parquet_file = os.path.join(step_dir, f"{operation_name}.parquet")
-    json_file = os.path.join(step_dir, f"{operation_name}.json")
-    
-    # At least one should exist
-    assert os.path.exists(parquet_file) or os.path.exists(json_file)
-    
-    # Data should be loadable regardless
-    loaded_data = arrow_manager.load_checkpoint(step_name, operation_name, operation_hash)
-    assert loaded_data == problematic_data
+    # Test desanitization
+    desanitized = arrow_manager._desanitize_from_parquet(sanitized)
+    assert desanitized == original_data
 
 
 def test_complex_data_structures(temp_dir):

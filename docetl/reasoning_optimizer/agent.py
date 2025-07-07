@@ -151,6 +151,61 @@ def update_yaml_operations(input_file_path, output_file_path, new_operations):
     
     print(f"Modified YAML saved to: {output_file_path}")
 
+def update_pipeline(orig_config, new_ops_list, target_ops):
+    """
+    Update the pipeline configuration with new operations.
+    
+    Args:
+        orig_config (dict): The original pipeline configuration
+        new_ops_list (list): List of new operations to add
+        target_ops (list): List of target operation names to replace
+        
+    Returns:
+        dict: Updated pipeline configuration
+    """
+    if new_ops_list is not None:
+        op_names = [op.get("name") for op in new_ops_list if "name" in op]
+    
+    # Update the pipeline steps to use the new operation names
+    if "pipeline" in orig_config and "steps" in orig_config["pipeline"]:
+        for step in orig_config["pipeline"]["steps"]:
+            if "operations" in step and step["operations"] == target_ops:
+                step["operations"] = op_names
+    
+    return orig_config
+
+
+def update_sample(new_ops_list, target_ops, orig_operators):
+    """
+    Update sample settings in new operations based on original operators.
+    
+    Args:
+        new_ops_list (list): List of new operations to update
+        target_ops (list): List of target operation names
+        orig_operators (list): List of original operators
+        
+    Returns:
+        list: Updated new operations list with sample settings
+    """
+    # Build a mapping from op name to op config in orig_operators
+    op_name_to_config = {op.get("name"): op for op in orig_operators if "name" in op}
+
+    # For each op in new_ops_list, if the corresponding op in orig_operators has 'sample', add it
+
+    sample_size = -1
+    for target_op_name in target_ops:
+        target_op = op_name_to_config[target_op_name]
+        if "sample" in target_op: 
+            sample_size = target_op["sample"]
+    
+    print("SAMPLE SIZE: ", sample_size)
+        
+    for op in new_ops_list:
+        if sample_size != -1: 
+            op["sample"] = sample_size
+    
+    return new_ops_list
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Chat with OpenAI with per-model token rate limiting.")
     parser.add_argument("--model", type=str, default="o3", help="Model name")
@@ -187,32 +242,27 @@ if __name__ == "__main__":
         new_ops_list = ChainingDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=args.model, message_history=message_history)
         print("new_ops_list:")
         print(new_ops_list)
-        if new_ops_list is not None:
-            op_names = [op.get("name") for op in new_ops_list if "name" in op]
-            print("Operation names in new_ops_list:", op_names)
         orig_config["operations"] = new_ops_list
-
-        # Update the pipeline steps to use the new operation names
-        if "pipeline" in orig_config and "steps" in orig_config["pipeline"]:
-            for step in orig_config["pipeline"]["steps"]:
-                if "operations" in step and step["operations"] == target_ops:
-                    step["operations"] = op_names
+        
+        orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
+        new_ops_list = update_sample(new_ops_list, target_ops, orig_operators)
+        orig_config["operations"] = new_ops_list
 
     elif directive == "gleaning":
         new_ops_list = GleaningDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=args.model, message_history=message_history)
         print("new_ops_list:")
         print(new_ops_list)
         orig_config["operations"] = new_ops_list
-        
+
     elif directive == "change model":
         new_ops_list = ChangeModelDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=args.model, message_history=message_history)
         print("new_ops_list:")
-        print(new_ops_list)
+        print(new_ops_list)  
         orig_config["operations"] = new_ops_list
 
 
     # Dump yaml file
-    output_file_path = f"{args.yaml_path}_agent_opt_v4.yaml"
+    output_file_path = f"{args.yaml_path}_agent_opt_v5.yaml"
     with open(output_file_path, 'w') as file:
         yaml.dump(orig_config, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
     

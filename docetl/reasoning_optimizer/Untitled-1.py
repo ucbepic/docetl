@@ -3,7 +3,10 @@ import os
 import threading
 import time
 import yaml  
+import json
+import argparse
 from pydantic import BaseModel
+from docetl.reasoning_optimizer.load_data import load_input_doc
 
 # Global rate limiter 
 class TokenRateLimiter:
@@ -41,21 +44,15 @@ class CalendarEvent(BaseModel):
     date: str
     participants: list[str]
 
-def get_openai_response(user_message, model="gpt-4.1-nano"):
+def get_openai_response(user_message, model="o3"):
     """
     Calls litellm.completion to generate a response to the user's message using Azure OpenAI.
-    Enforces GPT-4.1 rate limits if applicable.
     Assumes AZURE_API_KEY, AZURE_API_BASE, and AZURE_API_VERSION are set in environment variables.
     """
     messages = [
-        {"role": "system", "content": "Extract the event information."},
+        {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost-effective execution plans."},
         {"role": "user", "content": user_message}
     ]
-    
-    # Enforce rate limit for GPT-4.1 models
-    if "gpt-4.1" in model:
-        tokens = count_tokens(messages)
-        gpt41_rate_limiter.wait_for_slot(tokens)
 
     response = litellm.completion(
         model=model,
@@ -64,17 +61,74 @@ def get_openai_response(user_message, model="gpt-4.1-nano"):
         api_base=os.environ.get("AZURE_API_BASE"),
         api_version=os.environ.get("AZURE_API_VERSION"),
         azure=True,
-        response_format = CalendarEvent
+        reasoning_effort="high",
     )
-    return response.choices[0].message['content']
+    # response.json
+    # response.complete_response
+    # print(response.model_dump_json(indent=2))
+    # response.choices[0].message['content']
+    print(response)
+    return response
+
+
+def save_response_content_only(response, filename):
+    try:
+        content = response.choices[0].message.content
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"Response content saved to: {filename}")
+        return filename
+    except (AttributeError, IndexError) as e:
+        print(f"Error extracting content: {e}")
+        return None
+
+def save_response_detail(response, filename):
+    try:
+        content = response.complete_response
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"Complete response saved to: {filename}")
+        return filename
+    except (AttributeError, IndexError) as e:
+        print(f"Error extracting content: {e}")
+        return None
+
+
+def save_response_json(response, filename):
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write("=== LLM Response Details ===\n")
+        f.write(f"Model: {response.model if hasattr(response, 'model') else 'Unknown'}\n")
+        f.write("\n=== Full JSON Response ===\n")
+        json.dump(response.json, f, indent=2, ensure_ascii=False)
+    
+    print(f"Detailed response saved to: {filename}")
+    return filename
 
 
 
 
 if __name__ == "__main__":
-    user_input = input("You: ")
-    reply = get_openai_response(user_input, model="gpt-4.1-nano")
-    print("AI:", reply)
+    yaml_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD-map.yaml"
+    input_schema = load_input_doc(yaml_path)
+    print(input_schema)
+    with open('/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD_random_sample.json', 'r') as f:
+        random_sample = json.load(f)
+
+    with open(yaml_path, "r") as f:
+        input_query = f.read()
+    user_input = f"""
+    Learn DocETL's operations and rewrite directives in this document: https://ucbepic.github.io/docetl/concepts/operators/
+    Task: Apply rewrite directives to suggest 1 optimized query plan that improves both accuracy and cost-effectiveness over the original user query. Write the optimized plan in YAML.
+    Make sure you apply existing rewrie directives and use only existing operations in DocETL. 
+    Input document schema with token statistics: {input_schema}
+    Input data sample: {json.dumps(random_sample, indent=2)[:5000]}
+    User query in YAML format using our operations: {input_query}
+    """
+    res = get_openai_response(user_input, model="o3")
+    save_response_content_only(res, "res_content.txt")
+    #save_response_detail(res, "res_detail.txt")
+
+
 
 
 

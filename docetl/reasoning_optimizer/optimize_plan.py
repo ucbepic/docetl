@@ -60,6 +60,10 @@ class Rewritten_plan(BaseModel):
     stepwise_pipeline: list[Step]
     reason: str
 
+class ResponseFormat(BaseModel):
+    yaml_file: str
+    plan: Rewritten_plan
+
 def get_openai_response(input_query, input_schema, input_data_sample, model="o3", max_tpm=5000000):
     """
     The first LLM call. Generates a rewrite plan given the rewrite directives. 
@@ -77,7 +81,7 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
 
     Pipeline:
     Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-    - Default Model: The language model to use for the pipeline. \n
+    - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-4.1-nano, gpt-4o-mini, gpt-4o, gpt-4.1 \n
     - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
     - Datasets: The input data sources for your pipeline. \n
     - Operators: The processing steps that transform your data. \n
@@ -90,7 +94,7 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     LLM-based operators (including Map, Reduce, Resolve, Filter, and Extract) have additional attributes:\n
     - prompt: A Jinja2 template that defines the instruction for the language model. \n
     - output: Specifies the schema for the output from the LLM call. \n
-    - model (optional): Allows specifying a different model from the pipeline default. \n
+    - model (optional): Allows specifying a different model from the pipeline default. Limit your choice of model to gpt-4.1-nano, gpt-4o-mini, gpt-4o, gpt-4.1\n
     Additional parameters required by each operation are specified in the operation's description.
     {PromptLibrary.map_operator()}\n
     {PromptLibrary.reduce_operator()}\n
@@ -130,6 +134,7 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         api_version=os.environ.get("AZURE_API_VERSION"),
         azure=True,
         reasoning_effort = "high",
+        response_format=ResponseFormat
     )
     return response.choices[0].message['content']
 
@@ -149,9 +154,8 @@ if __name__ == "__main__":
     
     input_schema = load_input_doc(args.yaml_path)
     reply = get_openai_response(input_query, input_schema, random_sample, model=args.model, max_tpm=args.max_tpm)
-   
-    with open("o3_CUAD_opt_plan_v2.yaml", 'w', encoding='utf-8') as f:
-        f.write(reply)
+    with open("o3_CUAD_opt_plan_v3.yaml", 'w', encoding='utf-8') as f:
+        f.write(reply.get)
        
     print("AI:", reply)
 

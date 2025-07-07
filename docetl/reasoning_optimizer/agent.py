@@ -1,4 +1,5 @@
 import random
+from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelConfig
 from docetl.reasoning_optimizer.prompts import PromptLibrary
 import litellm
 import os
@@ -13,6 +14,7 @@ from docetl.reasoning_optimizer.load_data import load_input_doc
 from op_descriptions import *
 from ChainingDirective import *
 from GleaningDirective import *
+from ChangeModelDirective import *
 from docetl.utils import load_config
 import argparse
 
@@ -88,14 +90,14 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     {op_resolve.to_string()}\n
     
     Rewrite directives: 
-    {GleaningDirective().to_string_for_plan()}
+    {ChainingDirective().to_string_for_plan()}\n
+    
 
     Input document schema with token statistics: {input_schema}
     Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]}
     User query in YAML format using our operations: {input_query}
     """
 
-    # Always build messages as a flat list of dicts
     messages = message_history + [
         {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost-effective execution plans. Your output must follow the structured output format."},
         {"role": "user", "content": user_message}
@@ -121,11 +123,33 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
 
     # Add user and assistant messages to message_history as dicts
     message_history.extend([
+        {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost-effective execution plans. Your output must follow the structured output format."},
         {"role": "user", "content": user_message},
         {"role": "assistant", "content": assistant_response}
     ])
     return assistant_response
 
+def update_yaml_operations(input_file_path, output_file_path, new_operations):
+    """
+    Load a YAML file, replace the operations section, and save to a new file.
+    
+    Args:
+        input_file_path (str): Path to the original YAML file
+        output_file_path (str): Path where the modified YAML will be saved
+        new_operations (list): List of operation dictionaries to replace the original operations
+    """
+    # Load the original YAML file
+    with open(input_file_path, 'r') as file:
+        config = yaml.safe_load(file)
+    
+    # Replace the operations section
+    config['operations'] = new_operations
+    
+    # Write the modified config to a new YAML file
+    with open(output_file_path, 'w') as file:
+        yaml.dump(config, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    
+    print(f"Modified YAML saved to: {output_file_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Chat with OpenAI with per-model token rate limiting.")
@@ -145,8 +169,7 @@ if __name__ == "__main__":
         input_query = f.read()
     
     input_schema = load_input_doc(args.yaml_path)
-
-
+    
     message_history = []
     reply = get_openai_response(input_query, input_schema, random_sample, model=args.model, max_tpm=args.max_tpm, message_history=message_history)    
     print("Agent:", reply)
@@ -159,13 +182,40 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Failed to parse agent response: {e}")
 
+    new_ops_list = None
     if directive == "chaining":
         new_ops_list = ChainingDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=args.model, message_history=message_history)
         print("new_ops_list:")
         print(new_ops_list)
+        if new_ops_list is not None:
+            op_names = [op.get("name") for op in new_ops_list if "name" in op]
+            print("Operation names in new_ops_list:", op_names)
+        orig_config["operations"] = new_ops_list
+
+        # Update the pipeline steps to use the new operation names
+        if "pipeline" in orig_config and "steps" in orig_config["pipeline"]:
+            for step in orig_config["pipeline"]["steps"]:
+                if "operations" in step and step["operations"] == target_ops:
+                    step["operations"] = op_names
+
     elif directive == "gleaning":
         new_ops_list = GleaningDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=args.model, message_history=message_history)
         print("new_ops_list:")
         print(new_ops_list)
+        orig_config["operations"] = new_ops_list
+        
+    elif directive == "change model":
+        new_ops_list = ChangeModelDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=args.model, message_history=message_history)
+        print("new_ops_list:")
+        print(new_ops_list)
+        orig_config["operations"] = new_ops_list
 
+
+    # Dump yaml file
+    output_file_path = f"{args.yaml_path}_agent_opt_v4.yaml"
+    with open(output_file_path, 'w') as file:
+        yaml.dump(orig_config, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    
+    print(f"Modified YAML saved to: {output_file_path}")
+  
     

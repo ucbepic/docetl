@@ -7,8 +7,44 @@ class PromptLibrary:
     @staticmethod
     def map_operator() -> str:
         prompt = """
-        Map:
-        The map operation applies a semantic projection to each document in the dataset independently using the specified prompt. 
+        Map (LLM-powered):
+
+        **Description**
+        Processes each document independently by making an LLM call with your prompt template. Creates one output for each input document, with the output conforming to your specified schema.
+        
+        **When to Use**
+        Use when you need to process each document individually - like extracting summarizing, classifying, or generating new fields based on document content.
+
+        **Required Parameters**
+        - name: Unique name for the operation
+        - type: Must be "map"
+        - model: LLM to use to execute the prompt
+        - prompt: Jinja2 template with {{ input.key }} for each document field you want to reference
+        - output.schema: Dictionary defining the structure and types of the output
+
+        **Optional Parameters**
+        - gleaning: Iteratively refines outputs that don't meet quality criteria. The LLM reviews its initial output and improves it based on validation feedback. Config requires:
+            -- if: Python expression for when to refine; e.g., "len(output[key] == 0)" (optional)
+            -- num_rounds: Max refinement iterations
+            -- validation_prompt: What to improve
+            -- model: LLM to use to execute the validation prompt and provide feedback (defaults to same model as operation model)
+        (Default: gleaning is not enabled)
+
+        - calibrate: (bool) Processes a sample of documents first to create reference examples, then uses those examples in all subsequent prompts to ensure consistent outputs across the dataset
+        (Default: calibrate is False)
+        - num_calibration_docs: Number of docs to use for calibration (default: 10)
+
+        **Returns**
+        Each original document, augmented with new keys specified in output_schema
+
+        **Minimal Example Configuration**
+        name: gen_insights
+        type: map
+        model: gpt-4o-mini
+        prompt: From the user log below, list 2-3 concise insights (1-2 words each) and 1-2 supporting actions per insight. Return as a list of dictionaries with 'insight' and 'supporting_actions'. Log: {{ input.log }}
+        output:
+            schema:
+                insights_summary: "string"
         """
         return prompt.strip()
     
@@ -122,10 +158,87 @@ class PromptLibrary:
     @staticmethod
     def extract_operator() -> str:
         prompt = """
-        Extract:
-        The extract operation identifies and pulls out specific sections of text from documents based on provided criteria, 
-        maintaining the original text format verbatim. Unlike Map which transforms content, Extract is optimized for isolating 
-        portions of source text without synthesis or interpretation.
+        Extract (LLM-powered):
+
+        **Description**
+        Pulls out specific portions of text exactly as they appear in the source document. The LLM identifies which parts to extract by providing line number ranges or regex patterns. Extracted text is saved to the original field name with "_extracted" suffix (e.g., report_text → report_text_extracted).
+
+        **When to Use**
+        Use when you need exact text from documents - like pulling out direct quotes, specific contract clauses, key findings, or any content that must be preserved word-for-word without LLM paraphrasing.
+
+        **Required Parameters**
+        - name: Unique name for the operation
+        - type: Must be "extract"
+        - prompt: Instructions for what to extract (this is NOT a Jinja template; we will run the prompt independently for each key in document_keys)
+        - document_keys: List of document fields to extract from
+        - model: LLM to use to execute the extraction
+
+        **Optional Parameters**
+        - extraction_method: How the LLM specifies what to extract from each document:
+            -- "line_number" (default): The LLM outputs the line numbers or ranges in the document to extract. Use when relevant information is best identified by its position within each document.
+            -- "regex": The LLM generates a custom regex pattern for each document to match the target text. Use when the information varies in location but follows identifiable text patterns (e.g., emails, dates, or structured phrases).
+
+        **Returns**
+        Each original document, augmented with {key}_extracted for each key in the specified document_keys
+
+        **Minimal Example Configuration**
+        name: findings
+        type: extract
+        prompt: Extract all sections that discuss key findings, results, or conclusions from this research report. Focus on paragraphs that:
+        - Summarize experimental outcomes
+        - Present statistical results
+        - Describe discovered insights
+        - State conclusions drawn from the research
+        Only extract the most important and substantive findings.
+        document_keys: ["report_text"]
+        model: gpt-4o-mini
+        """
+        return prompt.strip()
+
+    @staticmethod
+    def parallel_map_operator() -> str:
+        prompt = """
+        Parallel Map (LLM-powered):
+        **Description**
+        Runs multiple independent map operations concurrently on each document. Each prompt generates specific fields, and all outputs are combined into a single result per input document. More efficient than sequential maps when transformations are independent.
+
+        **When to Use**
+        Use when you need multiple independent analyses of the same document - like extracting different types of information, running multiple classifications, or generating various summaries from the same input.
+
+        **Required Parameters**
+        - name: Unique name for the operation
+        - type: Must be "parallel_map"
+        - prompts: List of prompt configs, each with:
+            -- prompt: Jinja2 template (should reference document fields using {{ input.key }})
+            -- output_keys: List of fields this prompt generates
+        - output.schema: Combined schema for all outputs. This must be the union of the output_keys from all prompts—every key in the output schema should be generated by at least one prompt, and no keys should be missing.
+       
+        **Optional Parameters**
+        - model: Default LLM for all prompts
+        Per-prompt options:
+        - model: (optional) Override the default LLM for this specific prompt
+        - gleaning: (optional) Validation and refinement configuration for this prompt, akin to gleaning in map operation
+
+        **Returns**
+        Each original document augmented with new keys specified in output_schema
+
+        **Minimal Example Configuration**
+        name: analyze_resume
+        type: parallel_map
+        prompts:
+        - prompt: Extract skills from: {{ input.resume }}
+            output_keys: [skills]
+            model: gpt-4o-mini
+        - prompt: Calculate years of experience from: {{ input.resume }}
+            output_keys: [years_exp]
+        - prompt: Rate writing quality 1-10: {{ input.cover_letter }}
+            output_keys: [writing_score]
+        output:
+        schema:
+            skills: list[string]
+            years_exp: float
+            writing_score: integer
+
         """
         return prompt.strip()
 

@@ -5,7 +5,7 @@ from typing import Type, Dict, List
 import os
 from litellm import completion
 from docetl.reasoning_optimizer.directive import Directive
-from instantiate_schemas import MapOpConfig, ChainingInstantiateSchema
+from instantiate_schemas import ChainingInstantiateSchema
 import re
 import json
 
@@ -90,6 +90,8 @@ class ChainingDirective(Directive):
 
         Args:
             original_op (Dict): The original operation.
+            expected_input_keys (List[str]): A list of input keys that the operation is expected to reference in its prompt. Each key should correspond to a field in the input document that must be used by the operator.
+            expected_output_keys (List[str]): A list of output keys that the last operation is expected to produce. 
             agent_llm (str): The LLM model to use.
             message_history (List, optional): Conversation history for context.
 
@@ -152,7 +154,7 @@ class ChainingDirective(Directive):
                     "model": op.model,
                     "output": {
                         "schema": {
-                            key: {"type": "string"} for key in op.output_keys
+                            key: "string" for key in op.output_keys
                         }
                     }
                 })

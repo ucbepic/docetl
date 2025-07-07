@@ -108,7 +108,7 @@ class GleaningConfig(BaseModel):
 
     Attributes:
         validation_prompt (str): Instructions for the LLM to evaluate and improve the output. The validation prompt doesn't need any variables, since it's appended to the chat thread.
-        num_rounds (int): The maximum number of refinement iterations..
+        num_rounds (int): The maximum number of refinement iterations.
         model (str): The model to use for validation.
     """
 
@@ -125,3 +125,41 @@ class GleaningInstantiateSchema(BaseModel):
         ...,
         description="The gleaning configuration to apply to the target operation."
     )
+
+    # validate methods can be added here
+
+class ChangeModelConfig(BaseModel):
+    """
+    Configuration for changing model choice.
+
+    Attributes:
+        model (str): The new model to use.
+    """
+
+    model: str = Field(default="gpt-4o-mini", description="The new LLM model to use.")
+
+class ChangeModelInstantiateSchema(BaseModel):
+    """
+    Schema for changing model choice in a data processing pipeline.
+    """
+
+    change_model_config: ChangeModelConfig = Field(
+        ...,
+        description="The change model configuration to apply to the target operation."
+    )
+    
+    @classmethod
+    def validate_model_in_list(cls, change_model_config: ChangeModelConfig, list_of_model: List[str]) -> None:
+        """
+        Validates that the model in change_model_config is in the allowed list_of_model.
+
+        Args:
+            change_model_config (ChangeModelConfig): The change model configuration to check.
+
+        Raises:
+            ValueError: If the model is not in the allowed list.
+        """
+        
+        if change_model_config.model not in list_of_model:
+            raise ValueError(f"Model '{change_model_config.model}' is not in the allowed list: {list_of_model}")
+    

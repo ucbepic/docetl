@@ -91,7 +91,8 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     
     Rewrite directives: 
     {ChainingDirective().to_string_for_plan()}\n
-    
+    {GleaningDirective().to_string_for_plan()}\n
+    {ChangeModelDirective().to_string_for_plan()}\n
 
     Input document schema with token statistics: {input_schema}
     Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]}
@@ -262,7 +263,7 @@ if __name__ == "__main__":
 
 
     # Dump yaml file
-    output_file_path = f"{args.yaml_path}_agent_opt_v5.yaml"
+    output_file_path = f"{args.yaml_path}_agent_opt_V1-1.yaml"
     with open(output_file_path, 'w') as file:
         yaml.dump(orig_config, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
     

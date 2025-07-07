@@ -54,6 +54,62 @@ class CheckpointManager:
         if intermediate_dir:
             os.makedirs(intermediate_dir, exist_ok=True)
 
+    @classmethod
+    def from_intermediate_dir(
+        cls, intermediate_dir: str, console=None, storage_type: Optional[str] = None
+    ):
+        """
+        Create a CheckpointManager from an intermediate directory path.
+
+        If storage_type is not specified, automatically detects the most common format
+        in the directory (prefers arrow if both formats exist equally).
+
+        Args:
+            intermediate_dir: Path to the intermediate directory containing checkpoints
+            console: Rich console for logging (optional)
+            storage_type: Storage format - "json", "arrow", or None for auto-detection
+
+        Returns:
+            CheckpointManager instance
+        """
+        if storage_type is None:
+            storage_type = cls._detect_storage_type(intermediate_dir)
+
+        return cls(intermediate_dir, console=console, storage_type=storage_type)
+
+    @staticmethod
+    def _detect_storage_type(intermediate_dir: str) -> str:
+        """
+        Detect the primary storage type used in an intermediate directory.
+
+        Args:
+            intermediate_dir: Path to the intermediate directory
+
+        Returns:
+            Detected storage type ("json" or "arrow"), defaults to "json" if unclear
+        """
+        if not os.path.exists(intermediate_dir):
+            return "json"  # Default for new directories
+
+        json_count = 0
+        parquet_count = 0
+
+        # Count checkpoint files of each type
+        for root, dirs, files in os.walk(intermediate_dir):
+            for file in files:
+                if file.endswith(".json") and not file.startswith("."):
+                    json_count += 1
+                elif file.endswith(".parquet"):
+                    parquet_count += 1
+
+        # Prefer arrow if more parquet files, or if equal and both exist
+        if parquet_count > json_count or (
+            parquet_count > 0 and parquet_count == json_count
+        ):
+            return "arrow"
+        else:
+            return "json"
+
     def _get_checkpoint_path(
         self, step_name: str, operation_name: str, storage_type: Optional[str] = None
     ) -> Optional[str]:
@@ -136,6 +192,7 @@ class CheckpointManager:
 
     def _sanitize_for_parquet(self, data: List[Dict]) -> List[Dict]:
         """Sanitize data to make it compatible with PyArrow/Parquet serialization."""
+        import json
 
         def sanitize_value(value):
             """Recursively sanitize a value for PyArrow compatibility."""
@@ -146,6 +203,16 @@ class CheckpointManager:
             elif isinstance(value, list):
                 if not value:  # Empty list
                     return ["__empty_list__"]
+                # Check if list has mixed types or contains None - serialize as JSON string if so
+                has_none = any(item is None for item in value)
+                if len(value) > 1:
+                    types = set(
+                        type(item).__name__ for item in value if item is not None
+                    )
+                    if len(types) > 1 or (
+                        has_none and len(types) >= 1
+                    ):  # Mixed types or has None with other types
+                        return f"__mixed_list_json__:{json.dumps(value)}"
                 return [sanitize_value(item) for item in value]
             elif value is None:
                 return "__null__"
@@ -162,6 +229,8 @@ class CheckpointManager:
 
     def _desanitize_from_parquet(self, data: List[Dict]) -> List[Dict]:
         """Restore original data structure from sanitized Parquet data."""
+        import json
+
         import numpy as np
 
         def desanitize_value(value):
@@ -173,6 +242,10 @@ class CheckpointManager:
                 if value_list == ["__empty_list__"]:
                     return []
                 return [desanitize_value(item) for item in value_list]
+            elif isinstance(value, str) and value.startswith("__mixed_list_json__:"):
+                # Restore mixed-type list from JSON
+                json_str = value[len("__mixed_list_json__:") :]
+                return json.loads(json_str)
             elif isinstance(value, dict):
                 if value == {"__empty_dict__": True}:
                     return {}

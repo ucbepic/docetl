@@ -43,6 +43,7 @@ boto3 = "^1.37.27"
 pandas = "^2.3.0"
 python-multipart = "^0.0.20"
 fastapi = { version = "^0.115.4", optional = true }
+pyarrow = "^18.0.0"
 
 [tool.poetry.extras]
 parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]

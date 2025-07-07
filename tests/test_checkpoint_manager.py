@@ -1434,3 +1434,217 @@ def test_console_logging(mock_console, temp_dir, sample_data):
     # Check that log message contains expected content
     log_calls = mock_console.log.call_args_list
     assert any("Checkpoint saved" in str(call) for call in log_calls)
+
+
+# New tests for storage type compatibility
+
+@pytest.fixture
+def json_checkpoint_manager(temp_dir, mock_console):
+    """Create a JSON checkpoint manager instance."""
+    return CheckpointManager(temp_dir, console=mock_console, storage_type="json")
+
+
+@pytest.fixture  
+def arrow_checkpoint_manager(temp_dir, mock_console):
+    """Create a PyArrow checkpoint manager instance."""
+    return CheckpointManager(temp_dir, console=mock_console, storage_type="arrow")
+
+
+def test_storage_type_validation(temp_dir):
+    """Test that invalid storage types are rejected."""
+    with pytest.raises(ValueError, match="Invalid storage_type 'invalid'"):
+        CheckpointManager(temp_dir, storage_type="invalid")
+
+
+def test_json_storage_format(json_checkpoint_manager, sample_data):
+    """Test JSON storage format specifically."""
+    step_name = "test_step"
+    operation_name = "test_operation" 
+    operation_hash = "test_hash"
+    
+    # Save checkpoint
+    json_checkpoint_manager.save_checkpoint(step_name, operation_name, sample_data, operation_hash)
+    
+    # Verify file extension is .json
+    checkpoint_path = json_checkpoint_manager._get_checkpoint_path(step_name, operation_name)
+    assert checkpoint_path.endswith(".json")
+    assert os.path.exists(checkpoint_path)
+    
+    # Verify content is valid JSON
+    with open(checkpoint_path, 'r') as f:
+        loaded_json = json.load(f)
+    assert loaded_json == sample_data
+    
+    # Load checkpoint and verify
+    loaded_data = json_checkpoint_manager.load_checkpoint(step_name, operation_name, operation_hash)
+    assert loaded_data == sample_data
+
+
+def test_arrow_storage_format(arrow_checkpoint_manager, sample_data):
+    """Test PyArrow storage format specifically."""
+    step_name = "test_step"
+    operation_name = "test_operation"
+    operation_hash = "test_hash"
+    
+    # Save checkpoint
+    arrow_checkpoint_manager.save_checkpoint(step_name, operation_name, sample_data, operation_hash)
+    
+    # Verify file extension is .parquet
+    checkpoint_path = arrow_checkpoint_manager._get_checkpoint_path(step_name, operation_name)
+    assert checkpoint_path.endswith(".parquet")
+    assert os.path.exists(checkpoint_path)
+    
+    # Load checkpoint and verify
+    loaded_data = arrow_checkpoint_manager.load_checkpoint(step_name, operation_name, operation_hash)
+    assert loaded_data == sample_data
+
+
+def test_backward_compatibility_json_to_arrow(temp_dir, sample_data):
+    """Test that Arrow manager can read existing JSON checkpoints."""
+    step_name = "test_step"
+    operation_name = "test_operation"
+    operation_hash = "test_hash"
+    
+    # Create JSON checkpoint first
+    json_manager = CheckpointManager(temp_dir, storage_type="json")
+    json_manager.save_checkpoint(step_name, operation_name, sample_data, operation_hash)
+    
+    # Create Arrow manager and try to read JSON checkpoint
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
+    loaded_data = arrow_manager.load_checkpoint(step_name, operation_name, operation_hash)
+    
+    assert loaded_data == sample_data
+
+
+def test_backward_compatibility_arrow_to_json(temp_dir, sample_data):
+    """Test that JSON manager can read existing Arrow checkpoints."""
+    step_name = "test_step"
+    operation_name = "test_operation"
+    operation_hash = "test_hash"
+    
+    # Create Arrow checkpoint first
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
+    arrow_manager.save_checkpoint(step_name, operation_name, sample_data, operation_hash)
+    
+    # Create JSON manager and try to read Arrow checkpoint
+    json_manager = CheckpointManager(temp_dir, storage_type="json")
+    loaded_data = json_manager.load_checkpoint(step_name, operation_name, operation_hash)
+    
+    assert loaded_data == sample_data
+
+
+def test_mixed_storage_list_outputs(temp_dir, sample_data):
+    """Test list_outputs with mixed JSON and Arrow checkpoints."""
+    # Create checkpoints with different storage types
+    json_manager = CheckpointManager(temp_dir, storage_type="json")
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
+    
+    json_manager.save_checkpoint("step1", "op1", sample_data, "hash1")
+    arrow_manager.save_checkpoint("step1", "op2", sample_data, "hash2")
+    json_manager.save_checkpoint("step2", "op1", sample_data, "hash3")
+    arrow_manager.save_checkpoint("step2", "op2", sample_data, "hash4")
+    
+    # Both managers should see all outputs
+    json_outputs = json_manager.list_outputs()
+    arrow_outputs = arrow_manager.list_outputs()
+    
+    expected_outputs = [("step1", "op1"), ("step1", "op2"), ("step2", "op1"), ("step2", "op2")]
+    assert sorted(json_outputs) == sorted(expected_outputs)
+    assert sorted(arrow_outputs) == sorted(expected_outputs)
+
+
+def test_storage_format_preference(temp_dir, sample_data):
+    """Test that managers prefer their own format but can read others."""
+    step_name = "test_step"
+    operation_name = "test_operation"
+    operation_hash = "test_hash"
+    
+    # Create both JSON and Arrow checkpoints for same operation
+    json_manager = CheckpointManager(temp_dir, storage_type="json")
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
+    
+    json_data = sample_data.copy()
+    arrow_data = [{"id": 999, "text": "Arrow data", "category": "Z"}]
+    
+    json_manager.save_checkpoint(step_name, operation_name, json_data, operation_hash)
+    arrow_manager.save_checkpoint(step_name, operation_name, arrow_data, operation_hash)
+    
+    # Each manager should prefer its own format
+    json_loaded = json_manager.load_checkpoint(step_name, operation_name, operation_hash) 
+    arrow_loaded = arrow_manager.load_checkpoint(step_name, operation_name, operation_hash)
+    
+    assert json_loaded == json_data  # JSON manager gets JSON data
+    assert arrow_loaded == arrow_data  # Arrow manager gets Arrow data
+
+
+def test_load_output_as_dataframe_both_formats(temp_dir, sample_data):
+    """Test loading as DataFrame works for both storage formats."""
+    step_name = "test_step"
+    operation_name = "test_operation"
+    operation_hash = "test_hash"
+    
+    # Test JSON format
+    json_manager = CheckpointManager(temp_dir, storage_type="json")
+    json_manager.save_checkpoint(step_name, "json_op", sample_data, operation_hash)
+    json_df = json_manager.load_output_as_dataframe(step_name, "json_op")
+    
+    assert isinstance(json_df, pd.DataFrame)
+    assert len(json_df) == len(sample_data)
+    assert list(json_df.columns) == ["id", "text", "category"]
+    
+    # Test Arrow format  
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
+    arrow_manager.save_checkpoint(step_name, "arrow_op", sample_data, operation_hash)
+    arrow_df = arrow_manager.load_output_as_dataframe(step_name, "arrow_op")
+    
+    assert isinstance(arrow_df, pd.DataFrame)
+    assert len(arrow_df) == len(sample_data)
+    assert list(arrow_df.columns) == ["id", "text", "category"]
+    
+    # DataFrames should be equivalent
+    pd.testing.assert_frame_equal(json_df, arrow_df)
+
+
+def test_checkpoint_size_both_formats(temp_dir, sample_data):
+    """Test checkpoint size calculation for both formats."""
+    step_name = "test_step"
+    operation_name = "test_operation"
+    operation_hash = "test_hash"
+    
+    # Create checkpoints in both formats
+    json_manager = CheckpointManager(temp_dir, storage_type="json")
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
+    
+    json_manager.save_checkpoint(step_name, "json_op", sample_data, operation_hash)
+    arrow_manager.save_checkpoint(step_name, "arrow_op", sample_data, operation_hash)
+    
+    # Both should return valid sizes
+    json_size = json_manager.get_checkpoint_size(step_name, "json_op")
+    arrow_size = arrow_manager.get_checkpoint_size(step_name, "arrow_op")
+    
+    assert json_size > 0
+    assert arrow_size > 0
+    
+    # Total size should include both
+    total_json = json_manager.get_total_checkpoint_size()
+    total_arrow = arrow_manager.get_total_checkpoint_size()
+    
+    # Both managers should see both files in total
+    assert total_json == json_size + arrow_size
+    assert total_arrow == json_size + arrow_size
+
+
+def test_default_storage_type():
+    """Test that default storage type is JSON."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        cm = CheckpointManager(temp_dir)
+        assert cm.storage_type == "json"
+
+
+def test_case_insensitive_storage_type(temp_dir):
+    """Test that storage type is case insensitive."""
+    cm_upper = CheckpointManager(temp_dir, storage_type="JSON")
+    assert cm_upper.storage_type == "json"
+    
+    cm_mixed = CheckpointManager(temp_dir, storage_type="Arrow")
+    assert cm_mixed.storage_type == "arrow"

@@ -33,4 +33,34 @@ Here are some additional notes to help you get the most out of your pipeline:
       type: file
       path: ...
       intermediate_dir: intermediate_results
+      storage_type: json  # Optional: "json" (default) or "arrow"
   ```
+
+- **Storage Format**: You can choose the storage format for intermediate checkpoints using the `storage_type` parameter in your pipeline's output configuration:
+
+  - **JSON Format** (`storage_type: json`): Human-readable format that's easy to inspect and debug. This is the default format for backward compatibility.
+  - **PyArrow Format** (`storage_type: arrow`): Compressed binary format using Parquet files. Offers better performance and smaller file sizes for large datasets.
+
+  Example configurations:
+
+  ```yaml
+  # Use JSON format (default)
+  pipeline:
+    output:
+      type: file
+      path: results.json
+      intermediate_dir: checkpoints
+      storage_type: json
+  ```
+
+  ```yaml
+  # Use PyArrow format for better performance
+  pipeline:
+    output:
+      type: file
+      path: results.json
+      intermediate_dir: checkpoints
+      storage_type: arrow
+  ```
+
+  The checkpoint system is fully backward compatible - you can read existing JSON checkpoints even when using `storage_type: arrow`, and vice versa. This allows for seamless migration between formats.

@@ -1,9 +1,10 @@
 """
-PyArrow-based checkpoint manager for DocETL pipelines.
+Flexible checkpoint manager for DocETL pipelines.
 
-This module provides efficient storage and retrieval of intermediate datasets
-using PyArrow format, which offers better compression and faster I/O compared
-to JSON storage.
+This module provides storage and retrieval of intermediate datasets
+using either JSON or PyArrow format. PyArrow offers better compression
+and faster I/O for large datasets, while JSON provides human-readable
+checkpoints and simpler debugging.
 """
 
 import json
@@ -18,23 +19,31 @@ import pyarrow.parquet as pq
 
 class CheckpointManager:
     """
-    Manages checkpoints for DocETL pipeline operations using PyArrow format.
+    Manages checkpoints for DocETL pipeline operations using JSON or PyArrow format.
 
-    This class provides efficient storage and retrieval of intermediate datasets,
-    replacing the JSON-based approach with PyArrow for better performance and
-    smaller file sizes.
+    This class provides flexible storage and retrieval of intermediate datasets,
+    supporting both JSON (human-readable, default) and PyArrow (efficient, compressed)
+    storage formats. Users can choose the format based on their needs.
     """
 
-    def __init__(self, intermediate_dir: str, console=None):
+    def __init__(self, intermediate_dir: str, console=None, storage_type: str = "json"):
         """
         Initialize the checkpoint manager.
 
         Args:
             intermediate_dir: Directory to store checkpoint files
             console: Rich console for logging (optional)
+            storage_type: Storage format - "json" (default) or "arrow"
         """
         self.intermediate_dir = intermediate_dir
         self.console = console
+        self.storage_type = storage_type.lower()
+
+        if self.storage_type not in ["json", "arrow"]:
+            raise ValueError(
+                f"Invalid storage_type '{storage_type}'. Must be 'json' or 'arrow'"
+            )
+
         self.config_path = (
             os.path.join(intermediate_dir, ".docetl_intermediate_config.json")
             if intermediate_dir
@@ -46,14 +55,39 @@ class CheckpointManager:
             os.makedirs(intermediate_dir, exist_ok=True)
 
     def _get_checkpoint_path(
-        self, step_name: str, operation_name: str
+        self, step_name: str, operation_name: str, storage_type: Optional[str] = None
     ) -> Optional[str]:
         """Get the file path for a checkpoint."""
         if not self.intermediate_dir:
             return None
+
+        storage = storage_type or self.storage_type
+        extension = "parquet" if storage == "arrow" else "json"
+
         return os.path.join(
-            self.intermediate_dir, step_name, f"{operation_name}.parquet"
+            self.intermediate_dir, step_name, f"{operation_name}.{extension}"
         )
+
+    def _find_existing_checkpoint(
+        self, step_name: str, operation_name: str
+    ) -> Optional[Tuple[str, str]]:
+        """Find existing checkpoint, checking both JSON and Parquet formats.
+
+        Returns:
+            Tuple of (file_path, format) if found, None otherwise
+        """
+        # Check current storage type first
+        current_path = self._get_checkpoint_path(step_name, operation_name)
+        if current_path and os.path.exists(current_path):
+            return current_path, self.storage_type
+
+        # Check the other format for backward compatibility
+        other_type = "json" if self.storage_type == "arrow" else "arrow"
+        other_path = self._get_checkpoint_path(step_name, operation_name, other_type)
+        if other_path and os.path.exists(other_path):
+            return other_path, other_type
+
+        return None
 
     def _log(self, message: str) -> None:
         """Log a message if console is available."""
@@ -64,7 +98,7 @@ class CheckpointManager:
         self, step_name: str, operation_name: str, data: List[Dict], operation_hash: str
     ) -> None:
         """
-        Save a checkpoint using PyArrow format.
+        Save a checkpoint using the configured storage format.
 
         Args:
             step_name: Name of the pipeline step
@@ -80,7 +114,28 @@ class CheckpointManager:
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
 
-        # Convert data to PyArrow table and save as Parquet
+        # Save based on storage type
+        if self.storage_type == "arrow":
+            self._save_as_parquet(checkpoint_path, data)
+        else:  # json
+            self._save_as_json(checkpoint_path, data)
+
+        # Update the configuration file with the hash
+        self._update_config(step_name, operation_name, operation_hash)
+
+        format_name = "PyArrow" if self.storage_type == "arrow" else "JSON"
+        self._log(
+            f"[green]✓ [italic]Checkpoint saved ({format_name}) for operation '{operation_name}' "
+            f"in step '{step_name}' at {checkpoint_path}[/italic][/green]"
+        )
+
+    def _save_as_json(self, checkpoint_path: str, data: List[Dict]) -> None:
+        """Save checkpoint data as JSON."""
+        with open(checkpoint_path, "w") as f:
+            json.dump(data, f)
+
+    def _save_as_parquet(self, checkpoint_path: str, data: List[Dict]) -> None:
+        """Save checkpoint data as Parquet."""
         if data:
             df = pd.DataFrame(data)
             table = pa.Table.from_pandas(df)
@@ -89,14 +144,6 @@ class CheckpointManager:
             # Handle empty data case
             empty_table = pa.Table.from_arrays([], names=[])
             pq.write_table(empty_table, checkpoint_path, compression="snappy")
-
-        # Update the configuration file with the hash
-        self._update_config(step_name, operation_name, operation_hash)
-
-        self._log(
-            f"[green]✓ [italic]Checkpoint saved for operation '{operation_name}' "
-            f"in step '{step_name}' at {checkpoint_path}[/italic][/green]"
-        )
 
     def load_checkpoint(
         self, step_name: str, operation_name: str, operation_hash: str
@@ -130,21 +177,23 @@ class CheckpointManager:
         if config.get(step_name, {}).get(operation_name) != operation_hash:
             return None
 
-        # Check if checkpoint file exists
-        checkpoint_path = self._get_checkpoint_path(step_name, operation_name)
-        if not checkpoint_path or not os.path.exists(checkpoint_path):
+        # Find existing checkpoint (checks both formats)
+        checkpoint_info = self._find_existing_checkpoint(step_name, operation_name)
+        if not checkpoint_info:
             return None
 
+        checkpoint_path, format_type = checkpoint_info
+
         try:
-            # Load the parquet file
-            table = pq.read_table(checkpoint_path)
-            df = table.to_pandas()
+            # Load based on the format of the existing file
+            if format_type == "arrow":
+                data = self._load_from_parquet(checkpoint_path)
+            else:  # json
+                data = self._load_from_json(checkpoint_path)
 
-            # Convert back to list of dictionaries
-            data = df.to_dict("records")
-
+            format_name = "PyArrow" if format_type == "arrow" else "JSON"
             self._log(
-                f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' "
+                f"[green]✓[/green] [italic]Loaded checkpoint ({format_name}) for operation '{operation_name}' "
                 f"in step '{step_name}' from {checkpoint_path}[/italic]"
             )
 
@@ -153,6 +202,17 @@ class CheckpointManager:
         except Exception as e:
             self._log(f"[red]Failed to load checkpoint: {e}[/red]")
             return None
+
+    def _load_from_json(self, checkpoint_path: str) -> List[Dict]:
+        """Load checkpoint data from JSON."""
+        with open(checkpoint_path, "r") as f:
+            return json.load(f)
+
+    def _load_from_parquet(self, checkpoint_path: str) -> List[Dict]:
+        """Load checkpoint data from Parquet."""
+        table = pq.read_table(checkpoint_path)
+        df = table.to_pandas()
+        return df.to_dict("records")
 
     def _update_config(
         self, step_name: str, operation_name: str, operation_hash: str
@@ -195,17 +255,19 @@ class CheckpointManager:
         Returns:
             List of dictionaries if data exists, None otherwise
         """
-        checkpoint_path = self._get_checkpoint_path(step_name, operation_name)
-        if not checkpoint_path:
+        # Find existing checkpoint (checks both formats)
+        checkpoint_info = self._find_existing_checkpoint(step_name, operation_name)
+        if not checkpoint_info:
             return None
 
-        if not os.path.exists(checkpoint_path):
-            return None
+        checkpoint_path, format_type = checkpoint_info
 
         try:
-            table = pq.read_table(checkpoint_path)
-            df = table.to_pandas()
-            return df.to_dict("records")
+            # Load based on the format of the existing file
+            if format_type == "arrow":
+                return self._load_from_parquet(checkpoint_path)
+            else:  # json
+                return self._load_from_json(checkpoint_path)
         except Exception as e:
             self._log(f"[red]Failed to load output: {e}[/red]")
             return None
@@ -223,16 +285,21 @@ class CheckpointManager:
         Returns:
             DataFrame if data exists, None otherwise
         """
-        checkpoint_path = self._get_checkpoint_path(step_name, operation_name)
-        if not checkpoint_path:
+        # Find existing checkpoint (checks both formats)
+        checkpoint_info = self._find_existing_checkpoint(step_name, operation_name)
+        if not checkpoint_info:
             return None
 
-        if not os.path.exists(checkpoint_path):
-            return None
+        checkpoint_path, format_type = checkpoint_info
 
         try:
-            table = pq.read_table(checkpoint_path)
-            return table.to_pandas()
+            # Load based on the format of the existing file
+            if format_type == "arrow":
+                table = pq.read_table(checkpoint_path)
+                return table.to_pandas()
+            else:  # json
+                data = self._load_from_json(checkpoint_path)
+                return pd.DataFrame(data) if data else pd.DataFrame()
         except Exception as e:
             self._log(f"[red]Failed to load output as DataFrame: {e}[/red]")
             return None
@@ -257,11 +324,16 @@ class CheckpointManager:
             if not os.path.isdir(step_path) or step_name.startswith("."):
                 continue
 
-            # Look for parquet files in the step directory
+            # Look for checkpoint files in the step directory (both formats)
             for filename in os.listdir(step_path):
                 if filename.endswith(".parquet"):
                     operation_name = filename[:-8]  # Remove .parquet extension
                     outputs.append((step_name, operation_name))
+                elif filename.endswith(".json") and not filename.startswith("."):
+                    operation_name = filename[:-5]  # Remove .json extension
+                    # Avoid duplicates if both formats exist
+                    if (step_name, operation_name) not in outputs:
+                        outputs.append((step_name, operation_name))
 
         return sorted(outputs)
 
@@ -311,13 +383,13 @@ class CheckpointManager:
         Returns:
             Size in bytes if file exists, None otherwise
         """
-        checkpoint_path = self._get_checkpoint_path(step_name, operation_name)
-        if not checkpoint_path:
+        # Find existing checkpoint (checks both formats)
+        checkpoint_info = self._find_existing_checkpoint(step_name, operation_name)
+        if not checkpoint_info:
             return None
 
-        if os.path.exists(checkpoint_path):
-            return os.path.getsize(checkpoint_path)
-        return None
+        checkpoint_path, _ = checkpoint_info
+        return os.path.getsize(checkpoint_path)
 
     def get_total_checkpoint_size(self) -> int:
         """
@@ -333,7 +405,7 @@ class CheckpointManager:
 
         for root, dirs, files in os.walk(self.intermediate_dir):
             for file in files:
-                if file.endswith(".parquet"):
+                if file.endswith((".parquet", ".json")) and not file.startswith("."):
                     file_path = os.path.join(root, file)
                     total_size += os.path.getsize(file_path)
 

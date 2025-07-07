@@ -128,12 +128,15 @@ class DSLRunner(ConfigWrapper):
     def _initialize_state(self) -> None:
         """Initialize basic runner state and datasets"""
         self.datasets = {}
-        self.intermediate_dir = (
-            self.config.get("pipeline", {}).get("output", {}).get("intermediate_dir")
-        )
+        output_config = self.config.get("pipeline", {}).get("output", {})
+        self.intermediate_dir = output_config.get("intermediate_dir")
+        storage_type = output_config.get("storage_type", "json")  # default to json
+
         # Initialize checkpoint manager
         self.checkpoint_manager = (
-            CheckpointManager(self.intermediate_dir, console=self.console)
+            CheckpointManager(
+                self.intermediate_dir, console=self.console, storage_type=storage_type
+            )
             if self.intermediate_dir
             else None
         )

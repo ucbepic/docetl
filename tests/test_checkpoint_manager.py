@@ -301,7 +301,9 @@ def test_directory_structure(checkpoint_manager, sample_data):
     assert os.path.exists(step_dir)
     assert os.path.isdir(step_dir)
     
-    checkpoint_file = os.path.join(step_dir, f"{operation_name}.parquet")
+    # Check for the correct file extension based on storage type
+    extension = "parquet" if checkpoint_manager.storage_type == "arrow" else "json"
+    checkpoint_file = os.path.join(step_dir, f"{operation_name}.{extension}")
     assert os.path.exists(checkpoint_file)
 
 
@@ -357,7 +359,7 @@ def test_space_efficiency_vs_json(temp_dir):
         })
     
     # Test with CheckpointManager (PyArrow)
-    checkpoint_manager = CheckpointManager(temp_dir)
+    checkpoint_manager = CheckpointManager(temp_dir, storage_type="arrow")
     step_name = "test_step"
     operation_name = "test_operation"
     operation_hash = "test_hash"
@@ -404,7 +406,7 @@ def test_storage_efficiency_with_repetitive_data(temp_dir):
             "metadata": {"type": "document", "version": 1, "processed_by": "system"}
         })
     
-    checkpoint_manager = CheckpointManager(temp_dir)
+    checkpoint_manager = CheckpointManager(temp_dir, storage_type="arrow")
     step_name = "repetitive_step"
     operation_name = "repetitive_operation"
     operation_hash = "repetitive_hash"
@@ -1648,3 +1650,106 @@ def test_case_insensitive_storage_type(temp_dir):
     
     cm_mixed = CheckpointManager(temp_dir, storage_type="Arrow")
     assert cm_mixed.storage_type == "arrow"
+
+
+def test_pyarrow_serialization_fallback(temp_dir, mock_console):
+    """Test that PyArrow falls back to JSON for problematic data structures."""
+    arrow_manager = CheckpointManager(temp_dir, console=mock_console, storage_type="arrow")
+    
+    # Create data that PyArrow has trouble with (empty nested structures)
+    problematic_data = [
+        {
+            "id": 1,
+            "text": "Normal text",
+            "empty_struct": {},  # Empty dict
+            "nested_empty": {"level1": {"level2": {}}},  # Deeply nested empty
+            "mixed_list": [1, "text", {}],  # Mixed types with empty dict
+        },
+        {
+            "id": 2, 
+            "text": "Another document",
+            "complex_nested": {
+                "_kv_pairs_preresolve_name_email_resolver": {},  # Known problematic structure
+                "normal_field": "value"
+            }
+        }
+    ]
+    
+    step_name = "test_step"
+    operation_name = "test_operation"
+    operation_hash = "test_hash"
+    
+    # This should not fail, even with problematic data
+    arrow_manager.save_checkpoint(step_name, operation_name, problematic_data, operation_hash)
+    
+    # Should be able to load the data back
+    loaded_data = arrow_manager.load_checkpoint(step_name, operation_name, operation_hash)
+    assert loaded_data == problematic_data
+    
+    # Check that a warning was logged
+    mock_console.log.assert_called()
+    log_calls = [str(call) for call in mock_console.log.call_args_list]
+    assert any("Warning: PyArrow serialization failed" in call for call in log_calls)
+
+
+def test_pyarrow_fallback_file_handling(temp_dir):
+    """Test that fallback creates correct file extensions."""
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
+    
+    # Data that will likely cause PyArrow issues
+    problematic_data = [{"empty_struct": {}, "normal": "value"}]
+    
+    step_name = "fallback_step"
+    operation_name = "fallback_op"
+    operation_hash = "fallback_hash"
+    
+    arrow_manager.save_checkpoint(step_name, operation_name, problematic_data, operation_hash)
+    
+    # Check that either parquet or json file exists (depending on whether PyArrow succeeded)
+    step_dir = os.path.join(temp_dir, step_name)
+    parquet_file = os.path.join(step_dir, f"{operation_name}.parquet")
+    json_file = os.path.join(step_dir, f"{operation_name}.json")
+    
+    # At least one should exist
+    assert os.path.exists(parquet_file) or os.path.exists(json_file)
+    
+    # Data should be loadable regardless
+    loaded_data = arrow_manager.load_checkpoint(step_name, operation_name, operation_hash)
+    assert loaded_data == problematic_data
+
+
+def test_complex_data_structures(temp_dir):
+    """Test various complex data structures that might cause PyArrow issues."""
+    arrow_manager = CheckpointManager(temp_dir, storage_type="arrow")
+    
+    complex_data = [
+        {
+            "id": 1,
+            "simple_list": [1, 2, 3],
+            "mixed_list": [1, "text", True, None],
+            "nested_dict": {"a": {"b": {"c": "deep_value"}}},
+            "empty_collections": {
+                "empty_list": [],
+                "empty_dict": {},
+                "empty_string": ""
+            },
+            "none_values": None,
+            "boolean_values": [True, False, None]
+        },
+        {
+            "id": 2,
+            "unicode_text": "Unicode: 🚀 émojis and spëcial chars",
+            "large_number": 12345678901234567890,
+            "float_precision": 3.141592653589793,
+            "date_string": "2023-01-01T12:00:00Z"
+        }
+    ]
+    
+    # Should handle these without failing
+    arrow_manager.save_checkpoint("complex", "structures", complex_data, "hash")
+    loaded = arrow_manager.load_checkpoint("complex", "structures", "hash")
+    
+    # Data should round-trip correctly
+    assert len(loaded) == len(complex_data)
+    assert loaded[0]["id"] == 1
+    assert loaded[1]["unicode_text"] == "Unicode: 🚀 émojis and spëcial chars"

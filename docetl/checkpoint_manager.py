@@ -135,15 +135,33 @@ class CheckpointManager:
             json.dump(data, f)
 
     def _save_as_parquet(self, checkpoint_path: str, data: List[Dict]) -> None:
-        """Save checkpoint data as Parquet."""
-        if data:
-            df = pd.DataFrame(data)
-            table = pa.Table.from_pandas(df)
-            pq.write_table(table, checkpoint_path, compression="snappy")
-        else:
+        """Save checkpoint data as Parquet with fallback to JSON for problematic data."""
+        if not data:
             # Handle empty data case
             empty_table = pa.Table.from_arrays([], names=[])
             pq.write_table(empty_table, checkpoint_path, compression="snappy")
+            return
+
+        try:
+            df = pd.DataFrame(data)
+            table = pa.Table.from_pandas(df)
+            pq.write_table(table, checkpoint_path, compression="snappy")
+        except (pa.ArrowNotImplementedError, pa.ArrowTypeError, ValueError) as e:
+            # PyArrow can't handle complex nested structures, empty structs, etc.
+            # Fall back to JSON storage with a warning
+            self._log(
+                f"[yellow]Warning: PyArrow serialization failed ({str(e)[:100]}...), "
+                f"falling back to JSON format for this checkpoint[/yellow]"
+            )
+
+            # Save as JSON instead with .json extension
+            json_path = checkpoint_path.replace(".parquet", ".json")
+            with open(json_path, "w") as f:
+                json.dump(data, f)
+
+            # Remove any partial parquet file that might have been created
+            if os.path.exists(checkpoint_path):
+                os.remove(checkpoint_path)
 
     def load_checkpoint(
         self, step_name: str, operation_name: str, operation_hash: str

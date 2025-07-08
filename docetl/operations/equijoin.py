@@ -118,6 +118,9 @@ class EquijoinOperation(BaseOperation):
             output = self.runner.api.parse_llm_response(
                 response.response, {"is_match": "bool"}
             )[0]
+            # Convert to bool if it's a string
+            if isinstance(output["is_match"], str):
+                output["is_match"] = output["is_match"].lower() == "true"
         except Exception as e:
             self.console.log(f"[red]Error parsing LLM response: {e}[/red]")
             return False, cost

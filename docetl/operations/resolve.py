@@ -92,6 +92,10 @@ class ResolveOperation(BaseOperation):
             {"is_match": "bool"},
         )[0]
 
+        # Convert to bool if it's a string
+        if isinstance(output["is_match"], str):
+            output["is_match"] = output["is_match"].lower() == "true"
+
         return output["is_match"], response.total_cost, prompt
 
     def syntax_check(self) -> None:

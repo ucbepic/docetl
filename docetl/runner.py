@@ -27,7 +27,6 @@ import functools
 import hashlib
 import json
 import os
-import shutil
 import time
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -37,6 +36,7 @@ from pydantic import BaseModel
 from rich.markup import escape
 from rich.panel import Panel
 
+from docetl.checkpoint_manager import CheckpointManager
 from docetl.config_wrapper import ConfigWrapper
 from docetl.containers import OpContainer, StepBoundary
 from docetl.dataset import Dataset, create_parsing_tool_map
@@ -128,8 +128,17 @@ class DSLRunner(ConfigWrapper):
     def _initialize_state(self) -> None:
         """Initialize basic runner state and datasets"""
         self.datasets = {}
-        self.intermediate_dir = (
-            self.config.get("pipeline", {}).get("output", {}).get("intermediate_dir")
+        output_config = self.config.get("pipeline", {}).get("output", {})
+        self.intermediate_dir = output_config.get("intermediate_dir")
+        storage_type = output_config.get("storage_type", "json")  # default to json
+
+        # Initialize checkpoint manager
+        self.checkpoint_manager = (
+            CheckpointManager(
+                self.intermediate_dir, console=self.console, storage_type=storage_type
+            )
+            if self.intermediate_dir
+            else None
         )
 
     def _setup_parsing_tools(self) -> None:
@@ -544,14 +553,7 @@ class DSLRunner(ConfigWrapper):
     def _load_from_checkpoint_if_exists(
         self, step_name: str, operation_name: str
     ) -> Optional[List[Dict]]:
-        if self.intermediate_dir is None:
-            return None
-
-        intermediate_config_path = os.path.join(
-            self.intermediate_dir, ".docetl_intermediate_config.json"
-        )
-
-        if not os.path.exists(intermediate_config_path):
+        if not self.checkpoint_manager:
             return None
 
         # Make sure the step and op name is in the checkpoint config path
@@ -561,40 +563,18 @@ class DSLRunner(ConfigWrapper):
         ):
             return None
 
-        # See if the checkpoint config is the same as the current step op hash
-        with open(intermediate_config_path, "r") as f:
-            intermediate_config = json.load(f)
-
-        if (
-            intermediate_config.get(step_name, {}).get(operation_name, "")
-            != self.step_op_hashes[step_name][operation_name]
-        ):
-            return None
-
-        checkpoint_path = os.path.join(
-            self.intermediate_dir, step_name, f"{operation_name}.json"
+        # Use the checkpoint manager to load the checkpoint
+        operation_hash = self.step_op_hashes[step_name][operation_name]
+        return self.checkpoint_manager.load_checkpoint(
+            step_name, operation_name, operation_hash
         )
-        # check if checkpoint exists
-        if os.path.exists(checkpoint_path):
-            if f"{step_name}_{operation_name}" not in self.datasets:
-                self.datasets[f"{step_name}_{operation_name}"] = Dataset(
-                    self, "file", checkpoint_path, "local"
-                )
-
-                self.console.log(
-                    f"[green]✓[/green] [italic]Loaded checkpoint for operation '{operation_name}' in step '{step_name}' from {checkpoint_path}[/italic]"
-                )
-
-                return self.datasets[f"{step_name}_{operation_name}"].load()
-        return None
 
     def clear_intermediate(self) -> None:
         """
         Clear the intermediate directory.
         """
-        # Remove the intermediate directory
-        if self.intermediate_dir:
-            shutil.rmtree(self.intermediate_dir)
+        if self.checkpoint_manager:
+            self.checkpoint_manager.clear_all_checkpoints()
             return
 
         raise ValueError("Intermediate directory not set. Cannot clear intermediate.")
@@ -605,7 +585,7 @@ class DSLRunner(ConfigWrapper):
         """
         Save a checkpoint of the current data after an operation.
 
-        This method creates a JSON file containing the current state of the data
+        This method saves the current state of the data using PyArrow format
         after an operation has been executed. The checkpoint is saved in a directory
         structure that reflects the step and operation names.
 
@@ -618,44 +598,15 @@ class DSLRunner(ConfigWrapper):
             The checkpoint is saved only if a checkpoint directory has been specified
             when initializing the DSLRunner.
         """
-        checkpoint_path = os.path.join(
-            self.intermediate_dir, step_name, f"{operation_name}.json"
-        )
-        if os.path.dirname(checkpoint_path):
-            os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
-        with open(checkpoint_path, "w") as f:
-            json.dump(data, f)
+        if not self.checkpoint_manager:
+            return
 
-        # Update the intermediate config file with the hash for this step/operation
-        # so that future runs can validate and reuse this checkpoint.
-        if self.intermediate_dir:
-            intermediate_config_path = os.path.join(
-                self.intermediate_dir, ".docetl_intermediate_config.json"
-            )
+        # Get the operation hash for validation
+        operation_hash = self.step_op_hashes[step_name][operation_name]
 
-            # Initialize or load existing intermediate configuration
-            if os.path.exists(intermediate_config_path):
-                try:
-                    with open(intermediate_config_path, "r") as cfg_file:
-                        intermediate_config: Dict[str, Dict[str, str]] = json.load(cfg_file)
-                except json.JSONDecodeError:
-                    # If the file is corrupted, start fresh to avoid crashes
-                    intermediate_config = {}
-            else:
-                intermediate_config = {}
-
-            # Ensure nested dict structure exists
-            step_dict = intermediate_config.setdefault(step_name, {})
-
-            # Write (or overwrite) the hash for the current operation
-            step_dict[operation_name] = self.step_op_hashes[step_name][operation_name]
-
-            # Persist the updated configuration
-            with open(intermediate_config_path, "w") as cfg_file:
-                json.dump(intermediate_config, cfg_file, indent=2)
-
-        self.console.log(
-            f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"
+        # Use the checkpoint manager to save the checkpoint
+        self.checkpoint_manager.save_checkpoint(
+            step_name, operation_name, data, operation_hash
         )
 
     def should_optimize(

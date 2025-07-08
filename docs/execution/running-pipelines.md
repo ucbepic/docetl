@@ -33,4 +33,59 @@ Here are some additional notes to help you get the most out of your pipeline:
       type: file
       path: ...
       intermediate_dir: intermediate_results
+      storage_type: json  # Optional: "json" (default) or "arrow"
   ```
+
+- **Storage Format**: You can choose the storage format for intermediate checkpoints using the `storage_type` parameter in your pipeline's output configuration:
+
+  - **JSON Format** (`storage_type: json`): Human-readable format that's easy to inspect and debug. This is the default format for backward compatibility.
+  - **PyArrow Format** (`storage_type: arrow`): Compressed binary format using Parquet files. Offers better performance and smaller file sizes for large datasets. Complex nested data structures are automatically sanitized for PyArrow compatibility while preserving the original data structure when loaded.
+
+  Example configurations:
+
+  ```yaml
+  # Use JSON format (default)
+  pipeline:
+    output:
+      type: file
+      path: results.json
+      intermediate_dir: checkpoints
+      storage_type: json
+  ```
+
+  ```yaml
+  # Use PyArrow format for better performance
+  pipeline:
+    output:
+      type: file
+      path: results.json
+      intermediate_dir: checkpoints
+      storage_type: arrow
+  ```
+
+  The checkpoint system is fully backward compatible - you can read existing JSON checkpoints even when using `storage_type: arrow`, and vice versa. This allows for seamless migration between formats.
+
+- **Standalone CheckpointManager Usage**: You can use the CheckpointManager independently from DocETL pipelines to load and analyze checkpoint data programmatically:
+
+  ```python
+  from docetl.checkpoint_manager import CheckpointManager
+
+  # Create from existing intermediate directory (auto-detects storage format)
+  cm = CheckpointManager.from_intermediate_dir("/path/to/intermediate")
+
+  # List all available checkpoints
+  outputs = cm.list_outputs()
+  print(f"Available checkpoints: {outputs}")
+
+  # Load specific checkpoint data
+  data = cm.load_output_by_step_and_op("step_name", "operation_name") 
+
+  # Load as pandas DataFrame for analysis
+  df = cm.load_output_as_dataframe("step_name", "operation_name")
+
+  # Check checkpoint file sizes
+  size = cm.get_checkpoint_size("step_name", "operation_name")
+  total_size = cm.get_total_checkpoint_size()
+  ```
+
+  This is useful for post-pipeline analysis, debugging, or building custom tools that work with DocETL checkpoint data.

@@ -202,7 +202,7 @@ Do not include explanatory text in your response, only the JSON object.
             output_schema=line_number_schema,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
         )
@@ -349,7 +349,7 @@ Return only the JSON object with your patterns, no explanatory text.
             output_schema=regex_schema,
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
         )

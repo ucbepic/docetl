@@ -161,7 +161,7 @@ class RankOperation(BaseOperation):
             {"ranking": "list[int]"},
             timeout_seconds=timeout_seconds,
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
         )
@@ -632,7 +632,7 @@ class RankOperation(BaseOperation):
                 {"ratings": "list[int]"},  # Specify output as list of integers
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-                bypass_cache=self.config.get("bypass_cache", False),
+                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                 litellm_completion_kwargs=self.config.get(
                     "litellm_completion_kwargs", {}
                 ),
@@ -991,7 +991,7 @@ class RankOperation(BaseOperation):
             {f"{top_or_bottom}_picks": "list[int]"},
             timeout_seconds=self.config.get("timeout", 120),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
             litellm_completion_kwargs=self.config.get("litellm_completion_kwargs", {}),
             op_config=self.config,
         )

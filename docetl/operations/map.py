@@ -139,7 +139,7 @@ Reference anchors:"""
                 {"calibration_context": "string"},
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-                bypass_cache=self.config.get("bypass_cache", False),
+                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                 litellm_completion_kwargs=completion_kwargs,
                 op_config=self.config,
             )
@@ -376,7 +376,7 @@ Reference anchors:"""
                 ),
                 gleaning_config=self.config.get("gleaning", None),
                 verbose=self.config.get("verbose", False),
-                bypass_cache=self.config.get("bypass_cache", False),
+                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                 initial_result=initial_result,
                 litellm_completion_kwargs=self.config.get(
                     "litellm_completion_kwargs", {}
@@ -435,7 +435,7 @@ Reference anchors:"""
                     max_retries_per_timeout=self.config.get(
                         "max_retries_per_timeout", 2
                     ),
-                    bypass_cache=self.config.get("bypass_cache", False),
+                    bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                     litellm_completion_kwargs=self.config.get(
                         "litellm_completion_kwargs", {}
                     ),
@@ -720,7 +720,7 @@ class ParallelMapOperation(BaseOperation):
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
                 gleaning_config=prompt_config.get("gleaning", None),
-                bypass_cache=self.config.get("bypass_cache", False),
+                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                 litellm_completion_kwargs=self.config.get(
                     "litellm_completion_kwargs", {}
                 ),

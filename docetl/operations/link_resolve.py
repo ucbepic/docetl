@@ -155,7 +155,7 @@ class LinkResolveOperation(BaseOperation):
             messages=[{"role": "user", "content": prompt}],
             output_schema=schema,
             timeout_seconds=self.config.get("timeout", 120),
-            bypass_cache=self.config.get("bypass_cache", False),
+            bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
             max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
             validation_config=(
                 {

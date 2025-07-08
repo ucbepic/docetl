@@ -16,9 +16,14 @@ A pipeline in DocETL consists of five main components:
 
 You can set the default model for a pipeline in the YAML configuration file. If no model is specified at the operation level, the default model will be used.
 
+You can also tell DocETL to skip the dataset-level cache for the entire pipeline by enabling `bypass_cache`. When set to `true`, DocETL will neither read from nor write to its cache for any operation in that pipeline—which is helpful when you want to force fresh executions during development or debugging.
+
 ```yaml
 default_model: gpt-4o-mini
+bypass_cache: true  # optional – defaults to false
 ```
+
+`bypass_cache` can still be overridden at the operator level if required.
 
 You can also specify default API base URLs for language models and embeddings if you're hosting your own models with an OpenAI-compatible API:
 

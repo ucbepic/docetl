@@ -544,7 +544,7 @@ class DSLRunner(ConfigWrapper):
     def _load_from_checkpoint_if_exists(
         self, step_name: str, operation_name: str
     ) -> Optional[List[Dict]]:
-        if self.intermediate_dir is None:
+        if self.intermediate_dir is None or self.config.get("bypass_cache", False):
             return None
 
         intermediate_config_path = os.path.join(
@@ -637,7 +637,9 @@ class DSLRunner(ConfigWrapper):
             if os.path.exists(intermediate_config_path):
                 try:
                     with open(intermediate_config_path, "r") as cfg_file:
-                        intermediate_config: Dict[str, Dict[str, str]] = json.load(cfg_file)
+                        intermediate_config: Dict[str, Dict[str, str]] = json.load(
+                            cfg_file
+                        )
                 except json.JSONDecodeError:
                     # If the file is corrupted, start fresh to avoid crashes
                     intermediate_config = {}

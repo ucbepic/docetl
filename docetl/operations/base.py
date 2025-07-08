@@ -64,6 +64,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
             "num_retries_on_validate_failure", 2
         )
         self.is_build = is_build
+        self.bypass_cache = self.runner.config.get("bypass_cache", False)
         self.syntax_check()
 
     # This must be overridden in a subclass

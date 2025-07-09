@@ -1,6 +1,6 @@
 # Pandas Integration
 
-DocETL provides seamless integration for a few operators (map, filter, merge, agg) with pandas through a dataframe accessor. This idea was proposed by LOTUS[^1]. 
+DocETL provides seamless integration for several operators (map, filter, merge, agg, split, gather, unnest) with pandas through a dataframe accessor. This idea was proposed by LOTUS[^1]. 
 
 ## Installation
 
@@ -18,6 +18,9 @@ The pandas integration provides a `.semantic` accessor that enables:
 - Intelligent filtering (`df.semantic.filter()`)
 - Fuzzy merging of DataFrames (`df.semantic.merge()`)
 - Semantic aggregation (`df.semantic.agg()`)
+- Content splitting into chunks (`df.semantic.split()`)
+- Contextual information gathering (`df.semantic.gather()`)
+- Data structure unnesting (`df.semantic.unnest()`)
 - Cost tracking and operation history
 
 ## Quick Example

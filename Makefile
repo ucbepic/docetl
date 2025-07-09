@@ -8,10 +8,11 @@ tests:
 	poetry run pytest
 
 tests-basic:
-	poetry run pytest tests/basic
+	poetry run pytest -s tests/basic
 	poetry run pytest -s tests/test_api.py
-	poetry run pytest tests/test_runner_caching.py
+	poetry run pytest -s tests/test_runner_caching.py
 	poetry run pytest -s tests/test_pandas_accessors.py
+	poetry run pytest -s tests/test_output_modes.py
 
 lint:
 	poetry run ruff check docetl/* --fix

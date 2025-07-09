@@ -100,6 +100,84 @@ df.semantic.agg(
 )
 ```
 
+## Split Operation
+
+::: docetl.apis.pd_accessors.SemanticAccessor.split
+    options:
+        show_root_heading: false
+        heading_level: 3
+
+Example usage:
+```python
+# Split by token count
+df.semantic.split(
+    split_key="content",
+    method="token_count",
+    method_kwargs={"num_tokens": 100}
+)
+
+# Split by delimiter
+df.semantic.split(
+    split_key="text",
+    method="delimiter",
+    method_kwargs={"delimiter": "\n\n", "num_splits_to_group": 2}
+)
+```
+
+## Gather Operation
+
+::: docetl.apis.pd_accessors.SemanticAccessor.gather
+    options:
+        show_root_heading: false
+        heading_level: 3
+
+Example usage:
+```python
+# Basic gathering with surrounding context
+df.semantic.gather(
+    content_key="chunk_content",
+    doc_id_key="document_id",
+    order_key="chunk_number",
+    peripheral_chunks={
+        "previous": {"head": {"count": 2}, "tail": {"count": 1}},
+        "next": {"head": {"count": 1}, "tail": {"count": 2}}
+    }
+)
+
+# Simple gathering without peripheral chunks
+df.semantic.gather(
+    content_key="content",
+    doc_id_key="doc_id",
+    order_key="order"
+)
+```
+
+## Unnest Operation
+
+::: docetl.apis.pd_accessors.SemanticAccessor.unnest
+    options:
+        show_root_heading: false
+        heading_level: 3
+
+Example usage:
+```python
+# Unnest a list column
+df.semantic.unnest(unnest_key="tags")
+
+# Unnest a dictionary column with specific fields
+df.semantic.unnest(
+    unnest_key="user_info",
+    expand_fields=["name", "age"]
+)
+
+# Recursive unnesting with depth control
+df.semantic.unnest(
+    unnest_key="nested_lists",
+    recursive=True,
+    depth=2
+)
+```
+
 ## Common Features
 
 All operations support:

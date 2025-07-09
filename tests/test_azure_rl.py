@@ -4,7 +4,7 @@ from docetl.operations.map import MapOperation
 import random
 import os
 from dotenv import load_dotenv
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 
 load_dotenv()
 

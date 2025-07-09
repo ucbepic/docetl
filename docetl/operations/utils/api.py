@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from litellm import (
@@ -40,6 +41,13 @@ from .validation import (
 )
 
 BASIC_MODELS = ["gpt-4o-mini", "gpt-4o"]
+
+
+class OutputMode(Enum):
+    """Enumeration of output modes for LLM calls."""
+
+    TOOLS = "tools"
+    STRUCTURED_OUTPUT = "structured_output"
 
 
 def is_deepseek_r1(model: str) -> bool:
@@ -188,6 +196,11 @@ class APIWrapper(object):
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
+        # Determine output mode using central enum
+        output_mode_str = op_config.get("output", {}).get(
+            "mode", OutputMode.TOOLS.value
+        )
+        use_structured_output = output_mode_str == OutputMode.STRUCTURED_OUTPUT.value
         if (
             model.startswith("gpt")
             and not os.environ.get("OPENAI_API_KEY")
@@ -212,6 +225,7 @@ class APIWrapper(object):
                         scratchpad,
                         litellm_completion_kwargs,
                         op_config=op_config,
+                        use_structured_output=use_structured_output,
                     )
                     total_cost += completion_cost(response)
                 else:
@@ -222,7 +236,13 @@ class APIWrapper(object):
                     num_gleaning_rounds = gleaning_config.get("num_rounds", 2)
 
                     parsed_output = (
-                        self.parse_llm_response(response, output_schema, tools)[0]
+                        self.parse_llm_response(
+                            response,
+                            output_schema,
+                            json.loads(tools) if tools else None,
+                            False,
+                            use_structured_output,
+                        )[0]
                         if isinstance(response, ModelResponse)
                         else response
                     )
@@ -239,6 +259,9 @@ class APIWrapper(object):
                     )
 
                     for rnd in range(num_gleaning_rounds):
+                        # Break early if gleaning condition is not met
+                        if not self.should_glean(gleaning_config, parsed_output):
+                            break
                         # Prepare validator prompt
                         validator_prompt = strict_render(
                             gleaning_config["validation_prompt"],
@@ -335,9 +358,10 @@ class APIWrapper(object):
                             scratchpad,
                             litellm_completion_kwargs,
                             op_config=op_config,
+                            use_structured_output=use_structured_output,
                         )
                         parsed_output = self.parse_llm_response(
-                            response, output_schema, tools
+                            response, output_schema, tools, False, use_structured_output
                         )[0]
                         validator_messages[-1] = {
                             "role": "assistant",
@@ -392,6 +416,7 @@ class APIWrapper(object):
                             scratchpad,
                             litellm_completion_kwargs,
                             op_config=op_config,
+                            use_structured_output=use_structured_output,
                         )
                         total_cost += completion_cost(response)
 
@@ -440,12 +465,22 @@ class APIWrapper(object):
             max_retries_per_timeout (int): The maximum number of retries per timeout.
             bypass_cache (bool): Whether to bypass the cache.
             initial_result (Optional[Any]): The initial result to use for the operation, if exists.
+            op_config (Dict[str, Any]): Operation configuration, may contain output.mode.
         Returns:
             LLMResult: The result from the cached LLM call.
 
         Raises:
             TimeoutError: If the call times out after retrying.
         """
+        # Determine output mode using central enum
+        output_mode_str = op_config.get("output", {}).get(
+            "mode", OutputMode.TOOLS.value
+        )
+        if output_mode_str not in [mode.value for mode in OutputMode]:
+            raise ValueError(
+                f"Invalid output mode '{output_mode_str}'. Must be 'tools' or 'structured_output'."
+            )
+
         key = cache_key(
             model,
             op_type,
@@ -542,6 +577,7 @@ class APIWrapper(object):
         scratchpad: Optional[str] = None,
         litellm_completion_kwargs: Dict[str, Any] = {},
         op_config: Dict[str, Any] = {},
+        use_structured_output: bool = False,
     ) -> Any:
         """
         Make an LLM call with caching.
@@ -570,7 +606,11 @@ class APIWrapper(object):
         ):
             use_tools = False
 
-        if tools is None and use_tools:
+        # For structured output mode, override use_tools
+        if use_structured_output:
+            use_tools = False
+
+        if tools is None and use_tools and not use_structured_output:
             if scratchpad is not None:
                 props["updated_scratchpad"] = {"type": "string"}
 
@@ -624,6 +664,28 @@ class APIWrapper(object):
             tools = None
             tool_choice = None
 
+        # Prepare structured output schema if using structured output mode
+        response_format = None
+        if use_structured_output:
+            if scratchpad is not None:
+                props["updated_scratchpad"] = {"type": "string"}
+
+            schema = {
+                "type": "object",
+                "properties": props,
+                "required": list(props.keys()),
+                "additionalProperties": False,
+            }
+
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "structured_output",
+                    "schema": schema,
+                    "strict": True,
+                },
+            }
+
         persona = self.runner.config.get("system_prompt", {}).get(
             "persona", "a helpful assistant"
         )
@@ -637,7 +699,12 @@ class APIWrapper(object):
         # Different system prompts based on model type
         base_prompt = f"You are a {persona}, helping the user make sense of their data. The dataset description is: {dataset_description}. You will be performing a {op_type} operation ({parethetical_op_instructions}). You will perform the specified task on the provided data, as precisely and exhaustively (i.e., high recall) as possible."
 
-        if "sagemaker" in model or is_deepseek_r1(model):
+        if use_structured_output:
+            system_prompt = (
+                base_prompt
+                + " Respond with a JSON object that follows the required schema."
+            )
+        elif "sagemaker" in model or is_deepseek_r1(model):
             system_prompt = base_prompt
         else:
             system_prompt = (
@@ -678,7 +745,16 @@ If you use the scratchpad, keep it concise (~500 chars) and easily parsable usin
 Your main result must be sent via send_output. The updated_scratchpad is only for tracking state between batches, and should be null unless you specifically need to track frequencies."""
 
         # Truncate messages if they exceed the model's context length
-        messages = truncate_messages(messages, model)
+        messages_with_system_prompt = truncate_messages(
+            [
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+            ]
+            + messages,
+            model,
+        )
 
         self.runner.blocking_acquire("llm_call", weight=1)
 
@@ -697,17 +773,27 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         if self.default_lm_api_base:
             extra_litellm_kwargs["api_base"] = self.default_lm_api_base
 
-        if tools is not None:
+        if use_structured_output:
             try:
                 response = completion(
                     model=model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt,
-                        },
-                    ]
-                    + messages,
+                    messages=messages_with_system_prompt,
+                    response_format=response_format,
+                    **extra_litellm_kwargs,
+                )
+            except Exception as e:
+                # Check that there's a prefix for the model name if it's not a basic model
+                if model not in BASIC_MODELS:
+                    if "/" not in model:
+                        raise ValueError(
+                            f"Note: You may also need to prefix your model name with the provider, e.g. 'openai/gpt-4o-mini' or 'gemini/gemini-1.5-flash' to conform to LiteLLM API standards. Original error: {e}"
+                        )
+                raise e
+        elif tools is not None:
+            try:
+                response = completion(
+                    model=model,
+                    messages=messages_with_system_prompt,
                     tools=tools,
                     tool_choice=tool_choice,
                     **extra_litellm_kwargs,
@@ -724,13 +810,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             try:
                 response = completion(
                     model=model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt,
-                        },
-                    ]
-                    + messages,
+                    messages=messages_with_system_prompt,
                     **extra_litellm_kwargs,
                 )
             except Exception as e:
@@ -750,6 +830,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         schema: Dict[str, Any] = {},
         tools: Optional[List[Dict[str, str]]] = None,
         manually_fix_errors: bool = False,
+        use_structured_output: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Parse the response from a language model.
@@ -763,7 +844,9 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             results = []
             for index in range(len(response.choices)):
                 results.extend(
-                    self._parse_llm_response_helper(response, schema, tools, index)
+                    self._parse_llm_response_helper(
+                        response, schema, tools, index, use_structured_output
+                    )
                 )
             return results
         except InvalidOutputError as e:
@@ -788,6 +871,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         schema: Dict[str, Any] = {},
         tools: Optional[List[Dict[str, str]]] = None,
         index: int = 0,
+        use_structured_output: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Parse the response from a language model.
@@ -799,6 +883,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
             response (Any): The response object from the language model.
             schema (Optional[Dict[str, Any]]): The schema that was passed to the LLM.
             tools (Optional[List[Dict[str, str]]]): The tools that were passed to the LLM.
+            use_structured_output (bool): Whether structured output mode was used.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries containing the parsed output.
@@ -806,6 +891,90 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         Raises:
             InvalidOutputError: If the response is not valid.
         """
+        # Handle structured output mode
+        if use_structured_output:
+            # Raw assistant content
+            content = response.choices[index].message.content
+
+            # Special-case deepseek-r1 style <think> tags
+            if is_deepseek_r1(response.model):
+                think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+                if think_match:
+                    think_content = think_match.group(1).strip()
+                    # Content after </think>
+                    main_content = re.split(r"</think>", content, maxsplit=1)[
+                        -1
+                    ].strip()
+                else:
+                    think_content = None
+                    main_content = content
+
+                # Parse the main JSON content
+                try:
+                    parsed_output = json.loads(main_content)
+                except json.JSONDecodeError:
+                    raise InvalidOutputError(
+                        "Could not decode structured output JSON response",
+                        main_content,
+                        schema,
+                        response.choices,
+                        tools or [],
+                    )
+
+                if think_content is not None:
+                    parsed_output = {"think": think_content, **parsed_output}
+
+                # Attempt to parse any top-level values that are JSON-encoded strings
+                for k, v in parsed_output.items():
+                    if isinstance(v, str):
+                        try:
+                            if v.strip().startswith("{") or v.strip().startswith("["):
+                                parsed_output[k] = json.loads(v)
+                        except json.JSONDecodeError:
+                            # leave value as-is if parsing fails
+                            pass
+
+                # Unwrap nested dict that redundantly nests the same key
+                if (
+                    isinstance(parsed_output[k], dict)
+                    and len(parsed_output[k]) == 1
+                    and k in parsed_output[k]
+                ):
+                    parsed_output[k] = parsed_output[k][k]
+
+                return [parsed_output]
+
+            # Default: just load JSON for structured output
+            try:
+                parsed_output = json.loads(content)
+            except json.JSONDecodeError:
+                raise InvalidOutputError(
+                    "Could not decode structured output JSON response",
+                    content,
+                    schema,
+                    response.choices,
+                    tools or [],
+                )
+
+            # Attempt to parse any top-level values that are JSON-encoded strings
+            for k, v in parsed_output.items():
+                if isinstance(v, str):
+                    try:
+                        if v.strip().startswith("{") or v.strip().startswith("["):
+                            parsed_output[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        # leave value as-is if parsing fails
+                        pass
+
+                # Unwrap nested dict that redundantly nests the same key
+                if (
+                    isinstance(parsed_output[k], dict)
+                    and len(parsed_output[k]) == 1
+                    and k in parsed_output[k]
+                ):
+                    parsed_output[k] = parsed_output[k][k]
+
+            return [parsed_output]
         if is_snowflake(response.model):
             tool_calls = (
                 [
@@ -967,3 +1136,36 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                 console.log(f"[yellow]Output:[/yellow] {output}")
                 return False
         return True
+
+    def should_glean(
+        self, gleaning_config: Optional[Dict[str, Any]], output: Dict[str, Any]
+    ) -> bool:
+        """Determine whether to execute a gleaning round based on an optional conditional expression.
+
+        If ``gleaning_config`` contains an ``"if"`` key, its value is treated as a Python
+        boolean expression that will be evaluated with the current ``output`` bound to the
+        name ``output`` using :pyfunc:`safe_eval`. When the expression evaluates to
+        ``True`` the gleaning round proceeds. If it evaluates to ``False`` (or raises an
+        exception) the gleaning loop should terminate early.
+
+        If no ``"if"`` key is present the method defaults to returning ``True`` so that
+        gleaning proceeds normally.
+        """
+        # No gleaning_config or no conditional -> always glean
+        if not gleaning_config or "if" not in gleaning_config:
+            return True
+
+        condition = gleaning_config.get("if")
+        if not isinstance(condition, str):
+            raise ValueError(
+                f"Invalid gleaning condition (should be a string): {condition}"
+            )
+
+        try:
+            return safe_eval(condition, output)
+        except Exception as exc:
+            # If evaluation fails, default to not glean and log for visibility
+            self.runner.console.log(
+                f"[bold red]Error evaluating gleaning condition '{condition}': {exc}; executing gleaning round anyway[/bold red]"
+            )
+            return False

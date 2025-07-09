@@ -544,7 +544,7 @@ class DSLRunner(ConfigWrapper):
     def _load_from_checkpoint_if_exists(
         self, step_name: str, operation_name: str
     ) -> Optional[List[Dict]]:
-        if self.intermediate_dir is None:
+        if self.intermediate_dir is None or self.config.get("bypass_cache", False):
             return None
 
         intermediate_config_path = os.path.join(
@@ -625,6 +625,36 @@ class DSLRunner(ConfigWrapper):
             os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         with open(checkpoint_path, "w") as f:
             json.dump(data, f)
+
+        # Update the intermediate config file with the hash for this step/operation
+        # so that future runs can validate and reuse this checkpoint.
+        if self.intermediate_dir:
+            intermediate_config_path = os.path.join(
+                self.intermediate_dir, ".docetl_intermediate_config.json"
+            )
+
+            # Initialize or load existing intermediate configuration
+            if os.path.exists(intermediate_config_path):
+                try:
+                    with open(intermediate_config_path, "r") as cfg_file:
+                        intermediate_config: Dict[str, Dict[str, str]] = json.load(
+                            cfg_file
+                        )
+                except json.JSONDecodeError:
+                    # If the file is corrupted, start fresh to avoid crashes
+                    intermediate_config = {}
+            else:
+                intermediate_config = {}
+
+            # Ensure nested dict structure exists
+            step_dict = intermediate_config.setdefault(step_name, {})
+
+            # Write (or overwrite) the hash for the current operation
+            step_dict[operation_name] = self.step_op_hashes[step_name][operation_name]
+
+            # Persist the updated configuration
+            with open(intermediate_config_path, "w") as cfg_file:
+                json.dump(intermediate_config, cfg_file, indent=2)
 
         self.console.log(
             f"[green]✓ [italic]Intermediate saved for operation '{operation_name}' in step '{step_name}' at {checkpoint_path}[/italic][/green]"

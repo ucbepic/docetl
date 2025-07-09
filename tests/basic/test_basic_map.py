@@ -2,21 +2,113 @@
 
 from docetl.operations.map import MapOperation
 from tests.conftest import (
-    api_wrapper as api_wrapper,
-    map_config_with_batching as map_config_with_batching,
-    default_model as default_model,
-    max_threads as max_threads,
-    map_sample_data as map_sample_data,
-    map_sample_data_large as map_sample_data_large,
-    map_config as map_config,
-    test_map_operation_instance as test_map_operation_instance,
-    map_config_with_drop_keys as map_config_with_drop_keys,
-    map_sample_data_with_extra_keys as map_sample_data_with_extra_keys,
-    map_config_with_drop_keys_no_prompt as map_config_with_drop_keys_no_prompt,
+    runner,
+    map_config_with_batching,
+    default_model,
+    max_threads,
+    map_sample_data,
+    map_sample_data_large,
+    map_config,
+    synthetic_data,
 )
 import pytest
 import docetl
 
+
+# =============================================================================
+# FIXTURES SPECIFIC TO MAP OPERATION TESTS
+# =============================================================================
+
+@pytest.fixture
+def map_config_with_drop_keys():
+    return {
+        "name": "sentiment_analysis_with_drop",
+        "type": "map",
+        "prompt": "Analyze the sentiment of the following text: '{{ input.text }}'. Classify it as either positive, negative, or neutral.",
+        "output": {"schema": {"sentiment": "string"}},
+        "model": "gpt-4o-mini",
+        "drop_keys": ["to_be_dropped"],
+    }
+
+
+@pytest.fixture
+def map_config_with_drop_keys_no_prompt():
+    return {
+        "name": "drop_keys_only",
+        "type": "map",
+        "drop_keys": ["to_be_dropped"],
+        "model": "gpt-4o-mini",
+    }
+
+
+@pytest.fixture
+def map_sample_data_with_extra_keys():
+    return [
+        {
+            "text": "This is a positive sentence.",
+            "original_sentiment": "positive",
+            "to_be_dropped": "extra",
+        },
+        {
+            "text": "This is a negative sentence.",
+            "original_sentiment": "negative",
+            "to_be_dropped": "extra",
+        },
+        {
+            "text": "This is a neutral sentence.",
+            "original_sentiment": "neutral",
+            "to_be_dropped": "extra",
+        },
+    ]
+
+
+@pytest.fixture
+def map_config_with_tools():
+    return {
+        "type": "map",
+        "name": "word_count",
+        "prompt": "Count the number of words in the following text: '{{ input.text }}'",
+        "output": {"schema": {"word_count": "integer"}},
+        "model": "gpt-4o-mini",
+        "tools": [
+            {
+                "required": True,
+                "code": """
+def count_words(text):
+    return {"word_count": len(text.split())}
+                """,
+                "function": {
+                    "name": "count_words",
+                    "description": "Count the number of words in a text string.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "text": {
+                                "type": "string",
+                            }
+                        },
+                        "required": ["text"],
+                    },
+                },
+            }
+        ],
+        "validate": ["len(output['text']) > 0"],
+        "num_retries_on_validate_failure": 3,
+    }
+
+
+@pytest.fixture
+def test_map_operation_instance(
+    map_config_with_batching, default_model, max_threads, runner
+):
+    return MapOperation(
+        runner, map_config_with_batching, default_model, max_threads
+    )
+
+
+# =============================================================================
+# TEST FUNCTIONS
+# =============================================================================
 
 def test_map_operation(
     test_map_operation_instance,
@@ -32,8 +124,8 @@ def test_map_operation(
     )
 
 
-def test_map_operation_empty_input(map_config, default_model, max_threads, api_wrapper):
-    operation = MapOperation(api_wrapper, map_config, default_model, max_threads)
+def test_map_operation_empty_input(map_config, default_model, max_threads, runner):
+    operation = MapOperation(runner, map_config, default_model, max_threads)
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -45,11 +137,11 @@ def test_map_operation_with_drop_keys(
     default_model,
     max_threads,
     map_sample_data_with_extra_keys,
-    api_wrapper,
+    runner,
 ):
     map_config_with_drop_keys["bypass_cache"] = True
     operation = MapOperation(
-        api_wrapper, map_config_with_drop_keys, default_model, max_threads
+        runner, map_config_with_drop_keys, default_model, max_threads
     )
     results, cost = operation.execute(map_sample_data_with_extra_keys)
 
@@ -69,10 +161,10 @@ def test_map_operation_with_drop_keys_no_prompt(
     default_model,
     max_threads,
     map_sample_data_with_extra_keys,
-    api_wrapper,
+    runner,
 ):
     operation = MapOperation(
-        api_wrapper, map_config_with_drop_keys_no_prompt, default_model, max_threads
+        runner, map_config_with_drop_keys_no_prompt, default_model, max_threads
     )
     results, cost = operation.execute(map_sample_data_with_extra_keys)
 
@@ -88,10 +180,10 @@ def test_map_operation_with_batching(
     default_model,
     max_threads,
     map_sample_data,
-    api_wrapper,
+    runner,
 ):
     operation = MapOperation(
-        api_wrapper, map_config_with_batching, default_model, max_threads
+        runner, map_config_with_batching, default_model, max_threads
     )
     results, cost = operation.execute(map_sample_data)
 
@@ -104,10 +196,10 @@ def test_map_operation_with_batching(
 
 
 def test_map_operation_with_empty_input(
-    map_config_with_batching, default_model, max_threads, api_wrapper
+    map_config_with_batching, default_model, max_threads, runner
 ):
     operation = MapOperation(
-        api_wrapper, map_config_with_batching, default_model, max_threads
+        runner, map_config_with_batching, default_model, max_threads
     )
     results, cost = operation.execute([])
 
@@ -120,11 +212,11 @@ def test_map_operation_with_large_max_batch_size(
     default_model,
     max_threads,
     map_sample_data,
-    api_wrapper,
+    runner,
 ):
     map_config_with_batching["max_batch_size"] = 5  # Set batch size larger than data
     operation = MapOperation(
-        api_wrapper, map_config_with_batching, default_model, max_threads
+        runner, map_config_with_batching, default_model, max_threads
     )
     results, cost = operation.execute(map_sample_data)
 
@@ -132,9 +224,9 @@ def test_map_operation_with_large_max_batch_size(
 
 
 def test_map_operation_with_word_count_tool(
-    map_config_with_tools, synthetic_data, api_wrapper
+    map_config_with_tools, synthetic_data, runner
 ):
-    operation = MapOperation(api_wrapper, map_config_with_tools, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_tools, "gpt-4o-mini", 4)
     results, cost = operation.execute(synthetic_data)
 
     assert len(results) == len(synthetic_data)
@@ -174,7 +266,7 @@ def simple_sample_data():
 
 
 # @pytest.mark.flaky(reruns=2)
-# def test_map_operation_with_timeout(simple_map_config, simple_sample_data, api_wrapper):
+# def test_map_operation_with_timeout(simple_map_config, simple_sample_data, runner):
 #     # Add timeout to the map configuration
 #     map_config_with_timeout = {
 #         **simple_map_config,
@@ -183,14 +275,14 @@ def simple_sample_data():
 #         "bypass_cache": True,
 #     }
 
-#     operation = MapOperation(api_wrapper, map_config_with_timeout, "gpt-4o-mini", 4)
+#     operation = MapOperation(runner, map_config_with_timeout, "gpt-4o-mini", 4)
 
 #     # Execute the operation and expect empty results
 #     results, cost = operation.execute(simple_sample_data)
 #     assert len(results) == 0
 
 
-def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wrapper):
+def test_map_operation_with_gleaning(simple_map_config, map_sample_data, runner):
     # Add gleaning configuration to the map configuration
     map_config_with_gleaning = {
         **simple_map_config,
@@ -201,7 +293,7 @@ def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wra
         "bypass_cache": True,
     }
 
-    operation = MapOperation(api_wrapper, map_config_with_gleaning, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_gleaning, "gpt-4o-mini", 4)
 
     # Execute the operation
     results, cost = operation.execute(map_sample_data)
@@ -218,14 +310,14 @@ def test_map_operation_with_gleaning(simple_map_config, map_sample_data, api_wra
         any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
 
-def test_map_with_enum_output(simple_map_config, map_sample_data, api_wrapper):
+def test_map_with_enum_output(simple_map_config, map_sample_data, runner):
     map_config_with_enum_output = {
         **simple_map_config,
         "output": {"schema": {"sentiment": "enum[positive, negative, neutral]"}},
         "bypass_cache": True,
     }
 
-    operation = MapOperation(api_wrapper, map_config_with_enum_output, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_enum_output, "gpt-4o-mini", 4)
     results, cost = operation.execute(map_sample_data)
 
     assert len(results) == len(map_sample_data)
@@ -234,7 +326,7 @@ def test_map_with_enum_output(simple_map_config, map_sample_data, api_wrapper):
 
     # # Try gemini model
     # map_config_with_enum_output["model"] = "gemini/gemini-1.5-flash"
-    # operation = MapOperation(api_wrapper, map_config_with_enum_output, "gemini/gemini-1.5-flash", 4)
+    # operation = MapOperation(runner, map_config_with_enum_output, "gemini/gemini-1.5-flash", 4)
     # results, cost = operation.execute(map_sample_data)
 
     # assert len(results) == len(map_sample_data)
@@ -244,7 +336,7 @@ def test_map_with_enum_output(simple_map_config, map_sample_data, api_wrapper):
 
     # Try list of enum types
     map_config_with_enum_output["output"] = {"schema": {"possible_sentiments": "list[enum[positive, negative, neutral]]"}}
-    operation = MapOperation(api_wrapper, map_config_with_enum_output, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_enum_output, "gpt-4o-mini", 4)
     results, cost = operation.execute(map_sample_data)
     assert cost > 0
 
@@ -256,7 +348,7 @@ def test_map_with_enum_output(simple_map_config, map_sample_data, api_wrapper):
 
     
 
-def test_map_operation_with_batch_processing(simple_map_config, map_sample_data, api_wrapper):
+def test_map_operation_with_batch_processing(simple_map_config, map_sample_data, runner):
     # Add batch processing configuration
     map_config_with_batch = {
         **simple_map_config,
@@ -275,7 +367,7 @@ For each text, provide a sentiment analysis in the following format:
         "num_retries_on_validate_failure": 1,
     }
 
-    operation = MapOperation(api_wrapper, map_config_with_batch, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_batch, "gpt-4o-mini", 4)
 
     # Execute the operation
     results, cost = operation.execute(map_sample_data)
@@ -292,7 +384,7 @@ For each text, provide a sentiment analysis in the following format:
         any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
 
-def test_map_operation_with_larger_batch(simple_map_config, map_sample_data_with_extra_keys, api_wrapper):
+def test_map_operation_with_larger_batch(simple_map_config, map_sample_data_with_extra_keys, runner):
     # Add batch processing configuration with larger batch size
     map_config_with_large_batch = {
         **simple_map_config,
@@ -311,7 +403,7 @@ For each text, provide a sentiment analysis in the following format:
         "num_retries_on_validate_failure": 1,
     }
 
-    operation = MapOperation(api_wrapper, map_config_with_large_batch, "gpt-4o-mini", 64)
+    operation = MapOperation(runner, map_config_with_large_batch, "gpt-4o-mini", 64)
 
     # Execute the operation with the larger dataset
     results, cost = operation.execute(map_sample_data_with_extra_keys * 4)
@@ -328,7 +420,7 @@ For each text, provide a sentiment analysis in the following format:
         any(vs in result["sentiment"] for vs in valid_sentiments) for result in results
     )
 
-def test_map_operation_with_max_tokens(simple_map_config, map_sample_data, api_wrapper):
+def test_map_operation_with_max_tokens(simple_map_config, map_sample_data, runner):
     # Add litellm_completion_kwargs configuration with max_tokens
     map_config_with_max_tokens = {
         **simple_map_config,
@@ -338,7 +430,7 @@ def test_map_operation_with_max_tokens(simple_map_config, map_sample_data, api_w
         "bypass_cache": True
     }
 
-    operation = MapOperation(api_wrapper, map_config_with_max_tokens, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_max_tokens, "gpt-4o-mini", 4)
 
     # Execute the operation
     results, cost = operation.execute(map_sample_data)
@@ -359,7 +451,7 @@ def test_map_operation_with_max_tokens(simple_map_config, map_sample_data, api_w
     # The sentiment field should contain just the sentiment value without much extra text
     assert all(len(result["sentiment"]) <= 20 for result in results)
     
-def test_map_operation_with_verbose(simple_map_config, map_sample_data, api_wrapper):
+def test_map_operation_with_verbose(simple_map_config, map_sample_data, runner):
     # Add verbose configuration
     map_config_with_verbose = {
         **simple_map_config,
@@ -367,7 +459,7 @@ def test_map_operation_with_verbose(simple_map_config, map_sample_data, api_wrap
         "bypass_cache": True
     }
 
-    operation = MapOperation(api_wrapper, map_config_with_verbose, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_verbose, "gpt-4o-mini", 4)
 
     # Execute the operation
     results, cost = operation.execute(map_sample_data)
@@ -385,7 +477,7 @@ def test_map_operation_with_verbose(simple_map_config, map_sample_data, api_wrap
     )
 
 def test_map_operation_partial_checkpoint(
-    tmp_path, simple_map_config, default_model, max_threads, map_sample_data, api_wrapper
+    tmp_path, simple_map_config, default_model, max_threads, map_sample_data, runner
 ):
     """
     Test that MapOperation flushes partial results to disk when checkpoint_partial is enabled.
@@ -412,11 +504,11 @@ def test_map_operation_partial_checkpoint(
     }
 
     # Set the runner's intermediate_dir.
-    # In our tests, 'api_wrapper' acts as the runner.
-    api_wrapper.intermediate_dir = str(intermediate_dir)
+    # Set the runner's intermediate_dir for testing
+    runner.intermediate_dir = str(intermediate_dir)
 
     # Create and run the MapOperation.
-    operation = MapOperation(api_wrapper, map_config, default_model, max_threads)
+    operation = MapOperation(runner, map_config, default_model, max_threads)
     results, cost = operation.execute(map_sample_data)
 
     # Determine the expected batch folder based on the operation name.
@@ -436,7 +528,7 @@ def test_map_operation_partial_checkpoint(
         assert data, "Partial checkpoint file is empty"
 
 
-def test_map_operation_with_calibration(simple_map_config, map_sample_data, api_wrapper):
+def test_map_operation_with_calibration(simple_map_config, map_sample_data, runner):
     """
     Test that MapOperation performs calibration when enabled.
     
@@ -454,7 +546,7 @@ def test_map_operation_with_calibration(simple_map_config, map_sample_data, api_
         "bypass_cache": True
     }
 
-    operation = MapOperation(api_wrapper, map_config_with_calibration, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_calibration, "gpt-4o-mini", 4)
     
     # Execute the operation with calibration
     results, cost = operation.execute(map_sample_data)
@@ -475,7 +567,7 @@ def test_map_operation_with_calibration(simple_map_config, map_sample_data, api_
     assert cost > 0
 
 
-def test_map_operation_calibration_with_larger_sample(simple_map_config, map_sample_data_large, api_wrapper):
+def test_map_operation_calibration_with_larger_sample(simple_map_config, map_sample_data_large, runner):
     """
     Test calibration with a larger dataset to ensure proper sampling.
     """
@@ -487,7 +579,7 @@ def test_map_operation_calibration_with_larger_sample(simple_map_config, map_sam
         "bypass_cache": True
     }
 
-    operation = MapOperation(api_wrapper, map_config_with_calibration, "gpt-4o-mini", 4)
+    operation = MapOperation(runner, map_config_with_calibration, "gpt-4o-mini", 4)
     
     # Execute the operation with calibration on larger dataset
     results, cost = operation.execute(map_sample_data_large)
@@ -506,3 +598,19 @@ def test_map_operation_calibration_with_larger_sample(simple_map_config, map_sam
 
     # Verify that cost is greater than 0
     assert cost > 0
+
+def test_should_glean_condition(runner):
+    """Unit-test the conditional gleaning logic on DSLRunner.api.should_glean."""
+
+    wrapper = runner.api  # APIWrapper instance attached to the runner
+
+    # Case 1: condition evaluates to True
+    gleaning_config = {"if": "output['flag'] == True"}
+    assert wrapper.should_glean(gleaning_config, {"flag": True}) is True
+
+    # Case 2: condition evaluates to False
+    assert wrapper.should_glean(gleaning_config, {"flag": False}) is False
+
+    # Case 3: No condition key -> default to True
+    assert wrapper.should_glean({}, {"flag": False}) is True
+    assert wrapper.should_glean(None, {"flag": False}) is True

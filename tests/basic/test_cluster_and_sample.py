@@ -1,7 +1,7 @@
 import pytest
 from docetl.operations.cluster import ClusterOperation
 from docetl.operations.sample import SampleOperation
-from tests.conftest import api_wrapper, default_model, max_threads
+from tests.conftest import runner, default_model, max_threads
 
 
 @pytest.fixture
@@ -84,11 +84,11 @@ def sample_data():
 
 
 def test_cluster_operation(
-    cluster_config, sample_data, api_wrapper, default_model, max_threads
+    cluster_config, sample_data, runner, default_model, max_threads
 ):
     cluster_config["bypass_cache"] = True
     operation = ClusterOperation(
-        api_wrapper, cluster_config, default_model, max_threads
+        runner, cluster_config, default_model, max_threads
     )
     results, cost = operation.execute(sample_data)
 
@@ -106,10 +106,10 @@ def test_cluster_operation(
 
 
 def test_cluster_operation_empty_input(
-    cluster_config, api_wrapper, default_model, max_threads
+    cluster_config, runner, default_model, max_threads
 ):
     operation = ClusterOperation(
-        api_wrapper, cluster_config, default_model, max_threads
+        runner, cluster_config, default_model, max_threads
     )
     results, cost = operation.execute([])
 
@@ -118,13 +118,13 @@ def test_cluster_operation_empty_input(
 
 
 def test_cluster_operation_single_item(
-    cluster_config, api_wrapper, default_model, max_threads
+    cluster_config, runner, default_model, max_threads
 ):
     single_item = [
         {"concept": "House", "description": "A building for human habitation."}
     ]
     operation = ClusterOperation(
-        api_wrapper, cluster_config, default_model, max_threads
+        runner, cluster_config, default_model, max_threads
     )
     results, cost = operation.execute(single_item)
 
@@ -144,11 +144,11 @@ def sample_config():
 
 
 def test_sample_operation_with_count(
-    sample_config, sample_data, api_wrapper, default_model, max_threads
+    sample_config, sample_data, runner, default_model, max_threads
 ):
     sample_config["samples"] = 5
     sample_config["method"] = "uniform"
-    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
     assert len(results) == 5
@@ -157,11 +157,11 @@ def test_sample_operation_with_count(
 
 
 def test_sample_operation_with_fraction(
-    sample_config, sample_data, api_wrapper, default_model, max_threads
+    sample_config, sample_data, runner, default_model, max_threads
 ):
     sample_config["samples"] = 0.5
     sample_config["method"] = "uniform"
-    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
     assert len(results) == len(sample_data) // 2
@@ -170,12 +170,12 @@ def test_sample_operation_with_fraction(
 
 
 def test_sample_operation_with_list(
-    sample_config, sample_data, api_wrapper, default_model, max_threads
+    sample_config, sample_data, runner, default_model, max_threads
 ):
     sample_list = [{"id": 1}, {"id": 3}, {"id": 5}]
     sample_config["samples"] = sample_list
     sample_config["method"] = "custom"
-    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
     assert len(results) == len(sample_list)
@@ -184,12 +184,12 @@ def test_sample_operation_with_list(
 
 
 def test_sample_operation_with_stratify(
-    sample_config, sample_data, api_wrapper, default_model, max_threads
+    sample_config, sample_data, runner, default_model, max_threads
 ):
     sample_config["samples"] = 5
     sample_config["method"] = "stratify"
     sample_config["method_kwargs"] = {"stratify_key": "group"}
-    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
     assert len(results) == 5
@@ -199,7 +199,7 @@ def test_sample_operation_with_stratify(
 
 
 def test_sample_operation_with_outliers(
-    sample_config, sample_data, api_wrapper, default_model, max_threads
+    sample_config, sample_data, runner, default_model, max_threads
 ):
     sample_config["method"] = "outliers"
     sample_config["method_kwargs"] = {
@@ -207,7 +207,7 @@ def test_sample_operation_with_outliers(
         "embedding_keys": ["concept", "description"],
         "keep": True,
     }
-    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
     assert len(results) < len(sample_data)
@@ -216,11 +216,11 @@ def test_sample_operation_with_outliers(
 
 
 def test_sample_operation_empty_input(
-    sample_config, api_wrapper, default_model, max_threads
+    sample_config, runner, default_model, max_threads
 ):
     sample_config["samples"] = 3
     sample_config["method"] = "uniform"
-    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -228,7 +228,7 @@ def test_sample_operation_empty_input(
 
 
 def test_sample_operation_with_outliers_and_center(
-    sample_config, sample_data, api_wrapper, default_model, max_threads
+    sample_config, sample_data, runner, default_model, max_threads
 ):
     sample_config["method"] = "outliers"
     sample_config["method_kwargs"] = {
@@ -240,7 +240,7 @@ def test_sample_operation_with_outliers_and_center(
             "description": "A small house built among the branches of a tree for children to play in.",
         },
     }
-    operation = SampleOperation(api_wrapper, sample_config, default_model, max_threads)
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
     assert len(results) < len(sample_data)

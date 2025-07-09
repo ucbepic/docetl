@@ -16,6 +16,7 @@ from tqdm import tqdm
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar, strict_render
+from docetl.operations.utils.api import OutputMode
 
 
 class MapOperation(BaseOperation):
@@ -138,7 +139,7 @@ Reference anchors:"""
                 {"calibration_context": "string"},
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-                bypass_cache=self.config.get("bypass_cache", False),
+                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                 litellm_completion_kwargs=completion_kwargs,
                 op_config=self.config,
             )
@@ -326,12 +327,17 @@ Reference anchors:"""
                 ]
 
             def validation_fn(response: Union[Dict[str, Any], ModelResponse]):
+                structured_mode = (
+                    self.config.get("output", {}).get("mode")
+                    == OutputMode.STRUCTURED_OUTPUT.value
+                )
                 output = (
                     self.runner.api.parse_llm_response(
                         response,
                         schema=self.config["output"]["schema"],
                         tools=self.config.get("tools", None),
                         manually_fix_errors=self.manually_fix_errors,
+                        use_structured_output=structured_mode,
                     )[0]
                     if isinstance(response, ModelResponse)
                     else response
@@ -370,7 +376,7 @@ Reference anchors:"""
                 ),
                 gleaning_config=self.config.get("gleaning", None),
                 verbose=self.config.get("verbose", False),
-                bypass_cache=self.config.get("bypass_cache", False),
+                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                 initial_result=initial_result,
                 litellm_completion_kwargs=self.config.get(
                     "litellm_completion_kwargs", {}
@@ -381,11 +387,16 @@ Reference anchors:"""
             if llm_result.validated:
                 # Parse the response
                 if isinstance(llm_result.response, ModelResponse):
+                    structured_mode = (
+                        self.config.get("output", {}).get("mode")
+                        == OutputMode.STRUCTURED_OUTPUT.value
+                    )
                     outputs = self.runner.api.parse_llm_response(
                         llm_result.response,
                         schema=self.config["output"]["schema"],
                         tools=self.config.get("tools", None),
                         manually_fix_errors=self.manually_fix_errors,
+                        use_structured_output=structured_mode,
                     )
                 else:
                     outputs = [llm_result.response]
@@ -424,7 +435,7 @@ Reference anchors:"""
                     max_retries_per_timeout=self.config.get(
                         "max_retries_per_timeout", 2
                     ),
-                    bypass_cache=self.config.get("bypass_cache", False),
+                    bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                     litellm_completion_kwargs=self.config.get(
                         "litellm_completion_kwargs", {}
                     ),
@@ -432,8 +443,14 @@ Reference anchors:"""
                 total_cost += llm_result.total_cost
 
                 # Parse the LLM response
+                structured_mode = (
+                    self.config.get("output", {}).get("mode")
+                    == OutputMode.STRUCTURED_OUTPUT.value
+                )
                 parsed_output = self.runner.api.parse_llm_response(
-                    llm_result.response, self.config["output"]["schema"]
+                    llm_result.response,
+                    self.config["output"]["schema"],
+                    use_structured_output=structured_mode,
                 )[0].get("results", [])
                 items_and_outputs = [
                     (item, parsed_output[idx] if idx < len(parsed_output) else None)
@@ -702,17 +719,23 @@ class ParallelMapOperation(BaseOperation):
                 tools=prompt_config.get("tools", None),
                 timeout_seconds=self.config.get("timeout", 120),
                 max_retries_per_timeout=self.config.get("max_retries_per_timeout", 2),
-                bypass_cache=self.config.get("bypass_cache", False),
+                gleaning_config=prompt_config.get("gleaning", None),
+                bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
                 litellm_completion_kwargs=self.config.get(
                     "litellm_completion_kwargs", {}
                 ),
                 op_config=self.config,
+            )
+            structured_mode = (
+                self.config.get("output", {}).get("mode")
+                == OutputMode.STRUCTURED_OUTPUT.value
             )
             output = self.runner.api.parse_llm_response(
                 response.response,
                 schema=local_output_schema,
                 tools=prompt_config.get("tools", None),
                 manually_fix_errors=self.manually_fix_errors,
+                use_structured_output=structured_mode,
             )[0]
             return output, prompt, response.total_cost
 

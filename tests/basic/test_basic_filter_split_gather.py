@@ -7,7 +7,7 @@ from docetl.operations.gather import GatherOperation
 from docetl.operations.utils import APIWrapper
 from docetl.config_wrapper import ConfigWrapper
 from dotenv import load_dotenv
-from tests.conftest import api_wrapper
+from tests.conftest import runner
 
 
 load_dotenv()
@@ -35,9 +35,9 @@ def filter_sample_data():
 
 
 def test_filter_operation(
-    filter_config, default_model, max_threads, filter_sample_data, api_wrapper
+    filter_config, default_model, max_threads, filter_sample_data, runner
 ):
-    operation = FilterOperation(api_wrapper, filter_config, default_model, max_threads)
+    operation = FilterOperation(runner, filter_config, default_model, max_threads)
     results, cost = operation.execute(filter_sample_data)
 
     assert len(results) < len(filter_sample_data)
@@ -45,9 +45,9 @@ def test_filter_operation(
 
 
 def test_filter_operation_empty_input(
-    filter_config, default_model, max_threads, api_wrapper
+    filter_config, default_model, max_threads, runner
 ):
-    operation = FilterOperation(api_wrapper, filter_config, default_model, max_threads)
+    operation = FilterOperation(runner, filter_config, default_model, max_threads)
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -96,10 +96,10 @@ def dict_unnest_sample_data():
 
 
 def test_dict_unnest_operation(
-    dict_unnest_config, default_model, max_threads, dict_unnest_sample_data, api_wrapper
+    dict_unnest_config, default_model, max_threads, dict_unnest_sample_data, runner
 ):
     operation = UnnestOperation(
-        api_wrapper, dict_unnest_config, default_model, max_threads
+        runner, dict_unnest_config, default_model, max_threads
     )
     results, cost = operation.execute(dict_unnest_sample_data)
 
@@ -118,10 +118,10 @@ def test_dict_unnest_operation(
 
 
 def test_dict_unnest_operation_empty_input(
-    dict_unnest_config, default_model, max_threads, api_wrapper
+    dict_unnest_config, default_model, max_threads, runner
 ):
     operation = UnnestOperation(
-        api_wrapper, dict_unnest_config, default_model, max_threads
+        runner, dict_unnest_config, default_model, max_threads
     )
     results, cost = operation.execute([])
 
@@ -130,9 +130,9 @@ def test_dict_unnest_operation_empty_input(
 
 
 def test_unnest_operation(
-    unnest_config, default_model, max_threads, unnest_sample_data, api_wrapper
+    unnest_config, default_model, max_threads, unnest_sample_data, runner
 ):
-    operation = UnnestOperation(api_wrapper, unnest_config, default_model, max_threads)
+    operation = UnnestOperation(runner, unnest_config, default_model, max_threads)
     results, cost = operation.execute(unnest_sample_data)
 
     assert len(results) == 6  # 3 + 2 + 1
@@ -141,9 +141,9 @@ def test_unnest_operation(
 
 
 def test_unnest_operation_empty_input(
-    unnest_config, default_model, max_threads, api_wrapper
+    unnest_config, default_model, max_threads, runner
 ):
-    operation = UnnestOperation(api_wrapper, unnest_config, default_model, max_threads)
+    operation = UnnestOperation(runner, unnest_config, default_model, max_threads)
     results, cost = operation.execute([])
 
     assert len(results) == 0
@@ -182,10 +182,10 @@ def right_data():
 
 
 def test_equijoin_operation(
-    equijoin_config, default_model, max_threads, left_data, right_data, api_wrapper
+    equijoin_config, default_model, max_threads, left_data, right_data, runner
 ):
     operation = EquijoinOperation(
-        api_wrapper, equijoin_config, default_model, max_threads
+        runner, equijoin_config, default_model, max_threads
     )
     results, cost = operation.execute(left_data, right_data)
 
@@ -194,10 +194,10 @@ def test_equijoin_operation(
 
 
 def test_equijoin_operation_empty_input(
-    equijoin_config, default_model, max_threads, api_wrapper
+    equijoin_config, default_model, max_threads, runner
 ):
     operation = EquijoinOperation(
-        api_wrapper, equijoin_config, default_model, max_threads
+        runner, equijoin_config, default_model, max_threads
     )
     results, cost = operation.execute([], [])
 
@@ -253,9 +253,9 @@ def sample_data():
 
 
 def test_split_operation(
-    split_config, default_model, max_threads, sample_data, api_wrapper
+    split_config, default_model, max_threads, sample_data, runner
 ):
-    operation = SplitOperation(api_wrapper, split_config, default_model, max_threads)
+    operation = SplitOperation(runner, split_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
     assert len(results) > len(sample_data)
@@ -287,14 +287,14 @@ def test_split_operation(
 
 
 def test_gather_operation(
-    split_config, gather_config, default_model, max_threads, sample_data, api_wrapper
+    split_config, gather_config, default_model, max_threads, sample_data, runner
 ):
     # First, split the data
-    split_op = SplitOperation(api_wrapper, split_config, default_model, max_threads)
+    split_op = SplitOperation(runner, split_config, default_model, max_threads)
     split_results, _ = split_op.execute(sample_data)
 
     # Now, gather the split results
-    gather_op = GatherOperation(api_wrapper, gather_config, default_model, max_threads)
+    gather_op = GatherOperation(runner, gather_config, default_model, max_threads)
     results, cost = gather_op.execute(split_results)
 
     assert len(results) == len(split_results)
@@ -313,10 +313,10 @@ def test_gather_operation(
 
 
 def test_split_gather_combined(
-    split_config, gather_config, default_model, max_threads, sample_data, api_wrapper
+    split_config, gather_config, default_model, max_threads, sample_data, runner
 ):
-    split_op = SplitOperation(api_wrapper, split_config, default_model, max_threads)
-    gather_op = GatherOperation(api_wrapper, gather_config, default_model, max_threads)
+    split_op = SplitOperation(runner, split_config, default_model, max_threads)
+    gather_op = GatherOperation(runner, gather_config, default_model, max_threads)
 
     split_results, split_cost = split_op.execute(sample_data)
     gather_results, gather_cost = gather_op.execute(split_results)
@@ -334,10 +334,10 @@ def test_split_gather_combined(
 
 
 def test_split_gather_empty_input(
-    split_config, gather_config, default_model, max_threads, api_wrapper
+    split_config, gather_config, default_model, max_threads, runner
 ):
-    split_op = SplitOperation(api_wrapper, split_config, default_model, max_threads)
-    gather_op = GatherOperation(api_wrapper, gather_config, default_model, max_threads)
+    split_op = SplitOperation(runner, split_config, default_model, max_threads)
+    gather_op = GatherOperation(runner, gather_config, default_model, max_threads)
 
     split_results, split_cost = split_op.execute([])
     assert len(split_results) == 0

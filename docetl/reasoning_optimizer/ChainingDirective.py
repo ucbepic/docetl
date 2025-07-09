@@ -1,3 +1,4 @@
+from ast import Tuple
 from copy import deepcopy
 from types import NoneType
 from pydantic import BaseModel, Field
@@ -84,7 +85,7 @@ class ChainingDirective(Directive):
         expected_output_keys: List[str],
         agent_llm: str,
         message_history: list = [],
-    ) -> ChainingInstantiateSchema:
+    ) -> tuple:
         """
         Use LLM to instantiate this directive by decomposing the original operation.
 
@@ -126,7 +127,8 @@ class ChainingDirective(Directive):
                     required_input_keys=expected_input_keys,
                     expected_output_keys=expected_output_keys
                 )
-                return schema
+                message_history.append({"role": "assistant", "content": resp.choices[0].message.content})
+                return schema, message_history
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -174,7 +176,7 @@ class ChainingDirective(Directive):
         
         return new_ops_list
     
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> List[Dict]:
+    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
@@ -195,7 +197,7 @@ class ChainingDirective(Directive):
         print("output key: ", expected_output_keys)
         
         # Instantiate the directive
-        rewrite = self.llm_instantiate(target_op_config, expected_input_keys, expected_output_keys, agent_llm, message_history)
+        rewrite, message_history = self.llm_instantiate(target_op_config, expected_input_keys, expected_output_keys, agent_llm, message_history)
         
         # Apply the rewrite to the operators
-        return self.apply(operators, target_ops[0], rewrite)
+        return self.apply(operators, target_ops[0], rewrite), message_history

@@ -73,7 +73,7 @@ class GleaningDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
-    ) -> GleaningInstantiateSchema:
+    ) -> tuple:
         """
         Use LLM to instantiate this directive by decomposing the original operation.
 
@@ -108,7 +108,8 @@ class GleaningDirective(Directive):
                     raise ValueError("Response from LLM is missing required key 'gleaning_config'")
                 gleaning_config = parsed_res["gleaning_config"]
                 schema = GleaningInstantiateSchema(gleaning_config = gleaning_config)
-                return schema
+                message_history.append({"role": "assistant", "content": resp.choices[0].message.content})
+                return schema, message_history
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -135,7 +136,7 @@ class GleaningDirective(Directive):
         
         return new_ops_list
     
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> List[Dict]:
+    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
@@ -144,7 +145,7 @@ class GleaningDirective(Directive):
         target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
 
         # Instantiate the directive
-        rewrite = self.llm_instantiate(target_op_config, agent_llm, message_history)
+        rewrite, message_history = self.llm_instantiate(target_op_config, agent_llm, message_history)
         
         # Apply the rewrite to the operators
-        return self.apply(operators, target_ops[0], rewrite)
+        return self.apply(operators, target_ops[0], rewrite), message_history

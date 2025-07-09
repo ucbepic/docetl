@@ -42,7 +42,34 @@ class ChangeModelDirective(Directive):
     )
 
     allowed_model_list: List[str] = Field(default=["gpt-4.1-nano", "gpt-4o-mini", "gpt-4o", "gpt-4.1"], description="The allowed list of models to choose from")
-    
+
+    model_info: str = Field(
+        default=("""
+        OpenAI-MRCR evaluates a model’s ability to locate and disambiguate multiple well-hidden “needles” within a large context.
+            Below are the actual performance scores for the 8-needle retrieval task at various context lengths. Use these results to compare the retrieval capabilities of each model.
+
+            Input Tokens (1000s) | GPT-4.1 | GPT-4.1 nano | GPT-4o (2024-11-20) | GPT-4o mini
+            ---------------------|---------|--------------|---------------------|-------------
+            8                    | 32.5%   | 21.0%        | 17.5%               | 20.5%
+            16                   | 26.0%   | 18.5%        | 17.5%               | 15.5%
+            32                   | 16.5%   | 13.5%        | 17.0%               | 12.0%
+            64                   | 21.5%   | 16.0%        | 19.5%               | 13.5%
+            128                  | 18.5%   | 14.5%        | 18.0%               | 11.0%
+            256                  | 17.0%   | 14.5%        | -                   | -
+            512                  | 16.5%   | 9.0%         | -                   | -
+            1024                 | 16.0%   | 5.0%         | -                   | -
+
+            The context window and pricing details for each model are shown below (token prices are per 1 million tokens):
+            Model              | GPT-4.1-nano | GPT-4o-mini | GPT-4o     | GPT-4.1
+            -------------------|--------------|-------------|------------|---------
+            Context Window     | 1,047,576    | 128,000     | 128,000    | 1,047,576
+            Max Output Tokens  | 32,768       | 16,384      | 16,384     | 32,768
+            Input Token Price  | $0.10        | $0.15       | $2.50      | $2.00
+            Output Token Price | $0.40        | $0.60       | $1.25      | $8.00
+        """),
+    )
+
+
     def to_string_for_instantiate(self, original_op: Dict) -> str:
         """
         Generate a prompt for an agent to instantiate this directive.
@@ -59,8 +86,10 @@ class ChangeModelDirective(Directive):
             f"{str(original_op)}\n\n"
             f"Directive: {self.name}\n"
             f"Your task is to instantiate this directive by generating a ChangeModelConfig that suggests a better model for executing the original operation."
+            f"You have a list of allowed models to choose from: {str(self.allowed_model_list)}.\n\n"
+            f"Consider the information about the allowed models: \n {self.model_info}\n"
             f"The ChangeModelConfig should include the new model choice for the operation."
-            f"Ensure that your chosen model is in the list of allowed models: {str(self.allowed_model_list)}.\n\n"
+            f"Ensure that your chosen model is in the list of allowed models."
             f"Example:\n"
             f"{self.example}\n\n"
             f"Please output only the InstantiateSchema (a list of ChangeModelConfig object)."
@@ -71,7 +100,7 @@ class ChangeModelDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
-    ) -> ChangeModelInstantiateSchema:
+    ) -> tuple:
         """
         Use LLM to instantiate this directive.
 
@@ -111,8 +140,8 @@ class ChangeModelDirective(Directive):
                     change_model_config=schema.change_model_config,
                     list_of_model=self.allowed_model_list
                 )
-
-                return schema
+                message_history.append({"role": "assistant", "content": resp.choices[0].message.content})
+                return schema, message_history
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -135,7 +164,7 @@ class ChangeModelDirective(Directive):
         
         return new_ops_list
     
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> List[Dict]:
+    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
@@ -144,7 +173,7 @@ class ChangeModelDirective(Directive):
         target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
 
         # Instantiate the directive
-        rewrite = self.llm_instantiate(target_op_config, agent_llm, message_history)
+        rewrite, message_history = self.llm_instantiate(target_op_config, agent_llm, message_history)
         
         # Apply the rewrite to the operators
-        return self.apply(operators, target_ops[0], rewrite)
+        return self.apply(operators, target_ops[0], rewrite), message_history

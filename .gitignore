@@ -61,3 +61,8 @@ experiments/*.json
 metrics_vs_cost.png
 tests/data/anthropic-red-team-attempts.jsonl
 tests/data/get_freshstack.py
+*.txt
+*.yaml
+*.yml
+*.json
+

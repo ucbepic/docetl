@@ -68,9 +68,9 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     if iteration == 1:
 
         user_message = f"""
-        I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving accuracy and cost-effectiveness.
-        Given a pipeline made up of these operations, recommend one specific rewrite directiven (specify by its name) that would improve both accuracy and cost-effectiveness and pecify which operators (specify by the names) in the pipeline the directive should be applied to.
-
+        I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.
+        Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and pecify which operators (specify by the names) in the pipeline the directive should be applied to.
+        Make sure that your cosen directive is in the provided list of rewrite directives.
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
         - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-4.1-nano, gpt-4o-mini, gpt-4o, gpt-4.1 \n
@@ -100,21 +100,24 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         Input document schema with token statistics: {input_schema} \n
         Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
-        Cost of executing the original query: ${0.17} \n
-        Sample of the result from executing the original query: {json.dumps(curr_plan_output, indent=2)[:5000]} \n
+        Sample of the result from executing the original query: {json.dumps(curr_plan_output, indent=2)} \n
         """
     else:
         user_message = f"""
-        Given the previously rewritten pipeline, recommend one specific rewrite directiven (specify by its name) that would improve both accuracy and cost-effectiveness and pecify which operators (specify by the names) in the pipeline the directive should be applied to.
-        
+        Given the previously rewritten pipeline, recommend one specific rewrite directive (specify by its name) that would improve accuracy and pecify which operator (specify by the name) in the pipeline the directive should be applied to.
+        Make sure that your cosen directive is in the provided list of rewrite directives.
+         Rewrite directives: 
+        {ChainingDirective().to_string_for_plan()}\n
+        {GleaningDirective().to_string_for_plan()}\n
+        {ChangeModelDirective().to_string_for_plan()}\n
+
         Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
-        Cost of executing the original query: ${0.17} \n
-        Sample of the result from executing the previously rewritten query: {json.dumps(curr_plan_output, indent=2)[:5000]} \n
+        Sample of the result from executing the previously rewritten query: {json.dumps(curr_plan_output, indent=2)} \n
         """
 
     message_history.extend([
-        {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost-effective execution plans. Your output must follow the structured output format."},
+        {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate execution plans. Your output must follow the structured output format."},
         {"role": "user", "content": user_message}
     ])
     messages = message_history
@@ -135,6 +138,13 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         reasoning_effort = "high",
         response_format=ResponseFormat
     )
+    # response = litellm.completion(
+    #     model=model,
+    #     messages=messages,
+    #     api_key=os.environ["GEMINI_API_KEY"],
+    #     # reasoning_effort = "high",
+    #     response_format=ResponseFormat
+    # )
     assistant_response = response.choices[0].message.content
 
     # Add user and assistant messages to message_history as dicts
@@ -183,11 +193,15 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
     # Update the pipeline steps to use the new operation names
     if "pipeline" in orig_config and "steps" in orig_config["pipeline"]:
         for step in orig_config["pipeline"]["steps"]:
-            if "operations" in step and step["operations"] == target_ops:
-                step["operations"] = op_names
+            if "operations" in step:
+                new_ops = []
+                for op in step["operations"]:
+                    if op == target_ops[0]:
+                        new_ops.extend(op_names)
+                step["operations"] = new_ops
+               
     
     return orig_config
-
 
 def update_sample(new_ops_list, target_ops, orig_operators):
     """
@@ -292,8 +306,6 @@ def run_single_iteration(yaml_path, model, max_tpm, message_history, iteration_n
     new_ops_list = None
     if directive == "chaining":
         new_ops_list, message_history = ChainingDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=model, message_history=message_history)
-        print("new_ops_list:")
-        print(new_ops_list)
         orig_config["operations"] = new_ops_list
         
         orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
@@ -302,18 +314,22 @@ def run_single_iteration(yaml_path, model, max_tpm, message_history, iteration_n
 
     elif directive == "gleaning":
         new_ops_list, message_history = GleaningDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=model, message_history=message_history)
-        print("new_ops_list:")
-        print(new_ops_list)
         orig_config["operations"] = new_ops_list
 
     elif directive == "change model":
         new_ops_list, message_history = ChangeModelDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=model, message_history=message_history)
-        print("new_ops_list:")
-        print(new_ops_list)  
         orig_config["operations"] = new_ops_list
 
-    output_file_path = os.path.join(data_dir, "agent_optimized_plan/group3", f"CUAD-map_opt_iter_{iteration_num}.yaml")
+    output_file_path = os.path.join(data_dir, "agent_optimized_plan/group10", f"CUAD-map_opt_iter_{iteration_num}.yaml")
     
+    # Ensure every operator's model starts with 'azure/'
+    for op in orig_config.get("operations", []):
+        if "model" in op and not str(op["model"]).startswith("azure/"):
+            op["model"] = "azure/" + str(op["model"])
+
+    # Add bypass_cache: true at the top level
+    orig_config["bypass_cache"] = True
+
     # Save the modified config
     with open(output_file_path, 'w') as file:
         yaml.dump(orig_config, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
@@ -348,7 +364,7 @@ def run_iterative_optimization(initial_yaml_path, model, max_tpm, num_iterations
     current_yaml_path = initial_yaml_path
     
     #for iteration in range(1, num_iterations + 1):
-    iteration = 3
+    iteration = 5
     output_path, message_history = run_single_iteration(
         current_yaml_path, model, max_tpm, message_history, iteration, orig_output_sample
     )
@@ -357,7 +373,7 @@ def run_iterative_optimization(initial_yaml_path, model, max_tpm, num_iterations
         print(f"Iteration {iteration} failed. Stopping.")
     
     # Save message history after each iteration
-    message_history_output_file = os.path.join(data_dir, "message_history/group3", f"message_history_{model}_iter_{iteration}.json")
+    message_history_output_file = os.path.join(data_dir, "message_history/group10", f"message_history_{model}_iter_{iteration}.json")
     save_message_history(message_history, message_history_output_file)
     
     # Use the output as input for the next iteration

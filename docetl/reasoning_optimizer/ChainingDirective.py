@@ -112,6 +112,7 @@ class ChainingDirective(Directive):
                 api_key=os.environ.get("AZURE_API_KEY"),
                 api_base=os.environ.get("AZURE_API_BASE"),
                 api_version=os.environ.get("AZURE_API_VERSION"),
+                # api_key=os.environ["GEMINI_API_KEY"],
                 azure=True,
                 response_format=ChainingInstantiateSchema
             )

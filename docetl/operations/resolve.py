@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 from jinja2 import Template
+from litellm import model_cost
 from pydantic import Field
 from rich.prompt import Confirm
 
@@ -283,10 +284,18 @@ class ResolveOperation(BaseOperation):
             def get_embeddings_batch(
                 items: List[Dict[str, Any]]
             ) -> List[Tuple[List[float], float]]:
+                embedding_model = self.config.get("embedding_model", "text-embedding-3-small")
+                model_input_context_length = model_cost.get(embedding_model, {}).get(
+                    "max_input_tokens", 8192
+                ) 
+                
                 texts = [
-                    " ".join(str(item[key]) for key in blocking_keys if key in item)
+                    " ".join(str(item[key]) for key in blocking_keys if key in item)[
+                        : model_input_context_length * 3
+                    ]
                     for item in items
                 ]
+                
                 response = self.runner.api.gen_embedding(
                     model=embedding_model, input=texts
                 )

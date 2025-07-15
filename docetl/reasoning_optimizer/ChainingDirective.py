@@ -6,7 +6,7 @@ from typing import Type, Dict, List
 import os
 from litellm import completion
 from docetl.reasoning_optimizer.directive import Directive
-from instantiate_schemas import ChainingInstantiateSchema
+from docetl.reasoning_optimizer.instantiate_schemas import ChainingInstantiateSchema
 import re
 import json
 
@@ -54,6 +54,12 @@ class ChainingDirective(Directive):
             "]"
         ),
     )
+
+    def __eq__(self, other):
+        return isinstance(other, ChainingDirective)  
+
+    def __hash__(self):
+        return hash('ChainingDirective')  
     
     def to_string_for_instantiate(self, original_op: Dict) -> str:
         """

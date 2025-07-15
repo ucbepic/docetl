@@ -43,14 +43,3 @@ class Directive(BaseModel, ABC):
     @abstractmethod
     def instantiate(self, *args, **kwargs) -> list:
         pass
-
-    # @classmethod
-    # def get_all_directives(cls) -> dict:
-    #     """
-    #     Return a dictionary of all available directive instances, keyed by their name.
-    #     """
-    #     return {
-    #         "chaining": ChainingDirective(),
-    #         # Add other directives here as they are implemented
-    #     }
-

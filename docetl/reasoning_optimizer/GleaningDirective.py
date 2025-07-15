@@ -5,7 +5,7 @@ from typing import Type, Dict, List
 import os
 from litellm import completion
 from docetl.reasoning_optimizer.directive import Directive
-from instantiate_schemas import GleaningInstantiateSchema
+from docetl.reasoning_optimizer.instantiate_schemas import GleaningInstantiateSchema
 import re
 import json
 
@@ -44,6 +44,12 @@ class GleaningDirective(Directive):
             "]"
         """,
     )
+
+    def __eq__(self, other):
+        return isinstance(other, GleaningDirective)  
+
+    def __hash__(self):
+        return hash('GleaningDirective')  
     
     def to_string_for_instantiate(self, original_op: Dict) -> str:
         """

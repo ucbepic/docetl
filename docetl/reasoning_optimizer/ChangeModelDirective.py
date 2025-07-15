@@ -5,7 +5,7 @@ from typing import Type, Dict, List
 import os
 from litellm import completion
 from docetl.reasoning_optimizer.directive import Directive
-from instantiate_schemas import ChangeModelConfig, ChangeModelInstantiateSchema
+from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelConfig, ChangeModelInstantiateSchema
 import re
 import json
 
@@ -68,7 +68,12 @@ class ChangeModelDirective(Directive):
             Output Token Price | $0.40        | $0.60       | $1.25      | $8.00
         """),
     )
+    
+    def __eq__(self, other):
+        return isinstance(other, ChangeModelDirective)  
 
+    def __hash__(self):
+        return hash('ChangeModelDirective')  
 
     def to_string_for_instantiate(self, original_op: Dict) -> str:
         """

@@ -30,11 +30,10 @@ of its children as inputs (or for the leaf nodes, the actual items).
     these two concepts already encompasses the other; in that case,
     you should just use that concept.
 
-    {{left.concept}}:
-    {{left.description}}
-
-    {{right.concept}}:
-    {{right.description}}
+    {% for input in inputs %}
+    {{input.concept}}:
+    {{input.description}}
+    {% endfor %}
 
     Provide the title of the super-concept, and a description.
 ```
@@ -171,7 +170,7 @@ and a description, and groups them into a tree of categories.
 - `name`: A unique name for the operation.
 - `type`: Must be set to "cluster".
 - `embedding_keys`: A list of keys to use for the embedding that is clustered on
-- `summary_prompt`: The prompt used to summarize a cluster based on its children. Access input variables with `left.keyname` or `right.keyname`.
+- `summary_prompt`: The prompt used to summarize a cluster based on its children. Access input variables by iterating over `inputs` with `{% for input in inputs %}` and accessing properties with `{{input.keyname}}`.
 - `summary_schema`: The schema for the summary of each cluster. This is the output schema for the `summary_prompt` based llm call.
 
 ## Optional Parameters

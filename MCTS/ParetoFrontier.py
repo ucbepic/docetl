@@ -60,6 +60,7 @@ class ParetoFrontier:
 
         # Update Pareto frontier
         affected_nodes = self.update_pareto_frontier()
+        if node not in affected_nodes: affected_nodes[node] = 0
         return affected_nodes
 
     def get_all_plans_summary(self) -> List[Dict[str, Any]]:

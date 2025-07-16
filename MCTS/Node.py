@@ -22,7 +22,7 @@ class Node:
     # A class-level counter for unique IDs
     _id_counter = 0
 
-    def __init__(self, yaml_file_path: str, parent: Optional[Node] = None, c: float = 1.414, used_actions:Dict = {}):
+    def __init__(self, yaml_file_path: str, parent: Optional[Node] = None, c: float = 1.414):
         """
         Initialize a Node with YAML file information.
         
@@ -38,17 +38,13 @@ class Node:
         print(self.yaml_file_path)
         print("______________________________")
         print(self.parsed_yaml)
+        self.used_actions = {}
 
         self.op_dict = {} # Dict: op_name -> op
-        flag = 0
-        if len(used_actions) == 0: flag = 1
-        self.used_actions = used_actions # Dict: op_name -> set of used actions
-
         for op in self.parsed_yaml["operations"]:
             op_name = op["name"]
             self.op_dict[op_name] = op
-            if flag == 1: self.used_actions[op_name] = set()
-
+            self.used_actions[op_name] = set()
         self.visits = 0
         self.value = 0.0 
         self.parent = parent
@@ -60,6 +56,10 @@ class Node:
         # Assign a unique ID to this node
         self.id = Node._id_counter
         Node._id_counter += 1
+
+
+        print("NODE ID: ", self.id)
+        print("USED ACTIONS: ", self.used_actions)
 
 
     def execute_plan(self, max_threads: Optional[int] = None) -> tuple[float, list]:

@@ -6,8 +6,8 @@ from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 import os
 import yaml
+import litellm
 from copy import deepcopy
-
 from Node import Node
 from ParetoFrontier import ParetoFrontier
 from acc_comparator import AccuracyComparator
@@ -15,6 +15,12 @@ from docetl.reasoning_optimizer.directive import Directive
 from docetl.reasoning_optimizer.ChainingDirective import *
 from docetl.reasoning_optimizer.GleaningDirective import *
 from docetl.reasoning_optimizer.ChangeModelDirective import *
+from docetl.reasoning_optimizer.op_descriptions import *
+
+
+class ExpandResponseFormat(BaseModel):
+    directive: str
+    operator: str
 
 class MCTS:
     """
@@ -34,11 +40,11 @@ class MCTS:
         root_yaml_path: str,
         accuracy_comparator: AccuracyComparator,
         available_actions: set[Directive],
+        sample_input,
         exploration_constant: float = 1.414,
-        max_iterations: int = 7,
+        max_iterations: int = 10,
         max_time: Optional[float] = 600.0,
-        expansion_count: int = 1,
-        simulation_count: int = 1,
+        expansion_count: int = 3,
         model = "gpt-4.1"
     ):
         """
@@ -51,7 +57,7 @@ class MCTS:
             exploration_constant: UCB exploration constant (default: sqrt(2))
             max_iterations: Maximum number of MCTS iterations
             max_time: Maximum time to run MCTS in seconds (None for no limit)
-            simulation_count: Number of simulations to run for each expansion
+            sample_input: sample input data
         """
         self.root = Node(root_yaml_path, c=exploration_constant)
         self.available_actions = available_actions
@@ -62,13 +68,13 @@ class MCTS:
         self.expansion_count = expansion_count
         self.start_time = None
         self.model = model
-        
+        self.sample_input = sample_input
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(accuracy_comparator)
+        self.directive_name_to_obj = {action.name: action for action in self.available_actions}
         
         # execute root node and add it to the pareto frontier
-        affected_nodes = self.simulate(self.root)
-
+        _ = self.simulate(self.root)
 
 
     def search(self):
@@ -93,6 +99,10 @@ class MCTS:
         print(f"Total iterations: {self.iteration_count}")
         print(f"Pareto frontier size: {len(self.pareto_frontier)}")
         print(f"Frontier plans: {len(self.pareto_frontier.frontier_plans)}")
+        self.pareto_frontier.plot_plans()
+        print("pareto frontier yaml files: ")
+        for plan in self.pareto_frontier.frontier_plans:
+            print(plan.yaml_file_path)
         
         # Return all frontier plans
         frontier_plans = [summary['node'] for summary in self.pareto_frontier.get_all_plans_summary() 
@@ -124,8 +134,6 @@ class MCTS:
         print("BACKPROP")
         self.backpropagate(affected_nodes)
 
-
-    
     def select(self, node: Node) -> Node:
         """
         Select the best child using the Node's best_child method.
@@ -190,12 +198,69 @@ class MCTS:
         traverse(parsed_yaml)
  
     def is_fully_explored(self, node:Node) -> bool:
-        op_list = list(node.op_dict.keys())
-        for op_name in op_list:
-            used_actions = node.used_actions[op_name]
-            action_space = set(self.available_actions) - used_actions
-            if len(action_space) > 0: return False
-        return True
+        if len(node.children) >= self.expansion_count: return True
+        return False
+
+    def expansion_prompt(self, action_options, input_query) -> str:
+        
+        availabel_actions_str = ""
+        for item in action_options:
+            op_name = item[0]
+            action_name = item[1]
+            action_str = f"Operator: {op_name}, Rewrite directive: {action_name}\n"
+            availabel_actions_str += action_str
+        
+        print(availabel_actions_str)
+
+        input_schema = """
+        Dataset: contracts_data
+        Type: file
+        Records loaded: 50
+        Input schema:
+            document: string (avg: 10993.9 tokens)
+            id: string (avg: 22.9 tokens)
+            name: string (avg: 27.6 tokens)
+        Total tokens: 546,693
+        """
+
+        user_message = f"""
+        I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality or cost effectiveness of the query result.
+        Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy or cost effectiveness and pecify which single operator (specify by the name) in the pipeline the directive should be applied to.
+        Make sure that your cosen directive is in the provided list of rewrite directives.
+        Pipeline:
+        Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
+        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-4.1-nano, gpt-4o-mini, gpt-4o, gpt-4.1 \n
+        - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
+        - Datasets: The input data sources for your pipeline. \n
+        - Operators: The processing steps that transform your data. \n
+        - Pipeline Specification: The sequence of steps and the output configuration. \n
+
+        Operators: 
+        Operators form the building blocks of data processing pipelines. Below is the list of operators:
+        {op_map.to_string()}\n
+        {op_extract.to_string()}\n
+        {op_parallel_map.to_string()}\n
+        {op_filter.to_string()}\n
+        {op_reduce.to_string()}\n
+        {op_split.to_string()}\n
+        {op_gather.to_string()}\n
+        {op_unnest.to_string()}\n
+        {op_sample.to_string()}\n
+        {op_resolve.to_string()}\n
+        
+        Rewrite directives: 
+        {ChainingDirective().to_string_for_plan()}\n
+        {GleaningDirective().to_string_for_plan()}\n
+        {ChangeModelDirective().to_string_for_plan()}\n
+
+        Your valid choice of operation and rewrite directive combination. Only choose one of these:
+        {availabel_actions_str}
+
+        Input document schema with token statistics: {input_schema} \n
+        Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
+        The original query in YAML format using our operations: {input_query} \n
+        """
+        return user_message
     
     def expand(self, node: Node) -> Node:
         """
@@ -208,39 +273,60 @@ class MCTS:
             The newly created child
         """
 
-        op_list = list(node.op_dict.keys())
-        random.shuffle(op_list)
-        applicable_action = None
-        for op_name in op_list:
-            used_actions = node.used_actions[op_name]
-
-            print("operation: ", op_name)
-            print("used_actions: ", used_actions)
-
-            action_space = set(self.available_actions) - used_actions # The actions that are not used on this operator 
-
-            if len(action_space) < 1: continue # Nothing to expand on this operator, go to the next
-            action_space_list = list(action_space)
-            random.shuffle(action_space_list)
-            for action in action_space_list:
-                if self.is_action_applicable(node, action):
-                    applicable_action = action
-                    break
-            if applicable_action is not None: break
+        print("INSIDE EXPAND")
+        print(node.get_id())
         
-        if applicable_action is None:
+        op_list = list(node.op_dict.keys())
+        action_options = [] # a list of tuple
+        for op_name in op_list:
+            if op_name in node.used_actions: 
+                used_actions = node.used_actions[op_name]
+            else: used_actions = set()
+            print(op_name, " ***** ", used_actions)
+            action_space = set(self.available_actions) - used_actions # The actions that are not used on this operator 
+            for action in action_space:
+                action_options.append((op_name, action.name))
+        print(action_options)
+        if len(action_options) < 1:
+            print("NO ACTION FOUND")
             raise RuntimeError("No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable.")
         
-        print("applicable_action: ", applicable_action)
+        user_message = self.expansion_prompt(action_options = action_options, input_query=node.parsed_yaml)
+        messages = [
+            {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format."},
+            {"role": "user", "content": user_message}
+        ]
 
-        # mark action used for the chosen operator
-        node.mark_action_used(op_name, applicable_action)
+        response = litellm.completion(
+            model=self.model,
+            messages=messages,
+            api_key=os.environ.get("AZURE_API_KEY"),
+            api_base=os.environ.get("AZURE_API_BASE"),
+            api_version=os.environ.get("AZURE_API_VERSION"),
+            azure=True,
+            response_format=ExpandResponseFormat
+        )
+        reply = response.choices[0].message.content
 
-        new_ops_list, message_history = applicable_action.instantiate(operators = node.parsed_yaml["operations"], target_ops = [op_name], agent_llm = self.model)
+        try:
+            parsed = json.loads(reply)
+            directive_name = parsed.get("directive")
+            target_op = parsed.get("operator")
+            print(f"Directive: {directive_name}, Target ops: {target_op}")
+        except Exception as e:
+            print(f"Failed to parse agent response: {e}")
+
+        # mark action used
+        directive = self.directive_name_to_obj.get(directive_name)
+        if directive is None:
+            raise ValueError(f"Unknown directive name: {directive_name}")
+        node.mark_action_used(target_op, directive)
+
+        new_ops_list, message_history = directive.instantiate(operators = node.parsed_yaml["operations"], target_ops = [target_op], agent_llm = self.model)
         new_parsed_yaml = deepcopy(node.parsed_yaml)
         new_parsed_yaml["operations"] = new_ops_list
         new_parsed_yaml["bypass_cache"] = True
-        new_parsed_yaml = self.update_pipeline(new_parsed_yaml, new_ops_list, [op_name])
+        new_parsed_yaml = self.update_pipeline(new_parsed_yaml, new_ops_list, [target_op])
 
         self.fix_models_azure(new_parsed_yaml)
         base_path = node.yaml_file_path.removesuffix('.yaml')
@@ -249,7 +335,6 @@ class MCTS:
 
         with open(new_yaml_path, 'w') as file:
             yaml.dump(new_parsed_yaml, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        
 
         print("NEW YAML FILE: ", new_yaml_path)
     
@@ -310,7 +395,7 @@ if __name__ == "__main__":
     print("This module provides MCTS optimization with multi-objective search.")
     print("Use run_mcts_optimization() to start optimization.") 
 
-    user_query_yaml_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD-map.yaml"
+    user_query_yaml_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/MCTS/execute_res/CUAD-map.yaml"
     with open('/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD_random_sample.json', 'r') as f:
         sample_data = json.load(f)
 
@@ -324,5 +409,5 @@ if __name__ == "__main__":
     actions.add(action_gleaning)
     actions.add(action_change_model)
 
-    mcts = MCTS(root_yaml_path=user_query_yaml_path, accuracy_comparator=ac, available_actions=actions)
+    mcts = MCTS(root_yaml_path=user_query_yaml_path, accuracy_comparator=ac, available_actions=actions, sample_input = sample_data)
     mcts.search()

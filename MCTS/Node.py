@@ -203,6 +203,11 @@ class Node:
             value: The value to add to the current node value
         """
         self.value += value
+    
+    def update_visit(self):
+        """
+        Update the node's visit by 1 (typically after a simulation).
+        """
         self.visits += 1
     
     def get_ucb(self) -> float:

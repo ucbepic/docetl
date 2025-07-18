@@ -164,7 +164,7 @@ class ChangeModelDirective(Directive):
         # Find position of the target op to modify
         pos_to_replace = [i for i, op in enumerate(ops_list) if op["name"] == target_op][0]
         
-        # Add gleaning configuration to the target operator
+        # Add change model configuration to the target operator
         target_operator = new_ops_list[pos_to_replace]
         target_operator["model"] = rewrite.change_model_config.model
         

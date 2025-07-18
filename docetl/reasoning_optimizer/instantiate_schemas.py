@@ -102,6 +102,7 @@ class ChainingInstantiateSchema(BaseModel):
                 f"The output_keys of the final op ({final_output_keys}) do not match the expected output_keys ({expected_output_keys})."
             )
 
+
 class GleaningConfig(BaseModel):
     """
     Configuration for gleaning.

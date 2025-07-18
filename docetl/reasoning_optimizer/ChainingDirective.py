@@ -74,11 +74,15 @@ class ChainingDirective(Directive):
         return (
             f"You are an expert at decomposing complex data processing operations into modular steps.\n\n"
             f"Original Operation:\n"
-            f"{str(original_op)}\n\n"
+            f"{str(original_op)}\n"
             f"Directive: {self.name}\n"
             f"Your task is to instantiate this directive by generating a list of new Map operators (as MapOpConfig objects) that decompose the original operation into a sequence of simpler steps. "
             f"Each Map step should output a 'result' or other relevant keys, and downstream steps should use the outputs of previous steps as their input. "
             f"Ensure that the chain of Map operators together accomplishes the intent of the original operation, but in a more modular and stepwise fashion.\n\n"
+            f"""Key Issues to ensure:\n
+                1. Ensure the new prompts don't reference categories, lists, or criteria without providing them or making them available from previous steps.\n
+                2. Every detail, category, instruction, requirement, and definition from the original must be present in the new configuration.\n
+                3. Confirm that each step can access all required information either from the original document or from outputs of preceding steps.\n"""
             f"Example:\n"
             f"{self.example}\n\n"
             f"Please output only the InstantiateSchema (a list of MapOpConfig objects) for the new chain, referring to the same input document keys as the original operation and chaining outputs appropriately."

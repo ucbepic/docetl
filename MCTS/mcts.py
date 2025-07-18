@@ -42,7 +42,7 @@ class MCTS:
         available_actions: set[Directive],
         sample_input,
         exploration_constant: float = 1.414,
-        max_iterations: int = 10,
+        max_iterations: int = 20,
         max_time: Optional[float] = 600.0,
         expansion_count: int = 3,
         model = "gpt-4.1"
@@ -132,7 +132,7 @@ class MCTS:
         
         # 4. Backpropagation: Update values up the tree
         print("BACKPROP")
-        self.backpropagate(affected_nodes)
+        self.backpropagate(affected_nodes, leaf)
 
     def select(self, node: Node) -> Node:
         """
@@ -360,7 +360,7 @@ class MCTS:
         affected_nodes = self.pareto_frontier.add_plan(node)
         return affected_nodes 
 
-    def backpropagate(self, affected_nodes: Dict[Node, int]):
+    def backpropagate(self, affected_nodes: Dict[Node, int], visit_node):
         """
         Backpropagate the simulation value change up the tree.
         """
@@ -370,6 +370,11 @@ class MCTS:
             while current is not None:
                 current.update_value(val)
                 current = current.parent
+        
+        current = visit_node
+        while current is not None:
+            current.update_visit()
+            current = current.parent
 
     
     def should_continue(self) -> bool:

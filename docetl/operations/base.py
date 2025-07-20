@@ -10,15 +10,7 @@ from rich.console import Console
 from rich.status import Status
 
 from docetl.console import DOCETL_CONSOLE
-
-
-# FIXME: This should probably live in some utils module?
-class classproperty(object):
-    def __init__(self, f):
-        self.f = f
-
-    def __get__(self, obj, owner):
-        return self.f(owner)
+from docetl.utils import classproperty
 
 
 class BaseOperationMeta(ABCMeta):

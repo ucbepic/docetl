@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -9,7 +9,7 @@ from pydantic import BaseModel
 class ToolFunction(BaseModel):
     name: str
     description: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
 
 
 class Tool(BaseModel):
@@ -33,7 +33,7 @@ class ParsingTool(BaseModel):
             function_code: |
               import pytesseract
               from pdf2image import convert_from_path
-              def ocr_parser(filename: str) -> List[str]:
+              def ocr_parser(filename: str) -> list[str]:
                   images = convert_from_path(filename)
                   text = ""
                   for image in images:
@@ -52,10 +52,10 @@ class PipelineStep(BaseModel):
 
     Attributes:
         name (str): The name of the step.
-        operations (List[Union[Dict[str, Any], str]]): A list of operations to be applied in this step.
+        operations (list[dict[str, Any] | str]): A list of operations to be applied in this step.
             Each operation can be either a string (the name of the operation) or a dictionary
             (for more complex configurations).
-        input (Optional[str]): The input for this step. It can be either the name of a dataset
+        input (str | None): The input for this step. It can be either the name of a dataset
             or the name of a previous step. If not provided, the step will use the output
             of the previous step as its input.
 
@@ -95,8 +95,8 @@ class PipelineStep(BaseModel):
     """
 
     name: str
-    operations: List[Union[Dict[str, Any], str]]
-    input: Optional[str] = None
+    operations: list[dict[str, Any] | str]
+    input: str | None = None
 
 
 class PipelineOutput(BaseModel):
@@ -107,7 +107,7 @@ class PipelineOutput(BaseModel):
         type (str): The type of output. This could be 'file', 'database', etc.
         path (str): The path where the output will be stored. This could be a file path,
                     database connection string, etc., depending on the type.
-        intermediate_dir (Optional[str]): The directory to store intermediate results,
+        intermediate_dir (str | None): The directory to store intermediate results,
                                           if applicable. Defaults to None.
 
     Example:
@@ -122,7 +122,7 @@ class PipelineOutput(BaseModel):
 
     type: str
     path: str
-    intermediate_dir: Optional[str] = None
+    intermediate_dir: str | None = None
 
 
 class PipelineSpec(BaseModel):

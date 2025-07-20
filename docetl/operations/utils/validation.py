@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Union
+from typing import Any
 
 from asteval import Interpreter
 from jinja2 import Environment, StrictUndefined, Template
@@ -10,7 +10,7 @@ from rich.prompt import Prompt
 aeval = Interpreter()
 
 
-def strict_render(template: Union[Template, str], context: Dict[str, Any]) -> str:
+def strict_render(template: Template | str, context: dict[str, Any]) -> str:
     """
     Renders a Jinja template with strict undefined checking.
 
@@ -66,7 +66,7 @@ def strict_render(template: Union[Template, str], context: Dict[str, Any]) -> st
         )
 
 
-def safe_eval(expression: str, output: Dict) -> bool:
+def safe_eval(expression: str, output: dict[str, Any]) -> bool:
     """Safely evaluate an expression with a given output dictionary."""
     try:
         aeval.symtable["output"] = output
@@ -78,7 +78,7 @@ def safe_eval(expression: str, output: Dict) -> bool:
             return False
 
 
-def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
+def convert_val(value: Any, model: str = "gpt-4o-mini") -> dict[str, Any]:
     """Convert a string representation of a type to a dictionary representation."""
     value = value.strip().lower()
     if value in ["str", "text", "string", "varchar"]:
@@ -115,13 +115,13 @@ def convert_val(value: Any, model: str = "gpt-4o-mini") -> Dict[str, Any]:
         raise ValueError(f"Unsupported value type: {value}")
 
 
-def convert_dict_schema_to_list_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+def convert_dict_schema_to_list_schema(schema: dict[str, Any]) -> dict[str, Any]:
     """Convert a dictionary schema to a list schema."""
     schema_str = "{" + ", ".join([f"{k}: {v}" for k, v in schema.items()]) + "}"
     return {"results": f"list[{schema_str}]"}
 
 
-def get_user_input_for_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+def get_user_input_for_schema(schema: dict[str, Any]) -> dict[str, Any]:
     """Prompt the user for input for each key in the schema."""
     user_input = {}
 

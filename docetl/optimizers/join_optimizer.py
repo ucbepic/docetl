@@ -1,7 +1,7 @@
 import json
 import random
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from litellm import model_cost
@@ -16,12 +16,12 @@ class JoinOptimizer:
     def __init__(
         self,
         runner,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         target_recall: float = 0.95,
         sample_size: int = 500,
         sampling_weight: float = 20,
         agent_max_retries: int = 5,
-        estimated_selectivity: float = None,
+        estimated_selectivity: float | None = None,
     ):
         self.runner = runner
         self.config = runner.config
@@ -43,7 +43,7 @@ class JoinOptimizer:
         #         f"[yellow]Using estimated selectivity of {self.estimated_selectivity}[/yellow]"
         #     )
 
-    def _analyze_map_prompt_categorization(self, map_prompt: str) -> Tuple[bool, str]:
+    def _analyze_map_prompt_categorization(self, map_prompt: str) -> tuple[bool, str]:
         """
         Analyze the map prompt to determine if it's explicitly categorical.
 
@@ -101,10 +101,10 @@ class JoinOptimizer:
 
     def _determine_duplicate_keys(
         self,
-        input_data: List[Dict[str, Any]],
-        reduce_key: List[str],
-        map_prompt: Optional[str] = None,
-    ) -> Tuple[bool, str]:
+        input_data: list[dict[str, Any]],
+        reduce_key: list[str],
+        map_prompt: str | None = None,
+    ) -> tuple[bool, str]:
         # Prepare a sample of the input data for analysis
         sample_size = min(10, len(input_data))
         data_sample = random.sample(
@@ -155,8 +155,8 @@ class JoinOptimizer:
         return False, ""
 
     def _sample_random_pairs(
-        self, input_data: List[Dict[str, Any]], n: int
-    ) -> List[Tuple[int, int]]:
+        self, input_data: list[dict[str, Any]], n: int
+    ) -> list[tuple[int, int]]:
         """Sample random pairs of indices, excluding exact matches."""
         pairs = set()
         max_attempts = n * 10  # Avoid infinite loop
@@ -172,11 +172,11 @@ class JoinOptimizer:
 
     def _check_duplicates_with_llm(
         self,
-        input_data: List[Dict[str, Any]],
-        pairs: List[Tuple[int, int]],
-        reduce_key: List[str],
-        map_prompt: Optional[str],
-    ) -> Tuple[bool, str]:
+        input_data: list[dict[str, Any]],
+        pairs: list[tuple[int, int]],
+        reduce_key: list[str],
+        map_prompt: str | None = None,
+    ) -> tuple[bool, str]:
         """Use LLM to check if any pairs are duplicates."""
 
         content = "Analyze the following pairs of entries and determine if any of them are likely duplicates. Respond with 'Yes' if you find any likely duplicates, or 'No' if none of the pairs seem to be duplicates. Provide a brief explanation for your decision.\n\n"
@@ -222,7 +222,7 @@ class JoinOptimizer:
         return response["duplicates_found"].lower() == "yes", response["explanation"]
 
     def synthesize_compare_prompt(
-        self, map_prompt: Optional[str], reduce_key: List[str]
+        self, map_prompt: str | None, reduce_key: list[str]
     ) -> str:
 
         system_prompt = f"You are an AI assistant tasked with creating a comparison prompt for LLM-assisted entity resolution. Your task is to create a comparison prompt that will be used to compare two entities, referred to as input1 and input2, to see if they are likely the same entity based on the following reduce key(s): {', '.join(reduce_key)}."
@@ -292,9 +292,9 @@ class JoinOptimizer:
 
     def synthesize_resolution_prompt(
         self,
-        map_prompt: Optional[str],
-        reduce_key: List[str],
-        output_schema: Dict[str, str],
+        map_prompt: str | None,
+        reduce_key: list[str],
+        output_schema: dict[str, str],
     ) -> str:
         system_prompt = f"""You are an AI assistant tasked with creating a resolution prompt for LLM-assisted entity resolution.
         Your task is to create a prompt that will be used to merge multiple duplicate keys into a single, consolidated key.
@@ -374,7 +374,7 @@ class JoinOptimizer:
 
         return resolution_prompt
 
-    def should_optimize(self, input_data: List[Dict[str, Any]]) -> Tuple[bool, str]:
+    def should_optimize(self, input_data: list[dict[str, Any]]) -> tuple[bool, str]:
         """
         Determine if the given operation configuration should be optimized.
         """
@@ -438,8 +438,8 @@ class JoinOptimizer:
         return False, ""
 
     def optimize_resolve(
-        self, input_data: List[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], float]:
+        self, input_data: list[dict[str, Any]]
+    ) -> tuple[dict[str, Any], float]:
         # Check if the operation is marked as empty
         if self.op_config.get("empty", False):
             # Extract the map prompt from the intermediates
@@ -548,11 +548,11 @@ class JoinOptimizer:
 
     def optimize_equijoin(
         self,
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
         skip_map_gen: bool = False,
         skip_containment_gen: bool = False,
-    ) -> Tuple[Dict[str, Any], float, Dict[str, Any]]:
+    ) -> tuple[dict[str, Any], float, dict[str, Any]]:
         left_keys = self.op_config.get("blocking_keys", {}).get("left", [])
         right_keys = self.op_config.get("blocking_keys", {}).get("right", [])
 
@@ -764,12 +764,12 @@ class JoinOptimizer:
 
     def _should_apply_map_transformation(
         self,
-        left_keys: List[str],
-        right_keys: List[str],
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
+        left_keys: list[str],
+        right_keys: list[str],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
         sample_size: int = 5,
-    ) -> Tuple[bool, str, str]:
+    ) -> tuple[bool, str, str]:
         # Sample data
         left_sample = random.sample(left_data, min(sample_size, len(left_data)))
         right_sample = random.sample(right_data, min(sample_size, len(right_data)))
@@ -844,10 +844,10 @@ class JoinOptimizer:
         self,
         dataset_to_transform: str,
         reason: str,
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
         sample_size: int = 5,
-    ) -> Tuple[str, str, str]:
+    ) -> tuple[str, str, str]:
         # Sample data
         left_sample = random.sample(left_data, min(sample_size, len(left_data)))
         right_sample = random.sample(right_data, min(sample_size, len(right_data)))
@@ -906,10 +906,10 @@ class JoinOptimizer:
 
     def _generate_blocking_keys_equijoin(
         self,
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
         sample_size: int = 5,
-    ) -> Tuple[List[str], List[str]]:
+    ) -> tuple[list[str], list[str]]:
         # Sample data
         left_sample = random.sample(left_data, min(sample_size, len(left_data)))
         right_sample = random.sample(right_data, min(sample_size, len(right_data)))
@@ -974,10 +974,10 @@ class JoinOptimizer:
 
     def _compute_embeddings(
         self,
-        input_data: List[Dict[str, Any]],
-        keys: List[str] = None,
+        input_data: list[dict[str, Any]],
+        keys: list[str] | None = None,
         is_join: bool = True,
-    ) -> Tuple[List[List[float]], List[str], float]:
+    ) -> tuple[list[list[float]], list[str], float]:
         if keys is None:
             keys = self.op_config.get("blocking_keys", [])
             if not keys:
@@ -1027,8 +1027,8 @@ class JoinOptimizer:
         return embeddings, keys, cost
 
     def _calculate_cosine_similarities(
-        self, embeddings: List[List[float]]
-    ) -> List[Tuple[int, int, float]]:
+        self, embeddings: list[list[float]]
+    ) -> list[tuple[int, int, float]]:
         embeddings_array = np.array(embeddings)
         norms = np.linalg.norm(embeddings_array, axis=1)
         dot_products = np.dot(embeddings_array, embeddings_array.T)
@@ -1041,8 +1041,8 @@ class JoinOptimizer:
 
     def _print_similarity_histogram(
         self,
-        similarities: List[Tuple[int, int, float]],
-        comparison_results: List[Tuple[int, int, bool]],
+        similarities: list[tuple[int, int, float]],
+        comparison_results: list[tuple[int, int, bool]],
     ):
         flat_similarities = [sim[-1] for sim in similarities if sim[-1] != 1]
         hist, bin_edges = np.histogram(flat_similarities, bins=20)
@@ -1085,8 +1085,8 @@ class JoinOptimizer:
         self.console.log("\n")
 
     def _sample_pairs(
-        self, similarities: List[Tuple[int, int, float]]
-    ) -> List[Tuple[int, int]]:
+        self, similarities: list[tuple[int, int, float]]
+    ) -> list[tuple[int, int]]:
         # Sort similarities in descending order
         sorted_similarities = sorted(similarities, key=lambda x: x[2], reverse=True)
 
@@ -1110,8 +1110,8 @@ class JoinOptimizer:
         return sampled_pairs
 
     def _calculate_cross_similarities(
-        self, left_embeddings: List[List[float]], right_embeddings: List[List[float]]
-    ) -> List[Tuple[int, int, float]]:
+        self, left_embeddings: list[list[float]], right_embeddings: list[list[float]]
+    ) -> list[tuple[int, int, float]]:
         left_array = np.array(left_embeddings)
         right_array = np.array(right_embeddings)
         dot_product = np.dot(left_array, right_array.T)
@@ -1125,8 +1125,8 @@ class JoinOptimizer:
         ]
 
     def _perform_comparisons_resolve(
-        self, input_data: List[Dict[str, Any]], pairs: List[Tuple[int, int]]
-    ) -> Tuple[List[Tuple[int, int, bool]], float]:
+        self, input_data: list[dict[str, Any]], pairs: list[tuple[int, int]]
+    ) -> tuple[list[tuple[int, int, bool]], float]:
         comparisons, total_cost = [], 0
         op = ResolveOperation(
             self.runner,
@@ -1161,10 +1161,10 @@ class JoinOptimizer:
 
     def _perform_comparisons_equijoin(
         self,
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
-        pairs: List[Tuple[int, int]],
-    ) -> Tuple[List[Tuple[int, int, bool]], float]:
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
+        pairs: list[tuple[int, int]],
+    ) -> tuple[list[tuple[int, int, bool]], float]:
         comparisons, total_cost = [], 0
         op = EquijoinOperation(
             self.runner,
@@ -1199,9 +1199,9 @@ class JoinOptimizer:
 
     def _find_optimal_threshold(
         self,
-        comparisons: List[Tuple[int, int, bool]],
-        similarities: List[Tuple[int, int, float]],
-    ) -> Tuple[float, float, float]:
+        comparisons: list[tuple[int, int, bool]],
+        similarities: list[tuple[int, int, float]],
+    ) -> tuple[float, float, float]:
         true_labels = np.array([comp[2] for comp in comparisons])
         sim_dict = {(i, j): sim for i, j, sim in similarities}
         sim_scores = np.array([sim_dict[(i, j)] for i, j, _ in comparisons])
@@ -1261,10 +1261,10 @@ class JoinOptimizer:
 
     def _generate_blocking_rules(
         self,
-        blocking_keys: List[str],
-        input_data: List[Dict[str, Any]],
-        comparisons: List[Tuple[int, int, bool]],
-    ) -> List[str]:
+        blocking_keys: list[str],
+        input_data: list[dict[str, Any]],
+        comparisons: list[tuple[int, int, bool]],
+    ) -> list[str]:
         # Sample 2 true and 2 false comparisons
         true_comparisons = [comp for comp in comparisons if comp[2]][:2]
         false_comparisons = [comp for comp in comparisons if not comp[2]][:2]
@@ -1379,11 +1379,11 @@ class JoinOptimizer:
 
     def _test_blocking_rule(
         self,
-        input_data: List[Dict[str, Any]],
-        blocking_keys: List[str],
+        input_data: list[dict[str, Any]],
+        blocking_keys: list[str],
         blocking_rule: str,
-        comparisons: List[Tuple[int, int, bool]],
-    ) -> List[Tuple[int, int]]:
+        comparisons: list[tuple[int, int, bool]],
+    ) -> list[tuple[int, int]]:
         def apply_blocking_rule(item1, item2):
             try:
                 return eval(blocking_rule, {"input1": item1, "input2": item2})
@@ -1422,9 +1422,9 @@ class JoinOptimizer:
 
     def _generate_containment_rules_equijoin(
         self,
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
-    ) -> List[str]:
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
+    ) -> list[str]:
         # Get all available keys from the sample data
         left_keys = set(left_data[0].keys())
         right_keys = set(right_data[0].keys())
@@ -1514,12 +1514,12 @@ Please provide 3-5 different containment-based blocking rules, based on the keys
 
     def _generate_blocking_rules_equijoin(
         self,
-        left_keys: List[str],
-        right_keys: List[str],
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
-        comparisons: List[Tuple[int, int, bool]],
-    ) -> List[str]:
+        left_keys: list[str],
+        right_keys: list[str],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
+        comparisons: list[tuple[int, int, bool]],
+    ) -> list[str]:
         if not left_keys or not right_keys:
             left_keys = list(left_data[0].keys())
             right_keys = list(right_data[0].keys())
@@ -1642,13 +1642,13 @@ Please provide 3-5 different containment-based blocking rules, based on the keys
 
     def _test_blocking_rule_equijoin(
         self,
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
-        left_keys: List[str],
-        right_keys: List[str],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
+        left_keys: list[str],
+        right_keys: list[str],
         blocking_rule: str,
-        comparisons: List[Tuple[int, int, bool]],
-    ) -> List[Tuple[int, int]]:
+        comparisons: list[tuple[int, int, bool]],
+    ) -> list[tuple[int, int]]:
         def apply_blocking_rule(left, right):
             try:
                 return eval(blocking_rule, {"left": left, "right": right})
@@ -1684,13 +1684,13 @@ Please provide 3-5 different containment-based blocking rules, based on the keys
 
     def _verify_blocking_rule_equijoin(
         self,
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
         blocking_rule: str,
-        left_keys: List[str],
-        right_keys: List[str],
-        comparison_results: List[Tuple[int, int, bool]],
-    ) -> Tuple[List[Tuple[int, int]], float]:
+        left_keys: list[str],
+        right_keys: list[str],
+        comparison_results: list[tuple[int, int, bool]],
+    ) -> tuple[list[tuple[int, int]], float]:
         def apply_blocking_rule(left, right):
             try:
                 return eval(blocking_rule, {"left": left, "right": right})
@@ -1718,10 +1718,10 @@ Please provide 3-5 different containment-based blocking rules, based on the keys
     def _update_config_equijoin(
         self,
         threshold: float,
-        left_keys: List[str],
-        right_keys: List[str],
-        blocking_rules: List[str],
-    ) -> Dict[str, Any]:
+        left_keys: list[str],
+        right_keys: list[str],
+        blocking_rules: list[str],
+    ) -> dict[str, Any]:
         optimized_config = self.op_config.copy()
         optimized_config["blocking_keys"] = {
             "left": left_keys,
@@ -1736,11 +1736,11 @@ Please provide 3-5 different containment-based blocking rules, based on the keys
 
     def _verify_blocking_rule(
         self,
-        input_data: List[Dict[str, Any]],
+        input_data: list[dict[str, Any]],
         blocking_rule: str,
-        blocking_keys: List[str],
-        comparison_results: List[Tuple[int, int, bool]],
-    ) -> Tuple[List[Tuple[int, int]], float]:
+        blocking_keys: list[str],
+        comparison_results: list[tuple[int, int, bool]],
+    ) -> tuple[list[tuple[int, int]], float]:
         def apply_blocking_rule(item1, item2):
             try:
                 return eval(blocking_rule, {"input1": item1, "input2": item2})
@@ -1767,8 +1767,8 @@ Please provide 3-5 different containment-based blocking rules, based on the keys
         return false_negatives, rule_selectivity
 
     def _update_config(
-        self, threshold: float, blocking_keys: List[str], blocking_rules: List[str]
-    ) -> Dict[str, Any]:
+        self, threshold: float, blocking_keys: list[str], blocking_rules: list[str]
+    ) -> dict[str, Any]:
         optimized_config = self.op_config.copy()
         optimized_config["blocking_keys"] = blocking_keys
         optimized_config["blocking_threshold"] = threshold

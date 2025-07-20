@@ -1,6 +1,6 @@
 import random
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -14,20 +14,20 @@ class RankOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "order"
         prompt: str
-        input_keys: List[str] = Field(default_factory=list)
+        input_keys: list[str] = Field(default_factory=list)
         direction: Literal["asc", "desc"]
-        model: Optional[str] = None
-        embedding_model: Optional[str] = None
+        model: str | None = None
+        embedding_model: str | None = None
         batch_size: int = 10
         initial_ordering_method: str = "embedding"
-        k: Optional[int] = None
+        k: int | None = None
         rerank_call_budget: int = 100
         num_top_items_per_window: int = 3
         overlap_fraction: float = 0.5
-        timeout: Optional[int] = None
+        timeout: int | None = None
         num_calibration_docs: int = 10
         verbose: bool = False
-        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
 
     def syntax_check(self) -> None:
         """
@@ -79,13 +79,13 @@ class RankOperation(BaseOperation):
                 if self.config[param] <= 0:
                     raise ValueError(f"'{param}' must be a positive integer")
 
-    def _extract_document_content(self, document: Dict, input_keys: List[str]) -> str:
+    def _extract_document_content(self, document: dict, input_keys: list[str]) -> str:
         """
         Extracts relevant content from a document based on specified keys.
 
         Args:
-            document (Dict): The document to extract content from.
-            input_keys (List[str]): List of keys to extract from the document.
+            document (dict): The document to extract content from.
+            input_keys (list[str]): List of keys to extract from the document.
 
         Returns:
             str: The extracted content as a string.
@@ -100,18 +100,18 @@ class RankOperation(BaseOperation):
 
     def _batch_rank_documents(
         self,
-        batch: List[Dict],
+        batch: list[dict],
         criteria: str,
         direction: str,
         model: str,
         timeout_seconds: int = 120,
         batch_label: str = "Batch",  # Added parameter for identifying which batch is being processed
-    ) -> Tuple[List[int], float]:
+    ) -> tuple[list[int], float]:
         """
         Uses an LLM to rank a batch of documents according to the given criteria and direction.
 
         Args:
-            batch (List[Dict]): A batch of documents to rank.
+            batch (list[dict]): A batch of documents to rank.
             criteria (str): The ranking criteria.
             direction (str): The direction of ordering ('asc' or 'desc').
             model (str): The LLM model to use.
@@ -119,7 +119,7 @@ class RankOperation(BaseOperation):
             batch_label (str): Label to identify which batch is being processed in logs.
 
         Returns:
-            Tuple[List[int], float]: A tuple containing the ranked indices and the cost.
+            tuple[list[int], float]: A tuple containing the ranked indices and the cost.
         """
         # Construct the prompt
         document_texts = []
@@ -216,17 +216,17 @@ class RankOperation(BaseOperation):
             return None, response.total_cost
 
     def _execute_comparison_qurk(
-        self, input_data: List[Dict], sample: bool = False
-    ) -> Tuple[List[Dict], float]:
+        self, input_data: list[dict], sample: bool = False
+    ) -> tuple[list[dict], float]:
         """
         Implements the comparison-based approach from the human-powered sort paper.
         Uses random batches of S items and head-to-head counting to break ties.
 
         Args:
-            input_data (List[Dict]): The dataset to order.
+            input_data (list[dict]): The dataset to order.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
+            tuple[list[dict], float]: A tuple containing the ordered results and the total cost.
         """
         if len(input_data) <= 1:
             return input_data, 0
@@ -258,7 +258,7 @@ class RankOperation(BaseOperation):
         )
 
         # Function to process a single batch
-        def process_batch(batch_num: int) -> Tuple[Dict[int, int], float]:
+        def process_batch(batch_num: int) -> tuple[dict[int, int], float]:
             # Select random batch of documents
             batch_indices = random.sample(
                 range(len(input_data)), min(batch_size, len(input_data))
@@ -330,17 +330,17 @@ class RankOperation(BaseOperation):
         return results_with_rank, total_cost
 
     def _execute_rating_embedding_qurk(
-        self, input_data: List[Dict]
-    ) -> Tuple[List[Dict], float]:
+        self, input_data: list[dict]
+    ) -> tuple[list[dict], float]:
         """
         Implements the rating-based approach from the human-powered sort paper.
         Each document is rated independently and then sorted by the average rating.
 
         Args:
-            input_data (List[Dict]): The dataset to order.
+            input_data (list[dict]): The dataset to order.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
+            tuple[list[dict], float]: A tuple containing the ordered results and the total cost.
         """
         from sklearn.metrics.pairwise import cosine_similarity
 
@@ -411,21 +411,21 @@ class RankOperation(BaseOperation):
 
     def _execute_sliding_window_qurk(
         self,
-        input_data: List[Dict],
+        input_data: list[dict],
         initial_ordering_method: str = "embedding",
-        k: Optional[int] = None,
-    ) -> Tuple[List[Dict], float]:
+        k: int | None = None,
+    ) -> tuple[list[dict], float]:
         """
         Implements the sliding window approach from the human-powered sort paper.
         Starts with an initial ordering based on the specified method, then applies successive windows for reranking.
 
         Args:
-            input_data (List[Dict]): The dataset to order.
+            input_data (list[dict]): The dataset to order.
             initial_ordering_method (str): Method to use for initial ordering ("embedding" or "likert").
-            k (Optional[int]): Number of top elements to focus on. If None, set to len(input_data).
+            k (int | None): Number of top elements to focus on. If None, set to len(input_data).
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
+            tuple[list[dict], float]: A tuple containing the ordered results and the total cost.
         """
         if len(input_data) <= 1:
             return input_data, 0
@@ -544,18 +544,18 @@ class RankOperation(BaseOperation):
         return results_with_rank, total_cost
 
     def _execute_likert_rating_qurk(
-        self, input_data: List[Dict]
-    ) -> Tuple[List[Dict], float]:
+        self, input_data: list[dict]
+    ) -> tuple[list[dict], float]:
         """
         Implements a rating-based approach using a 7-point Likert scale with LLM ratings.
         Each document is rated by the LLM on a 1-7 scale and then sorted by the rating.
         Uses a thread pool to parallelize LLM calls for better performance.
 
         Args:
-            input_data (List[Dict]): The dataset to order.
+            input_data (list[dict]): The dataset to order.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
+            tuple[list[dict], float]: A tuple containing the ordered results and the total cost.
         """
         if len(input_data) <= 1:
             return input_data, 0
@@ -716,7 +716,7 @@ class RankOperation(BaseOperation):
 
         return results_with_rank, total_cost
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Starts with an initial ordering based on the specified method, then applies "picky" windows.
         A "picky" window is one that is very large, but the LLM only has to pick a handful of documents from it.
@@ -724,10 +724,10 @@ class RankOperation(BaseOperation):
         We start out with small picky windows, then increase the size as we progress.
 
         Args:
-            input_data (List[Dict]): The dataset to order.
+            input_data (list[dict]): The dataset to order.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the ordered results and the total cost.
+            tuple[list[dict], float]: A tuple containing the ordered results and the total cost.
         """
         if len(input_data) <= 1:
             return input_data, 0
@@ -933,18 +933,18 @@ class RankOperation(BaseOperation):
         return final_results, total_cost
 
     def _execute_picky_window(
-        self, window_docs: List[Dict], num_top_items: int
-    ) -> List[int]:
+        self, window_docs: list[dict], num_top_items: int
+    ) -> list[int]:
         """
         Asks the LLM to pick the top N items from a window of documents and returns
         indices to those documents within the window.
 
         Args:
-            window_docs (List[Dict]): The window of documents to process.
+            window_docs (list[dict]): The window of documents to process.
             num_top_items (int): Number of top items to pick from the window.
 
         Returns:
-            List[int]: The indices of picked documents (relative to the window).
+            list[int]: The indices of picked documents (relative to the window).
         """
         # Get the criteria and model from config
         criteria = self.config["prompt"]
@@ -1034,8 +1034,8 @@ class RankOperation(BaseOperation):
             return list(range(min(num_top_items, len(window_docs)))), 0
 
     def _execute_calibrated_embedding_sort(
-        self, input_data: List[Dict]
-    ) -> Tuple[List[Dict], float]:
+        self, input_data: list[dict]
+    ) -> tuple[list[dict], float]:
         if len(input_data) <= 1:
             return input_data, 0
 

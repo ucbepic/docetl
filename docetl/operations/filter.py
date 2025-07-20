@@ -1,7 +1,5 @@
 """The `FilterOperation` class is a subclass of `BaseOperation` that implements a filtering operation on input data using a language model."""
 
-from typing import Dict, List, Tuple
-
 from docetl.operations.map import MapOperation
 
 
@@ -54,17 +52,17 @@ class FilterOperation(MapOperation):
             )
 
     def execute(
-        self, input_data: List[Dict], is_build: bool = False
-    ) -> Tuple[List[Dict], float]:
+        self, input_data: list[dict], is_build: bool = False
+    ) -> tuple[list[dict], float]:
         """
         Executes the filter operation on the input data.
 
         Args:
-            input_data (List[Dict]): A list of dictionaries to process.
+            input_data (list[dict]): A list of dictionaries to process.
             is_build (bool): Whether the operation is being executed in the build phase. Defaults to False.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the filtered list of dictionaries
+            tuple[list[dict], float]: A tuple containing the filtered list of dictionaries
             and the total cost of the operation.
 
         This method performs the following steps:

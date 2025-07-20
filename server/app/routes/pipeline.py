@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 import uuid
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from docetl.runner import DSLRunner
@@ -19,8 +19,8 @@ logging.basicConfig(
 router = APIRouter()
 
 # Task storage
-tasks: Dict[str, OptimizeResult] = {}
-asyncio_tasks: Dict[str, Task] = {}
+tasks: dict[str, OptimizeResult] = {}
+asyncio_tasks: dict[str, Task] = {}
 
 # Configuration
 COMPLETED_TASK_TTL = timedelta(hours=1)
@@ -155,7 +155,7 @@ async def cancel_optimize_task(task_id: str):
 
 # Keep the original run_pipeline endpoint
 @router.post("/run_pipeline")
-def run_pipeline(request: PipelineRequest) -> Dict[str, Any]:
+def run_pipeline(request: PipelineRequest) -> dict[str, Any]:
     try:
         runner = DSLRunner.from_yaml(request.yaml_config)
         cost = runner.load_run_save()

@@ -1,5 +1,4 @@
 from fastapi import APIRouter, UploadFile, File, Header
-from typing import List, Optional
 import tempfile
 import os
 import aiohttp
@@ -116,9 +115,9 @@ def process_document_with_azure_layout(file_path: str, endpoint: str, key: str) 
 
 @router.post("/api/convert-documents")
 async def convert_documents(
-    files: List[UploadFile] = File(...), 
+    files: list[UploadFile] = File(...), 
     use_docetl_server: str = "false",
-    custom_docling_url: Optional[str] = Header(None)
+    custom_docling_url: str | None = Header(None)
 ):
     use_docetl_server = use_docetl_server.lower() == "true" # TODO: make this a boolean
 
@@ -304,9 +303,9 @@ async def convert_documents(
     
 @router.post("/api/azure-convert-documents")
 async def azure_convert_documents(
-    files: List[UploadFile] = File(...),
-    azure_endpoint: Optional[str] = Header(None),
-    azure_key: Optional[str] = Header(None),
+    files: list[UploadFile] = File(...),
+    azure_endpoint: str | None = Header(None),
+    azure_key: str | None = Header(None),
     is_read: str = Header("false")
 ):
     if not azure_endpoint or not azure_key:

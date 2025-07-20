@@ -2,7 +2,7 @@ import json
 import math
 import re
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any
 
 import tiktoken
 import yaml
@@ -83,7 +83,7 @@ class CapturedOutput:
         self.optimizer_output[self.step][stage_type] = output
 
 
-def extract_jinja_variables(template_string: str) -> List[str]:
+def extract_jinja_variables(template_string: str) -> list[str]:
     """
     Extract variables from a Jinja2 template string.
 
@@ -94,7 +94,7 @@ def extract_jinja_variables(template_string: str) -> List[str]:
         template_string (str): The Jinja2 template string to analyze.
 
     Returns:
-        List[str]: A list of unique variable names found in the template.
+        list[str]: A list of unique variable names found in the template.
     """
     # Create a Jinja2 environment
     env = Environment(autoescape=True)
@@ -129,7 +129,7 @@ def completion_cost(response) -> float:
         return 0.0
 
 
-def load_config(config_path: str) -> Dict[str, Any]:
+def load_config(config_path: str) -> dict[str, Any]:
     """
     Load and parse a YAML configuration file.
 
@@ -137,7 +137,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
         config_path (str): Path to the YAML configuration file.
 
     Returns:
-        Dict[str, Any]: Parsed configuration as a dictionary.
+        dict[str, Any]: Parsed configuration as a dictionary.
 
     Raises:
         FileNotFoundError: If the configuration file is not found.
@@ -168,19 +168,22 @@ def count_tokens(text: str, model: str) -> int:
 
 
 def truncate_sample_data(
-    data: Dict[str, Any], available_tokens: int, key_lists: List[List[str]], model: str
-) -> Dict[str, Any]:
+    data: dict[str, Any],
+    available_tokens: int,
+    key_lists: list[list[str]],
+    model: str,
+) -> dict[str, Any]:
     """
     Truncate sample data to fit within available tokens.
 
     Args:
-        data (Dict[str, Any]): The original data dictionary to truncate.
+        data (dict[str, Any]): The original data dictionary to truncate.
         available_tokens (int): The maximum number of tokens allowed.
-        key_lists (List[List[str]]): Lists of keys to prioritize in the truncation process.
+        key_lists (list[list[str]]): Lists of keys to prioritize in the truncation process.
         model (str): The name of the model to use for token counting.
 
     Returns:
-        Dict[str, Any]: A new dictionary containing truncated data that fits within the token limit.
+        dict[str, Any]: A new dictionary containing truncated data that fits within the token limit.
     """
     truncated_data = {}
     current_tokens = 0
@@ -234,8 +237,8 @@ def truncate_sample_data(
 
 
 def smart_sample(
-    input_data: List[Dict], sample_size_needed: int, max_unique_values: int = 5
-) -> List[Dict]:
+    input_data: list[dict], sample_size_needed: int, max_unique_values: int = 5
+) -> list[dict]:
     """
     Smart sampling strategy that:
     1. Identifies categorical fields by checking for low cardinality (few unique values)
@@ -243,12 +246,12 @@ def smart_sample(
     3. Takes largest documents per stratum
 
     Args:
-        input_data (List[Dict]): List of input documents
+        input_data (list[dict]): List of input documents
         sample_size_needed (int): Number of samples needed
         max_unique_values (int): Maximum number of unique values for a field to be considered categorical
 
     Returns:
-        List[Dict]: Sampled documents
+        list[dict]: Sampled documents
     """
     if not input_data or sample_size_needed >= len(input_data):
         return input_data

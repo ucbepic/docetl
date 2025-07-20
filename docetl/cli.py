@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from typing import Optional
 
 import typer
 from dotenv import load_dotenv
@@ -16,7 +15,7 @@ def build(
     yaml_file: Path = typer.Argument(
         ..., help="Path to the YAML file containing the pipeline configuration"
     ),
-    max_threads: Optional[int] = typer.Option(
+    max_threads: int | None = typer.Option(
         None, help="Maximum number of threads to use for running operations"
     ),
     resume: bool = typer.Option(
@@ -32,7 +31,7 @@ def build(
 
     Args:
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
-        max_threads (Optional[int]): Maximum number of threads to use for running operations.
+        max_threads (int | None): Maximum number of threads to use for running operations.
         model (str): Model to use for optimization. Defaults to "gpt-4o".
         resume (bool): Whether to resume optimization from a previous run. Defaults to False.
         save_path (Path): Path to save the optimized pipeline configuration.
@@ -59,7 +58,7 @@ def run(
     yaml_file: Path = typer.Argument(
         ..., help="Path to the YAML file containing the pipeline configuration"
     ),
-    max_threads: Optional[int] = typer.Option(
+    max_threads: int | None = typer.Option(
         None, help="Maximum number of threads to use for running operations"
     ),
 ):
@@ -68,7 +67,7 @@ def run(
 
     Args:
         yaml_file (Path): Path to the YAML file containing the pipeline configuration.
-        max_threads (Optional[int]): Maximum number of threads to use for running operations.
+        max_threads (int | None): Maximum number of threads to use for running operations.
     """
     # Get the current working directory (where the user called the command)
     cwd = os.getcwd()

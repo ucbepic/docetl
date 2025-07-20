@@ -1,6 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from typing import List, Optional, Union
 import os
 import yaml
 import shutil
@@ -82,8 +81,8 @@ def is_likely_csv(content: bytes, filename: str) -> bool:
 
 @router.post("/upload-file")
 async def upload_file(
-    file: Optional[UploadFile] = File(None),
-    url: Optional[str] = Form(None),
+    file: UploadFile | None = File(None),
+    url: str | None = Form(None),
     namespace: str = Form(...)
 ):
     """Upload a file to the namespace files directory, either from a direct upload or a URL"""
@@ -167,7 +166,7 @@ async def upload_file(
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
 @router.post("/save-documents")
-async def save_documents(files: List[UploadFile] = File(...), namespace: str = Form(...)):
+async def save_documents(files: list[UploadFile] = File(...), namespace: str = Form(...)):
     """Save multiple documents to the namespace documents directory"""
     try:
         uploads_dir = get_namespace_dir(namespace) / "documents"

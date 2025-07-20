@@ -1,5 +1,3 @@
-from typing import Dict, List, Tuple
-
 import numpy as np
 
 from docetl.operations.base import BaseOperation
@@ -103,18 +101,18 @@ class SampleOperation(BaseOperation):
                 raise TypeError("'center' must be a dictionary")
 
     def execute(
-        self, input_data: List[Dict], is_build: bool = False
-    ) -> Tuple[List[Dict], float]:
+        self, input_data: list[dict], is_build: bool = False
+    ) -> tuple[list[dict], float]:
         """
         Executes the sample operation on the input data.
 
         Args:
-            input_data (List[Dict]): A list of dictionaries to process.
+            input_data (list[dict]): A list of dictionaries to process.
             is_build (bool): Whether the operation is being executed
               in the build phase. Defaults to False.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the filtered
+            tuple[list[dict], float]: A tuple containing the filtered
               list of dictionaries and the total cost of the operation.
         """
         cost = 0

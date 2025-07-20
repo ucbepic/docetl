@@ -1,9 +1,6 @@
-from typing import Union
-
 from . import dataset
 
 # ruff: noqa: F403
-from .base_schemas import *
 from .operations import (
     cluster,
     equijoin,
@@ -29,16 +26,16 @@ UnnestOp = unnest.UnnestOperation.schema
 ClusterOp = cluster.ClusterOperation.schema
 SampleOp = sample.SampleOperation.schema
 
-OpType = Union[
-    MapOp,
-    ResolveOp,
-    ReduceOp,
-    ParallelMapOp,
-    FilterOp,
-    EquijoinOp,
-    SplitOp,
-    GatherOp,
-    UnnestOp,
-]
+OpType = (
+    MapOp
+    | ResolveOp
+    | ReduceOp
+    | ParallelMapOp
+    | FilterOp
+    | EquijoinOp
+    | SplitOp
+    | GatherOp
+    | UnnestOp
+)
 
 Dataset = dataset.Dataset.schema

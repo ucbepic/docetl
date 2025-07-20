@@ -4,7 +4,7 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import jinja2
 from jinja2 import Template
@@ -28,44 +28,44 @@ class ResolveOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "resolve"
         comparison_prompt: str
-        resolution_prompt: Optional[str] = None
-        output: Optional[Dict[str, Any]] = None
-        embedding_model: Optional[str] = None
-        resolution_model: Optional[str] = None
-        comparison_model: Optional[str] = None
-        blocking_keys: Optional[List[str]] = None
-        blocking_threshold: Optional[float] = None
-        blocking_conditions: Optional[List[str]] = None
-        input: Optional[Dict[str, Any]] = None
-        embedding_batch_size: Optional[int] = None
-        compare_batch_size: Optional[int] = None
-        limit_comparisons: Optional[int] = None
-        optimize: Optional[bool] = None
-        timeout: Optional[int] = None
-        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        resolution_prompt: str | None = None
+        output: dict[str, Any] | None = None
+        embedding_model: str | None = None
+        resolution_model: str | None = None
+        comparison_model: str | None = None
+        blocking_keys: list[str] | None = None
+        blocking_threshold: float | None = None
+        blocking_conditions: list[str] | None = None
+        input: dict[str, Any] | None = None
+        embedding_batch_size: int | None = None
+        compare_batch_size: int | None = None
+        limit_comparisons: int | None = None
+        optimize: bool | None = None
+        timeout: int | None = None
+        litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
         enable_observability: bool = False
 
     def compare_pair(
         self,
         comparison_prompt: str,
         model: str,
-        item1: Dict,
-        item2: Dict,
-        blocking_keys: List[str] = [],
+        item1: dict,
+        item2: dict,
+        blocking_keys: list[str] = [],
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
-    ) -> Tuple[bool, float, str]:
+    ) -> tuple[bool, float, str]:
         """
         Compares two items using an LLM model to determine if they match.
 
         Args:
             comparison_prompt (str): The prompt template for comparison.
             model (str): The LLM model to use for comparison.
-            item1 (Dict): The first item to compare.
-            item2 (Dict): The second item to compare.
+            item1 (dict): The first item to compare.
+            item2 (dict): The second item to compare.
 
         Returns:
-            Tuple[bool, float, str]: A tuple containing a boolean indicating whether the items match, the cost of the comparison, and the prompt.
+            tuple[bool, float, str]: A tuple containing a boolean indicating whether the items match, the cost of the comparison, and the prompt.
         """
         if blocking_keys:
             if all(
@@ -203,7 +203,7 @@ class ResolveOperation(BaseOperation):
             if self.config["limit_comparisons"] <= 0:
                 raise ValueError("'limit_comparisons' must be a positive integer")
 
-    def validation_fn(self, response: Dict[str, Any]):
+    def validation_fn(self, response: dict[str, Any]):
         output = self.runner.api.parse_llm_response(
             response,
             schema=self.config["output"]["schema"],
@@ -212,15 +212,15 @@ class ResolveOperation(BaseOperation):
             return output, True
         return output, False
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the resolve operation on the provided dataset.
 
         Args:
-            input_data (List[Dict]): The dataset to resolve.
+            input_data (list[dict]): The dataset to resolve.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the resolved results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the resolved results and the total cost of the operation.
 
         This method performs the following steps:
         1. Initial blocking based on specified conditions and/or embedding similarity
@@ -268,7 +268,7 @@ class ResolveOperation(BaseOperation):
         limit_comparisons = self.config.get("limit_comparisons")
         total_cost = 0
 
-        def is_match(item1: Dict[str, Any], item2: Dict[str, Any]) -> bool:
+        def is_match(item1: dict[str, Any], item2: dict[str, Any]) -> bool:
             return any(
                 eval(condition, {"input1": item1, "input2": item2})
                 for condition in blocking_conditions
@@ -279,8 +279,8 @@ class ResolveOperation(BaseOperation):
         if blocking_threshold is not None:
 
             def get_embeddings_batch(
-                items: List[Dict[str, Any]]
-            ) -> List[Tuple[List[float], float]]:
+                items: list[dict[str, Any]]
+            ) -> list[tuple[list[float], float]]:
                 embedding_model = self.config.get(
                     "embedding_model", "text-embedding-3-small"
                 )
@@ -322,10 +322,10 @@ class ResolveOperation(BaseOperation):
 
         # Generate all pairs to compare, ensuring no duplicate comparisons
         def get_unique_comparison_pairs() -> (
-            Tuple[List[Tuple[int, int]], Dict[Tuple[str, ...], List[int]]]
+            tuple[list[tuple[int, int]], dict[tuple[str, ...], list[int]]]
         ):
             # Create a mapping of values to their indices
-            value_to_indices: Dict[Tuple[str, ...], List[int]] = {}
+            value_to_indices: dict[tuple[str, ...], list[int]] = {}
             for i, item in enumerate(input_data):
                 # Create a hashable key from the blocking keys
                 key = tuple(str(item.get(k, "")) for k in blocking_keys)
@@ -351,7 +351,7 @@ class ResolveOperation(BaseOperation):
         comparison_pairs, value_to_indices = get_unique_comparison_pairs()
 
         # Filter pairs based on blocking conditions
-        def meets_blocking_conditions(pair: Tuple[int, int]) -> bool:
+        def meets_blocking_conditions(pair: tuple[int, int]) -> bool:
             i, j = pair
             return (
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False

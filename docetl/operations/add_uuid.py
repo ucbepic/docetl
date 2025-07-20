@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from docetl.operations.base import BaseOperation
 
@@ -25,8 +25,8 @@ class AddUuidOperation(BaseOperation):
         pass
 
     def execute(
-        self, input_data: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], float]:
+        self, input_data: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], float]:
         results = []
         cost = 0.0
 

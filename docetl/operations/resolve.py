@@ -277,25 +277,24 @@ class ResolveOperation(BaseOperation):
         # Calculate embeddings if blocking_threshold is set
         embeddings = None
         if blocking_threshold is not None:
-            embedding_model = self.config.get(
-                "embedding_model", "text-embedding-3-small"
-            )
 
             def get_embeddings_batch(
                 items: List[Dict[str, Any]]
             ) -> List[Tuple[List[float], float]]:
-                embedding_model = self.config.get("embedding_model", "text-embedding-3-small")
+                embedding_model = self.config.get(
+                    "embedding_model", "text-embedding-3-small"
+                )
                 model_input_context_length = model_cost.get(embedding_model, {}).get(
                     "max_input_tokens", 8192
-                ) 
-                
+                )
+
                 texts = [
                     " ".join(str(item[key]) for key in blocking_keys if key in item)[
                         : model_input_context_length * 3
                     ]
                     for item in items
                 ]
-                
+
                 response = self.runner.api.gen_embedding(
                     model=embedding_model, input=texts
                 )

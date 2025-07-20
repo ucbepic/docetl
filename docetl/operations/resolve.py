@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 from jinja2 import Template
+from litellm import model_cost
 from pydantic import Field
 from rich.prompt import Confirm
 
@@ -276,17 +277,24 @@ class ResolveOperation(BaseOperation):
         # Calculate embeddings if blocking_threshold is set
         embeddings = None
         if blocking_threshold is not None:
-            embedding_model = self.config.get(
-                "embedding_model", "text-embedding-3-small"
-            )
 
             def get_embeddings_batch(
                 items: List[Dict[str, Any]]
             ) -> List[Tuple[List[float], float]]:
+                embedding_model = self.config.get(
+                    "embedding_model", "text-embedding-3-small"
+                )
+                model_input_context_length = model_cost.get(embedding_model, {}).get(
+                    "max_input_tokens", 8192
+                )
+
                 texts = [
-                    " ".join(str(item[key]) for key in blocking_keys if key in item)
+                    " ".join(str(item[key]) for key in blocking_keys if key in item)[
+                        : model_input_context_length * 3
+                    ]
                     for item in items
                 ]
+
                 response = self.runner.api.gen_embedding(
                     model=embedding_model, input=texts
                 )
@@ -297,20 +305,19 @@ class ResolveOperation(BaseOperation):
 
             embeddings = []
             costs = []
-            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                for i in range(
-                    0, len(input_data), self.config.get("embedding_batch_size", 1000)
-                ):
-                    batch = input_data[
-                        i : i + self.config.get("embedding_batch_size", 1000)
-                    ]
-                    batch_results = list(executor.map(get_embeddings_batch, [batch]))
+            for i in range(
+                0, len(input_data), self.config.get("embedding_batch_size", 1000)
+            ):
+                batch = input_data[
+                    i : i + self.config.get("embedding_batch_size", 1000)
+                ]
+                batch_results = get_embeddings_batch(batch)
+                embeddings.extend([r[0] for r in batch_results])
+                costs.extend([r[1] for r in batch_results])
 
-                    for result in batch_results:
-                        embeddings.extend([r[0] for r in result])
-                        costs.extend([r[1] for r in result])
+            total_cost += sum(costs)
 
-                total_cost += sum(costs)
+            self.console.log(f"Total cost of generating embeddings: {total_cost}")
 
         # Generate all pairs to compare, ensuring no duplicate comparisons
         def get_unique_comparison_pairs() -> (

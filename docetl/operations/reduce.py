@@ -749,7 +749,7 @@ class ReduceOperation(BaseOperation):
                     {
                         "iter": iter_count,
                         "intermediate": folded_output,
-                        "scratchpad": folded_output["updated_scratchpad"],
+                        "scratchpad": folded_output.get("updated_scratchpad", ""),
                     }
                 )
                 iter_count += 1

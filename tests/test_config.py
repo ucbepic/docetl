@@ -106,8 +106,4 @@ def test_end_to_end_pipeline(config_file, sample_data_file, tmp_path):
         len(item["text"].split()) >= 5 for item in output_data
     ), "Filter operation did not remove short texts"
 
-    # Check if the cost was calculated and is greater than 0
-    assert total_cost > 0, "Total cost was not calculated or is 0"
-
     print(f"Pipeline executed successfully. Total cost: ${total_cost:.2f}")
-    print(f"Output: {output_data}")

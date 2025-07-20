@@ -20,6 +20,7 @@ lint:
 install:
 	pip install poetry
 	poetry install --all-extras
+	poetry run pre-commit install
 
 mypy:
 	poetry run mypy

@@ -651,11 +651,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         return self._record_operation(results, "filter", filter_config, cost)
 
     def split(
-        self,
-        split_key: str,
-        method: str,
-        method_kwargs: Dict[str, Any],
-        **kwargs
+        self, split_key: str, method: str, method_kwargs: Dict[str, Any], **kwargs
     ) -> pd.DataFrame:
         """
         Split DataFrame rows into multiple chunks based on content.
@@ -724,7 +720,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         doc_id_key: str,
         order_key: str,
         peripheral_chunks: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Gather contextual information from surrounding chunks to enhance each chunk.
@@ -803,7 +799,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         expand_fields: Optional[List[str]] = None,
         recursive: bool = False,
         depth: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Unnest list-like or dictionary values into multiple rows.

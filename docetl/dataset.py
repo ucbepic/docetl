@@ -1,6 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Literal
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict
@@ -10,16 +10,16 @@ from docetl.parsing_tools import get_parser, get_parsing_tools
 
 
 def create_parsing_tool_map(
-    parsing_tools: Optional[List[ParsingTool]],
-) -> Dict[str, ParsingTool]:
+    parsing_tools: list[ParsingTool] | None,
+) -> dict[str, ParsingTool]:
     """
     Create a mapping of parsing tool names to their corresponding ParsingTool objects.
 
     Args:
-        parsing_tools (Optional[List[ParsingTool]]): A list of ParsingTool objects.
+        parsing_tools (list[ParsingTool] | None): A list of ParsingTool objects.
 
     Returns:
-        Dict[str, ParsingTool]: A dictionary mapping tool names to ParsingTool objects.
+        dict[str, ParsingTool]: A dictionary mapping tool names to ParsingTool objects.
     """
     if not parsing_tools:
         return {}
@@ -37,9 +37,9 @@ class Dataset:
     Attributes:
         type (str): The type of the dataset ('file' or 'memory').
         source (str): The source of the dataset (currently only 'local' is supported).
-        path_or_data (Union[str, List[Dict]]): The file path or in-memory data.
-        parsing (List[Dict[str, str]]): A list of parsing tools to apply to the data.
-        user_defined_parsing_tool_map (Dict[str, ParsingTool]): A map of user-defined parsing tools.
+        path_or_data (str | list[dict]): The file path or in-memory data.
+        parsing (list[dict[str, str]]): A list of parsing tools to apply to the data.
+        user_defined_parsing_tool_map (dict[str, ParsingTool]): A map of user-defined parsing tools.
     """
 
     class schema(BaseModel):
@@ -50,7 +50,7 @@ class Dataset:
             type (str): The type of the dataset. Must be either 'file' or 'memory'.
             path (str): The path to the dataset file or the in-memory data, depending on the type.
             source (str): The source of the dataset. Currently, only 'local' is supported. Defaults to 'local'.
-            parsing (Optional[List[Dict[str, str]]]): A list of parsing tools to apply to the data. Each parsing tool
+            parsing (list[dict[str, str]] | None): A list of parsing tools to apply to the data. Each parsing tool
                                                       is represented by a dictionary with 'input_key', 'function', and
                                                       'output_key' keys. Defaults to None.
 
@@ -74,18 +74,18 @@ class Dataset:
         model_config = ConfigDict(arbitrary_types_allowed=True)
 
         type: Literal["file", "memory"]
-        path: Union[str, List[Dict], pd.DataFrame]
+        path: str | list[dict] | pd.DataFrame
         source: str = "local"
-        parsing: Optional[List[Dict[str, str]]] = None
+        parsing: list[dict[str, str]] | None = None
 
     def __init__(
         self,
         runner,
         type: str,
-        path_or_data: Union[str, List[Dict]],
+        path_or_data: str | list[dict],
         source: str = "local",
-        parsing: List[Dict[str, str]] = None,
-        user_defined_parsing_tool_map: Dict[str, ParsingTool] = {},
+        parsing: list[dict[str, str]] = None,
+        user_defined_parsing_tool_map: dict[str, ParsingTool] = {},
     ):
         """
         Initialize a Dataset object.
@@ -93,9 +93,9 @@ class Dataset:
         Args:
             type (str): The type of the dataset ('file' or 'memory').
             source (str): The source of the dataset (currently only 'local' is supported).
-            path_or_data (Union[str, List[Dict]]): The file path or in-memory data.
-            parsing (List[Dict[str, str]], optional): A list of parsing tools to apply to the data.
-            user_defined_parsing_tool_map (Dict[str, ParsingTool], optional): A map of user-defined parsing tools.
+            path_or_data (str | list[dict]): The file path or in-memory data.
+            parsing (list[dict[str, str]] | None): A list of parsing tools to apply to the data.
+            user_defined_parsing_tool_map (dict[str, ParsingTool], optional): A map of user-defined parsing tools.
         """
         self.runner = runner
         self.type = self._validate_type(type)
@@ -139,16 +139,16 @@ class Dataset:
         return source
 
     def _validate_path_or_data(
-        self, path_or_data: Union[str, List[Dict]]
-    ) -> Union[str, List[Dict]]:
+        self, path_or_data: str | list[dict]
+    ) -> str | list[dict]:
         """
         Validate the path or data of the dataset.
 
         Args:
-            path_or_data (Union[str, List[Dict]]): The path or data to validate.
+            path_or_data (str | list[dict]): The path or data to validate.
 
         Returns:
-            Union[str, List[Dict]]: The validated path or data.
+            str | list[dict]: The validated path or data.
 
         Raises:
             ValueError: If the path or data is invalid for the given type.
@@ -167,16 +167,16 @@ class Dataset:
         return path_or_data
 
     def _validate_parsing(
-        self, parsing_tools: Union[List[Dict[str, str]], None]
-    ) -> List[Dict[str, str]]:
+        self, parsing_tools: list[dict[str, str]] | None
+    ) -> list[dict[str, str]]:
         """
         Validate the parsing tools.
 
         Args:
-            parsing_tools (Union[List[Dict[str, str]], None]): The parsing tools to validate.
+            parsing_tools (list[dict[str, str]] | None): The parsing tools to validate.
 
         Returns:
-            List[Dict[str, str]]: The validated parsing tools.
+            list[dict[str, str]]: The validated parsing tools.
 
         Raises:
             ValueError: If any parsing tool is invalid.
@@ -207,12 +207,12 @@ class Dataset:
         """
         return f"Dataset(type='{self.type}', source='{self.source}', path_or_data='{self.path_or_data}', parsing={self.parsing})"
 
-    def load(self) -> List[Dict]:
+    def load(self) -> list[dict]:
         """
         Load the dataset from the specified path or return the in-memory data.
 
         Returns:
-            List[Dict]: A list of dictionaries representing the dataset.
+            list[dict]: A list of dictionaries representing the dataset.
 
         Raises:
             ValueError: If the file extension is unsupported.
@@ -240,22 +240,22 @@ class Dataset:
 
     def _process_item(
         self,
-        item: Dict[str, Any],
+        item: dict[str, Any],
         func: Callable,
-        **function_kwargs: Dict[str, Any],
+        **function_kwargs: dict[str, Any],
     ):
         result = func(item, **function_kwargs)
         return [item.copy() | res for res in result]
 
-    def _apply_parsing_tools(self, data: Union[List[Dict], pd.DataFrame]) -> List[Dict]:
+    def _apply_parsing_tools(self, data: list[dict] | pd.DataFrame) -> list[dict]:
         """
         Apply parsing tools to the data.
 
         Args:
-            data (Union[List[Dict], pd.DataFrame]): The data to apply parsing tools to.
+            data (list[dict] | pd.DataFrame): The data to apply parsing tools to.
 
         Returns:
-            List[Dict]: The data with parsing tools applied.
+            list[dict]: The data with parsing tools applied.
 
         Raises:
             ValueError: If a parsing tool is not found or if an input key is missing from an item.
@@ -311,7 +311,7 @@ class Dataset:
 
         return data
 
-    def sample(self, n: int, random: bool = True) -> List[Dict]:
+    def sample(self, n: int, random: bool = True) -> list[dict]:
         """
         Sample n items from the dataset.
 
@@ -320,7 +320,7 @@ class Dataset:
             random (bool): If True, sample randomly. If False, take the first n items.
 
         Returns:
-            List[Dict]: A list of n sampled items.
+            list[dict]: A list of n sampled items.
 
         Raises:
             ValueError: If the sample size is larger than the dataset size or if the file extension is unsupported.

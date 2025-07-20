@@ -1,7 +1,7 @@
 import copy
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable
 
 from rich.console import Console
 
@@ -19,9 +19,9 @@ class PlanGenerator:
         runner,
         llm_client: LLMClient,
         console: Console,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         run_operation: Callable[
-            [Dict[str, Any], List[Dict[str, Any]]], List[Dict[str, Any]]
+            [dict[str, Any], list[dict[str, Any]]], list[dict[str, Any]]
         ],
         max_threads: int,
         is_filter: bool = False,
@@ -47,11 +47,11 @@ class PlanGenerator:
 
     def _generate_chunk_size_plans(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         validator_prompt: str,
         token_limit: int,
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """
         Generate plans with different chunk sizes for the given operation.
 
@@ -60,13 +60,13 @@ class PlanGenerator:
         extraction is necessary and includes it in the plans if needed.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the operation.
-            input_data (List[Dict[str, Any]]): The input data for the operation.
+            op_config (dict[str, Any]): The configuration of the operation.
+            input_data (list[dict[str, Any]]): The input data for the operation.
             validator_prompt (str): The prompt used for validating the operation's output.
             token_limit (int): The maximum number of tokens allowed in the operation's input.
 
         Returns:
-            Dict[str, List[Dict[str, Any]]]: A dictionary of plans, where each key
+            dict[str, list[dict[str, Any]]]: A dictionary of plans, where each key
             is a plan name and each value is a list of operation configurations
             that make up the plan.
 
@@ -428,10 +428,10 @@ class PlanGenerator:
     def _evaluate_partial_plan_output(
         self,
         plan_name: str,
-        op_config: Dict[str, Any],
-        subprompt_output_schema: Dict[str, Any],
-        split_op_output: List[Dict[str, Any]],
-        map_op_output: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        subprompt_output_schema: dict[str, Any],
+        split_op_output: list[dict[str, Any]],
+        map_op_output: list[dict[str, Any]],
         task_prompt: str,
         validator_prompt: str,
     ) -> float:
@@ -472,14 +472,14 @@ class PlanGenerator:
     def _assess_output_quality(
         self,
         plan_name: str,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         subprompt_output_schema,
-        split_op_output: List[Dict[str, Any]],
-        map_op_output: List[Dict[str, Any]],
+        split_op_output: list[dict[str, Any]],
+        map_op_output: list[dict[str, Any]],
         element_idx: int,
         task_prompt: str,
         validator_prompt: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         system_prompt = "You are an AI assistant tasked with evaluating the quality of data processing outputs."
         output_schema_keys = subprompt_output_schema.keys()
         input_elem = split_op_output[element_idx]
@@ -540,9 +540,9 @@ class PlanGenerator:
 
     def _generate_gleaning_plans(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         validation_prompt: str,
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """
         Generate plans that use gleaning for the given operation.
 
@@ -551,11 +551,11 @@ class PlanGenerator:
         numbers of gleaning rounds.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the operation.
+            op_config (dict[str, Any]): The configuration of the operation.
             validation_prompt (str): The prompt used for validating the operation's output.
 
         Returns:
-            Dict[str, List[Dict[str, Any]]]: A dictionary of gleaning plans, where each key
+            dict[str, list[dict[str, Any]]]: A dictionary of gleaning plans, where each key
             is a plan name and each value is a list containing a single operation configuration
             with gleaning parameters.
 
@@ -573,8 +573,8 @@ class PlanGenerator:
         return plans
 
     def _generate_parallel_plans(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Dict[str, List[Dict[str, Any]]]:
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
+    ) -> dict[str, list[dict[str, Any]]]:
         """Generate plans that use parallel execution for the given operation."""
         output_schema = op_config["output"]["schema"]
         system_prompt = "You are an AI assistant tasked with decomposing a complex data processing task into parallel subtasks."
@@ -822,8 +822,8 @@ class PlanGenerator:
         return plans
 
     def _generate_chain_plans(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Dict[str, List[Dict[str, Any]]]:
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
+    ) -> dict[str, list[dict[str, Any]]]:
         """
         Generate chain decomposition plans for the given operation.
 
@@ -1007,11 +1007,11 @@ class PlanGenerator:
 
     def _recursively_optimize_subtask(
         self,
-        subtask_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        subtask_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         subtask_name: str,
-        plan_types: List[str],
-    ) -> Tuple[List[Dict[str, Any]], float]:
+        plan_types: list[str],
+    ) -> tuple[list[dict[str, Any]], float]:
         """
         Recursively optimize a subtask using a new MapOptimizer instance.
         """

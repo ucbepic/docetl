@@ -23,6 +23,8 @@ The architecture prioritizes:
 4. Performance: Lazy evaluation and caching optimize resource usage
 """
 
+from __future__ import annotations
+
 import functools
 import hashlib
 import json
@@ -30,7 +32,7 @@ import os
 import shutil
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -88,9 +90,9 @@ class DSLRunner(ConfigWrapper):
         # OpType = Union[*[op.schema for op in get_operations().values()]]
 
         class Pipeline(BaseModel):
-            config: Optional[dict[str, Any]]
-            parsing_tools: Optional[list[schemas.ParsingTool]]
-            datasets: Dict[str, schemas.Dataset]
+            config: dict[str, Any] | None
+            parsing_tools: list[schemas.ParsingTool] | None
+            datasets: dict[str, schemas.Dataset]
             operations: list[OpType]
             pipeline: schemas.PipelineSpec
 
@@ -100,7 +102,7 @@ class DSLRunner(ConfigWrapper):
     def json_schema(cls):
         return cls.schema.model_json_schema()
 
-    def __init__(self, config: Dict, max_threads: int = None, **kwargs):
+    def __init__(self, config: dict, max_threads: int | None = None, **kwargs):
         """
         Initialize the DSLRunner with a YAML configuration file.
 
@@ -138,7 +140,7 @@ class DSLRunner(ConfigWrapper):
             self.config.get("parsing_tools", None)
         )
 
-    def _build_operation_graph(self, config: Dict) -> None:
+    def _build_operation_graph(self, config: dict) -> None:
         """Build the DAG of operations from configuration"""
         self.config = config
         self.op_container_map = {}
@@ -155,12 +157,12 @@ class DSLRunner(ConfigWrapper):
             self._add_step_operations(step)
             self._add_step_boundary(step)
 
-    def _validate_step(self, step: Dict) -> None:
+    def _validate_step(self, step: dict) -> None:
         """Validate step configuration"""
         assert "name" in step.keys(), f"Step {step} does not have a name"
         assert "operations" in step.keys(), f"Step {step} does not have `operations`"
 
-    def _add_scan_operation(self, step: Dict) -> None:
+    def _add_scan_operation(self, step: dict) -> None:
         """Add a scan operation for input datasets"""
         scan_op_container = OpContainer(
             f"{step['name']}/scan_{step['input']}",
@@ -178,7 +180,7 @@ class DSLRunner(ConfigWrapper):
             scan_op_container.add_child(self.last_op_container)
         self.last_op_container = scan_op_container
 
-    def _add_equijoin_operation(self, step: Dict) -> None:
+    def _add_equijoin_operation(self, step: dict) -> None:
         """Add an equijoin operation with its scan operations"""
         equijoin_operation_name = list(step["operations"][0].keys())[0]
         left_dataset_name = list(step["operations"][0].values())[0]["left"]
@@ -228,7 +230,7 @@ class DSLRunner(ConfigWrapper):
             right_scan_op_container
         )
 
-    def _add_step_operations(self, step: Dict) -> None:
+    def _add_step_operations(self, step: dict) -> None:
         """Add operations for a step"""
         op_start_idx = 1 if not step.get("input") else 0
 
@@ -248,7 +250,7 @@ class DSLRunner(ConfigWrapper):
             self.last_op_container = op_container
             self.op_container_map[f"{step['name']}/{operation_name}"] = op_container
 
-    def _add_step_boundary(self, step: Dict) -> None:
+    def _add_step_boundary(self, step: dict) -> None:
         """Add a step boundary node"""
         step_boundary = StepBoundary(
             f"{step['name']}/boundary",
@@ -344,7 +346,7 @@ class DSLRunner(ConfigWrapper):
             return
 
         def _print_op(
-            op: OpContainer, indent: int = 0, step_colors: Dict[str, str] = None
+            op: OpContainer, indent: int = 0, step_colors: dict[str, str] | None = None
         ) -> str:
             # Handle boundary operations based on show_boundaries flag
             if isinstance(op, StepBoundary):
@@ -424,7 +426,7 @@ class DSLRunner(ConfigWrapper):
         self.console.log(Panel(query_plan, title="Query Plan", width=100))
         self.console.log()
 
-    def find_operation(self, op_name: str) -> Dict:
+    def find_operation(self, op_name: str) -> dict:
         for operation_config in self.config["operations"]:
             if operation_config["name"] == op_name:
                 return operation_config
@@ -509,7 +511,7 @@ class DSLRunner(ConfigWrapper):
         }
         self.console.log()
 
-    def save(self, data: List[Dict]) -> None:
+    def save(self, data: list[dict]) -> None:
         """
         Save the final output of the pipeline.
         """
@@ -543,7 +545,7 @@ class DSLRunner(ConfigWrapper):
 
     def _load_from_checkpoint_if_exists(
         self, step_name: str, operation_name: str
-    ) -> Optional[List[Dict]]:
+    ) -> list[dict] | None:
         if self.intermediate_dir is None or self.config.get("bypass_cache", False):
             return None
 
@@ -600,7 +602,7 @@ class DSLRunner(ConfigWrapper):
         raise ValueError("Intermediate directory not set. Cannot clear intermediate.")
 
     def _save_checkpoint(
-        self, step_name: str, operation_name: str, data: List[Dict]
+        self, step_name: str, operation_name: str, data: list[dict]
     ) -> None:
         """
         Save a checkpoint of the current data after an operation.
@@ -612,7 +614,7 @@ class DSLRunner(ConfigWrapper):
         Args:
             step_name (str): The name of the current step in the pipeline.
             operation_name (str): The name of the operation that was just executed.
-            data (List[Dict]): The current state of the data to be checkpointed.
+            data (list[dict]): The current state of the data to be checkpointed.
 
         Note:
             The checkpoint is saved only if a checkpoint directory has been specified
@@ -637,7 +639,7 @@ class DSLRunner(ConfigWrapper):
             if os.path.exists(intermediate_config_path):
                 try:
                     with open(intermediate_config_path, "r") as cfg_file:
-                        intermediate_config: Dict[str, Dict[str, str]] = json.load(
+                        intermediate_config: dict[str, dict[str, str]] = json.load(
                             cfg_file
                         )
                 except json.JSONDecodeError:
@@ -662,7 +664,7 @@ class DSLRunner(ConfigWrapper):
 
     def should_optimize(
         self, step_name: str, op_name: str, **kwargs
-    ) -> Tuple[str, float, List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> tuple[str, float, list[dict[str, Any]], list[dict[str, Any]]]:
         self.load()
 
         # Augment the kwargs with the runner's config if not already provided
@@ -686,7 +688,7 @@ class DSLRunner(ConfigWrapper):
         save: bool = False,
         return_pipeline: bool = True,
         **kwargs,
-    ) -> Tuple[Union[Dict, "DSLRunner"], float]:
+    ) -> tuple[dict | "DSLRunner", float]:
 
         if not self.last_op_container:
             raise ValueError("No operations in pipeline. Cannot optimize.")
@@ -750,11 +752,11 @@ class DSLRunner(ConfigWrapper):
 
     def _run_operation(
         self,
-        op_config: Dict[str, Any],
-        input_data: Union[List[Dict[str, Any]], Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]] | dict[str, Any],
         return_instance: bool = False,
         is_build: bool = False,
-    ) -> Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation, float]]:
+    ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation, float]:
         """
         Run a single operation based on its configuration.
 
@@ -762,12 +764,12 @@ class DSLRunner(ConfigWrapper):
         It also updates the total operation cost.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the operation to run.
-            input_data (List[Dict[str, Any]]): The input data for the operation.
+            op_config (dict[str, Any]): The configuration of the operation to run.
+            input_data (list[dict[str, Any]]): The input data for the operation.
             return_instance (bool, optional): If True, return the operation instance along with the output data.
 
         Returns:
-            Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], BaseOperation, float]]:
+            list[dict[str, Any]] | tuple[list[dict[str, Any]], BaseOperation, float]:
             If return_instance is False, returns the output data.
             If return_instance is True, returns a tuple of the output data, the operation instance, and the cost.
         """
@@ -799,7 +801,7 @@ class DSLRunner(ConfigWrapper):
             return output_data
 
     def _flush_partial_results(
-        self, operation_name: str, batch_index: int, data: List[Dict]
+        self, operation_name: str, batch_index: int, data: list[dict]
     ) -> None:
         """
         Save partial (batch-level) results from an operation to a directory named
@@ -808,7 +810,7 @@ class DSLRunner(ConfigWrapper):
         Args:
             operation_name (str): The name of the operation, e.g. 'extract_medications'.
             batch_index (int): Zero-based index of the batch.
-            data (List[Dict]): Batch results to write to disk.
+            data (list[dict]): Batch results to write to disk.
         """
         if not self.intermediate_dir:
             return

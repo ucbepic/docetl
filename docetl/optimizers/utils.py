@@ -1,6 +1,6 @@
 import math
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 import pyrate_limiter
 from litellm import RateLimitError, completion
@@ -23,7 +23,7 @@ class LLMClient:
         runner,
         rewrite_agent_model: str,
         judge_agent_model: str,
-        rate_limits: Dict[str, Dict[str, Any]],
+        rate_limits: dict[str, dict[str, Any]],
         **litellm_kwargs,
     ):
         """
@@ -48,9 +48,9 @@ class LLMClient:
 
     def _generate(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         system_prompt: str,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
         model: str,
     ) -> Any:
         """
@@ -60,9 +60,9 @@ class LLMClient:
         and parameters, and returns the response.
 
         Args:
-            messages (List[Dict[str, str]]): A list of message dictionaries to send to the LLM.
+            messages (list[dict[str, str]]): A list of message dictionaries to send to the LLM.
             system_prompt (str): The system prompt to use for the generation.
-            parameters (Dict[str, Any]): Additional parameters for the LLM request.
+            parameters (dict[str, Any]): Additional parameters for the LLM request.
 
         Returns:
             Any: The response from the LLM.
@@ -114,9 +114,9 @@ class LLMClient:
 
     def generate_rewrite(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         system_prompt: str,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
     ) -> Any:
         return self._generate(
             messages, system_prompt, parameters, self.rewrite_agent_model
@@ -124,9 +124,9 @@ class LLMClient:
 
     def generate_judge(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         system_prompt: str,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
     ) -> Any:
         return self._generate(
             messages, system_prompt, parameters, self.judge_agent_model

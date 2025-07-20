@@ -2,7 +2,6 @@ import os
 import time
 import random
 import json
-from typing import List, Dict, Set
 from pydantic import BaseModel
 from litellm import completion
 from dotenv import load_dotenv
@@ -66,9 +65,9 @@ PROMPT_TEMPLATE = (
 )
 
 class FoundItems(BaseModel):
-    fruits_and_vegetables: List[str]
+    fruits_and_vegetables: list[str]
 
-def load_and_augment_debates(filepath: str, num_samples: int = 20, frac_doc_content: float = 0.5) -> List[Dict[str, any]]:
+def load_and_augment_debates(filepath: str, num_samples: int = 20, frac_doc_content: float = 0.5) -> list[dict[str, any]]:
     """Load debates and augment them with fruits/vegetables"""
     with open(filepath, 'r') as f:
         debates = json.load(f)
@@ -103,7 +102,7 @@ def load_and_augment_debates(filepath: str, num_samples: int = 20, frac_doc_cont
     
     return augmented_data
 
-def evaluate_structured_output(model: str, text: str) -> tuple[Set[str], float, float]:
+def evaluate_structured_output(model: str, text: str) -> tuple[set[str], float, float]:
     """Evaluate using structured output approach"""
     start_time = time.time()
     
@@ -160,7 +159,7 @@ def evaluate_structured_output(model: str, text: str) -> tuple[Set[str], float, 
     runtime = time.time() - start_time
     return extracted_items, runtime, cost
 
-def evaluate_tool_calling(model: str, text: str) -> tuple[Set[str], float, float]:
+def evaluate_tool_calling(model: str, text: str) -> tuple[set[str], float, float]:
     """Evaluate using tool calling approach"""
     start_time = time.time()
     
@@ -222,7 +221,7 @@ def evaluate_tool_calling(model: str, text: str) -> tuple[Set[str], float, float
     runtime = time.time() - start_time
     return extracted_items, runtime, cost
 
-def calculate_metrics(extracted: Set[str], ground_truth: Set[str]) -> Dict[str, float]:
+def calculate_metrics(extracted: set[str], ground_truth: set[str]) -> dict[str, float]:
     """Calculate precision, recall, and F1 score"""
     if not extracted and not ground_truth:
         return {"precision": 1.0, "recall": 1.0, "f1": 1.0}
@@ -236,7 +235,7 @@ def calculate_metrics(extracted: Set[str], ground_truth: Set[str]) -> Dict[str, 
     
     return {"precision": precision, "recall": recall, "f1": f1}
 
-def process_document(args) -> Dict[str, any]:
+def process_document(args) -> dict[str, any]:
     """Process a single document with both approaches"""
     model, doc, i, total = args
     print(f"Processing document {i+1}/{total}")
@@ -320,7 +319,7 @@ def run_experiment(debates_file: str, num_samples: int = 20, max_workers: int = 
     
     return results
 
-def format_results_table(results: Dict) -> Table:
+def format_results_table(results: dict) -> Table:
     """Format results using Rich table"""
     table = Table(
         title="Experiment Results",

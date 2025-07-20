@@ -1,7 +1,7 @@
 import os
 import time
 import json
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 import concurrent.futures
 from rich.console import Console
 from rich.table import Table
@@ -36,7 +36,7 @@ For each extracted fallacy, include enough context to understand the fallacy.
 # Load environment variables
 load_dotenv()
 
-def load_debate_data(filepath: str) -> List[Dict[str, Any]]:
+def load_debate_data(filepath: str) -> list[dict[str, Any]]:
     """Load presidential debate data"""
     with open(filepath, 'r') as f:
         debates = json.load(f)
@@ -58,9 +58,9 @@ def load_debate_data(filepath: str) -> List[Dict[str, Any]]:
 def run_extraction_with_method(
     model: str,
     method: str, 
-    documents: List[Dict[str, Any]], 
+    documents: list[dict[str, Any]], 
     max_workers: int = 64
-) -> Tuple[List[Dict[str, Any]], float, Dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], float, dict[str, Any]]:
     """
     Run the extraction operation with a specific model and method.
     
@@ -193,7 +193,7 @@ def run_experiment(debates_file: str, max_workers: int = 64):
     
     return results
 
-def format_results_table(results: Dict) -> Table:
+def format_results_table(results: dict) -> Table:
     """Format results using Rich table"""
     table = Table(
         title="Logical Fallacy Extraction Experiment Results",
@@ -237,7 +237,7 @@ def format_results_table(results: Dict) -> Table:
     
     return table
 
-def print_comparative_conclusion(results: Dict):
+def print_comparative_conclusion(results: dict):
     """Print a conclusion comparing the extraction methods across models"""
     console = Console()
     

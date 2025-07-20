@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from jinja2 import Template
 from rich.prompt import Confirm
@@ -15,15 +15,15 @@ class LinkResolveOperation(BaseOperation):
     def syntax_check(self) -> None:
         pass
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the resolve links operation on the provided dataset.
 
         Args:
-            input_data (List[Dict]): The dataset to resolve.
+            input_data (list[dict]): The dataset to resolve.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the resolved results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the resolved results and the total cost of the operation.
 
         """
         if len(input_data) == 0:
@@ -139,7 +139,7 @@ class LinkResolveOperation(BaseOperation):
 
         schema = {"is_same": "bool"}
 
-        def validation_fn(response: Dict[str, Any]):
+        def validation_fn(response: dict[str, Any]):
             output = self.runner.api.parse_llm_response(
                 response,
                 schema=schema,

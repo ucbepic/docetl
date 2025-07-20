@@ -1,16 +1,16 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class OperationCreator:
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
 
     def create_parallel_map_operation(
         self,
-        op_config: Dict[str, Any],
-        op_output_schema: Dict[str, Any],
-        subtasks: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        op_config: dict[str, Any],
+        op_output_schema: dict[str, Any],
+        subtasks: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         output = op_config["output"]
         output["schema"] = op_output_schema
 
@@ -35,10 +35,10 @@ class OperationCreator:
 
     def create_metadata_operation(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         metadata_prompt: str,
-        output_schema: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        output_schema: dict[str, Any],
+    ) -> dict[str, Any]:
         return {
             "type": "map",
             "name": f"extract_metadata_{op_config['name']}",
@@ -49,17 +49,17 @@ class OperationCreator:
 
     def create_split_map_gather_operations(
         self,
-        op_config: Dict[str, Any],
-        chunk_info: Dict[str, Any],
-        context_info: Dict[str, Any],
+        op_config: dict[str, Any],
+        chunk_info: dict[str, Any],
+        context_info: dict[str, Any],
         split_key: str,
         content_key: str,
-        summary_prompt: Optional[str] = None,
-        summary_model: Optional[str] = None,
-        header_extraction_prompt: Optional[str] = "",
-        header_output_schema: Optional[Dict[str, Any]] = {},
-    ) -> List[Dict[str, Any]]:
-        pipeline = []
+        summary_prompt: str | None = None,
+        summary_model: str | None = None,
+        header_extraction_prompt: str = "",
+        header_output_schema: dict[str, Any] = {},
+    ) -> list[dict[str, Any]]:
+        pipeline: list[dict[str, Any]] = []
         chunk_size = int(chunk_info["chunk_size"] * 1.5)
         split_name = f"split_{op_config['name']}"
         split_config = {
@@ -120,7 +120,7 @@ class OperationCreator:
                 }
             )
 
-        gather_config = {
+        gather_config: dict[str, Any] = {
             "type": "gather",
             "name": f"gather_{split_key}_{op_config['name']}",
             "content_key": content_key,
@@ -142,10 +142,10 @@ class OperationCreator:
 
     def create_map_operation(
         self,
-        op_config: Dict[str, Any],
-        subprompt_output_schema: Dict[str, Any],
+        op_config: dict[str, Any],
+        subprompt_output_schema: dict[str, Any],
         subprompt: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         name = f"sub{op_config['type']}_{op_config['name']}"
         output = op_config["output"]
         output["schema"] = subprompt_output_schema
@@ -166,8 +166,8 @@ class OperationCreator:
         }
 
     def create_unnest_operations(
-        self, op_config: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, op_config: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         # Check if the output schema has a list type key and create an unnest operation for it
         output_list_keys = [
             key
@@ -191,12 +191,12 @@ class OperationCreator:
 
     def create_reduce_operation(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         combine_prompt: str,
         is_associative: bool,
         doc_id_key: str,
         add_input: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         name = f"subreduce_{op_config['name']}"
         config = {
             "type": "reduce",

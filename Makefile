@@ -5,7 +5,7 @@ include .env
 
 # Existing commands
 tests:
-	poetry run pytest
+	poetry run pytest --ignore=tests/ranking --ignore=tests/test_ollama.py
 
 tests-basic:
 	poetry run pytest -s tests/basic

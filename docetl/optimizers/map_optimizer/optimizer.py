@@ -4,7 +4,7 @@ import random
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable
 
 from jinja2 import Template
 from litellm import model_cost
@@ -27,7 +27,7 @@ class MapOptimizer:
     decomposition, and parallel execution.
 
     Attributes:
-        config (Dict[str, Any]): The configuration dictionary for the optimizer.
+        config (dict[str, Any]): The configuration dictionary for the optimizer.
         console (Console): A Rich console object for pretty printing.
         llm_client (LLMClient): A client for interacting with a language model.
         _run_operation (Callable): A function to execute operations.
@@ -92,8 +92,8 @@ class MapOptimizer:
         )
 
     def should_optimize(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
+    ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Determine if the given operation configuration should be optimized.
         """
@@ -119,14 +119,14 @@ class MapOptimizer:
             return "", input_data, output_data
 
     def _should_optimize_helper(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, Any]],
         int,
         float,
         str,
-        Dict[str, Any],
+        dict[str, Any],
         bool,
     ]:
         """
@@ -239,10 +239,10 @@ class MapOptimizer:
 
     def optimize(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        plan_types: Optional[List[str]] = ["chunk", "proj_synthesis", "glean"],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+        plan_types: list[str] | None = ["chunk", "proj_synthesis", "glean"],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float]:
         """
         Optimize the given operation configuration for the input data.
         Uses a staged evaluation approach:
@@ -309,12 +309,12 @@ class MapOptimizer:
 
     def _select_best_plan(
         self,
-        results: Dict[str, Tuple[float, float, List[Dict[str, Any]]]],
-        op_config: Dict[str, Any],
-        evaluation_samples: List[Dict[str, Any]],
+        results: dict[str, tuple[float, float, list[dict[str, Any]]]],
+        op_config: dict[str, Any],
+        evaluation_samples: list[dict[str, Any]],
         validator_prompt: str,
-        candidate_plans: Dict[str, List[Dict[str, Any]]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], str, Dict[str, int]]:
+        candidate_plans: dict[str, list[dict[str, Any]]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str, dict[str, int]]:
         """
         Select the best plan from evaluation results using top-k comparison.
 
@@ -397,14 +397,14 @@ class MapOptimizer:
 
     def _staged_evaluation(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        evaluation_samples: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+        evaluation_samples: list[dict[str, Any]],
         validator_prompt: str,
-        plan_types: List[str],
+        plan_types: list[str],
         no_change_runtime: float,
         model_input_context_length: int,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float]:
         """Stage 1: Try gleaning and proj synthesis plans first"""
         candidate_plans = {"no_change": [op_config]}
 
@@ -551,12 +551,12 @@ class MapOptimizer:
 
     def _evaluate_plans(
         self,
-        plans: Dict[str, List[Dict[str, Any]]],
-        op_config: Dict[str, Any],
-        evaluation_samples: List[Dict[str, Any]],
+        plans: dict[str, list[dict[str, Any]]],
+        op_config: dict[str, Any],
+        evaluation_samples: list[dict[str, Any]],
         validator_prompt: str,
-        no_change_runtime: Optional[float] = None,
-    ) -> Dict[str, Tuple[float, float, List[Dict[str, Any]]]]:
+        no_change_runtime: float | None = None,
+    ) -> dict[str, tuple[float, float, list[dict[str, Any]]]]:
         """Helper method to evaluate a set of plans in parallel"""
         results = {}
         plans_list = list(plans.items())
@@ -602,14 +602,14 @@ class MapOptimizer:
 
     def _evaluate_all_plans(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        evaluation_samples: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+        evaluation_samples: list[dict[str, Any]],
         validator_prompt: str,
-        plan_types: List[str],
+        plan_types: list[str],
         model_input_context_length: int,
         data_exceeds_limit: bool,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float]:
         """
         Evaluate all plans for a given operation configuration.
         """

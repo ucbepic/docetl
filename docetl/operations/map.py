@@ -5,7 +5,7 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 import asyncio
 import base64
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import requests
 from jinja2 import Template
@@ -22,26 +22,26 @@ from docetl.operations.utils.api import OutputMode
 class MapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "map"
-        output: Optional[Dict[str, Any]] = None
-        prompt: Optional[str] = None
-        model: Optional[str] = None
-        optimize: Optional[bool] = None
-        recursively_optimize: Optional[bool] = None
-        sample_size: Optional[int] = None
-        tools: Optional[List[Dict[str, Any]]] = (
+        output: dict[str, Any] | None = None
+        prompt: str | None = None
+        model: str | None = None
+        optimize: bool | None = None
+        recursively_optimize: bool | None = None
+        sample_size: int | None = None
+        tools: list[dict[str, Any]] | None = (
             None  # FIXME: Why isn't this using the Tool data class so validation works automatically?
         )
-        validation_rules: Optional[List[str]] = Field(None, alias="validate")
-        num_retries_on_validate_failure: Optional[int] = None
-        gleaning: Optional[Dict[str, Any]] = None
-        drop_keys: Optional[List[str]] = None
-        timeout: Optional[int] = None
+        validation_rules: list[str] | None = Field(None, alias="validate")
+        num_retries_on_validate_failure: int | None = None
+        gleaning: dict[str, Any] | None = None
+        drop_keys: list[str] | None = None
+        timeout: int | None = None
         enable_observability: bool = False
-        batch_size: Optional[int] = None
-        clustering_method: Optional[str] = None
-        batch_prompt: Optional[str] = None
-        litellm_completion_kwargs: Dict[str, Any] = {}
-        pdf_url_key: Optional[str] = None
+        batch_size: int | None = None
+        clustering_method: str | None = None
+        batch_prompt: str | None = None
+        litellm_completion_kwargs: dict[str, Any] = {}
+        pdf_url_key: str | None = None
         flush_partial_result: bool = False
         # Calibration parameters
         calibrate: bool = False
@@ -64,7 +64,7 @@ class MapOperation(BaseOperation):
         )
         self.clustering_method = "random"
 
-    def _generate_calibration_context(self, input_data: List[Dict]) -> str:
+    def _generate_calibration_context(self, input_data: list[dict]) -> str:
         """
         Generate calibration context by running the operation on a sample of documents
         and using an LLM to suggest prompt improvements for consistency.
@@ -244,15 +244,15 @@ Reference anchors:"""
 
             self.gleaning_check()
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the map operation on the provided input data.
 
         Args:
-            input_data (List[Dict]): The input data to process.
+            input_data (list[dict]): The input data to process.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the processed results and the total cost of the operation.
 
         This method performs the following steps:
         1. If calibration is enabled, runs calibration to improve prompt consistency
@@ -298,8 +298,8 @@ Reference anchors:"""
             self.status.stop()
 
         def _process_map_item(
-            item: Dict, initial_result: Optional[Dict] = None
-        ) -> Tuple[Optional[List[Dict]], float]:
+            item: dict, initial_result: dict | None = None
+        ) -> tuple[dict | None, float]:
 
             prompt = strict_render(self.config["prompt"], {"input": item})
             messages = [{"role": "user", "content": prompt}]
@@ -326,7 +326,7 @@ Reference anchors:"""
                     {"type": "text", "text": prompt},
                 ]
 
-            def validation_fn(response: Union[Dict[str, Any], ModelResponse]):
+            def validation_fn(response: dict[str, Any] | ModelResponse):
                 structured_mode = (
                     self.config.get("output", {}).get("mode")
                     == OutputMode.STRUCTURED_OUTPUT.value
@@ -413,7 +413,7 @@ Reference anchors:"""
             return None, llm_result.total_cost
 
         # If there's a batch prompt, let's use that
-        def _process_map_batch(items: List[Dict]) -> Tuple[List[Dict], float]:
+        def _process_map_batch(items: list[dict]) -> tuple[list[dict], float]:
             total_cost = 0
             if len(items) > 1 and self.config.get("batch_prompt", None):
                 # Raise error if pdf_url_key is set
@@ -547,10 +547,10 @@ Reference anchors:"""
 class ParallelMapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "parallel_map"
-        prompts: List[Dict[str, Any]]
-        output: Dict[str, Any]
+        prompts: list[dict[str, Any]]
+        output: dict[str, Any]
         enable_observability: bool = False
-        pdf_url_key: Optional[str] = None
+        pdf_url_key: str | None = None
 
     def __init__(
         self,
@@ -642,15 +642,15 @@ class ParallelMapOperation(BaseOperation):
                     f"The following output schema keys are not covered by any prompt: {missing_keys}"
                 )
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the parallel map operation on the provided input data.
 
         Args:
-            input_data (List[Dict]): The input data to process.
+            input_data (list[dict]): The input data to process.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the processed results and the total cost of the operation.
 
         This method performs the following steps:
         1. If prompts are specified, it processes each input item using multiple prompts in parallel

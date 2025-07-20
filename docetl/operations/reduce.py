@@ -12,7 +12,7 @@ import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import jinja2
 import numpy as np
@@ -41,21 +41,21 @@ class ReduceOperation(BaseOperation):
 
     class schema(BaseOperation.schema):
         type: str = "reduce"
-        reduce_key: Union[str, List[str]]
-        output: Optional[Dict[str, Any]] = None
-        prompt: Optional[str] = None
-        optimize: Optional[bool] = None
-        synthesize_resolve: Optional[bool] = None
-        model: Optional[str] = None
-        input: Optional[Dict[str, Any]] = None
-        pass_through: Optional[bool] = None
-        associative: Optional[bool] = None
-        fold_prompt: Optional[str] = None
-        fold_batch_size: Optional[int] = None
-        value_sampling: Optional[Dict[str, Any]] = None
-        verbose: Optional[bool] = None
-        timeout: Optional[int] = None
-        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        reduce_key: str | list[str]
+        output: dict[str, Any] | None = None
+        prompt: str | None = None
+        optimize: bool | None = None
+        synthesize_resolve: bool | None = None
+        model: str | None = None
+        input: dict[str, Any] | None = None
+        pass_through: bool | None = None
+        associative: bool | None = None
+        fold_prompt: str | None = None
+        fold_batch_size: int | None = None
+        value_sampling: dict[str, Any] | None = None
+        verbose: bool | None = None
+        timeout: int | None = None
+        litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
         enable_observability: bool = False
 
     def __init__(self, *args, **kwargs):
@@ -297,7 +297,7 @@ class ReduceOperation(BaseOperation):
 
         self.gleaning_check()
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Execute the reduce operation on the provided input data.
 
@@ -305,10 +305,10 @@ class ReduceOperation(BaseOperation):
         using either parallel fold and merge, incremental reduce, or batch reduce strategies.
 
         Args:
-            input_data (List[Dict]): The input data to process.
+            input_data (list[dict]): The input data to process.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the processed results and the total cost of the operation.
         """
         if self.config.get("gleaning", {}).get("validation_prompt", None):
             self.console.log(
@@ -352,8 +352,8 @@ class ReduceOperation(BaseOperation):
             grouped_data = list(grouped_data.items())
 
         def process_group(
-            key: Tuple, group_elems: List[Dict]
-        ) -> Tuple[Optional[Dict], float]:
+            key: tuple, group_elems: list[dict]
+        ) -> tuple[dict | None, float]:
             if input_schema:
                 group_list = [
                     {k: item[k] for k in input_schema.keys() if k in item}
@@ -471,8 +471,8 @@ class ReduceOperation(BaseOperation):
         return results, total_cost
 
     def _cluster_based_sampling(
-        self, group_list: List[Dict], value_sampling: Dict, sample_size: int
-    ) -> Tuple[List[Dict], float]:
+        self, group_list: list[dict], value_sampling: dict, sample_size: int
+    ) -> tuple[list[dict], float]:
         if sample_size >= len(group_list):
             return group_list, 0
 
@@ -508,8 +508,8 @@ class ReduceOperation(BaseOperation):
         return sampled_items, cost
 
     def _semantic_similarity_sampling(
-        self, key: Tuple, group_list: List[Dict], value_sampling: Dict, sample_size: int
-    ) -> Tuple[List[Dict], float]:
+        self, key: tuple, group_list: list[dict], value_sampling: dict, sample_size: int
+    ) -> tuple[list[dict], float]:
         embedding_model = value_sampling["embedding_model"]
         query_text = strict_render(
             value_sampling["query_text"],
@@ -533,8 +533,8 @@ class ReduceOperation(BaseOperation):
         return [group_list[i] for i in top_k_indices], cost
 
     def _parallel_fold_and_merge(
-        self, key: Tuple, group_list: List[Dict]
-    ) -> Tuple[Optional[Dict], float]:
+        self, key: tuple, group_list: list[dict]
+    ) -> tuple[dict | None, float]:
         """
         Perform parallel folding and merging on a group of items.
 
@@ -549,11 +549,11 @@ class ReduceOperation(BaseOperation):
         7. Throughout this process, the method may adjust the number of parallel folds based on updated performance metrics (i.e., fold and merge runtimes) to maintain efficiency.
 
         Args:
-            key (Tuple): The reduce key tuple for the group.
-            group_list (List[Dict]): The list of items in the group to be processed.
+            key (tuple): The reduce key tuple for the group.
+            group_list (list[dict]): The list of items in the group to be processed.
 
         Returns:
-            Tuple[Optional[Dict], float]: A tuple containing the final merged result (or None if processing failed)
+            tuple[dict | None, float]: A tuple containing the final merged result (or None if processing failed)
             and the total cost of the operation.
         """
         fold_batch_size = self.config["fold_batch_size"]
@@ -698,19 +698,19 @@ class ReduceOperation(BaseOperation):
         )
 
     def _incremental_reduce(
-        self, key: Tuple, group_list: List[Dict]
-    ) -> Tuple[Optional[Dict], List[str], float]:
+        self, key: tuple, group_list: list[dict]
+    ) -> tuple[dict | None, list[str], float]:
         """
         Perform an incremental reduce operation on a group of items.
 
         This method processes the group in batches, incrementally folding the results.
 
         Args:
-            key (Tuple): The reduce key tuple for the group.
-            group_list (List[Dict]): The list of items in the group to be processed.
+            key (tuple): The reduce key tuple for the group.
+            group_list (list[dict]): The list of items in the group to be processed.
 
         Returns:
-            Tuple[Optional[Dict], List[str], float]: A tuple containing the final reduced result (or None if processing failed),
+            tuple[dict | None, list[str], float]: A tuple containing the final reduced result (or None if processing failed),
             the list of prompts used, and the total cost of the operation.
         """
         fold_batch_size = self.config["fold_batch_size"]
@@ -749,7 +749,7 @@ class ReduceOperation(BaseOperation):
                     {
                         "iter": iter_count,
                         "intermediate": folded_output,
-                        "scratchpad": folded_output["updated_scratchpad"],
+                        "scratchpad": folded_output.get("updated_scratchpad", ""),
                     }
                 )
                 iter_count += 1
@@ -767,7 +767,7 @@ class ReduceOperation(BaseOperation):
 
         return current_output, prompts, total_cost
 
-    def validation_fn(self, response: Dict[str, Any]):
+    def validation_fn(self, response: dict[str, Any]):
         structured_mode = (
             self.config.get("output", {}).get("mode")
             == OutputMode.STRUCTURED_OUTPUT.value
@@ -783,23 +783,23 @@ class ReduceOperation(BaseOperation):
 
     def _increment_fold(
         self,
-        key: Tuple,
-        batch: List[Dict],
-        current_output: Optional[Dict],
-        scratchpad: Optional[str] = None,
-    ) -> Tuple[Optional[Dict], str, float]:
+        key: tuple,
+        batch: list[dict],
+        current_output: dict | None,
+        scratchpad: str | None = None,
+    ) -> tuple[dict | None, str, float]:
         """
         Perform an incremental fold operation on a batch of items.
 
         This method folds a batch of items into the current output using the fold prompt.
 
         Args:
-            key (Tuple): The reduce key tuple for the group.
-            batch (List[Dict]): The batch of items to be folded.
-            current_output (Optional[Dict]): The current accumulated output, if any.
-            scratchpad (Optional[str]): The scratchpad to use for the fold operation.
+            key (tuple): The reduce key tuple for the group.
+            batch (list[dict]): The batch of items to be folded.
+            current_output (dict | None): The current accumulated output, if any.
+            scratchpad (str | None): The scratchpad to use for the fold operation.
         Returns:
-            Tuple[Optional[Dict], str, float]: A tuple containing the folded output (or None if processing failed),
+            tuple[dict | None, str, float]: A tuple containing the folded output (or None if processing failed),
             the prompt used, and the cost of the fold operation.
         """
         if current_output is None:
@@ -861,19 +861,19 @@ class ReduceOperation(BaseOperation):
         return None, fold_prompt, fold_cost
 
     def _merge_results(
-        self, key: Tuple, outputs: List[Dict]
-    ) -> Tuple[Optional[Dict], str, float]:
+        self, key: tuple, outputs: list[dict]
+    ) -> tuple[dict | None, str, float]:
         """
         Merge multiple outputs into a single result.
 
         This method merges a list of outputs using the merge prompt.
 
         Args:
-            key (Tuple): The reduce key tuple for the group.
-            outputs (List[Dict]): The list of outputs to be merged.
+            key (tuple): The reduce key tuple for the group.
+            outputs (list[dict]): The list of outputs to be merged.
 
         Returns:
-            Tuple[Optional[Dict], str, float]: A tuple containing the merged output (or None if processing failed),
+            tuple[dict | None, str, float]: A tuple containing the merged output (or None if processing failed),
             the prompt used, and the cost of the merge operation.
         """
         start_time = time.time()
@@ -926,12 +926,12 @@ class ReduceOperation(BaseOperation):
 
         return None, merge_prompt, merge_cost
 
-    def get_fold_time(self) -> Tuple[float, bool]:
+    def get_fold_time(self) -> tuple[float, bool]:
         """
         Get the average fold time or a default value.
 
         Returns:
-            Tuple[float, bool]: A tuple containing the average fold time (or default) and a boolean
+            tuple[float, bool]: A tuple containing the average fold time (or default) and a boolean
             indicating whether the default value was used.
         """
         if "fold_time" in self.config:
@@ -941,12 +941,12 @@ class ReduceOperation(BaseOperation):
                 return sum(self.fold_times) / len(self.fold_times), False
         return 1.0, True  # Default to 1 second if no data is available
 
-    def get_merge_time(self) -> Tuple[float, bool]:
+    def get_merge_time(self) -> tuple[float, bool]:
         """
         Get the average merge time or a default value.
 
         Returns:
-            Tuple[float, bool]: A tuple containing the average merge time (or default) and a boolean
+            tuple[float, bool]: A tuple containing the average merge time (or default) and a boolean
             indicating whether the default value was used.
         """
         if "merge_time" in self.config:
@@ -977,19 +977,19 @@ class ReduceOperation(BaseOperation):
             self.merge_times.append(time)
 
     def _batch_reduce(
-        self, key: Tuple, group_list: List[Dict], scratchpad: Optional[str] = None
-    ) -> Tuple[Optional[Dict], str, float]:
+        self, key: tuple, group_list: list[dict], scratchpad: str | None = None
+    ) -> tuple[dict | None, str, float]:
         """
         Perform a batch reduce operation on a group of items.
 
         This method reduces a group of items into a single output using the reduce prompt.
 
         Args:
-            key (Tuple): The reduce key tuple for the group.
-            group_list (List[Dict]): The list of items to be reduced.
-            scratchpad (Optional[str]): The scratchpad to use for the reduce operation.
+            key (tuple): The reduce key tuple for the group.
+            group_list (list[dict]): The list of items to be reduced.
+            scratchpad (str | None): The scratchpad to use for the reduce operation.
         Returns:
-            Tuple[Optional[Dict], str, float]: A tuple containing the reduced output (or None if processing failed),
+            tuple[dict | None, str, float]: A tuple containing the reduced output (or None if processing failed),
             the prompt used, and the cost of the reduce operation.
         """
         prompt = strict_render(

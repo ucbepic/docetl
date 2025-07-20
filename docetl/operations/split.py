@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import tiktoken
 
@@ -23,8 +23,8 @@ class SplitOperation(BaseOperation):
         type: str = "split"
         split_key: str
         method: str
-        method_kwargs: Dict[str, Any]
-        model: Optional[str] = None
+        method_kwargs: dict[str, Any]
+        model: str | None = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -54,7 +54,7 @@ class SplitOperation(BaseOperation):
             if not isinstance(self.config["method_kwargs"]["delimiter"], str):
                 raise ValueError("'delimiter' must be a string")
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         split_key = self.config["split_key"]
         method = self.config["method"]
         method_kwargs = self.config["method_kwargs"]

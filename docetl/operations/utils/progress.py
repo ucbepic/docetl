@@ -1,6 +1,7 @@
+from collections.abc import Iterable, Iterator
 from concurrent.futures import as_completed
-from typing import Iterable, Optional, Union
 
+from rich.console import Console
 from tqdm import tqdm
 
 
@@ -9,12 +10,12 @@ class RichLoopBar:
 
     def __init__(
         self,
-        iterable: Optional[Union[Iterable, range]] = None,
-        total: Optional[int] = None,
-        desc: Optional[str] = None,
+        iterable: Iterable | range | None = None,
+        total: int | None = None,
+        desc: str | None = None,
         leave: bool = True,
-        console=None,
-    ):
+        console: Console | None = None,
+    ) -> None:
         if console is None:
             raise ValueError("Console must be provided")
         self.console = console
@@ -22,9 +23,11 @@ class RichLoopBar:
         self.total = self._get_total(iterable, total)
         self.description = desc
         self.leave = leave
-        self.tqdm = None
+        self.tqdm: tqdm | None = None
 
-    def _get_total(self, iterable, total):
+    def _get_total(
+        self, iterable: Iterable | range | None, total: int | None
+    ) -> int | None:
         if total is not None:
             return total
         if isinstance(iterable, range):
@@ -34,7 +37,7 @@ class RichLoopBar:
         except TypeError:
             return None
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         self.tqdm = tqdm(
             self.iterable,
             total=self.total,
@@ -44,7 +47,7 @@ class RichLoopBar:
         for item in self.tqdm:
             yield item
 
-    def __enter__(self):
+    def __enter__(self) -> "RichLoopBar":
         self.tqdm = tqdm(
             total=self.total,
             desc=self.description,
@@ -53,15 +56,21 @@ class RichLoopBar:
         )
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.tqdm.close()
 
-    def update(self, n=1):
+    def update(self, n: int = 1) -> None:
         if self.tqdm:
             self.tqdm.update(n)
 
 
-def rich_as_completed(futures, total=None, desc=None, leave=True, console=None):
+def rich_as_completed(
+    futures,
+    total: int | None = None,
+    desc: str | None = None,
+    leave: bool = True,
+    console: Console | None = None,
+) -> Iterable:
     """Yield completed futures with a Rich progress bar."""
     if console is None:
         raise ValueError("Console must be provided")

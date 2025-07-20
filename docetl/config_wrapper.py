@@ -1,7 +1,6 @@
 import datetime
 import os
 import time
-from typing import Dict, Optional
 
 import pyrate_limiter
 from pyrate_limiter import BucketFullException, LimiterDelayException
@@ -30,11 +29,11 @@ class ConfigWrapper(object):
 
     def __init__(
         self,
-        config: Dict,
-        base_name: Optional[str] = None,
-        yaml_file_suffix: Optional[str] = None,
-        max_threads: int = None,
-        console: Optional[Console] = None,
+        config: dict,
+        base_name: str | None = None,
+        yaml_file_suffix: str | None = None,
+        max_threads: int | None = None,
+        console: Console | None = None,
         **kwargs,
     ):
         self.config = config

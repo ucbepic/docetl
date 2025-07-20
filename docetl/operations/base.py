@@ -3,7 +3,6 @@ The BaseOperation class is an abstract base class for all operations in the doce
 """
 
 from abc import ABC, ABCMeta, abstractmethod
-from typing import Dict, List, Optional, Tuple
 
 import jsonschema
 from pydantic import BaseModel
@@ -33,11 +32,11 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
     def __init__(
         self,
         runner,
-        config: Dict,
+        config: dict,
         default_model: str,
         max_threads: int,
-        console: Optional[Console] = None,
-        status: Optional[Status] = None,
+        console: Console | None = None,
+        status: Status | None = None,
         is_build: bool = False,
         **kwargs,
     ):
@@ -45,11 +44,11 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         Initialize the BaseOperation.
 
         Args:
-            config (Dict): Configuration dictionary for the operation.
+            config (dict): Configuration dictionary for the operation.
             default_model (str): Default language model to use.
             max_threads (int): Maximum number of threads for parallel processing.
-            console (Optional[Console]): Rich console for outputting logs. Defaults to None.
-            status (Optional[Status]): Rich status for displaying progress. Defaults to None.
+            console (Console | None): Rich console for outputting logs. Defaults to None.
+            status (Status | None): Rich status for displaying progress. Defaults to None.
         """
         assert "name" in config, "Operation must have a name"
         assert "type" in config, "Operation must have a type"
@@ -84,7 +83,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         return cls.schema.model_json_schema()
 
     @abstractmethod
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Execute the operation on the input data.
 
@@ -92,10 +91,10 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         actual operation on the input data.
 
         Args:
-            input_data (List[Dict]): List of input data items.
+            input_data (list[dict]): List of input data items.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed data
+            tuple[list[dict], float]: A tuple containing the processed data
             and the total cost of the operation.
         """
         pass

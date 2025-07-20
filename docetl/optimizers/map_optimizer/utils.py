@@ -1,6 +1,6 @@
 import json
 import random
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 from rich.console import Console
@@ -10,8 +10,8 @@ from docetl.optimizers.utils import LLMClient
 
 
 def select_evaluation_samples(
-    input_data: List[Dict[str, Any]], num_samples: int
-) -> List[Dict[str, Any]]:
+    input_data: list[dict[str, Any]], num_samples: int
+) -> list[dict[str, Any]]:
     if len(input_data) <= num_samples:
         return input_data
     return random.sample(input_data, num_samples)
@@ -21,14 +21,14 @@ def generate_and_validate_prompt(
     llm_client: LLMClient,
     base_prompt: str,
     system_prompt: str,
-    parameters: Dict[str, Any],
-    op_config: Dict[str, Any],
+    parameters: dict[str, Any],
+    op_config: dict[str, Any],
     is_metadata: bool,
-    config: Dict[str, Any],
+    config: dict[str, Any],
     max_threads: int,
     console: Console,
-    inclusion_strings: List = [],
-) -> Dict[str, Any]:
+    inclusion_strings: list = [],
+) -> dict[str, Any]:
     max_retries = 3
     attempt = 0
     chat_history = [

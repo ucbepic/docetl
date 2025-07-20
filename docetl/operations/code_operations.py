@@ -1,6 +1,5 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional, Tuple
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.utils import RichLoopBar
@@ -11,7 +10,7 @@ class CodeMapOperation(BaseOperation):
         type: str = "code_map"
         code: str
         concurrent_thread_count: int = os.cpu_count()
-        drop_keys: Optional[List[str]] = None
+        drop_keys: list[str] | None = None
 
     def syntax_check(self) -> None:
         config = self.schema(**self.config)
@@ -25,7 +24,7 @@ class CodeMapOperation(BaseOperation):
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         namespace = {}
         exec(self.config["code"], namespace)
         transform_fn = namespace["transform"]
@@ -73,7 +72,7 @@ class CodeReduceOperation(BaseOperation):
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         namespace = {}
         exec(self.config["code"], namespace)
         reduce_fn = namespace["transform"]
@@ -148,7 +147,7 @@ class CodeFilterOperation(BaseOperation):
         except Exception as e:
             raise ValueError(f"Invalid code configuration: {str(e)}")
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         namespace = {}
         exec(self.config["code"], namespace)
         filter_fn = namespace["transform"]

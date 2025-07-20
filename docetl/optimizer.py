@@ -14,7 +14,7 @@ import copy
 import hashlib
 import os
 import random
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Callable
 
 import yaml
 from rich.panel import Panel
@@ -57,7 +57,7 @@ class Optimizer:
         runner: "DSLRunner",
         rewrite_agent_model: str = "gpt-4o",
         judge_agent_model: str = "gpt-4o-mini",
-        litellm_kwargs: Dict[str, Any] = {},
+        litellm_kwargs: dict[str, Any] = {},
         resume: bool = False,
         timeout: int = 60,
     ):
@@ -345,7 +345,7 @@ class Optimizer:
 
     def should_optimize(
         self, step_name: str, op_name: str
-    ) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]], float]:
         """
         Analyzes whether an operation should be optimized by running it on a sample of input data
         and evaluating potential optimizations. Returns the optimization suggestion and relevant data.
@@ -453,15 +453,15 @@ class Optimizer:
 
     def _optimize_equijoin(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         left_name: str,
         right_name: str,
-        left_data: List[Dict[str, Any]],
-        right_data: List[Dict[str, Any]],
+        left_data: list[dict[str, Any]],
+        right_data: list[dict[str, Any]],
         run_operation: Callable[
-            [Dict[str, Any], List[Dict[str, Any]]], List[Dict[str, Any]]
+            [dict[str, Any], list[dict[str, Any]]], list[dict[str, Any]]
         ],
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]], str, str]:
+    ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]], str, str]:
         """
         Optimizes an equijoin operation by analyzing join conditions and potentially inserting
         map operations to improve join efficiency. Returns the optimized configuration and updated data.
@@ -592,7 +592,7 @@ class Optimizer:
         else:
             return data
 
-    def clean_optimized_config(self) -> Dict:
+    def clean_optimized_config(self) -> dict:
         """
         Creates a clean YAML configuration from the optimized operation containers,
         removing internal fields and organizing operations into proper pipeline steps.
@@ -624,7 +624,7 @@ class Optimizer:
         # Keep track of operations we've seen to avoid duplicates
         seen_operations = set()
 
-        def clean_operation(op_container: OpContainer) -> Dict:
+        def clean_operation(op_container: OpContainer) -> dict:
             """Remove internal fields from operation config"""
             op_config = op_container.config
             clean_op = copy.deepcopy(op_config)

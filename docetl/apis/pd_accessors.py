@@ -32,7 +32,7 @@ Cost Tracking:
     >>> df.semantic.history     # Returns operation history
 """
 
-from typing import Any, Dict, List, NamedTuple, Optional, Union
+from typing import Any, NamedTuple
 
 import pandas as pd
 from rich.panel import Panel
@@ -54,8 +54,8 @@ class OpHistory(NamedTuple):
     """Record of an operation that was run."""
 
     op_type: str  # 'map', 'filter', 'merge', 'agg', 'split', 'gather', 'unnest'
-    config: Dict[str, Any]  # Full config used
-    output_columns: List[str]  # Columns created/modified
+    config: dict[str, Any]  # Full config used
+    output_columns: list[str]  # Columns created/modified
 
 
 @pd.api.extensions.register_dataframe_accessor("semantic")
@@ -100,7 +100,7 @@ class SemanticAccessor:
         self.runner.optimizer = builder
 
     def _record_operation(
-        self, data: List[Dict], op_type: str, config: Dict[str, Any], cost: float
+        self, data: list[dict], op_type: str, config: dict[str, Any], cost: float
     ) -> pd.DataFrame:
         """Record an operation and return the history entry."""
         # Find new columns by comparing with current DataFrame
@@ -141,11 +141,11 @@ class SemanticAccessor:
         else:
             return obj
 
-    def _get_column_history(self, column: str) -> List[OpHistory]:
+    def _get_column_history(self, column: str) -> list[OpHistory]:
         """Get history of operations that created/modified a column."""
         return [op for op in self._history if column in op.output_columns]
 
-    def _synthesize_comparison_context(self, keys: List[str]) -> str:
+    def _synthesize_comparison_context(self, keys: list[str]) -> str:
         """Generate context about how the keys were created, if they were."""
         context_parts = []
 
@@ -169,7 +169,7 @@ class SemanticAccessor:
             return "\n\nContext about these fields:\n" + "\n".join(context_parts)
         return ""
 
-    def map(self, prompt: str, output_schema: Dict[str, Any], **kwargs) -> pd.DataFrame:
+    def map(self, prompt: str, output_schema: dict[str, Any], **kwargs) -> pd.DataFrame:
         """
         Apply semantic mapping to each row using a language model.
 
@@ -376,15 +376,15 @@ class SemanticAccessor:
         *,
         # Reduction phase params (required)
         reduce_prompt: str,
-        output_schema: Dict[str, Any],
+        output_schema: dict[str, Any],
         # Resolution and reduce phase params (optional)
         fuzzy: bool = False,
-        comparison_prompt: Optional[str] = None,
-        resolution_prompt: Optional[str] = None,
-        resolution_output_schema: Optional[Dict[str, Any]] = None,
-        reduce_keys: Optional[Union[str, List[str]]] = ["_all"],
-        resolve_kwargs: Dict[str, Any] = {},
-        reduce_kwargs: Dict[str, Any] = {},
+        comparison_prompt: str | None = None,
+        resolution_prompt: str | None = None,
+        resolution_output_schema: dict[str, Any] | None = None,
+        reduce_keys: str | list[str] = ["_all"],
+        resolve_kwargs: dict[str, Any] = {},
+        reduce_kwargs: dict[str, Any] = {},
     ) -> pd.DataFrame:
         """
         Semantically aggregate data with optional fuzzy matching.
@@ -584,7 +584,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         return self._record_operation(results, "reduce", reduce_config, reduce_cost)
 
     def filter(
-        self, prompt: str, *, output_schema: Optional[Dict[str, Any]] = None, **kwargs
+        self, prompt: str, *, output_schema: dict[str, Any] | None = None, **kwargs
     ) -> pd.DataFrame:
         """
         Filter DataFrame rows based on semantic conditions.
@@ -651,7 +651,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         return self._record_operation(results, "filter", filter_config, cost)
 
     def split(
-        self, split_key: str, method: str, method_kwargs: Dict[str, Any], **kwargs
+        self, split_key: str, method: str, method_kwargs: dict[str, Any], **kwargs
     ) -> pd.DataFrame:
         """
         Split DataFrame rows into multiple chunks based on content.
@@ -719,7 +719,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         content_key: str,
         doc_id_key: str,
         order_key: str,
-        peripheral_chunks: Optional[Dict[str, Any]] = None,
+        peripheral_chunks: dict[str, Any] | None = None,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -796,9 +796,9 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         self,
         unnest_key: str,
         keep_empty: bool = False,
-        expand_fields: Optional[List[str]] = None,
+        expand_fields: list[str] | None = None,
         recursive: bool = False,
-        depth: Optional[int] = None,
+        depth: int | None = None,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -885,12 +885,12 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         return self._costs
 
     @property
-    def history(self) -> List[OpHistory]:
+    def history(self) -> list[OpHistory]:
         """
         Return the operation history.
 
         Returns:
-            List[OpHistory]: List of operations performed on this DataFrame,
+            list[OpHistory]: List of operations performed on this DataFrame,
                             including their configurations and affected columns
         """
         return self._history.copy()

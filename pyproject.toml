@@ -63,6 +63,8 @@ mkdocstrings-python = "^1.11.1"
 mkdocs-glightbox = "^0.4.0"
 pytest-sugar = "^1.0.0"
 pytest-xdist = "^3.6.1"
+types-pyyaml = "^6.0.12.20250516"
+types-requests = "^2.32.4.20250611"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

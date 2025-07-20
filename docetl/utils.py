@@ -2,11 +2,12 @@ import json
 import math
 import re
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 import tiktoken
 import yaml
 from jinja2 import Environment, meta
+from litellm import ModelResponse
 from litellm import completion_cost as lcc
 from lzstring import LZString
 
@@ -17,23 +18,18 @@ class Decryptor:
         self.lz = LZString()
 
     def decrypt(self, encrypted_data: str) -> str:
-        try:
-            # First decompress the data
-            compressed = self.lz.decompressFromBase64(encrypted_data)
-            if not compressed:
-                raise ValueError("Invalid compressed data")
+        # First decompress the data
+        compressed = self.lz.decompressFromBase64(encrypted_data)
+        if not compressed:
+            raise ValueError("Invalid compressed data")
 
-            # Then decode using the key
-            result = ""
-            for i in range(len(compressed)):
-                char_code = ord(compressed[i]) - ord(self.key[i % len(self.key)])
-                result += chr(char_code)
+        # Then decode using the key
+        result = ""
+        for i in range(len(compressed)):
+            char_code = ord(compressed[i]) - ord(self.key[i % len(self.key)])
+            result += chr(char_code)
 
-            return result
-
-        except Exception as e:
-            print(f"Decryption failed: {str(e)}")
-            return None
+        return result
 
 
 def decrypt(encrypted_data: str, secret_key: str) -> str:
@@ -65,14 +61,14 @@ def get_stage_description(stage_type: StageType) -> str:
 
 
 class CapturedOutput:
-    def __init__(self):
-        self.optimizer_output = {}
-        self.step = None
+    def __init__(self) -> None:
+        self.optimizer_output: dict[str, dict[StageType, Any]] = {}
+        self.step: str | None = None
 
-    def set_step(self, step: str):
+    def set_step(self, step: str) -> None:
         self.step = step
 
-    def save_optimizer_output(self, stage_type: StageType, output: Any):
+    def save_optimizer_output(self, stage_type: StageType, output: Any) -> None:
         if self.step is None:
             raise ValueError("Step must be set before saving optimizer output")
 
@@ -118,7 +114,7 @@ def extract_jinja_variables(template_string: str) -> list[str]:
     return list(all_variables)
 
 
-def completion_cost(response) -> float:
+def completion_cost(response: ModelResponse) -> float:
     try:
         return (
             response._completion_cost
@@ -145,7 +141,7 @@ def load_config(config_path: str) -> dict[str, Any]:
     """
     try:
         with open(config_path, "r") as config_file:
-            config = yaml.safe_load(config_file)
+            config: dict[str, Any] = yaml.safe_load(config_file)
         return config
     except FileNotFoundError:
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -274,7 +270,7 @@ def smart_sample(
         ]
 
     # Group data by categorical fields
-    groups = {}
+    groups: dict[tuple[str, ...], list[dict]] = {}
     for doc in input_data:
         key = tuple(str(doc.get(field, "")) for field in categorical_fields)
         if key not in groups:
@@ -297,9 +293,9 @@ def smart_sample(
     ]
 
 
-class classproperty(object):
-    def __init__(self, f):
+class classproperty:
+    def __init__(self, f: Callable[[Any], Any]) -> None:
         self.f = f
 
-    def __get__(self, obj, owner):
+    def __get__(self, obj: Any | None, owner: type) -> Any:
         return self.f(owner)

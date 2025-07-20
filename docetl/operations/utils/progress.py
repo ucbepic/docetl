@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from concurrent.futures import as_completed
 
 from rich.console import Console
@@ -37,7 +37,7 @@ class RichLoopBar:
         except TypeError:
             return None
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterable:
         self.tqdm = tqdm(
             self.iterable,
             total=self.total,

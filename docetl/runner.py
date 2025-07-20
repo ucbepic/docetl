@@ -23,6 +23,8 @@ The architecture prioritizes:
 4. Performance: Lazy evaluation and caching optimize resource usage
 """
 
+from __future__ import annotations
+
 import functools
 import hashlib
 import json

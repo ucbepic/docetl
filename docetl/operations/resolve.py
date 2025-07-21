@@ -9,7 +9,7 @@ from typing import Any
 import jinja2
 from jinja2 import Template
 from litellm import model_cost
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
@@ -98,11 +98,9 @@ class ResolveOperation(BaseOperation):
             return v
 
         @model_validator(mode="after")
-        def validate_output_schema(self):
+        def validate_output_schema(self, info: ValidationInfo):
             # Skip validation if we're using from dataframe accessors
-            if hasattr(self, "_runner_from_df") or getattr(self, "runner", {}).get(
-                "_from_df_accessors", False
-            ):
+            if info.context["_from_df_accessors"]:
                 return self
 
             if self.output is None:
@@ -172,6 +170,10 @@ class ResolveOperation(BaseOperation):
         )[0]
 
         return output["is_match"], response.total_cost, prompt
+
+    def syntax_check(self) -> None:
+        context = {"_from_df_accessors": self.runner._from_df_accessors}
+        super().syntax_check(context)
 
     def validation_fn(self, response: dict[str, Any]):
         output = self.runner.api.parse_llm_response(

@@ -3,6 +3,7 @@ The BaseOperation class is an abstract base class for all operations in the doce
 """
 
 from abc import ABC, ABCMeta, abstractmethod
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
@@ -104,7 +105,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         """
         pass
 
-    def syntax_check(self) -> None:
+    def syntax_check(self, context: dict[str, Any] | None = None) -> None:
         """Perform syntax checks on the operation configuration."""
         # Validate the configuration using Pydantic
-        self.schema(**self.config)
+        self.schema.model_validate(self.config, context=context)

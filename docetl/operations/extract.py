@@ -17,7 +17,7 @@ class ExtractOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "extract"
         prompt: str
-        document_keys: list[str]
+        document_keys: list[str] = Field(..., min_items=1)
         model: str | None = None
         format_extraction: bool = True
         extraction_key_suffix: str | None = None
@@ -26,14 +26,14 @@ class ExtractOperation(BaseOperation):
         skip_on_error: bool = False
         litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
 
-        @field_validator("document_keys")
-        def validate_document_keys(cls, v):
-            if not isinstance(v, list):
-                raise TypeError("document_keys must be a list")
-            if not all(isinstance(key, str) for key in v):
-                raise TypeError("All items in document_keys must be strings")
-            if len(v) == 0:
-                raise ValueError("document_keys list cannot be empty")
+        @field_validator("prompt")
+        def validate_prompt(cls, v):
+            try:
+                Template(v)
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid Jinja2 template in 'prompt': {str(e)}"
+                ) from e
             return v
 
     def __init__(
@@ -47,27 +47,6 @@ class ExtractOperation(BaseOperation):
             self.extraction_key_suffix = f"_extracted_{self.config['name']}"
         else:
             self.extraction_key_suffix = self.config["extraction_key_suffix"]
-
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the ExtractOperation for required keys and valid structure.
-
-        Raises:
-            ValueError: If required keys are missing or invalid in the configuration.
-            TypeError: If configuration values have incorrect types.
-        """
-        # The field_validator in the Pydantic schema handles basic type checks
-        config = self.schema(**self.config)
-
-        # Verify that prompt is a valid template
-        try:
-            Template(config.prompt)
-        except Exception as e:
-            raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}") from e
-
-        # Check if model is specified (optional) and is a string
-        if config.model and not isinstance(config.model, str):
-            raise TypeError("'model' in configuration must be a string")
 
     def _reformat_text_with_line_numbers(self, text: str, line_width: int = 80) -> str:
         """

@@ -18,66 +18,18 @@ class RankOperation(BaseOperation):
         direction: Literal["asc", "desc"]
         model: str | None = None
         embedding_model: str | None = None
-        batch_size: int = 10
-        initial_ordering_method: str = "embedding"
-        k: int | None = None
-        rerank_call_budget: int = 100
-        num_top_items_per_window: int = 3
-        overlap_fraction: float = 0.5
-        timeout: int | None = None
-        num_calibration_docs: int = 10
+        batch_size: int = Field(10, gt=0)
+        initial_ordering_method: Literal[
+            "embedding", "likert", "calibrated_embedding"
+        ] = "embedding"
+        k: int | None = Field(None, gt=0)
+        rerank_call_budget: int = Field(100, gt=0)
+        num_top_items_per_window: int = Field(3, gt=0)
+        overlap_fraction: float = Field(0.5, ge=0, le=1)
+        timeout: int | None = Field(None, gt=0)
+        num_calibration_docs: int = Field(10, gt=0)
         verbose: bool = False
         litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
-
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the RankOperation for required keys and valid structure.
-
-        This method performs the following checks:
-        1. Verifies the presence of required keys: 'prompt', 'input_keys', and 'direction'.
-        2. Ensures that 'input_keys' is a list of strings.
-        3. Validates that 'direction' is either 'asc' or 'desc'.
-        4. Optionally checks if 'model' and 'embedding_model' are strings (if present).
-        5. Validates that numerical parameters (batch_size) are positive integers.
-
-        Raises:
-            ValueError: If required keys are missing or values are invalid.
-            TypeError: If the types of configuration values are incorrect.
-        """
-        required_keys = ["prompt", "input_keys", "direction"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in RankOperation configuration"
-                )
-
-        # Check if input_keys is a list of strings
-        if not isinstance(self.config["input_keys"], list):
-            raise TypeError("'input_keys' must be a list")
-        if not all(isinstance(key, str) for key in self.config["input_keys"]):
-            raise TypeError("All items in 'input_keys' must be strings")
-
-        # Check if direction is valid
-        if self.config["direction"] not in ["asc", "desc"]:
-            raise ValueError("'direction' must be either 'asc' or 'desc'")
-
-        # Check if model is specified (optional)
-        if "model" in self.config and not isinstance(self.config["model"], str):
-            raise TypeError("'model' in configuration must be a string")
-
-        # Check if embedding_model is specified (optional)
-        if "embedding_model" in self.config and not isinstance(
-            self.config["embedding_model"], str
-        ):
-            raise TypeError("'embedding_model' in configuration must be a string")
-
-        # Check numerical parameters
-        for param in ["batch_size"]:
-            if param in self.config:
-                if not isinstance(self.config[param], int):
-                    raise TypeError(f"'{param}' must be an integer")
-                if self.config[param] <= 0:
-                    raise ValueError(f"'{param}' must be a positive integer")
 
     def _extract_document_content(self, document: dict, input_keys: list[str]) -> str:
         """

@@ -22,7 +22,7 @@ class GatherOperation(BaseOperation):
         content_key: str
         doc_id_key: str
         order_key: str
-        peripheral_chunks: dict[str, Any]
+        peripheral_chunks: dict[str, Any] | None = None
         doc_header_key: str | None = None
         main_chunk_start: str | None = None
         main_chunk_end: str | None = None

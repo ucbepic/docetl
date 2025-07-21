@@ -59,7 +59,7 @@ class EquijoinOperation(BaseOperation):
         comparison_prompt: str
         output: dict[str, Any] | None = None
         blocking_threshold: float | None = None
-        blocking_conditions: dict[str, list[str]] | None = None
+        blocking_conditions: list[str] | None = None
         limits: dict[str, int] | None = None
         comparison_model: str | None = None
         optimize: bool | None = None

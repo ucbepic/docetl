@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic import field_validator
+
 from docetl.operations.base import BaseOperation
 
 
@@ -22,6 +24,22 @@ class GatherOperation(BaseOperation):
         order_key: str
         peripheral_chunks: dict[str, Any]
         doc_header_key: str | None = None
+        main_chunk_start: str | None = None
+        main_chunk_end: str | None = None
+
+        @field_validator("peripheral_chunks")
+        def validate_peripheral_chunks(cls, v):
+            for direction in ["previous", "next"]:
+                if direction not in v:
+                    continue
+                for section in ["head", "middle", "tail"]:
+                    if section in v[direction]:
+                        section_config = v[direction][section]
+                        if section != "middle" and "count" not in section_config:
+                            raise ValueError(
+                                f"Missing 'count' in {direction}.{section} configuration"
+                            )
+            return v
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -34,40 +52,9 @@ class GatherOperation(BaseOperation):
         super().__init__(*args, **kwargs)
 
     def syntax_check(self) -> None:
-        """
-        Perform a syntax check on the operation configuration.
-
-        Raises:
-            ValueError: If required keys are missing or if there are configuration errors.
-            TypeError: If main_chunk_start or main_chunk_end are not strings.
-        """
-        required_keys = ["content_key", "doc_id_key", "order_key"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in GatherOperation configuration"
-                )
-
-        peripheral_config = self.config.get("peripheral_chunks", {})
-        for direction in ["previous", "next"]:
-            if direction not in peripheral_config:
-                continue
-            for section in ["head", "middle", "tail"]:
-                if section in peripheral_config[direction]:
-                    section_config = peripheral_config[direction][section]
-                    if section != "middle" and "count" not in section_config:
-                        raise ValueError(
-                            f"Missing 'count' in {direction}.{section} configuration"
-                        )
-
-        if "main_chunk_start" in self.config and not isinstance(
-            self.config["main_chunk_start"], str
-        ):
-            raise TypeError("'main_chunk_start' must be a string")
-        if "main_chunk_end" in self.config and not isinstance(
-            self.config["main_chunk_end"], str
-        ):
-            raise TypeError("'main_chunk_end' must be a string")
+        """Perform a syntax check on the operation configuration."""
+        # Validate the schema using Pydantic
+        self.schema(**self.config)
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """

@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 from litellm import model_cost
+from pydantic import field_validator
 from rich.console import Console
 from rich.prompt import Confirm
 
@@ -55,8 +56,6 @@ def process_left_item(
 class EquijoinOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "equijoin"
-        left: str
-        right: str
         comparison_prompt: str
         output: dict[str, Any] | None = None
         blocking_threshold: float | None = None
@@ -71,6 +70,24 @@ class EquijoinOperation(BaseOperation):
         blocking_keys: dict[str, list[str]] | None = None
         timeout: int | None = None
         litellm_completion_kwargs: dict[str, Any] = {}
+
+        @field_validator("blocking_keys")
+        def validate_blocking_keys(cls, v):
+            if v is not None:
+                if "left" not in v or "right" not in v:
+                    raise ValueError(
+                        "Both 'left' and 'right' must be specified in 'blocking_keys'"
+                    )
+            return v
+
+        @field_validator("limits")
+        def validate_limits(cls, v):
+            if v is not None:
+                if "left" not in v or "right" not in v:
+                    raise ValueError(
+                        "Both 'left' and 'right' must be specified in 'limits'"
+                    )
+            return v
 
     def compare_pair(
         self,
@@ -122,44 +139,6 @@ class EquijoinOperation(BaseOperation):
             self.console.log(f"[red]Error parsing LLM response: {e}[/red]")
             return False, cost
         return output["is_match"], cost
-
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the EquijoinOperation for required keys and valid structure.
-
-        Raises:
-            ValueError: If required keys are missing or if the blocking_keys structure is invalid.
-            Specifically:
-            - Raises if 'comparison_prompt' is missing from the config.
-            - Raises if 'left' or 'right' are missing from the 'blocking_keys' structure (if present).
-            - Raises if 'left' or 'right' are missing from the 'limits' structure (if present).
-        """
-        if "comparison_prompt" not in self.config:
-            raise ValueError(
-                "Missing required key 'comparison_prompt' in EquijoinOperation configuration"
-            )
-
-        if "blocking_keys" in self.config:
-            if (
-                "left" not in self.config["blocking_keys"]
-                or "right" not in self.config["blocking_keys"]
-            ):
-                raise ValueError(
-                    "Both 'left' and 'right' must be specified in 'blocking_keys'"
-                )
-
-        if "limits" in self.config:
-            if (
-                "left" not in self.config["limits"]
-                or "right" not in self.config["limits"]
-            ):
-                raise ValueError(
-                    "Both 'left' and 'right' must be specified in 'limits'"
-                )
-
-        if "limit_comparisons" in self.config:
-            if not isinstance(self.config["limit_comparisons"], int):
-                raise ValueError("limit_comparisons must be an integer")
 
     def execute(
         self, left_data: list[dict], right_data: list[dict]

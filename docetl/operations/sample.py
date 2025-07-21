@@ -1,4 +1,7 @@
+from typing import Any, Literal, Union
+
 import numpy as np
+from pydantic import Field, field_validator, model_validator
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.clustering_utils import get_embeddings_for_clustering
@@ -15,90 +18,93 @@ class SampleOperation(BaseOperation):
         - center: dict, optional
     """
 
+    class schema(BaseOperation.schema):
+        type: str = "sample"
+        method: Literal["uniform", "stratify", "outliers", "custom", "first"]
+        samples: Union[int, float, list] | None = None
+        method_kwargs: dict[str, Any] | None = Field(default_factory=dict)
+        random_state: int | None = Field(None, ge=0)
+
+        @field_validator("samples")
+        def validate_samples(cls, v, info):
+            if v is not None:
+                # For custom method, samples must be a list
+                if hasattr(info.data, "method") and info.data.get("method") == "custom":
+                    if not isinstance(v, list):
+                        raise TypeError("'samples' must be a list for custom sampling")
+                elif isinstance(v, (int, float)):
+                    if v <= 0:
+                        raise ValueError("'samples' must be a positive number")
+            return v
+
+        @field_validator("method_kwargs")
+        def validate_method_kwargs(cls, v):
+            if v is not None:
+                if not isinstance(v, dict):
+                    raise TypeError("'method_kwargs' must be a dictionary")
+
+                # Validate specific keys in method_kwargs
+                if "stratify_key" in v and not isinstance(v["stratify_key"], str):
+                    raise TypeError("'stratify_key' must be a string")
+
+                if "center" in v and not isinstance(v["center"], dict):
+                    raise TypeError("'center' must be a dictionary")
+
+                if "embedding_keys" in v:
+                    if not isinstance(v["embedding_keys"], list) or not all(
+                        isinstance(key, str) for key in v["embedding_keys"]
+                    ):
+                        raise TypeError("'embedding_keys' must be a list of strings")
+
+                if "std" in v:
+                    if not isinstance(v["std"], (int, float)) or v["std"] <= 0:
+                        raise TypeError("'std' must be a positive number")
+
+                if "samples" in v:
+                    if not isinstance(v["samples"], (int, float)) or v["samples"] <= 0:
+                        raise TypeError(
+                            "'samples' in method_kwargs must be a positive number"
+                        )
+
+            return v
+
+        @model_validator(mode="after")
+        def validate_method_specific_requirements(self):
+            method = self.method
+
+            if method in ["uniform", "stratify"] and self.samples is None:
+                raise ValueError(f"Must specify 'samples' for {method} sampling")
+
+            if method == "stratify":
+                method_kwargs = self.method_kwargs or {}
+                if "stratify_key" not in method_kwargs:
+                    raise ValueError(
+                        "Must specify 'stratify_key' for stratify sampling"
+                    )
+
+            if method == "outliers":
+                method_kwargs = self.method_kwargs or {}
+                if "std" not in method_kwargs and "samples" not in method_kwargs:
+                    raise ValueError(
+                        "Must specify either 'std' or 'samples' in outliers configuration"
+                    )
+
+                if "embedding_keys" not in method_kwargs:
+                    raise ValueError(
+                        "'embedding_keys' must be specified in outliers configuration"
+                    )
+
+            if method == "custom" and self.samples is None:
+                raise ValueError("Must specify 'samples' for custom sampling")
+
+            return self
+
     def __init__(
         self,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the SampleOperation for required keys and valid structure.
-
-        Raises:
-            ValueError: If required keys are missing or invalid in the configuration.
-            TypeError: If configuration values have incorrect types.
-        """
-        if "method" not in self.config:
-            raise ValueError("Must specify 'method' in SampleOperation configuration")
-
-        valid_methods = ["uniform", "stratify", "outliers", "custom", "first"]
-        if self.config["method"] not in valid_methods:
-            raise ValueError(f"'method' must be one of {valid_methods}")
-
-        if self.config["method"] == "custom":
-            # Samples must be a list
-            if not isinstance(self.config["samples"], list):
-                raise TypeError("'samples' must be a list for custom sampling")
-
-        if self.config["method"] in ["random", "stratify"]:
-            if "samples" not in self.config:
-                raise ValueError(
-                    "Must specify 'samples' for random or stratify sampling"
-                )
-            if not isinstance(self.config["samples"], (int, float, list)) or (
-                isinstance(self.config["samples"], (int, float))
-                and self.config["samples"] <= 0
-            ):
-                raise TypeError("'samples' must be a positive integer, float, or list")
-
-        if self.config["method"] == "stratify":
-            if "stratify_key" not in self.config.get("method_kwargs", {}):
-                raise ValueError("Must specify 'stratify_key' for stratify sampling")
-            if not isinstance(
-                self.config.get("method_kwargs", {})["stratify_key"], str
-            ):
-                raise TypeError("'stratify_key' must be a string")
-
-        if self.config["method"] == "outliers":
-            outliers_config = self.config.get("method_kwargs", {})
-            if "std" not in outliers_config and "samples" not in outliers_config:
-                raise ValueError(
-                    "Must specify either 'std' or 'samples' in outliers configuration"
-                )
-
-            if "std" in outliers_config:
-                if (
-                    not isinstance(outliers_config["std"], (int, float))
-                    or outliers_config["std"] <= 0
-                ):
-                    raise TypeError("'std' in outliers must be a positive number")
-
-            if "samples" in outliers_config:
-                if (
-                    not isinstance(outliers_config["samples"], (int, float))
-                    or outliers_config["samples"] <= 0
-                ):
-                    raise TypeError(
-                        "'samples' in outliers must be a positive integer or float"
-                    )
-
-            if "embedding_keys" not in outliers_config:
-                raise ValueError(
-                    "'embedding_keys' must be specified in outliers configuration"
-                )
-
-            if not isinstance(outliers_config["embedding_keys"], list) or not all(
-                isinstance(key, str) for key in outliers_config["embedding_keys"]
-            ):
-                raise TypeError(
-                    "'embedding_keys' in outliers must be a list of strings"
-                )
-
-        if "center" in self.config.get("method_kwargs", {}):
-            if not isinstance(self.config.get("method_kwargs", {})["center"], dict):
-                raise TypeError("'center' must be a dictionary")
 
     def execute(
         self, input_data: list[dict], is_build: bool = False

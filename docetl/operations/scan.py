@@ -5,10 +5,6 @@ class ScanOperation(BaseOperation):
     class schema(BaseOperation.schema):
         dataset_name: str
 
-    def syntax_check(self) -> None:
-        """Validate the scan operation configuration."""
-        super().syntax_check()
-
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Execute the scan operation to load data from the configured source.

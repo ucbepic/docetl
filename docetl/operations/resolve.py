@@ -9,7 +9,7 @@ from typing import Any
 import jinja2
 from jinja2 import Template
 from litellm import model_cost
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
@@ -34,16 +34,94 @@ class ResolveOperation(BaseOperation):
         resolution_model: str | None = None
         comparison_model: str | None = None
         blocking_keys: list[str] | None = None
-        blocking_threshold: float | None = None
+        blocking_threshold: float | None = Field(None, ge=0, le=1)
         blocking_conditions: list[str] | None = None
         input: dict[str, Any] | None = None
-        embedding_batch_size: int | None = None
-        compare_batch_size: int | None = None
-        limit_comparisons: int | None = None
+        embedding_batch_size: int | None = Field(None, gt=0)
+        compare_batch_size: int | None = Field(None, gt=0)
+        limit_comparisons: int | None = Field(None, gt=0)
         optimize: bool | None = None
-        timeout: int | None = None
+        timeout: int | None = Field(None, gt=0)
         litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
         enable_observability: bool = False
+
+        @field_validator("comparison_prompt")
+        def validate_comparison_prompt(cls, v):
+            if v is not None:
+                try:
+                    comparison_template = Template(v)
+                    comparison_vars = comparison_template.environment.parse(v).find_all(
+                        jinja2.nodes.Name
+                    )
+                    comparison_var_names = {var.name for var in comparison_vars}
+                    if (
+                        "input1" not in comparison_var_names
+                        or "input2" not in comparison_var_names
+                    ):
+                        raise ValueError(
+                            f"'comparison_prompt' must contain both 'input1' and 'input2' variables. {v}"
+                        )
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'comparison_prompt': {str(e)}"
+                    )
+            return v
+
+        @field_validator("resolution_prompt")
+        def validate_resolution_prompt(cls, v):
+            if v is not None:
+                try:
+                    reduction_template = Template(v)
+                    reduction_vars = reduction_template.environment.parse(v).find_all(
+                        jinja2.nodes.Name
+                    )
+                    reduction_var_names = {var.name for var in reduction_vars}
+                    if "inputs" not in reduction_var_names:
+                        raise ValueError(
+                            "'resolution_prompt' must contain 'inputs' variable"
+                        )
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'resolution_prompt': {str(e)}"
+                    )
+            return v
+
+        @field_validator("input")
+        def validate_input_schema(cls, v):
+            if v is not None:
+                if "schema" not in v:
+                    raise ValueError("Missing 'schema' in 'input' configuration")
+                if not isinstance(v["schema"], dict):
+                    raise TypeError(
+                        "'schema' in 'input' configuration must be a dictionary"
+                    )
+            return v
+
+        @model_validator(mode="after")
+        def validate_output_schema(self):
+            # Skip validation if we're using from dataframe accessors
+            if hasattr(self, "_runner_from_df") or getattr(self, "runner", {}).get(
+                "_from_df_accessors", False
+            ):
+                return self
+
+            if self.output is None:
+                raise ValueError(
+                    "Missing required key 'output' in ResolveOperation configuration"
+                )
+
+            if "schema" not in self.output:
+                raise ValueError("Missing 'schema' in 'output' configuration")
+
+            if not isinstance(self.output["schema"], dict):
+                raise TypeError(
+                    "'schema' in 'output' configuration must be a dictionary"
+                )
+
+            if not self.output["schema"]:
+                raise ValueError("'schema' in 'output' configuration cannot be empty")
+
+            return self
 
     def compare_pair(
         self,
@@ -94,114 +172,6 @@ class ResolveOperation(BaseOperation):
         )[0]
 
         return output["is_match"], response.total_cost, prompt
-
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the ResolveOperation for required keys and valid structure.
-
-        This method performs the following checks:
-        1. Verifies the presence of required keys: 'comparison_prompt' and 'output'.
-        2. Ensures 'output' contains a 'schema' key.
-        3. Validates that 'schema' in 'output' is a non-empty dictionary.
-        4. Checks if 'comparison_prompt' is a valid Jinja2 template with 'input1' and 'input2' variables.
-        5. If 'resolution_prompt' is present, verifies it as a valid Jinja2 template with 'inputs' variable.
-        6. Optionally checks if 'model' is a string (if present).
-        7. Optionally checks 'blocking_keys' (if present, further checks are performed).
-
-        Raises:
-            ValueError: If required keys are missing, if templates are invalid or missing required variables,
-                        or if any other configuration aspect is incorrect or inconsistent.
-            TypeError: If the types of configuration values are incorrect, such as 'schema' not being a dict
-                       or 'model' not being a string.
-        """
-        required_keys = ["comparison_prompt", "output"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in ResolveOperation configuration"
-                )
-
-        if "schema" not in self.config["output"] and not self.runner._from_df_accessors:
-            raise ValueError("Missing 'schema' in 'output' configuration")
-        elif not self.runner._from_df_accessors:
-            if not isinstance(self.config["output"]["schema"], dict):
-                raise TypeError(
-                    "'schema' in 'output' configuration must be a dictionary"
-                )
-
-            if not self.config["output"]["schema"]:
-                raise ValueError("'schema' in 'output' configuration cannot be empty")
-
-        # Check if the comparison_prompt is a valid Jinja2 template
-        try:
-            comparison_template = Template(self.config["comparison_prompt"])
-            comparison_vars = comparison_template.environment.parse(
-                self.config["comparison_prompt"]
-            ).find_all(jinja2.nodes.Name)
-            comparison_var_names = {var.name for var in comparison_vars}
-            if (
-                "input1" not in comparison_var_names
-                or "input2" not in comparison_var_names
-            ):
-                raise ValueError(
-                    f"'comparison_prompt' must contain both 'input1' and 'input2' variables. {self.config['comparison_prompt']}"
-                )
-
-            if "resolution_prompt" in self.config:
-                reduction_template = Template(self.config["resolution_prompt"])
-                reduction_vars = reduction_template.environment.parse(
-                    self.config["resolution_prompt"]
-                ).find_all(jinja2.nodes.Name)
-                reduction_var_names = {var.name for var in reduction_vars}
-                if "inputs" not in reduction_var_names:
-                    raise ValueError(
-                        "'resolution_prompt' must contain 'inputs' variable"
-                    )
-        except Exception as e:
-            raise ValueError(f"Invalid Jinja2 template: {str(e)}")
-
-        # Check if the model is specified (optional)
-        if "model" in self.config and not isinstance(self.config["model"], str):
-            raise TypeError("'model' in configuration must be a string")
-
-        # Check blocking_keys (optional)
-        if "blocking_keys" in self.config:
-            if not isinstance(self.config["blocking_keys"], list):
-                raise TypeError("'blocking_keys' must be a list")
-            if not all(isinstance(key, str) for key in self.config["blocking_keys"]):
-                raise TypeError("All items in 'blocking_keys' must be strings")
-
-        # Check blocking_threshold (optional)
-        if "blocking_threshold" in self.config:
-            if not isinstance(self.config["blocking_threshold"], (int, float)):
-                raise TypeError("'blocking_threshold' must be a number")
-            if not 0 <= self.config["blocking_threshold"] <= 1:
-                raise ValueError("'blocking_threshold' must be between 0 and 1")
-
-        # Check blocking_conditions (optional)
-        if "blocking_conditions" in self.config:
-            if not isinstance(self.config["blocking_conditions"], list):
-                raise TypeError("'blocking_conditions' must be a list")
-            if not all(
-                isinstance(cond, str) for cond in self.config["blocking_conditions"]
-            ):
-                raise TypeError("All items in 'blocking_conditions' must be strings")
-
-        # Check if input schema is provided and valid (optional)
-        if "input" in self.config:
-            if "schema" not in self.config["input"]:
-                raise ValueError("Missing 'schema' in 'input' configuration")
-            if not isinstance(self.config["input"]["schema"], dict):
-                raise TypeError(
-                    "'schema' in 'input' configuration must be a dictionary"
-                )
-
-        # Check limit_comparisons (optional)
-        if "limit_comparisons" in self.config:
-            if not isinstance(self.config["limit_comparisons"], int):
-                raise TypeError("'limit_comparisons' must be an integer")
-            if self.config["limit_comparisons"] <= 0:
-                raise ValueError("'limit_comparisons' must be a positive integer")
 
     def validation_fn(self, response: dict[str, Any]):
         output = self.runner.api.parse_llm_response(

@@ -63,21 +63,6 @@ class UnnestOperation(BaseOperation):
         recursive: bool | None = None
         depth: int | None = None
 
-    def syntax_check(self) -> None:
-        """
-        Checks if the required configuration key is present in the operation's config.
-
-        Raises:
-            ValueError: If the required 'unnest_key' is missing from the configuration.
-        """
-
-        required_keys = ["unnest_key"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in UnnestOperation configuration"
-                )
-
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the unnest operation on the input data.

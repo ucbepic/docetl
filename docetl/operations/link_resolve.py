@@ -12,9 +12,6 @@ from .clustering_utils import get_embeddings_for_clustering
 
 
 class LinkResolveOperation(BaseOperation):
-    def syntax_check(self) -> None:
-        pass
-
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the resolve links operation on the provided dataset.

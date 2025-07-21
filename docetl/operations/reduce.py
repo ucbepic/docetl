@@ -17,7 +17,7 @@ from typing import Any
 import jinja2
 import numpy as np
 from jinja2 import Template
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 
 from docetl.operations.base import BaseOperation
 from docetl.operations.clustering_utils import (
@@ -42,8 +42,8 @@ class ReduceOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "reduce"
         reduce_key: str | list[str]
-        output: dict[str, Any] | None = None
-        prompt: str | None = None
+        output: dict[str, Any]
+        prompt: str
         optimize: bool | None = None
         synthesize_resolve: bool | None = None
         model: str | None = None
@@ -51,12 +51,110 @@ class ReduceOperation(BaseOperation):
         pass_through: bool | None = None
         associative: bool | None = None
         fold_prompt: str | None = None
-        fold_batch_size: int | None = None
+        fold_batch_size: int | None = Field(None, gt=0)
+        merge_prompt: str | None = None
+        merge_batch_size: int | None = Field(None, gt=0)
         value_sampling: dict[str, Any] | None = None
         verbose: bool | None = None
         timeout: int | None = None
         litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
         enable_observability: bool = False
+
+        @field_validator("prompt")
+        def validate_prompt(cls, v):
+            if v is not None:
+                try:
+                    template = Template(v)
+                    template_vars = template.environment.parse(v).find_all(
+                        jinja2.nodes.Name
+                    )
+                    template_var_names = {var.name for var in template_vars}
+                    if "inputs" not in template_var_names:
+                        raise ValueError(
+                            "Prompt template must include the 'inputs' variable"
+                        )
+                except Exception as e:
+                    raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}")
+            return v
+
+        @field_validator("fold_prompt")
+        def validate_fold_prompt(cls, v):
+            if v is not None:
+                try:
+                    fold_template = Template(v)
+                    fold_template_vars = fold_template.environment.parse(v).find_all(
+                        jinja2.nodes.Name
+                    )
+                    fold_template_var_names = {var.name for var in fold_template_vars}
+                    required_vars = {"inputs", "output"}
+                    if not required_vars.issubset(fold_template_var_names):
+                        raise ValueError(
+                            f"Fold template must include variables: {required_vars}. Current template includes: {fold_template_var_names}"
+                        )
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'fold_prompt': {str(e)}"
+                    )
+            return v
+
+        @field_validator("merge_prompt")
+        def validate_merge_prompt(cls, v):
+            if v is not None:
+                try:
+                    merge_template = Template(v)
+                    merge_template_vars = merge_template.environment.parse(v).find_all(
+                        jinja2.nodes.Name
+                    )
+                    merge_template_var_names = {var.name for var in merge_template_vars}
+                    if "outputs" not in merge_template_var_names:
+                        raise ValueError(
+                            "Merge template must include the 'outputs' variable"
+                        )
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'merge_prompt': {str(e)}"
+                    )
+            return v
+
+        @field_validator("value_sampling")
+        def validate_value_sampling(cls, v):
+            if v is not None:
+                if v["enabled"]:
+                    if v["method"] not in ["random", "first_n", "cluster", "sem_sim"]:
+                        raise ValueError(
+                            "Invalid 'method'. Must be 'random', 'first_n', 'cluster', or 'sem_sim'"
+                        )
+
+                    if v["method"] == "embedding":
+                        if "embedding_model" not in v:
+                            raise ValueError(
+                                "'embedding_model' is required when using embedding-based sampling"
+                            )
+                        if "embedding_keys" not in v:
+                            raise ValueError(
+                                "'embedding_keys' is required when using embedding-based sampling"
+                            )
+            return v
+
+        @model_validator(mode="after")
+        def validate_complex_requirements(self):
+            # Check dependencies between merge_prompt and fold_prompt
+            if self.merge_prompt and not self.fold_prompt:
+                raise ValueError(
+                    "'fold_prompt' is required when 'merge_prompt' is specified"
+                )
+
+            # Check batch size requirements
+            if self.fold_prompt and not self.fold_batch_size:
+                raise ValueError(
+                    "'fold_batch_size' is required when 'fold_prompt' is specified"
+                )
+            if self.merge_prompt and not self.merge_batch_size:
+                raise ValueError(
+                    "'merge_batch_size' is required when 'merge_prompt' is specified"
+                )
+
+            return self
 
     def __init__(self, *args, **kwargs):
         """
@@ -79,223 +177,6 @@ class ReduceOperation(BaseOperation):
         )
         self.intermediates = {}
         self.lineage_keys = self.config.get("output", {}).get("lineage", [])
-
-    def syntax_check(self) -> None:
-        """
-        Perform comprehensive syntax checks on the configuration of the ReduceOperation.
-
-        This method validates the presence and correctness of all required configuration keys, Jinja2 templates, and ensures the correct
-        structure and types of the entire configuration.
-
-        The method performs the following checks:
-        1. Verifies the presence of all required keys in the configuration.
-        2. Validates the structure and content of the 'output' configuration, including its 'schema'.
-        3. Checks if the main 'prompt' is a valid Jinja2 template and contains the required 'inputs' variable.
-        4. If 'merge_prompt' is specified, ensures that 'fold_prompt' is also present.
-        5. If 'fold_prompt' is present, verifies the existence of 'fold_batch_size'.
-        6. Validates the 'fold_prompt' as a Jinja2 template with required variables 'inputs' and 'output'.
-        7. If present, checks 'merge_prompt' as a valid Jinja2 template with required 'outputs' variable.
-        8. Verifies types of various configuration inputs (e.g., 'fold_batch_size' as int).
-        9. Checks for the presence and validity of optional configurations like 'model'.
-
-        Raises:
-            ValueError: If any required configuration is missing, if templates are invalid or missing required
-                        variables, or if any other configuration aspect is incorrect or inconsistent.
-            TypeError: If any configuration value has an incorrect type, such as 'schema' not being a dict
-                       or 'fold_batch_size' not being an integer.
-        """
-        required_keys = ["reduce_key", "prompt", "output"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in {self.config['name']} configuration"
-                )
-
-        if "schema" not in self.config["output"]:
-            raise ValueError(
-                f"Missing 'schema' in {self.config['name']} 'output' configuration"
-            )
-
-        if not isinstance(self.config["output"]["schema"], dict):
-            raise TypeError(
-                f"'schema' in {self.config['name']} 'output' configuration must be a dictionary"
-            )
-
-        if not self.config["output"]["schema"]:
-            raise ValueError(
-                f"'schema' in {self.config['name']} 'output' configuration cannot be empty"
-            )
-
-        # Check if the prompt is a valid Jinja2 template
-        try:
-            template = Template(self.config["prompt"])
-            template_vars = template.environment.parse(self.config["prompt"]).find_all(
-                jinja2.nodes.Name
-            )
-            template_var_names = {var.name for var in template_vars}
-            if "inputs" not in template_var_names:
-                raise ValueError(
-                    f"Prompt template for {self.config['name']} must include the 'inputs' variable"
-                )
-        except Exception as e:
-            raise ValueError(
-                f"Invalid Jinja2 template in {self.config['name']} 'prompt': {str(e)}"
-            )
-
-        # Check if fold_prompt is a valid Jinja2 template (now required if merge exists)
-        if "merge_prompt" in self.config:
-            if "fold_prompt" not in self.config:
-                raise ValueError(
-                    f"'fold_prompt' is required when 'merge_prompt' is specified in {self.config['name']}"
-                )
-
-        if "fold_prompt" in self.config:
-            if "fold_batch_size" not in self.config:
-                raise ValueError(
-                    f"'fold_batch_size' is required when 'fold_prompt' is specified in {self.config['name']}"
-                )
-
-            try:
-                fold_template = Template(self.config["fold_prompt"])
-                fold_template_vars = fold_template.environment.parse(
-                    self.config["fold_prompt"]
-                ).find_all(jinja2.nodes.Name)
-                fold_template_var_names = {var.name for var in fold_template_vars}
-                required_vars = {"inputs", "output"}
-                if not required_vars.issubset(fold_template_var_names):
-                    raise ValueError(
-                        f"Fold template in {self.config['name']} must include variables: {required_vars}. Current template includes: {fold_template_var_names}"
-                    )
-            except Exception as e:
-                raise ValueError(
-                    f"Invalid Jinja2 template in {self.config['name']} 'fold_prompt': {str(e)}"
-                )
-
-        # Check merge_prompt and merge_batch_size
-        if "merge_prompt" in self.config:
-            if "merge_batch_size" not in self.config:
-                raise ValueError(
-                    f"'merge_batch_size' is required when 'merge_prompt' is specified in {self.config['name']}"
-                )
-
-            try:
-                merge_template = Template(self.config["merge_prompt"])
-                merge_template_vars = merge_template.environment.parse(
-                    self.config["merge_prompt"]
-                ).find_all(jinja2.nodes.Name)
-                merge_template_var_names = {var.name for var in merge_template_vars}
-                if "outputs" not in merge_template_var_names:
-                    raise ValueError(
-                        f"Merge template in {self.config['name']} must include the 'outputs' variable"
-                    )
-            except Exception as e:
-                raise ValueError(
-                    f"Invalid Jinja2 template in {self.config['name']} 'merge_prompt': {str(e)}"
-                )
-
-        # Check if the model is specified (optional)
-        if "model" in self.config and not isinstance(self.config["model"], str):
-            raise TypeError(
-                f"'model' in {self.config['name']} configuration must be a string"
-            )
-
-        # Check if reduce_key is a string or a list of strings
-        if not isinstance(self.config["reduce_key"], (str, list)):
-            raise TypeError(
-                f"'reduce_key' in {self.config['name']} configuration must be a string or a list of strings"
-            )
-        if isinstance(self.config["reduce_key"], list):
-            if not all(isinstance(key, str) for key in self.config["reduce_key"]):
-                raise TypeError(
-                    f"All elements in 'reduce_key' list in {self.config['name']} configuration must be strings"
-                )
-
-        # Check if input schema is provided and valid (optional)
-        if "input" in self.config:
-            if "schema" not in self.config["input"]:
-                raise ValueError(
-                    f"Missing 'schema' in {self.config['name']} 'input' configuration"
-                )
-            if not isinstance(self.config["input"]["schema"], dict):
-                raise TypeError(
-                    f"'schema' in {self.config['name']} 'input' configuration must be a dictionary"
-                )
-
-        # Check if fold_batch_size and merge_batch_size are positive integers
-        for key in ["fold_batch_size", "merge_batch_size"]:
-            if key in self.config:
-                if not isinstance(self.config[key], int) or self.config[key] <= 0:
-                    raise ValueError(
-                        f"'{key}' in {self.config['name']} configuration must be a positive integer"
-                    )
-
-        if "value_sampling" in self.config:
-            sampling = self.config["value_sampling"]
-            if not isinstance(sampling, dict):
-                raise TypeError(
-                    f"'value_sampling' in {self.config['name']} configuration must be a dictionary"
-                )
-
-            if "enabled" not in sampling:
-                raise ValueError(
-                    f"'enabled' is required in {self.config['name']} 'value_sampling' configuration"
-                )
-            if not isinstance(sampling["enabled"], bool):
-                raise TypeError(
-                    f"'enabled' in {self.config['name']} 'value_sampling' configuration must be a boolean"
-                )
-
-            if sampling["enabled"]:
-                if "sample_size" not in sampling:
-                    raise ValueError(
-                        f"'sample_size' is required when value_sampling is enabled in {self.config['name']}"
-                    )
-                if (
-                    not isinstance(sampling["sample_size"], int)
-                    or sampling["sample_size"] <= 0
-                ):
-                    raise ValueError(
-                        f"'sample_size' in {self.config['name']} configuration must be a positive integer"
-                    )
-
-                if "method" not in sampling:
-                    raise ValueError(
-                        f"'method' is required when value_sampling is enabled in {self.config['name']}"
-                    )
-                if sampling["method"] not in [
-                    "random",
-                    "first_n",
-                    "cluster",
-                    "sem_sim",
-                ]:
-                    raise ValueError(
-                        f"Invalid 'method'. Must be 'random', 'first_n', or 'embedding' in {self.config['name']}"
-                    )
-
-                if sampling["method"] == "embedding":
-                    if "embedding_model" not in sampling:
-                        raise ValueError(
-                            f"'embedding_model' is required when using embedding-based sampling in {self.config['name']}"
-                        )
-                    if "embedding_keys" not in sampling:
-                        raise ValueError(
-                            f"'embedding_keys' is required when using embedding-based sampling in {self.config['name']}"
-                        )
-
-        # Check if lineage is a list of strings
-        if "lineage" in self.config.get("output", {}):
-            if not isinstance(self.config["output"]["lineage"], list):
-                raise TypeError(
-                    f"'lineage' in {self.config['name']} 'output' configuration must be a list"
-                )
-            if not all(
-                isinstance(key, str) for key in self.config["output"]["lineage"]
-            ):
-                raise TypeError(
-                    f"All elements in 'lineage' list in {self.config['name']} 'output' configuration must be strings"
-                )
-
-        self.gleaning_check()
 
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """

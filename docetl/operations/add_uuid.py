@@ -20,10 +20,6 @@ class AddUuidOperation(BaseOperation):
         super().__init__(*args, **kwargs)
         self.name = self.config["name"]
 
-    def syntax_check(self) -> None:
-        # No additional configuration needed beyond base requirements
-        pass
-
     def execute(
         self, input_data: list[dict[str, Any]]
     ) -> tuple[list[dict[str, Any]], float]:

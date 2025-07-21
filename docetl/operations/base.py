@@ -4,13 +4,35 @@ The BaseOperation class is an abstract base class for all operations in the doce
 
 from abc import ABC, ABCMeta, abstractmethod
 
-import jsonschema
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
 from rich.status import Status
 
 from docetl.console import DOCETL_CONSOLE
-from docetl.utils import classproperty
+
+
+class GleaningConfig(BaseModel):
+    """Configuration for gleaning (iterative improvement) in operations."""
+
+    num_rounds: int = Field(
+        ..., gt=0, description="Number of gleaning rounds to perform"
+    )
+    validation_prompt: str = Field(
+        ..., min_length=1, description="Prompt used to validate and improve outputs"
+    )
+    if_condition: str | None = Field(
+        None,
+        alias="if",
+        description="Optional condition to determine when to perform gleaning",
+    )
+
+    @field_validator("validation_prompt")
+    @classmethod
+    def validate_validation_prompt(cls, v: str) -> str:
+        """Ensure validation_prompt is not just whitespace."""
+        if not v.strip():
+            raise ValueError("'validation_prompt' cannot be empty or only whitespace")
+        return v
 
 
 class BaseOperationMeta(ABCMeta):
@@ -63,16 +85,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         name: str
         type: str
         skip_on_error: bool = False
-
-    @classproperty
-    def json_schema(cls):
-        assert hasattr(
-            cls.schema, "model_json_schema"
-        ), "Programming error: %s.schema must be a pydantic object but is a %s" % (
-            cls,
-            type(cls.schema),
-        )
-        return cls.schema.model_json_schema()
+        gleaning: GleaningConfig | None = None
 
     @abstractmethod
     def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
@@ -91,50 +104,7 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         """
         pass
 
-    @abstractmethod
     def syntax_check(self) -> None:
-        """
-        Perform syntax checks on the operation configuration.
-
-        This method should be implemented by subclasses to validate the
-        configuration specific to each operation type.
-
-        Raises:
-            ValueError: If the configuration is invalid.
-        """
-        jsonschema.validate(instance=self.config, schema=self.json_schema)
-
-    def gleaning_check(self) -> None:
-        """
-        Perform checks on the gleaning configuration.
-
-        This method validates the gleaning configuration if it's present
-        in the operation config.
-
-        Raises:
-            ValueError: If the gleaning configuration is invalid.
-            TypeError: If the gleaning configuration has incorrect types.
-        """
-        if "gleaning" not in self.config:
-            return
-        if "num_rounds" not in self.config["gleaning"]:
-            raise ValueError("Missing 'num_rounds' in 'gleaning' configuration")
-        if not isinstance(self.config["gleaning"]["num_rounds"], int):
-            raise TypeError(
-                "'num_rounds' in 'gleaning' configuration must be an integer"
-            )
-        if self.config["gleaning"]["num_rounds"] < 1:
-            raise ValueError(
-                "'num_rounds' in 'gleaning' configuration must be at least 1"
-            )
-
-        if "validation_prompt" not in self.config["gleaning"]:
-            raise ValueError("Missing 'validation_prompt' in 'gleaning' configuration")
-        if not isinstance(self.config["gleaning"]["validation_prompt"], str):
-            raise TypeError(
-                "'validation_prompt' in 'gleaning' configuration must be a string"
-            )
-        if not self.config["gleaning"]["validation_prompt"].strip():
-            raise ValueError(
-                "'validation_prompt' in 'gleaning' configuration cannot be empty"
-            )
+        """Perform syntax checks on the operation configuration."""
+        # Validate the configuration using Pydantic
+        self.schema(**self.config)

@@ -23,10 +23,6 @@ Let's explore a practical example of using the Equijoin operation to match job c
     Job Desired Experience: {{ right.desired_experience }}
 
     Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
-  output:
-    schema:
-      match_score: float
-      match_rationale: string
 ```
 
 This Equijoin operation matches job candidates to job postings:
@@ -45,6 +41,55 @@ This Equijoin operation matches job candidates to job postings:
 ## Blocking
 
 Like the Resolve operation, Equijoin supports blocking techniques to improve efficiency. For details on how blocking works and how to implement it, please refer to the [Blocking section in the Resolve operation documentation](resolve.md#blocking).
+
+### Adding Blocking Rules
+
+Equijoin lets you specify **explicit blocking logic** to skip record pairs that are obviously unrelated *before* any LLM calls are made.
+
+#### `blocking_keys`
+Provide one or more **field names** for each side of the join. The selected values are concatenated and **embedded**; the cosine similarity of the left vs. right embeddings is then compared against `blocking_threshold` (defaults to `1.0`). If the similarity meets or exceeds that threshold, the pair moves on to the `comparison_prompt`; otherwise it is skipped.  
+If you omit `blocking_keys`, **all key–value pairs of each record are embedded by default**.
+
+```yaml
+blocking_keys:
+  left:
+    - medicine
+  right:
+    - extracted_medications
+```
+
+#### `blocking_threshold`
+Optionally set a numeric `blocking_threshold` \(0 – 1\) representing the minimum cosine similarity (computed with the selected `embedding_model`) that the concatenated blocking keys must achieve to be considered a candidate pair. Anything below the threshold is filtered out without invoking the LLM.
+
+```yaml
+blocking_threshold: 0.35
+embedding_model: text-embedding-3-small
+```
+
+A full Equijoin step combining both ideas might look like:
+
+```yaml
+- name: join_meds_transcripts
+  type: equijoin
+  blocking_keys:
+    left:
+      - medicine
+    right:
+      - extracted_medications
+  blocking_threshold: 0.3535
+  embedding_model: text-embedding-3-small
+  comparison_prompt: |
+    Compare the following medication names:
+
+    {{ left.medicine }}
+
+    {{ right.extracted_medications }}
+
+    Determine if these entries refer to the same medication.
+```
+
+#### Auto-generating Rules (Experimental)
+`docetl build pipeline.yaml` can call the **Optimizer** to propose `blocking_keys` and an appropriate `blocking_threshold` based on a sample of your data. This feature is experimental; always review the suggested rules to ensure they do not exclude valid matches.
 
 ## Parameters
 
@@ -71,13 +116,8 @@ datasets:
     path: /path/to/job_postings.json
 
 operations:
-  match_candidates_to_jobs:
+  - name: match_candidates_to_jobs:
     type: equijoin
-    join_key:
-      left:
-        name: candidate_id
-      right:
-        name: job_id
     comparison_prompt: |
       Compare the following job candidate and job posting:
 
@@ -88,10 +128,6 @@ operations:
       Job Desired Experience: {{ right.desired_experience }}
 
       Is this candidate a good match for the job? Consider both the overlap in skills and the candidate's experience level. Respond with "True" if it's a good match, or "False" if it's not a suitable match.
-    output:
-      schema:
-        match_score: float
-        match_rationale: string
 
 pipeline:
   steps:

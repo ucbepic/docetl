@@ -100,7 +100,9 @@ class ResolveOperation(BaseOperation):
         @model_validator(mode="after")
         def validate_output_schema(self, info: ValidationInfo):
             # Skip validation if we're using from dataframe accessors
-            if info.context["_from_df_accessors"]:
+            if isinstance(info.context, dict) and info.context.get(
+                "_from_df_accessors"
+            ):
                 return self
 
             if self.output is None:

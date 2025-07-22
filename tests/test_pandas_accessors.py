@@ -773,4 +773,119 @@ def test_chained_split_gather_workflow():
     assert "document_chunk_rendered" in gather_result.columns
     assert len(gather_result.semantic.history) == 2
     assert gather_result.semantic.history[0].op_type == "split"
-    assert gather_result.semantic.history[1].op_type == "gather" 
+    assert gather_result.semantic.history[1].op_type == "gather"
+
+
+def test_semantic_map_structured_output(sample_df):
+    """Test semantic map operation with structured output mode."""
+    result = sample_df.semantic.map(
+        prompt="Extract structured information from: {{input.text}}",
+        output={
+            "schema": {"topic": "str", "entities": "list[str]", "word_count": "int"},
+            "mode": "structured_output"
+        },
+        model="gpt-4o-mini"
+    )
+    
+    assert isinstance(result, pd.DataFrame)
+    assert "topic" in result.columns
+    assert "entities" in result.columns 
+    assert "word_count" in result.columns
+    assert len(result) == len(sample_df)
+    assert all(isinstance(x, str) for x in result["topic"])
+    assert all(isinstance(x, list) for x in result["entities"])
+    assert all(isinstance(x, int) for x in result["word_count"])
+
+
+def test_semantic_map_invalid_output_mode(sample_df):
+    """Test that invalid output mode raises ValueError."""
+    with pytest.raises(ValueError, match="output mode must be 'tools' or 'structured_output'"):
+        sample_df.semantic.map(
+            prompt="Test prompt: {{input.text}}",
+            output={"schema": {"result": "str"}, "mode": "invalid_mode"}
+        )
+
+
+def test_semantic_map_structured_output_vs_tools(sample_df):
+    """Test that both output modes work and produce similar results."""
+    # Use a small subset for faster testing
+    small_df = sample_df.head(3)
+    
+    # Test with tools mode (default)
+    result_tools = small_df.semantic.map(
+        prompt="Extract the main topic from: {{input.text}}",
+        output={"schema": {"topic": "str"}, "mode": "tools"},
+        model="gpt-4o-mini"
+    )
+    
+    # Test with structured output mode
+    result_structured = small_df.semantic.map(
+        prompt="Extract the main topic from: {{input.text}}",
+        output={"schema": {"topic": "str"}, "mode": "structured_output"},
+        model="gpt-4o-mini"
+    )
+    
+    # Both should have the same structure
+    assert isinstance(result_tools, pd.DataFrame)
+    assert isinstance(result_structured, pd.DataFrame)
+    assert "topic" in result_tools.columns
+    assert "topic" in result_structured.columns
+    assert len(result_tools) == len(result_structured) == len(small_df)
+    assert all(isinstance(x, str) for x in result_tools["topic"])
+    assert all(isinstance(x, str) for x in result_structured["topic"])
+
+
+def test_semantic_map_backward_compatibility(sample_df):
+    """Test that the old output_schema parameter still works for backward compatibility."""
+    # Use a small subset for faster testing
+    small_df = sample_df.head(3)
+    
+    # Test with old API
+    result_old = small_df.semantic.map(
+        prompt="Extract the main topic from: {{input.text}}",
+        output_schema={"topic": "str"},
+        model="gpt-4o-mini"
+    )
+    
+    # Test with new API
+    result_new = small_df.semantic.map(
+        prompt="Extract the main topic from: {{input.text}}",
+        output={"schema": {"topic": "str"}},
+        model="gpt-4o-mini"
+    )
+    
+    # Both should have the same structure
+    assert isinstance(result_old, pd.DataFrame)
+    assert isinstance(result_new, pd.DataFrame)
+    assert "topic" in result_old.columns
+    assert "topic" in result_new.columns
+    assert len(result_old) == len(result_new) == len(small_df)
+
+
+def test_semantic_map_parameter_validation(sample_df):
+    """Test parameter validation for the map operation."""
+    # Test missing both parameters
+    with pytest.raises(ValueError, match="Either 'output' or 'output_schema' must be provided"):
+        sample_df.semantic.map(prompt="Test prompt: {{input.text}}")
+    
+    # Test providing both parameters
+    with pytest.raises(ValueError, match="Cannot provide both 'output' and 'output_schema' parameters"):
+        sample_df.semantic.map(
+            prompt="Test prompt: {{input.text}}",
+            output={"schema": {"result": "str"}},
+            output_schema={"result": "str"}
+        )
+    
+    # Test output not being a dict
+    with pytest.raises(ValueError, match="output must be a dictionary"):
+        sample_df.semantic.map(
+            prompt="Test prompt: {{input.text}}",
+            output="not a dict"
+        )
+    
+    # Test output missing schema key
+    with pytest.raises(ValueError, match="output must contain a 'schema' key"):
+        sample_df.semantic.map(
+            prompt="Test prompt: {{input.text}}",
+            output={"mode": "tools"}
+        ) 

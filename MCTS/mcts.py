@@ -20,7 +20,7 @@ from docetl.reasoning_optimizer.op_descriptions import *
 
 class ExpandResponseFormat(BaseModel):
     directive: str
-    operator: str
+    operators: List[str]
 
 class MCTS:
     """
@@ -44,7 +44,7 @@ class MCTS:
         exploration_constant: float = 1.414,
         max_iterations: int = 20,
         max_time: Optional[float] = 600.0,
-        expansion_count: int = 3,
+        expansion_count: int = 4,
         model = "gpt-4.1"
     ):
         """
@@ -75,8 +75,9 @@ class MCTS:
         
         # execute root node and add it to the pareto frontier
         _ = self.simulate(self.root)
+        self.root.visits = 1
 
-
+    
     def search(self):
         """
         Perform MCTS search to find the optimal query plan.
@@ -119,20 +120,44 @@ class MCTS:
         
         # 2. Expansion: Always attempt to expand the leaf, catch errors
         print("EXPANSION")
+        expansion_errors = []
+        leaf_acc = None
+        leaf_cost = None
+
+        has_leaf_acc = 1
         try:
-            leaf = self.expand(leaf)
+            leaf_acc = self.expand(leaf, optimize_goal="acc")
         except RuntimeError as e:
-            print("OOOOOPS")
+            has_leaf_acc = 0
+        
+        has_leaf_cost = 1
+        try:
+            leaf_cost = self.expand(leaf, optimize_goal="cost")
+        except RuntimeError as e:
+            has_leaf_cost= 0
+
+        if expansion_errors:
+            print("Expansion encountered errors:")
+            for goal, err in expansion_errors:
+                print(f"  - Goal '{goal}': {err}")
             return
         
         # 3. Simulation: Run simulations from the leaf
         print("SIMULATION")
-       
-        affected_nodes = self.simulate(leaf)
+
+        if has_leaf_acc: 
+            print("HAS LEAF ACC")
+            assert leaf_acc 
+            affected_nodes = self.simulate(leaf_acc)
+            self.backpropagate(affected_nodes, leaf_acc)
+        if has_leaf_cost: 
+            print("HAS LEAF COST")
+            assert leaf_cost 
+            affected_nodes = self.simulate(leaf_cost)
+            self.backpropagate(affected_nodes, leaf_cost)
         
-        # 4. Backpropagation: Update values up the tree
-        print("BACKPROP")
-        self.backpropagate(affected_nodes, leaf)
+        self.print_tree_visits_and_values()
+    
 
     def select(self, node: Node) -> Node:
         """
@@ -199,9 +224,13 @@ class MCTS:
  
     def is_fully_explored(self, node:Node) -> bool:
         if len(node.children) >= self.expansion_count: return True
-        return False
+        for op in node.parsed_yaml["operations"]:
+            op_name = op.get("name")
+            if len(node.used_actions_acc[op_name]) < 3: return False
+            if len(node.used_actions_cost[op_name]) < 1: return False
+        return True
 
-    def expansion_prompt(self, action_options, input_query) -> str:
+    def expansion_prompt_acc(self, action_options, input_query) -> str:
         
         availabel_actions_str = ""
         for item in action_options:
@@ -224,9 +253,71 @@ class MCTS:
         """
 
         user_message = f"""
-        I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality or cost effectiveness of the query result.
-        Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy or cost effectiveness and pecify which single operator (specify by the name) in the pipeline the directive should be applied to.
-        Make sure that your cosen directive is in the provided list of rewrite directives.
+        I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.
+        Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and specify which operators (specify by their names) in the pipeline the directive should be applied to.
+        Make sure that your chosen directive is in the provided list of rewrite directives.
+        Pipeline:
+        Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
+        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-4.1-nano, gpt-4o-mini, gpt-4o, gpt-4.1 \n
+        - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
+        - Datasets: The input data sources for your pipeline. \n
+        - Operators: The processing steps that transform your data. \n
+        - Pipeline Specification: The sequence of steps and the output configuration. \n
+
+        Operators: 
+        Operators form the building blocks of data processing pipelines. Below is the list of operators:
+        {op_map.to_string()}\n
+        {op_extract.to_string()}\n
+        {op_parallel_map.to_string()}\n
+        {op_filter.to_string()}\n
+        {op_reduce.to_string()}\n
+        {op_split.to_string()}\n
+        {op_gather.to_string()}\n
+        {op_unnest.to_string()}\n
+        {op_sample.to_string()}\n
+        {op_resolve.to_string()}\n
+        
+        Rewrite directives: 
+        {ChainingDirective().to_string_for_plan()}\n
+        {GleaningDirective().to_string_for_plan()}\n
+        {ChangeModelDirective().to_string_for_plan()}\n
+
+        Your valid choice of operation and rewrite directive combination. Only choose one of these:
+        {availabel_actions_str}
+
+        Input document schema with token statistics: {input_schema} \n
+        Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
+        The original query in YAML format using our operations: {input_query} \n
+        """
+        return user_message
+
+    
+    def expansion_prompt_cost(self, action_options, input_query) -> str:
+        
+        availabel_actions_str = ""
+        for item in action_options:
+            op_name = item[0]
+            action_name = item[1]
+            action_str = f"Operator: {op_name}, Rewrite directive: {action_name}\n"
+            availabel_actions_str += action_str
+        
+        print(availabel_actions_str)
+
+        input_schema = """
+        Dataset: contracts_data
+        Type: file
+        Records loaded: 50
+        Input schema:
+            document: string (avg: 10993.9 tokens)
+            id: string (avg: 22.9 tokens)
+            name: string (avg: 27.6 tokens)
+        Total tokens: 546,693
+        """
+
+        user_message = f"""
+        I have a set of operations used to process long documents, along with a list of possible rewrite directives.
+        Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would reduce the cost of the plan and specify which operators (specify by their names) in the pipeline the directive should be applied to.
+        Make sure that your chosen directive is in the provided list of rewrite directives.
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
         - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-4.1-nano, gpt-4o-mini, gpt-4o, gpt-4.1 \n
@@ -262,7 +353,8 @@ class MCTS:
         """
         return user_message
     
-    def expand(self, node: Node) -> Node:
+    
+    def expand(self, node: Node, optimize_goal: str) -> Node:
         """
         Expand a leaf node by adding one new child and return the child. 
         
@@ -277,21 +369,36 @@ class MCTS:
         print(node.get_id())
         
         op_list = list(node.op_dict.keys())
-        action_options = [] # a list of tuple
-        for op_name in op_list:
-            if op_name in node.used_actions: 
-                used_actions = node.used_actions[op_name]
-            else: used_actions = set()
-            print(op_name, " ***** ", used_actions)
-            action_space = set(self.available_actions) - used_actions # The actions that are not used on this operator 
-            for action in action_space:
-                action_options.append((op_name, action.name))
-        print(action_options)
-        if len(action_options) < 1:
-            print("NO ACTION FOUND")
-            raise RuntimeError("No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable.")
-        
-        user_message = self.expansion_prompt(action_options = action_options, input_query=node.parsed_yaml)
+        if optimize_goal == "acc": 
+            action_options = [] # a list of tuple
+            for op_name in op_list:
+                if op_name in node.used_actions_acc: 
+                    used_actions = node.used_actions_acc[op_name]
+                else: used_actions = set()
+                action_space = set(self.available_actions) - used_actions # The actions that are not used on this operator 
+                for action in action_space:
+                    action_options.append((op_name, action.name))
+            print(action_options)
+            if len(action_options) < 1:
+                print("NO ACTION FOUND")
+                raise RuntimeError("No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable.")
+            print("OPTIMIZING ACC:")
+            user_message = self.expansion_prompt_acc(action_options = action_options, input_query=node.parsed_yaml)
+
+        elif optimize_goal == "cost":
+            action_options = [] 
+            for op_name in op_list:
+                used_actions = node.used_actions_cost[op_name]
+                change_model = self.directive_name_to_obj.get("change model")
+                if change_model not in used_actions: 
+                    action_options.append((op_name, "change model"))
+            print(action_options)
+            print("OPTIMIZING COST:")
+            if len(action_options) < 1:
+                print("NO ACTION FOUND")
+                raise RuntimeError("No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable.")
+            user_message = self.expansion_prompt_cost(action_options = action_options, input_query=node.parsed_yaml)
+
         messages = [
             {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format."},
             {"role": "user", "content": user_message}
@@ -311,8 +418,8 @@ class MCTS:
         try:
             parsed = json.loads(reply)
             directive_name = parsed.get("directive")
-            target_op = parsed.get("operator")
-            print(f"Directive: {directive_name}, Target ops: {target_op}")
+            target_op_list = parsed.get("operators")
+            print(f"Directive: {directive_name}, Target ops: {target_op_list}")
         except Exception as e:
             print(f"Failed to parse agent response: {e}")
 
@@ -320,26 +427,50 @@ class MCTS:
         directive = self.directive_name_to_obj.get(directive_name)
         if directive is None:
             raise ValueError(f"Unknown directive name: {directive_name}")
-        node.mark_action_used(target_op, directive)
+        
+        if optimize_goal == "acc":
+            for target_op in target_op_list:
+                node.mark_action_used_acc(target_op, directive)
+        else: 
+            for target_op in target_op_list:
+                node.mark_action_used_cost(target_op, directive)
 
-        new_ops_list, message_history = directive.instantiate(operators = node.parsed_yaml["operations"], target_ops = [target_op], agent_llm = self.model)
+        orig_default_model = node.parsed_yaml.get("default_model")
+            
+        new_ops_list, message_history = directive.instantiate(global_default_model = orig_default_model, operators = node.parsed_yaml["operations"], target_ops = target_op_list, agent_llm = self.model, optimize_goal=optimize_goal)
+        if new_ops_list is None: 
+            raise RuntimeError("Failed to instantiate directive: no new ops list returned.")
+
         new_parsed_yaml = deepcopy(node.parsed_yaml)
         new_parsed_yaml["operations"] = new_ops_list
         new_parsed_yaml["bypass_cache"] = True
-        new_parsed_yaml = self.update_pipeline(new_parsed_yaml, new_ops_list, [target_op])
+        new_parsed_yaml = self.update_pipeline(new_parsed_yaml, new_ops_list, target_op_list)
 
         self.fix_models_azure(new_parsed_yaml)
         base_path = node.yaml_file_path.removesuffix('.yaml')
-        new_yaml_path = f"{base_path}_{len(node.children)+1}.yaml"
+        new_yaml_path = f"{base_path}_{len(node.children)+1}_{optimize_goal}.yaml"
         new_parsed_yaml["pipeline"]["output"]["path"] = f"{base_path}_{len(node.children)+1}.json"
 
         with open(new_yaml_path, 'w') as file:
             yaml.dump(new_parsed_yaml, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
         print("NEW YAML FILE: ", new_yaml_path)
+
     
         # generate the child node
+
         child = Node(yaml_file_path=new_yaml_path, parent=node)
+        if directive_name == "gleaning":
+            for op in target_op_list:
+                chaining = self.directive_name_to_obj.get("chaining")
+                assert chaining 
+                child.mark_action_used_acc(op,chaining)
+        elif directive_name == "change model":
+            for op in target_op_list:
+                change_model = self.directive_name_to_obj.get("change model")
+                assert change_model
+                child.mark_action_used_acc(op,change_model)
+                child.mark_action_used_cost(op, change_model)
         node.add_child(child)
 
         # Return the child 
@@ -368,6 +499,7 @@ class MCTS:
         for node, val in affected_nodes.items():
             current = node
             while current is not None:
+                print("$$$$ ID: ", current.get_id(), "VAL: ",  val)
                 current.update_value(val)
                 current = current.parent
         
@@ -391,6 +523,20 @@ class MCTS:
     def get_frontier_summary(self) -> List[Dict[str, Any]]:
         """Get summary of all plans in the Pareto frontier."""
         return self.pareto_frontier.get_all_plans_summary()
+    
+    def print_tree_visits_and_values(self, node=None, depth=0):
+        """
+        Recursively print every node's visits and value in the MCTS tree.
+        Args:
+            node: The node to start from (default: root)
+            depth: Current depth for indentation
+        """
+        if node is None:
+            node = self.root
+        indent = '  ' * depth
+        print(f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}")
+        for child in node.children:
+            self.print_tree_visits_and_values(child, depth + 1)
     
     
 if __name__ == "__main__":

@@ -34,17 +34,15 @@ class Node:
         self.yaml_file_path = yaml_file_path
         self.parsed_yaml = self._load_yaml()
         self.on_frontier = False
-        print("______________________________")
-        print(self.yaml_file_path)
-        print("______________________________")
-        print(self.parsed_yaml)
-        self.used_actions = {}
+        self.used_actions_acc = {}
+        self.used_actions_cost = {}
 
         self.op_dict = {} # Dict: op_name -> op
         for op in self.parsed_yaml["operations"]:
             op_name = op["name"]
             self.op_dict[op_name] = op
-            self.used_actions[op_name] = set()
+            self.used_actions_acc[op_name] = set()
+            self.used_actions_cost[op_name] = set()
         self.visits = 0
         self.value = 0.0 
         self.parent = parent
@@ -59,7 +57,8 @@ class Node:
 
 
         print("NODE ID: ", self.id)
-        print("USED ACTIONS: ", self.used_actions)
+        print("USED ACTIONS ACC: ", self.used_actions_acc)
+        print("USED ACTIONS COST: ", self.used_actions_cost)
 
 
     def execute_plan(self, max_threads: Optional[int] = None) -> tuple[float, list]:
@@ -177,14 +176,23 @@ class Node:
         """
         return len(self.children) == 0
     
-    def mark_action_used(self, op_name, action: Directive):
+    def mark_action_used_acc(self, op_name, action: Directive):
         """
         Mark a rewrite action as used.
         
         Args:
             action: The action identifier to mark as used
         """
-        self.used_actions[op_name].add(action)
+        self.used_actions_acc[op_name].add(action)
+
+    def mark_action_used_cost(self, op_name, action: Directive):
+        """
+        Mark a rewrite action as used.
+        
+        Args:
+            action: The action identifier to mark as used
+        """
+        self.used_actions_cost[op_name].add(action)
     
     def is_root(self) -> bool:
         """

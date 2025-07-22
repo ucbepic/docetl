@@ -32,10 +32,12 @@ result = df.semantic.map(
     3. Overall sentiment
     
     Review: {{input.review}}""",
-    output_schema={
-        "features": "list[str]",
-        "feature_sentiments": "dict[str, str]",
-        "overall_sentiment": "str"
+    output={
+        "schema": {
+            "features": "list[str]",
+            "feature_sentiments": "dict[str, str]",
+            "overall_sentiment": "str"
+        }
     }
 )
 
@@ -96,7 +98,7 @@ df = pd.DataFrame({
 # First, use a semantic map to extract the topic from each article
 df = df.semantic.map(
     prompt="Extract the topic from this article: {{input.content}}",
-    output_schema={"topic": "str"}
+    output={"schema": {"topic": "str"}}
 )
 
 # Group similar articles and generate summaries
@@ -151,10 +153,12 @@ analyzed = posts.semantic.map(
     3. Issues/Praise points
     
     Post: {{input.text}}""",
-    output_schema={
-        "product": "str",
-        "sentiment": "str",
-        "points": "list[str]"
+    output={
+        "schema": {
+            "product": "str",
+            "sentiment": "str",
+            "points": "list[str]"
+        }
     }
 )
 
@@ -200,10 +204,12 @@ df = pd.DataFrame({
 try:
     result = df.semantic.map(
         prompt="Extract product specifications from: {{input.description}}. There should be at least one feature.",
-        output_schema={
-            "category": "str",
-            "features": "list[str]",
-            "price_range": "enum[budget, mid-range, premium, luxury]"
+        output={
+            "schema": {
+                "category": "str",
+                "features": "list[str]",
+                "price_range": "enum[budget, mid-range, premium, luxury]"
+            }
         },
         # Validation rules
         validate=[
@@ -234,7 +240,9 @@ df = pd.DataFrame({
 
 result_df = df.semantic.map(
     prompt="Summarize the air crash report and determine any contributing factors",
-    output_schema={"summary": "str", "contributing_factors": "list[str]"},
+    output={
+        "schema": {"summary": "str", "contributing_factors": "list[str]"}
+    },
     pdf_url_key="PdfPath", # This is the column with the PDF paths
 )
 
@@ -265,8 +273,7 @@ variations = df.semantic.map(
     - Highlight the key benefit of the product
     - Be between 5-10 words
     """,
-    output_schema={"headline": "str"},
-    n=5  # Generate 5 variations for each input row
+    output={"schema": {"headline": "str"}, "n": 5}  # Generate 5 variations for each input row
 )
 
 print(f"Original dataframe rows: {len(df)}")
@@ -338,10 +345,12 @@ analyzed_chunks = enhanced_chunks.semantic.map(
     
     Document chunk with context:
     {{input.content_chunk_rendered}}""",
-    output_schema={
-        "section_topic": "str",
-        "key_concepts": "list[str]",
-        "action_items": "list[str]"
+    output={
+        "schema": {
+            "section_topic": "str",
+            "key_concepts": "list[str]",
+            "action_items": "list[str]"
+        }
     }
 )
 
@@ -423,10 +432,12 @@ interest_analysis = with_ratings.semantic.map(
     Product ratings: Quality={{input.product_quality}}, Service={{input.customer_service}}, Value={{input.value}}
     
     Provide insights about how this interest might relate to their demographics and satisfaction.""",
-    output_schema={
-        "demographic_insight": "str",
-        "interest_category": "str",
-        "satisfaction_correlation": "str"
+    output={
+        "schema": {
+            "demographic_insight": "str",
+            "interest_category": "str",
+            "satisfaction_correlation": "str"
+        }
     }
 )
 
@@ -505,11 +516,13 @@ Extract:
 2. Key findings or claims
 3. Technical concepts mentioned
 4. Research gaps or future work mentioned""",
-    output_schema={
-        "section_type": "str",
-        "key_findings": "list[str]",
-        "technical_concepts": "list[str]",
-        "future_work": "list[str]"
+    output={
+        "schema": {
+            "section_type": "str",
+            "key_findings": "list[str]",
+            "technical_concepts": "list[str]",
+            "future_work": "list[str]"
+        }
     }
 )
 

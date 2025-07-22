@@ -44,10 +44,12 @@ df.semantic.set_config(default_model="gpt-4o-mini")
 # Extract structured information
 result = df.semantic.map(
     prompt="Extract company and product from: {{input.text}}",
-    output_schema={
-        "company": "str",
-        "product": "str",
-        "features": "list[str]"
+    output={
+        "schema": {
+            "company": "str",
+            "product": "str",
+            "features": "list[str]"
+        }
     }
 )
 
@@ -88,6 +90,54 @@ For detailed configuration options and best practices, refer to:
 - [Pipeline Configuration](../concepts/pipelines.md)
 - [Output Schemas](../concepts/schemas.md)
 - [Rate Limiting](../examples/rate-limiting.md) 
+
+## Output Modes
+
+DocETL supports two output modes for LLM calls:
+
+### Tools Mode (Default)
+Uses function calling to ensure structured outputs:
+```python
+result = df.semantic.map(
+    prompt="Extract data from: {{input.text}}",
+    output={
+        "schema": {"name": "str", "age": "int"},
+        "mode": "tools"  # Default mode
+    }
+)
+```
+
+### Structured Output Mode
+Uses native JSON schema validation for supported models (like GPT-4o):
+```python
+result = df.semantic.map(
+    prompt="Extract data from: {{input.text}}",
+    output={
+        "schema": {"name": "str", "age": "int"},
+        "mode": "structured_output"  # Better JSON schema support
+    }
+)
+```
+
+!!! tip "When to Use Structured Output Mode"
+    
+    Use `"structured_output"` mode when:
+    - You're using models that support native JSON schema (like GPT-4o)
+    - You need stricter adherence to complex JSON schemas
+    - You want potentially better performance for structured data extraction
+    
+    The default `"tools"` mode works with all models and is more widely compatible.
+
+### Backward Compatibility
+
+The old `output_schema` parameter is still supported for backward compatibility:
+```python
+# This still works (automatically uses tools mode)
+result = df.semantic.map(
+    prompt="Extract data from: {{input.text}}",
+    output_schema={"name": "str", "age": "int"}
+)
+```
 
 ## Cost Tracking
 

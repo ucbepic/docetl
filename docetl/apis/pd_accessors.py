@@ -169,7 +169,14 @@ class SemanticAccessor:
             return "\n\nContext about these fields:\n" + "\n".join(context_parts)
         return ""
 
-    def map(self, prompt: str, output_schema: dict[str, Any], **kwargs) -> pd.DataFrame:
+    def map(
+        self,
+        prompt: str,
+        output: dict[str, Any] = None,
+        *,
+        output_schema: dict[str, Any] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
         """
         Apply semantic mapping to each row using a language model.
 
@@ -178,8 +185,14 @@ class SemanticAccessor:
         Args:
             prompt: Jinja template string for generating prompts. Use {{input.column_name}}
                    to reference input columns.
-            output_schema: Dictionary defining the expected output structure and types.
-                          Example: {"entities": "list[str]", "sentiment": "str"}
+            output: Dictionary containing output configuration with keys:
+                   - "schema": Dictionary defining the expected output structure and types.
+                              Example: {"entities": "list[str]", "sentiment": "str"}
+                   - "mode": Optional output mode. Either "tools" (default) or "structured_output".
+                            "structured_output" uses native JSON schema mode for supported models.
+                   - "n": Optional number of outputs to generate for each input (synthetic data generation)
+            output_schema: DEPRECATED. Use 'output' parameter instead.
+                          Dictionary defining the expected output structure for backward compatibility.
             **kwargs: Additional configuration options:
                 - model: LLM model to use (default: from config)
                 - batch_prompt: Template for processing multiple documents in a single prompt
@@ -201,15 +214,17 @@ class SemanticAccessor:
 
         Returns:
             pd.DataFrame: A new DataFrame containing the transformed data with columns
-                         matching the output_schema.
+                         matching the output schema.
 
         Examples:
             >>> # Extract entities and sentiment
             >>> df.semantic.map(
             ...     prompt="Analyze this text: {{input.text}}",
-            ...     output_schema={
-            ...         "entities": "list[str]",
-            ...         "sentiment": "str"
+            ...     output={
+            ...         "schema": {
+            ...             "entities": "list[str]",
+            ...             "sentiment": "str"
+            ...         }
             ...     },
             ...     validate=["len(output['entities']) <= 5"],
             ...     num_retries_on_validate_failure=2
@@ -218,23 +233,53 @@ class SemanticAccessor:
             >>> # Generate synthetic data with multiple variations per input
             >>> df.semantic.map(
             ...     prompt="Create a headline for: {{input.topic}}",
-            ...     output_schema={"headline": "str"},
-            ...     n=5  # Generate 5 variations for each input
+            ...     output={"schema": {"headline": "str"}, "n": 5}
+            ... )
+
+            >>> # Use structured output mode for better JSON schema support
+            >>> df.semantic.map(
+            ...     prompt="Extract structured data: {{input.text}}",
+            ...     output={
+            ...         "schema": {"name": "str", "age": "int", "tags": "list[str]"},
+            ...         "mode": "structured_output"
+            ...     }
             ... )
         """
         # Convert DataFrame to list of dicts for DocETL
         input_data = self._df.to_dict("records")
 
-        output_dict = {"schema": output_schema}
-        if "n" in kwargs:
-            output_dict["n"] = kwargs["n"]
+        # Handle backward compatibility: if output_schema is provided, convert it to output format
+        if output_schema is not None and output is None:
+            output = {"schema": output_schema}
+            if "n" in kwargs:
+                output["n"] = kwargs.pop("n")
+        elif output is None and output_schema is None:
+            raise ValueError("Either 'output' or 'output_schema' must be provided")
+        elif output is not None and output_schema is not None:
+            raise ValueError(
+                "Cannot provide both 'output' and 'output_schema' parameters"
+            )
+
+        # Validate output parameter
+        if not isinstance(output, dict):
+            raise ValueError("output must be a dictionary")
+
+        if "schema" not in output:
+            raise ValueError("output must contain a 'schema' key")
+
+        # Validate output mode if provided
+        output_mode = output.get("mode", "tools")
+        if output_mode not in ["tools", "structured_output"]:
+            raise ValueError(
+                f"output mode must be 'tools' or 'structured_output', got '{output_mode}'"
+            )
 
         # Create map operation config
         map_config = {
             "type": "map",
             "name": f"semantic_map_{len(self._history)}",
             "prompt": prompt,
-            "output": output_dict,
+            "output": output,
             **kwargs,
         }
 

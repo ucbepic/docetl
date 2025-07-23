@@ -187,10 +187,6 @@ class ChangeModelDirective(Directive):
         message_history.extend(
             [
                 {
-                    "role": "system",
-                    "content": "You are a helpful AI assistant for document processing pipelines.",
-                },
-                {
                     "role": "user",
                     "content": self.to_string_for_instantiate(original_op),
                 },

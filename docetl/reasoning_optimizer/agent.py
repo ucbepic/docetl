@@ -346,13 +346,13 @@ def run_single_iteration(
             message_history=message_history,
         )
         orig_config["operations"] = new_ops_list
-        
+
         # Apply special post-processing for chaining directive
         if directive == "chaining":
             orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
             new_ops_list = update_sample(new_ops_list, target_ops, orig_operators)
             orig_config["operations"] = new_ops_list
-            
+
     except ValueError as e:
         print(f"Failed to instantiate directive '{directive}': {e}")
         return None, message_history

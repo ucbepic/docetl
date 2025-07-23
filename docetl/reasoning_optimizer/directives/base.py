@@ -23,7 +23,7 @@ class TestResult(BaseModel):
 class DirectiveTestCase(BaseModel):
     name: str
     description: str
-    input_config: Dict[str, Any]
+    input_config: Dict[str, Any] | List[Dict[str, Any]]
     target_ops: List[str]
     expected_behavior: str
     should_pass: bool = True
@@ -81,7 +81,11 @@ class Directive(BaseModel, ABC):
             try:
                 # 1. Execute the directive
                 actual_output, _ = self.instantiate(
-                    operators=[test_case.input_config],
+                    operators=(
+                        [test_case.input_config]
+                        if isinstance(test_case.input_config, dict)
+                        else test_case.input_config
+                    ),
                     target_ops=test_case.target_ops,
                     agent_llm=agent_llm,
                 )

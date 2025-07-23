@@ -8,10 +8,7 @@ import litellm
 import yaml
 from pydantic import BaseModel
 
-from docetl.reasoning_optimizer.directives import (
-    Directive,
-    get_all_directive_strings,
-)
+from docetl.reasoning_optimizer.directives import Directive, get_all_directive_strings
 from docetl.reasoning_optimizer.op_descriptions import *
 
 from .acc_comparator import AccuracyComparator

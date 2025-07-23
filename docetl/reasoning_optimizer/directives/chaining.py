@@ -71,7 +71,7 @@ class ChainingDirective(Directive):
                     "output": {"schema": {"terms": "list[str]"}},
                 },
                 target_ops=["extract_contract_terms"],
-                expected_behavior="Should create four ops total: one for payment terms, one for liability clauses, one for termination conditions, and a final op to unify all results into 'terms'",
+                expected_behavior="Should create one op for each of: payment terms, liability clauses, and termination conditions, then a final op to unify all results into 'terms'",
                 should_pass=True,
             ),
             DirectiveTestCase(
@@ -259,8 +259,6 @@ class ChainingDirective(Directive):
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
-        global_default_model: str = None,
-        **kwargs,
     ) -> tuple:
         """
         Instantiate the directive for a list of operators.

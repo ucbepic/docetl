@@ -13,6 +13,7 @@ from docetl.reasoning_optimizer.directives import (
     ChainingDirective, 
     GleaningDirective, 
     ChangeModelDirective,
+    DocSummarizationDirective,
     TestResult
 )
 
@@ -37,7 +38,8 @@ def run_all_directive_tests(agent_llm: str = "gpt-4.1") -> Dict[str, List[TestRe
     directives = [
         ChainingDirective(),
         GleaningDirective(), 
-        ChangeModelDirective()
+        ChangeModelDirective(),
+        DocSummarizationDirective()
     ]
     
     all_results = {}
@@ -133,7 +135,9 @@ def run_specific_directive_test(directive_name: str, agent_llm: str = "gpt-4o-mi
         "chaining": ChainingDirective(),
         "gleaning": GleaningDirective(),
         "change_model": ChangeModelDirective(),
-        "change model": ChangeModelDirective()
+        "change model": ChangeModelDirective(),
+        "doc_summarization": DocSummarizationDirective(),
+        "doc summarization": DocSummarizationDirective()
     }
     
     if directive_name.lower() not in directive_map:

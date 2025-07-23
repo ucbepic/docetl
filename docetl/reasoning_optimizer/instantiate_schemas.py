@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import List, Dict
-from pydantic import field_validator
 import re
+from typing import List
+
+from pydantic import BaseModel, Field, field_validator
+
 
 class MapOpConfig(BaseModel):
     """
@@ -17,15 +18,14 @@ class MapOpConfig(BaseModel):
     name: str = Field(..., description="The name of the Map operator")
     prompt: str = Field(
         ...,
-        description="Jinja prompt template for the inserted Map operator. Must refer to the input document keys as {{ input.key }}."
+        description="Jinja prompt template for the inserted Map operator. Must refer to the input document keys as {{ input.key }}.",
     )
     output_keys: List[str] = Field(
         ...,
-        description="The keys of the output of the Map operator, to be referenced in the downstream operator's prompt. Can be a single key or a list of keys. Can be new keys or existing keys from the map operator we are rewriting."
+        description="The keys of the output of the Map operator, to be referenced in the downstream operator's prompt. Can be a single key or a list of keys. Can be new keys or existing keys from the map operator we are rewriting.",
     )
     model: str = Field(
-        default="gpt-4o-mini",
-        description="The model to use for the Map operator."
+        default="gpt-4o-mini", description="The model to use for the Map operator."
     )
 
     @classmethod
@@ -44,14 +44,17 @@ class MapOpConfig(BaseModel):
         """
         # Matches {{ input.key }} for any key (non-whitespace, non-})
         if not re.search(r"\{\{\s*input\.[^}\s]+\s*\}\}", value):
-            raise ValueError("The prompt must contain at least one '{{ input.key }}' reference.")
+            raise ValueError(
+                "The prompt must contain at least one '{{ input.key }}' reference."
+            )
         return value
 
     @field_validator("prompt")
     @classmethod
     def check_prompt(cls, v: str) -> str:
         return cls.validate_prompt_contains_input_key(v)
-    
+
+
 class ChainingInstantiateSchema(BaseModel):
     """
     Schema for chaining multiple Map operators in a data processing pipeline.
@@ -62,8 +65,7 @@ class ChainingInstantiateSchema(BaseModel):
     """
 
     new_ops: List[MapOpConfig] = Field(
-        ...,
-        description="The new Map operators to insert in the chain."
+        ..., description="The new Map operators to insert in the chain."
     )
 
     @classmethod
@@ -71,7 +73,7 @@ class ChainingInstantiateSchema(BaseModel):
         cls,
         new_ops: List[MapOpConfig],
         required_input_keys: List[str],
-        expected_output_keys: List[str]
+        expected_output_keys: List[str],
     ) -> None:
         """
         Validates that for each required input key, at least one prompt in new_ops contains {{ input.key }},
@@ -113,9 +115,15 @@ class GleaningConfig(BaseModel):
         model (str): The model to use for validation.
     """
 
-    validation_prompt: str = Field(..., description="The prompt to evaluate and improve the output of the upstream operator.")
-    num_rounds: int = Field(..., description="The maximum number of refinement iterations.")
+    validation_prompt: str = Field(
+        ...,
+        description="The prompt to evaluate and improve the output of the upstream operator.",
+    )
+    num_rounds: int = Field(
+        ..., description="The maximum number of refinement iterations."
+    )
     model: str = Field(default="gpt-4o-mini", description="The LLM model to use.")
+
 
 class GleaningInstantiateSchema(BaseModel):
     """
@@ -123,11 +131,11 @@ class GleaningInstantiateSchema(BaseModel):
     """
 
     gleaning_config: GleaningConfig = Field(
-        ...,
-        description="The gleaning configuration to apply to the target operation."
+        ..., description="The gleaning configuration to apply to the target operation."
     )
 
     # validate methods can be added here
+
 
 class ChangeModelConfig(BaseModel):
     """
@@ -139,6 +147,7 @@ class ChangeModelConfig(BaseModel):
 
     model: str = Field(default="gpt-4o-mini", description="The new LLM model to use.")
 
+
 class ChangeModelInstantiateSchema(BaseModel):
     """
     Schema for changing model choice in a data processing pipeline.
@@ -146,11 +155,13 @@ class ChangeModelInstantiateSchema(BaseModel):
 
     change_model_config: ChangeModelConfig = Field(
         ...,
-        description="The change model configuration to apply to the target operation."
+        description="The change model configuration to apply to the target operation.",
     )
-    
+
     @classmethod
-    def validate_model_in_list(cls, change_model_config: ChangeModelConfig, list_of_model: List[str]) -> None:
+    def validate_model_in_list(
+        cls, change_model_config: ChangeModelConfig, list_of_model: List[str]
+    ) -> None:
         """
         Validates that the model in change_model_config is in the allowed list_of_model.
 
@@ -160,7 +171,61 @@ class ChangeModelInstantiateSchema(BaseModel):
         Raises:
             ValueError: If the model is not in the allowed list.
         """
-        
+
         if change_model_config.model not in list_of_model:
-            raise ValueError(f"Model '{change_model_config.model}' is not in the allowed list: {list_of_model}")
-    
+            raise ValueError(
+                f"Model '{change_model_config.model}' is not in the allowed list: {list_of_model}"
+            )
+
+
+class DocSummarizationConfig(BaseModel):
+    """
+    Configuration for document summarization.
+
+    Attributes:
+        name (str): The name of the Map summarization operator.
+        document_key (str): The key in the input document that contains long content to be summarized.
+        prompt (str): Jinja prompt template for summarizing the document. Must reference {{ input.<document_key> }}.
+        model (str): The model to use for summarization.
+    """
+
+    name: str = Field(..., description="The name of the Map summarization operator")
+    document_key: str = Field(
+        ...,
+        description="The key in the input document that contains long content to be summarized",
+    )
+    prompt: str = Field(
+        ...,
+        description="Jinja prompt template for summarizing the document. Must reference {{ input.<document_key> }} and preserve information needed by downstream operators.",
+    )
+    model: str = Field(
+        default="gpt-4o-mini", description="The model to use for summarization."
+    )
+
+    @field_validator("prompt")
+    @classmethod
+    def check_prompt_references_document_key(cls, v: str, info) -> str:
+        # First check that it contains at least one input reference
+        MapOpConfig.validate_prompt_contains_input_key(v)
+
+        # Then check that it specifically references the document_key
+        if hasattr(info, "data") and "document_key" in info.data:
+            document_key = info.data["document_key"]
+            pattern = r"\{\{\s*input\." + re.escape(document_key) + r"\s*\}\}"
+            if not re.search(pattern, v):
+                raise ValueError(
+                    f"The prompt must reference the document_key as '{{{{ input.{document_key} }}}}'"
+                )
+
+        return v
+
+
+class DocSummarizationInstantiateSchema(BaseModel):
+    """
+    Schema for document summarization operations in a data processing pipeline.
+    """
+
+    doc_summarization_config: DocSummarizationConfig = Field(
+        ...,
+        description="The document summarization configuration to apply at the start of the pipeline.",
+    )

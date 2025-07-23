@@ -44,7 +44,7 @@ class MCTS:
         exploration_constant: float = 1.414,
         max_iterations: int = 20,
         max_time: Optional[float] = 600.0,
-        expansion_count: int = 4,
+        expansion_count: int = 5,
         model = "gpt-4.1"
     ):
         """
@@ -72,6 +72,9 @@ class MCTS:
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(accuracy_comparator)
         self.directive_name_to_obj = {action.name: action for action in self.available_actions}
+        
+        # Track iterations without new Pareto optimal plans for early stopping
+        self.iterations_without_improvement = 0
         
         # execute root node and add it to the pareto frontier
         _ = self.simulate(self.root)
@@ -113,6 +116,9 @@ class MCTS:
     
     def mcts_iteration(self):
         """Perform one complete MCTS iteration."""
+        # Track if any new Pareto optimal plans are found in this iteration
+        found_new_pareto_plan = False
+        
         # 1. Selection: Find the best leaf node
         print("SELECTION")
         leaf = self.select(self.root)
@@ -121,18 +127,18 @@ class MCTS:
         # 2. Expansion: Always attempt to expand the leaf, catch errors
         print("EXPANSION")
         expansion_errors = []
-        leaf_acc = None
-        leaf_cost = None
+        acc_children = []
+        cost_children = []
 
         has_leaf_acc = 1
         try:
-            leaf_acc = self.expand(leaf, optimize_goal="acc")
+            acc_children = self.expand(leaf, optimize_goal="acc")
         except RuntimeError as e:
             has_leaf_acc = 0
         
         has_leaf_cost = 1
         try:
-            leaf_cost = self.expand(leaf, optimize_goal="cost")
+            cost_children = self.expand(leaf, optimize_goal="cost")
         except RuntimeError as e:
             has_leaf_cost= 0
 
@@ -147,14 +153,26 @@ class MCTS:
 
         if has_leaf_acc: 
             print("HAS LEAF ACC")
-            assert leaf_acc 
-            affected_nodes = self.simulate(leaf_acc)
-            self.backpropagate(affected_nodes, leaf_acc)
+            for leaf_acc in acc_children:
+                affected_nodes = self.simulate(leaf_acc)
+                # Check if any node was added to the frontier (value = 1)
+                if any(val == 1 for val in affected_nodes.values()):
+                    found_new_pareto_plan = True
+                self.backpropagate(affected_nodes, leaf_acc)
         if has_leaf_cost: 
             print("HAS LEAF COST")
-            assert leaf_cost 
-            affected_nodes = self.simulate(leaf_cost)
-            self.backpropagate(affected_nodes, leaf_cost)
+            for leaf_cost in cost_children:
+                affected_nodes = self.simulate(leaf_cost)
+                # Check if any node was added to the frontier (value = 1)
+                if any(val == 1 for val in affected_nodes.values()):
+                    found_new_pareto_plan = True
+                self.backpropagate(affected_nodes, leaf_cost)
+        
+        # Update counter for early stopping
+        if found_new_pareto_plan:
+            self.iterations_without_improvement = 0
+        else:
+            self.iterations_without_improvement += 1
         
         self.print_tree_visits_and_values()
     
@@ -354,13 +372,13 @@ class MCTS:
         return user_message
     
     
-    def expand(self, node: Node, optimize_goal: str) -> Node:
+    def expand(self, node: Node, optimize_goal: str) -> List[Node]:
         """
         Expand a leaf node by adding one new child and return the child. 
         
         Args:
             node: Leaf node to expand
-            
+            optimize_goal: The optimization goal, e.g., 'acc' or 'cost'
         Returns:
             The newly created child
         """
@@ -422,6 +440,7 @@ class MCTS:
             print(f"Directive: {directive_name}, Target ops: {target_op_list}")
         except Exception as e:
             print(f"Failed to parse agent response: {e}")
+            raise
 
         # mark action used
         directive = self.directive_name_to_obj.get(directive_name)
@@ -434,47 +453,43 @@ class MCTS:
         else: 
             for target_op in target_op_list:
                 node.mark_action_used_cost(target_op, directive)
+        
 
         orig_default_model = node.parsed_yaml.get("default_model")
-            
-        new_ops_list, message_history = directive.instantiate(global_default_model = orig_default_model, operators = node.parsed_yaml["operations"], target_ops = target_op_list, agent_llm = self.model, optimize_goal=optimize_goal)
-        if new_ops_list is None: 
-            raise RuntimeError("Failed to instantiate directive: no new ops list returned.")
 
-        new_parsed_yaml = deepcopy(node.parsed_yaml)
-        new_parsed_yaml["operations"] = new_ops_list
-        new_parsed_yaml["bypass_cache"] = True
-        new_parsed_yaml = self.update_pipeline(new_parsed_yaml, new_ops_list, target_op_list)
+        rewrites = []
 
-        self.fix_models_azure(new_parsed_yaml)
-        base_path = node.yaml_file_path.removesuffix('.yaml')
-        new_yaml_path = f"{base_path}_{len(node.children)+1}_{optimize_goal}.yaml"
-        new_parsed_yaml["pipeline"]["output"]["path"] = f"{base_path}_{len(node.children)+1}.json"
-
-        with open(new_yaml_path, 'w') as file:
-            yaml.dump(new_parsed_yaml, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-        print("NEW YAML FILE: ", new_yaml_path)
-
-    
-        # generate the child node
-
-        child = Node(yaml_file_path=new_yaml_path, parent=node)
-        if directive_name == "gleaning":
-            for op in target_op_list:
-                chaining = self.directive_name_to_obj.get("chaining")
-                assert chaining 
-                child.mark_action_used_acc(op,chaining)
-        elif directive_name == "change model":
-            for op in target_op_list:
-                change_model = self.directive_name_to_obj.get("change model")
-                assert change_model
-                child.mark_action_used_acc(op,change_model)
-                child.mark_action_used_cost(op, change_model)
-        node.add_child(child)
-
-        # Return the child 
-        return child
+        if directive_name == "chaining": # generate two alternative chains
+            new_ops_plan1, new_ops_plan2, message_history = directive.instantiate(
+            global_default_model=orig_default_model,
+            operators=node.parsed_yaml["operations"],
+            target_ops=target_op_list,
+            agent_llm=self.model,
+            optimize_goal=optimize_goal,
+            temperature=0.8
+            )
+            if not new_ops_plan1 or not new_ops_plan2 :
+                raise RuntimeError("Failed to instantiate directive: no new ops list returned.")
+            rewrites.append(new_ops_plan1)
+            rewrites.append(new_ops_plan2)
+        else: 
+            new_ops_list, message_history = directive.instantiate(
+                global_default_model=orig_default_model,
+                operators=node.parsed_yaml["operations"],
+                target_ops=target_op_list,
+                agent_llm=self.model,
+                optimize_goal=optimize_goal,
+                temperature=0.8
+            )
+            if new_ops_list is None:
+                raise RuntimeError("Failed to instantiate directive: no new ops list returned.")
+            rewrites.append(new_ops_list)
+        
+        children = []
+        for new_ops in rewrites:
+            child = self.instantiate_node(node, new_ops, directive_name, target_op_list, optimize_goal)
+            children.append(child)
+        return children
     
     def simulate(self, node: Node):
         """
@@ -488,7 +503,7 @@ class MCTS:
         """
         
         node.execute_plan()
-        affected_nodes = self.pareto_frontier.add_plan(node)
+        affected_nodes = self.pareto_frontier.add_plan_f1(node)
         return affected_nodes 
 
     def backpropagate(self, affected_nodes: Dict[Node, int], visit_node):
@@ -512,6 +527,11 @@ class MCTS:
     def should_continue(self) -> bool:
         """Check if MCTS should continue running."""
         if self.iteration_count >= self.max_iterations:
+            return False
+        
+        # Early stopping: return False if last 5 iterations found no Pareto optimal plans
+        if self.iterations_without_improvement >= 5:
+            print(f"Early stopping: No Pareto optimal plans found in last {self.iterations_without_improvement} iterations")
             return False
         
         # if self.max_time and self.start_time and time.time() - self.start_time >= self.max_time:
@@ -538,6 +558,50 @@ class MCTS:
         for child in node.children:
             self.print_tree_visits_and_values(child, depth + 1)
     
+    def instantiate_node(self, node, new_ops_list, directive_name, target_op_list, optimize_goal):
+        """
+        Instantiate a new child node by applying the directive to the given node and target operations.
+        Args:
+            node: The parent node
+            directive: The directive object to apply
+            directive_name: The name of the directive
+            target_op_list: List of target operations
+            optimize_goal: The optimization goal (e.g., 'acc' or 'cost')
+        Returns:
+            The newly created child node
+        """
+
+        new_parsed_yaml = deepcopy(node.parsed_yaml)
+        new_parsed_yaml["operations"] = new_ops_list
+        new_parsed_yaml["bypass_cache"] = True
+        new_parsed_yaml = self.update_pipeline(new_parsed_yaml, new_ops_list, target_op_list)
+
+        self.fix_models_azure(new_parsed_yaml)
+        base_path = node.yaml_file_path.removesuffix('.yaml')
+        new_yaml_path = f"{base_path}_{len(node.children)+1}_{optimize_goal}.yaml"
+        new_parsed_yaml["pipeline"]["output"]["path"] = f"{base_path}_{len(node.children)+1}.json"
+
+        with open(new_yaml_path, 'w') as file:
+            yaml.dump(new_parsed_yaml, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+        print("NEW YAML FILE: ", new_yaml_path)
+
+        # generate the child node
+        child = Node(yaml_file_path=new_yaml_path, parent=node)
+        if directive_name == "gleaning":
+            for op in target_op_list:
+                chaining = self.directive_name_to_obj.get("chaining")
+                assert chaining
+                child.mark_action_used_acc(op, chaining)
+        elif directive_name == "change model":
+            for op in target_op_list:
+                change_model = self.directive_name_to_obj.get("change model")
+                assert change_model
+                child.mark_action_used_acc(op, change_model)
+                child.mark_action_used_cost(op, change_model)
+        node.add_child(child)
+        return child
+
     
 if __name__ == "__main__":
 

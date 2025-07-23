@@ -96,15 +96,41 @@ class AccuracyComparator:
             sampled_simple.append(sample)
         return sampled_simple
 
+    def _sample_common_filenames(self, plan1_result, plan2_result, num_samples=5):
+        """
+        Sample up to num_samples names that are present in both plan1_result and plan2_result.
+        """
+        plan1_names = set(entry.get("name") for entry in plan1_result if entry.get("name") is not None)
+        plan2_names = set(entry.get("name") for entry in plan2_result if entry.get("name") is not None)
+        common_names = list(plan1_names & plan2_names)
+        if not common_names:
+            # fallback: sample from plan1_result only
+            common_names = list(plan1_names)
+        sampled_names = random.sample(common_names, min(num_samples, len(common_names)))
+        return sampled_names
+
+    def _filter_plan_results_by_filenames(self, plan_result, names):
+        """
+        Filter plan_result to only include entries whose name is in names.
+        """
+        filtered = []
+        for entry in plan_result:
+            name = entry.get("name")
+            if name in names:
+                filtered.append({
+                    "name": name,
+                    "clauses": entry.get("clauses", [])
+                })
+        return filtered
+
     def _build_comparison_prompt(self, input_data, plan1_content, plan1_result, plan2_content, plan2_result):
         """
         Build LLM comparison prompt
         """
-        
         num_samples = 5
-        sampled_plan1_result = self.sample_plan_results(plan1_result, num_samples)
-        sampled_plan2_result = self.sample_plan_results(plan2_result, num_samples)
-
+        sampled_names = self._sample_common_filenames(plan1_result, plan2_result, num_samples)
+        sampled_plan1_result = self._filter_plan_results_by_filenames(plan1_result, sampled_names)
+        sampled_plan2_result = self._filter_plan_results_by_filenames(plan2_result, sampled_names)
 
         system_prompt = "You are an AI assistant tasked with comparing the outputs of two query plans for a same document processing task."
         user_prompt = f"""

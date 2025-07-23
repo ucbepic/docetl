@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from acc_comparator import AccuracyComparator
 from Node import Node
 import matplotlib.pyplot as plt
-
+from CUAD_evaluate import evaluate_results
 
 
 class ParetoFrontier:
@@ -57,6 +57,39 @@ class ParetoFrontier:
             estimated_accuracy = self.estimate_accuracy_via_comparisons(node)
         
         self.plans_accuracy[node] = estimated_accuracy
+
+        # Update Pareto frontier
+        affected_nodes = self.update_pareto_frontier()
+        if node not in affected_nodes: affected_nodes[node] = 0
+        return affected_nodes
+    
+    def add_plan_f1(self, node: Node) -> Dict[Node, int]:
+        """
+        Add a new plan (Node) to the frontier and estimate its accuracy.
+        
+        Args:
+            node: Node object representing the plan
+            
+        Returns:
+            Dict containing estimated accuracy, pareto_value, and other metrics
+        """
+        if node.cost == -1:  # Handle error case
+            return {}
+        
+        # Store plan information
+        self.plans.append(node)
+        self.plans_cost[node] = node.cost
+
+        result_file_path = node.parsed_yaml["pipeline"]["output"]["path"]
+        ground_truth_file = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD-master_clauses.csv"
+        
+        results = evaluate_results(
+            "docetl_preprint",
+            result_file_path,
+            ground_truth_file
+        )
+        true_f1 = results["avg_f1"]
+        self.plans_accuracy[node] = true_f1
 
         # Update Pareto frontier
         affected_nodes = self.update_pareto_frontier()

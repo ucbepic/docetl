@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 from Levenshtein import distance
 import random
+import glob
+import os
 
 def evaluate_results(method_name, results_file, ground_truth_file):
     # Read the DocETL results JSON file
@@ -67,7 +69,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
         ground_truth_cleaned = {k: clean_text(v) for k, v in ground_truth.items()}
 
         # Calculate metrics across all filenames
-        print(f"----- {metric} -----")
+        #print(f"----- {metric} -----")
         for filename in predicted_results_cleaned:
             pred = predicted_results_cleaned[filename]
             truth = ground_truth_cleaned.get(filename, "")
@@ -133,7 +135,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
     # Reindex the dataframes and join them
     docetl_results = docetl_results.sort_values(by="filename").reset_index()
 
-    print(f"Number of documents in results: {len(docetl_results)}")
+    # print(f"Number of documents in results: {len(docetl_results)}")
 
     # Find closest matching filename for each docetl result
     matched_filenames = []
@@ -155,7 +157,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
 
     # Merge the dataframes on the index
     merged_df = pd.merge(docetl_results, ground_truth_df, left_index=True, right_index=True, how="inner")
-    print(merged_df.head())
+    # print(merged_df.head())
 
     # Calculate precision and recall for DocETL results
     docetl_metrics = {}
@@ -174,11 +176,12 @@ def evaluate_results(method_name, results_file, ground_truth_file):
                 # Print out problematic c values
                 for c in clauses:
                     if not (isinstance(c, dict) and "clause_type" in c and "text_span" in c):
-                        print(f"Problematic clause entry: {c} (type: {type(c)})")
+                        pass
+                        #print(f"Problematic clause entry: {c} (type: {type(c)})")
                 clauses = [{
                     "clause_type": c["clause_type"].lower().strip().replace(" ", "_").replace("-", "_"),
                     "text_span": c["text_span"]
-                } for c in clauses if "clause_type" in c and "text_span" in c]
+                } for c in clauses if isinstance(c, dict) and "clause_type" in c and "text_span" in c]
                 clause_types = [c["clause_type"] for c in clauses]
 
                 if len(clause_types) == 0:
@@ -200,9 +203,6 @@ def evaluate_results(method_name, results_file, ground_truth_file):
                 match_for_clause_type = [c["text_span"] for c in clauses if c["clause_type"] == closest_match][0]
                 predicted_results[k] = match_for_clause_type
 
-            print("*****predicted_results******")
-            print(predicted_results)
-            print("________________________________________________________")
             precision, recall = calculate_metrics(
                 metric, predicted_results, merged_df[["filename_x", metric]].set_index("filename_x")[metric].to_dict()
             )
@@ -248,55 +248,24 @@ def evaluate_results(method_name, results_file, ground_truth_file):
         "per_metric": docetl_metrics
     }
 
-result_file_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/OptimizerV2-baseline-exp/plan_execute_result/group10/extracted_contract_info_iter_5.json"
-results_preprint = evaluate_results(
-    "docetl_preprint",
-    result_file_path,
-    "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD-master_clauses.csv"
-)
+execute_res_dir = "MCTS/execute_res"
+ground_truth_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD-master_clauses.csv"
+json_files = glob.glob(os.path.join(execute_res_dir, "*.json"))
 
-# Create results DataFrame with both evaluations
-results_df = pd.DataFrame(
-    {
-        "Avg Precision": [results_preprint["avg_precision"]],
-        "Avg Recall": [results_preprint["avg_recall"]],
-        "Avg F1": [results_preprint["avg_f1"]],
-        "Avg Clause Length (chars)": [results_preprint["avg_clause_length"]]
-    }
-)
-
-# Display per-metric results for both evaluations
-# print("\nPer-Metric Results for DocETL 3-7:")
-# metrics_df_3_7 = pd.DataFrame.from_dict(results_3_7["per_metric"], orient='index')
-# print(metrics_df_3_7)
-
-print("\nPer-Metric Results:")
-metrics_df_preprint = pd.DataFrame.from_dict(results_preprint["per_metric"], orient='index')
-print(metrics_df_preprint)
-
-# Display the overall results as JSON
-print("\nEvaluation Results:")
-print(results_df.to_string(index=False))
-
-
-# Sample 5 entries from the output JSON and save to a file
-with open(result_file_path, "r") as f:
-    all_extractions = json.load(f)
-
-num_samples = 5
-sampled = random.sample(all_extractions, min(num_samples, len(all_extractions)))
-
-# Only keep filename and clauses for each sample
-sampled_simple = []
-for entry in sampled:
-    sample = {
-        "filename": entry.get("name") or entry.get("filename"),
-        "clauses": entry.get("clauses", [])
-    }
-    sampled_simple.append(sample)
-
-with open("/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/OptimizerV2-baseline-exp/sample_output/group10/sampled_extractions_iter_5.json", "w") as f:
-    json.dump(sampled_simple, f, indent=2)
-
-
+print("\nBatch Evaluation Results:")
+for json_file in json_files:
+    try:
+        result = evaluate_results(
+            "docetl_preprint",
+            json_file,
+            ground_truth_path
+        )
+        print(f"File: {json_file}")
+        print(f"  Avg Precision: {result['avg_precision']:.3f}")
+        print(f"  Avg Recall: {result['avg_recall']:.3f}")
+        print(f"  Avg F1: {result['avg_f1']:.3f}")
+        print(f"  Avg Clause Length (chars): {result['avg_clause_length']:.1f}")
+        print()
+    except Exception as e:
+        print(f"File: {json_file} -- Error during evaluation: {e}")
 

@@ -15,7 +15,7 @@ MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS = 3
 class GleaningDirective(Directive):
     name: str = Field(default="gleaning", description="The name of the directive")
     formal_description: str = Field(default="Map => Map_m (with gleaning config)")
-    nl_description: str = Field(default="""Adds a validation loop to Map: after each LLM generation, a separate "judge" LLM evaluates the output using a yes/no validation prompt. If the output fails, the original LLM refines its answer and repeats until the output passes or the max number of rounds is reached.""")
+    nl_description: str = Field(default="""Adds a validation loop to Map: after each LLM generation, a separate "judge" LLM evaluates the output using a yes/no validation prompt. If the output fails, the original LLM refines its answer and repeats until the output passes or the max number of rounds is reached. Can be applied to multiple operators at once.""")
     when_to_use: str = Field(default="When initial Map outputs may not meet quality criteria and must be checked or improved automatically (e.g., too short, missing required info).")
     
     # Remove from Pydantic fields, make it a plain class variable
@@ -79,6 +79,7 @@ class GleaningDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
+        temperature = 0.8,
     ) -> tuple:
         """
         Use LLM to instantiate this directive by decomposing the original operation.
@@ -106,7 +107,8 @@ class GleaningDirective(Directive):
                 api_version=os.environ.get("AZURE_API_VERSION"),
                 # api_key=os.environ["GEMINI_API_KEY"],
                 azure=True,
-                response_format=GleaningInstantiateSchema
+                response_format=GleaningInstantiateSchema,
+                temperature = temperature
             )
 
             try:
@@ -143,16 +145,18 @@ class GleaningDirective(Directive):
         
         return new_ops_list
     
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> tuple:
+    def instantiate(self, global_default_model, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal="acc", temperature = 0.8) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
         # Assert that there is only one target op
-        assert len(target_ops) == 1, "There must be exactly one target op to instantiate this chaining directive"
-        target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
-
-        # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(target_op_config, agent_llm, message_history)
+        # assert len(target_ops) == 1, "There must be exactly one target op to instantiate this chaining directive"
+        new_ops_list = deepcopy(operators)
+        for target_op in target_ops:
+            target_op_config = [op for op in operators if op["name"] == target_op][0]
+            # Instantiate the directive
+            rewrite, message_history = self.llm_instantiate(target_op_config, agent_llm, message_history, temperature)
+            new_ops_list = self.apply(new_ops_list, target_op, rewrite)
         
         # Apply the rewrite to the operators
-        return self.apply(operators, target_ops[0], rewrite), message_history
+        return new_ops_list, message_history

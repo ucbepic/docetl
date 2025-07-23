@@ -23,10 +23,10 @@ class MapOpConfig(BaseModel):
         ...,
         description="The keys of the output of the Map operator, to be referenced in the downstream operator's prompt. Can be a single key or a list of keys. Can be new keys or existing keys from the map operator we are rewriting."
     )
-    model: str = Field(
-        default="gpt-4o-mini",
-        description="The model to use for the Map operator."
-    )
+    # model: str = Field(
+    #     default="gpt-4o-mini",
+    #     description="The model to use for the Map operator."
+    # )
 
     @classmethod
     def validate_prompt_contains_input_key(cls, value: str) -> str:
@@ -50,7 +50,8 @@ class MapOpConfig(BaseModel):
     @field_validator("prompt")
     @classmethod
     def check_prompt(cls, v: str) -> str:
-        return cls.validate_prompt_contains_input_key(v)
+        return cls.validate_prompt_contains_input_key(v)\
+
     
 class ChainingInstantiateSchema(BaseModel):
     """
@@ -66,10 +67,8 @@ class ChainingInstantiateSchema(BaseModel):
         description="The new Map operators to insert in the chain."
     )
 
-    @classmethod
     def validate_chain(
-        cls,
-        new_ops: List[MapOpConfig],
+        self,
         required_input_keys: List[str],
         expected_output_keys: List[str]
     ) -> None:
@@ -90,18 +89,21 @@ class ChainingInstantiateSchema(BaseModel):
         # Check each required input key is referenced in at least one prompt
         for key in required_input_keys:
             pattern = r"\{\{\s*input\." + re.escape(key) + r"\s*\}\}"
-            if not any(re.search(pattern, op.prompt) for op in new_ops):
+            if not any(re.search(pattern, op.prompt) for op in self.new_ops):
                 raise ValueError(
                     f"Input key '{key}' must be referenced as '{{{{ input.{key} }}}}' in at least one prompt."
                 )
 
         # Check that the final op's output_keys match expected_output_keys (order-insensitive)
-        final_output_keys = list(new_ops[-1].output_keys) if new_ops else []
+        final_output_keys = list(self.new_ops[-1].output_keys) if self.new_ops else []
         if set(final_output_keys) != set(expected_output_keys):
             raise ValueError(
                 f"The output_keys of the final op ({final_output_keys}) do not match the expected output_keys ({expected_output_keys})."
             )
 
+
+class ChainingInstantiateMultiSchema(BaseModel):
+    plans: List[ChainingInstantiateSchema]
 
 class GleaningConfig(BaseModel):
     """
@@ -150,7 +152,7 @@ class ChangeModelInstantiateSchema(BaseModel):
     )
     
     @classmethod
-    def validate_model_in_list(cls, change_model_config: ChangeModelConfig, list_of_model: List[str]) -> None:
+    def validate_diff_model_in_list(cls, orig_model, change_model_config: ChangeModelConfig, list_of_model: List[str]) -> None:
         """
         Validates that the model in change_model_config is in the allowed list_of_model.
 
@@ -163,4 +165,7 @@ class ChangeModelInstantiateSchema(BaseModel):
         
         if change_model_config.model not in list_of_model:
             raise ValueError(f"Model '{change_model_config.model}' is not in the allowed list: {list_of_model}")
+        elif change_model_config.model == orig_model:
+            raise ValueError(f"Model '{change_model_config.model}' is the same as the original model used: {orig_model}")
+    
     

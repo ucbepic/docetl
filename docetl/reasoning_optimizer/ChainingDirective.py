@@ -6,7 +6,7 @@ from typing import Type, Dict, List
 import os
 from litellm import completion
 from docetl.reasoning_optimizer.directive import Directive
-from docetl.reasoning_optimizer.instantiate_schemas import ChainingInstantiateSchema
+from docetl.reasoning_optimizer.instantiate_schemas import ChainingInstantiateSchema, ChainingInstantiateMultiSchema
 import re
 import json
 
@@ -15,7 +15,7 @@ MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS = 3
 class ChainingDirective(Directive):
     name: str = Field(default="chaining", description="The name of the directive")
     formal_description: str = Field(default="Op => Map* -> Op")
-    nl_description: str = Field(default="Decompose a complex operation into a sequence by inserting one or more Map steps that rewrite the input for the next operation. Each Map step outputs a 'result' string, and the downstream operation uses this result in its prompt.")
+    nl_description: str = Field(default="Decompose a complex operation into a sequence by inserting one or more Map steps that rewrite the input for the next operation. Each Map step outputs a 'result' string, and the downstream operation uses this result in its prompt. Apply on only one operator each time.")
     when_to_use: str = Field(default="When the original task is too complex for one step and should be split into a series (e.g., first extract key facts, then generate a summary based on those facts).")
     instantiate_schema_type: Type[BaseModel] = ChainingInstantiateSchema
     
@@ -39,7 +39,6 @@ class ChainingDirective(Directive):
             "{{ input.summary }}\n"
             "Identify all medical conditions that are explicitly marked as new diagnoses (e.g., 'new diagnosis of atrial fibrillation', 'recent onset heart failure').\n"
             "Return a list of newly diagnosed conditions.''',\n"
-            "    model='gpt-4o-mini',\n"
             "    output_keys=['new_conditions'],\n"
             "  ),\n"
             "  MapOpConfig(\n"
@@ -48,7 +47,6 @@ class ChainingDirective(Directive):
             "Discharge summary: {{ input.summary }}\n"
             "Newly diagnosed conditions: {{ input.new_conditions }}\n"
             "Return a list of prescribed treatments or medications for each condition.''',\n"
-            "    model='gpt-4o-mini',\n"
             "    output_keys=['treatments'],\n"
             "  ),\n"
             "]"
@@ -76,7 +74,7 @@ class ChainingDirective(Directive):
             f"Original Operation:\n"
             f"{str(original_op)}\n"
             f"Directive: {self.name}\n"
-            f"Your task is to instantiate this directive by generating a list of new Map operators (as MapOpConfig objects) that decompose the original operation into a sequence of simpler steps. "
+            f"Your task is to instantiate this directive by generating TWO alternative chains, each as a list of new Map operators (as MapOpConfig objects) that decompose the original operation into a sequence of simpler steps (two or more steps). Make the two chains diverse."
             f"Each Map step should output a 'result' or other relevant keys, and downstream steps should use the outputs of previous steps as their input. "
             f"Ensure that the chain of Map operators together accomplishes the intent of the original operation, but in a more modular and stepwise fashion.\n\n"
             f"""Key Issues to ensure:\n
@@ -85,7 +83,7 @@ class ChainingDirective(Directive):
                 3. Confirm that each step can access all required information either from the original document or from outputs of preceding steps.\n"""
             f"Example:\n"
             f"{self.example}\n\n"
-            f"Please output only the InstantiateSchema (a list of MapOpConfig objects) for the new chain, referring to the same input document keys as the original operation and chaining outputs appropriately."
+            f"Please output two alternatives, where each alternative is a list of MapOpConfig objects (i.e., output a list of two lists), referring to the same input document keys as the original operation and chaining outputs appropriately."
         )
 
     def llm_instantiate(
@@ -95,6 +93,7 @@ class ChainingDirective(Directive):
         expected_output_keys: List[str],
         agent_llm: str,
         message_history: list = [],
+        temperature = 0.8
     ) -> tuple:
         """
         Use LLM to instantiate this directive by decomposing the original operation.
@@ -124,29 +123,40 @@ class ChainingDirective(Directive):
                 api_version=os.environ.get("AZURE_API_VERSION"),
                 # api_key=os.environ["GEMINI_API_KEY"],
                 azure=True,
-                response_format=ChainingInstantiateSchema
+                response_format=ChainingInstantiateMultiSchema,
+                temperature=temperature
             )
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
-                if "new_ops" not in parsed_res:
-                    raise ValueError("Response from LLM is missing required key 'new_ops'")
-                new_ops = parsed_res["new_ops"]
-                schema = ChainingInstantiateSchema(new_ops = new_ops)
+                if "plans" not in parsed_res:
+                    raise ValueError("Response from LLM is missing required key 'plans'")
+
+                plans = parsed_res["plans"]
+                plan_list = ChainingInstantiateMultiSchema(plans=plans)
+                if len(plan_list.plans) != 2: raise ValueError("Response from LLM does not give two plans")
+                new_ops_plan1 = plan_list.plans[0]
+                new_ops_plan2 = plan_list.plans[1]
+
                 # Validate the chain with required input/output keys
-                ChainingInstantiateSchema.validate_chain(
-                    new_ops=schema.new_ops,
+                new_ops_plan1.validate_chain(
                     required_input_keys=expected_input_keys,
                     expected_output_keys=expected_output_keys
                 )
+
+                new_ops_plan2.validate_chain(
+                    required_input_keys=expected_input_keys,
+                    expected_output_keys=expected_output_keys
+                )
+
                 message_history.append({"role": "assistant", "content": resp.choices[0].message.content})
-                return schema, message_history
+                return new_ops_plan1, new_ops_plan2, message_history
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
         
         raise Exception(f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts.")
     
-    def apply(self, ops_list: List[Dict], target_op: str, rewrite: ChainingInstantiateSchema) -> List[Dict]:
+    def apply(self, global_default_model, ops_list: List[Dict], target_op: str, rewrite: ChainingInstantiateSchema) -> List[Dict]:
         """
         Apply the directive to the pipeline config.
         """
@@ -154,17 +164,28 @@ class ChainingDirective(Directive):
         new_ops_list = deepcopy(ops_list)
         
         # Find position of the target ops to replace
-        pos_to_replace = [i for i, op in enumerate(ops_list) if op["name"] == target_op][0]
+        
+        for i, op in enumerate(ops_list):
+            if op["name"] == target_op:
+                pos_to_replace = i
+                orig_op = op
+                break
+
+        # pos_to_replace = [i for i, op in enumerate(ops_list) if op["name"] == target_op][0]
         
         # Create the new ops from the rewrite
         new_ops = []
+        
+        defualt_model =  global_default_model
+        if "model" in orig_op:  defualt_model = orig_op["model"]
+
         for i, op in enumerate(rewrite.new_ops):
             if i < len(rewrite.new_ops) - 1:
                 new_ops.append({
                     "name": op.name,
                     "type": "map",
                     "prompt": op.prompt,
-                    "model": op.model,
+                    "model": defualt_model,
                     "output": {
                         "schema": {
                             key: "string" for key in op.output_keys
@@ -177,7 +198,7 @@ class ChainingDirective(Directive):
                     "name": op.name,
                     "type": "map",
                     "prompt": op.prompt,
-                    "model": op.model,
+                    "model": defualt_model,
                     "output": new_ops_list[pos_to_replace]["output"]
                 })
         
@@ -187,7 +208,7 @@ class ChainingDirective(Directive):
         
         return new_ops_list
     
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> tuple:
+    def instantiate(self, global_default_model, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal="acc", temperature = 0.8) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
@@ -208,7 +229,9 @@ class ChainingDirective(Directive):
         print("output key: ", expected_output_keys)
         
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(target_op_config, expected_input_keys, expected_output_keys, agent_llm, message_history)
+        rewrite1, rewrite2, message_history = self.llm_instantiate(target_op_config, expected_input_keys, expected_output_keys, agent_llm, message_history, temperature)
         
         # Apply the rewrite to the operators
-        return self.apply(operators, target_ops[0], rewrite), message_history
+        new_ops_plan1 = self.apply(global_default_model, operators, target_ops[0], rewrite1)
+        new_ops_plan2 = self.apply(global_default_model, operators, target_ops[0], rewrite2)
+        return new_ops_plan1, new_ops_plan2, message_history

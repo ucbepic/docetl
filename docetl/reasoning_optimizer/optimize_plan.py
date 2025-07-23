@@ -1,24 +1,25 @@
-import random
-from docetl.reasoning_optimizer.prompts import PromptLibrary
-import litellm
+import argparse
+import json
 import os
 import threading
 import time
-import yaml  
-import json
-from pydantic import BaseModel
 from typing import Dict
-from docetl.reasoning_optimizer.load_data import load_input_doc
-import argparse
 
+import litellm
+from pydantic import BaseModel
+
+from docetl.reasoning_optimizer.load_data import load_input_doc
+from docetl.reasoning_optimizer.prompts import PromptLibrary
 
 # Global dictionary of rate limiters per model
-model_rate_limiters: Dict[str, 'TokenRateLimiter'] = {}
+model_rate_limiters: Dict[str, "TokenRateLimiter"] = {}
 
-def get_rate_limiter(model: str, max_tpm: int) -> 'TokenRateLimiter':
+
+def get_rate_limiter(model: str, max_tpm: int) -> "TokenRateLimiter":
     if model not in model_rate_limiters:
         model_rate_limiters[model] = TokenRateLimiter(max_tpm)
     return model_rate_limiters[model]
+
 
 class TokenRateLimiter:
     def __init__(self, max_tpm):
@@ -43,15 +44,20 @@ class TokenRateLimiter:
             time_to_wait = max(0, self.reset_time - time.time())
             time.sleep(time_to_wait)
 
+
 def count_tokens(messages):
     # messages should be a list of dicts, each with a "content" key
-    total_chars = sum(len(m.get("content", "")) for m in messages if isinstance(m, dict))
+    total_chars = sum(
+        len(m.get("content", "")) for m in messages if isinstance(m, dict)
+    )
     return max(1, total_chars // 4)
+
 
 class Step(BaseModel):
     operation: str
     description: str
     parameter: list[str]
+
 
 class Rewritten_plan(BaseModel):
     plan_name: str
@@ -60,23 +66,27 @@ class Rewritten_plan(BaseModel):
     stepwise_pipeline: list[Step]
     reason: str
 
+
 class ResponseFormat(BaseModel):
     yaml_file: str
     plan: Rewritten_plan
 
-def get_openai_response(input_query, input_schema, input_data_sample, model="o3", max_tpm=5000000):
+
+def get_openai_response(
+    input_query, input_schema, input_data_sample, model="o3", max_tpm=5000000
+):
     """
-    The first LLM call. Generates a rewrite plan given the rewrite directives. 
+    The first LLM call. Generates a rewrite plan given the rewrite directives.
     """
 
     user_message = f"""
     I need one optimized query plan for a given user query on document processing.
     I have a set of LLM-powered operations for processing long documents and rewrite directives to improve accuracy and cost-effectiveness. Multiple rewrite directives can be combined iteratively or sequentially in optimization plans.
-    You can choose to use the additional techniques Metadata Extraction and Header Extraction along with the rewrite directives. 
+    You can choose to use the additional techniques Metadata Extraction and Header Extraction along with the rewrite directives.
     You also need to carefully choose the parameters for each operation as the parameters can significantly impact the accuracy and cost-effectiveness of the plan.
-    
-    Return a YAML file with the optimized query plan. Each operation in the rewritten plan should have the required parameters specified. The parameter required for each operation is specified in the operation description. 
-    
+
+    Return a YAML file with the optimized query plan. Each operation in the rewritten plan should have the required parameters specified. The parameter required for each operation is specified in the operation description.
+
     Make sure you apply existing rewrite directives and use only existing operations provided below. Ensure that your YAML file is valid.
 
     Pipeline:
@@ -87,7 +97,7 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     - Operators: The processing steps that transform your data. \n
     - Pipeline Specification: The sequence of steps and the output configuration. \n
 
-    Operation descriptions: 
+    Operation descriptions:
     Operators form the building blocks of data processing pipelines. All operators share the following common attributes: \n
     - name: A unique identifier for the operator. \n
     - type: Specifies the type of operation (e.g., "map", "reduce", "filter"). \n
@@ -103,8 +113,8 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     {PromptLibrary.gather_operator()}\n
     {PromptLibrary.filter_operator()}\n
     {PromptLibrary.extract_operator()}\n
-    
-    Rewrite directives: 
+
+    Rewrite directives:
     {PromptLibrary.document_chunking(), PromptLibrary.multi_level_agg(), PromptLibrary.chaining(), PromptLibrary.reordering()}
 
     Additional techniques:
@@ -116,10 +126,13 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     """
 
     messages = [
-        {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost-effective execution plans. Your output must follow the structured output format."},
-        {"role": "user", "content": user_message}
+        {
+            "role": "system",
+            "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost-effective execution plans. Your output must follow the structured output format.",
+        },
+        {"role": "user", "content": user_message},
     ]
-    
+
     # Enforce rate limit for the specified model
     if max_tpm > 0:
         limiter = get_rate_limiter(model, max_tpm)
@@ -133,31 +146,39 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         api_base=os.environ.get("AZURE_API_BASE"),
         api_version=os.environ.get("AZURE_API_VERSION"),
         azure=True,
-        reasoning_effort = "high",
-        response_format=ResponseFormat
+        reasoning_effort="high",
+        response_format=ResponseFormat,
     )
-    return response.choices[0].message['content']
+    return response.choices[0].message["content"]
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Chat with OpenAI with per-model token rate limiting.")
+    parser = argparse.ArgumentParser(
+        description="Chat with OpenAI with per-model token rate limiting."
+    )
     parser.add_argument("--model", type=str, default="o3", help="Model name")
-    parser.add_argument("--max_tpm", type=int, default=5000000, help="Token per minute limit for the model")
+    parser.add_argument(
+        "--max_tpm",
+        type=int,
+        default=5000000,
+        help="Token per minute limit for the model",
+    )
     parser.add_argument("--yaml_path", type=str, help="Path to the YAML file")
     args = parser.parse_args()
 
-    with open('/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD_random_sample.json', 'r') as f:
+    data_dir = os.environ.get("EXPERIMENT_DATA_DIR", "./data/")
+    sample_data_path = os.path.join(data_dir, "CUAD_random_sample.json")
+    with open(sample_data_path, "r") as f:
         random_sample = json.load(f)
 
     with open(args.yaml_path, "r") as f:
         input_query = f.read()
-    
+
     input_schema = load_input_doc(args.yaml_path)
-    reply = get_openai_response(input_query, input_schema, random_sample, model=args.model, max_tpm=args.max_tpm)
-    with open("o3_CUAD_opt_plan_v3.yaml", 'w', encoding='utf-8') as f:
+    reply = get_openai_response(
+        input_query, input_schema, random_sample, model=args.model, max_tpm=args.max_tpm
+    )
+    with open("o3_CUAD_opt_plan_v3.yaml", "w", encoding="utf-8") as f:
         f.write(reply.get)
-       
+
     print("AI:", reply)
-
-
-

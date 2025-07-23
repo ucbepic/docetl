@@ -1,23 +1,37 @@
-from copy import deepcopy
-from types import NoneType
-from pydantic import BaseModel, Field
-from typing import Type, Dict, List
-import os
-from litellm import completion
-from docetl.reasoning_optimizer.directive import Directive
-from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelConfig, ChangeModelInstantiateSchema
-import re
 import json
+import os
+from copy import deepcopy
+from typing import Dict, List, Type
 
-MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS = 3
+from litellm import completion
+from pydantic import BaseModel, Field
+
+from docetl.reasoning_optimizer.instantiate_schemas import (
+    ChangeModelConfig,
+    ChangeModelInstantiateSchema,
+)
+
+from .base import (
+    AVAILABLE_MODELS,
+    MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS,
+    Directive,
+    DirectiveTestCase,
+)
+
 
 class ChangeModelDirective(Directive):
     name: str = Field(default="change model", description="The name of the directive")
-    formal_description: str = Field(default="Op => Op* (same operation with a different model choice)")
-    nl_description: str = Field(default="Rewrites an operator to use a different LLM model, changing the underlying engine while keeping all logic and prompts the same..")
-    when_to_use: str = Field(default="When a specific step in the pipeline would benefit from a different model (e.g., for cost, speed, or accuracy reasons), but all other config stays the same.")
+    formal_description: str = Field(
+        default="Op => Op* (same operation with a different model choice)"
+    )
+    nl_description: str = Field(
+        default="Rewrites an operator to use a different LLM model, changing the underlying engine while keeping all logic and prompts the same.."
+    )
+    when_to_use: str = Field(
+        default="When a specific step in the pipeline would benefit from a different model (e.g., for cost, speed, or accuracy reasons), but all other config stays the same."
+    )
     instantiate_schema_type: Type[BaseModel] = ChangeModelConfig
-    
+
     example: str = Field(
         default=(
             "Original Op (MapOpConfig):\n"
@@ -29,7 +43,7 @@ class ChangeModelDirective(Directive):
             "    Log: {{ input.log }}\n"
             "  output:\n"
             "    schema:\n"
-            "      insights_summary: \"string\"\n"
+            '      insights_summary: "string"\n'
             "  model: gpt-4o\n"
             "\n"
             "Example InstantiateSchema:\n"
@@ -41,11 +55,15 @@ class ChangeModelDirective(Directive):
         ),
     )
 
-    allowed_model_list: List[str] = Field(default=["gpt-4.1-nano", "gpt-4o-mini", "gpt-4o", "gpt-4.1"], description="The allowed list of models to choose from")
+    allowed_model_list: List[str] = Field(
+        default=AVAILABLE_MODELS,
+        description="The allowed list of models to choose from",
+    )
 
     model_info: str = Field(
-        default=("""
-        OpenAI-MRCR evaluates a model’s ability to locate and disambiguate multiple well-hidden “needles” within a large context.
+        default=(
+            """
+        OpenAI-MRCR evaluates a model's ability to locate and disambiguate multiple well-hidden "needles" within a large context.
             Below are the actual performance scores for the 8-needle retrieval task at various context lengths. Use these results to compare the retrieval capabilities of each model.
 
             Input Tokens (1000s) | GPT-4.1 | GPT-4.1 nano | GPT-4o (2024-11-20) | GPT-4o mini
@@ -66,14 +84,62 @@ class ChangeModelDirective(Directive):
             Max Output Tokens  | 32,768       | 16,384      | 16,384     | 32,768
             Input Token Price  | $0.10        | $0.15       | $2.50      | $2.00
             Output Token Price | $0.40        | $0.60       | $1.25      | $8.00
-        """),
+        """
+        ),
     )
-    
+
+    test_cases: List[DirectiveTestCase] = Field(
+        default_factory=lambda: [
+            DirectiveTestCase(
+                name="cost_optimization_simple_task",
+                description="Should suggest cheaper model for simple extraction task",
+                input_config={
+                    "name": "extract_names",
+                    "type": "map",
+                    "prompt": "Extract person names from: {{ input.text }}",
+                    "output": {"schema": {"names": "list[str]"}},
+                    "model": "gpt-4.1",
+                },
+                target_ops=["extract_names"],
+                expected_behavior="Should recommend gpt-4o-mini or gpt-4.1-nano for cost savings on simple task",
+                should_pass=True,
+            ),
+            DirectiveTestCase(
+                name="complex_analysis_needs_powerful_model",
+                description="Should recommend powerful model for complex reasoning task",
+                input_config={
+                    "name": "analyze_legal_implications",
+                    "type": "map",
+                    "prompt": "Analyze the legal implications and potential risks in this complex contract: {{ input.contract }}",
+                    "output": {"schema": {"analysis": "string"}},
+                    "model": "gpt-4o-mini",
+                },
+                target_ops=["analyze_legal_implications"],
+                expected_behavior="Should recommend gpt-4.1 or gpt-4o for complex legal analysis requiring strong reasoning",
+                should_pass=True,
+            ),
+            DirectiveTestCase(
+                name="high_volume_processing_optimization",
+                description="Should optimize model for high-volume document processing",
+                input_config={
+                    "name": "batch_document_summary",
+                    "type": "map",
+                    "prompt": "Summarize this document in 2-3 sentences: {{ input.document }}",
+                    "output": {"schema": {"summary": "str"}},
+                    "model": "gpt-4.1",
+                },
+                target_ops=["batch_document_summary"],
+                expected_behavior="Should recommend faster/cheaper model like gpt-4o-mini or gpt-4.1-nano for high-volume simple summarization",
+                should_pass=True,
+            ),
+        ]
+    )
+
     def __eq__(self, other):
-        return isinstance(other, ChangeModelDirective)  
+        return isinstance(other, ChangeModelDirective)
 
     def __hash__(self):
-        return hash('ChangeModelDirective')  
+        return hash("ChangeModelDirective")
 
     def to_string_for_instantiate(self, original_op: Dict) -> str:
         """
@@ -117,11 +183,19 @@ class ChangeModelDirective(Directive):
         Returns:
             ChangeModelInstantiateSchema: The structured output from the LLM.
         """
-        
-        message_history.extend([
-            {"role": "system", "content": "You are a helpful AI assistant for document processing pipelines."},
-            {"role": "user", "content": self.to_string_for_instantiate(original_op)},
-        ])
+
+        message_history.extend(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a helpful AI assistant for document processing pipelines.",
+                },
+                {
+                    "role": "user",
+                    "content": self.to_string_for_instantiate(original_op),
+                },
+            ]
+        )
 
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
             resp = completion(
@@ -132,54 +206,81 @@ class ChangeModelDirective(Directive):
                 api_version=os.environ.get("AZURE_API_VERSION"),
                 # api_key=os.environ["GEMINI_API_KEY"],
                 azure=True,
-                response_format=ChangeModelInstantiateSchema
+                response_format=ChangeModelInstantiateSchema,
             )
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 if "change_model_config" not in parsed_res:
-                    raise ValueError("Response from LLM is missing required key 'change_model_config'")
+                    raise ValueError(
+                        "Response from LLM is missing required key 'change_model_config'"
+                    )
                 change_model_config = parsed_res["change_model_config"]
-                schema = ChangeModelInstantiateSchema(change_model_config = change_model_config)
-                
+                schema = ChangeModelInstantiateSchema(
+                    change_model_config=change_model_config
+                )
+
                 # Validate the model is in the allowed model list
                 ChangeModelInstantiateSchema.validate_model_in_list(
                     change_model_config=schema.change_model_config,
-                    list_of_model=self.allowed_model_list
+                    list_of_model=self.allowed_model_list,
                 )
-                message_history.append({"role": "assistant", "content": resp.choices[0].message.content})
+                message_history.append(
+                    {"role": "assistant", "content": resp.choices[0].message.content}
+                )
                 return schema, message_history
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
-        
-        raise Exception(f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts.")
-    
-    def apply(self, ops_list: List[Dict], target_op: str, rewrite: ChangeModelInstantiateSchema) -> List[Dict]:
+
+        raise Exception(
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts."
+        )
+
+    def apply(
+        self,
+        ops_list: List[Dict],
+        target_op: str,
+        rewrite: ChangeModelInstantiateSchema,
+    ) -> List[Dict]:
         """
         Apply the directive to the pipeline config by adding gleaning configuration to the target operator.
         """
         # Create a copy of the pipeline config
         new_ops_list = deepcopy(ops_list)
-        
+
         # Find position of the target op to modify
-        pos_to_replace = [i for i, op in enumerate(ops_list) if op["name"] == target_op][0]
-        
+        pos_to_replace = [
+            i for i, op in enumerate(ops_list) if op["name"] == target_op
+        ][0]
+
         # Add change model configuration to the target operator
         target_operator = new_ops_list[pos_to_replace]
         target_operator["model"] = rewrite.change_model_config.model
-        
+
         return new_ops_list
-    
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> tuple:
+
+    def instantiate(
+        self,
+        operators: List[Dict],
+        target_ops: List[str],
+        agent_llm: str,
+        message_history: list = [],
+        global_default_model: str = None,
+        **kwargs,
+    ) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
         # Assert that there is only one target op
-        assert len(target_ops) == 1, "There must be exactly one target op to instantiate this chaining directive"
+        assert (
+            len(target_ops) == 1
+        ), "There must be exactly one target op to instantiate this chaining directive"
         target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
 
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(target_op_config, agent_llm, message_history)
-        
+        rewrite, message_history = self.llm_instantiate(
+            target_op_config, agent_llm, message_history
+        )
+
         # Apply the rewrite to the operators
         return self.apply(operators, target_ops[0], rewrite), message_history

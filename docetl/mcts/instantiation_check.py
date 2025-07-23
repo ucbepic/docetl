@@ -1,30 +1,32 @@
-import litellm
 import os
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict
+
+import litellm
 import yaml
 from dotenv import load_dotenv
-from docetl.reasoning_optimizer.ChainingDirective import *
+from pydantic import BaseModel
+
 load_dotenv()
+
 
 def load_yaml(yaml_file_path) -> Dict[str, Any]:
     """
     Load and parse the YAML file.
-    
+
     Returns:
         Parsed YAML content as a dictionary
     """
     try:
-        with open(yaml_file_path, 'r', encoding='utf-8') as file:
+        with open(yaml_file_path, "r", encoding="utf-8") as file:
             return yaml.safe_load(file)
     except Exception as e:
         print(f"Error loading YAML file: {e}")
         return {}
 
 
-
 # new_yaml_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/MCTS/execute_res/CUAD-map_2.yaml"
 # new_config = load_yaml(new_yaml_path)
+
 
 def llm_judge_chaining(orig_config, new_config):
     user_message = f"""
@@ -45,8 +47,11 @@ def llm_judge_chaining(orig_config, new_config):
         """
 
     messages = [
-        {"role": "system", "content": "You are an expert judge evaluating whether a newly generated prompt configuration makes logical sense for contract analysis tasks. Your primary focus is to identify critical issues that would prevent the LLM from performing well. Your output must follow the structured output format."},
-        {"role": "user", "content": user_message}
+        {
+            "role": "system",
+            "content": "You are an expert judge evaluating whether a newly generated prompt configuration makes logical sense for contract analysis tasks. Your primary focus is to identify critical issues that would prevent the LLM from performing well. Your output must follow the structured output format.",
+        },
+        {"role": "user", "content": user_message},
     ]
 
     class ResponseFormat(BaseModel):
@@ -60,7 +65,7 @@ def llm_judge_chaining(orig_config, new_config):
         api_base=os.environ.get("AZURE_API_BASE"),
         api_version=os.environ.get("AZURE_API_VERSION"),
         azure=True,
-        response_format=ResponseFormat
+        response_format=ResponseFormat,
     )
 
     print(response.choices[0].message.content)

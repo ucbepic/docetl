@@ -1,24 +1,28 @@
-from ast import Tuple
-from copy import deepcopy
-from types import NoneType
-from pydantic import BaseModel, Field
-from typing import Type, Dict, List
-import os
-from litellm import completion
-from docetl.reasoning_optimizer.directive import Directive
-from docetl.reasoning_optimizer.instantiate_schemas import ChainingInstantiateSchema
-import re
 import json
+import os
+import re
+from copy import deepcopy
+from typing import Dict, List, Type
 
-MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS = 3
+from litellm import completion
+from pydantic import BaseModel, Field
+
+from docetl.reasoning_optimizer.instantiate_schemas import ChainingInstantiateSchema
+
+from .base import MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS, Directive, DirectiveTestCase
+
 
 class ChainingDirective(Directive):
     name: str = Field(default="chaining", description="The name of the directive")
     formal_description: str = Field(default="Op => Map* -> Op")
-    nl_description: str = Field(default="Decompose a complex operation into a sequence by inserting one or more Map steps that rewrite the input for the next operation. Each Map step outputs a 'result' string, and the downstream operation uses this result in its prompt.")
-    when_to_use: str = Field(default="When the original task is too complex for one step and should be split into a series (e.g., first extract key facts, then generate a summary based on those facts).")
+    nl_description: str = Field(
+        default="Decompose a complex operation into a sequence by inserting one or more Map steps that rewrite the input for the next operation. Each Map step outputs a 'result' string, and the downstream operation uses this result in its prompt."
+    )
+    when_to_use: str = Field(
+        default="When the original task is too complex for one step and should be split into a series (e.g., first extract key facts, then generate a summary based on those facts)."
+    )
     instantiate_schema_type: Type[BaseModel] = ChainingInstantiateSchema
-    
+
     example: str = Field(
         default=(
             "Original Op (MapOpConfig):\n"
@@ -26,7 +30,7 @@ class ChainingDirective(Directive):
             "  type: map\n"
             "  prompt: |\n"
             "    For a hospital discharge summary, extract every treatment that was prescribed specifically for newly diagnosed conditions.\n"
-            "    Discharge summary: \"{{ input.summary }}\"\n"
+            '    Discharge summary: "{{ input.summary }}"\n'
             "  output:\n"
             "    schema:\n"
             "      treatments: list[str]\n"
@@ -55,12 +59,56 @@ class ChainingDirective(Directive):
         ),
     )
 
+    test_cases: List[DirectiveTestCase] = Field(
+        default_factory=lambda: [
+            DirectiveTestCase(
+                name="complex_contract_extraction",
+                description="Should decompose complex contract extraction into separate ops for each term type and a final unification op",
+                input_config={
+                    "name": "extract_contract_terms",
+                    "type": "map",
+                    "prompt": "Extract all payment terms, liability clauses, and termination conditions from: {{ input.contract }}",
+                    "output": {"schema": {"terms": "list[str]"}},
+                },
+                target_ops=["extract_contract_terms"],
+                expected_behavior="Should create four ops total: one for payment terms, one for liability clauses, one for termination conditions, and a final op to unify all results into 'terms'",
+                should_pass=True,
+            ),
+            DirectiveTestCase(
+                name="medical_treatment_analysis",
+                description="Should chain complex medical analysis into steps",
+                input_config={
+                    "name": "analyze_patient_care",
+                    "type": "map",
+                    "prompt": "From this medical record, identify all diagnoses, treatments prescribed, and patient outcomes: {{ input.medical_record }}",
+                    "output": {"schema": {"analysis": "string"}},
+                },
+                target_ops=["analyze_patient_care"],
+                expected_behavior="Should decompose into separate steps for diagnoses identification, treatment extraction, and outcome analysis",
+                should_pass=True,
+            ),
+            DirectiveTestCase(
+                name="research_paper_analysis",
+                description="Should chain research paper analysis into structured steps",
+                input_config={
+                    "name": "analyze_research_paper",
+                    "type": "map",
+                    "prompt": "From this research paper, extract the methodology, key findings, limitations, and future work directions: {{ input.paper }}",
+                    "output": {"schema": {"analysis": "string"}},
+                },
+                target_ops=["analyze_research_paper"],
+                expected_behavior="Should decompose into separate steps for methodology extraction, findings identification, limitation analysis, and future work extraction",
+                should_pass=True,
+            ),
+        ]
+    )
+
     def __eq__(self, other):
-        return isinstance(other, ChainingDirective)  
+        return isinstance(other, ChainingDirective)
 
     def __hash__(self):
-        return hash('ChainingDirective')  
-    
+        return hash("ChainingDirective")
+
     def to_string_for_instantiate(self, original_op: Dict) -> str:
         """
         Generate a prompt for an agent to instantiate this directive.
@@ -102,18 +150,26 @@ class ChainingDirective(Directive):
         Args:
             original_op (Dict): The original operation.
             expected_input_keys (List[str]): A list of input keys that the operation is expected to reference in its prompt. Each key should correspond to a field in the input document that must be used by the operator.
-            expected_output_keys (List[str]): A list of output keys that the last operation is expected to produce. 
+            expected_output_keys (List[str]): A list of output keys that the last operation is expected to produce.
             agent_llm (str): The LLM model to use.
             message_history (List, optional): Conversation history for context.
 
         Returns:
             ChainingInstantiateSchema: The structured output from the LLM.
         """
-        
-        message_history.extend([
-            {"role": "system", "content": "You are a helpful AI assistant for document processing pipelines."},
-            {"role": "user", "content": self.to_string_for_instantiate(original_op)},
-        ])
+
+        message_history.extend(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a helpful AI assistant for document processing pipelines.",
+                },
+                {
+                    "role": "user",
+                    "content": self.to_string_for_instantiate(original_op),
+                },
+            ]
+        )
 
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
             resp = completion(
@@ -124,91 +180,117 @@ class ChainingDirective(Directive):
                 api_version=os.environ.get("AZURE_API_VERSION"),
                 # api_key=os.environ["GEMINI_API_KEY"],
                 azure=True,
-                response_format=ChainingInstantiateSchema
+                response_format=ChainingInstantiateSchema,
             )
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 if "new_ops" not in parsed_res:
-                    raise ValueError("Response from LLM is missing required key 'new_ops'")
+                    raise ValueError(
+                        "Response from LLM is missing required key 'new_ops'"
+                    )
                 new_ops = parsed_res["new_ops"]
-                schema = ChainingInstantiateSchema(new_ops = new_ops)
+                schema = ChainingInstantiateSchema(new_ops=new_ops)
                 # Validate the chain with required input/output keys
                 ChainingInstantiateSchema.validate_chain(
                     new_ops=schema.new_ops,
                     required_input_keys=expected_input_keys,
-                    expected_output_keys=expected_output_keys
+                    expected_output_keys=expected_output_keys,
                 )
-                message_history.append({"role": "assistant", "content": resp.choices[0].message.content})
+                message_history.append(
+                    {"role": "assistant", "content": resp.choices[0].message.content}
+                )
                 return schema, message_history
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
-        
-        raise Exception(f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts.")
-    
-    def apply(self, ops_list: List[Dict], target_op: str, rewrite: ChainingInstantiateSchema) -> List[Dict]:
+
+        raise Exception(
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts."
+        )
+
+    def apply(
+        self, ops_list: List[Dict], target_op: str, rewrite: ChainingInstantiateSchema
+    ) -> List[Dict]:
         """
         Apply the directive to the pipeline config.
         """
         # Create a copy of the pipeline config
         new_ops_list = deepcopy(ops_list)
-        
+
         # Find position of the target ops to replace
-        pos_to_replace = [i for i, op in enumerate(ops_list) if op["name"] == target_op][0]
-        
+        pos_to_replace = [
+            i for i, op in enumerate(ops_list) if op["name"] == target_op
+        ][0]
+
         # Create the new ops from the rewrite
         new_ops = []
         for i, op in enumerate(rewrite.new_ops):
             if i < len(rewrite.new_ops) - 1:
-                new_ops.append({
-                    "name": op.name,
-                    "type": "map",
-                    "prompt": op.prompt,
-                    "model": op.model,
-                    "output": {
-                        "schema": {
-                            key: "string" for key in op.output_keys
-                        }
+                new_ops.append(
+                    {
+                        "name": op.name,
+                        "type": "map",
+                        "prompt": op.prompt,
+                        "model": op.model,
+                        "output": {"schema": {key: "string" for key in op.output_keys}},
                     }
-                })
+                )
             else:
                 # Last op in the chain
-                new_ops.append({
-                    "name": op.name,
-                    "type": "map",
-                    "prompt": op.prompt,
-                    "model": op.model,
-                    "output": new_ops_list[pos_to_replace]["output"]
-                })
-        
+                new_ops.append(
+                    {
+                        "name": op.name,
+                        "type": "map",
+                        "prompt": op.prompt,
+                        "model": op.model,
+                        "output": new_ops_list[pos_to_replace]["output"],
+                    }
+                )
+
         # Remove the target op and insert the new ops
         new_ops_list.pop(pos_to_replace)
         new_ops_list[pos_to_replace:pos_to_replace] = new_ops
-        
+
         return new_ops_list
-    
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = []) -> tuple:
+
+    def instantiate(
+        self,
+        operators: List[Dict],
+        target_ops: List[str],
+        agent_llm: str,
+        message_history: list = [],
+        global_default_model: str = None,
+        **kwargs,
+    ) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
         # Assert that there is only one target op
-        assert len(target_ops) == 1, "There must be exactly one target op to instantiate this chaining directive"
+        assert (
+            len(target_ops) == 1
+        ), "There must be exactly one target op to instantiate this chaining directive"
         target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
-        
+
         # Get the expected input/output keys
         expected_output_keys = list(target_op_config["output"]["schema"].keys())
-        
+
         # Extract expected input keys from the target op's prompt template
         prompt_template = target_op_config["prompt"]
         # Find all occurrences of {{ input.key }} in the prompt
         input_key_pattern = r"\{\{\s*input\.([^\}\s]+)\s*\}\}"
         expected_input_keys = list(set(re.findall(input_key_pattern, prompt_template)))
-        
+
         print("input key: ", expected_input_keys)
         print("output key: ", expected_output_keys)
-        
+
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(target_op_config, expected_input_keys, expected_output_keys, agent_llm, message_history)
-        
+        rewrite, message_history = self.llm_instantiate(
+            target_op_config,
+            expected_input_keys,
+            expected_output_keys,
+            agent_llm,
+            message_history,
+        )
+
         # Apply the rewrite to the operators
         return self.apply(operators, target_ops[0], rewrite), message_history

@@ -1,31 +1,35 @@
-import random
-from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelConfig
-from docetl.reasoning_optimizer.prompts import PromptLibrary
-import litellm
+import json
 import os
 import threading
 import time
-import yaml  
-import json
-import sys
-from pydantic import BaseModel
 from typing import Dict
-from docetl.reasoning_optimizer.load_data import load_input_doc
+
+import litellm
+import yaml
 from op_descriptions import *
-from ChainingDirective import *
-from GleaningDirective import *
-from ChangeModelDirective import *
+from pydantic import BaseModel
+
+from docetl.reasoning_optimizer.directives import (
+    ChainingDirective,
+    ChangeModelDirective,
+    GleaningDirective,
+)
+from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.utils import load_config
-import argparse
+
+# argparse removed - use experiments/reasoning/run_baseline.py for CLI
 
 # Global dictionary of rate limiters per model
-model_rate_limiters: Dict[str, 'TokenRateLimiter'] = {}
-data_dir = '/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/OptimizerV2-baseline-exp/'
+model_rate_limiters: Dict[str, "TokenRateLimiter"] = {}
+# Use environment variable or default to current directory
+data_dir = os.environ.get("EXPERIMENT_DATA_DIR", "./data/")
 
-def get_rate_limiter(model: str, max_tpm: int) -> 'TokenRateLimiter':
+
+def get_rate_limiter(model: str, max_tpm: int) -> "TokenRateLimiter":
     if model not in model_rate_limiters:
         model_rate_limiters[model] = TokenRateLimiter(max_tpm)
     return model_rate_limiters[model]
+
 
 class TokenRateLimiter:
     def __init__(self, max_tpm):
@@ -50,9 +54,12 @@ class TokenRateLimiter:
             time_to_wait = max(0, self.reset_time - time.time())
             time.sleep(time_to_wait)
 
+
 def count_tokens(messages):
     # messages should be a list of dicts, each with a "content" key
-    total_chars = sum(len(m.get("content", "")) for m in messages if isinstance(m, dict))
+    total_chars = sum(
+        len(m.get("content", "")) for m in messages if isinstance(m, dict)
+    )
     return max(1, total_chars // 4)
 
 
@@ -60,9 +67,19 @@ class ResponseFormat(BaseModel):
     directive: str
     operators: List[str]
 
-def get_openai_response(input_query, input_schema, input_data_sample, model="o3", max_tpm=5000000, message_history=[], curr_plan_output="", iteration=1):
+
+def get_openai_response(
+    input_query,
+    input_schema,
+    input_data_sample,
+    model="o3",
+    max_tpm=5000000,
+    message_history=[],
+    curr_plan_output="",
+    iteration=1,
+):
     """
-    The first LLM call. Generates a rewrite plan given the rewrite directives. 
+    The first LLM call. Generates a rewrite plan given the rewrite directives.
     """
 
     if iteration == 1:
@@ -79,7 +96,7 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         - Operators: The processing steps that transform your data. \n
         - Pipeline Specification: The sequence of steps and the output configuration. \n
 
-        Operators: 
+        Operators:
         Operators form the building blocks of data processing pipelines. Below is the list of operators:
         {op_map.to_string()}\n
         {op_extract.to_string()}\n
@@ -91,8 +108,8 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         {op_unnest.to_string()}\n
         {op_sample.to_string()}\n
         {op_resolve.to_string()}\n
-        
-        Rewrite directives: 
+
+        Rewrite directives:
         {ChainingDirective().to_string_for_plan()}\n
         {GleaningDirective().to_string_for_plan()}\n
         {ChangeModelDirective().to_string_for_plan()}\n
@@ -106,7 +123,7 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         user_message = f"""
         Given the previously rewritten pipeline, recommend one specific rewrite directive (specify by its name) that would improve accuracy and pecify which operator (specify by the name) in the pipeline the directive should be applied to.
         Make sure that your cosen directive is in the provided list of rewrite directives.
-         Rewrite directives: 
+         Rewrite directives:
         {ChainingDirective().to_string_for_plan()}\n
         {GleaningDirective().to_string_for_plan()}\n
         {ChangeModelDirective().to_string_for_plan()}\n
@@ -116,10 +133,15 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         Sample of the result from executing the previously rewritten query: {json.dumps(curr_plan_output, indent=2)} \n
         """
 
-    message_history.extend([
-        {"role": "system", "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate execution plans. Your output must follow the structured output format."},
-        {"role": "user", "content": user_message}
-    ])
+    message_history.extend(
+        [
+            {
+                "role": "system",
+                "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate execution plans. Your output must follow the structured output format.",
+            },
+            {"role": "user", "content": user_message},
+        ]
+    )
     messages = message_history
 
     # Enforce rate limit for the specified model
@@ -135,8 +157,8 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
         api_base=os.environ.get("AZURE_API_BASE"),
         api_version=os.environ.get("AZURE_API_VERSION"),
         azure=True,
-        reasoning_effort = "high",
-        response_format=ResponseFormat
+        reasoning_effort="high",
+        response_format=ResponseFormat,
     )
     # response = litellm.completion(
     #     model=model,
@@ -148,48 +170,50 @@ def get_openai_response(input_query, input_schema, input_data_sample, model="o3"
     assistant_response = response.choices[0].message.content
 
     # Add user and assistant messages to message_history as dicts
-    message_history.append(
-        {"role": "assistant", "content": assistant_response}
-    )
+    message_history.append({"role": "assistant", "content": assistant_response})
     return assistant_response, message_history
+
 
 def update_yaml_operations(input_file_path, output_file_path, new_operations):
     """
     Load a YAML file, replace the operations section, and save to a new file.
-    
+
     Args:
         input_file_path (str): Path to the original YAML file
         output_file_path (str): Path where the modified YAML will be saved
         new_operations (list): List of operation dictionaries to replace the original operations
     """
     # Load the original YAML file
-    with open(input_file_path, 'r') as file:
+    with open(input_file_path, "r") as file:
         config = yaml.safe_load(file)
-    
+
     # Replace the operations section
-    config['operations'] = new_operations
-    
+    config["operations"] = new_operations
+
     # Write the modified config to a new YAML file
-    with open(output_file_path, 'w') as file:
-        yaml.dump(config, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    
+    with open(output_file_path, "w") as file:
+        yaml.dump(
+            config, file, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
+
     print(f"Modified YAML saved to: {output_file_path}")
+
 
 def update_pipeline(orig_config, new_ops_list, target_ops):
     """
     Update the pipeline configuration with new operations.
-    
+
     Args:
         orig_config (dict): The original pipeline configuration
         new_ops_list (list): List of new operations to add
         target_ops (list): List of target operation names to replace
-        
+
     Returns:
         dict: Updated pipeline configuration
     """
     if new_ops_list is not None:
         op_names = [op.get("name") for op in new_ops_list if "name" in op]
-    
+
     # Update the pipeline steps to use the new operation names
     if "pipeline" in orig_config and "steps" in orig_config["pipeline"]:
         for step in orig_config["pipeline"]["steps"]:
@@ -199,19 +223,19 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
                     if op == target_ops[0]:
                         new_ops.extend(op_names)
                 step["operations"] = new_ops
-               
-    
+
     return orig_config
+
 
 def update_sample(new_ops_list, target_ops, orig_operators):
     """
     Update sample settings in new operations based on original operators.
-    
+
     Args:
         new_ops_list (list): List of new operations to update
         target_ops (list): List of target operation names
         orig_operators (list): List of original operators
-        
+
     Returns:
         list: Updated new operations list with sample settings
     """
@@ -223,77 +247,92 @@ def update_sample(new_ops_list, target_ops, orig_operators):
     sample_size = -1
     for target_op_name in target_ops:
         target_op = op_name_to_config[target_op_name]
-        if "sample" in target_op: 
+        if "sample" in target_op:
             sample_size = target_op["sample"]
-    
+
     print("SAMPLE SIZE: ", sample_size)
-        
+
     for op in new_ops_list:
-        if sample_size != -1: 
+        if sample_size != -1:
             op["sample"] = sample_size
-    
+
     return new_ops_list
+
 
 def save_message_history(message_history, filepath):
     """
     Save message history to a JSON file.
-    
+
     Args:
         message_history (list): List of message dictionaries
         filepath (str): Path to save the message history
     """
-    with open(filepath, 'w') as f:
+    with open(filepath, "w") as f:
         json.dump(message_history, f, indent=2)
     print(f"Message history saved to: {filepath}")
+
 
 def load_message_history(filepath):
     """
     Load message history from a JSON file.
-    
+
     Args:
         filepath (str): Path to the message history file
-        
+
     Returns:
         list: List of message dictionaries, or empty list if file doesn't exist
     """
     if os.path.exists(filepath):
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             return json.load(f)
     return []
 
-def run_single_iteration(yaml_path, model, max_tpm, message_history, iteration_num, orig_output_sample):
+
+def run_single_iteration(
+    yaml_path, model, max_tpm, message_history, iteration_num, orig_output_sample
+):
     """
     Run a single iteration of the optimization process.
-    
+
     Args:
         yaml_path (str): Path to the YAML file
         model (str): Model name
         max_tpm (int): Tokens per minute limit
         message_history (list): Cumulative message history
         iteration_num (int): Current iteration number
-        
+
     Returns:
         tuple: (output_file_path, updated_message_history)
     """
     print(f"\n=== Running Iteration {iteration_num} ===")
     print(f"Input file: {yaml_path}")
-    
+
     # Parse input yaml file to get the list of operations
     orig_config = load_config(yaml_path)
     orig_operators = orig_config["operations"]
 
-    with open('/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD_random_sample.json', 'r') as f:
+    sample_data_path = os.path.join(data_dir, "CUAD_random_sample.json")
+    with open(sample_data_path, "r") as f:
         random_sample = json.load(f)
 
     with open(yaml_path, "r") as f:
         input_query = f.read()
-    
+
     input_schema = load_input_doc(yaml_path)
-    
-    reply, message_history = get_openai_response(input_query, input_schema, random_sample, model=model, max_tpm=max_tpm, message_history=message_history, curr_plan_output=orig_output_sample, iteration=iteration_num)    
+
+    reply, message_history = get_openai_response(
+        input_query,
+        input_schema,
+        random_sample,
+        model=model,
+        max_tpm=max_tpm,
+        message_history=message_history,
+        curr_plan_output=orig_output_sample,
+        iteration=iteration_num,
+    )
     print("Agent:", reply)
 
-    # Parse agent response 
+    # Parse agent response
     try:
         parsed = json.loads(reply)
         directive = parsed.get("directive")
@@ -305,23 +344,42 @@ def run_single_iteration(yaml_path, model, max_tpm, message_history, iteration_n
 
     new_ops_list = None
     if directive == "chaining":
-        new_ops_list, message_history = ChainingDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=model, message_history=message_history)
+        new_ops_list, message_history = ChainingDirective().instantiate(
+            operators=orig_operators,
+            target_ops=target_ops,
+            agent_llm=model,
+            message_history=message_history,
+        )
         orig_config["operations"] = new_ops_list
-        
+
         orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
         new_ops_list = update_sample(new_ops_list, target_ops, orig_operators)
         orig_config["operations"] = new_ops_list
 
     elif directive == "gleaning":
-        new_ops_list, message_history = GleaningDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=model, message_history=message_history)
+        new_ops_list, message_history = GleaningDirective().instantiate(
+            operators=orig_operators,
+            target_ops=target_ops,
+            agent_llm=model,
+            message_history=message_history,
+        )
         orig_config["operations"] = new_ops_list
 
     elif directive == "change model":
-        new_ops_list, message_history = ChangeModelDirective().instantiate(operators=orig_operators, target_ops=target_ops, agent_llm=model, message_history=message_history)
+        new_ops_list, message_history = ChangeModelDirective().instantiate(
+            operators=orig_operators,
+            target_ops=target_ops,
+            agent_llm=model,
+            message_history=message_history,
+        )
         orig_config["operations"] = new_ops_list
 
-    output_file_path = os.path.join(data_dir, "agent_optimized_plan/group10", f"CUAD-map_opt_iter_{iteration_num}.yaml")
-    
+    output_file_path = os.path.join(
+        data_dir,
+        "agent_optimized_plan/group10",
+        f"CUAD-map_opt_iter_{iteration_num}.yaml",
+    )
+
     # Ensure every operator's model starts with 'azure/'
     for op in orig_config.get("operations", []):
         if "model" in op and not str(op["model"]).startswith("azure/"):
@@ -331,90 +389,19 @@ def run_single_iteration(yaml_path, model, max_tpm, message_history, iteration_n
     orig_config["bypass_cache"] = True
 
     # Save the modified config
-    with open(output_file_path, 'w') as file:
-        yaml.dump(orig_config, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    
+    with open(output_file_path, "w") as file:
+        yaml.dump(
+            orig_config,
+            file,
+            default_flow_style=False,
+            allow_unicode=True,
+            sort_keys=False,
+        )
+
     print(f"Modified YAML saved to: {output_file_path}")
-    
+
     return output_file_path, message_history
 
-def run_iterative_optimization(initial_yaml_path, model, max_tpm, num_iterations, message_history_file=None, orig_output_sample=""):
-    """
-    Run iterative optimization process.
-    
-    Args:
-        initial_yaml_path (str): Path to the initial YAML file
-        model (str): Model name
-        max_tpm (int): Tokens per minute limit
-        num_iterations (int): Number of iterations to run
-        message_history_file (str): Path to save/load message history
-        
-    Returns:
-        str: Path to the final optimized YAML file
-    """
-    message_history = []
-    
-    if message_history_file is not None:
-        try:
-            with open(message_history_file, "r") as f:
-                message_history = json.load(f)
-        except Exception as e:
-            print(f"Warning: Could not load message history from {message_history_file}: {e}")
-    
-    current_yaml_path = initial_yaml_path
-    
-    #for iteration in range(1, num_iterations + 1):
-    iteration = 5 
-    output_path, message_history = run_single_iteration(
-        current_yaml_path, model, max_tpm, message_history, iteration, orig_output_sample
-    )
-    
-    if output_path is None:
-        print(f"Iteration {iteration} failed. Stopping.")
-    
-    # Save message history after each iteration
-    message_history_output_file = os.path.join(data_dir, "message_history/group10", f"message_history_{model}_iter_{iteration}.json")
-    save_message_history(message_history, message_history_output_file)
-    
-    # Use the output as input for the next iteration
-    current_yaml_path = output_path
-    
-    print(f"Iteration {iteration} completed. Output: {output_path}")
-    
-    return current_yaml_path
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Iterative pipeline optimization with persistent chat history.")
-    parser.add_argument("--model", type=str, default="o3", help="Model name")
-    parser.add_argument("--max_tpm", type=int, default=5000000, help="Token per minute limit for the model")
-    parser.add_argument("--yaml_path", type=str, required=True, help="Path to the initial YAML file")
-    parser.add_argument("--iterations", type=int, default=1, help="Number of iterations to run (default: 1 for single run)")
-    parser.add_argument("--message_history_file", type=str, help="Path to sxave/load message history (optional)")
-    parser.add_argument("--orig_output_file", type=str, help="Path to the output json file of the original query plan (optional)")
-
-    args = parser.parse_args()
-
-    orig_output_sample = ""
-    if args.orig_output_file:
-        try:
-            with open(args.orig_output_file, "r") as f:
-                orig_output_sample = json.load(f)
-        except Exception as e:
-            print(f"Warning: Could not load eval result file: {e}")
-    
-    
-    # Run iterative optimization (works for both single and multiple iterations)
-    final_output = run_iterative_optimization(
-        args.yaml_path, 
-        args.model, 
-        args.max_tpm, 
-        args.iterations,
-        args.message_history_file,
-        orig_output_sample
-    )
-    
-    print(f"\n=== Optimization Complete ===")
-    if args.iterations == 1:
-        print(f"Single iteration completed. Output: {final_output}")
-    else:
-        print(f"Final optimized file after {args.iterations} iterations: {final_output}")
+# agent.py is now a pure module - no experiment code
+# Use experiments/reasoning/run_baseline.py to run experiments

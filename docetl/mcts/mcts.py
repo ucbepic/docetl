@@ -9,10 +9,8 @@ import yaml
 from pydantic import BaseModel
 
 from docetl.reasoning_optimizer.directives import (
-    ChainingDirective,
-    ChangeModelDirective,
     Directive,
-    GleaningDirective,
+    get_all_directive_strings,
 )
 from docetl.reasoning_optimizer.op_descriptions import *
 
@@ -288,9 +286,7 @@ class MCTS:
         {op_resolve.to_string()}\n
 
         Rewrite directives:
-        {ChainingDirective().to_string_for_plan()}\n
-        {GleaningDirective().to_string_for_plan()}\n
-        {ChangeModelDirective().to_string_for_plan()}\n
+        {get_all_directive_strings()}\n
 
         Your valid choice of operation and rewrite directive combination. Only choose one of these:
         {availabel_actions_str}
@@ -349,9 +345,7 @@ class MCTS:
         {op_resolve.to_string()}\n
 
         Rewrite directives:
-        {ChainingDirective().to_string_for_plan()}\n
-        {GleaningDirective().to_string_for_plan()}\n
-        {ChangeModelDirective().to_string_for_plan()}\n
+        {get_all_directive_strings()}\n
 
         Your valid choice of operation and rewrite directive combination. Only choose one of these:
         {availabel_actions_str}

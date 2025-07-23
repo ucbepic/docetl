@@ -10,9 +10,8 @@ from op_descriptions import *
 from pydantic import BaseModel
 
 from docetl.reasoning_optimizer.directives import (
-    ChainingDirective,
-    ChangeModelDirective,
-    GleaningDirective,
+    get_all_directive_strings,
+    instantiate_directive,
 )
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.utils import load_config
@@ -110,9 +109,7 @@ def get_openai_response(
         {op_resolve.to_string()}\n
 
         Rewrite directives:
-        {ChainingDirective().to_string_for_plan()}\n
-        {GleaningDirective().to_string_for_plan()}\n
-        {ChangeModelDirective().to_string_for_plan()}\n
+        {get_all_directive_strings()}\n
 
         Input document schema with token statistics: {input_schema} \n
         Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]} \n
@@ -124,9 +121,7 @@ def get_openai_response(
         Given the previously rewritten pipeline, recommend one specific rewrite directive (specify by its name) that would improve accuracy and pecify which operator (specify by the name) in the pipeline the directive should be applied to.
         Make sure that your cosen directive is in the provided list of rewrite directives.
          Rewrite directives:
-        {ChainingDirective().to_string_for_plan()}\n
-        {GleaningDirective().to_string_for_plan()}\n
-        {ChangeModelDirective().to_string_for_plan()}\n
+        {get_all_directive_strings()}\n
 
         Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
@@ -342,37 +337,25 @@ def run_single_iteration(
         print(f"Failed to parse agent response: {e}")
         return None, message_history
 
-    new_ops_list = None
-    if directive == "chaining":
-        new_ops_list, message_history = ChainingDirective().instantiate(
+    try:
+        new_ops_list, message_history = instantiate_directive(
+            directive_name=directive,
             operators=orig_operators,
             target_ops=target_ops,
             agent_llm=model,
             message_history=message_history,
         )
         orig_config["operations"] = new_ops_list
-
-        orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
-        new_ops_list = update_sample(new_ops_list, target_ops, orig_operators)
-        orig_config["operations"] = new_ops_list
-
-    elif directive == "gleaning":
-        new_ops_list, message_history = GleaningDirective().instantiate(
-            operators=orig_operators,
-            target_ops=target_ops,
-            agent_llm=model,
-            message_history=message_history,
-        )
-        orig_config["operations"] = new_ops_list
-
-    elif directive == "change model":
-        new_ops_list, message_history = ChangeModelDirective().instantiate(
-            operators=orig_operators,
-            target_ops=target_ops,
-            agent_llm=model,
-            message_history=message_history,
-        )
-        orig_config["operations"] = new_ops_list
+        
+        # Apply special post-processing for chaining directive
+        if directive == "chaining":
+            orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
+            new_ops_list = update_sample(new_ops_list, target_ops, orig_operators)
+            orig_config["operations"] = new_ops_list
+            
+    except ValueError as e:
+        print(f"Failed to instantiate directive '{directive}': {e}")
+        return None, message_history
 
     output_file_path = os.path.join(
         data_dir,

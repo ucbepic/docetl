@@ -4,7 +4,6 @@ from openai import AzureOpenAI
 endpoint = ""
 model_name = "model-router"
 deployment = "model-router"
-
 subscription_key = ""
 api_version = "2024-12-01-preview"
 

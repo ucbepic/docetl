@@ -5,7 +5,8 @@ from acc_comparator import AccuracyComparator
 from Node import Node
 import matplotlib.pyplot as plt
 from CUAD_evaluate import evaluate_results
-
+from copy import deepcopy
+from pymoo.indicators.hv import HV
 
 class ParetoFrontier:
     """
@@ -30,6 +31,11 @@ class ParetoFrontier:
         self.plans_accuracy: Dict[Node, float] = {}
         self.plans_cost: Dict[Node, float] = {}
         self.frontier_plans: List[Node] = []  # List of nodes on frontier
+        self.frontier_data: List[List[int]] = [] # List of [acc, cost] of nodes on frontier
+        
+        # Root plan reference point for hypervolume calculation
+        self.root_accuracy: Optional[float] = None
+        self.root_cost: Optional[float] = None
         
     
     def add_plan(self, node: Node) -> Dict[Node, int]:
@@ -63,7 +69,7 @@ class ParetoFrontier:
         if node not in affected_nodes: affected_nodes[node] = 0
         return affected_nodes
     
-    def add_plan_f1(self, node: Node) -> Dict[Node, int]:
+    def add_plan_f1(self, node: Node) -> Tuple[Dict[Node, int], bool]:
         """
         Add a new plan (Node) to the frontier and estimate its accuracy.
         
@@ -71,10 +77,10 @@ class ParetoFrontier:
             node: Node object representing the plan
             
         Returns:
-            Dict containing estimated accuracy, pareto_value, and other metrics
+            Dict containing affected nodes, bool indicating wether the frontier is updated
         """
         if node.cost == -1:  # Handle error case
-            return {}
+            return {}, False
         
         # Store plan information
         self.plans.append(node)
@@ -91,10 +97,15 @@ class ParetoFrontier:
         true_f1 = results["avg_f1"]
         self.plans_accuracy[node] = true_f1
 
+        # Set root reference point if this is the first plan (root)
+        if len(self.plans) == 1:
+            self.root_accuracy = true_f1
+            self.root_cost = node.cost
+            print(f"Root reference point set: accuracy={true_f1}, cost={node.cost}")
+
         # Update Pareto frontier
-        affected_nodes = self.update_pareto_frontier()
-        if node not in affected_nodes: affected_nodes[node] = 0
-        return affected_nodes
+        affected_nodes, is_frontier_updated = self.update_pareto_frontier_HV(node)
+        return affected_nodes, is_frontier_updated
 
     def get_all_plans_summary(self) -> List[Dict[str, Any]]:
         """
@@ -163,8 +174,183 @@ class ParetoFrontier:
         
         # Constrain to reasonable range
         return max(0.1, min(0.95, final_accuracy))
+
+    # Helper function to project point onto piecewise linear surface P
+    def project_to_frontier(self, node_acc, node_cost, frontier_data):
+        """
+        Project point onto the piecewise linear surface formed by frontier.
+        Returns the projected point coordinates. The projection is whichever point (frontier point or segment projection) gives the smallest distance.
+        """
+        if not frontier_data:
+            return [node_acc, node_cost]
+        
+        # Find the closest point on the frontier envelope
+        min_distance = float('inf')
+        projected_point = [node_acc, node_cost]
+        
+        # Check projection onto each frontier segment
+        frontier_sorted = sorted(frontier_data, key=lambda x: x[1])  # Sort by cost
+        
+        for i in range(len(frontier_sorted)):
+            # Project onto the point itself
+            fp_acc, fp_cost = frontier_sorted[i]
+            distance = ((node_acc - fp_acc)**2 + (node_cost - fp_cost)**2)**0.5
+            if distance < min_distance:
+                min_distance = distance
+                projected_point = [fp_acc, fp_cost]
+            
+            # Project onto line segment between consecutive frontier points
+            if i < len(frontier_sorted) - 1:
+                p1_acc, p1_cost = frontier_sorted[i]
+                p2_acc, p2_cost = frontier_sorted[i + 1]
+                
+                # Project point onto line segment
+                # Vector from p1 to p2
+                v_acc = p2_acc - p1_acc
+                v_cost = p2_cost - p1_cost
+                
+                # Vector from p1 to node
+                w_acc = node_acc - p1_acc
+                w_cost = node_cost - p1_cost
+                
+                # Project w onto v
+                if v_acc**2 + v_cost**2 > 0:  # Avoid division by zero
+                    t = (w_acc * v_acc + w_cost * v_cost) / (v_acc**2 + v_cost**2)
+                    t = max(0, min(1, t))  # Clamp t to [0,1] for line segment
+                    
+                    proj_acc = p1_acc + t * v_acc
+                    proj_cost = p1_cost + t * v_cost
+                    
+                    distance = ((node_acc - proj_acc)**2 + (node_cost - proj_cost)**2)**0.5
+                    if distance < min_distance:
+                        min_distance = distance
+                        projected_point = [proj_acc, proj_cost]
+        
+        return projected_point
     
-    
+    def update_pareto_frontier_HV(self, new_node) -> Tuple[Dict[Node, int], bool]:
+        """
+        Update the Pareto frontier based on current plans and calculate hyper-volume indicator.
+        """
+
+        print("UPDATING Pareto Frontier")
+        valid_nodes = [node for node in self.plans if node.cost != -1]
+        affected_nodes = {}
+        
+        if not valid_nodes:
+            self.frontier_plans = []
+            self.frontier_data = []
+            return affected_nodes, False
+        
+        # Sort by cost
+        valid_nodes.sort(key=lambda node: node.cost)
+
+        archive_frontier_data = deepcopy(self.frontier_data)
+        
+        frontier = []
+        max_accuracy_so_far = -1
+        
+        for node in valid_nodes:
+            accuracy = self.plans_accuracy.get(node, 0.0)
+            
+            # Plan is on frontier if it has higher accuracy than all lower-cost plans
+            if accuracy > max_accuracy_so_far:
+                frontier.append(node)
+                max_accuracy_so_far = accuracy
+        
+        new_frontier_data = []
+        for node in frontier:
+            acc = self.plans_accuracy.get(node, 0.0)
+            cost = node.cost
+            new_frontier_data.append([acc, cost])
+
+        # Transform data for hypervolume calculation (convert to minimization problem)
+        def transform_for_hv(frontier_data):
+            if not frontier_data:
+                return []
+            transformed = []
+            fixed_max_cost = 10.0  # Fixed upper bound for cost transformation
+            for acc, cost in frontier_data:
+                # For HV minimization: negate accuracy (higher acc = lower -acc)
+                # Keep cost as is (lower cost = better for minimization)
+                transformed.append([-acc, cost])
+            return transformed
+
+        # Transform both archive and new frontier data for hypervolume calculation only
+        archive_transformed = transform_for_hv(archive_frontier_data)
+        new_transformed = transform_for_hv(new_frontier_data)
+        
+        # Set reference point based on root plan (baseline)
+        if self.root_accuracy is not None and self.root_cost is not None:
+            # Use root accuracy as baseline, but ensure cost reference is higher than all possible costs
+            reference_pt = np.array([-self.root_accuracy, max(10.0, self.root_cost + 1.0)])
+        else:
+            # Fallback if root not set yet
+            reference_pt = np.array([0.0, 10.0])
+        
+        ind = HV(ref_point=reference_pt)
+        if len(archive_transformed) == 0:
+            archive_w = 0.0  
+        else:
+            archive_transformed_array = np.array(archive_transformed)
+            print("ARCHIVE ARRAY SHAPE:", archive_transformed_array.shape)
+            print("ARCHIVE ARRAY:", archive_transformed_array)
+            archive_w = ind(archive_transformed_array)
+        
+        if new_transformed:
+            new_transformed_array = np.array(new_transformed)
+            print("NEW ARRAY SHAPE:", new_transformed_array.shape) 
+            print("NEW ARRAY:", new_transformed_array)
+            w = ind(new_transformed_array)
+        else:
+            w = 0.0
+        print("FRONTIER: ", archive_frontier_data)
+        print("NEW FRONTIER: ", new_frontier_data)
+        print("ARCHIVE TRANSFORMED: ", archive_transformed)
+        print("NEW TRANSFORMED: ", new_transformed)
+        print("REFERENCE POINT: ", reference_pt)
+        print("archive_W: ", archive_w)
+        print("w: ", w)
+
+        frontier_updated = False
+        if w == archive_w: # frontier not updated, new node is not on frontier
+            print("HERE_________ID: ", new_node.id)
+            new_node.on_frontier = False
+            node_cost = new_node.cost
+            node_acc = self.plans_accuracy[new_node]
+            projected_point = self.project_to_frontier(node_acc, node_cost, new_frontier_data)
+            euclidean_distance = ((node_acc - projected_point[0])**2 + 
+                                (node_cost - projected_point[1])**2)**0.5
+            print("euclidean_dis: ", euclidean_distance)
+            affected_nodes[new_node] = -euclidean_distance
+        else: 
+            frontier_updated = True
+            # Only update nodes whose frontier status changed
+            old_frontier_set = set(self.frontier_plans)
+            new_frontier_set = set(frontier)
+            
+            for node in valid_nodes:
+                if node in new_frontier_set and node not in old_frontier_set:
+                    # Newly on frontier - reward with marginal hypervolume contribution
+                    node.on_frontier = True
+                    affected_nodes[node] = w - archive_w
+                elif node not in new_frontier_set:
+                    node.on_frontier = False
+                    node_cost = node.cost
+                    node_acc = self.plans_accuracy[node]
+                    projected_point = self.project_to_frontier(node_acc, node_cost, new_frontier_data)
+                    euclidean_distance = ((node_acc - projected_point[0])**2 + 
+                                        (node_cost - projected_point[1])**2)**0.5
+                    affected_nodes[node] = -euclidean_distance
+                # Don't update nodes that stayed on/off frontier
+
+        self.frontier_plans = frontier
+        self.frontier_data = new_frontier_data
+
+        self.plot_plans()
+        print("affected_nodes: ", affected_nodes)
+        return affected_nodes, frontier_updated
+
     def update_pareto_frontier(self) -> Dict[Node, int]:
         """
         Update the Pareto frontier based on current plans.

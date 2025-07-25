@@ -44,7 +44,7 @@ class Node:
             self.used_actions_acc[op_name] = set()
             self.used_actions_cost[op_name] = set()
         self.visits = 0
-        self.value = 0.0 
+        self.value = -math.inf
         self.parent = parent
         self.children = []
         self.c = c  # Exploration constant for UCB
@@ -58,7 +58,7 @@ class Node:
 
         print("NODE ID: ", self.id)
         print("USED ACTIONS ACC: ", self.used_actions_acc)
-        print("USED ACTIONS COST: ", self.used_actions_cost)
+        # print("USED ACTIONS COST: ", self.used_actions_cost)
 
 
     def execute_plan(self, max_threads: Optional[int] = None) -> tuple[float, list]:
@@ -210,7 +210,8 @@ class Node:
         Args:
             value: The value to add to the current node value
         """
-        self.value += value
+        print("***", self.id, self.value, value)
+        self.value = max(self.value, value)
     
     def update_visit(self):
         """

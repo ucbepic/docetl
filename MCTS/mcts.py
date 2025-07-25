@@ -126,9 +126,8 @@ class MCTS:
         
         # 2. Expansion: Always attempt to expand the leaf, catch errors
         print("EXPANSION")
-        expansion_errors = []
         acc_children = []
-        cost_children = []
+        # cost_children = []
 
         has_leaf_acc = 1
         try:
@@ -136,17 +135,11 @@ class MCTS:
         except RuntimeError as e:
             has_leaf_acc = 0
         
-        has_leaf_cost = 1
-        try:
-            cost_children = self.expand(leaf, optimize_goal="cost")
-        except RuntimeError as e:
-            has_leaf_cost= 0
-
-        if expansion_errors:
-            print("Expansion encountered errors:")
-            for goal, err in expansion_errors:
-                print(f"  - Goal '{goal}': {err}")
-            return
+        # has_leaf_cost = 1
+        # try:
+        #     cost_children = self.expand(leaf, optimize_goal="cost")
+        # except RuntimeError as e:
+        #     has_leaf_cost= 0
         
         # 3. Simulation: Run simulations from the leaf
         print("SIMULATION")
@@ -154,22 +147,20 @@ class MCTS:
         if has_leaf_acc: 
             print("HAS LEAF ACC")
             for leaf_acc in acc_children:
-                affected_nodes = self.simulate(leaf_acc)
+                affected_nodes, is_frontier_updated = self.simulate(leaf_acc)
                 # Check if any node was added to the frontier (value = 1)
-                if any(val == 1 for val in affected_nodes.values()):
-                    found_new_pareto_plan = True
                 self.backpropagate(affected_nodes, leaf_acc)
-        if has_leaf_cost: 
-            print("HAS LEAF COST")
-            for leaf_cost in cost_children:
-                affected_nodes = self.simulate(leaf_cost)
-                # Check if any node was added to the frontier (value = 1)
-                if any(val == 1 for val in affected_nodes.values()):
-                    found_new_pareto_plan = True
-                self.backpropagate(affected_nodes, leaf_cost)
+        # if has_leaf_cost: 
+        #     print("HAS LEAF COST")
+        #     for leaf_cost in cost_children:
+        #         affected_nodes = self.simulate(leaf_cost)
+        #         # Check if any node was added to the frontier (value = 1)
+        #         if any(val == 1 for val in affected_nodes.values()):
+        #             found_new_pareto_plan = True
+        #         self.backpropagate(affected_nodes, leaf_cost)
         
         # Update counter for early stopping
-        if found_new_pareto_plan:
+        if is_frontier_updated:
             self.iterations_without_improvement = 0
         else:
             self.iterations_without_improvement += 1
@@ -245,7 +236,7 @@ class MCTS:
         for op in node.parsed_yaml["operations"]:
             op_name = op.get("name")
             if len(node.used_actions_acc[op_name]) < 3: return False
-            if len(node.used_actions_cost[op_name]) < 1: return False
+            # if len(node.used_actions_cost[op_name]) < 1: return False
         return True
 
     def expansion_prompt_acc(self, action_options, input_query) -> str:
@@ -503,8 +494,8 @@ class MCTS:
         """
         
         node.execute_plan()
-        affected_nodes = self.pareto_frontier.add_plan_f1(node)
-        return affected_nodes 
+        affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node)
+        return affected_nodes, is_frontier_updated
 
     def backpropagate(self, affected_nodes: Dict[Node, int], visit_node):
         """
@@ -514,7 +505,7 @@ class MCTS:
         for node, val in affected_nodes.items():
             current = node
             while current is not None:
-                print("$$$$ ID: ", current.get_id(), "VAL: ",  val)
+                # print("$$$$ ID: ", current.get_id(), "VAL: ",  val)
                 current.update_value(val)
                 current = current.parent
         
@@ -522,7 +513,6 @@ class MCTS:
         while current is not None:
             current.update_visit()
             current = current.parent
-
     
     def should_continue(self) -> bool:
         """Check if MCTS should continue running."""

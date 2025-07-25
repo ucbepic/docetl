@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import List, Dict
-from pydantic import field_validator
 import re
+from typing import Dict, List
+
+from pydantic import BaseModel, Field, field_validator
+
 
 class MapOpConfig(BaseModel):
     """
@@ -115,9 +116,15 @@ class GleaningConfig(BaseModel):
         model (str): The model to use for validation.
     """
 
-    validation_prompt: str = Field(..., description="The prompt to evaluate and improve the output of the upstream operator.")
-    num_rounds: int = Field(..., description="The maximum number of refinement iterations.")
+    validation_prompt: str = Field(
+        ...,
+        description="The prompt to evaluate and improve the output of the upstream operator.",
+    )
+    num_rounds: int = Field(
+        ..., description="The maximum number of refinement iterations."
+    )
     model: str = Field(default="gpt-4o-mini", description="The LLM model to use.")
+
 
 class GleaningInstantiateSchema(BaseModel):
     """
@@ -125,11 +132,11 @@ class GleaningInstantiateSchema(BaseModel):
     """
 
     gleaning_config: GleaningConfig = Field(
-        ...,
-        description="The gleaning configuration to apply to the target operation."
+        ..., description="The gleaning configuration to apply to the target operation."
     )
 
     # validate methods can be added here
+
 
 class ChangeModelConfig(BaseModel):
     """
@@ -140,6 +147,7 @@ class ChangeModelConfig(BaseModel):
     """
 
     model: str = Field(default="gpt-4o-mini", description="The new LLM model to use.")
+
 
 class ChangeModelInstantiateSchema(BaseModel):
     """
@@ -168,4 +176,263 @@ class ChangeModelInstantiateSchema(BaseModel):
         elif change_model_config.model == orig_model:
             raise ValueError(f"Model '{change_model_config.model}' is the same as the original model used: {orig_model}")
     
-    
+
+
+class DocSummarizationConfig(BaseModel):
+    """
+    Configuration for document summarization.
+
+    Attributes:
+        name (str): The name of the Map summarization operator.
+        document_key (str): The key in the input document that contains long content to be summarized.
+        prompt (str): Jinja prompt template for summarizing the document. Must reference {{ input.<document_key> }}.
+        model (str): The model to use for summarization.
+    """
+
+    name: str = Field(..., description="The name of the Map summarization operator")
+    document_key: str = Field(
+        ...,
+        description="The key in the input document that contains long content to be summarized",
+    )
+    prompt: str = Field(
+        ...,
+        description="Jinja prompt template for summarizing the document. Must reference {{ input.<document_key> }} and preserve information needed by downstream operators.",
+    )
+    model: str = Field(
+        default="gpt-4o-mini", description="The model to use for summarization."
+    )
+
+    @field_validator("prompt")
+    @classmethod
+    def check_prompt_references_document_key(cls, v: str, info) -> str:
+        # First check that it contains at least one input reference
+        MapOpConfig.validate_prompt_contains_input_key(v)
+
+        # Then check that it specifically references the document_key
+        if hasattr(info, "data") and "document_key" in info.data:
+            document_key = info.data["document_key"]
+            pattern = r"\{\{\s*input\." + re.escape(document_key) + r"\s*\}\}"
+            if not re.search(pattern, v):
+                raise ValueError(
+                    f"The prompt must reference the document_key as '{{{{ input.{document_key} }}}}'"
+                )
+
+        return v
+
+
+class DocSummarizationInstantiateSchema(BaseModel):
+    """
+    Schema for document summarization operations in a data processing pipeline.
+    """
+
+    doc_summarization_config: DocSummarizationConfig = Field(
+        ...,
+        description="The document summarization configuration to apply at the start of the pipeline.",
+    )
+
+
+class SubtaskConfig(BaseModel):
+    """
+    Configuration for a single subtask in the parallel map phase.
+    """
+
+    name: str = Field(..., description="The name of this subtask")
+    prompt: str = Field(
+        ...,
+        description="Jinja template for this subtask. MUST use {{ input.ORIGINAL_KEY }} to reference the same input key as the original map operation. Example: 'Extract basic info from {{ input.document }}'",
+    )
+    output_keys: List[str] = Field(
+        ..., description="The output keys this subtask generates"
+    )
+
+    @field_validator("prompt")
+    @classmethod
+    def check_prompt(cls, v: str) -> str:
+        return MapOpConfig.validate_prompt_contains_input_key(v)
+
+
+class IsolatingSubtasksConfig(BaseModel):
+    """
+    Configuration for isolating subtasks directive.
+    """
+
+    subtasks: List[SubtaskConfig] = Field(
+        ..., description="List of subtasks for the parallel map"
+    )
+    aggregation_prompt: str = Field(
+        default="",
+        description="Jinja template to combine all subtask outputs into final result. MUST reference subtask outputs as {{ input.subtask_1_output }}, {{ input.subtask_2_output }}, etc. If empty, no aggregation step will be created. Example: 'Combine the basic info {{ input.subtask_1_output }} with details {{ input.subtask_2_output }}'",
+    )
+
+    @field_validator("aggregation_prompt")
+    @classmethod
+    def check_aggregation_prompt(cls, v: str) -> str:
+        # Skip validation if empty (no aggregation needed)
+        if not v.strip():
+            return v
+        return MapOpConfig.validate_prompt_contains_input_key(v)
+
+    def validate_subtasks_coverage(self, original_output_keys: List[str]) -> None:
+        """
+        Validates that subtasks collectively cover all original output keys.
+        """
+        subtask_keys = set()
+        for subtask in self.subtasks:
+            subtask_keys.update(subtask.output_keys)
+
+        original_keys_set = set(original_output_keys)
+        if subtask_keys != original_keys_set:
+            missing = original_keys_set - subtask_keys
+            extra = subtask_keys - original_keys_set
+            error_parts = []
+            if missing:
+                error_parts.append(f"Missing keys: {list(missing)}")
+            if extra:
+                error_parts.append(f"Extra keys: {list(extra)}")
+            raise ValueError(
+                f"Subtasks must cover exactly the original output keys. {'; '.join(error_parts)}"
+            )
+
+    def validate_aggregation_references_all_subtasks(self) -> None:
+        """
+        Validates that the aggregation prompt references outputs from all subtasks.
+        Uses the actual output keys generated by the LLM for each subtask.
+        Only validates if aggregation_prompt is not empty.
+        """
+        if not self.aggregation_prompt.strip():
+            return  # Skip validation if no aggregation prompt
+
+        missing_references = []
+        for i, subtask in enumerate(self.subtasks):
+            for output_key in subtask.output_keys:
+                pattern = r"\{\{\s*input\." + re.escape(output_key) + r"\s*\}\}"
+                if not re.search(pattern, self.aggregation_prompt):
+                    missing_references.append(output_key)
+
+        if missing_references:
+            raise ValueError(
+                f"Aggregation prompt must reference all subtask output keys. "
+                f"Missing references: {missing_references}. "
+                f"Expected patterns like: {{{{ input.{missing_references[0]} }}}}"
+            )
+
+
+class IsolatingSubtasksInstantiateSchema(BaseModel):
+    """
+    Schema for isolating subtasks operations in a data processing pipeline.
+    Rewrites a Map into Parallel Map -> Map pattern for better subtask isolation.
+    """
+
+    isolating_subtasks_config: IsolatingSubtasksConfig = Field(
+        ...,
+        description="The isolating subtasks configuration to apply to the target operation.",
+    )
+
+
+class DocCompressionConfig(BaseModel):
+    """
+    Configuration for document compression using Extract operation.
+
+    Attributes:
+        name (str): The name of the Extract compression operator.
+        document_key (str): The key in the input document that contains long content to be compressed.
+        prompt (str): Plain text instructions for what to extract (NOT a Jinja template).
+        model (str): The model to use for extraction.
+    """
+
+    name: str = Field(..., description="The name of the Extract compression operator")
+    document_key: str = Field(
+        ...,
+        description="The key in the input document that contains long content to be compressed",
+    )
+    prompt: str = Field(
+        ...,
+        description="Plain text instructions for what to extract from the document. NOT a Jinja template - the Extract operator will automatically assemble the document content.",
+    )
+    model: str = Field(
+        default="gpt-4o-mini", description="The model to use for extraction."
+    )
+
+
+class DocCompressionInstantiateSchema(BaseModel):
+    """
+    Schema for document compression operations in a data processing pipeline.
+    Inserts an Extract operator before the target operation to compress long documents.
+    """
+
+    doc_compression_config: DocCompressionConfig = Field(
+        ...,
+        description="The document compression configuration to apply before the target operation.",
+    )
+
+
+class DeterministicDocCompressionConfig(BaseModel):
+    """
+    Configuration for deterministic document compression using Code Map operation.
+
+    Attributes:
+        name (str): The name of the Code Map compression operator.
+        code (str): Python code with a 'code_map' function that takes input_doc and returns a dictionary with compressed document field(s).
+    """
+
+    name: str = Field(..., description="The name of the Code Map compression operator")
+    code: str = Field(
+        ...,
+        description="Python code defining a 'code_map' function that takes input_doc and returns a dictionary with compressed document field(s). Must include all necessary imports within the function.",
+    )
+
+    @field_validator("code")
+    @classmethod
+    def check_code_has_function(cls, v: str) -> str:
+        if "def code_map(" not in v:
+            raise ValueError(
+                "Code must define a function named 'code_map' that takes input_doc as parameter"
+            )
+        if "return {" not in v and "return dict(" not in v:
+            raise ValueError("Code must return a dictionary")
+        return v
+
+    def validate_code_returns_target_keys(self, target_ops_configs: List[Dict]) -> None:
+        """
+        Validates that the code returns dictionary keys that match document fields referenced in target operations.
+        """
+        import re
+
+        # Extract all {{ input.key }} references from target operation prompts
+        referenced_keys = set()
+        for op_config in target_ops_configs:
+            prompt = op_config.get("prompt", "")
+            # Find all {{ input.key }} patterns
+            matches = re.findall(r"\{\{\s*input\.([^}\s]+)\s*\}\}", prompt)
+            referenced_keys.update(matches)
+
+        if not referenced_keys:
+            raise ValueError("No input document keys found in target operation prompts")
+
+        # Check if the code appears to return the referenced keys
+        # This is a basic check - we look for the keys in return statements
+        for key in referenced_keys:
+            if f"'{key}'" not in self.code and f'"{key}"' not in self.code:
+                raise ValueError(
+                    f"Code must return dictionary key '{key}' which is referenced in target operation prompts as '{{{{ input.{key} }}}}'"
+                )
+
+
+class DeterministicDocCompressionInstantiateSchema(BaseModel):
+    """
+    Schema for deterministic document compression operations in a data processing pipeline.
+    Inserts a Code Map operator before the target operation to compress long documents using deterministic logic.
+    """
+
+    deterministic_doc_compression_config: DeterministicDocCompressionConfig = Field(
+        ...,
+        description="The deterministic document compression configuration to apply before the target operation.",
+    )
+
+    def validate_against_target_ops(self, target_ops_configs: List[Dict]) -> None:
+        """
+        Validates that the configuration is appropriate for the target operations.
+        """
+        self.deterministic_doc_compression_config.validate_code_returns_target_keys(
+            target_ops_configs
+        )

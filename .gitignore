@@ -65,4 +65,4 @@ tests/data/get_freshstack.py
 *.yaml
 *.yml
 *.json
-
+*.png

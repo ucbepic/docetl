@@ -3,7 +3,7 @@ import json
 import re
 import os
 from typing import Optional, List, Dict, Any
-from Node import Node
+from .Node import Node
 from pydantic import BaseModel
 import litellm
 import random

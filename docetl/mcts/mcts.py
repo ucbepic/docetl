@@ -7,14 +7,12 @@ from pathlib import Path
 import os
 import yaml
 import litellm
+import json
 from copy import deepcopy
-from Node import Node
-from ParetoFrontier import ParetoFrontier
-from acc_comparator import AccuracyComparator
-from docetl.reasoning_optimizer.directive import Directive
-from docetl.reasoning_optimizer.ChainingDirective import *
-from docetl.reasoning_optimizer.GleaningDirective import *
-from docetl.reasoning_optimizer.ChangeModelDirective import *
+from .Node import Node
+from .ParetoFrontier import ParetoFrontier
+from .acc_comparator import AccuracyComparator
+from docetl.reasoning_optimizer.directives import Directive, get_all_directive_strings
 from docetl.reasoning_optimizer.op_descriptions import *
 
 
@@ -44,7 +42,7 @@ class MCTS:
         exploration_constant: float = 1.414,
         max_iterations: int = 20,
         max_time: Optional[float] = 600.0,
-        expansion_count: int = 5,
+        expansion_count: int = 6,
         model = "gpt-4.1"
     ):
         """
@@ -144,12 +142,14 @@ class MCTS:
         # 3. Simulation: Run simulations from the leaf
         print("SIMULATION")
 
+        is_frontier_updated = False
         if has_leaf_acc: 
             print("HAS LEAF ACC")
             for leaf_acc in acc_children:
                 affected_nodes, is_frontier_updated = self.simulate(leaf_acc)
                 # Check if any node was added to the frontier (value = 1)
                 self.backpropagate(affected_nodes, leaf_acc)
+
         # if has_leaf_cost: 
         #     print("HAS LEAF COST")
         #     for leaf_cost in cost_children:
@@ -160,10 +160,10 @@ class MCTS:
         #         self.backpropagate(affected_nodes, leaf_cost)
         
         # Update counter for early stopping
-        if is_frontier_updated:
-            self.iterations_without_improvement = 0
-        else:
-            self.iterations_without_improvement += 1
+            if is_frontier_updated:
+                self.iterations_without_improvement = 0
+            else:
+                self.iterations_without_improvement += 1
         
         self.print_tree_visits_and_values()
     
@@ -232,10 +232,12 @@ class MCTS:
         traverse(parsed_yaml)
  
     def is_fully_explored(self, node:Node) -> bool:
+        print("# of children: ", len(node.children))
         if len(node.children) >= self.expansion_count: return True
         for op in node.parsed_yaml["operations"]:
             op_name = op.get("name")
-            if len(node.used_actions_acc[op_name]) < 3: return False
+            print(op_name, len(node.used_actions_acc[op_name]))
+            if len(node.used_actions_acc[op_name]) < 6: return False
             # if len(node.used_actions_cost[op_name]) < 1: return False
         return True
 
@@ -287,12 +289,12 @@ class MCTS:
         {op_resolve.to_string()}\n
         
         Rewrite directives: 
-        {ChainingDirective().to_string_for_plan()}\n
-        {GleaningDirective().to_string_for_plan()}\n
-        {ChangeModelDirective().to_string_for_plan()}\n
+        {get_all_directive_strings()}\n
 
         Your valid choice of operation and rewrite directive combination. Only choose one of these:
         {availabel_actions_str}
+
+        Make sure you only choose from the valid choices above.
 
         Input document schema with token statistics: {input_schema} \n
         Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
@@ -349,9 +351,7 @@ class MCTS:
         {op_resolve.to_string()}\n
         
         Rewrite directives: 
-        {ChainingDirective().to_string_for_plan()}\n
-        {GleaningDirective().to_string_for_plan()}\n
-        {ChangeModelDirective().to_string_for_plan()}\n
+        {get_all_directive_strings()}\n
 
         Your valid choice of operation and rewrite directive combination. Only choose one of these:
         {availabel_actions_str}
@@ -429,9 +429,10 @@ class MCTS:
             directive_name = parsed.get("directive")
             target_op_list = parsed.get("operators")
             print(f"Directive: {directive_name}, Target ops: {target_op_list}")
+            messages.append({"role": "assistant", "content": reply})
         except Exception as e:
             print(f"Failed to parse agent response: {e}")
-            raise
+            
 
         # mark action used
         directive = self.directive_name_to_obj.get(directive_name)
@@ -440,41 +441,34 @@ class MCTS:
         
         if optimize_goal == "acc":
             for target_op in target_op_list:
+                if directive in node.used_actions_acc[target_op]: 
+                    raise RuntimeError(f"Directive: {directive_name} already used for {target_op}")
                 node.mark_action_used_acc(target_op, directive)
         else: 
             for target_op in target_op_list:
+                if directive in node.used_actions_cost[target_op]: 
+                    raise RuntimeError(f"Directive: {directive_name} already used for {target_op}")
                 node.mark_action_used_cost(target_op, directive)
         
-
         orig_default_model = node.parsed_yaml.get("default_model")
-
         rewrites = []
-
-        if directive_name == "chaining": # generate two alternative chains
-            new_ops_plan1, new_ops_plan2, message_history = directive.instantiate(
-            global_default_model=orig_default_model,
-            operators=node.parsed_yaml["operations"],
-            target_ops=target_op_list,
-            agent_llm=self.model,
-            optimize_goal=optimize_goal,
-            temperature=0.8
-            )
-            if not new_ops_plan1 or not new_ops_plan2 :
-                raise RuntimeError("Failed to instantiate directive: no new ops list returned.")
-            rewrites.append(new_ops_plan1)
-            rewrites.append(new_ops_plan2)
-        else: 
+    
+        try:
             new_ops_list, message_history = directive.instantiate(
                 global_default_model=orig_default_model,
                 operators=node.parsed_yaml["operations"],
                 target_ops=target_op_list,
                 agent_llm=self.model,
                 optimize_goal=optimize_goal,
-                temperature=0.8
+                temperature=0.8,
+                message_history=messages,
             )
-            if new_ops_list is None:
-                raise RuntimeError("Failed to instantiate directive: no new ops list returned.")
-            rewrites.append(new_ops_list)
+        except Exception as e:
+            raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
+        
+        if new_ops_list is None:
+            raise RuntimeError("Failed to instantiate directive: no new ops list returned.")
+        rewrites.append(new_ops_list)
         
         children = []
         for new_ops in rewrites:
@@ -591,28 +585,3 @@ class MCTS:
                 child.mark_action_used_cost(op, change_model)
         node.add_child(child)
         return child
-
-    
-if __name__ == "__main__":
-
-    # Example usage
-    print("MCTS with Pareto Frontier Integration")
-    print("This module provides MCTS optimization with multi-objective search.")
-    print("Use run_mcts_optimization() to start optimization.") 
-
-    user_query_yaml_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/MCTS/execute_res/CUAD-map.yaml"
-    with open('/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD_random_sample.json', 'r') as f:
-        sample_data = json.load(f)
-
-    ac = AccuracyComparator(sample_data)
-
-    action_chaining = ChainingDirective()
-    action_gleaning = GleaningDirective()
-    action_change_model = ChangeModelDirective()
-    actions = set()
-    actions.add(action_chaining)
-    actions.add(action_gleaning)
-    actions.add(action_change_model)
-
-    mcts = MCTS(root_yaml_path=user_query_yaml_path, accuracy_comparator=ac, available_actions=actions, sample_input = sample_data)
-    mcts.search()

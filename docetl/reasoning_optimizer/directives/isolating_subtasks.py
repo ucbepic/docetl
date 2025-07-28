@@ -2,7 +2,7 @@ import json
 import os
 from copy import deepcopy
 from typing import Dict, List, Type
-
+import re
 from litellm import completion
 from pydantic import BaseModel, Field
 
@@ -200,7 +200,6 @@ class IsolatingSubtasksDirective(Directive):
         )
 
         # Find the input key from the original prompt (look for {{ input.XXX }} pattern)
-        import re
 
         input_matches = re.findall(r"\{\{\s*input\.([^}\s]+)\s*\}\}", original_prompt)
         input_key = input_matches[0] if input_matches else "document"
@@ -270,9 +269,10 @@ class IsolatingSubtasksDirective(Directive):
                 azure=True,
                 response_format=IsolatingSubtasksInstantiateSchema,
             )
-
+     
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
+             
                 if "isolating_subtasks_config" not in parsed_res:
                     raise ValueError(
                         "Response missing required key 'isolating_subtasks_config'"
@@ -282,13 +282,13 @@ class IsolatingSubtasksDirective(Directive):
                 schema = IsolatingSubtasksInstantiateSchema(
                     isolating_subtasks_config=config
                 )
-
                 # Use the schema's validation methods
                 schema.isolating_subtasks_config.validate_subtasks_coverage(
                     original_output_keys
                 )
+                
                 schema.isolating_subtasks_config.validate_aggregation_references_all_subtasks()
-
+                
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
@@ -331,9 +331,11 @@ class IsolatingSubtasksDirective(Directive):
         parallel_map_op = {
             "name": f"{target_op}_parallel",
             "type": "parallel_map",
+            "litellm_completion_kwargs": {"temperature": 0},
             "prompts": [],
         }
 
+        assert original_op 
         # Copy over other fields from original operation (sample, random_sample, etc.)
         for key, value in original_op.items():
             if key not in ["name", "type", "prompt", "output"]:
@@ -369,10 +371,15 @@ class IsolatingSubtasksDirective(Directive):
 
         original_keys_set = set(original_op.get("output", {}).get("schema", {}).keys())
 
-        # Check if aggregation is needed: either keys don't match OR aggregation_prompt is empty
+        # print("*****************************")
+        # print(f"subtask_output_keys: {subtask_output_keys}")
+        # print(f"original_keys_set: {original_keys_set}")
+        # print("*****************************")
+
+
+        # Check if aggregation is needed: aggregation_prompt is empty
         if (
-            subtask_output_keys == original_keys_set
-            or not config.aggregation_prompt.strip()
+            not config.aggregation_prompt.strip()
         ):
             # Just return the parallel map - it already produces the right output
             parallel_map_op["output"] = original_op.get("output", {})
@@ -383,6 +390,7 @@ class IsolatingSubtasksDirective(Directive):
                 "name": f"{target_op}_aggregate",
                 "type": "map",
                 "prompt": config.aggregation_prompt,
+                "litellm_completion_kwargs": {"temperature": 0},
                 "output": original_op.get(
                     "output", {}
                 ),  # Same output schema as original
@@ -402,6 +410,7 @@ class IsolatingSubtasksDirective(Directive):
 
     def instantiate(
         self,
+        global_default_model,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,

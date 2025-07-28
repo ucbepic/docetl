@@ -19,12 +19,12 @@ from .deterministic_doc_compression import DeterministicDocCompressionDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
-    ChainingDirective(),
-    GleaningDirective(), 
-    ChangeModelDirective(),
-    DocSummarizationDirective(),
-    IsolatingSubtasksDirective(),
-    DocCompressionDirective(),
+    # ChainingDirective(),
+    # GleaningDirective(), 
+    # ChangeModelDirective(),
+    # DocSummarizationDirective(),
+    # IsolatingSubtasksDirective(),
+    # DocCompressionDirective(),
     DeterministicDocCompressionDirective()
 ]
 
@@ -45,7 +45,7 @@ def instantiate_directive(
     operators: List[Dict],
     target_ops: List[str], 
     agent_llm: str,
-    message_history: list = None,
+    message_history: list,
     **kwargs
 ) -> Tuple[List[Dict], list]:
     """

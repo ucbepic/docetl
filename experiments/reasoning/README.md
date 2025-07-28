@@ -33,7 +33,7 @@ Run the MCTS optimization experiment:
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/cuad.yaml \
   --experiment_name cuad_mcts \
-  --max_iterations 100 \
+  --max_iterations 15 \
   --model gpt-4.1
 ```
 

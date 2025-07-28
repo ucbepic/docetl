@@ -1,8 +1,8 @@
 import math
 import numpy as np
 from typing import Optional, List, Dict, Any, Tuple
-from acc_comparator import AccuracyComparator
-from Node import Node
+from .acc_comparator import AccuracyComparator
+from .Node import Node
 import matplotlib.pyplot as plt
 from CUAD_evaluate import evaluate_results
 from copy import deepcopy
@@ -293,28 +293,21 @@ class ParetoFrontier:
             archive_w = 0.0  
         else:
             archive_transformed_array = np.array(archive_transformed)
-            print("ARCHIVE ARRAY SHAPE:", archive_transformed_array.shape)
-            print("ARCHIVE ARRAY:", archive_transformed_array)
             archive_w = ind(archive_transformed_array)
         
         if new_transformed:
             new_transformed_array = np.array(new_transformed)
-            print("NEW ARRAY SHAPE:", new_transformed_array.shape) 
-            print("NEW ARRAY:", new_transformed_array)
             w = ind(new_transformed_array)
         else:
             w = 0.0
-        print("FRONTIER: ", archive_frontier_data)
-        print("NEW FRONTIER: ", new_frontier_data)
-        print("ARCHIVE TRANSFORMED: ", archive_transformed)
-        print("NEW TRANSFORMED: ", new_transformed)
+
         print("REFERENCE POINT: ", reference_pt)
         print("archive_W: ", archive_w)
         print("w: ", w)
 
         frontier_updated = False
         if w == archive_w: # frontier not updated, new node is not on frontier
-            print("HERE_________ID: ", new_node.id)
+            print("CURRENT NODE ID: ", new_node.id)
             new_node.on_frontier = False
             node_cost = new_node.cost
             node_acc = self.plans_accuracy[new_node]
@@ -348,7 +341,6 @@ class ParetoFrontier:
         self.frontier_data = new_frontier_data
 
         self.plot_plans()
-        print("affected_nodes: ", affected_nodes)
         return affected_nodes, frontier_updated
 
     def update_pareto_frontier(self) -> Dict[Node, int]:

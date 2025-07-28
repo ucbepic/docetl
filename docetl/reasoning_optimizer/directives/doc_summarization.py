@@ -312,6 +312,7 @@ class DocSummarizationDirective(Directive):
             "type": "map",
             "prompt": rewrite.doc_summarization_config.prompt,
             "model": rewrite.doc_summarization_config.model,
+            "litellm_completion_kwargs": {"temperature": 0},
             "output": {
                 "schema": {rewrite.doc_summarization_config.document_key: "string"}
             },
@@ -324,11 +325,11 @@ class DocSummarizationDirective(Directive):
 
     def instantiate(
         self,
+        global_default_model,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
-        global_default_model: str = None,
         **kwargs,
     ) -> tuple:
         """

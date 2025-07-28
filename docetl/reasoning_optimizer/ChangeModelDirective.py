@@ -157,6 +157,7 @@ class ChangeModelDirective(Directive):
             )
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
+                print(parsed_res)
                 if "change_model_config" not in parsed_res:
                     raise ValueError("Response from LLM is missing required key 'change_model_config'")
                 change_model_config = parsed_res["change_model_config"]
@@ -169,7 +170,7 @@ class ChangeModelDirective(Directive):
                 assert orig_model 
                 orig_model = orig_model.split('/')[-1]
                 print("*** orig_model: ", orig_model)
-
+                
                 ChangeModelInstantiateSchema.validate_diff_model_in_list(
                     orig_model = orig_model,
                     change_model_config=schema.change_model_config,

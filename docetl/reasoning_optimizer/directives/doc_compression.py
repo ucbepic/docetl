@@ -220,6 +220,7 @@ class DocCompressionDirective(Directive):
             "type": "extract",
             "prompt": compression_config.prompt,
             "document_keys": [compression_config.document_key],
+            "litellm_completion_kwargs": {"temperature": 0},
             "model": compression_config.model,
         }
 
@@ -230,6 +231,7 @@ class DocCompressionDirective(Directive):
 
     def instantiate(
         self,
+        global_default_model,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,

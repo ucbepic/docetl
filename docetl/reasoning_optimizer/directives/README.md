@@ -402,6 +402,17 @@ python experiments/reasoning/run_tests.py --directive=isolating_subtasks
 python experiments/reasoning/run_tests.py
 ```
 
+### Apply Method Testing
+
+Test that directive `apply()` methods work correctly:
+
+```bash
+# Test all directive apply methods
+python tests/reasoning_optimizer/test_directive_apply.py
+```
+
+This ensures the `apply()` method doesn't crash when given realistic pipeline configurations and rewrite schemas.
+
 ### Integration Testing
 
 Full pipeline integration testing can be done via `experiments/reasoning/run_mcts.py`.

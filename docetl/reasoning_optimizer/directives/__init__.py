@@ -16,16 +16,20 @@ from .doc_summarization import DocSummarizationDirective
 from .isolating_subtasks import IsolatingSubtasksDirective
 from .doc_compression import DocCompressionDirective
 from .deterministic_doc_compression import DeterministicDocCompressionDirective
+from .reduce_gleaning import ReduceGleaningDirective
+from .operator_fusion import OperatorFusionDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
-    # ChainingDirective(),
-    # GleaningDirective(), 
-    # ChangeModelDirective(),
-    # DocSummarizationDirective(),
-    # IsolatingSubtasksDirective(),
-    # DocCompressionDirective(),
-    DeterministicDocCompressionDirective()
+    ChainingDirective(),
+    GleaningDirective(), 
+    # ReduceGleaningDirective(),
+    ChangeModelDirective(),
+    DocSummarizationDirective(),
+    IsolatingSubtasksDirective(),
+    DocCompressionDirective(),
+    # DeterministicDocCompressionDirective(),
+    # OperatorFusionDirective()
 ]
 
 # Create a mapping from directive names to directive instances
@@ -41,6 +45,7 @@ def get_all_directive_strings() -> str:
     return "\n".join([directive.to_string_for_plan() for directive in ALL_DIRECTIVES])
 
 def instantiate_directive(
+    global_default_model,
     directive_name: str,
     operators: List[Dict],
     target_ops: List[str], 
@@ -74,6 +79,7 @@ def instantiate_directive(
     
     directive = DIRECTIVE_REGISTRY[directive_name]
     return directive.instantiate(
+        global_default_model,
         operators=operators,
         target_ops=target_ops,
         agent_llm=agent_llm,

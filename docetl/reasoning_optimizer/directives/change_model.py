@@ -7,10 +7,7 @@ from typing import Dict, List, Type
 from litellm import completion
 from pydantic import BaseModel, Field
 
-from docetl.reasoning_optimizer.instantiate_schemas import (
-    ChangeModelConfig,
-    ChangeModelInstantiateSchema,
-)
+from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelInstantiateSchema
 
 from .base import (
     AVAILABLE_MODELS,
@@ -26,12 +23,12 @@ class ChangeModelDirective(Directive):
         default="Op => Op* (same operation with a different model choice)"
     )
     nl_description: str = Field(
-        default="Rewrites an operator to use a different LLM model, changing the underlying engine while keeping all logic and prompts the same.."
+        default="Rewrites an operator to use a different LLM model based on task requirements. Generally, simpler tasks like extraction or classification may work well with cheaper models (gpt-4o-mini, gpt-4.1-nano), while complex reasoning tasks often benefit from more powerful models (gpt-4.1, gpt-4o), though actual performance and constraints should guide the choice."
     )
     when_to_use: str = Field(
-        default="When a specific step in the pipeline would benefit from a different model (e.g., for cost, speed, or accuracy reasons), but all other config stays the same."
+        default="When the current model choice may not be optimal for the task requirements, considering factors like task complexity, performance needs, cost constraints, and quality requirements."
     )
-    instantiate_schema_type: Type[BaseModel] = ChangeModelConfig
+    instantiate_schema_type: Type[BaseModel] = ChangeModelInstantiateSchema
 
     example: str = Field(
         default=(
@@ -48,11 +45,9 @@ class ChangeModelDirective(Directive):
             "  model: gpt-4o\n"
             "\n"
             "Example InstantiateSchema:\n"
-            "[\n"
-            "  ChangeModelConfig(\n"
-            "    model='gpt-4o-mini'\n"
-            "  ),\n"
-            "]"
+            "{\n"
+            '  "model": "gpt-4o-mini"\n'
+            "}"
         ),
     )
 
@@ -154,18 +149,23 @@ class ChangeModelDirective(Directive):
         """
         if optimize_goal == "acc":
             return (
-                f"You are an expert at choosing the most suitable model for a given task to maximize accuracy.\n\n"
+                f"You are an expert at choosing the most suitable model for a given task based on complexity and cost considerations.\n\n"
                 f"Original Operation:\n"
                 f"{str(original_op)}\n\n"
                 f"Directive: {self.name}\n"
-                f"Your task is to instantiate this directive by generating a ChangeModelConfig that suggests a better model for executing the original operation with improved accuracy."
+                f"Your task is to instantiate this directive by suggesting a better model for executing the original operation.\n\n"
+                f"MODEL SELECTION CONSIDERATIONS:\n"
+                f"• Generally, simpler tasks (extraction, basic classification, straightforward summarization) may work well with cheaper models like gpt-4o-mini or gpt-4.1-nano\n"
+                f"• Complex reasoning tasks (analysis, interpretation, multi-step thinking, legal/medical analysis) often benefit from more powerful models like gpt-4.1 or gpt-4o\n"
+                f"• However, consider actual performance needs, quality requirements, and cost constraints when making the choice\n"
+                f"• Sometimes a powerful model may be needed for seemingly simple tasks if quality is critical, or a cheaper model may suffice for complex tasks if budget is constrained\n\n"
                 f"You have a list of allowed models to choose from: {str(self.allowed_model_list)}.\n\n"
                 f"Consider the information about the allowed models: \n {self.model_info}\n"
-                f"The ChangeModelConfig should include the new model choice for the operation."
+                f"Your response should include the new model choice for the operation."
                 f"Ensure that your chosen model is in the list of allowed models."
                 f"Example:\n"
                 f"{self.example}\n\n"
-                f"Please output only the InstantiateSchema (a ChangeModelConfig object)."
+                f"Please output only the ChangeModelInstantiateSchema as JSON."
             )
         else:
             return (
@@ -191,7 +191,6 @@ class ChangeModelDirective(Directive):
         agent_llm: str,
         message_history: list = [],
         optimize_goal = "acc",
-        temperature = 0.8
     ) -> tuple:
         """
         Use LLM to instantiate this directive.
@@ -220,28 +219,22 @@ class ChangeModelDirective(Directive):
                 # api_key=os.environ["GEMINI_API_KEY"],
                 azure=True,
                 response_format=ChangeModelInstantiateSchema,
-                temperature = temperature
             )
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
-                if "change_model_config" not in parsed_res:
-                    raise ValueError("Response from LLM is missing required key 'change_model_config'")
-                change_model_config = parsed_res["change_model_config"]
-                schema = ChangeModelInstantiateSchema(change_model_config = change_model_config)
-                print(schema)
-                # Validate the model is in the allowed model list
+                schema = ChangeModelInstantiateSchema(**parsed_res)
                 orig_model = global_default_model
                 if "model" in original_op: 
                     orig_model = original_op.get("model")
-                assert orig_model 
-                orig_model = orig_model.split('/')[-1]
-                print(orig_model)
+                # Validate the model is in the allowed model list
                 ChangeModelInstantiateSchema.validate_diff_model_in_list(
                     orig_model = orig_model,
-                    change_model_config=schema.change_model_config,
-                    list_of_model=self.allowed_model_list
+                    model=schema.model,
+                    list_of_model=self.allowed_model_list,
                 )
-                message_history.append({"role": "assistant", "content": resp.choices[0].message.content})
+                message_history.append(
+                    {"role": "assistant", "content": resp.choices[0].message.content}
+                )
                 return schema, message_history
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
@@ -265,19 +258,17 @@ class ChangeModelDirective(Directive):
         
         return new_ops_list
     
-    def instantiate(self, global_default_model, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal = "acc", temperature = 0.8) -> tuple:
+    def instantiate(self, global_default_model, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal = "acc") -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
-        # Assert that there is only one target op
-        # assert len(target_ops) == 1, "There must be exactly one target op to instantiate this chaining directive"
         new_ops_list = deepcopy(operators)
         inst_error = 0
         for target_op in target_ops: 
             target_op_config = [op for op in operators if op["name"] == target_op][0]
             # Instantiate the directive
             try:
-                rewrite, message_history = self.llm_instantiate(global_default_model, target_op_config, agent_llm, message_history, optimize_goal=optimize_goal, temperature=temperature)
+                rewrite, message_history = self.llm_instantiate(global_default_model, target_op_config, agent_llm, message_history, optimize_goal=optimize_goal)
                 print(rewrite)
             except Exception as e:
                 inst_error += 1

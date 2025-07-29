@@ -21,7 +21,7 @@ Run the baseline agent experiment:
 python experiments/reasoning/run_baseline.py \
   --yaml_path experiments/reasoning/pipelines/cuad.yaml \
   --experiment_name cuad_baseline \
-  --iterations 2 \
+  --iterations 5 \
   --model gpt-4.1
 ```
 

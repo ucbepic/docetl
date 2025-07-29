@@ -26,25 +26,23 @@ class GleaningDirective(Directive):
 
     example: str = Field(
         default="""
-            "Original Op (MapOpConfig):\n"
-            "- name: extract_insights\n"
-            "  type: map\n"
-            "  prompt: |\n"
-            "    From the user log below, list 2-3 concise insights (1-2 words each) and 1-2 supporting actions per insight.\n"
-            "    Return as a list of dictionaries with 'insight' and 'supporting_actions'.\n"
-            "    Log: {{ input.log }}\n"
-            "  output:\n"
-            "    schema:\n"
-            "      insights_summary: "string"\n"
-            "\n"
-            "Example InstantiateSchema:\n"
-            "[\n"
-            "  GleaningConfig(\n"
-            "    validation_prompt='''There should be at least 2 insights, and each insight should have at least 1 supporting action.''',\n"
-            "    num_rounds = 2,\n"
-                 model='gpt-4o-mini',\n"
-            "  ),\n"
-            "]"
+            Original Op (MapOpConfig):
+            - name: extract_insights
+              type: map
+              prompt: |
+                From the user log below, list 2-3 concise insights (1-2 words each) and 1-2 supporting actions per insight.
+                Return as a list of dictionaries with 'insight' and 'supporting_actions'.
+                Log: {{ input.log }}
+              output:
+                schema:
+                  insights_summary: "string"
+
+            Example InstantiateSchema (what the agent should output):
+            {
+              "validation_prompt": "There should be at least 2 insights, and each insight should have at least 1 supporting action.",
+              "num_rounds": 2,
+              "model": "gpt-4o-mini"
+            }
         """,
     )
 
@@ -113,12 +111,12 @@ class GleaningDirective(Directive):
             f"Original Operation:\n"
             f"{str(original_op)}\n\n"
             f"Directive: {self.name}\n"
-            f"Your task is to instantiate this directive by generating a GleaningConfig that adds validation loops to the original operation. "
+            f"Your task is to instantiate this directive by generating a configuration that adds validation loops to the original operation. "
             f"The gleaning configuration should include a validation prompt that evaluates the output quality and provides feedback for improvement, "
             f"along with the number of refinement rounds to attempt.\n\n"
             f"Example:\n"
             f"{self.example}\n\n"
-            f"Please output only the InstantiateSchema (a GleaningConfig object) that specifies how to validate and refine the output of the original operation."
+            f"Please output only the GleaningInstantiateSchema object that specifies how to validate and refine the output of the original operation."
         )
 
     def llm_instantiate(
@@ -162,12 +160,7 @@ class GleaningDirective(Directive):
 
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
-                if "gleaning_config" not in parsed_res:
-                    raise ValueError(
-                        "Response from LLM is missing required key 'gleaning_config'"
-                    )
-                gleaning_config = parsed_res["gleaning_config"]
-                schema = GleaningInstantiateSchema(gleaning_config=gleaning_config)
+                schema = GleaningInstantiateSchema(**parsed_res)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )

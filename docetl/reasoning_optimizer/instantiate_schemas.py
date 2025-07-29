@@ -24,10 +24,9 @@ class MapOpConfig(BaseModel):
         ...,
         description="The keys of the output of the Map operator, to be referenced in the downstream operator's prompt. Can be a single key or a list of keys. Can be new keys or existing keys from the map operator we are rewriting."
     )
-    # model: str = Field(
-    #     default="gpt-4o-mini",
-    #     description="The model to use for the Map operator."
-    # )
+    model: str = Field(
+        default="gpt-4o-mini", description="The model to use for the Map operator."
+    )
 
     @classmethod
     def validate_prompt_contains_input_key(cls, value: str) -> str:
@@ -51,7 +50,7 @@ class MapOpConfig(BaseModel):
     @field_validator("prompt")
     @classmethod
     def check_prompt(cls, v: str) -> str:
-        return cls.validate_prompt_contains_input_key(v)\
+        return cls.validate_prompt_contains_input_key(v)
 
     
 class ChainingInstantiateSchema(BaseModel):
@@ -105,14 +104,10 @@ class ChainingInstantiateSchema(BaseModel):
             )
 
 
-class GleaningConfig(BaseModel):
-    """
-    Configuration for gleaning.
 
-    Attributes:
-        validation_prompt (str): Instructions for the LLM to evaluate and improve the output. The validation prompt doesn't need any variables, since it's appended to the chat thread.
-        num_rounds (int): The maximum number of refinement iterations.
-        model (str): The model to use for validation.
+class GleaningInstantiateSchema(BaseModel):
+    """
+    Schema for gleaning operations in a data processing pipeline.
     """
 
     validation_prompt: str = Field(
@@ -125,67 +120,36 @@ class GleaningConfig(BaseModel):
     model: str = Field(default="gpt-4o-mini", description="The LLM model to use.")
 
 
-class GleaningInstantiateSchema(BaseModel):
-    """
-    Schema for gleaning operations in a data processing pipeline.
-    """
-
-    gleaning_config: GleaningConfig = Field(
-        ..., description="The gleaning configuration to apply to the target operation."
-    )
-
-    # validate methods can be added here
-
-
-class ChangeModelConfig(BaseModel):
-    """
-    Configuration for changing model choice.
-
-    Attributes:
-        model (str): The new model to use.
-    """
-
-    model: str = Field(default="gpt-4o-mini", description="The new LLM model to use.")
-
-
 class ChangeModelInstantiateSchema(BaseModel):
     """
     Schema for changing model choice in a data processing pipeline.
     """
 
-    change_model_config: ChangeModelConfig = Field(
-        ...,
-        description="The change model configuration to apply to the target operation."
-    )
-    
+    model: str = Field(default="gpt-4o-mini", description="The new LLM model to use.")
+
     @classmethod
-    def validate_diff_model_in_list(cls, orig_model, change_model_config: ChangeModelConfig, list_of_model: List[str]) -> None:
+    def validate_diff_model_in_list(cls, orig_model, model: str, list_of_model: List[str]) -> None:
         """
-        Validates that the model in change_model_config is in the allowed list_of_model.
+        Validates that the model is in the allowed list_of_model.
 
         Args:
-            change_model_config (ChangeModelConfig): The change model configuration to check.
+            model (str): The model name to check.
 
         Raises:
             ValueError: If the model is not in the allowed list.
         """
-        
-        if change_model_config.model not in list_of_model:
-            raise ValueError(f"Model '{change_model_config.model}' is not in the allowed list: {list_of_model}")
-        elif change_model_config.model == orig_model:
-            raise ValueError(f"Model '{change_model_config.model}' is the same as the original model used: {orig_model}")
+
+        if model not in list_of_model:
+            raise ValueError(
+                f"Model '{model}' is not in the allowed list: {list_of_model}"
+            )
+        elif model == orig_model: 
+            raise ValueError(f"Model '{model}' is the same as the original model used: {orig_model}")
     
 
-
-class DocSummarizationConfig(BaseModel):
+class DocSummarizationInstantiateSchema(BaseModel):
     """
-    Configuration for document summarization.
-
-    Attributes:
-        name (str): The name of the Map summarization operator.
-        document_key (str): The key in the input document that contains long content to be summarized.
-        prompt (str): Jinja prompt template for summarizing the document. Must reference {{ input.<document_key> }}.
-        model (str): The model to use for summarization.
+    Schema for document summarization operations in a data processing pipeline.
     """
 
     name: str = Field(..., description="The name of the Map summarization operator")
@@ -219,17 +183,6 @@ class DocSummarizationConfig(BaseModel):
         return v
 
 
-class DocSummarizationInstantiateSchema(BaseModel):
-    """
-    Schema for document summarization operations in a data processing pipeline.
-    """
-
-    doc_summarization_config: DocSummarizationConfig = Field(
-        ...,
-        description="The document summarization configuration to apply at the start of the pipeline.",
-    )
-
-
 class SubtaskConfig(BaseModel):
     """
     Configuration for a single subtask in the parallel map phase.
@@ -250,9 +203,10 @@ class SubtaskConfig(BaseModel):
         return MapOpConfig.validate_prompt_contains_input_key(v)
 
 
-class IsolatingSubtasksConfig(BaseModel):
+class IsolatingSubtasksInstantiateSchema(BaseModel):
     """
-    Configuration for isolating subtasks directive.
+    Schema for isolating subtasks operations in a data processing pipeline.
+    Rewrites a Map into Parallel Map -> Map pattern for better subtask isolation.
     """
 
     subtasks: List[SubtaskConfig] = Field(
@@ -279,10 +233,7 @@ class IsolatingSubtasksConfig(BaseModel):
         for subtask in self.subtasks:
             subtask_keys.update(subtask.output_keys)
 
-        
         original_keys_set = set(original_output_keys)
-        print("original_keys_set: ", original_keys_set)
-        
         if subtask_keys != original_keys_set:
             missing = original_keys_set - subtask_keys
             extra = subtask_keys - original_keys_set
@@ -291,16 +242,14 @@ class IsolatingSubtasksConfig(BaseModel):
                 error_parts.append(f"Missing keys: {list(missing)}")
             if extra:
                 error_parts.append(f"Extra keys: {list(extra)}")
-            print("Subtasks must cover exactly the original output keys. {'; '.join(error_parts)}")
             raise ValueError(
                 f"Subtasks must cover exactly the original output keys. {'; '.join(error_parts)}"
             )
-            
 
     def validate_aggregation_references_all_subtasks(self) -> None:
         """
         Validates that the aggregation prompt references outputs from all subtasks.
-        Checks for subtask_N_output patterns in the aggregation prompt.
+        Uses the actual output keys generated by the LLM for each subtask.
         Only validates if aggregation_prompt is not empty.
         """
         if not self.aggregation_prompt.strip():
@@ -308,41 +257,23 @@ class IsolatingSubtasksConfig(BaseModel):
 
         missing_references = []
         for i, subtask in enumerate(self.subtasks):
-            subtask_num = i + 1  # 1-indexed
-            pattern = r"\{\{\s*input\.subtask_" + str(subtask_num) + r"_output\s*\}\}"
-            if not re.search(pattern, self.aggregation_prompt):
-                missing_references.append(f"subtask_{subtask_num}_output")
+            for output_key in subtask.output_keys:
+                pattern = r"\{\{\s*input\." + re.escape(output_key) + r"\s*\}\}"
+                if not re.search(pattern, self.aggregation_prompt):
+                    missing_references.append(output_key)
 
-        print("missing_references: ", missing_references)
         if missing_references:
             raise ValueError(
-                f"Aggregation prompt must reference all subtask outputs. "
+                f"Aggregation prompt must reference all subtask output keys. "
                 f"Missing references: {missing_references}. "
                 f"Expected patterns like: {{{{ input.{missing_references[0]} }}}}"
             )
 
 
-class IsolatingSubtasksInstantiateSchema(BaseModel):
+class DocCompressionInstantiateSchema(BaseModel):
     """
-    Schema for isolating subtasks operations in a data processing pipeline.
-    Rewrites a Map into Parallel Map -> Map pattern for better subtask isolation.
-    """
-
-    isolating_subtasks_config: IsolatingSubtasksConfig = Field(
-        ...,
-        description="The isolating subtasks configuration to apply to the target operation.",
-    )
-
-
-class DocCompressionConfig(BaseModel):
-    """
-    Configuration for document compression using Extract operation.
-
-    Attributes:
-        name (str): The name of the Extract compression operator.
-        document_key (str): The key in the input document that contains long content to be compressed.
-        prompt (str): Plain text instructions for what to extract (NOT a Jinja template).
-        model (str): The model to use for extraction.
+    Schema for document compression operations in a data processing pipeline.
+    Inserts an Extract operator before the target operation to compress long documents.
     """
 
     name: str = Field(..., description="The name of the Extract compression operator")
@@ -359,39 +290,24 @@ class DocCompressionConfig(BaseModel):
     )
 
 
-class DocCompressionInstantiateSchema(BaseModel):
+class DeterministicDocCompressionInstantiateSchema(BaseModel):
     """
-    Schema for document compression operations in a data processing pipeline.
-    Inserts an Extract operator before the target operation to compress long documents.
-    """
-
-    doc_compression_config: DocCompressionConfig = Field(
-        ...,
-        description="The document compression configuration to apply before the target operation.",
-    )
-
-
-class DeterministicDocCompressionConfig(BaseModel):
-    """
-    Configuration for deterministic document compression using Code Map operation.
-
-    Attributes:
-        name (str): The name of the Code Map compression operator.
-        code (str): Python code with a 'code_map' function that takes input_doc and returns a dictionary with compressed document field(s).
+    Schema for deterministic document compression operations in a data processing pipeline.
+    Inserts a Code Map operator before the target operation to compress long documents using deterministic logic.
     """
 
     name: str = Field(..., description="The name of the Code Map compression operator")
     code: str = Field(
         ...,
-        description="Python code defining a 'code_map' function that takes input_doc and returns a dictionary with compressed document field(s). Must include all necessary imports within the function.",
+        description="Python code defining a 'transform' function that takes input_doc and returns a dictionary with compressed document field(s). Must include all necessary imports within the function.",
     )
 
     @field_validator("code")
     @classmethod
     def check_code_has_function(cls, v: str) -> str:
-        if "def code_map(" not in v:
+        if "def transform(" not in v:
             raise ValueError(
-                "Code must define a function named 'code_map' that takes input_doc as parameter"
+                "Code must define a function named 'transform' that takes input_doc as parameter"
             )
         if "return {" not in v and "return dict(" not in v:
             raise ValueError("Code must return a dictionary")
@@ -422,22 +338,19 @@ class DeterministicDocCompressionConfig(BaseModel):
                     f"Code must return dictionary key '{key}' which is referenced in target operation prompts as '{{{{ input.{key} }}}}'"
                 )
 
-
-class DeterministicDocCompressionInstantiateSchema(BaseModel):
-    """
-    Schema for deterministic document compression operations in a data processing pipeline.
-    Inserts a Code Map operator before the target operation to compress long documents using deterministic logic.
-    """
-
-    deterministic_doc_compression_config: DeterministicDocCompressionConfig = Field(
-        ...,
-        description="The deterministic document compression configuration to apply before the target operation.",
-    )
-
     def validate_against_target_ops(self, target_ops_configs: List[Dict]) -> None:
         """
         Validates that the configuration is appropriate for the target operations.
         """
-        self.deterministic_doc_compression_config.validate_code_returns_target_keys(
-            target_ops_configs
-        )
+        self.validate_code_returns_target_keys(target_ops_configs)
+
+
+class OperatorFusionInstantiateSchema(BaseModel):
+    """Schema for fusing two sequential operations."""
+
+    fused_prompt: str = Field(
+        ..., description="Combined prompt that performs both operations' tasks"
+    )
+    model: str = Field(
+        default="gpt-4o-mini", description="Model to use for the fused operation"
+    )

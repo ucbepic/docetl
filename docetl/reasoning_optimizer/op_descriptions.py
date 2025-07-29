@@ -1,20 +1,25 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
-from typing import Optional, List
 
 
 class Operator(BaseModel):
     """Operator model for each DocETL operator."""
-    
+
     # Fields matching your spreadsheet columns
     name: str = Field(..., description="Operation name")
-    type_llm_or_not: str = Field(..., description="Type (LLM-powered or not LLM-powered)")
+    type_llm_or_not: str = Field(
+        ..., description="Type (LLM-powered or not LLM-powered)"
+    )
     description: str = Field(..., description="Description")
     when_to_use: str = Field(..., description="When to Use")
     required_parameters: str = Field(..., description="Required Parameters")
     optional_parameters: Optional[str] = Field(None, description="Optional Parameters")
     returns: str = Field(..., description="Returns")
-    minimal_example_configuration: str = Field(..., description="Minimal Example Configuration")
-    
+    minimal_example_configuration: str = Field(
+        ..., description="Minimal Example Configuration"
+    )
+
     def to_string(self) -> str:
         """Serialize operator for prompts."""
         parts = [
@@ -23,15 +28,20 @@ class Operator(BaseModel):
             f"**When to Use:** {self.when_to_use}",
             f"**Required Parameters:**\n{self.required_parameters}",
         ]
-        
+
         if self.optional_parameters:
             parts.append(f"**Optional Parameters:**\n{self.optional_parameters}")
-        
+
         parts.append(f"**Returns:** {self.returns}")
-        parts.append(f"**Example Configuration:**\n{self.minimal_example_configuration}\n")
+        parts.append(
+            f"**Example Configuration:**\n{self.minimal_example_configuration}\n"
+        )
         return "\n\n".join(parts)
 
-op_map = Operator(name="Map", type_llm_or_not="LLM-powered", 
+
+op_map = Operator(
+    name="Map",
+    type_llm_or_not="LLM-powered",
     description="Processes each document independently by making an LLM call with your prompt template. Creates one output for each input document, with the output conforming to your specified schema.",
     when_to_use="Use when you need to process each document individually - like extracting, summarizing, classifying, or generating new fields based on document content.",
     required_parameters="""
@@ -39,7 +49,7 @@ op_map = Operator(name="Map", type_llm_or_not="LLM-powered",
     type: Must be "map"
     model: LLM to use to execute the prompt
     prompt: Jinja2 template with {{ input.key }} for each document field you want to reference
-    output.schema: Dictionary defining the structure and types of the output""", 
+    output.schema: Dictionary defining the structure and types of the output""",
     optional_parameters="""
     gleaning: Iteratively refines outputs that don't meet quality criteria. The LLM reviews its initial output and improves it based on validation feedback. Config requires:
     - if: Python expression for when to refine; e.g., "len(output[key] == 0)" (optional)
@@ -51,8 +61,8 @@ op_map = Operator(name="Map", type_llm_or_not="LLM-powered",
     calibrate: (bool) Processes a sample of documents first to create reference examples, then uses those examples in all subsequent prompts to ensure consistent outputs across the dataset
     (Default: calibrate is False)
 
-    num_calibration_docs: Number of docs to use for calibration (default: 10)""", 
-    returns="Each original document, augmented with new keys specified in output_schema", 
+    num_calibration_docs: Number of docs to use for calibration (default: 10)""",
+    returns="Each original document, augmented with new keys specified in output_schema",
     minimal_example_configuration="""
     name: gen_insights
     type: map
@@ -61,9 +71,12 @@ op_map = Operator(name="Map", type_llm_or_not="LLM-powered",
     output:
         schema:
             insights_summary: "string"
-    """)
+    """,
+)
 
-op_extract = Operator(name="Extract", type_llm_or_not="LLM-powered", 
+op_extract = Operator(
+    name="Extract",
+    type_llm_or_not="LLM-powered",
     description="""Pulls out specific portions of text exactly as they appear in the source document. The LLM identifies which parts to extract by providing line number ranges or regex patterns. Extracted text is saved to the original field name with "_extracted" suffix (e.g., report_text → report_text_extracted).""",
     when_to_use="Use when you need exact text from documents - like pulling out direct quotes, specific contract clauses, key findings, or any content that must be preserved word-for-word without LLM paraphrasing.",
     required_parameters="""
@@ -90,9 +103,12 @@ op_extract = Operator(name="Extract", type_llm_or_not="LLM-powered",
     Only extract the most important and substantive findings.
     document_keys: ["report_text"]
     model: gpt-4o-mini
-    """)
+    """,
+)
 
-op_parallel_map = Operator(name="Parallel Map", type_llm_or_not="LLM-powered", 
+op_parallel_map = Operator(
+    name="Parallel Map",
+    type_llm_or_not="LLM-powered",
     description="Runs multiple independent map operations concurrently on each document. Each prompt generates specific fields, and all outputs are combined into a single result per input document. More efficient than sequential maps when transformations are independent.",
     when_to_use="Use when you need multiple independent analyses of the same document - like extracting different types of information, running multiple classifications, or generating various summaries from the same input.",
     required_parameters="""
@@ -126,9 +142,12 @@ op_parallel_map = Operator(name="Parallel Map", type_llm_or_not="LLM-powered",
             skills: list[string]
             years_exp: float
             writing_score: integer
-    """)
+    """,
+)
 
-op_filter = Operator(name="Filter", type_llm_or_not="LLM-powered", 
+op_filter = Operator(
+    name="Filter",
+    type_llm_or_not="LLM-powered",
     description="Evaluates each document with an LLM prompt and only keeps documents where the output is true. Documents evaluating to false are removed from the dataset entirely.",
     when_to_use="Use when you need to keep only documents meeting specific criteria - like filtering high-impact articles, relevant records, quality content, or documents matching complex conditions that require LLM judgment.",
     required_parameters="""
@@ -162,9 +181,12 @@ op_filter = Operator(name="Filter", type_llm_or_not="LLM-powered",
         schema:
             is_insightful: boolean
         model: gpt-4o-mini
-    """)
+    """,
+)
 
-op_reduce = Operator(name="Reduce", type_llm_or_not="LLM-powered", 
+op_reduce = Operator(
+    name="Reduce",
+    type_llm_or_not="LLM-powered",
     description="Aggregates multiple documents with the same key value(s) into a single output. Groups documents by reduce_key, then applies an LLM prompt to each group to create one aggregated output per unique key combination.",
     when_to_use="Use when you need to summarize, consolidate, or analyze groups of related documents - like combining all reviews for a product, summarizing feedback by department, or aggregating patient records by ID.",
     required_parameters="""
@@ -227,9 +249,12 @@ op_reduce = Operator(name="Reduce", type_llm_or_not="LLM-powered",
         schema:
             summary: string
             sentiment: string
-    """)
+    """,
+)
 
-op_split = Operator(name="Split", type_llm_or_not="Not LLM-powered", 
+op_split = Operator(
+    name="Split",
+    type_llm_or_not="Not LLM-powered",
     description="Divides long text into smaller chunks based on token count or delimiters. Creates multiple output documents from each input, one per chunk. Adds chunk metadata including chunk ID and sequence number.",
     when_to_use="""Use when documents exceed LLM token limits, when processing long transcripts/reports/contracts and we need to read every portion of the document for the task. E.g., "extract all mentions of X from this document." """,
     required_parameters="""
@@ -256,9 +281,12 @@ op_split = Operator(name="Split", type_llm_or_not="Not LLM-powered",
     method: token_count
     method_kwargs:
         num_tokens: 500
-    """)
+    """,
+)
 
-op_gather = Operator(name="Gather", type_llm_or_not="Not LLM-powered", 
+op_gather = Operator(
+    name="Gather",
+    type_llm_or_not="Not LLM-powered",
     description="""Adds context from surrounding chunks to each chunk after splitting. Includes content from previous/next chunks and maintains document structure through header hierarchies. Creates a "rendered" version of each chunk with its context.""",
     when_to_use="Use after Split when chunks need context for accurate processing - essential for legal documents, technical manuals, or any content where references span chunks. Helps maintain document structure and cross-references.",
     required_parameters="""
@@ -301,7 +329,7 @@ op_gather = Operator(name="Gather", type_llm_or_not="Not LLM-powered",
     - Only include next chunks if future context is important; by default, focus on previous for most text documents.
     """,
     optional_parameters="""
-    doc_header_key: (optional) Field containing extracted headers for each chunk.  
+    doc_header_key: (optional) Field containing extracted headers for each chunk.
     - This field provides the hierarchical structure of document sections, enabling the Gather operation to reconstruct header context for each chunk.
     - To use this, you must first run a map operation that extracts headers from each chunk, using the following schema:
         headers: list of {header: string, level: integer}
@@ -348,9 +376,12 @@ op_gather = Operator(name="Gather", type_llm_or_not="Not LLM-powered",
         tail:
             count: 2
             content_key: text_chunk
-    """)
+    """,
+)
 
-op_unnest = Operator(name="Unnest", type_llm_or_not="Not LLM-powered", 
+op_unnest = Operator(
+    name="Unnest",
+    type_llm_or_not="Not LLM-powered",
     description="Expands arrays into multiple documents (one per element) or flattens dictionary fields into the parent document. For arrays, replaces the array with individual elements. For dicts, adds specified fields to parent while keeping original dict.",
     when_to_use="Use when you need to process array elements individually, or when flattening nested data structures for easier analysis. Essentially, this operation is for normalizing nested data.",
     required_parameters="""
@@ -368,9 +399,12 @@ op_unnest = Operator(name="Unnest", type_llm_or_not="Not LLM-powered",
     name: expand_user
     type: unnest
     unnest_key: user_info
-    """)
+    """,
+)
 
-op_sample = Operator(name="Sample", type_llm_or_not="Not LLM-powered", 
+op_sample = Operator(
+    name="Sample",
+    type_llm_or_not="Not LLM-powered",
     description="Selects a subset of documents from the input according to the specified sampling method. Used to generate a representative sample for further analysis or processing.",
     when_to_use="Use when you want to work with a smaller subset of your data for debugging, rapid prototyping, or to reduce compute cost. Also useful for sampling before downstream processing.",
     required_parameters="""
@@ -405,9 +439,12 @@ op_sample = Operator(name="Sample", type_llm_or_not="Not LLM-powered",
     samples: 0.2
     method_kwargs:
         stratify_key: category
-    """)
+    """,
+)
 
-op_resolve = Operator(name="Resolve", type_llm_or_not="LLM-powered", 
+op_resolve = Operator(
+    name="Resolve",
+    type_llm_or_not="LLM-powered",
     description="Identifies and canonicalizes duplicate or matching entities across your dataset using LLM-driven pairwise comparison and resolution prompts. Useful for data cleaning, deduplication, and standardizing variations created by LLMs in preceding map operations.",
     when_to_use="Use when you need to standardize documents that may refer to the same real-world entity but have inconsistent or duplicated fields (e.g., names, product titles, organizations) due to extraction, human error, or LLM variation.",
     required_parameters="""
@@ -458,4 +495,61 @@ op_resolve = Operator(name="Resolve", type_llm_or_not="LLM-powered",
     blocking_conditions:
     - "left['last_name'][:2].lower() == right['last_name'][:2].lower()"
     - "left['date_of_birth'] == right['date_of_birth']"
-    """)
+    """,
+)
+
+op_code_map = Operator(
+    name="Code Map",
+    type_llm_or_not="not LLM-powered",
+    description="Applies a Python function to each document independently using custom code. Returns a dictionary of key-value pairs to UPDATE the original document with. Useful for deterministic transformations, regex processing, calculations, or leveraging external Python libraries.",
+    when_to_use="Use when you need deterministic processing, complex calculations, regex/pattern matching, or want to leverage existing Python libraries. Ideal for structured data transformations that don't require LLM reasoning.",
+    required_parameters="""
+    name: Unique name for the operation
+    type: Must be "code_map"
+    code: Python code defining a function named 'transform' that takes an input document and returns a dictionary of updates. Must include all necessary imports within the function. Format: def transform(input_doc): ...""",
+    optional_parameters="""
+    drop_keys: List of keys to remove from output (default: None)
+    concurrent_thread_count: Number of threads to use (default: number of logical CPU cores)""",
+    returns="Each original document, updated with the key-value pairs returned by the transform function",
+    minimal_example_configuration="""
+    name: extract_keywords_deterministic
+    type: code_map
+    code: |
+        def transform(input_doc):
+            import re
+            text = input_doc.get('content', '')
+            # Extract words that are all caps (potential keywords)
+            keywords = re.findall(r'\b[A-Z]{2,}\b', text)
+            # Extract email addresses
+            emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
+            return {
+                'keywords': list(set(keywords)),
+                'email_count': len(emails),
+                'word_count': len(text.split())
+            }
+    """,
+)
+
+op_code_filter = Operator(
+    name="Code Filter",
+    type_llm_or_not="not LLM-powered",
+    description="Filters documents based on custom Python logic. Uses a Python function that returns True to keep documents and False to filter them out. Useful for deterministic filtering based on calculations, regex patterns, or structured data conditions.",
+    when_to_use="Use when you need deterministic filtering logic that doesn't require LLM reasoning - like filtering based on numeric thresholds, text patterns, data completeness, or complex boolean conditions.",
+    required_parameters="""
+    name: Unique name for the operation
+    type: Must be "code_filter"
+    code: Python code defining a function named 'transform' that takes an input document and returns a boolean (True to keep, False to filter out). Must include all necessary imports within the function. Format: def transform(input_doc): ...""",
+    optional_parameters="""
+    concurrent_thread_count: Number of threads to use (default: number of logical CPU cores)""",
+    returns="Subset of input documents where the transform function returned True. Documents retain all original fields.",
+    minimal_example_configuration="""
+    name: filter_valid_scores
+    type: code_filter
+    code: |
+        def transform(input_doc):
+            score = input_doc.get('confidence_score', 0)
+            text_length = len(input_doc.get('content', ''))
+            # Keep documents with high confidence and sufficient content
+            return score >= 0.8 and text_length >= 100
+    """,
+)

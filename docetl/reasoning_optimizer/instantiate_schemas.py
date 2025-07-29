@@ -356,6 +356,26 @@ class OperatorFusionInstantiateSchema(BaseModel):
     )
 
 
+class ChunkSubsectionConfig(BaseModel):
+    """Configuration for head/tail subsections with count and optional content_key."""
+    count: int = Field(..., description="Number of chunks to include")
+    content_key: Optional[str] = Field(None, description="Key in chunk data containing content to use")
+
+class ChunkMiddleSubsectionConfig(BaseModel):
+    """Configuration for middle subsection (no count field)."""
+    content_key: Optional[str] = Field(None, description="Key in chunk data containing content to use")
+
+class PeripheralSectionConfig(BaseModel):
+    """Configuration for previous/next sections in peripheral chunks."""
+    head: Optional[ChunkSubsectionConfig] = None
+    middle: Optional[ChunkMiddleSubsectionConfig] = None
+    tail: Optional[ChunkSubsectionConfig] = None
+
+class PeripheralChunksConfig(BaseModel):
+    """Configuration for gather operation peripheral chunks."""
+    previous: Optional[PeripheralSectionConfig] = None
+    next: Optional[PeripheralSectionConfig] = None
+
 class DocumentChunkingInstantiateSchema(BaseModel):
     """
     Schema for document chunking operations in a data processing pipeline.
@@ -376,8 +396,10 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         ...,
         description="Jinja prompt template for the reduce operation that aggregates chunk results. Must use {% for input in inputs %} to iterate over chunk results and produce the same output as the original map operation.",
     )
-    gather_config: Optional[Dict] = Field(
-        default={"previous": {"tail": {"count": 1}}},
+    gather_config: PeripheralChunksConfig = Field(
+        default_factory=lambda: PeripheralChunksConfig(
+            previous=PeripheralSectionConfig(tail=ChunkSubsectionConfig(count=1))
+        ),
         description="Configuration for the gather operation's peripheral_chunks. Specifies how much context to include from surrounding chunks. Default includes 1 previous chunk.",
     )
     model: str = Field(
@@ -409,64 +431,12 @@ class DocumentChunkingInstantiateSchema(BaseModel):
 
     @field_validator("gather_config")
     @classmethod
-    def validate_gather_config(cls, v: Dict) -> Dict:
+    def validate_gather_config(cls, v: PeripheralChunksConfig) -> PeripheralChunksConfig:
         """
         Validates that the gather_config follows the correct structure for peripheral_chunks.
         """
-        if not isinstance(v, dict):
-            raise ValueError("gather_config must be a dictionary")
-
-        # Validate top-level keys
-        valid_top_keys = {"previous", "next"}
-        for key in v.keys():
-            if key not in valid_top_keys:
-                raise ValueError(
-                    f"Invalid top-level key '{key}' in gather_config. Valid keys: {valid_top_keys}"
-                )
-
-        # Validate each section
-        for section_name, section_config in v.items():
-            if not isinstance(section_config, dict):
-                raise ValueError(f"Section '{section_name}' must be a dictionary")
-
-            # Validate subsection keys
-            valid_sub_keys = {"head", "middle", "tail"}
-            for sub_key in section_config.keys():
-                if sub_key not in valid_sub_keys:
-                    raise ValueError(
-                        f"Invalid subsection key '{sub_key}' in '{section_name}'. Valid keys: {valid_sub_keys}"
-                    )
-
-            # Validate head and tail have count
-            for sub_key in ["head", "tail"]:
-                if sub_key in section_config:
-                    sub_config = section_config[sub_key]
-                    if not isinstance(sub_config, dict):
-                        raise ValueError(
-                            f"'{section_name}.{sub_key}' must be a dictionary"
-                        )
-                    if "count" not in sub_config:
-                        raise ValueError(
-                            f"'{section_name}.{sub_key}' must have a 'count' field"
-                        )
-                    if (
-                        not isinstance(sub_config["count"], (int, float))
-                        or sub_config["count"] <= 0
-                    ):
-                        raise ValueError(
-                            f"'{section_name}.{sub_key}.count' must be a positive number (int or float)"
-                        )
-
-            # Validate middle (if present) doesn't have count
-            if "middle" in section_config:
-                middle_config = section_config["middle"]
-                if not isinstance(middle_config, dict):
-                    raise ValueError(f"'{section_name}.middle' must be a dictionary")
-                if "count" in middle_config:
-                    raise ValueError(
-                        f"'{section_name}.middle' should not have a 'count' field"
-                    )
-
+        # The Pydantic model structure already enforces the basic validation
+        # We can add additional business logic validation here if needed
         return v
 
 

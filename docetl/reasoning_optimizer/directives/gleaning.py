@@ -190,20 +190,20 @@ class GleaningDirective(Directive):
         # Add gleaning configuration to the target operator
         target_operator = new_ops_list[pos_to_replace]
         target_operator["gleaning"] = {
-            "validation_prompt": rewrite.gleaning_config.validation_prompt,
-            "num_rounds": rewrite.gleaning_config.num_rounds,
-            "model": rewrite.gleaning_config.model,
+            "validation_prompt": rewrite.validation_prompt,
+            "num_rounds": rewrite.num_rounds,
+            "model": rewrite.model,
         }
 
         return new_ops_list
 
     def instantiate(
         self,
-        global_default_model,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
+        global_default_model: str = None,
         **kwargs,
     ) -> tuple:
         """

@@ -272,23 +272,12 @@ class IsolatingSubtasksDirective(Directive):
      
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
-             
-                if "isolating_subtasks_config" not in parsed_res:
-                    raise ValueError(
-                        "Response missing required key 'isolating_subtasks_config'"
-                    )
+                schema = IsolatingSubtasksInstantiateSchema(**parsed_res)
 
-                config = parsed_res["isolating_subtasks_config"]
-                schema = IsolatingSubtasksInstantiateSchema(
-                    isolating_subtasks_config=config
-                )
                 # Use the schema's validation methods
-                schema.isolating_subtasks_config.validate_subtasks_coverage(
-                    original_output_keys
-                )
-                
-                schema.isolating_subtasks_config.validate_aggregation_references_all_subtasks()
-                
+                schema.validate_subtasks_coverage(original_output_keys)
+                schema.validate_aggregation_references_all_subtasks()
+
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
@@ -326,7 +315,6 @@ class IsolatingSubtasksDirective(Directive):
         if pos_to_replace is None:
             raise ValueError(f"Target operation '{target_op}' not found")
 
-        config = rewrite.isolating_subtasks_config
 
         # Create the parallel map operation
         parallel_map_op = {
@@ -346,7 +334,7 @@ class IsolatingSubtasksDirective(Directive):
         parallel_output_schema = {}
 
         # Add each subtask as a prompt in the parallel map
-        for i, subtask in enumerate(config.subtasks, 1):
+        for i, subtask in enumerate(rewrite.subtasks, 1):
             subtask_output_key = f"subtask_{i}_output"
 
             prompt_config = {
@@ -369,20 +357,14 @@ class IsolatingSubtasksDirective(Directive):
 
         # Check if aggregation is needed by comparing subtask output keys with original keys
         subtask_output_keys = set()
-        for subtask in config.subtasks:
+        for subtask in rewrite.subtasks:
             subtask_output_keys.update(subtask.output_keys)
 
         original_keys_set = set(original_op.get("output", {}).get("schema", {}).keys())
 
-        # print("*****************************")
-        # print(f"subtask_output_keys: {subtask_output_keys}")
-        # print(f"original_keys_set: {original_keys_set}")
-        # print("*****************************")
-
-
         # Check if aggregation is needed: aggregation_prompt is empty
         if (
-            not config.aggregation_prompt.strip()
+            not rewrite.aggregation_prompt.strip()
         ):
             # Just return the parallel map - it already produces the right output
             parallel_map_op["output"] = original_op.get("output", {})
@@ -392,7 +374,7 @@ class IsolatingSubtasksDirective(Directive):
             aggregation_map_op = {
                 "name": f"{target_op}_aggregate",
                 "type": "map",
-                "prompt": config.aggregation_prompt,
+                "prompt": rewrite.aggregation_prompt,
                 "litellm_completion_kwargs": {"temperature": 0},
                 "output": original_op.get(
                     "output", {}
@@ -415,11 +397,11 @@ class IsolatingSubtasksDirective(Directive):
 
     def instantiate(
         self,
-        global_default_model,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
+        global_default_model: str = None,
         **kwargs,
     ) -> tuple:
         """

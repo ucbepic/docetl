@@ -49,12 +49,12 @@ def get_all_directive_strings() -> str:
     return "\n".join([directive.to_string_for_plan() for directive in ALL_DIRECTIVES])
 
 def instantiate_directive(
-    global_default_model,
     directive_name: str,
     operators: List[Dict],
     target_ops: List[str], 
     agent_llm: str,
     message_history: list,
+    global_default_model: str = None,
     **kwargs
 ) -> Tuple[List[Dict], list]:
     """
@@ -83,11 +83,11 @@ def instantiate_directive(
     
     directive = DIRECTIVE_REGISTRY[directive_name]
     return directive.instantiate(
-        global_default_model,
         operators=operators,
         target_ops=target_ops,
         agent_llm=agent_llm,
         message_history=message_history,
+        global_default_model = global_default_model,
         **kwargs
     )
 

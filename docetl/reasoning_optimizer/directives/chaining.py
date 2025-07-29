@@ -256,7 +256,7 @@ class ChainingDirective(Directive):
         
         return new_ops_list
     
-    def instantiate(self, global_default_model, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal="acc", temperature = 0.8) -> tuple:
+    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal="acc", global_default_model: str = None, temperature = 0.8) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """

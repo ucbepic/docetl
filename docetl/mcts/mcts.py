@@ -455,12 +455,12 @@ class MCTS:
     
         try:
             new_ops_list, message_history = directive.instantiate(
-                global_default_model=orig_default_model,
                 operators=node.parsed_yaml["operations"],
                 target_ops=target_op_list,
                 agent_llm=self.model,
                 optimize_goal=optimize_goal,
                 temperature=0.8,
+                global_default_model=orig_default_model,
                 message_history=messages,
             )
         except Exception as e:

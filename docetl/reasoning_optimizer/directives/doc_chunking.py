@@ -370,12 +370,12 @@ class DocumentChunkingDirective(Directive):
         return new_ops_list
 
     def instantiate(
-        global_default_model,
         self,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
+        global_default_model: str = None,
         **kwargs,
     ) -> tuple:
         """

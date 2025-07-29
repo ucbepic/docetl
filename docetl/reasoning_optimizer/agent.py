@@ -392,12 +392,12 @@ def run_single_iteration(
 
     try:
         new_ops_list, message_history = instantiate_directive(
-            global_default_model=global_default_model,
             directive_name=directive,
             operators=orig_operators,
             target_ops=target_ops,
             agent_llm=model,
             message_history=message_history,
+            global_default_model=global_default_model,
         )
         orig_config["operations"] = new_ops_list
 

@@ -274,14 +274,7 @@ class DocSummarizationDirective(Directive):
 
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
-                if "doc_summarization_config" not in parsed_res:
-                    raise ValueError(
-                        "Response from LLM is missing required key 'doc_summarization_config'"
-                    )
-                doc_summarization_config = parsed_res["doc_summarization_config"]
-                schema = DocSummarizationInstantiateSchema(
-                    doc_summarization_config=doc_summarization_config
-                )
+                schema = DocSummarizationInstantiateSchema(**parsed_res)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
@@ -308,13 +301,13 @@ class DocSummarizationDirective(Directive):
 
         # Create the summarization Map operator using the LLM-generated name
         summarization_op = {
-            "name": rewrite.doc_summarization_config.name,
+            "name": rewrite.name,
             "type": "map",
-            "prompt": rewrite.doc_summarization_config.prompt,
-            "model": rewrite.doc_summarization_config.model,
+            "prompt": rewrite.prompt,
+            "model": rewrite.model,
             "litellm_completion_kwargs": {"temperature": 0},
             "output": {
-                "schema": {rewrite.doc_summarization_config.document_key: "string"}
+                "schema": {rewrite.document_key: "string"}
             },
         }
 
@@ -325,11 +318,11 @@ class DocSummarizationDirective(Directive):
 
     def instantiate(
         self,
-        global_default_model,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
+        global_default_model: str = None,
         **kwargs,
     ) -> tuple:
         """

@@ -177,13 +177,7 @@ class DocCompressionDirective(Directive):
 
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
-                if "doc_compression_config" not in parsed_res:
-                    raise ValueError(
-                        "Response missing required key 'doc_compression_config'"
-                    )
-
-                config = parsed_res["doc_compression_config"]
-                schema = DocCompressionInstantiateSchema(doc_compression_config=config)
+                schema = DocCompressionInstantiateSchema(**parsed_res)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
@@ -213,15 +207,13 @@ class DocCompressionDirective(Directive):
             [i for i, op in enumerate(ops_list) if op["name"] in target_ops]
         )
 
-        # Create the Extract operation
-        compression_config = rewrite.doc_compression_config
         extract_op = {
-            "name": compression_config.name,
+            "name": rewrite.name,
             "type": "extract",
-            "prompt": compression_config.prompt,
-            "document_keys": [compression_config.document_key],
+            "prompt": rewrite.prompt,
+            "document_keys": [rewrite.document_key],
             "litellm_completion_kwargs": {"temperature": 0},
-            "model": compression_config.model,
+            "model": rewrite.model,
         }
 
         # Insert the Extract operation before the first target operation
@@ -231,11 +223,11 @@ class DocCompressionDirective(Directive):
 
     def instantiate(
         self,
-        global_default_model,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
+        global_default_model: str = None,
         **kwargs,
     ) -> tuple:
         """

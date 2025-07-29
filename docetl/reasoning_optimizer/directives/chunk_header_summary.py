@@ -295,11 +295,11 @@ class ChunkHeaderSummaryDirective(Directive):
 
     def instantiate(
         self,
-        global_default_model,
         operators: List[Dict],
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
+        global_default_model: str = None,
         **kwargs,
     ) -> tuple:
         """

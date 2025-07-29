@@ -208,7 +208,6 @@ class ChangeModelDirective(Directive):
             {"role": "system", "content": "You are a helpful AI assistant for document processing pipelines."},
             {"role": "user", "content": self.to_string_for_instantiate(original_op, optimize_goal)},
         ])
-        print("HERE")
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
             resp = completion(
                 model=agent_llm,
@@ -254,11 +253,11 @@ class ChangeModelDirective(Directive):
         
         # Add change model configuration to the target operator
         target_operator = new_ops_list[pos_to_replace]
-        target_operator["model"] = rewrite.change_model_config.model
+        target_operator["model"] = rewrite.model
         
         return new_ops_list
     
-    def instantiate(self, global_default_model, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal = "acc") -> tuple:
+    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal = "acc", global_default_model: str = None) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """

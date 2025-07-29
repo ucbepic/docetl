@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-
+import json
 from litellm import completion
 from pydantic import BaseModel, Field
 
@@ -165,7 +165,6 @@ class Directive(BaseModel, ABC):
         )
 
         # Parse the JSON response
-        import json
 
         parsed_content = json.loads(response.choices[0].message.content)
 

@@ -66,3 +66,6 @@ tests/data/get_freshstack.py
 *.yml
 *.json
 *.png
+graph.py
+graph_baseline.py
+kendalltau.py

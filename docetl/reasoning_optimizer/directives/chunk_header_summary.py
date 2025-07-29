@@ -22,7 +22,7 @@ class ChunkHeaderSummaryDirective(Directive):
         default="Transforms an existing Split -> Gather pipeline by inserting a Map operation between them that extracts headers and creates summaries from each chunk. The Gather operation is then modified to use summaries for middle chunks and headers for document structure. This directive enhances chunking pipelines with header extraction and chunk summarization capabilities. Only use this if it is clear that chunk-level analysis is insufficient because the chunk requires headers and summaries from other chunks to be interpreted correctly."
     )
     when_to_use: str = Field(
-        default="Use only when you have an existing chunking pipeline (Split -> Gather) processing documents with clear hierarchical structure (legal contracts, technical manuals, research papers), and it is evident that chunk-level analysis is not accurate because the chunk needs headers and summaries from other chunks to make sense. This is beneficial when full chunk content in gather would be too verbose, and summarized or structured context is required for correct downstream processing."
+        default="Use only when you have an existing chunking pipeline (Split -> Gather) processing documents with clear hierarchical structure (legal contracts, technical manuals, research papers), and it is evident that chunk-level analysis is not accurate because the chunk needs headers and summaries from other chunks to make sense. This is beneficial when full chunk content in gather would be too verbose, and summarized or structured context is required for correct downstream processing. The target operators should be the split and gather. Make sure you specify these two operators when choosing this directive."
     )
 
     instantiate_schema_type: Type[BaseModel] = Field(
@@ -187,7 +187,6 @@ class ChunkHeaderSummaryDirective(Directive):
                 },
             ]
         )
-
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
             resp = completion(
                 model=agent_llm,
@@ -198,7 +197,6 @@ class ChunkHeaderSummaryDirective(Directive):
                 azure=True,
                 response_format=ChunkHeaderSummaryInstantiateSchema,
             )
-
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = ChunkHeaderSummaryInstantiateSchema(**parsed_res)
@@ -336,7 +334,7 @@ class ChunkHeaderSummaryDirective(Directive):
             "gather_op": gather_op,
             "target_ops": target_ops,
         }
-
+      
         # Instantiate the directive
         rewrite, message_history = self.llm_instantiate(
             pipeline_context, agent_llm, message_history

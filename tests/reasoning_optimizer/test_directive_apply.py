@@ -15,6 +15,8 @@ from docetl.reasoning_optimizer.directives import (
     IsolatingSubtasksDirective,
     DocCompressionDirective,
     DeterministicDocCompressionDirective,
+    DocumentChunkingDirective,
+    ChunkHeaderSummaryDirective
 )
 
 
@@ -422,6 +424,72 @@ def transform(input_doc):
     assert len(result) == 2  # Should add preprocessing op before target
 
 
+def test_doc_chunking_apply():
+    """Test that doc chunking apply doesn't crash"""
+    directive = DocumentChunkingDirective()
+    
+    ops_list = [
+        {
+            "name": "analyze_document",
+            "type": "map",
+            "prompt": "Analyze this document: {{ input.document }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"analysis": "string"}}
+        }
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import DocumentChunkingInstantiateSchema
+    rewrite = DocumentChunkingInstantiateSchema(
+        chunk_size=1000,
+        split_key="document",
+        sub_prompt="Analyze this document chunk: {{ input.document_chunk_rendered }}",
+        reduce_prompt="Combine the analysis results: {% for input in inputs %}{{ input.analysis }}{% endfor %}"
+    )
+    
+    result = directive.apply(ops_list, "analyze_document", rewrite)
+    assert isinstance(result, list)
+    assert len(result) == 4  # Should be split -> gather -> map -> reduce
+
+
+def test_chunk_header_summary_apply():
+    """Test that chunk header summary apply doesn't crash"""
+    directive = ChunkHeaderSummaryDirective()
+    
+    ops_list = [
+        {
+            "name": "split_legal_docs",
+            "type": "split",
+            "split_key": "agreement_text",
+            "method": "token_count",
+            "method_kwargs": {"num_tokens": 1000}
+        },
+        {
+            "name": "gather_legal_context",
+            "type": "gather",
+            "content_key": "agreement_text_chunk",
+            "doc_id_key": "split_legal_docs_id",
+            "order_key": "split_legal_docs_chunk_num",
+            "peripheral_chunks": {
+                "previous": {"tail": {"count": 1}},
+                "next": {"head": {"count": 1}}
+            }
+        }
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import ChunkHeaderSummaryInstantiateSchema
+    rewrite = ChunkHeaderSummaryInstantiateSchema(
+        header_extraction_prompt="Extract headers from: {{ input.agreement_text_chunk }}",
+        summary_prompt="Summarize this legal text: {{ input.agreement_text_chunk }}",
+        model="gpt-4o-mini"
+    )
+    
+    result = directive.apply(ops_list, ["split_legal_docs", "gather_legal_context"], rewrite)
+    assert isinstance(result, list)
+    assert len(result) == 3  # Should insert parallel_map between split and gather
+    assert result[1]["type"] == "parallel_map"
+    assert "doc_header_key" in result[2]  # gather should have doc_header_key
+
+
 if __name__ == "__main__":
     # Run all tests
     test_chaining_apply()
@@ -462,5 +530,11 @@ if __name__ == "__main__":
     
     test_deterministic_doc_compression_apply()
     print("✅ Deterministic doc compression apply test passed")
+    
+    test_doc_chunking_apply()
+    print("✅ Doc chunking apply test passed")
+    
+    test_chunk_header_summary_apply()
+    print("✅ Chunk header summary apply test passed")
     
     print("\n🎉 All directive apply tests passed!")

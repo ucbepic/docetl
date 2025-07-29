@@ -111,7 +111,7 @@ class OperatorFusionDirective(Directive):
                         "type": "reduce",
                         "reduce_key": "topic",
                         "prompt": "Count company mentions: {% for item in inputs %}{{ item.companies }}{% endfor %}",
-                        "output": {"schema": {"mention_counts": "dict"}},
+                        "output": {"schema": {"mention_counts": "str"}},
                         "model": "gpt-4o-mini",
                     },
                 ],

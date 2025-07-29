@@ -89,13 +89,13 @@ class DocSummarizationDirective(Directive):
                         "name": "assess_drug_interactions",
                         "type": "map",
                         "prompt": "Analyze potential drug interactions from this consultation: {{ input.transcript }}. Consider contraindications and patient allergies.",
-                        "output": {"schema": {"interaction_risks": "list[dict]"}},
+                        "output": {"schema": {"interaction_risks": "list[str]"}},
                     },
                     {
                         "name": "predict_side_effects",
                         "type": "map",
                         "prompt": "Predict likely side effects for this patient based on: {{ input.transcript }}. Consider age, weight, and medical history.",
-                        "output": {"schema": {"predicted_effects": "list[dict]"}},
+                        "output": {"schema": {"predicted_effects": "list[str]"}},
                     },
                     {
                         "name": "create_monitoring_plan",
@@ -120,7 +120,7 @@ class DocSummarizationDirective(Directive):
                         "name": "identify_liability_risks",
                         "type": "map",
                         "prompt": "Identify liability and indemnification risks in: {{ input.contract_document }}. Focus on limitation of liability clauses.",
-                        "output": {"schema": {"liability_risks": "list[dict]"}},
+                        "output": {"schema": {"liability_risks": "list[str]"}},
                     },
                     {
                         "name": "analyze_termination_terms",
@@ -153,7 +153,7 @@ class DocSummarizationDirective(Directive):
                         "prompt": "Evaluate company financial health from: {{ input.annual_report }}. Calculate key ratios and assess profitability trends.",
                         "output": {
                             "schema": {
-                                "financial_metrics": "dict",
+                                "financial_metrics": "str",
                                 "health_score": "float",
                             }
                         },
@@ -175,8 +175,8 @@ class DocSummarizationDirective(Directive):
                         "prompt": "Identify growth opportunities and risks from: {{ input.annual_report }}. Include regulatory and market risks.",
                         "output": {
                             "schema": {
-                                "growth_opportunities": "list[dict]",
-                                "risk_factors": "list[dict]",
+                                "growth_opportunities": "list[str]",
+                                "risk_factors": "list[str]",
                             }
                         },
                     },

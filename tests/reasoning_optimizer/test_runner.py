@@ -11,12 +11,16 @@ from datetime import datetime
 
 from docetl.reasoning_optimizer.directives import (
     ChainingDirective, 
-    GleaningDirective, 
+    GleaningDirective,
+    ReduceGleaningDirective,
     ChangeModelDirective,
     DocSummarizationDirective,
     IsolatingSubtasksDirective,
     DocCompressionDirective,
     DeterministicDocCompressionDirective,
+    OperatorFusionDirective,
+    DocumentChunkingDirective,
+    ChunkHeaderSummaryDirective,
     TestResult
 )
 
@@ -40,12 +44,16 @@ def run_all_directive_tests(agent_llm: str = "gpt-4.1") -> Dict[str, List[TestRe
     # Initialize all directives
     directives = [
         ChainingDirective(),
-        GleaningDirective(), 
+        GleaningDirective(),
+        ReduceGleaningDirective(),
         ChangeModelDirective(),
         DocSummarizationDirective(),
         IsolatingSubtasksDirective(),
         DocCompressionDirective(),
-        DeterministicDocCompressionDirective()
+        DeterministicDocCompressionDirective(),
+        OperatorFusionDirective(),
+        DocumentChunkingDirective(), 
+        ChunkHeaderSummaryDirective()
     ]
     
     all_results = {}
@@ -140,11 +148,15 @@ def run_specific_directive_test(directive_name: str, agent_llm: str = "gpt-4o-mi
     directive_map = {
         "chaining": ChainingDirective(),
         "gleaning": GleaningDirective(),
+        "reduce_gleaning": ReduceGleaningDirective(),
         "change_model": ChangeModelDirective(),
         "doc_summarization": DocSummarizationDirective(),
         "isolating_subtasks": IsolatingSubtasksDirective(),
         "doc_compression": DocCompressionDirective(),
-        "deterministic_doc_compression": DeterministicDocCompressionDirective()
+        "deterministic_doc_compression": DeterministicDocCompressionDirective(),
+        "operator_fusion": OperatorFusionDirective(),
+        "doc_chunking": DocumentChunkingDirective(),
+        "chunk_header_summary": ChunkHeaderSummaryDirective()
     }
     
     if directive_name.lower() not in directive_map:
@@ -174,8 +186,10 @@ def run_specific_directive_test(directive_name: str, agent_llm: str = "gpt-4o-mi
         status = "✅ PASS" if result.passed else "❌ FAIL"
         print(f"{status} {result.test_name}")
         print(f"   Reason: {result.reason}")
+        print(f"   Actual output: {result.actual_output}")
         if result.execution_error:
             print(f"   Error: {result.execution_error}")
+            print(f"   Actual output: {result.actual_output}")
         print()
     
     return results

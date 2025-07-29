@@ -225,6 +225,7 @@ class DocumentChunkingDirective(Directive):
             f"   - Count can be float (e.g., 0.5 for half chunk, 1.5 for chunk and a half)\n"
             f"   - More context increases token usage and cost - be judicious\n"
             f"   - Default to 0.5 previous tail if unsure about context needs\n"
+            f" If a content_key is specified that's different from the main content key, it's treated as a summary. This is useful for including condensed versions of chunks in the middle section to save space. If no content_key is specified, it defaults to the main content key of the operation."
             f"6. model: Use the same model as the original operation or a suitable alternative\n\n"
             f"The sub_prompt should focus on the main chunk content and extract the same type of information as the original.\n"
             f"The reduce_prompt must produce the same output schema as the original operation.\n\n"
@@ -296,6 +297,7 @@ class DocumentChunkingDirective(Directive):
         Apply the directive to the pipeline config by replacing the target operation
         with a split -> gather -> map -> reduce sequence.
         """
+
         # Create a copy of the pipeline config
         new_ops_list = deepcopy(ops_list)
         target_op_config = [op for op in new_ops_list if op["name"] == target_op][0]
@@ -326,14 +328,19 @@ class DocumentChunkingDirective(Directive):
         }
 
         # Create the gather operation with agent-configured context
-        gather_config = rewrite.gather_config or {"previous": {"tail": {"count": 1}}}
+        # Convert Pydantic model to dict, excluding None values
+        gather_config_dict = rewrite.gather_config.model_dump(exclude_none=True) if rewrite.gather_config else {}
+        # Use default config if the gather_config is empty (all fields were None)
+        if not gather_config_dict:
+            gather_config_dict = {"previous": {"tail": {"count": 1}}}
+        
         gather_op = {
             "name": gather_name,
             "type": "gather",
             "content_key": f"{rewrite.split_key}_chunk",
             "doc_id_key": f"{split_name}_id",
             "order_key": f"{split_name}_chunk_num",
-            "peripheral_chunks": gather_config,
+            "peripheral_chunks": gather_config_dict,
         }
 
         # Create the map operation for processing chunks
@@ -343,7 +350,7 @@ class DocumentChunkingDirective(Directive):
             "prompt": rewrite.sub_prompt,
             "model": target_op_config.get("model", rewrite.model),
             "litellm_completion_kwargs": {"temperature": 0},
-            "output": original_op["output"],  # Same output schema as original
+            "output": deepcopy(original_op["output"]),  # Same output schema as original
         }
 
         # Create the reduce operation
@@ -354,7 +361,7 @@ class DocumentChunkingDirective(Directive):
             "prompt": rewrite.reduce_prompt,
             "model": target_op_config.get("model", rewrite.model),
             "litellm_completion_kwargs": {"temperature": 0},
-            "output": original_op["output"],  # Same output schema as original
+            "output": deepcopy(original_op["output"]),  # Same output schema as original
             "associative": False,  # Order matters for chunks,
             "pass_through": True,
         }

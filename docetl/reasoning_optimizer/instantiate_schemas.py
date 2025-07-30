@@ -18,11 +18,11 @@ class MapOpConfig(BaseModel):
     name: str = Field(..., description="The name of the Map operator")
     prompt: str = Field(
         ...,
-        description="Jinja prompt template for the inserted Map operator. Must refer to the input document keys as {{ input.key }}."
+        description="Jinja prompt template for the inserted Map operator. Must refer to the input document keys as {{ input.key }}.",
     )
     output_keys: List[str] = Field(
         ...,
-        description="The keys of the output of the Map operator, to be referenced in the downstream operator's prompt. Can be a single key or a list of keys. Can be new keys or existing keys from the map operator we are rewriting."
+        description="The keys of the output of the Map operator, to be referenced in the downstream operator's prompt. Can be a single key or a list of keys. Can be new keys or existing keys from the map operator we are rewriting.",
     )
     model: str = Field(
         default="gpt-4o-mini", description="The model to use for the Map operator."
@@ -44,7 +44,9 @@ class MapOpConfig(BaseModel):
         """
         # Matches {{ input.key }} for any key (non-whitespace, non-})
         if not re.search(r"\{\{\s*input\.[^}\s]+\s*\}\}", value):
-            raise ValueError("The prompt must contain at least one '{{ input.key }}' reference.")
+            raise ValueError(
+                "The prompt must contain at least one '{{ input.key }}' reference."
+            )
         return value
 
     @field_validator("prompt")
@@ -52,7 +54,7 @@ class MapOpConfig(BaseModel):
     def check_prompt(cls, v: str) -> str:
         return cls.validate_prompt_contains_input_key(v)
 
-    
+
 class ChainingInstantiateSchema(BaseModel):
     """
     Schema for chaining multiple Map operators in a data processing pipeline.
@@ -63,8 +65,7 @@ class ChainingInstantiateSchema(BaseModel):
     """
 
     new_ops: List[MapOpConfig] = Field(
-        ...,
-        description="The new Map operators to insert in the chain."
+        ..., description="The new Map operators to insert in the chain."
     )
 
     @classmethod
@@ -104,7 +105,6 @@ class ChainingInstantiateSchema(BaseModel):
             )
 
 
-
 class GleaningInstantiateSchema(BaseModel):
     """
     Schema for gleaning operations in a data processing pipeline.
@@ -128,7 +128,9 @@ class ChangeModelInstantiateSchema(BaseModel):
     model: str = Field(default="gpt-4o-mini", description="The new LLM model to use.")
 
     @classmethod
-    def validate_diff_model_in_list(cls, orig_model, model: str, list_of_model: List[str]) -> None:
+    def validate_diff_model_in_list(
+        cls, orig_model, model: str, list_of_model: List[str]
+    ) -> None:
         """
         Validates that the model is in the allowed list_of_model.
 
@@ -143,9 +145,11 @@ class ChangeModelInstantiateSchema(BaseModel):
             raise ValueError(
                 f"Model '{model}' is not in the allowed list: {list_of_model}"
             )
-        elif model == orig_model: 
-            raise ValueError(f"Model '{model}' is the same as the original model used: {orig_model}")
-    
+        elif model == orig_model:
+            raise ValueError(
+                f"Model '{model}' is the same as the original model used: {orig_model}"
+            )
+
 
 class DocSummarizationInstantiateSchema(BaseModel):
     """
@@ -358,23 +362,35 @@ class OperatorFusionInstantiateSchema(BaseModel):
 
 class ChunkSubsectionConfig(BaseModel):
     """Configuration for head/tail subsections with count and optional content_key."""
+
     count: int = Field(..., description="Number of chunks to include")
-    content_key: Optional[str] = Field(None, description="Key in chunk data containing content to use")
+    content_key: Optional[str] = Field(
+        None, description="Key in chunk data containing content to use"
+    )
+
 
 class ChunkMiddleSubsectionConfig(BaseModel):
     """Configuration for middle subsection (no count field)."""
-    content_key: Optional[str] = Field(None, description="Key in chunk data containing content to use")
+
+    content_key: Optional[str] = Field(
+        None, description="Key in chunk data containing content to use"
+    )
+
 
 class PeripheralSectionConfig(BaseModel):
     """Configuration for previous/next sections in peripheral chunks."""
+
     head: Optional[ChunkSubsectionConfig] = None
     middle: Optional[ChunkMiddleSubsectionConfig] = None
     tail: Optional[ChunkSubsectionConfig] = None
 
+
 class PeripheralChunksConfig(BaseModel):
     """Configuration for gather operation peripheral chunks."""
+
     previous: Optional[PeripheralSectionConfig] = None
     next: Optional[PeripheralSectionConfig] = None
+
 
 class DocumentChunkingInstantiateSchema(BaseModel):
     """
@@ -431,7 +447,9 @@ class DocumentChunkingInstantiateSchema(BaseModel):
 
     @field_validator("gather_config")
     @classmethod
-    def validate_gather_config(cls, v: PeripheralChunksConfig) -> PeripheralChunksConfig:
+    def validate_gather_config(
+        cls, v: PeripheralChunksConfig
+    ) -> PeripheralChunksConfig:
         """
         Validates that the gather_config follows the correct structure for peripheral_chunks.
         """
@@ -482,4 +500,40 @@ class ChunkHeaderSummaryInstantiateSchema(BaseModel):
             raise ValueError(
                 "The summary_prompt must reference the chunk content using '_chunk' suffix"
             )
+        return v
+
+
+class ChunkSamplingInstantiateSchema(BaseModel):
+    """
+    Schema for chunk sampling operations in a data processing pipeline.
+    Adds a sample operation between gather and map in a Split -> Gather -> Map -> Reduce sequence.
+    Only for tasks that don't need to examine ALL chunks (e.g., categorization, determine X reasons).
+    """
+
+    method: str = Field(
+        default="uniform",
+        description="The sampling method to use. Can be 'uniform', 'first', or 'stratify'",
+    )
+    samples: float = Field(
+        ...,
+        description="Float fraction of chunks to sample (e.g., 0.1 for 10%, 0.3 for 30%)",
+    )
+    method_kwargs: Optional[Dict] = Field(
+        default_factory=dict,
+        description="Additional parameters for the sampling method (e.g., stratify_key for stratified sampling)",
+    )
+
+    @field_validator("samples")
+    @classmethod
+    def validate_samples_fraction(cls, v: float) -> float:
+        if not (0.0 < v <= 1.0):
+            raise ValueError("samples must be a fraction between 0.0 and 1.0")
+        return v
+
+    @field_validator("method")
+    @classmethod
+    def validate_method(cls, v: str) -> str:
+        allowed_methods = ["uniform", "stratify", "first"]
+        if v not in allowed_methods:
+            raise ValueError(f"method must be one of {allowed_methods}")
         return v

@@ -798,6 +798,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     tool_choice=tool_choice,
                     **extra_litellm_kwargs,
                 )
+
             except Exception as e:
                 # Check that there's a prefix for the model name if it's not a basic model
                 if model not in BASIC_MODELS:

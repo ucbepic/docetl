@@ -16,7 +16,8 @@ from docetl.reasoning_optimizer.directives import (
     DocCompressionDirective,
     DeterministicDocCompressionDirective,
     DocumentChunkingDirective,
-    ChunkHeaderSummaryDirective
+    ChunkHeaderSummaryDirective,
+    ChunkSamplingDirective
 )
 
 
@@ -490,6 +491,43 @@ def test_chunk_header_summary_apply():
     assert "doc_header_key" in result[2]  # gather should have doc_header_key
 
 
+def test_chunk_sampling_apply():
+    """Test that chunk sampling apply doesn't crash"""
+    directive = ChunkSamplingDirective()
+    
+    # Simple Gather -> Map sequence
+    ops_list = [
+        {
+            "name": "gather_chunks",
+            "type": "gather",
+            "content_key": "document_chunk",
+            "doc_id_key": "split_docs_id",
+            "order_key": "split_docs_chunk_num",
+        },
+        {
+            "name": "categorize_document",
+            "type": "map",
+            "prompt": "What category does this document belong to? {{ input.document_chunk_rendered }}",
+            "output": {"schema": {"category": "string"}},
+        },
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import ChunkSamplingInstantiateSchema
+    rewrite = ChunkSamplingInstantiateSchema(
+        method="uniform",
+        samples=0.05
+    )
+    
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["gather_chunks", "categorize_document"], rewrite)
+    assert isinstance(result, list)
+    assert len(result) == 3  # Should insert sample between gather and map
+    assert result[0]["name"] == "gather_chunks"
+    assert result[1]["type"] == "sample"
+    assert result[1]["method"] == "uniform"
+    assert result[1]["samples"] == 0.05
+    assert result[2]["name"] == "categorize_document"
+
+
 if __name__ == "__main__":
     # Run all tests
     test_chaining_apply()
@@ -536,5 +574,8 @@ if __name__ == "__main__":
     
     test_chunk_header_summary_apply()
     print("✅ Chunk header summary apply test passed")
-    
+
+    test_chunk_sampling_apply()
+    print("✅ Chunk sampling apply test passed")
+
     print("\n🎉 All directive apply tests passed!")

@@ -30,11 +30,13 @@ export const metadata: Metadata = {
     "AI document processing",
     "unstructured data pipeline",
     "open source AI tooling",
+    "AI-powered document processing",
+    "AI and data",
   ],
   openGraph: {
     title: "DocETL – AI-Powered Document ETL Platform",
     description:
-      "Build complex document processing pipelines with large language models. Extract structured data, link entities, rank information and more using a single YAML file. Built by the EPIC Data Lab at UC Berkeley.",
+      "Build complex document processing pipelines with large language models. Declaratively extract structured data, link entities, rank information and more with AI and LLMs. Built by the EPIC Data Lab at UC Berkeley.",
     url: "https://www.docetl.org",
     type: "website",
     images: [

@@ -248,13 +248,9 @@ class ParetoFrontier:
             node: The node that received the reward
             reward: The reward value to incorporate
         """
-        
-        print("WE ARE ", node.id)
         if not node.latest_action or not self.action_rewards:
             return
-        
         action = node.latest_action
-        print("really updating: ", node.id, action.name)
         if action in self.action_rewards:
             old_count = self.action_counts.get(action, 0)
             old_avg = self.action_rewards[action]

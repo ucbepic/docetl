@@ -247,6 +247,6 @@ class DocCompressionDirective(Directive):
 
         # Step 2: Apply transformation using the schema
         return (
-            self.apply(global_default_model, operators, target_ops, rewrite),
+            self.apply(operators, target_ops, rewrite),
             message_history,
         )

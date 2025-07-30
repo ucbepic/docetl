@@ -251,6 +251,11 @@ class ChunkHeaderSummaryDirective(Directive):
                 "Split operation must come before gather operation in the pipeline"
             )
 
+        if gather_idx - split_idx > 1:
+            raise ValueError(
+                "There should not be operators between split and gather"
+            )
+
         # Get the split_key from the split operation
         split_key = split_op.get("split_key")
         if not split_key:

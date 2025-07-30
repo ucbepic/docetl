@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import time
 from copy import deepcopy
@@ -7,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import litellm
 import yaml
 
-from docetl.reasoning_optimizer.directives import Directive, get_all_directive_strings
+from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES, Directive, get_all_directive_strings
 from docetl.reasoning_optimizer.op_descriptions import *
 
 from .acc_comparator import AccuracyComparator
@@ -93,8 +94,7 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            self.mcts_iteration()
-            self.iteration_count += 1
+            if self.mcts_iteration(): self.iteration_count += 1
 
         # Final statistics
         print(f"\nMCTS search completed!")
@@ -169,6 +169,7 @@ class MCTS:
                 self.iterations_without_improvement += 1
 
         self.print_tree_visits_and_values()
+        return has_leaf_acc
 
     def select(self, node: Node) -> Node:
         """
@@ -234,13 +235,14 @@ class MCTS:
         traverse(parsed_yaml)
 
     def is_fully_explored(self, node: Node) -> bool:
-        print("# of children: ", len(node.children))
-        if len(node.children) >= self.expansion_count:
+        allowed_children = max(2, 1 + math.floor(math.sqrt(float(node.visits))))
+        print("# of children: ", len(node.children), " allowed_childre: ", allowed_children)
+        if len(node.children) >= allowed_children:
             return True
         for op in node.parsed_yaml["operations"]:
             op_name = op.get("name")
             print(op_name, len(node.used_actions_acc[op_name]))
-            if len(node.used_actions_acc[op_name]) < 6:
+            if len(node.used_actions_acc[op_name]) < len(ALL_DIRECTIVES):
                 return False
             # if len(node.used_actions_cost[op_name]) < 1: return False
         return True
@@ -388,6 +390,7 @@ class MCTS:
 
         # Build action options and initial prompt once
         op_list = list(node.op_dict.keys())
+        
         if optimize_goal == "acc":
             action_options = []  # a list of tuple
             for op_name in op_list:
@@ -395,7 +398,6 @@ class MCTS:
                     used_actions = node.used_actions_acc[op_name]
                 else:
                     used_actions = set()
-
                 action_space = (
                     set(self.available_actions) - used_actions
                 )  # The actions that are not used on this operator
@@ -549,6 +551,7 @@ class MCTS:
 
         node.execute_plan()
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node)
+        self.action_rewards = self.pareto_frontier.action_rewards
         return affected_nodes, is_frontier_updated
 
     def backpropagate(self, affected_nodes: Dict[Node, int], visit_node):
@@ -655,6 +658,10 @@ class MCTS:
                 chaining = self.directive_name_to_obj.get("chaining")
                 assert chaining
                 child.mark_action_used_acc(op, chaining)
+
+                chunking = self.directive_name_to_obj.get("doc_chunking")
+                assert chunking
+                child.mark_action_used_acc(op, chunking)
         elif directive_name == "change model":
             for op in target_op_list:
                 change_model = self.directive_name_to_obj.get("change model")

@@ -282,7 +282,11 @@ class ReduceGleaningDirective(Directive):
         )
 
     def apply(
-        self, ops_list: List[Dict], target_op: str, rewrite: GleaningInstantiateSchema
+        self,
+        global_default_model: str,
+        ops_list: List[Dict],
+        target_op: str,
+        rewrite: GleaningInstantiateSchema,
     ) -> List[Dict]:
         """
         Apply the directive to the pipeline config by adding gleaning configuration to the target reduce operator.
@@ -335,4 +339,7 @@ class ReduceGleaningDirective(Directive):
         )
 
         # Apply the rewrite to the operators
-        return self.apply(operators, target_ops[0], rewrite), message_history
+        return (
+            self.apply(global_default_model, operators, target_ops[0], rewrite),
+            message_history,
+        )

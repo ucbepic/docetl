@@ -289,6 +289,7 @@ class DocumentChunkingDirective(Directive):
 
     def apply(
         self,
+        global_default_model: str,
         ops_list: List[Dict],
         target_op: str,
         rewrite: DocumentChunkingInstantiateSchema,
@@ -329,11 +330,15 @@ class DocumentChunkingDirective(Directive):
 
         # Create the gather operation with agent-configured context
         # Convert Pydantic model to dict, excluding None values
-        gather_config_dict = rewrite.gather_config.model_dump(exclude_none=True) if rewrite.gather_config else {}
+        gather_config_dict = (
+            rewrite.gather_config.model_dump(exclude_none=True)
+            if rewrite.gather_config
+            else {}
+        )
         # Use default config if the gather_config is empty (all fields were None)
         if not gather_config_dict:
             gather_config_dict = {"previous": {"tail": {"count": 1}}}
-        
+
         gather_op = {
             "name": gather_name,
             "type": "gather",
@@ -406,4 +411,7 @@ class DocumentChunkingDirective(Directive):
         )
 
         # Apply the rewrite to the operators
-        return self.apply(operators, target_ops[0], rewrite), message_history
+        return (
+            self.apply(global_default_model, operators, target_ops[0], rewrite),
+            message_history,
+        )

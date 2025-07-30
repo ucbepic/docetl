@@ -6,6 +6,12 @@ This folder contains experiments for the DocETL reasoning optimizer, which uses 
 
 ### Prerequisites
 
+Pip install the following:
+
+```bash
+pip install pymoo
+```
+
 Set up environment variables:
 ```bash
 export AZURE_API_KEY="your_key_here"

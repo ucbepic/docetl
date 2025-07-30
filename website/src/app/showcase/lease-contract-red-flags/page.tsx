@@ -1,7 +1,7 @@
 "use client";
 
 import React, { Suspense } from "react";
-import Head from "next/head";
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -14,6 +14,32 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Loader2, Scroll, ArrowLeft } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "AI-Powered Lease Contract Red-Flag Analysis | DocETL",
+  description:
+    "Interactive demo showing how DocETL uses LLMs to extract and rank red-flag clauses in lease agreements, helping teams sort legal documents by risk.",
+  keywords: [
+    "AI legal document analysis",
+    "lease contract review",
+    "red flag extraction",
+    "LLM contract analysis",
+    "AI document sorting",
+    "generative AI legal tech",
+  ],
+  openGraph: {
+    title: "AI-Powered Lease Contract Red-Flag Analysis | DocETL",
+    description:
+      "See lease agreements ranked by severity of risky clauses with interactive highlighting. Powered by DocETL pipelines and large language models.",
+    url: "https://www.docetl.org/showcase/lease-contract-red-flags",
+    type: "website",
+    images: [
+      {
+        url: "/docetl-favicon-color.png",
+      },
+    ],
+  },
+};
 
 const LeaseContractExplorer = dynamic(
   () => import("@/components/showcase/lease-contract-explorer"),
@@ -39,26 +65,6 @@ export default function LeaseContractRedFlagsPage() {
 
   return (
     <>
-      <Head>
-        <title>Lease Contract Red-Flag Analysis | DocETL Showcase</title>
-        <meta
-          name="description"
-          content="See how DocETL ranks lease agreements by the severity of red flags extracted using LLMs and the ALeaseBERT dataset."
-        />
-        <meta
-          property="og:title"
-          content="Lease Contract Red-Flag Analysis | DocETL"
-        />
-        <meta
-          property="og:description"
-          content="Interactive demo: rank lease agreements by risk, explore highlighted red-flag clauses, and learn how DocETL pipelines work."
-        />
-        <meta property="og:type" content="website" />
-        <meta
-          property="og:url"
-          content="https://docetl.ai/showcase/lease-contract-red-flags"
-        />
-      </Head>
       <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
         <div className="max-w-6xl w-full">
           {/* Header */}

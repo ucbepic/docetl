@@ -1,5 +1,3 @@
-"use client";
-
 import React, { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -54,15 +52,6 @@ const LeaseContractExplorer = dynamic(
 );
 
 export default function LeaseContractRedFlagsPage() {
-  const handleDownloadPipeline = () => {
-    const link = document.createElement("a");
-    link.href = "/demos/contracts_pipeline.yaml";
-    link.download = "contracts_pipeline.yaml";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <>
       <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
@@ -182,13 +171,14 @@ export default function LeaseContractRedFlagsPage() {
                 <span className="text-muted-foreground hidden sm:inline">
                   |
                 </span>
-                <button
-                  onClick={handleDownloadPipeline}
+                <a
+                  href="/demos/contracts_pipeline.yaml"
+                  download
                   className="inline-flex items-center text-blue-600 hover:underline"
                 >
-                  Download Pipeline YAML{" "}
+                  Download DocETL Pipeline YAML{" "}
                   <ExternalLink className="ml-1 h-4 w-4" />
-                </button>
+                </a>
               </div>
               <div>
                 <h3 className="text-lg font-semibold mb-2 mt-4">

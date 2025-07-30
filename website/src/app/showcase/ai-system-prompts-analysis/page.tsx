@@ -1,5 +1,3 @@
-"use client";
-
 import React, { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -30,15 +28,6 @@ const SystemPromptsExplorer = dynamic(
 );
 
 export default function AiSystemPromptsAnalysisPage() {
-  const handleDownloadPipeline = () => {
-    const link = document.createElement("a");
-    link.href = "/demos/prompts_pipeline.yaml";
-    link.download = "prompts_pipeline.yaml";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <>
       <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
@@ -178,13 +167,14 @@ export default function AiSystemPromptsAnalysisPage() {
                 <span className="text-muted-foreground hidden sm:inline">
                   |
                 </span>
-                <button
-                  onClick={handleDownloadPipeline}
+                <a
+                  href="/demos/prompts_pipeline.yaml"
+                  download
                   className="inline-flex items-center text-blue-600 hover:underline"
                 >
                   Download DocETL Pipeline YAML{" "}
                   <ExternalLink className="ml-1 h-4 w-4" />
-                </button>
+                </a>
               </div>
               <div>
                 <h3 className="text-lg font-semibold mb-2 mt-4">

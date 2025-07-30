@@ -1,6 +1,7 @@
 "use client";
 
-import React, { Suspense, useState } from "react";
+import React, { Suspense } from "react";
+import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -39,182 +40,225 @@ export default function AiSystemPromptsAnalysisPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
-      <div className="max-w-6xl w-full">
-        {/* Header */}
-        <div className="text-center mb-8 sm:mb-12">
-          <Link href="/" className="inline-block">
-            <div className="flex items-center justify-center mb-2">
-              <Scroll
-                className="w-10 h-10 sm:w-12 sm:h-12 mr-2 text-primary"
-                strokeWidth={1.5}
-              />
-              <span className="logo-text text-2xl sm:text-3xl">DocETL</span>
-            </div>
-          </Link>
-        </div>
-        {/* Back Link */}
-        <div className="mb-6">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/showcase">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Showcase
+    <>
+      <Head>
+        <title>AI System Prompt Engineering Patterns | LLM Analysis Demo</title>
+        <meta
+          name="description"
+          content="Demo of DocETL analyzing leaked system prompts from popular AI assistants to uncover common prompt-engineering strategies."
+        />
+        <meta
+          name="keywords"
+          content="ai prompt engineering, system prompts analysis, llm data analysis, ai assistants, prompt strategy, generative ai insights"
+        />
+        <meta
+          property="og:title"
+          content="AI System Prompt Engineering Patterns | DocETL"
+        />
+        <meta
+          property="og:description"
+          content="Interactive demo exploring common strategies in system prompts across ChatGPT, Claude, and more using DocETL."
+        />
+        <meta property="og:type" content="website" />
+        <meta
+          property="og:url"
+          content="https://docetl.ai/showcase/ai-system-prompts-analysis"
+        />
+      </Head>
+      <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
+        <div className="max-w-6xl w-full">
+          {/* Header */}
+          <div className="text-center mb-8 sm:mb-12">
+            <Link href="/" className="inline-block">
+              <div className="flex items-center justify-center mb-2">
+                <Scroll
+                  className="w-10 h-10 sm:w-12 sm:h-12 mr-2 text-primary"
+                  strokeWidth={1.5}
+                />
+                <span className="logo-text text-2xl sm:text-3xl">DocETL</span>
+              </div>
             </Link>
-          </Button>
-        </div>
-        {/* Demo Content */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-xl">
-              Prompt Engineering Strategies from Popular AI Assistants
-            </CardTitle>
-            <CardDescription>
-              <em>
-                Analyzing system prompts from popular AI assistants to extract
-                common prompt engineering strategies.
-              </em>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Using the{" "}
+          </div>
+          {/* Nav + Star Buttons */}
+          <div className="mb-6 flex items-center gap-3">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/showcase">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Showcase
+              </Link>
+            </Button>
+            <Button size="sm" asChild>
               <Link
-                href="https://github.com/dontriskit/awesome-ai-system-prompts"
+                href="https://github.com/ucbepic/docetl"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
               >
-                awesome-ai-system-prompts
-              </Link>{" "}
-              repository as source data, which contains leaked system prompts
-              from major AI systems like ChatGPT, Claude, Manus, and others,
-              we&apos;ve used DocETL to analyze and extract structured
-              information about strategies employed across these different AI
-              assistants.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Our pipeline identifies:
-            </p>
-            <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
-              <li>
-                <span className="font-medium">Common strategies</span>:
-                Recurring patterns and approaches used across different AI
-                systems
-              </li>
-              <li>
-                <span className="font-medium">
-                  Strategy implementation examples
-                </span>
-                : How specific AI systems implement these strategies
-              </li>
-              <li>
-                <span className="font-medium">Strategy summaries</span>: Concise
-                explanations of each strategy and its implementation
-                considerations
-              </li>
-            </ul>
-            <p className="text-sm text-muted-foreground mb-4">
-              This analysis can help prompt engineers and AI developers identify
-              best practices and effective approaches when designing system
-              prompts for their own applications.
-            </p>
-            <p className="text-sm text-muted-foreground mb-4 italic">
-              The entire pipeline processing cost just $0.18 to run for all 19
-              systems.
-            </p>
-            <div className="p-4 border border-yellow-300 bg-yellow-50 rounded-md mb-4">
-              <p className="text-sm font-medium text-yellow-800">
-                <strong>Note:</strong> The strategies identified are extracted
-                through automated analysis and may not capture all nuances or
-                context. Use these insights as a starting point for your own
-                prompt engineering work.
+                ⭐ Star on GitHub
+              </Link>
+            </Button>
+          </div>
+
+          {/* Demo Content */}
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="text-xl">
+                Prompt Engineering Strategies from Popular AI Assistants
+              </CardTitle>
+              <CardDescription>
+                <em>
+                  Analyzing system prompts from popular AI assistants to extract
+                  common prompt engineering strategies.
+                </em>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Using the{" "}
+                <Link
+                  href="https://github.com/dontriskit/awesome-ai-system-prompts"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  awesome-ai-system-prompts
+                </Link>{" "}
+                repository as source data, which contains leaked system prompts
+                from major AI systems like ChatGPT, Claude, Manus, and others,
+                we&apos;ve used DocETL to analyze and extract structured
+                information about strategies employed across these different AI
+                assistants.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-              <Link
-                href="https://github.com/dontriskit/awesome-ai-system-prompts"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-blue-600 hover:underline"
-              >
-                View Source Repository <ExternalLink className="ml-1 h-4 w-4" />
-              </Link>
-              <span className="text-muted-foreground hidden sm:inline">|</span>
-              <Link
-                href="https://docetl.blob.core.windows.net/showcase/prompts.json"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-blue-600 hover:underline"
-              >
-                Download DocETL Dataset{" "}
-                <ExternalLink className="ml-1 h-4 w-4" />
-              </Link>
-              <span className="text-muted-foreground hidden sm:inline">|</span>
-              <Link
-                href="https://docetl.blob.core.windows.net/demos/analyzed_strategies.json"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-blue-600 hover:underline"
-              >
-                Download DocETL Outputs{" "}
-                <ExternalLink className="ml-1 h-4 w-4" />
-              </Link>
-              <span className="text-muted-foreground hidden sm:inline">|</span>
-              <button
-                onClick={handleDownloadPipeline}
-                className="inline-flex items-center text-blue-600 hover:underline"
-              >
-                Download DocETL Pipeline YAML{" "}
-                <ExternalLink className="ml-1 h-4 w-4" />
-              </button>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold mb-2 mt-4">
-                Explore System Prompt Strategies:
-              </h3>
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center p-8 text-muted-foreground">
-                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    Loading Prompts Explorer...
-                  </div>
-                }
-              >
-                <SystemPromptsExplorer />
-              </Suspense>
-            </div>
-          </CardContent>
-        </Card>
-        {/* Footer Logos */}
-        <div className="mt-auto pt-8 flex justify-center items-center space-x-4 border-t">
-          <a
-            href="https://eecs.berkeley.edu"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              src="/berkeley.png"
-              alt="UC Berkeley Logo"
-              width={40}
-              height={40}
-              className="sm:w-[50px] sm:h-[50px]"
-            />
-          </a>
-          <a
-            href="https://epic.berkeley.edu"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              src="/epiclogo.png"
-              alt="EPIC Lab Logo"
-              width={120}
-              height={40}
-              className="sm:w-[150px] sm:h-[50px]"
-            />
-          </a>
+              <p className="text-sm text-muted-foreground">
+                Our pipeline identifies:
+              </p>
+              <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
+                <li>
+                  <span className="font-medium">Common strategies</span>:
+                  Recurring patterns and approaches used across different AI
+                  systems
+                </li>
+                <li>
+                  <span className="font-medium">
+                    Strategy implementation examples
+                  </span>
+                  : How specific AI systems implement these strategies
+                </li>
+                <li>
+                  <span className="font-medium">Strategy summaries</span>:
+                  Concise explanations of each strategy and its implementation
+                  considerations
+                </li>
+              </ul>
+              <p className="text-sm text-muted-foreground mb-4">
+                This analysis can help prompt engineers and AI developers
+                identify best practices and effective approaches when designing
+                system prompts for their own applications.
+              </p>
+              <p className="text-sm text-muted-foreground mb-4 italic">
+                The entire pipeline processing cost just $0.18 to run for all 19
+                systems.
+              </p>
+              <div className="p-4 border border-yellow-300 bg-yellow-50 rounded-md mb-4">
+                <p className="text-sm font-medium text-yellow-800">
+                  <strong>Note:</strong> The strategies identified are extracted
+                  through automated analysis and may not capture all nuances or
+                  context. Use these insights as a starting point for your own
+                  prompt engineering work.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                <Link
+                  href="https://github.com/dontriskit/awesome-ai-system-prompts"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-blue-600 hover:underline"
+                >
+                  View Source Repository{" "}
+                  <ExternalLink className="ml-1 h-4 w-4" />
+                </Link>
+                <span className="text-muted-foreground hidden sm:inline">
+                  |
+                </span>
+                <Link
+                  href="https://docetl.blob.core.windows.net/showcase/prompts.json"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-blue-600 hover:underline"
+                >
+                  Download DocETL Dataset{" "}
+                  <ExternalLink className="ml-1 h-4 w-4" />
+                </Link>
+                <span className="text-muted-foreground hidden sm:inline">
+                  |
+                </span>
+                <Link
+                  href="https://docetl.blob.core.windows.net/demos/analyzed_strategies.json"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-blue-600 hover:underline"
+                >
+                  Download DocETL Outputs{" "}
+                  <ExternalLink className="ml-1 h-4 w-4" />
+                </Link>
+                <span className="text-muted-foreground hidden sm:inline">
+                  |
+                </span>
+                <button
+                  onClick={handleDownloadPipeline}
+                  className="inline-flex items-center text-blue-600 hover:underline"
+                >
+                  Download DocETL Pipeline YAML{" "}
+                  <ExternalLink className="ml-1 h-4 w-4" />
+                </button>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2 mt-4">
+                  Explore System Prompt Strategies:
+                </h3>
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8 text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      Loading Prompts Explorer...
+                    </div>
+                  }
+                >
+                  <SystemPromptsExplorer />
+                </Suspense>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Footer Logos */}
+          <div className="mt-auto pt-8 flex justify-center items-center space-x-4 border-t">
+            <a
+              href="https://eecs.berkeley.edu"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Image
+                src="/berkeley.png"
+                alt="UC Berkeley Logo"
+                width={40}
+                height={40}
+                className="sm:w-[50px] sm:h-[50px]"
+              />
+            </a>
+            <a
+              href="https://epic.berkeley.edu"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Image
+                src="/epiclogo.png"
+                alt="EPIC Lab Logo"
+                width={120}
+                height={40}
+                className="sm:w-[150px] sm:h-[50px]"
+              />
+            </a>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

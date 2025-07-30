@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense } from "react";
+import type { Metadata } from "next";
 import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
@@ -28,6 +29,26 @@ const RfiResponseExplorer = dynamic(
     ),
   }
 );
+
+export const metadata: Metadata = {
+  title: "AI Policy RFI Response Analysis | DocETL",
+  description:
+    "DocETL demo that extracts structured insights from 10,000 public responses to the U.S. AI RFI using LLMs and ranks them by topics.",
+  keywords: [
+    "AI policy analysis",
+    "LLM data extraction",
+    "public comment analysis",
+    "AI document analytics",
+  ],
+  openGraph: {
+    title: "AI Policy RFI Response Analysis | DocETL",
+    description:
+      "Interactive demo: see how DocETL uses AI to extract proposals, demographics and more from thousands of policy responses.",
+    url: "https://www.docetl.org/showcase/ai-rfi-response-analysis",
+    type: "website",
+    images: [{ url: "/docetl-favicon-color.png" }],
+  },
+};
 
 export default function AiRfiResponseAnalysisPage() {
   const handleDownloadPipeline = () => {

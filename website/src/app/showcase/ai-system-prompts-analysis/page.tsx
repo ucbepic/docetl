@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense } from "react";
+import type { Metadata } from "next";
 import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
@@ -262,3 +263,23 @@ export default function AiSystemPromptsAnalysisPage() {
     </>
   );
 }
+
+export const metadata: Metadata = {
+  title: "AI System Prompt Engineering Patterns | DocETL",
+  description:
+    "Demo of DocETL analyzing leaked system prompts from popular AI assistants to uncover common prompt-engineering strategies.",
+  keywords: [
+    "AI prompt engineering",
+    "system prompts analysis",
+    "LLM data analysis",
+    "prompt strategy",
+  ],
+  openGraph: {
+    title: "AI System Prompt Engineering Patterns | DocETL",
+    description:
+      "Interactive demo exploring common strategies in system prompts across ChatGPT, Claude and more using DocETL.",
+    url: "https://www.docetl.org/showcase/ai-system-prompts-analysis",
+    type: "website",
+    images: [{ url: "/docetl-favicon-color.png" }],
+  },
+};

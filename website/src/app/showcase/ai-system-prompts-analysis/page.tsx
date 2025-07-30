@@ -79,15 +79,24 @@ export default function AiSystemPromptsAnalysisPage() {
               </div>
             </Link>
           </div>
-          {/* Back Link */}
-          <div className="mb-6">
+          {/* Nav + Star Buttons */}
+          <div className="mb-6 flex items-center gap-3">
             <Button variant="outline" size="sm" asChild>
               <Link href="/showcase">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Showcase
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Showcase
+              </Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link
+                href="https://github.com/ucbepic/docetl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ⭐ Star on GitHub
               </Link>
             </Button>
           </div>
+
           {/* Demo Content */}
           <Card className="mb-8">
             <CardHeader>
@@ -219,46 +228,35 @@ export default function AiSystemPromptsAnalysisPage() {
             </CardContent>
           </Card>
 
-          {/* GitHub Star CTA */}
-          <div className="mb-8 text-center">
-            <Link
-              href="https://github.com/epicLab/docetl"
+          {/* Footer Logos */}
+          <div className="mt-auto pt-8 flex justify-center items-center space-x-4 border-t">
+            <a
+              href="https://eecs.berkeley.edu"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center px-3 py-2 bg-gray-900 text-white rounded hover:bg-gray-800"
             >
-              ⭐ Star DocETL on GitHub
-            </Link>
+              <Image
+                src="/berkeley.png"
+                alt="UC Berkeley Logo"
+                width={40}
+                height={40}
+                className="sm:w-[50px] sm:h-[50px]"
+              />
+            </a>
+            <a
+              href="https://epic.berkeley.edu"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Image
+                src="/epiclogo.png"
+                alt="EPIC Lab Logo"
+                width={120}
+                height={40}
+                className="sm:w-[150px] sm:h-[50px]"
+              />
+            </a>
           </div>
-        </div>
-        {/* Footer Logos */}
-        <div className="mt-auto pt-8 flex justify-center items-center space-x-4 border-t">
-          <a
-            href="https://eecs.berkeley.edu"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              src="/berkeley.png"
-              alt="UC Berkeley Logo"
-              width={40}
-              height={40}
-              className="sm:w-[50px] sm:h-[50px]"
-            />
-          </a>
-          <a
-            href="https://epic.berkeley.edu"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              src="/epiclogo.png"
-              alt="EPIC Lab Logo"
-              width={120}
-              height={40}
-              className="sm:w-[150px] sm:h-[50px]"
-            />
-          </a>
         </div>
       </main>
     </>

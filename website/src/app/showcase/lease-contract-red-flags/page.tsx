@@ -73,11 +73,20 @@ export default function LeaseContractRedFlagsPage() {
               </div>
             </Link>
           </div>
-          {/* Back */}
-          <div className="mb-6">
+          {/* Nav + Star Buttons */}
+          <div className="mb-6 flex items-center gap-3">
             <Button variant="outline" size="sm" asChild>
               <Link href="/showcase">
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to Showcase
+              </Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link
+                href="https://github.com/ucbepic/docetl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ⭐ Star on GitHub
               </Link>
             </Button>
           </div>
@@ -193,17 +202,6 @@ export default function LeaseContractRedFlagsPage() {
             </CardContent>
           </Card>
 
-          {/* GitHub Star CTA */}
-          <div className="mb-8 text-center">
-            <Link
-              href="https://github.com/epicLab/docetl"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center px-3 py-2 bg-gray-900 text-white rounded hover:bg-gray-800"
-            >
-              ⭐ Star DocETL on GitHub
-            </Link>
-          </div>
           {/* Footer */}
           <div className="mt-auto pt-8 flex justify-center items-center space-x-4 border-t">
             <a

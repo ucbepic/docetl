@@ -503,6 +503,14 @@ class ChunkHeaderSummaryInstantiateSchema(BaseModel):
         return v
 
 
+class SamplingMethodKwargs(BaseModel):
+    """Configuration for sampling method parameters."""
+    
+    stratify_key: str = Field(
+        default="", description="Key for stratified sampling (required when method='stratify', empty otherwise)"
+    )
+
+
 class ChunkSamplingInstantiateSchema(BaseModel):
     """
     Schema for chunk sampling operations in a data processing pipeline.
@@ -518,8 +526,8 @@ class ChunkSamplingInstantiateSchema(BaseModel):
         ...,
         description="Float fraction of chunks to sample (e.g., 0.1 for 10%, 0.3 for 30%)",
     )
-    method_kwargs: Optional[Dict] = Field(
-        default_factory=dict,
+    method_kwargs: Optional[SamplingMethodKwargs] = Field(
+        default_factory=SamplingMethodKwargs,
         description="Additional parameters for the sampling method (e.g., stratify_key for stratified sampling)",
     )
 

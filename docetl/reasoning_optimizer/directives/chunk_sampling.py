@@ -28,7 +28,7 @@ class ChunkSamplingDirective(Directive):
         default=(
             "Use ONLY when the task doesn't need to look at all document chunks. Good for: categorization, "
             "'determine X reasons why...', representative analysis. BAD for: extracting all key insights, "
-            "comprehensive information extraction. Target should be Gather -> Map sequence."
+            "comprehensive information extraction. Target should be Gather -> Map sequence. The target operators should be the gather and map. Make sure you specify these two operators when choosing this directive."
         )
     )
 
@@ -164,7 +164,7 @@ class ChunkSamplingDirective(Directive):
             f"3. Add method_kwargs if needed (e.g., stratify_key for stratified sampling)\n\n"
             f"Examples from sample operation:\n"
             f"- Uniform: method='uniform', samples=0.2\n"
-            f"- Stratified: method='stratify', samples=0.2, method_kwargs={{'stratify_key': 'category'}}\n\n"
+            f"- Stratified: method='stratify', samples=0.2, method_kwargs={{ 'stratify_key': 'category' }}\n\n"
             f"The Sample operation will be inserted between the Gather and Map operations.\n\n"
             f"Example:\n"
             f"{self.example}\n\n"
@@ -284,8 +284,8 @@ class ChunkSamplingDirective(Directive):
         }
 
         # Add optional parameters if provided
-        if rewrite.method_kwargs:
-            sample_op["method_kwargs"] = rewrite.method_kwargs
+        if rewrite.method_kwargs and rewrite.method_kwargs.stratify_key:
+            sample_op["method_kwargs"] = {"stratify_key": rewrite.method_kwargs.stratify_key}
 
         # Insert the sample operation between gather and map
         new_ops_list.insert(map_pos, sample_op)

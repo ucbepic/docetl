@@ -293,6 +293,7 @@ def transform(input_doc):
 
     def apply(
         self,
+        global_default_model: str,
         ops_list: List[Dict],
         target_ops: List[str],
         rewrite: DeterministicDocCompressionInstantiateSchema,
@@ -345,4 +346,7 @@ def transform(input_doc):
         )
 
         # Step 2: Apply transformation using the schema
-        return self.apply(operators, target_ops, rewrite), message_history
+        return (
+            self.apply(global_default_model, operators, target_ops, rewrite),
+            message_history,
+        )

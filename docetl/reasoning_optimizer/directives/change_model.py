@@ -1,6 +1,5 @@
 import json
 import os
-import warnings
 from copy import deepcopy
 from typing import Dict, List, Type
 
@@ -182,7 +181,6 @@ class ChangeModelDirective(Directive):
                 f"{self.example}\n\n"
                 f"Please output only the InstantiateSchema (a ChangeModelConfig object)."
             )
-        
 
     def llm_instantiate(
         self,
@@ -190,7 +188,7 @@ class ChangeModelDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
-        optimize_goal = "acc",
+        optimize_goal="acc",
     ) -> tuple:
         """
         Use LLM to instantiate this directive.
@@ -203,11 +201,21 @@ class ChangeModelDirective(Directive):
         Returns:
             ChangeModelInstantiateSchema: The structured output from the LLM.
         """
-        
-        message_history.extend([
-            {"role": "system", "content": "You are a helpful AI assistant for document processing pipelines."},
-            {"role": "user", "content": self.to_string_for_instantiate(original_op, optimize_goal)},
-        ])
+
+        message_history.extend(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a helpful AI assistant for document processing pipelines.",
+                },
+                {
+                    "role": "user",
+                    "content": self.to_string_for_instantiate(
+                        original_op, optimize_goal
+                    ),
+                },
+            ]
+        )
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
             resp = completion(
                 model=agent_llm,
@@ -223,11 +231,11 @@ class ChangeModelDirective(Directive):
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = ChangeModelInstantiateSchema(**parsed_res)
                 orig_model = global_default_model
-                if "model" in original_op: 
+                if "model" in original_op:
                     orig_model = original_op.get("model")
                 # Validate the model is in the allowed model list
                 ChangeModelInstantiateSchema.validate_diff_model_in_list(
-                    orig_model = orig_model,
+                    orig_model=orig_model,
                     model=schema.model,
                     list_of_model=self.allowed_model_list,
                 )
@@ -238,42 +246,68 @@ class ChangeModelDirective(Directive):
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
-        
-        raise Exception(f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts.")
-    
-    def apply(self, ops_list: List[Dict], target_op: str, rewrite: ChangeModelInstantiateSchema) -> List[Dict]:
+
+        raise Exception(
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts."
+        )
+
+    def apply(
+        self,
+        global_default_model: str,
+        ops_list: List[Dict],
+        target_op: str,
+        rewrite: ChangeModelInstantiateSchema,
+    ) -> List[Dict]:
         """
         Apply the directive to the pipeline config by adding gleaning configuration to the target operator.
         """
         # Create a copy of the pipeline config
         new_ops_list = deepcopy(ops_list)
-        
+
         # Find position of the target op to modify
-        pos_to_replace = [i for i, op in enumerate(ops_list) if op["name"] == target_op][0]
-        
+        pos_to_replace = [
+            i for i, op in enumerate(ops_list) if op["name"] == target_op
+        ][0]
+
         # Add change model configuration to the target operator
         target_operator = new_ops_list[pos_to_replace]
         target_operator["model"] = rewrite.model
-        
+
         return new_ops_list
-    
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal = "acc", global_default_model: str = None) -> tuple:
+
+    def instantiate(
+        self,
+        operators: List[Dict],
+        target_ops: List[str],
+        agent_llm: str,
+        message_history: list = [],
+        optimize_goal="acc",
+        global_default_model: str = None,
+    ) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
         new_ops_list = deepcopy(operators)
         inst_error = 0
-        for target_op in target_ops: 
+        for target_op in target_ops:
             target_op_config = [op for op in operators if op["name"] == target_op][0]
             # Instantiate the directive
             try:
-                rewrite, message_history = self.llm_instantiate(global_default_model, target_op_config, agent_llm, message_history, optimize_goal=optimize_goal)
+                rewrite, message_history = self.llm_instantiate(
+                    global_default_model,
+                    target_op_config,
+                    agent_llm,
+                    message_history,
+                    optimize_goal=optimize_goal,
+                )
                 print(rewrite)
             except Exception as e:
                 inst_error += 1
-            new_ops_list = self.apply(new_ops_list, target_op, rewrite)
+            new_ops_list = self.apply(
+                global_default_model, new_ops_list, target_op, rewrite
+            )
 
-        if inst_error == len(target_ops): 
+        if inst_error == len(target_ops):
             print("CHANEG MODEL ERROR")
             return None, message_history
         return new_ops_list, message_history

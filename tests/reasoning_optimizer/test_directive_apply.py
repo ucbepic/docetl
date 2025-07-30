@@ -16,7 +16,8 @@ from docetl.reasoning_optimizer.directives import (
     DocCompressionDirective,
     DeterministicDocCompressionDirective,
     DocumentChunkingDirective,
-    ChunkHeaderSummaryDirective
+    ChunkHeaderSummaryDirective,
+    ChunkSamplingDirective
 )
 
 
@@ -55,7 +56,7 @@ def test_chaining_apply():
     )
     
     # Should not crash
-    result = directive.apply(ops_list, "extract_info", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "extract_info", rewrite)
     assert isinstance(result, list)
     assert len(result) == 2  # Should replace 1 op with 2 ops
 
@@ -81,7 +82,7 @@ def test_gleaning_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, "extract_entities", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "extract_entities", rewrite)
     assert isinstance(result, list)
     assert len(result) == 1
     # Should add gleaning config
@@ -105,7 +106,7 @@ def test_change_model_apply():
     from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelInstantiateSchema
     rewrite = ChangeModelInstantiateSchema(model="gpt-4o")
     
-    result = directive.apply(ops_list, "analyze_text", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "analyze_text", rewrite)
     assert isinstance(result, list)
     assert len(result) == 1
     assert result[0]["model"] == "gpt-4o"
@@ -138,7 +139,7 @@ def test_operator_fusion_map_map_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, ["extract_names", "clean_names"], rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["extract_names", "clean_names"], rewrite)
     assert isinstance(result, list)
     assert len(result) == 1  # Should fuse 2 ops into 1
 
@@ -170,7 +171,7 @@ def test_operator_fusion_filter_map_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, ["filter_valid", "extract_info"], rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["filter_valid", "extract_info"], rewrite)
     assert isinstance(result, list)
     assert len(result) == 2 
     assert result[1]["type"] == "code_filter", f"Second op should be code_filter, got {result[1]['type']}"
@@ -203,7 +204,7 @@ def test_operator_fusion_map_filter_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, ["extract_sentiment", "filter_positive"], rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["extract_sentiment", "filter_positive"], rewrite)
     assert isinstance(result, list)
     assert len(result) == 2  # Should fuse 2 ops into 1
     assert result[0]["type"] == "map", f"First op should be map, got {result[0]['type']}"
@@ -237,7 +238,7 @@ def test_operator_fusion_filter_filter_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, ["filter_valid", "filter_recent"], rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["filter_valid", "filter_recent"], rewrite)
     assert isinstance(result, list)
     assert len(result) == 1  # Should fuse 2 ops into 1
 
@@ -269,7 +270,7 @@ def test_operator_fusion_map_reduce_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, ["extract_themes", "summarize_themes"], rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["extract_themes", "summarize_themes"], rewrite)
     assert isinstance(result, list)
     assert len(result) == 1  # Should fuse 2 ops into 1
     assert result[0]["type"] == "reduce", f"First op should be reduce, got {result[0]['type']}"
@@ -297,7 +298,7 @@ def test_doc_summarization_apply():
         name="summarize_document"
     )
     
-    result = directive.apply(ops_list, "analyze_doc", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "analyze_doc", rewrite)
     assert isinstance(result, list)
     assert len(result) == 2  # Should add summarization op before target
 
@@ -333,7 +334,7 @@ def test_isolating_subtasks_apply():
         aggregation_prompt="Combine sentiment {{ input.subtask_1_output }} and entities {{ input.subtask_2_output }}"
     )
     
-    result = directive.apply(ops_list, "complex_analysis", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "complex_analysis", rewrite)
     assert isinstance(result, list)
     assert len(result) == 2, f"Expected 2 ops, got {len(result)}"
     assert result[0]["type"] == "parallel_map", f"First op should be parallel_map, got {result[0]['type']}"
@@ -360,7 +361,7 @@ def test_reduce_gleaning_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, "summarize_docs", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "summarize_docs", rewrite)
     assert isinstance(result, list)
     assert len(result) == 1
     # Should add gleaning config to reduce op
@@ -389,7 +390,7 @@ def test_doc_compression_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, ["analyze_paper"], rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["analyze_paper"], rewrite)
     assert isinstance(result, list)
     assert len(result) == 2  # Should add extract op before target
 
@@ -419,7 +420,7 @@ def transform(input_doc):
 """
     )
     
-    result = directive.apply(ops_list, "process_doc", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "process_doc", rewrite)
     assert isinstance(result, list)
     assert len(result) == 2  # Should add preprocessing op before target
 
@@ -446,7 +447,7 @@ def test_doc_chunking_apply():
         reduce_prompt="Combine the analysis results: {% for input in inputs %}{{ input.analysis }}{% endfor %}"
     )
     
-    result = directive.apply(ops_list, "analyze_document", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "analyze_document", rewrite)
     assert isinstance(result, list)
     assert len(result) == 4  # Should be split -> gather -> map -> reduce
 
@@ -483,11 +484,48 @@ def test_chunk_header_summary_apply():
         model="gpt-4o-mini"
     )
     
-    result = directive.apply(ops_list, ["split_legal_docs", "gather_legal_context"], rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["split_legal_docs", "gather_legal_context"], rewrite)
     assert isinstance(result, list)
     assert len(result) == 3  # Should insert parallel_map between split and gather
     assert result[1]["type"] == "parallel_map"
     assert "doc_header_key" in result[2]  # gather should have doc_header_key
+
+
+def test_chunk_sampling_apply():
+    """Test that chunk sampling apply doesn't crash"""
+    directive = ChunkSamplingDirective()
+    
+    # Simple Gather -> Map sequence
+    ops_list = [
+        {
+            "name": "gather_chunks",
+            "type": "gather",
+            "content_key": "document_chunk",
+            "doc_id_key": "split_docs_id",
+            "order_key": "split_docs_chunk_num",
+        },
+        {
+            "name": "categorize_document",
+            "type": "map",
+            "prompt": "What category does this document belong to? {{ input.document_chunk_rendered }}",
+            "output": {"schema": {"category": "string"}},
+        },
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import ChunkSamplingInstantiateSchema
+    rewrite = ChunkSamplingInstantiateSchema(
+        method="uniform",
+        samples=0.05
+    )
+    
+    result = directive.apply("azure/gpt-4o-mini", ops_list, ["gather_chunks", "categorize_document"], rewrite)
+    assert isinstance(result, list)
+    assert len(result) == 3  # Should insert sample between gather and map
+    assert result[0]["name"] == "gather_chunks"
+    assert result[1]["type"] == "sample"
+    assert result[1]["method"] == "uniform"
+    assert result[1]["samples"] == 0.05
+    assert result[2]["name"] == "categorize_document"
 
 
 if __name__ == "__main__":
@@ -536,5 +574,8 @@ if __name__ == "__main__":
     
     test_chunk_header_summary_apply()
     print("✅ Chunk header summary apply test passed")
-    
+
+    test_chunk_sampling_apply()
+    print("✅ Chunk sampling apply test passed")
+
     print("\n🎉 All directive apply tests passed!")

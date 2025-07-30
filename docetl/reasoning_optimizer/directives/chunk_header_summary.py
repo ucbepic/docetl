@@ -214,6 +214,7 @@ class ChunkHeaderSummaryDirective(Directive):
 
     def apply(
         self,
+        global_default_model: str,
         ops_list: List[Dict],
         target_ops: List[str],
         rewrite: ChunkHeaderSummaryInstantiateSchema,
@@ -334,11 +335,14 @@ class ChunkHeaderSummaryDirective(Directive):
             "gather_op": gather_op,
             "target_ops": target_ops,
         }
-      
+
         # Instantiate the directive
         rewrite, message_history = self.llm_instantiate(
             pipeline_context, agent_llm, message_history
         )
 
         # Apply the rewrite to the operators
-        return self.apply(operators, target_ops, rewrite), message_history
+        return (
+            self.apply(global_default_model, operators, target_ops, rewrite),
+            message_history,
+        )

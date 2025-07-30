@@ -289,6 +289,7 @@ class DocSummarizationDirective(Directive):
 
     def apply(
         self,
+        global_default_model: str,
         ops_list: List[Dict],
         target_op: str,
         rewrite: DocSummarizationInstantiateSchema,
@@ -306,9 +307,7 @@ class DocSummarizationDirective(Directive):
             "prompt": rewrite.prompt,
             "model": rewrite.model,
             "litellm_completion_kwargs": {"temperature": 0},
-            "output": {
-                "schema": {rewrite.document_key: "string"}
-            },
+            "output": {"schema": {rewrite.document_key: "string"}},
         }
 
         # Insert the summarization operator at the beginning of the pipeline
@@ -342,4 +341,7 @@ class DocSummarizationDirective(Directive):
         )
 
         # Apply the rewrite to the operators (use first target op for compatibility with apply method)
-        return self.apply(operators, target_ops[0], rewrite), message_history
+        return (
+            self.apply(global_default_model, operators, target_ops[0], rewrite),
+            message_history,
+        )

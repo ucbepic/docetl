@@ -403,6 +403,7 @@ Reference anchors:"""
 
                 # Augment the output with the original item
                 outputs = [{**item, **output} for output in outputs]
+
                 if self.config.get("enable_observability", False):
                     for output in outputs:
                         output[f"_observability_{self.config['name']}"] = {

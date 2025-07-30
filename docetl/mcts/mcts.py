@@ -59,6 +59,7 @@ class MCTS:
         """
         self.root = Node(root_yaml_path, c=exploration_constant)
         self.available_actions = available_actions
+        self.action_rewards = {action: 0.0 for action in available_actions}
         self.exploration_constant = exploration_constant
         self.max_iterations = max_iterations
         self.max_time = max_time
@@ -68,11 +69,9 @@ class MCTS:
         self.model = model
         self.sample_input = sample_input
         # Initialize Pareto frontier
-        self.pareto_frontier = ParetoFrontier(accuracy_comparator)
-        self.directive_name_to_obj = {
-            action.name: action for action in self.available_actions
-        }
-
+        self.pareto_frontier = ParetoFrontier(accuracy_comparator, self.action_rewards)
+        self.directive_name_to_obj = {action.name: action for action in self.available_actions}
+        
         # Track iterations without new Pareto optimal plans for early stopping
         self.iterations_without_improvement = 0
 
@@ -620,7 +619,7 @@ class MCTS:
         Returns:
             The newly created child node
         """
-
+        
         new_parsed_yaml = deepcopy(node.parsed_yaml)
         new_parsed_yaml["operations"] = new_ops_list
         new_parsed_yaml["bypass_cache"] = True
@@ -648,6 +647,9 @@ class MCTS:
 
         # generate the child node
         child = Node(yaml_file_path=new_yaml_path, parent=node)
+        action = self.directive_name_to_obj.get(directive_name)
+        child.latest_action = action
+        print("!!!", child.latest_action.name, child.id)
         if directive_name == "gleaning":
             for op in target_op_list:
                 chaining = self.directive_name_to_obj.get("chaining")

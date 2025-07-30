@@ -19,25 +19,28 @@ class ParetoFrontier:
     pairwise comparisons, constructs and updates the Pareto frontier, and provides
     value calculations for MCTS integration.
     """
-
-    def __init__(self, accuracy_comparator: AccuracyComparator):
+     
+    def __init__(self, accuracy_comparator: AccuracyComparator, action_rewards: Dict[str, float]):
         """
         Initialize the Pareto Frontier.
 
         Args:
             accuracy_comparator: Comparator for evaluating plan accuracy
+            action_rewards: Reference to MCTS action_rewards dictionary
         """
         self.accuracy_comparator = accuracy_comparator
 
         # Internal state
         self.plans: List[Node] = []
         self.plans_accuracy: Dict[Node, float] = {}
-        self.plans_cost: Dict[Node, float] = {}
+        self.plans_cost: Dict[Node, float] = {}  # Real costs for display
+        self.plans_scaled_cost: Dict[Node, float] = {}  # Scaled costs [0,1] for calculations
         self.frontier_plans: List[Node] = []  # List of nodes on frontier
-        self.frontier_data: List[List[int]] = (
-            []
-        )  # List of [acc, cost] of nodes on frontier
-
+        self.frontier_data: List[List[int]] = [] # List of [acc, scaled_cost] of nodes on frontier
+        
+        self.action_rewards = action_rewards 
+        self.action_counts: Dict[str, int] = {action: 0 for action in self.action_rewards.keys()}
+        
         # Root plan reference point for hypervolume calculation
         self.root_accuracy: Optional[float] = None
         self.root_cost: Optional[float] = None
@@ -89,7 +92,8 @@ class ParetoFrontier:
 
         # Store plan information
         self.plans.append(node)
-        self.plans_cost[node] = node.cost
+        self.plans_cost[node] = node.cost  # Store real cost
+        # Scaled cost will be calculated in update_pareto_frontier_HV
 
         result_file_path = node.parsed_yaml["pipeline"]["output"]["path"]
         ground_truth_file = "experiments/reasoning/data/CUAD-master_clauses.csv"
@@ -234,13 +238,73 @@ class ParetoFrontier:
                         projected_point = [proj_acc, proj_cost]
 
         return projected_point
-
+    
+    def _update_action_rewards(self, node: Node, reward: float) -> None:
+        """
+        Update action rewards based on the reward received by a node.
+        Updates the running average for the latest action that led to this node.
+        
+        Args:
+            node: The node that received the reward
+            reward: The reward value to incorporate
+        """
+        
+        print("WE ARE ", node.id)
+        if not node.latest_action or not self.action_rewards:
+            return
+        
+        action = node.latest_action
+        print("really updating: ", node.id, action.name)
+        if action in self.action_rewards:
+            old_count = self.action_counts.get(action, 0)
+            old_avg = self.action_rewards[action]
+            
+            # Update running average: new_avg = (old_avg * old_count + new_reward) / (old_count + 1)
+            new_count = old_count + 1
+            new_avg = (old_avg * old_count + reward) / new_count
+            
+            self.action_rewards[action] = new_avg
+            self.action_counts[action] = new_count
+    
+    def _update_scaled_costs(self, valid_nodes: List[Node]) -> None:
+        """
+        Calculate and update scaled costs for all valid nodes to [0,1] range.
+        Also updates the scaled_cost attribute in each node.
+        """
+        if len(valid_nodes) <= 1:
+            # Single node or empty, set scaled cost to 0.5
+            for node in valid_nodes:
+                scaled_cost = 0.5
+                self.plans_scaled_cost[node] = scaled_cost
+                node.scaled_cost = scaled_cost
+            return
+        
+        # Get min and max costs from real costs
+        min_cost = min(self.plans_cost[node] for node in valid_nodes)
+        max_cost = max(self.plans_cost[node] for node in valid_nodes)
+        cost_range = max_cost - min_cost
+        
+        if cost_range > 0:
+            # Scale all costs to [0,1]
+            for node in valid_nodes:
+                real_cost = self.plans_cost[node]
+                scaled_cost = (real_cost - min_cost) / cost_range
+                self.plans_scaled_cost[node] = scaled_cost
+                node.scaled_cost = scaled_cost
+        else:
+            # All costs are the same, set to 0.5
+            for node in valid_nodes:
+                scaled_cost = 0.5
+                self.plans_scaled_cost[node] = scaled_cost
+                node.scaled_cost = scaled_cost
+    
     def update_pareto_frontier_HV(self, new_node) -> Tuple[Dict[Node, int], bool]:
         """
         Update the Pareto frontier based on current plans and calculate hyper-volume indicator.
         """
 
         print("UPDATING Pareto Frontier")
+        
         valid_nodes = [node for node in self.plans if node.cost != -1]
         affected_nodes = {}
 
@@ -248,12 +312,26 @@ class ParetoFrontier:
             self.frontier_plans = []
             self.frontier_data = []
             return affected_nodes, False
+        
+        # Save old frontier nodes before updating
+        old_frontier_nodes = self.frontier_plans
+        
+        # Calculate scaled costs for all valid nodes
+        self._update_scaled_costs(valid_nodes)
+        
+        # Sort by scaled cost for frontier calculation
+        valid_nodes.sort(key=lambda node: self.plans_scaled_cost[node])
 
-        # Sort by cost
-        valid_nodes.sort(key=lambda node: node.cost)
-
-        archive_frontier_data = deepcopy(self.frontier_data)
-
+        # Reconstruct old frontier data using NEW scaled costs
+        archive_frontier_data = []
+        for node in old_frontier_nodes:
+            if node in valid_nodes and node in self.plans_scaled_cost:  # Only include valid nodes
+                acc = self.plans_accuracy.get(node, 0.0)
+                scaled_cost = self.plans_scaled_cost[node]  
+                archive_frontier_data.append([acc, scaled_cost])
+            else: 
+                print(f"INVALID NODE: {node.id}, cost: {node.cost}, in_valid_nodes: {node in valid_nodes}, in_scaled_cost: {node in self.plans_scaled_cost}")
+        
         frontier = []
         max_accuracy_so_far = -1
 
@@ -267,95 +345,50 @@ class ParetoFrontier:
 
         new_frontier_data = []
         for node in frontier:
-            acc = self.plans_accuracy.get(node, 0.0)
-            cost = node.cost
-            new_frontier_data.append([acc, cost])
+            acc = self.plans_accuracy.get(node)
+            scaled_cost = self.plans_scaled_cost[node]  # Use scaled cost for calculations
+            new_frontier_data.append([acc, scaled_cost])
 
-        # Transform data for hypervolume calculation (convert to minimization problem)
-        def transform_for_hv(frontier_data):
-            if not frontier_data:
-                return []
-            transformed = []
-            fixed_max_cost = 10.0  # Fixed upper bound for cost transformation
-            for acc, cost in frontier_data:
-                # For HV minimization: negate accuracy (higher acc = lower -acc)
-                # Keep cost as is (lower cost = better for minimization)
-                transformed.append([-acc, cost])
-            return transformed
-
-        # Transform both archive and new frontier data for hypervolume calculation only
-        archive_transformed = transform_for_hv(archive_frontier_data)
-        new_transformed = transform_for_hv(new_frontier_data)
-
-        # Set reference point based on root plan (baseline)
-        if self.root_accuracy is not None and self.root_cost is not None:
-            # Use root accuracy as baseline, but ensure cost reference is higher than all possible costs
-            reference_pt = np.array(
-                [-self.root_accuracy, max(10.0, self.root_cost + 1.0)]
-            )
-        else:
-            # Fallback if root not set yet
-            reference_pt = np.array([0.0, 10.0])
-
-        ind = HV(ref_point=reference_pt)
-        if len(archive_transformed) == 0:
-            archive_w = 0.0
-        else:
-            archive_transformed_array = np.array(archive_transformed)
-            archive_w = ind(archive_transformed_array)
-
-        if new_transformed:
-            new_transformed_array = np.array(new_transformed)
-            w = ind(new_transformed_array)
-        else:
-            w = 0.0
-
-        print("REFERENCE POINT: ", reference_pt)
-        print("archive_W: ", archive_w)
-        print("w: ", w)
-
-        frontier_updated = False
-        if w == archive_w:  # frontier not updated, new node is not on frontier
-            print("CURRENT NODE ID: ", new_node.id)
-            new_node.on_frontier = False
-            node_cost = new_node.cost
-            node_acc = self.plans_accuracy[new_node]
-            projected_point = self.project_to_frontier(
-                node_acc, node_cost, new_frontier_data
-            )
-            euclidean_distance = (
-                (node_acc - projected_point[0]) ** 2
-                + (node_cost - projected_point[1]) ** 2
-            ) ** 0.5
-            print("euclidean_dis: ", euclidean_distance)
-            affected_nodes[new_node] = -euclidean_distance
-        else:
-            frontier_updated = True
-            # Only update nodes whose frontier status changed
-            old_frontier_set = set(self.frontier_plans)
-            new_frontier_set = set(frontier)
-
-            for node in valid_nodes:
-                if node in new_frontier_set and node not in old_frontier_set:
-                    # Newly on frontier - reward with marginal hypervolume contribution
-                    node.on_frontier = True
-                    affected_nodes[node] = w - archive_w
-                elif node not in new_frontier_set:
-                    node.on_frontier = False
-                    node_cost = node.cost
-                    node_acc = self.plans_accuracy[node]
-                    projected_point = self.project_to_frontier(
-                        node_acc, node_cost, new_frontier_data
-                    )
-                    euclidean_distance = (
-                        (node_acc - projected_point[0]) ** 2
-                        + (node_cost - projected_point[1]) ** 2
-                    ) ** 0.5
-                    affected_nodes[node] = -euclidean_distance
-                # Don't update nodes that stayed on/off frontier
+        # Check if frontier actually changed
+        old_frontier_set = set(old_frontier_nodes)
+        new_frontier_set = set(frontier)
+        frontier_updated = old_frontier_set != new_frontier_set
+        
+        # Update affected nodes based on frontier changes
+        for node in valid_nodes:
+            node_scaled_cost = self.plans_scaled_cost[node]
+            node_acc = self.plans_accuracy[node]
+            
+            if node in new_frontier_set and node not in old_frontier_set:
+                # Newly on frontier - reward based on distance to OLD frontier
+                node.on_frontier = True
+                projected_point_old = self.project_to_frontier(node_acc, node_scaled_cost, archive_frontier_data)
+                # Weight accuracy 2x more important than cost
+                weighted_distance_to_old = ((2 * (node_acc - projected_point_old[0]))**2 + 
+                                          (node_scaled_cost - projected_point_old[1])**2)**0.5
+                affected_nodes[node] = weighted_distance_to_old
+                # Update action rewards
+                self._update_action_rewards(node, weighted_distance_to_old)
+            elif node not in new_frontier_set:
+                # Not on frontier - give negative reward based on distance to NEW frontier
+                node.on_frontier = False
+                projected_point = self.project_to_frontier(node_acc, node_scaled_cost, new_frontier_data)
+                # Weight accuracy 2x more important than cost
+                weighted_distance = ((2 * (node_acc - projected_point[0]))**2 + 
+                                   (node_scaled_cost - projected_point[1])**2)**0.5
+                affected_nodes[node] = -weighted_distance
+                # Update action rewards
+                self._update_action_rewards(node, -weighted_distance)
+            # Nodes that stayed on frontier don't get updated (maintain their current reward)
 
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
+
+        # Print action rewards with action names only
+        action_rewards_names = {getattr(action, 'name', str(action)): reward for action, reward in self.action_rewards.items()}
+        action_counts_names = {getattr(action, 'name', str(action)): count for action, count in self.action_counts.items()}
+        print("ACTION REWARDS:", action_rewards_names)
+        print("ACTION COUNTS:", action_counts_names)
 
         self.plot_plans()
         return affected_nodes, frontier_updated
@@ -417,7 +450,7 @@ class ParetoFrontier:
 
         # Plot non-frontier plans (grey)
         if non_frontier_nodes:
-            costs = [node.cost for node in non_frontier_nodes]
+            costs = [node.scaled_cost for node in non_frontier_nodes]
             accuracies = [self.plans_accuracy[node] for node in non_frontier_nodes]
             ids = [node.get_id() for node in non_frontier_nodes]
             plt.scatter(costs, accuracies, color="grey", label="Off Frontier")
@@ -434,7 +467,7 @@ class ParetoFrontier:
 
         # Plot frontier plans (blue)
         if frontier_nodes:
-            costs = [node.cost for node in frontier_nodes]
+            costs = [node.scaled_cost for node in frontier_nodes]
             accuracies = [self.plans_accuracy[node] for node in frontier_nodes]
             ids = [node.get_id() for node in frontier_nodes]
             plt.scatter(costs, accuracies, color="blue", label="Frontier")
@@ -456,86 +489,7 @@ class ParetoFrontier:
         plt.legend()
         plt.tight_layout()
         plt.show()
-
-    # def calculate_plan_metrics(self, node: Node) -> Dict[str, float]:
-    #     """
-    #     Calculate comprehensive metrics for a plan.
-    #     """
-    #     if node not in self.plans:
-    #         return {'accuracy': 0.0, 'pareto_value': 0.0, 'frontier_distance': float('inf')}
-
-    #     accuracy = self.plans_accuracy[node]
-    #     cost = node.cost
-
-    #     # Normalized values
-    #     normalized_cost = self.normalize_cost(cost)
-    #     normalized_accuracy = self.normalize_accuracy(accuracy)
-
-    #     # Check if on frontier
-    #     is_frontier = node in self.frontier_plans
-
-    #     # Calculate Pareto value
-    #     pareto_value = self.calculate_pareto_value(node, is_frontier)
-
-    #     return {
-    #         'accuracy': accuracy,
-    #         'pareto_value': pareto_value,
-    #         'frontier_distance': self.calculate_frontier_distance(node),
-    #         'normalized_cost': normalized_cost,
-    #         'normalized_accuracy': normalized_accuracy,
-    #         'is_frontier': is_frontier
-    #     }
-
-    # def calculate_frontier_distance(self, node: Node) -> float:
-    #     """
-    #     Calculate distance from plan to Pareto frontier.
-    #     """
-    #     if not self.frontier_plans or node in self.frontier_plans:
-    #         return 0.0
-
-    #     plan_accuracy = self.plans_accuracy[node]
-    #     plan_cost = node.cost
-
-    #     min_distance = float('inf')
-
-    #     for frontier_node in self.frontier_plans:
-    #         frontier_accuracy = self.plans_accuracy[frontier_node]
-    #         frontier_cost = frontier_node.cost
-
-    #         # Euclidean distance in normalized space
-    #         cost_diff = self.normalize_cost(plan_cost) - self.normalize_cost(frontier_cost)
-    #         accuracy_diff = self.normalize_accuracy(plan_accuracy) - self.normalize_accuracy(frontier_accuracy)
-
-    #         distance = math.sqrt(cost_diff**2 + accuracy_diff**2)
-    #         min_distance = min(min_distance, distance)
-
-    #     return min_distance
-
-    # def calculate_pareto_value(self, node: Node) -> float:
-    #     """
-    #     Calculate the Pareto value for a given node.
-
-    #     Args:
-    #         node: The node to calculate value for
-    #         normalized_cost: Cost normalized to [0, 1] range
-    #         normalized_accuracy: Accuracy normalized to [0, 1] range
-    #         is_frontier: Whether the node is on the Pareto frontier
-
-    #     Returns:
-    #         float: Pareto value between 0 and 1
-    #     """
-    #     is_frontier = node in self.frontier_plans
-
-    #     if is_frontier:
-    #         # High base value for frontier plans
-    #         pareto_value = 0.8
-    #     else:
-    #         # Distance-based value for non-frontier plans
-    #         frontier_distance = self.calculate_frontier_distance(node)
-    #         pareto_value = max(0.1, 0.6 - frontier_distance)
-
-    #     return pareto_value
-
+    
     def __len__(self) -> int:
         """Return number of plans in the frontier."""
         return len(self.plans)
@@ -544,21 +498,4 @@ class ParetoFrontier:
         """Check if plan is managed by this frontier."""
         return node in self.plans
 
-
-if __name__ == "__main__":
-    # Example usage
-    # Note: You'll need to implement your own AccuracyComparator
-    # from your_accuracy_comparator import AccuracyComparator
-
-    pass
-
-    # Create example nodes (you'll need to create actual Node objects)
-    # from Node import Node
-    # node_a = Node("plan_a.yaml")
-    # node_b = Node("plan_b.yaml")
-    # node_c = Node("plan_c.yaml")
-
-    # Add some example plans (commented out since we need actual Node objects)
-    # frontier.add_plan(node_a)
-    # frontier.add_plan(node_b)
-    # frontier.add_plan(node_c)
+    

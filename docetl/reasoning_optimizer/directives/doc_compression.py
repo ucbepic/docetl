@@ -191,8 +191,7 @@ class DocCompressionDirective(Directive):
         )
 
     def apply(
-        self,
-        global_default_model: str,
+        self,  
         ops_list: List[Dict],
         target_ops: List[str],
         rewrite: DocCompressionInstantiateSchema,

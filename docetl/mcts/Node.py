@@ -57,7 +57,9 @@ class Node:
         self.children = []
         self.c = c  # Exploration constant for UCB
         self.cost = -1.0
+        self.scaled_cost = -1.0  # Scaled cost in [0,1] range for reward calculations
         self.sample_result = []
+        self.latest_action = None  # Latest action that led to this node
 
         
         # Assign a unique ID to this node

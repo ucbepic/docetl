@@ -108,6 +108,8 @@ def run_mcts_experiment(
     # Evaluation
     # ------------------------------------------------------------------
     eval_results = []
+    # Initialize Pareto frontier AUC (area under Cost vs F1 curve)
+    pareto_auc = None
     if dataset.lower() == "cuad":
         if ground_truth_path is None:
             default_gt = Path("experiments/reasoning/data/CUAD-master_clauses.csv")
@@ -174,6 +176,29 @@ def run_mcts_experiment(
                 print(f"📈 Scatter plot saved to: {plot_path}")
             except Exception as e:
                 print(f"⚠️  Failed to create scatter plot: {e}")
+            # ------------------------------------------------------------------
+            # Compute Area Under the Pareto Frontier (Cost vs F1)
+            # ------------------------------------------------------------------
+            try:
+                frontier_points = [row for row in eval_results if row["on_frontier"]]
+                if len(frontier_points) >= 2:
+                    # Sort frontier points by cost (x-axis)
+                    frontier_points.sort(key=lambda r: r["cost"])
+
+                    pareto_auc = 0.0
+                    prev_point = frontier_points[0]
+                    for curr_point in frontier_points[1:]:
+                        width = curr_point["cost"] - prev_point["cost"]
+                        if width > 0:  # Ignore duplicate cost values
+                            pareto_auc += 0.5 * width * (prev_point["f1"] + curr_point["f1"])
+                        prev_point = curr_point
+                elif frontier_points:
+                    pareto_auc = 0.0  # Single point frontier → zero area
+
+                if pareto_auc is not None:
+                    print(f"📐 Area under Pareto frontier (Cost vs F1): {pareto_auc:.4f}")
+            except Exception as e:
+                print(f"⚠️  Failed to compute Pareto AUC: {e}")
     
     # Save results
     results = {
@@ -192,6 +217,9 @@ def run_mcts_experiment(
         "num_best_nodes": len(best_nodes) if best_nodes else 0,
         "total_nodes_explored": len(mcts.all_nodes) if hasattr(mcts, 'all_nodes') else 0,
     }
+    # Add Pareto AUC if it was computed
+    if pareto_auc is not None:
+        results["pareto_auc"] = pareto_auc
     if eval_results:
         results["evaluation_file"] = str(eval_out_file)
     

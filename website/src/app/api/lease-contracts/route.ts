@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const response = await fetch(
-      "https://docetl.blob.core.windows.net/demos/red_flag_analysis.json",
+      "https://docetlcloudbank.blob.core.windows.net/demos/red_flag_analysis.json",
       {
         headers: { "Content-Type": "application/json" },
         cache: "no-store",

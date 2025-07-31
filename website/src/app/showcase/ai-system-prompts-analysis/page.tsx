@@ -144,7 +144,7 @@ export default function AiSystemPromptsAnalysisPage() {
                   |
                 </span>
                 <Link
-                  href="https://docetl.blob.core.windows.net/showcase/prompts.json"
+                  href="https://docetlcloudbank.blob.core.windows.net/demos/prompts.json"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center text-blue-600 hover:underline"
@@ -156,7 +156,7 @@ export default function AiSystemPromptsAnalysisPage() {
                   |
                 </span>
                 <Link
-                  href="https://docetl.blob.core.windows.net/demos/analyzed_strategies.json"
+                  href="https://docetlcloudbank.blob.core.windows.net/demos/analyzed_strategies.json"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center text-blue-600 hover:underline"

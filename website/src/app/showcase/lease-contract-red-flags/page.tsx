@@ -150,7 +150,7 @@ export default function LeaseContractRedFlagsPage() {
                   |
                 </span>
                 <Link
-                  href="https://docetl.blob.core.windows.net/demos/lease_dataset.json"
+                  href="https://docetlcloudbank.blob.core.windows.net/demos/lease_dataset.json"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center text-blue-600 hover:underline"
@@ -161,7 +161,7 @@ export default function LeaseContractRedFlagsPage() {
                   |
                 </span>
                 <Link
-                  href="https://docetl.blob.core.windows.net/demos/red_flag_analysis.json"
+                  href="https://docetlcloudbank.blob.core.windows.net/demos/red_flag_analysis.json"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center text-blue-600 hover:underline"

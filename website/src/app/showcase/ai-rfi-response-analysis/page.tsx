@@ -169,7 +169,7 @@ export default function AiRfiResponseAnalysisPage() {
               </Link>
               <span className="text-muted-foreground hidden sm:inline">|</span>
               <Link
-                href="https://docetl.blob.core.windows.net/showcase/processed_responses.json"
+                href="https://docetlcloudbank.blob.core.windows.net/demos/processed_responses.json"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-blue-600 hover:underline"
@@ -179,7 +179,7 @@ export default function AiRfiResponseAnalysisPage() {
               </Link>
               <span className="text-muted-foreground hidden sm:inline">|</span>
               <Link
-                href="https://docetl.blob.core.windows.net/showcase/summarized_responses.json"
+                href="https://docetlcloudbank.blob.core.windows.net/demos/summarized_responses.json"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-blue-600 hover:underline"

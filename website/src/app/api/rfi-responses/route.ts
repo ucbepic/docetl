@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
     // Fetch data from Azure blob storage with better error handling
     const response = await fetch(
-      "https://docetl.blob.core.windows.net/demos/summarized_responses.json",
+      "https://docetlcloudbank.blob.core.windows.net/demos/summarized_responses.json",
       {
         headers: {
           "Content-Type": "application/json",

@@ -49,7 +49,7 @@ export default function SystemPromptsExplorer() {
     async function fetchStrategies() {
       try {
         const response = await fetch(
-          "https://docetl.blob.core.windows.net/demos/analyzed_strategies.json"
+          "https://docetlcloudbank.blob.core.windows.net/demos/analyzed_strategies.json"
         );
         if (!response.ok) {
           throw new Error("Failed to fetch data");

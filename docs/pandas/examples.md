@@ -235,7 +235,7 @@ Suppose you have a column in your pandas dataframe with PDF paths (1 path per ro
 
 ```python
 df = pd.DataFrame({
-    "PdfPath": ["https://docetl.blob.core.windows.net/ntsb-reports/Report_N617GC.pdf", "https://docetl.blob.core.windows.net/ntsb-reports/Report_CEN25LA075.pdf"]
+    "PdfPath": ["https://docetlcloudbank.blob.core.windows.net/ntsb-reports/Report_N617GC.pdf", "https://docetlcloudbank.blob.core.windows.net/ntsb-reports/Report_CEN25LA075.pdf"]
 })
 
 result_df = df.semantic.map(

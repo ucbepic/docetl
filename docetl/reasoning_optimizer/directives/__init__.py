@@ -30,12 +30,12 @@ ALL_DIRECTIVES = [
     ChangeModelDirective(),
     DocSummarizationDirective(),
     IsolatingSubtasksDirective(),
-    DocCompressionDirective(),
+    # DocCompressionDirective(),
     DeterministicDocCompressionDirective(),
     OperatorFusionDirective(),
-    DocumentChunkingDirective(),
-    ChunkHeaderSummaryDirective(),
-    ChunkSamplingDirective(),
+    # DocumentChunkingDirective(),
+    # ChunkHeaderSummaryDirective(),
+    # ChunkSamplingDirective(),
 ]
 
 # Create a mapping from directive names to directive instances

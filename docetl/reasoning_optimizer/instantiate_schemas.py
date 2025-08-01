@@ -141,14 +141,20 @@ class ChangeModelInstantiateSchema(BaseModel):
             ValueError: If the model is not in the allowed list.
         """
 
+        # Ensure the proposed model is from the allowed set
         if model not in list_of_model:
             raise ValueError(
                 f"Model '{model}' is not in the allowed list: {list_of_model}"
             )
-        elif model == orig_model:
-            raise ValueError(
-                f"Model '{model}' is the same as the original model used: {orig_model}"
-            )
+
+        # If we have an original model to compare against, make sure it's different.
+        # Strip any provider prefixes (e.g., 'azure/') for a fair comparison.
+        if orig_model:
+            orig_model_clean = orig_model.split("/", 1)[-1]
+            if model == orig_model_clean:
+                raise ValueError(
+                    f"Model '{model}' is the same as the current model in use: {orig_model}"
+                )
 
 
 class DocSummarizationInstantiateSchema(BaseModel):

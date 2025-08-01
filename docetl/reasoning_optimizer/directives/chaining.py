@@ -143,7 +143,7 @@ class ChainingDirective(Directive):
         expected_output_keys: List[str],
         agent_llm: str,
         message_history: list = [],
-        temperature = 0.8
+        temperature=0.8,
     ) -> tuple:
         """
         Use LLM to instantiate this directive by decomposing the original operation.
@@ -151,21 +151,29 @@ class ChainingDirective(Directive):
         Args:
             original_op (Dict): The original operation.
             expected_input_keys (List[str]): A list of input keys that the operation is expected to reference in its prompt. Each key should correspond to a field in the input document that must be used by the operator.
-            expected_output_keys (List[str]): A list of output keys that the last operation is expected to produce. 
+            expected_output_keys (List[str]): A list of output keys that the last operation is expected to produce.
             agent_llm (str): The LLM model to use.
             message_history (List, optional): Conversation history for context.
 
         Returns:
             ChainingInstantiateSchema: The structured output from the LLM.
         """
-        
-        message_history.extend([
-            {"role": "system", "content": "You are a helpful AI assistant for document processing pipelines."},
-            {"role": "user", "content": self.to_string_for_instantiate(original_op)},
-        ])
+
+        message_history.extend(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a helpful AI assistant for document processing pipelines.",
+                },
+                {
+                    "role": "user",
+                    "content": self.to_string_for_instantiate(original_op),
+                },
+            ]
+        )
 
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
-            
+
             resp = completion(
                 model=agent_llm,
                 messages=message_history,
@@ -175,9 +183,9 @@ class ChainingDirective(Directive):
                 # api_key=os.environ["GEMINI_API_KEY"],
                 azure=True,
                 response_format=ChainingInstantiateSchema,
-                temperature=temperature
+                temperature=temperature,
             )
-            
+
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 if "new_ops" not in parsed_res:
@@ -199,18 +207,26 @@ class ChainingDirective(Directive):
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
-        
-        raise Exception(f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts.")
-    
-    def apply(self, global_default_model, ops_list: List[Dict], target_op: str, rewrite: ChainingInstantiateSchema) -> List[Dict]:
+
+        raise Exception(
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Messages: {str(message_history)}"
+        )
+
+    def apply(
+        self,
+        global_default_model,
+        ops_list: List[Dict],
+        target_op: str,
+        rewrite: ChainingInstantiateSchema,
+    ) -> List[Dict]:
         """
         Apply the directive to the pipeline config.
         """
         # Create a copy of the pipeline config
         new_ops_list = deepcopy(ops_list)
-        
+
         # Find position of the target ops to replace
-        
+
         for i, op in enumerate(ops_list):
             if op["name"] == target_op:
                 pos_to_replace = i
@@ -218,67 +234,88 @@ class ChainingDirective(Directive):
                 break
 
         # pos_to_replace = [i for i, op in enumerate(ops_list) if op["name"] == target_op][0]
-        
+
         # Create the new ops from the rewrite
         new_ops = []
-        
-        defualt_model =  global_default_model
-        if "model" in orig_op:  defualt_model = orig_op["model"]
+
+        defualt_model = global_default_model
+        if "model" in orig_op:
+            defualt_model = orig_op["model"]
 
         for i, op in enumerate(rewrite.new_ops):
             if i < len(rewrite.new_ops) - 1:
-                new_ops.append({
-                    "name": op.name,
-                    "type": "map",
-                    "prompt": op.prompt,
-                    "model": defualt_model,
-                    "litellm_completion_kwargs": {"temperature": 0},
-                    "output": {
-                        "schema": {
-                            key: "string" for key in op.output_keys
-                        }
+                new_ops.append(
+                    {
+                        "name": op.name,
+                        "type": "map",
+                        "prompt": op.prompt,
+                        "model": defualt_model,
+                        "litellm_completion_kwargs": {"temperature": 0},
+                        "output": {"schema": {key: "string" for key in op.output_keys}},
                     }
-                })
+                )
             else:
                 # Last op in the chain
-                new_ops.append({
-                    "name": op.name,
-                    "type": "map",
-                    "prompt": op.prompt,
-                    "model": defualt_model,
-                    "litellm_completion_kwargs": {"temperature": 0},
-                    "output": new_ops_list[pos_to_replace]["output"]
-                })
-        
+                new_ops.append(
+                    {
+                        "name": op.name,
+                        "type": "map",
+                        "prompt": op.prompt,
+                        "model": defualt_model,
+                        "litellm_completion_kwargs": {"temperature": 0},
+                        "output": new_ops_list[pos_to_replace]["output"],
+                    }
+                )
+
         # Remove the target op and insert the new ops
         new_ops_list.pop(pos_to_replace)
         new_ops_list[pos_to_replace:pos_to_replace] = new_ops
-        
+
         return new_ops_list
-    
-    def instantiate(self, operators: List[Dict], target_ops: List[str], agent_llm: str, message_history: list = [], optimize_goal="acc", global_default_model: str = None, temperature = 0.8) -> tuple:
+
+    def instantiate(
+        self,
+        operators: List[Dict],
+        target_ops: List[str],
+        agent_llm: str,
+        message_history: list = [],
+        optimize_goal="acc",
+        global_default_model: str = None,
+        temperature=0.8,
+    ) -> tuple:
         """
         Instantiate the directive for a list of operators.
         """
         # Assert that there is only one target op
-        assert len(target_ops) == 1, "There must be exactly one target op to instantiate this chaining directive"
+        assert (
+            len(target_ops) == 1
+        ), "There must be exactly one target op to instantiate this chaining directive"
         target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
-        
+
         # Get the expected input/output keys
         expected_output_keys = list(target_op_config["output"]["schema"].keys())
-        
+
         # Extract expected input keys from the target op's prompt template
         prompt_template = target_op_config["prompt"]
         # Find all occurrences of {{ input.key }} in the prompt
         input_key_pattern = r"\{\{\s*input\.([^\}\s]+)\s*\}\}"
         expected_input_keys = list(set(re.findall(input_key_pattern, prompt_template)))
-        
+
         print("input key: ", expected_input_keys)
         print("output key: ", expected_output_keys)
-        
+
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(target_op_config, expected_input_keys, expected_output_keys, agent_llm, message_history, temperature)
-        
+        rewrite, message_history = self.llm_instantiate(
+            target_op_config,
+            expected_input_keys,
+            expected_output_keys,
+            agent_llm,
+            message_history,
+            temperature,
+        )
+
         # Apply the rewrite to the operators
-        new_ops_plan = self.apply(global_default_model, operators, target_ops[0], rewrite)
-        return new_ops_plan,  message_history
+        new_ops_plan = self.apply(
+            global_default_model, operators, target_ops[0], rewrite
+        )
+        return new_ops_plan, message_history

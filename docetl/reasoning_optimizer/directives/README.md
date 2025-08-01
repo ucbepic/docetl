@@ -213,7 +213,7 @@ class MyDirective(Directive):
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
 
-        raise Exception(f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts.")
+        raise Exception(f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Messages: {str(message_history)}")
 
     def apply(
         self, ops_list: List[Dict], target_op: str, rewrite: MyDirectiveInstantiateSchema

@@ -1,8 +1,9 @@
 import json
 import os
+import re
 from copy import deepcopy
 from typing import Dict, List, Type
-import re
+
 from litellm import completion
 from pydantic import BaseModel, Field
 
@@ -19,10 +20,10 @@ class IsolatingSubtasksDirective(Directive):
     )
     formal_description: str = Field(default="Map => Parallel Map -> Map")
     nl_description: str = Field(
-        default="Rewrites a single Map into a Parallel Map that isolates subtasks and generates separate outputs for each, followed by a Map that aggregates or synthesizes the results."
+        default="Rewrites a single Map (must be exactly one target op) into a Parallel Map that isolates subtasks and generates separate outputs for each, followed by a Map that aggregates or synthesizes the results."
     )
     when_to_use: str = Field(
-        default="When the original Map is overloaded—either the prompt asks for many different things OR the output schema has many fields—and subtasks are better handled independently (e.g., extract each attribute in parallel, then combine into a unified output)."
+        default="Use only when there is exactly one target op and the original Map is overloaded—either the prompt asks for many different things OR the output schema has many fields—and subtasks are better handled independently (e.g., extract each attribute in parallel, then combine into a unified output)."
     )
 
     instantiate_schema_type: Type[BaseModel] = Field(
@@ -269,7 +270,7 @@ class IsolatingSubtasksDirective(Directive):
                 azure=True,
                 response_format=IsolatingSubtasksInstantiateSchema,
             )
-     
+
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = IsolatingSubtasksInstantiateSchema(**parsed_res)
@@ -288,7 +289,7 @@ class IsolatingSubtasksDirective(Directive):
                 message_history.append({"role": "user", "content": error_message})
 
         raise Exception(
-            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts."
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Messages: {str(message_history)}"
         )
 
     def apply(
@@ -315,7 +316,6 @@ class IsolatingSubtasksDirective(Directive):
         if pos_to_replace is None:
             raise ValueError(f"Target operation '{target_op}' not found")
 
-
         # Create the parallel map operation
         parallel_map_op = {
             "name": f"{target_op}_parallel",
@@ -324,7 +324,7 @@ class IsolatingSubtasksDirective(Directive):
             "prompts": [],
         }
 
-        assert original_op 
+        assert original_op
         # Copy over other fields from original operation (sample, random_sample, etc.)
         for key, value in original_op.items():
             if key not in ["name", "type", "prompt", "output"]:
@@ -363,9 +363,7 @@ class IsolatingSubtasksDirective(Directive):
         original_keys_set = set(original_op.get("output", {}).get("schema", {}).keys())
 
         # Check if aggregation is needed: aggregation_prompt is empty
-        if (
-            not rewrite.aggregation_prompt.strip()
-        ):
+        if not rewrite.aggregation_prompt.strip():
             # Just return the parallel map - it already produces the right output
             parallel_map_op["output"] = original_op.get("output", {})
             new_ops_list[pos_to_replace : pos_to_replace + 1] = [parallel_map_op]
@@ -417,4 +415,7 @@ class IsolatingSubtasksDirective(Directive):
         )
 
         # Step 2: Apply transformation using the schema
-        return self.apply(global_default_model, operators, target_ops[0], rewrite), message_history
+        return (
+            self.apply(global_default_model, operators, target_ops[0], rewrite),
+            message_history,
+        )

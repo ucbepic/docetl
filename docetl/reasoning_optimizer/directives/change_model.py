@@ -1,7 +1,7 @@
 import json
 import os
 from copy import deepcopy
-from typing import Dict, List, Type
+from typing import Dict, List, Optional, Type
 
 from litellm import completion
 from pydantic import BaseModel, Field
@@ -136,7 +136,9 @@ class ChangeModelDirective(Directive):
     def __hash__(self):
         return hash("ChangeModelDirective")
 
-    def to_string_for_instantiate(self, original_op: Dict, optimize_goal) -> str:
+    def to_string_for_instantiate(
+        self, original_op: Dict, optimize_goal, default_model: str
+    ) -> str:
         """
         Generate a prompt for an agent to instantiate this directive.
 
@@ -152,6 +154,7 @@ class ChangeModelDirective(Directive):
                 f"Original Operation:\n"
                 f"{str(original_op)}\n\n"
                 f"Directive: {self.name}\n"
+                f"Default Model: {default_model}\n"
                 f"Your task is to instantiate this directive by suggesting a better model for executing the original operation.\n\n"
                 f"MODEL SELECTION CONSIDERATIONS:\n"
                 f"• Generally, simpler tasks (extraction, basic classification, straightforward summarization) may work well with cheaper models like gpt-4o-mini or gpt-4.1-nano\n"
@@ -211,7 +214,7 @@ class ChangeModelDirective(Directive):
                 {
                     "role": "user",
                     "content": self.to_string_for_instantiate(
-                        original_op, optimize_goal
+                        original_op, optimize_goal, global_default_model
                     ),
                 },
             ]
@@ -230,10 +233,20 @@ class ChangeModelDirective(Directive):
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = ChangeModelInstantiateSchema(**parsed_res)
-                orig_model = global_default_model
-                if "model" in original_op:
-                    orig_model = original_op.get("model")
-                # Validate the model is in the allowed model list
+                # Determine the original model (operator-specific or global default)
+                orig_model_raw = (
+                    original_op.get("model")
+                    if "model" in original_op
+                    else global_default_model
+                )
+
+                # Helper to strip provider prefixes like "azure/"
+                def _strip_provider(name: Optional[str]) -> Optional[str]:
+                    return name.split("/", 1)[-1] if name else name
+
+                orig_model = _strip_provider(orig_model_raw)
+
+                # Validate that the proposed model is allowed and different from the relevant current model
                 ChangeModelInstantiateSchema.validate_diff_model_in_list(
                     orig_model=orig_model,
                     model=schema.model,
@@ -248,7 +261,7 @@ class ChangeModelDirective(Directive):
                 message_history.append({"role": "user", "content": error_message})
 
         raise Exception(
-            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts."
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Messages: {str(message_history)}"
         )
 
     def apply(
@@ -301,11 +314,12 @@ class ChangeModelDirective(Directive):
                     optimize_goal=optimize_goal,
                 )
                 print(rewrite)
+                new_ops_list = self.apply(
+                    global_default_model, new_ops_list, target_op, rewrite
+                )
+
             except Exception as e:
                 inst_error += 1
-            new_ops_list = self.apply(
-                global_default_model, new_ops_list, target_op, rewrite
-            )
 
         if inst_error == len(target_ops):
             print("CHANEG MODEL ERROR")

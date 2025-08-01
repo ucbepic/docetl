@@ -261,10 +261,27 @@ class IsolatingSubtasksInstantiateSchema(BaseModel):
 
         missing_references = []
         for i, subtask in enumerate(self.subtasks):
+
+            #  {{input.subtask_i_output}} 
+            pattern_subtask_output = r"\{\{\s*input\.subtask_" + str(i+1) + r"_output\s*\}\}"
+            has_subtask_output = bool(re.search(pattern_subtask_output, self.aggregation_prompt))
+            
+            if has_subtask_output:
+                continue
+            subtask_has_reference = False
+            
             for output_key in subtask.output_keys:
-                pattern = r"\{\{\s*input\." + re.escape(output_key) + r"\s*\}\}"
-                if not re.search(pattern, self.aggregation_prompt):
-                    missing_references.append(output_key)
+                pattern_output_key = r"\{\{\s*input\." + re.escape(output_key) + r"\s*\}\}"
+                
+                pattern_subtask_output_key = r"\{\{\s*input\.subtask_" + str(i+1) + r"_output\." + re.escape(output_key) + r"\s*\}\}"
+                
+                if re.search(pattern_output_key, self.aggregation_prompt) or \
+                re.search(pattern_subtask_output_key, self.aggregation_prompt):
+                    subtask_has_reference = True
+                    break
+            
+            if not subtask_has_reference:
+                missing_references.extend(subtask.output_keys)
 
         if missing_references:
             raise ValueError(

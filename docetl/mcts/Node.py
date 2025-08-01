@@ -53,7 +53,7 @@ class Node:
             self.used_actions_acc[op_name] = set()
             self.used_actions_cost[op_name] = set()
         self.visits = 0
-        self.value = -math.inf
+        self.value = 0
         self.parent = parent
         self.children = []
         self.c = c  # Exploration constant for UCB
@@ -220,8 +220,7 @@ class Node:
         Args:
             value: The value to add to the current node value
         """
-        print("***", self.id, self.value, value)
-        self.value = max(self.value, value)
+        self.value = self.value + value
     
     def update_visit(self):
         """

@@ -61,6 +61,7 @@ class MCTS:
         self.root = Node(root_yaml_path, c=exploration_constant)
         self.available_actions = available_actions
         self.action_rewards = {action: 0.0 for action in available_actions}
+        self.action_counts = {action: 0.0 for action in available_actions} # number of times an action has been applied
         self.exploration_constant = exploration_constant
         self.max_iterations = max_iterations
         self.max_time = max_time
@@ -258,6 +259,17 @@ class MCTS:
 
         print(availabel_actions_str)
 
+        action_stats = []
+        for action in self.available_actions:  
+            reward = self.action_rewards.get(action, 0)
+            count = self.action_counts.get(action, 0)
+            avg_reward = reward / count if count > 0 else "Unknown (never tried)"
+            action_stats.append(f"- {action.name}: {count} uses, avg reward: {avg_reward}")
+        
+        action_stats_str = "\n".join(action_stats)
+
+        print(action_stats_str)
+
         input_schema = """
         Dataset: contracts_data
         Type: file
@@ -298,8 +310,22 @@ class MCTS:
         Rewrite directives:
         {get_all_directive_strings()}\n
 
-        Your valid choice of operation and rewrite directive combination. Only choose one of these:
+        Your valid choice of operation and rewrite directive combination. Only choose one of these:\n
         {availabel_actions_str}
+
+        Action Performance History:
+        Based on previous executions across DIFFERENT query pipelines, here's how each action has performed:\n
+        {action_stats_str}
+
+        Note: These statistics come from applying actions to various other query pipelines, not the current one. Use this as general guidance about action effectiveness, but consider that performance may vary significantly for your specific pipeline structure and data.
+
+        Selection Strategy:
+        Consider the current query pipeline, which directive can best improve the accuracy.
+        Prioritize exploration of untested actions while balancing with exploitation of proven performers:
+        - Actions with 0 uses have unknown potential please explore if applicable. Try change model directive if it has not been used. change model is typically useful!
+        - Actions with few uses might need more data to be reliable  
+        - High average reward indicates good historical performance
+        - Consider both immediate improvement and learning about the action space
 
         Make sure you only choose from the valid choices above and avoid already used combinations.
 
@@ -512,7 +538,6 @@ class MCTS:
                     target_ops=target_op_list,
                     agent_llm=self.model,
                     optimize_goal=optimize_goal,
-                    temperature=0.8,
                     global_default_model=orig_default_model,
                     message_history=messages,
                 )
@@ -525,6 +550,7 @@ class MCTS:
                 )
             rewrites.append(new_ops_list)
 
+            self.action_counts[directive] += 1
             children = []
             for new_ops in rewrites:
                 child = self.instantiate_node(
@@ -549,7 +575,14 @@ class MCTS:
             The updated nodes by the change of the pareto frontier
         """
 
-        node.execute_plan()
+        try:
+            node.execute_plan()
+        except Exception as e:
+            print(f"Failed to execute plan for node {node.get_id()}: {str(e)}")
+            # Set cost to -1 to indicate failure (this is already done in Node.execute_plan)
+            # Continue with adding to frontier so it can be tracked as a failed plan
+            pass
+            
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node)
         self.action_rewards = self.pareto_frontier.action_rewards
         return affected_nodes, is_frontier_updated
@@ -576,8 +609,8 @@ class MCTS:
         if self.iteration_count >= self.max_iterations:
             return False
 
-        # Early stopping: return False if last 5 iterations found no Pareto optimal plans
-        if self.iterations_without_improvement >= 5:
+        # Early stopping: return False if last 10 iterations found no Pareto optimal plans
+        if self.iterations_without_improvement >= 10:
             print(
                 f"Early stopping: No Pareto optimal plans found in last {self.iterations_without_improvement} iterations"
             )
@@ -654,19 +687,37 @@ class MCTS:
         child.latest_action = action
         print("!!!", child.latest_action.name, child.id)
         if directive_name == "gleaning":
+            chaining = self.directive_name_to_obj.get("chaining")
+            assert chaining
+            chunking = self.directive_name_to_obj.get("doc_chunking")
+            assert chunking
+            gleaning = self.directive_name_to_obj.get("gleaning")
+            assert gleaning
             for op in target_op_list:
-                chaining = self.directive_name_to_obj.get("chaining")
-                assert chaining
                 child.mark_action_used_acc(op, chaining)
-
-                chunking = self.directive_name_to_obj.get("doc_chunking")
-                assert chunking
                 child.mark_action_used_acc(op, chunking)
+                child.mark_action_used_acc(op, gleaning)
+
         elif directive_name == "change model":
+            change_model = self.directive_name_to_obj.get("change model")
+            assert change_model
             for op in target_op_list:
-                change_model = self.directive_name_to_obj.get("change model")
-                assert change_model
                 child.mark_action_used_acc(op, change_model)
                 child.mark_action_used_cost(op, change_model)
+
+        elif directive_name == "doc_chunking":
+            doc_chunking = self.directive_name_to_obj.get("doc_chunking")
+            assert doc_chunking
+            for op in child.parsed_yaml["operations"]:
+                op_name = op["name"]
+                child.mark_action_used_acc(op_name, doc_chunking)
+
+        elif directive_name == "deterministic_doc_compression":
+            d_comp = self.directive_name_to_obj.get("deterministic_doc_compression")
+            assert d_comp
+            for op in child.parsed_yaml["operations"]:
+                op_name = op["name"]
+                child.mark_action_used_acc(op_name, d_comp)
+
         node.add_child(child)
         return child

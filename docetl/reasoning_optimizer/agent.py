@@ -25,7 +25,6 @@ model_rate_limiters: Dict[str, "TokenRateLimiter"] = {}
 data_dir = os.environ.get("EXPERIMENT_DATA_DIR", "./data/")
 
 
-
 def get_rate_limiter(model: str, max_tpm: int) -> "TokenRateLimiter":
     if model not in model_rate_limiters:
         model_rate_limiters[model] = TokenRateLimiter(max_tpm)
@@ -332,6 +331,8 @@ def run_single_iteration(
     orig_output_sample,
     prev_plan_cost: float,
     output_dir=None,
+    dataset="cuad",
+    sample_data=None,
 ):
     """
     Run a single iteration of the optimization process.
@@ -353,16 +354,15 @@ def run_single_iteration(
     orig_config = load_config(yaml_path)
     orig_operators = orig_config["operations"]
 
-    sample_data_path = os.path.join(data_dir, "CUAD_random_sample.json")
-    with open(sample_data_path, "r") as f:
-        random_sample = json.load(f)
+    # Use provided sample data
+    random_sample = sample_data if sample_data is not None else []
 
     with open(yaml_path, "r") as f:
         input_query = f.read()
-    
+
     with open(yaml_path, "r") as file:
         config = yaml.safe_load(file)
-    
+
     global_default_model = config.get("default_model")
 
     input_schema = load_input_doc(yaml_path)
@@ -413,7 +413,7 @@ def run_single_iteration(
 
     output_file_path = os.path.join(
         data_dir,
-        f"CUAD-map_opt_iter_{iteration_num}.yaml",
+        f"{dataset}-map_opt_iter_{iteration_num}.yaml",
     )
 
     # Ensure every operator's model starts with 'azure/'

@@ -1,37 +1,40 @@
 import argparse
 import json
-from code import interact
-from pyexpat.errors import messages
-import random
-from tkinter import BaseWidget
-from typing import List, Dict, Any, Optional, Union
-import litellm
 import os
-from pydantic import BaseModel
+import random
+from typing import Any, Dict, List, Optional, Union
+
+import litellm
 from dotenv import load_dotenv
-from docetl.utils import decrypt, load_config, extract_jinja_variables
+from pydantic import BaseModel
+from pyexpat.errors import messages
 from rich.console import Console
+
+from docetl.utils import extract_jinja_variables, load_config
 
 # Load environment variables from .env file
 load_dotenv()
 
+
 class ChunkSize(BaseModel):
     chunk_size: int
     reason: str
+
 
 class SplitConfig(BaseModel):
     split_key: str
     subprompt: str
     subprompt_output_schema: str
 
+
 class MetadataNeeds(BaseModel):
     needs_metadata: bool
     reason: str
-   
-class Generate_rewrite_plan:
-    """
 
-    """
+
+class Generate_rewrite_plan:
+    """ """
+
     def __init__(self, ai_response: Union[str, Dict[str, Any]], model="o3"):
         """
         Initialize with the AI response from optimize_plan.py.
@@ -53,14 +56,16 @@ class Generate_rewrite_plan:
         self.operations: List[Dict[str, Any]] = response.get("stepwise_pipeline", [])
 
         # Save the rest of the response as records (excluding stepwise_pipeline)
-        self.records: Dict[str, Any] = {k: v for k, v in response.items() if k != "stepwise_pipeline"}
+        self.records: Dict[str, Any] = {
+            k: v for k, v in response.items() if k != "stepwise_pipeline"
+        }
         self.model = model
         self.console = Console()
-    
+
     def get_plan_name(self) -> Optional[str]:
         """Return the plan name from the AI response, or None if not present."""
         return self.records.get("plan_name")
-    
+
     def get_operations(self) -> List[Dict[str, Any]]:
         """Return the list of operations parsed from the AI response."""
         return self.operations
@@ -68,22 +73,25 @@ class Generate_rewrite_plan:
     def get_records(self) -> Dict[str, Any]:
         """Return the records/history part of the AI response (excluding operations)."""
         return self.records
-    
+
     def choose_chunk_size(self, op: Dict[str, Any]) -> int:
         """
         Given a split operation description, generate an LLM prompt to ask for the chunk size.
         """
 
         prompt = f"""
-        You have made the decision to use the split operation in the rewritten plan and your original thoughts on 
-        the description and parameter of it is here: {op}. Now, you need to generate the configuration for this split 
-        operation, which is the chunk size. Choose a chunk size that balances between context preservation and model performance. 
+        You have made the decision to use the split operation in the rewritten plan and your original thoughts on
+        the description and parameter of it is here: {op}. Now, you need to generate the configuration for this split
+        operation, which is the chunk size. Choose a chunk size that balances between context preservation and model performance.
         Smaller chunks may lose context, while larger chunks may degrade model performance. Output your choice of chunk size.
         """
 
         messages = [
-            {"role": "system", "content": "You are an expert agent for document processing pipelines. Your role is to come up with the most suitable chunk size for the split opration. Your output must follow the structured output format."},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": "You are an expert agent for document processing pipelines. Your role is to come up with the most suitable chunk size for the split opration. Your output must follow the structured output format.",
+            },
+            {"role": "user", "content": prompt},
         ]
         response = litellm.completion(
             model=self.model,  # Use a default model instead of self.model
@@ -92,20 +100,18 @@ class Generate_rewrite_plan:
             api_base=os.environ.get("AZURE_API_BASE"),
             api_version=os.environ.get("AZURE_API_VERSION"),
             azure=True,
-            response_format = ChunkSize
+            response_format=ChunkSize,
         )
         content = response.choices[0].message.content
         parsed_content = json.loads(content)
         chunk_size = parsed_content.get("chunk_size")
         return int(chunk_size)
-    
-
 
     def _get_split_config(
         self,
         op_config: Dict[str, Any],
         input_data_sample: List[Dict[str, Any]],
-        random_sample:Dict[str, Any],
+        random_sample: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Generate a configuration for splitting the input data and processing chunks.
@@ -180,7 +186,7 @@ class Generate_rewrite_plan:
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt},
         ]
 
         response = litellm.completion(
@@ -190,10 +196,10 @@ class Generate_rewrite_plan:
             api_base=os.environ.get("AZURE_API_BASE"),
             api_version=os.environ.get("AZURE_API_VERSION"),
             azure=True,
-            response_format=SplitConfig
+            response_format=SplitConfig,
         )
         result = json.loads(response.choices[0].message.content)
-       
+
         # Strip out "input." from split_key if it exists
         result["split_key"] = result["split_key"].replace("input.", "")
 
@@ -233,8 +239,14 @@ class Generate_rewrite_plan:
         )
 
         return result
-    
-    def determine_metadata(self, op_config: Dict[str, Any], split_result: Dict[str, Any], chunk_size: int, input_data_sample: List[Dict[str, Any]]):
+
+    def determine_metadata(
+        self,
+        op_config: Dict[str, Any],
+        split_result: Dict[str, Any],
+        chunk_size: int,
+        input_data_sample: List[Dict[str, Any]],
+    ):
         split_subprompt = split_result["subprompt"]
         split_key = split_result["split_key"]
         system_prompt = "You are an AI assistant tasked with determining if metadata is needed for document processing."
@@ -266,26 +278,13 @@ class Generate_rewrite_plan:
 
         example_dict = {
             "previous": {
-                "head": {
-                    "count": 1,
-                    "content_key": "full_content"
-                },
-                "middle": {
-                    "content_key": "summary_content"
-                },
-                "tail": {
-                    "count": 2,
-                    "content_key": "full_content"
-                }
+                "head": {"count": 1, "content_key": "full_content"},
+                "middle": {"content_key": "summary_content"},
+                "tail": {"count": 2, "content_key": "full_content"},
             },
-            "next": {
-                "head": {
-                    "count": 1,
-                    "content_key": "full_content"
-                }
-            }
+            "next": {"head": {"count": 1, "content_key": "full_content"}},
         }
-        
+
         prompt = f"""
         You have made the decision to use the gather operation in the rewritten plan and your original thoughts on the description and parameter of it is here: {op}. Now, you need to generate the configuration for this gather operation. This configuration should be a tuple:
         1. The first element "gather_config" is a configuration expressed in a dictionary describing how much context to include from surrounding chunks. The configuration is divided into two main sections:
@@ -314,8 +313,11 @@ class Generate_rewrite_plan:
 
         """
         messages = [
-            {"role": "system", "content": "You are an expert agent for document processing pipelines. Your role is to come up with the most suitable config for the gather opration. Your output must follow the structured output format."},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": "You are an expert agent for document processing pipelines. Your role is to come up with the most suitable config for the gather opration. Your output must follow the structured output format.",
+            },
+            {"role": "user", "content": prompt},
         ]
         response = litellm.completion(
             model=self.model,  # Use a default model instead of self.model
@@ -323,9 +325,10 @@ class Generate_rewrite_plan:
             api_key=os.environ.get("AZURE_API_KEY"),
             api_base=os.environ.get("AZURE_API_BASE"),
             api_version=os.environ.get("AZURE_API_VERSION"),
-            azure=True
+            azure=True,
         )
         return response.choices[0].message.content
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -333,8 +336,8 @@ def main():
     args = parser.parse_args()
 
     # Sample AI response, should be the output of the first call to the reasoning model
-    # Includes the chosen rewrite rule and a stepwise pipeline 
-    ai_response = '''{
+    # Includes the chosen rewrite rule and a stepwise pipeline
+    ai_response = """{
         "plan_name": "Chunk-Aware Contract Clause Extraction",
         "rewrites_used": ["Document Chunking Rewrite Directive"],
         "plan_description": "The original plan applies one large map operation to ~11K-token contracts, risking context overflow, hallucinations, and high token cost. By introducing chunk-based processing with contextual gathering and a per-document reduce, we fit within model limits, cut prompt+completion tokens per call, and preserve accuracy through context augmentation and deduplication.",
@@ -345,25 +348,52 @@ def main():
             {"operation": "reduce", "description": "Merge chunk-level results for the same document, deduplicate identical spans, and concatenate multiples within each clause field, yielding one consolidated record per contract.", "parameter": ["group_by: id", "deduplication_strategy: span_text_and_offsets"]}
         ],
         "reason": "Splitting contracts into ~2K-token pieces keeps prompts within context limits, lowering per-call latency and cost. Neighbor summaries supply just enough context to avoid losing cross-chunk clause information. Mapping at chunk level parallelizes work and reduces hallucination risk. The final reduce step reunifies partial results, ensuring correctness while preventing double charges for oversized prompts."
-    }'''
+    }"""
 
     plan = Generate_rewrite_plan(ai_response)
 
-    # load input_data_sample of CUAD 
-    with open('/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD_input_data.json', 'r') as f:
-        input_data_sample = json.load(f)
-    with open('/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/CUAD_random_sample.json', 'r') as f:
-        random_sample = json.load(f)
-       
+    # Load sample data - try multiple paths for different datasets/environments
+    data_dir = os.environ.get("EXPERIMENT_DATA_DIR", "experiments/reasoning/data")
+
+    # Try to load sample data files
+    input_data_sample = None
+    random_sample = None
+
+    # Look for various dataset sample files
+    for filename in ["CUAD_input_data.json", "blackvault_articles_pdfs.json"]:
+        try:
+            with open(os.path.join(data_dir, filename), "r") as f:
+                input_data_sample = json.load(f)
+            print(f"Loaded input data from {filename}")
+            break
+        except FileNotFoundError:
+            continue
+
+    for filename in ["CUAD_random_sample.json", "blackvault_random_sample.json"]:
+        try:
+            with open(os.path.join(data_dir, filename), "r") as f:
+                random_sample = json.load(f)
+            print(f"Loaded random sample from {filename}")
+            break
+        except FileNotFoundError:
+            continue
+
+    if input_data_sample is None:
+        print("Warning: No input data sample file found")
+        input_data_sample = []
+    if random_sample is None:
+        print("Warning: No random sample file found")
+        random_sample = []
+
     yaml_file = str(args.yaml_path)
     base_name = yaml_file.rsplit(".", 1)[0]
     suffix = yaml_file.split("/")[-1].split(".")[0]
     config = load_config(yaml_file)
-    model = config.get('default_model')
+    model = config.get("default_model")
     print(model)
-    ops = config.get('operations')
+    ops = config.get("operations")
     for op_config in ops:
-        op_config['model'] = model
+        op_config["model"] = model
         result = plan._get_split_config(
             op_config,
             input_data_sample,
@@ -373,7 +403,6 @@ def main():
     print(result)
     return
 
-    
     # For each op in the pipeline, prepare its config
     for op in plan.get_operations():
         op_type = op.get("operation")
@@ -384,12 +413,9 @@ def main():
             # print(output)
         elif op_type == "split":
             print("*******************")
-            output = plan.prepare_split_config(op,  cuad_input_data_sample)
+            output = plan.prepare_split_config(op, input_data_sample)
             print(output)
-       
 
-    
-    
 
 if __name__ == "__main__":
-    main() 
+    main()

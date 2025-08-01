@@ -18,7 +18,7 @@ from docetl.mcts import MCTS, Node, ParetoFrontier, AccuracyComparator
 from docetl.reasoning_optimizer.directives import (
     DEFAULT_MODEL, DEFAULT_OUTPUT_DIR, ALL_DIRECTIVES
 )
-from experiments.reasoning.evaluation.cuad import evaluate_results as cuad_evaluate
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, get_dataset_stats
 
 def run_mcts_experiment(
     yaml_path: str,
@@ -80,12 +80,18 @@ def run_mcts_experiment(
     # Use all registered rewrite directives from the central registry
     available_actions = set(ALL_DIRECTIVES)
     
+    # Get dataset-specific evaluation function and statistics
+    evaluate_func = get_evaluate_func(dataset)
+    dataset_stats = get_dataset_stats(dataset, yaml_path)
+    
     # Initialize MCTS
     mcts = MCTS(
         root_yaml_path=yaml_path,
         accuracy_comparator=accuracy_comparator,
         available_actions=available_actions,
         sample_input=sample_input_data,
+        evaluate_func=evaluate_func,
+        dataset_stats=dataset_stats,
         exploration_constant=exploration_weight,
         max_iterations=max_iterations,
         model=model,
@@ -107,98 +113,21 @@ def run_mcts_experiment(
     # ------------------------------------------------------------------
     # Evaluation
     # ------------------------------------------------------------------
-    eval_results = []
-    # Initialize Pareto frontier AUC (area under Cost vs F1 curve)
-    pareto_auc = None
-    if dataset.lower() == "cuad":
-        if ground_truth_path is None:
-            default_gt = Path("experiments/reasoning/data/CUAD-master_clauses.csv")
-            ground_truth_path = str(default_gt)
-
-        print(f"\n🧪 Evaluating extraction JSONs against CUAD ground truth ...")
-
-        # Iterate over executed nodes to evaluate their outputs directly
-        for n in mcts.pareto_frontier.plans:
-            jf = n.result_path
-            if jf is None or not Path(jf).exists():
-                continue
-            try:
-                metrics = cuad_evaluate("docetl_mcts", jf, ground_truth_path)
-                jp = Path(jf).resolve()
-                op_root = output_path.resolve()
-                if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
-                    display_path = str(jp.relative_to(op_root))
-                else:
-                    display_path = jp.name
-
-                eval_results.append({
-                    "file": display_path,
-                    "node_id": n.get_id(),
-                    "precision": metrics["avg_precision"],
-                    "recall": metrics["avg_recall"],
-                    "f1": metrics["avg_f1"],
-                    "cost": n.cost,
-                    "mcts_accuracy": mcts.pareto_frontier.plans_accuracy.get(n),
-                    "on_frontier": n in mcts.pareto_frontier.frontier_plans,
-                    "visits": n.visits,
-                    "value": n.value,
-                 })
-            except Exception as e:
-                print(f"   ⚠️  Evaluation failed for {jf}: {e}")
-
-        if eval_results:
-            eval_out_file = output_path / "evaluation_metrics.json"
-            with open(eval_out_file, "w") as f:
-                json.dump(eval_results, f, indent=2)
-            print(f"📊 Evaluation results written to {eval_out_file}")
-
-            # ------------------------------------------------------------------
-            # Plot F1 vs Cost scatter
-            # ------------------------------------------------------------------
-            try:
-                costs = [row["cost"] for row in eval_results]
-                f1s = [row["f1"] for row in eval_results]
-                colors = ["blue" if row["on_frontier"] else "grey" for row in eval_results]
-
-                plt.figure(figsize=(8,6))
-                plt.scatter(costs, f1s, c=colors)
-                for row in eval_results:
-                    label = f"{row['node_id']} ({row['mcts_accuracy']:.2f})"
-                    plt.annotate(label, (row["cost"], row["f1"]), textcoords="offset points", xytext=(4,4), fontsize=8)
-
-                plt.xlabel("Cost ($)")
-                plt.ylabel("F1 Score")
-                plt.title("Cost vs F1 for all plans")
-                plt.grid(True, linestyle="--", alpha=0.5)
-                plot_path = output_path / "cost_vs_f1.png"
-                plt.savefig(plot_path, dpi=150, bbox_inches="tight")
-                plt.close()
-                print(f"📈 Scatter plot saved to: {plot_path}")
-            except Exception as e:
-                print(f"⚠️  Failed to create scatter plot: {e}")
-            # ------------------------------------------------------------------
-            # Compute Area Under the Pareto Frontier (Cost vs F1)
-            # ------------------------------------------------------------------
-            try:
-                frontier_points = [row for row in eval_results if row["on_frontier"]]
-                if len(frontier_points) >= 2:
-                    # Sort frontier points by cost (x-axis)
-                    frontier_points.sort(key=lambda r: r["cost"])
-
-                    pareto_auc = 0.0
-                    prev_point = frontier_points[0]
-                    for curr_point in frontier_points[1:]:
-                        width = curr_point["cost"] - prev_point["cost"]
-                        if width > 0:  # Ignore duplicate cost values
-                            pareto_auc += 0.5 * width * (prev_point["f1"] + curr_point["f1"])
-                        prev_point = curr_point
-                elif frontier_points:
-                    pareto_auc = 0.0  # Single point frontier → zero area
-
-                if pareto_auc is not None:
-                    print(f"📐 Area under Pareto frontier (Cost vs F1): {pareto_auc:.4f}")
-            except Exception as e:
-                print(f"⚠️  Failed to compute Pareto AUC: {e}")
+    # Prepare nodes with MCTS-specific attributes for evaluation
+    nodes_for_evaluation = []
+    for n in mcts.pareto_frontier.plans:
+        # Add MCTS-specific attributes to the node
+        n.mcts_accuracy = mcts.pareto_frontier.plans_accuracy.get(n)
+        n.on_frontier = n in mcts.pareto_frontier.frontier_plans
+        nodes_for_evaluation.append(n)
+    
+    eval_results, pareto_auc = run_dataset_evaluation(
+        dataset=dataset,
+        nodes_or_files=nodes_for_evaluation,
+        output_path=output_path,
+        ground_truth_path=ground_truth_path,
+        method_name="docetl_mcts"
+    )
     
     # Save results
     results = {
@@ -221,7 +150,7 @@ def run_mcts_experiment(
     if pareto_auc is not None:
         results["pareto_auc"] = pareto_auc
     if eval_results:
-        results["evaluation_file"] = str(eval_out_file)
+        results["evaluation_file"] = str(output_path / "evaluation_metrics.json")
     
     # Save Pareto frontier if available
     if hasattr(mcts, 'pareto_frontier') and mcts.pareto_frontier.frontier_plans:

@@ -505,9 +505,10 @@ class ChunkHeaderSummaryInstantiateSchema(BaseModel):
 
 class SamplingMethodKwargs(BaseModel):
     """Configuration for sampling method parameters."""
-    
+
     stratify_key: str = Field(
-        default="", description="Key for stratified sampling (required when method='stratify', empty otherwise)"
+        default="",
+        description="Key for stratified sampling (required when method='stratify', empty otherwise)",
     )
 
 
@@ -544,4 +545,39 @@ class ChunkSamplingInstantiateSchema(BaseModel):
         allowed_methods = ["uniform", "stratify", "first"]
         if v not in allowed_methods:
             raise ValueError(f"method must be one of {allowed_methods}")
+        return v
+
+
+class TakeHeadTailInstantiateSchema(BaseModel):
+    """
+    Schema for head/tail truncation operations in a data processing pipeline.
+    Inserts a Code Map operator before the target operation to keep only first k and last l words.
+    """
+
+    name: str = Field(..., description="The name of the Code Map head/tail operator")
+    document_key: str = Field(
+        ...,
+        description="The key in the input document that contains the longest text to be truncated",
+    )
+    head_words: int = Field(
+        ...,
+        description="Number of words to keep from the beginning of the document",
+    )
+    tail_words: int = Field(
+        default=0,
+        description="Number of words to keep from the end of the document. Default is 0.",
+    )
+
+    @field_validator("head_words")
+    @classmethod
+    def validate_head_words(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("head_words must be a positive integer")
+        return v
+
+    @field_validator("tail_words")
+    @classmethod
+    def validate_tail_words(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("tail_words must be a non-negative integer")
         return v

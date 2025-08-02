@@ -533,6 +533,7 @@ def test_take_head_tail_apply():
     """Test that take head tail apply doesn't crash"""
     directive = TakeHeadTailDirective()
     
+    # Test with Map operation
     ops_list = [
         {
             "name": "classify_document",
@@ -558,6 +559,30 @@ def test_take_head_tail_apply():
     assert result[0]["type"] == "code_map"
     assert "def transform" in result[0]["function"]
     assert result[1]["name"] == "classify_document"
+    
+    # Test with Filter operation
+    filter_ops_list = [
+        {
+            "name": "filter_spam",
+            "type": "filter",
+            "prompt": "Is this spam? {{ input.email_text }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"_bool": "bool"}}
+        }
+    ]
+    
+    filter_rewrite = TakeHeadTailInstantiateSchema(
+        name="truncate_email",
+        document_key="email_text",
+        head_words=10,
+        tail_words=0
+    )
+    
+    filter_result = directive.apply(filter_ops_list, "filter_spam", filter_rewrite)
+    assert isinstance(filter_result, list)
+    assert len(filter_result) == 2
+    assert filter_result[0]["type"] == "code_map"
+    assert filter_result[1]["type"] == "filter"
     
     # Assert that you can run the function on some document
     doc = {"content": "This is a test document with more than ten words that should be truncated properly"}

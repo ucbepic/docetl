@@ -14,14 +14,14 @@ from .base import MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS, Directive, DirectiveTest
 class TakeHeadTailDirective(Directive):
     name: str = Field(default="take_head_tail", description="The name of the directive")
     formal_description: str = Field(
-        default="Map => Code Map -> Map",
-        description="Inserts a Code Map operation before a Map to truncate document content to head and tail words",
+        default="LLM_Op => Code Map -> LLM_Op",
+        description="Inserts a Code Map operation before any LLM-powered operation (Map, Filter, Reduce) to truncate document content to head and tail words",
     )
     nl_description: str = Field(
         default="Reduces document length by keeping only the first k words and optionally the last l words of the longest document field. This improves cost efficiency and can enhance accuracy for tasks that only require document beginnings (like classification)."
     )
     when_to_use: str = Field(
-        default="When the Map operation only needs the beginning (and optionally end) of documents, such as classification tasks, extracting basic metadata, or when full document content causes accuracy issues due to too much context."
+        default="When any LLM operation (Map, Filter, Reduce) only needs the beginning (and optionally end) of documents, such as classification tasks, filtering by document type, reducing document summaries, or when full document content causes accuracy issues due to too much context."
     )
 
     instantiate_schema_type: Type[BaseModel] = Field(
@@ -135,13 +135,43 @@ class TakeHeadTailDirective(Directive):
                     "output": {
                         "schema": {
                             "document_type": "string",
-                            "parties_involved": "list",
+                            "parties_involved": "list[string]",
                         }
                     },
                     "model": "gpt-4o-mini",
                 },
                 target_ops=["identify_legal_doc_type"],
                 expected_behavior="Should keep head (~200 words for title/parties) and tail (~100 words for signature blocks) since legal doc type is indicated at beginning and parties sign at end",
+                should_pass=True,
+            ),
+            DirectiveTestCase(
+                name="spam_email_filtering",
+                description="Filter out spam emails based on subject line and opening content",
+                input_config={
+                    "name": "filter_spam_emails",
+                    "type": "filter",
+                    "prompt": "Is this email spam? Look for suspicious patterns in: {{ input.email_content }}",
+                    "output": {"schema": {"_bool": "bool"}},
+                    "model": "gpt-4o-mini",
+                },
+                target_ops=["filter_spam_emails"],
+                expected_behavior="Should truncate email_content to first ~100 words since spam detection relies on subject, sender, and opening content, not full email thread",
+                should_pass=True,
+            ),
+            DirectiveTestCase(
+                name="research_findings_synthesis",
+                description="Reduce multiple research papers into a unified findings summary",
+                input_config={
+                    "name": "synthesize_research_findings",
+                    "type": "reduce",
+                    "prompt": "Synthesize the key findings from these research abstracts and conclusions: {% for doc in inputs %}{{ doc.paper_content }}{% endfor %}",
+                    "output": {
+                        "schema": {"synthesis": "string", "key_themes": "list[string]"}
+                    },
+                    "model": "gpt-4o-mini",
+                },
+                target_ops=["synthesize_research_findings"],
+                expected_behavior="Should keep head (~200 words for abstracts) and tail (~150 words for conclusions) from each paper since synthesis needs both research goals and outcomes",
                 should_pass=True,
             ),
         ]
@@ -154,24 +184,32 @@ class TakeHeadTailDirective(Directive):
         return hash("TakeHeadTailDirective")
 
     def to_string_for_instantiate(self, original_op: Dict) -> str:
+        op_type = original_op.get("type", "operation")
+        op_type_caps = op_type.capitalize()
+
         return (
             f"You are an expert at optimizing document processing pipelines for cost and accuracy.\n\n"
-            f"Original Map Operation:\n"
+            f"Original {op_type_caps} Operation:\n"
             f"{str(original_op)}\n\n"
             f"Directive: {self.name}\n"
             f"Your task is to instantiate this directive by generating a TakeHeadTailInstantiateSchema "
             f"that specifies how to truncate document content to improve efficiency.\n\n"
-            f"The directive will insert a Code Map operation before the target Map that:\n"
+            f"The directive will insert a Code Map operation before the target {op_type_caps} that:\n"
             f"1. Identifies the document key with the longest text content\n"
             f"2. Keeps only the first 'head_words' words\n"
             f"3. Optionally keeps the last 'tail_words' words (default 0)\n"
             f"4. Returns the truncated content in the same key\n\n"
             f"Guidelines:\n"
             f"- Choose head_words based on how much context the task likely needs\n"
-            f"- Set tail_words > 0 only if the task benefits from document endings (e.g., conclusions)\n"
-            f"- For classification/metadata extraction: typically 50-150 head_words, tail_words=0\n"
-            f"- For summarization: typically 100-300 head_words, tail_words=50-100\n"
-            f"- Identify the document_key by looking at {{ input.KEY }} references in the prompt\n\n"
+            f"- Set tail_words > 0 only if the task benefits from document endings (e.g., conclusions, signatures)\n"
+            f"- For classification/filtering: typically 50-150 head_words, tail_words=0\n"
+            f"- For summarization/reduction: typically 100-300 head_words, tail_words=50-100\n"
+            f"- For metadata extraction: head=100-200, tail=50-100 (headers + footers)\n"
+            f"- Identify the document_key by looking at {{{{ input.KEY }}}} references in the prompt\n\n"
+            f"Operation Type Considerations:\n"
+            f"- Map: Focus on what information is needed for transformation\n"
+            f"- Filter: Focus on what information is needed for the boolean decision\n"
+            f"- Reduce: Focus on what information is needed for aggregation/synthesis\n\n"
             f"Example configuration:\n"
             f"{self.example}\n\n"
             f"Please output only the TakeHeadTailInstantiateSchema object that specifies:\n"

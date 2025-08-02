@@ -22,6 +22,7 @@ from docetl.reasoning_optimizer.directives import (
     DocumentChunkingDirective,
     ChunkHeaderSummaryDirective,
     ChunkSamplingDirective,
+    TakeHeadTailDirective,
     TestResult
 )
 
@@ -55,7 +56,8 @@ def run_all_directive_tests(agent_llm: str = "gpt-4.1") -> Dict[str, List[TestRe
         OperatorFusionDirective(),
         DocumentChunkingDirective(), 
         ChunkHeaderSummaryDirective(),
-        ChunkSamplingDirective()
+        ChunkSamplingDirective(),
+        TakeHeadTailDirective()
     ]
     
     all_results = {}
@@ -159,7 +161,8 @@ def run_specific_directive_test(directive_name: str, agent_llm: str = "gpt-4o-mi
         "operator_fusion": OperatorFusionDirective(),
         "doc_chunking": DocumentChunkingDirective(),
         "chunk_header_summary": ChunkHeaderSummaryDirective(),
-        "chunk_sampling": ChunkSamplingDirective()
+        "chunk_sampling": ChunkSamplingDirective(),
+        "take_head_tail": TakeHeadTailDirective()
     }
     
     if directive_name.lower() not in directive_map:

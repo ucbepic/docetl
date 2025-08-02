@@ -17,7 +17,8 @@ from docetl.reasoning_optimizer.directives import (
     DeterministicDocCompressionDirective,
     DocumentChunkingDirective,
     ChunkHeaderSummaryDirective,
-    ChunkSamplingDirective
+    ChunkSamplingDirective,
+    TakeHeadTailDirective
 )
 
 
@@ -528,6 +529,46 @@ def test_chunk_sampling_apply():
     assert result[2]["name"] == "categorize_document"
 
 
+def test_take_head_tail_apply():
+    """Test that take head tail apply doesn't crash"""
+    directive = TakeHeadTailDirective()
+    
+    ops_list = [
+        {
+            "name": "classify_document",
+            "type": "map",
+            "prompt": "Classify this document: {{ input.content }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"category": "string"}}
+        }
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import TakeHeadTailInstantiateSchema
+    rewrite = TakeHeadTailInstantiateSchema(
+        name="truncate_content",
+        document_key="content",
+        head_words=5,
+        tail_words=5
+    )
+    
+    result = directive.apply(ops_list, "classify_document", rewrite)
+    assert isinstance(result, list)
+    assert len(result) == 2  # Should add code_map before target
+    assert result[0]["name"] == "truncate_content"
+    assert result[0]["type"] == "code_map"
+    assert "def transform" in result[0]["function"]
+    assert result[1]["name"] == "classify_document"
+    
+    # Assert that you can run the function on some document
+    doc = {"content": "This is a test document with more than ten words that should be truncated properly"}
+    namespace = {}
+    exec(result[0]["function"], namespace)
+    transformed_result = namespace["transform"](doc)
+    # With 5 head words and 5 tail words, and original has more than 10 words, should be truncated
+    assert "content" in transformed_result
+    assert len(transformed_result["content"].split()) <= 12  # 5 + " ... " + 5 = at most 12 tokens
+
+
 if __name__ == "__main__":
     # Run all tests
     test_chaining_apply()
@@ -577,5 +618,8 @@ if __name__ == "__main__":
 
     test_chunk_sampling_apply()
     print("✅ Chunk sampling apply test passed")
+
+    test_take_head_tail_apply()
+    print("✅ Take head tail apply test passed")
 
     print("\n🎉 All directive apply tests passed!")

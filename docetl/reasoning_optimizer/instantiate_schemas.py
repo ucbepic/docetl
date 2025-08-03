@@ -392,72 +392,6 @@ class PeripheralChunksConfig(BaseModel):
     next: Optional[PeripheralSectionConfig] = None
 
 
-class DocumentChunkingInstantiateSchema(BaseModel):
-    """
-    Schema for document chunking operations in a data processing pipeline.
-    Transforms Map => Split -> Gather -> Map -> Reduce pattern.
-    """
-
-    chunk_size: int = Field(
-        ..., description="Number of tokens per chunk for the split operation"
-    )
-    split_key: str = Field(
-        ..., description="The key in the input document that contains the text to split"
-    )
-    sub_prompt: str = Field(
-        ...,
-        description="Jinja prompt template for the new map operation that processes chunks. Must reference {{ input.<split_key>_chunk_rendered }} to access the gathered chunk content.",
-    )
-    reduce_prompt: str = Field(
-        ...,
-        description="Jinja prompt template for the reduce operation that aggregates chunk results. Must use {% for input in inputs %} to iterate over chunk results and produce the same output as the original map operation.",
-    )
-    gather_config: PeripheralChunksConfig = Field(
-        default_factory=lambda: PeripheralChunksConfig(
-            previous=PeripheralSectionConfig(tail=ChunkSubsectionConfig(count=1))
-        ),
-        description="Configuration for the gather operation's peripheral_chunks. Specifies how much context to include from surrounding chunks. Default includes 1 previous chunk.",
-    )
-    model: str = Field(
-        default="gpt-4o-mini", description="The model to use for the new operations"
-    )
-
-    @field_validator("sub_prompt")
-    @classmethod
-    def check_sub_prompt_references_chunk_rendered(cls, v: str, info) -> str:
-        # Check that it contains at least one input reference
-        MapOpConfig.validate_prompt_contains_input_key(v)
-
-        # Check that it references _chunk_rendered field
-        if "_chunk_rendered" not in v:
-            raise ValueError(
-                "The sub_prompt must reference the rendered chunk content using '_chunk_rendered' suffix"
-            )
-        return v
-
-    @field_validator("reduce_prompt")
-    @classmethod
-    def check_reduce_prompt_has_iteration(cls, v: str) -> str:
-        # Check that it contains iteration pattern for reduce
-        if "for input in inputs" not in v and "for item in inputs" not in v:
-            raise ValueError(
-                "The reduce_prompt must iterate over inputs using '{% for input in inputs %}' or '{% for item in inputs %}'"
-            )
-        return v
-
-    @field_validator("gather_config")
-    @classmethod
-    def validate_gather_config(
-        cls, v: PeripheralChunksConfig
-    ) -> PeripheralChunksConfig:
-        """
-        Validates that the gather_config follows the correct structure for peripheral_chunks.
-        """
-        # The Pydantic model structure already enforces the basic validation
-        # We can add additional business logic validation here if needed
-        return v
-
-
 class ChunkHeaderSummaryInstantiateSchema(BaseModel):
     """
     Schema for chunk header summary operations in a data processing pipeline.
@@ -510,6 +444,113 @@ class SamplingMethodKwargs(BaseModel):
         default="",
         description="Key for stratified sampling (required when method='stratify', empty otherwise)",
     )
+    samples_per_group: bool = Field(
+        default=True,
+        description="Whether to sample N items from each stratify group instead of dividing total samples across groups",
+    )
+
+
+class SamplingConfig(BaseModel):
+    """Configuration for optional sampling in document chunking."""
+
+    method: str = Field(
+        default="uniform",
+        description="The sampling method to use. Can be 'uniform', 'first', or 'stratify'",
+    )
+    samples: int = Field(
+        ...,
+        description="Number of chunks to sample (e.g., 1 for one chunk, 5 for five chunks)",
+    )
+    method_kwargs: Optional[SamplingMethodKwargs] = Field(
+        default=None,
+        description="Additional parameters for the sampling method (e.g., stratify_key for stratified sampling)",
+    )
+
+    @field_validator("samples")
+    @classmethod
+    def validate_samples_count(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("samples must be a positive integer")
+        return v
+
+    @field_validator("method")
+    @classmethod
+    def validate_method(cls, v: str) -> str:
+        allowed_methods = ["uniform", "stratify", "first"]
+        if v not in allowed_methods:
+            raise ValueError(f"method must be one of {allowed_methods}")
+        return v
+
+
+class DocumentChunkingInstantiateSchema(BaseModel):
+    """
+    Schema for document chunking operations in a data processing pipeline.
+    Transforms Map => Split -> Gather -> [Sample] -> Map -> Reduce pattern.
+    Sampling is applied by default unless the task requires processing all chunks.
+    """
+
+    chunk_size: int = Field(
+        ..., description="Number of tokens per chunk for the split operation"
+    )
+    split_key: str = Field(
+        ..., description="The key in the input document that contains the text to split"
+    )
+    sub_prompt: str = Field(
+        ...,
+        description="Jinja prompt template for the new map operation that processes chunks. Must reference {{ input.<split_key>_chunk_rendered }} to access the gathered chunk content.",
+    )
+    reduce_prompt: str = Field(
+        ...,
+        description="Jinja prompt template for the reduce operation that aggregates chunk results. Must use {% for input in inputs %} to iterate over chunk results and produce the same output as the original map operation.",
+    )
+    gather_config: PeripheralChunksConfig = Field(
+        default_factory=lambda: PeripheralChunksConfig(
+            previous=PeripheralSectionConfig(tail=ChunkSubsectionConfig(count=1))
+        ),
+        description="Configuration for the gather operation's peripheral_chunks. Specifies how much context to include from surrounding chunks. Default includes 1 previous chunk.",
+    )
+    sampling_config: Optional[SamplingConfig] = Field(
+        default=None,
+        description="Optional sampling configuration. If provided, inserts a Sample operation between Gather and Map. Use by default UNLESS task requires processing ALL chunks (like comprehensive extraction of all instances).",
+    )
+    model: str = Field(
+        default="gpt-4o-mini", description="The model to use for the new operations"
+    )
+
+    @field_validator("sub_prompt")
+    @classmethod
+    def check_sub_prompt_references_chunk_rendered(cls, v: str, info) -> str:
+        # Check that it contains at least one input reference
+        MapOpConfig.validate_prompt_contains_input_key(v)
+
+        # Check that it references _chunk_rendered field
+        if "_chunk_rendered" not in v:
+            raise ValueError(
+                "The sub_prompt must reference the rendered chunk content using '_chunk_rendered' suffix"
+            )
+        return v
+
+    @field_validator("reduce_prompt")
+    @classmethod
+    def check_reduce_prompt_has_iteration(cls, v: str) -> str:
+        # Check that it contains iteration pattern for reduce
+        if "for input in inputs" not in v and "for item in inputs" not in v:
+            raise ValueError(
+                "The reduce_prompt must iterate over inputs using '{% for input in inputs %}' or '{% for item in inputs %}'"
+            )
+        return v
+
+    @field_validator("gather_config")
+    @classmethod
+    def validate_gather_config(
+        cls, v: PeripheralChunksConfig
+    ) -> PeripheralChunksConfig:
+        """
+        Validates that the gather_config follows the correct structure for peripheral_chunks.
+        """
+        # The Pydantic model structure already enforces the basic validation
+        # We can add additional business logic validation here if needed
+        return v
 
 
 class ChunkSamplingInstantiateSchema(BaseModel):

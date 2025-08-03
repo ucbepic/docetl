@@ -42,7 +42,8 @@ For uniform sampling, no additional parameters are required in method_kwargs.
 
 For stratified sampling, specify the following in method_kwargs:
 
-- stratify_key: The key to stratify by
+- stratify_key: The key to stratify by (string) or list of keys for multi-key grouping
+- samples_per_group: (Optional) Boolean. If true, sample N items from each stratify group instead of dividing total samples across groups
 
 ### Outlier Sampling
 
@@ -80,6 +81,41 @@ Stratified sampling:
   samples: 0.2
   method_kwargs:
     stratify_key: category
+```
+
+Stratified sampling with samples per group:
+
+```yaml
+- name: stratified_per_group_sample
+  type: sample
+  method: stratify
+  samples: 5
+  method_kwargs:
+    stratify_key: category
+    samples_per_group: true
+```
+
+Stratified sampling with multiple keys:
+
+```yaml
+- name: multi_key_stratified_sample
+  type: sample
+  method: stratify
+  samples: 0.1
+  method_kwargs:
+    stratify_key: [category, priority]
+```
+
+Multiple keys with samples per group:
+
+```yaml
+- name: multi_key_per_group_sample
+  type: sample
+  method: stratify
+  samples: 3
+  method_kwargs:
+    stratify_key: [category, priority]
+    samples_per_group: true
 ```
 
 Outlier sampling:

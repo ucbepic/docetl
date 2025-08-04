@@ -80,8 +80,7 @@ def run_mcts_experiment(
     # Use all registered rewrite directives from the central registry
     available_actions = set(ALL_DIRECTIVES)
     
-    # Get dataset-specific evaluation function and statistics
-    evaluate_func = get_evaluate_func(dataset)
+    # Get dataset statistics
     dataset_stats = get_dataset_stats(dataset, yaml_path)
     
     # Initialize MCTS
@@ -90,8 +89,8 @@ def run_mcts_experiment(
         accuracy_comparator=accuracy_comparator,
         available_actions=available_actions,
         sample_input=sample_input_data,
-        evaluate_func=evaluate_func,
         dataset_stats=dataset_stats,
+        dataset_name=dataset,
         exploration_constant=exploration_weight,
         max_iterations=max_iterations,
         model=model,

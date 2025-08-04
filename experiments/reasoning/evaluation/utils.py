@@ -4,6 +4,7 @@ from pathlib import Path
 from .cuad import evaluate_results as cuad_evaluate
 from .blackvault import evaluate_results as blackvault_evaluate
 from .game_reviews import evaluate_results as game_reviews_evaluate
+from .medec import evaluate_results as medec_evaluate
 
 def get_evaluate_func(dataset):
     """
@@ -30,6 +31,11 @@ def get_evaluate_func(dataset):
         def game_reviews_eval_func(method_name, results_file_path):
             return game_reviews_evaluate(method_name, results_file_path)
         return game_reviews_eval_func
+    
+    elif dataset.lower() == "medec":
+        def medec_eval_func(method_name, results_file_path):
+            return medec_evaluate(method_name, results_file_path)
+        return medec_eval_func
     
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
@@ -333,6 +339,69 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             # Create plots and compute AUC based on weighted score (50-50 Kendall's tau + sentiment)
             pareto_auc = _create_game_reviews_plots_and_auc(eval_results, output_path)
     
+    elif dataset.lower() == "medec":
+        print(f"\n🧪 Evaluating medical error detection results ...")
+
+        for item in nodes_or_files:
+            # Handle both node objects and file paths
+            if hasattr(item, 'result_path'):
+                # This is a node object
+                jf = item.result_path
+                node_data = {
+                    "node_id": item.get_id(),
+                    "cost": item.cost,
+                    "visits": getattr(item, 'visits', 0),
+                    "value": getattr(item, 'value', 0),
+                }
+            else:
+                # This is a file path with associated data
+                jf = item["file_path"]
+                node_data = {
+                    "node_id": item.get("node_id", "unknown"),
+                    "cost": item.get("cost", 0.0),
+                    "visits": item.get("visits", 0),
+                    "value": item.get("value", 0),
+                }
+            
+            if jf is None or not Path(jf).exists():
+                continue
+            
+            try:
+                metrics = medec_evaluate(method_name, jf)
+                jp = Path(jf).resolve()
+                op_root = output_path.resolve()
+                if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
+                    display_path = str(jp.relative_to(op_root))
+                else:
+                    display_path = jp.name
+
+                result = {
+                    "file": display_path,
+                    "combined_score": metrics["combined_score"],
+                    "error_flag_accuracy": metrics["error_flag_accuracy"],
+                    "avg_error_sentence_jaccard": metrics["avg_error_sentence_jaccard"],
+                    "avg_corrected_sentence_jaccard": metrics["avg_corrected_sentence_jaccard"],
+                    "total_cases": metrics["total_cases"],
+                    "num_error_cases": metrics["num_error_cases"],
+                    "num_corrected_cases": metrics["num_corrected_cases"],
+                    **node_data
+                }
+                
+                # Add frontier information if available
+                if hasattr(item, 'result_path'):
+                    result.update({
+                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "on_frontier": getattr(item, 'on_frontier', False),
+                    })
+                
+                eval_results.append(result)
+            except Exception as e:
+                print(f"   ⚠️  Evaluation failed for {jf}: {e}")
+
+        if eval_results:
+            # Create plots and compute AUC
+            pareto_auc = _create_medec_plots_and_auc(eval_results, output_path)
+    
     # Save evaluation results
     if eval_results:
         eval_out_file = output_path / "evaluation_metrics.json"
@@ -502,6 +571,61 @@ def _create_blackvault_plots_and_auc(eval_results, output_path):
 
         if pareto_auc is not None:
             print(f"📐 Area under Pareto frontier (Cost vs Avg Distinct Locations): {pareto_auc:.4f}")
+    except Exception as e:
+        print(f"⚠️  Failed to compute Pareto AUC: {e}")
+    
+    return pareto_auc
+
+def _create_medec_plots_and_auc(eval_results, output_path):
+    """Create plots and compute AUC for MEDEC dataset"""
+    pareto_auc = None
+    
+    # Plot Combined Score vs Cost scatter
+    try:
+        costs = [row["cost"] for row in eval_results]
+        scores = [row["combined_score"] for row in eval_results]
+        colors = ["blue" if row.get("on_frontier", False) else "grey" for row in eval_results]
+
+        plt.figure(figsize=(8,6))
+        plt.scatter(costs, scores, c=colors)
+        for row in eval_results:
+            mcts_accuracy = row.get("mcts_accuracy", 0)
+            if mcts_accuracy is not None:
+                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            else:
+                label = row["file"]
+            plt.annotate(label, (row["cost"], row["combined_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
+
+        plt.xlabel("Cost ($)")
+        plt.ylabel("Combined Score")
+        plt.title("Cost vs Combined Score (50% Error Flag + 25% Error Sim + 25% Corrected Sim)")
+        plt.grid(True, linestyle="--", alpha=0.5)
+        plot_path = output_path / "cost_vs_combined_score.png"
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"📈 Scatter plot saved to: {plot_path}")
+    except Exception as e:
+        print(f"⚠️  Failed to create scatter plot: {e}")
+    
+    # Compute Area Under the Pareto Frontier (Cost vs Combined Score)
+    try:
+        frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
+        if len(frontier_points) >= 2:
+            # Sort frontier points by cost (x-axis)
+            frontier_points.sort(key=lambda r: r["cost"])
+
+            pareto_auc = 0.0
+            prev_point = frontier_points[0]
+            for curr_point in frontier_points[1:]:
+                width = curr_point["cost"] - prev_point["cost"]
+                if width > 0:  # Ignore duplicate cost values
+                    pareto_auc += 0.5 * width * (prev_point["combined_score"] + curr_point["combined_score"])
+                prev_point = curr_point
+        elif frontier_points:
+            pareto_auc = 0.0  # Single point frontier → zero area
+
+        if pareto_auc is not None:
+            print(f"📐 Area under Pareto frontier (Cost vs Combined Score): {pareto_auc:.4f}")
     except Exception as e:
         print(f"⚠️  Failed to compute Pareto AUC: {e}")
     

@@ -15,12 +15,14 @@ from .base import MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS, Directive, DirectiveTest
 
 class DocumentChunkingDirective(Directive):
     name: str = Field(default="doc_chunking", description="The name of the directive")
-    formal_description: str = Field(default="Map => Split -> Gather -> Map -> Reduce")
+    formal_description: str = Field(
+        default="Map => Split -> Gather -> [Sample] -> Map -> Reduce"
+    )
     nl_description: str = Field(
-        default="Transforms a single Map operation into a chunking pipeline: splits long documents into chunks, gathers context around each chunk, processes each chunk with a new Map operation, then reduces the results. This directive can only be applied to a top-level Map operation, not to a sub-map within a pipeline that already contains a split, gather, or reduce sequence. It is beneficial for making sense of multiple instances or comprehensive information from long documents."
+        default="Transforms a single Map operation into a chunking pipeline: splits long documents into chunks, gathers context around each chunk, optionally samples a subset of chunks for efficiency, processes chunks with a new Map operation, then reduces the results. By default, sampling is applied unless the task requires processing ALL chunks. This directive can only be applied to a top-level Map operation, not to a sub-map within a pipeline that already contains a split, gather, or reduce sequence."
     )
     when_to_use: str = Field(
-        default="Use when you need to process long documents to extract multiple or all instances of information, and the document is too long for a single Map operation. Do not apply if the target operation is already part of a split -> gather -> map -> reduce pipeline. Use different gather configs: 'previous.head' for documents with key metadata/definitions at the start, 'previous.tail' for maintaining references, and 'next.head' only for tables/clauses spanning chunks."
+        default="Use when you need to process long documents to extract information, and the document is too long for a single Map operation. The agent will automatically decide whether to sample chunks (for tasks like categorization, theme extraction) or process all chunks (for comprehensive extraction of all instances). Do not apply if the target operation is already part of a split -> gather -> map -> reduce pipeline. Use different gather configs: 'previous.head' for documents with key metadata/definitions at the start, 'previous.tail' for maintaining references, and 'next.head' only for tables/clauses spanning chunks."
     )
 
     instantiate_schema_type: Type[BaseModel] = Field(
@@ -202,7 +204,15 @@ class DocumentChunkingDirective(Directive):
             f"   - Include same task context/requirements as original prompt\n"
             f"   - Use '{{% for input in inputs %}}' to iterate over chunk results\n"
             f"   - Combine/deduplicate to match original output schema exactly\n"
-            f"5. gather_config: Configure context from surrounding chunks. Structure:\n"
+            f"5. sampling_config: IMPORTANT - Include sampling by default UNLESS the task requires ALL chunks:\n"
+            f"   - ALWAYS use sampling for: categorization, theme identification, sentiment analysis, document type classification\n"
+            f"   - NEVER use sampling for: comprehensive extraction ('extract ALL instances'), complete analysis requiring every chunk\n"
+            f"   - Default sampling: method='uniform', samples=5-10 chunks\n"
+            f"   - For simple tasks (categorization): samples=1-3 chunks\n"
+            f"   - For complex analysis: samples=5-15 chunks\n"
+            f"   - For stratified sampling: specify method='stratify' and optionally a stratify_key (note: split document ID is automatically included)\n"
+            f"   - Set sampling_config=null only if you need to process every single chunk\n"
+            f"6. gather_config: Configure context from surrounding chunks. Structure:\n"
             f"   gather_config:\n"
             f"     previous:  # chunks before current chunk\n"
             f"       head:    # first chunk(s) in document\n"
@@ -225,8 +235,8 @@ class DocumentChunkingDirective(Directive):
             f"   - Count can be float (e.g., 0.5 for half chunk, 1.5 for chunk and a half)\n"
             f"   - More context increases token usage and cost - be judicious\n"
             f"   - Default to 0.5 previous tail if unsure about context needs\n"
-            f" If a content_key is specified that's different from the main content key, it's treated as a summary. This is useful for including condensed versions of chunks in the middle section to save space. If no content_key is specified, it defaults to the main content key of the operation."
-            f"6. model: Use the same model as the original operation or a suitable alternative\n\n"
+            f" If a content_key is specified that's different from the main content key, it's treated as a summary. This is useful for including condensed versions of chunks in the middle section to save space. If no content_key is specified, it defaults to the main content key of the operation.\n"
+            f"7. model: Use the same model as the original operation or a suitable alternative\n\n"
             f"The sub_prompt should focus on the main chunk content and extract the same type of information as the original.\n"
             f"The reduce_prompt must produce the same output schema as the original operation.\n\n"
             f"Example:\n"
@@ -313,6 +323,7 @@ class DocumentChunkingDirective(Directive):
         # Create operation names based on the original operation name
         split_name = f"split_{target_op}"
         gather_name = f"gather_{target_op}"
+        sample_name = f"sample_{target_op}_chunks"
         map_name = f"map_{target_op}_chunks"
         reduce_name = f"reduce_{target_op}"
 
@@ -371,13 +382,40 @@ class DocumentChunkingDirective(Directive):
             "pass_through": True,
         }
 
+        # Construct operation sequence
+        ops_sequence = [split_op, gather_op]
+
+        # Add sample operation if sampling config is provided
+        if rewrite.sampling_config:
+            sample_op = {
+                "name": sample_name,
+                "type": "sample",
+                "method": rewrite.sampling_config.method,
+                "samples": rewrite.sampling_config.samples,
+            }
+
+            # Always stratify by split document ID and set samples_per_group
+            stratify_keys = [f"{split_name}_id"]
+
+            # Add agent-specified stratify key if provided
+            if (
+                rewrite.sampling_config.method_kwargs
+                and rewrite.sampling_config.method_kwargs.stratify_key
+            ):
+                stratify_keys.append(rewrite.sampling_config.method_kwargs.stratify_key)
+
+            sample_op["method_kwargs"] = {
+                "stratify_key": stratify_keys,
+                "samples_per_group": True,
+            }
+
+            ops_sequence.append(sample_op)
+
+        # Add map and reduce operations
+        ops_sequence.extend([map_op, reduce_op])
+
         # Replace the target operation with the new sequence
-        new_ops_list[pos_to_replace : pos_to_replace + 1] = [
-            split_op,
-            gather_op,
-            map_op,
-            reduce_op,
-        ]
+        new_ops_list[pos_to_replace : pos_to_replace + 1] = ops_sequence
 
         return new_ops_list
 

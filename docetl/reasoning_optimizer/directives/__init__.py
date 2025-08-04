@@ -20,7 +20,7 @@ from .reduce_gleaning import ReduceGleaningDirective
 from .operator_fusion import OperatorFusionDirective
 from .doc_chunking import DocumentChunkingDirective
 from .chunk_header_summary import ChunkHeaderSummaryDirective
-from .chunk_sampling import ChunkSamplingDirective
+from .take_head_tail import TakeHeadTailDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
@@ -35,7 +35,7 @@ ALL_DIRECTIVES = [
     OperatorFusionDirective(),
     DocumentChunkingDirective(),
     ChunkHeaderSummaryDirective(),
-    ChunkSamplingDirective(),
+    TakeHeadTailDirective(),
 ]
 
 # Create a mapping from directive names to directive instances
@@ -113,7 +113,7 @@ __all__ = [
     "OperatorFusionDirective",
     "DocumentChunkingDirective",
     "ChunkHeaderSummaryDirective",
-    "ChunkSamplingDirective",
+    "TakeHeadTailDirective",
     "ALL_DIRECTIVES",
     "DIRECTIVE_REGISTRY", 
     "get_all_directive_strings",

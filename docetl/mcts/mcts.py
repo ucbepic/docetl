@@ -8,7 +8,11 @@ from typing import Any, Dict, List, Optional
 import litellm
 import yaml
 
-from docetl.reasoning_optimizer.directives import ALL_DIRECTIVES, Directive, get_all_directive_strings
+from docetl.reasoning_optimizer.directives import (
+    ALL_DIRECTIVES,
+    Directive,
+    get_all_directive_strings,
+)
 from docetl.reasoning_optimizer.op_descriptions import *
 
 from .acc_comparator import AccuracyComparator
@@ -40,6 +44,8 @@ class MCTS:
         accuracy_comparator: AccuracyComparator,
         available_actions: set[Directive],
         sample_input,
+        evaluate_func,
+        dataset_stats: str,
         exploration_constant: float = 1.414,
         max_iterations: int = 20,
         max_time: Optional[float] = 600.0,
@@ -70,10 +76,15 @@ class MCTS:
         self.start_time = None
         self.model = model
         self.sample_input = sample_input
+        self.dataset_stats = dataset_stats
         # Initialize Pareto frontier
-        self.pareto_frontier = ParetoFrontier(accuracy_comparator, self.action_rewards)
-        self.directive_name_to_obj = {action.name: action for action in self.available_actions}
-        
+        self.pareto_frontier = ParetoFrontier(
+            accuracy_comparator, self.action_rewards, evaluate_func
+        )
+        self.directive_name_to_obj = {
+            action.name: action for action in self.available_actions
+        }
+
         # Track iterations without new Pareto optimal plans for early stopping
         self.iterations_without_improvement = 0
 
@@ -95,7 +106,8 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            if self.mcts_iteration(): self.iteration_count += 1
+            if self.mcts_iteration():
+                self.iteration_count += 1
 
         # Final statistics
         print(f"\nMCTS search completed!")
@@ -237,7 +249,12 @@ class MCTS:
 
     def is_fully_explored(self, node: Node) -> bool:
         allowed_children = max(2, 1 + math.floor(math.sqrt(float(node.visits))))
-        print("# of children: ", len(node.children), " allowed_childre: ", allowed_children)
+        print(
+            "# of children: ",
+            len(node.children),
+            " allowed_childre: ",
+            allowed_children,
+        )
         if len(node.children) >= allowed_children:
             return True
         for op in node.parsed_yaml["operations"]:
@@ -258,7 +275,6 @@ class MCTS:
             availabel_actions_str += action_str
 
         print(availabel_actions_str)
-
         action_stats = []
         for action in self.available_actions:  
             reward = self.action_rewards.get(action, 0)
@@ -346,16 +362,7 @@ class MCTS:
 
         print(availabel_actions_str)
 
-        input_schema = """
-        Dataset: contracts_data
-        Type: file
-        Records loaded: 50
-        Input schema:
-            document: string (avg: 10993.9 tokens)
-            id: string (avg: 22.9 tokens)
-            name: string (avg: 27.6 tokens)
-        Total tokens: 546,693
-        """
+        input_schema = self.dataset_stats
 
         user_message = f"""
         I have a set of operations used to process long documents, along with a list of possible rewrite directives.
@@ -416,7 +423,7 @@ class MCTS:
 
         # Build action options and initial prompt once
         op_list = list(node.op_dict.keys())
-        
+
         if optimize_goal == "acc":
             action_options = []  # a list of tuple
             for op_name in op_list:
@@ -655,7 +662,7 @@ class MCTS:
         Returns:
             The newly created child node
         """
-        
+
         new_parsed_yaml = deepcopy(node.parsed_yaml)
         new_parsed_yaml["operations"] = new_ops_list
         new_parsed_yaml["bypass_cache"] = True

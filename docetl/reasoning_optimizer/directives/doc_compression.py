@@ -191,7 +191,8 @@ class DocCompressionDirective(Directive):
         )
 
     def apply(
-        self,  
+        self,
+        global_default_model: str,
         ops_list: List[Dict],
         target_ops: List[str],
         rewrite: DocCompressionInstantiateSchema,
@@ -247,6 +248,6 @@ class DocCompressionDirective(Directive):
 
         # Step 2: Apply transformation using the schema
         return (
-            self.apply(operators, target_ops, rewrite),
+            self.apply(global_default_model, operators, target_ops, rewrite),
             message_history,
         )

@@ -15,6 +15,10 @@ class SampleOperation(BaseOperation):
         - embedding_model: str, optional
         - embedding_keys: list, optional
         - center: dict, optional
+        - stratify_key: str or list of str (for stratify method)
+            Single key or list of keys to stratify by. Multiple keys create groups by combination of values.
+        - samples_per_group: bool, optional (for stratify method)
+            If True, sample 'samples' items from each stratify group instead of dividing total samples across groups
     """
 
     def __init__(
@@ -58,10 +62,24 @@ class SampleOperation(BaseOperation):
         if self.config["method"] == "stratify":
             if "stratify_key" not in self.config.get("method_kwargs", {}):
                 raise ValueError("Must specify 'stratify_key' for stratify sampling")
-            if not isinstance(
-                self.config.get("method_kwargs", {})["stratify_key"], str
-            ):
-                raise TypeError("'stratify_key' must be a string")
+
+            stratify_key = self.config.get("method_kwargs", {})["stratify_key"]
+            if isinstance(stratify_key, str):
+                # Single key is fine
+                pass
+            elif isinstance(stratify_key, list):
+                if not all(isinstance(key, str) for key in stratify_key):
+                    raise TypeError("All items in 'stratify_key' list must be strings")
+                if len(stratify_key) == 0:
+                    raise ValueError("'stratify_key' list cannot be empty")
+            else:
+                raise TypeError("'stratify_key' must be a string or list of strings")
+
+            # Validate samples_per_group if present
+            method_kwargs = self.config.get("method_kwargs", {})
+            if "samples_per_group" in method_kwargs:
+                if not isinstance(method_kwargs["samples_per_group"], bool):
+                    raise TypeError("'samples_per_group' must be a boolean")
 
         if self.config["method"] == "outliers":
             outliers_config = self.config.get("method_kwargs", {})
@@ -174,20 +192,61 @@ class SampleOperation(BaseOperation):
                     for sample in samples
                 ]
             else:
-                stratify = None
                 if self.config["method"] == "stratify":
-                    stratify = [
-                        data[self.config.get("method_kwargs", {})["stratify_key"]]
-                        for data in input_data
-                    ]
+                    method_kwargs = self.config.get("method_kwargs", {})
+                    stratify_key = method_kwargs["stratify_key"]
+                    samples_per_group = method_kwargs.get("samples_per_group", False)
 
-                import sklearn.model_selection
+                    # Helper function to get stratify value(s) for an item
+                    def get_stratify_value(item):
+                        if isinstance(stratify_key, str):
+                            return item[stratify_key]
+                        else:  # list of keys
+                            return tuple(item[key] for key in stratify_key)
 
-                output_data, _ = sklearn.model_selection.train_test_split(
-                    input_data,
-                    train_size=samples,
-                    random_state=self.config.get("random_state", None),
-                    stratify=stratify,
-                )
+                    if samples_per_group:
+                        # Sample N items from each group
+                        import random
+                        from collections import defaultdict
+
+                        # Group data by stratify key(s)
+                        groups = defaultdict(list)
+                        for item in input_data:
+                            groups[get_stratify_value(item)].append(item)
+
+                        # Sample from each group
+                        output_data = []
+                        random_state = self.config.get("random_state", None)
+                        if random_state is not None:
+                            random.seed(random_state)
+
+                        for group_items in groups.values():
+                            if isinstance(samples, float):
+                                group_samples = int(samples * len(group_items))
+                            else:
+                                group_samples = min(samples, len(group_items))
+
+                            sampled_items = random.sample(group_items, group_samples)
+                            output_data.extend(sampled_items)
+                    else:
+                        # Original stratified sampling behavior
+                        stratify = [get_stratify_value(data) for data in input_data]
+
+                        import sklearn.model_selection
+
+                        output_data, _ = sklearn.model_selection.train_test_split(
+                            input_data,
+                            train_size=samples,
+                            random_state=self.config.get("random_state", None),
+                            stratify=stratify,
+                        )
+                else:
+                    import sklearn.model_selection
+
+                    output_data, _ = sklearn.model_selection.train_test_split(
+                        input_data,
+                        train_size=samples,
+                        random_state=self.config.get("random_state", None),
+                    )
 
         return output_data, cost

@@ -17,7 +17,7 @@ from docetl.runner import DSLRunner
 import yaml as _yaml
 import shutil
 import re
-from experiments.reasoning.evaluation.cuad import evaluate_results as cuad_evaluate
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation
 
 
 from docetl.reasoning_optimizer.agent import (
@@ -160,6 +160,22 @@ def run_baseline_experiment(
             print(f"\n🔄 Running Iteration {i}/{iterations}")
             
             # Run single iteration
+            # Load sample data for the dataset
+            sample_data = []
+            if dataset.lower() == "cuad":
+                sample_data_path = Path("experiments/reasoning/data/CUAD_random_sample.json")
+            elif dataset.lower() == "blackvault":
+                sample_data_path = Path("experiments/reasoning/data/blackvault_random_sample.json")
+            else:
+                sample_data_path = None
+            
+            if sample_data_path and sample_data_path.exists():
+                try:
+                    with open(sample_data_path, 'r') as f:
+                        sample_data = json.load(f)
+                except Exception as e:
+                    print(f"Warning: Could not load sample data from {sample_data_path}: {e}")
+            
             output_file, updated_history, iteration_cost = run_single_iteration(
                 yaml_path=yaml_path,
                 model=model,
@@ -168,7 +184,9 @@ def run_baseline_experiment(
                 iteration_num=i,
                 orig_output_sample=orig_output_sample,
                 prev_plan_cost=prev_cost,
-                output_dir=str(output_path)
+                output_dir=str(output_path),
+                dataset=dataset,
+                sample_data=sample_data
             )
             
             # Save iteration results
@@ -215,78 +233,46 @@ def run_baseline_experiment(
     # Evaluation (similar to MCTS)
     # ------------------------------------------------------------------
 
-    eval_results = []
-    if dataset.lower() == "cuad":
-        if ground_truth_path is None:
-            default_gt = Path("experiments/reasoning/data/CUAD-master_clauses.csv")
-            ground_truth_path = str(default_gt)
+    # Look for result JSONs produced by pipeline executions
+    json_files = [
+        p for p in glob.glob(str(output_path / "**/*.json"), recursive=True)
+        if p.endswith("_results.json") or p.endswith("original_output.json")
+    ]
 
-        # Look for result JSONs produced by pipeline executions
-        json_files = [
-            p for p in glob.glob(str(output_path / "**/*.json"), recursive=True)
-            if p.endswith("_results.json") or p.endswith("original_output.json")
-        ]
+    # Prepare files with cost information for evaluation
+    files_for_evaluation = []
+    for jf in json_files:
+        # Extract iteration number from filename to get corresponding cost
+        iteration_match = re.search(r'iteration_(\d+)_results\.json', jf)
+        iteration_cost = 0.0  # Default cost
+        if iteration_match:
+            iteration_num = int(iteration_match.group(1))
+        else:
+            # Check for baseline file
+            if jf.endswith("original_output.json"):
+                iteration_num = 0
+            else:
+                iteration_num = None
 
-        if json_files:
-            
+        if iteration_num is not None:
+            for result in results:
+                if result["iteration"] == iteration_num and result["success"]:
+                    iteration_cost = result.get("cost", 0.0)
+                    break
+        
+        files_for_evaluation.append({
+            "file_path": jf,
+            "cost": iteration_cost,
+            "node_id": Path(jf).stem,  # Use filename as node_id
+        })
 
-            for jf in json_files:
-                try:
-                    metrics = cuad_evaluate("docetl_baseline", jf, ground_truth_path)
-                    display_path = str(Path(jf).resolve().relative_to(output_path.resolve()))
-                    
-                    # Extract iteration number from filename to get corresponding cost
-                    iteration_match = re.search(r'iteration_(\d+)_results\.json', jf)
-                    iteration_cost = 0.0  # Default cost
-                    if iteration_match:
-                        iteration_num = int(iteration_match.group(1))
-                    else:
-                        # Check for baseline file
-                        if jf.endswith("original_output.json"):
-                            iteration_num = 0
-                        else:
-                            iteration_num = None
-
-                    if iteration_num is not None:
-                        for result in results:
-                            if result["iteration"] == iteration_num and result["success"]:
-                                iteration_cost = result.get("cost", 0.0)
-                                break
-                    
-                    eval_results.append({
-                        "file": display_path,
-                        "precision": metrics["avg_precision"],
-                        "recall": metrics["avg_recall"],
-                        "f1": metrics["avg_f1"],
-                        "cost": iteration_cost,
-                    })
-                except Exception as e:
-                    print(f"⚠️  Evaluation failed for {jf}: {e}")
-
-            if eval_results:
-                eval_out_file = output_path / "evaluation_metrics.json"
-                with open(eval_out_file, "w") as f:
-                    json.dump(eval_results, f, indent=2)
-                print(f"📊 Evaluation metrics saved to {eval_out_file}")
-
-                # Plot Cost vs F1 (cost None -> skip)
-                try:
-                    xs = [row["cost"] if row["cost"] is not None else 0 for row in eval_results]
-                    ys = [row["f1"] for row in eval_results]
-                    plt.figure(figsize=(8,6))
-                    plt.scatter(xs, ys, color="grey")
-                    for row in eval_results:
-                        plt.annotate(row["file"], (row["cost"] if row["cost"] is not None else 0, row["f1"]), textcoords="offset points", xytext=(4,4), fontsize=8)
-                    plt.xlabel("Cost ($)")
-                    plt.ylabel("F1 Score")
-                    plt.title("Baseline: Cost vs F1")
-                    plt.grid(True, linestyle="--", alpha=0.5)
-                    plot_path = output_path / "cost_vs_f1.png"
-                    plt.savefig(plot_path, dpi=150, bbox_inches="tight")
-                    plt.close()
-                    print(f"📈 Scatter plot saved to: {plot_path}")
-                except Exception as e:
-                    print(f"⚠️  Failed to create scatter plot: {e}")
+    eval_results, pareto_auc = run_dataset_evaluation(
+        dataset=dataset,
+        nodes_or_files=files_for_evaluation,
+        output_path=output_path,
+        ground_truth_path=ground_truth_path,
+        method_name="docetl_baseline"
+    )
 
     # Save experiment summary
     experiment_summary = {
@@ -303,7 +289,7 @@ def run_baseline_experiment(
         "success_rate": sum(1 for r in results if r["success"]) / len(results)
     }
     if eval_results:
-        experiment_summary["evaluation_file"] = str(eval_out_file)
+        experiment_summary["evaluation_file"] = str(output_path / "evaluation_metrics.json")
 
     summary_file = output_path / "experiment_summary.json"
     with open(summary_file, 'w') as f:
@@ -347,6 +333,8 @@ Examples:
                        help="Number of optimization iterations (default: 1)")
     parser.add_argument("--experiment_name", type=str, required=True,
                        help="Name for this experiment run")
+    parser.add_argument("--dataset", type=str, default="cuad", help="Dataset name for evaluation (default: cuad)")
+    parser.add_argument("--ground_truth", type=str, help="Path to ground-truth file (if not default)")
     
     args = parser.parse_args()
     
@@ -358,7 +346,9 @@ Examples:
             model=args.model,
             max_tpm=args.max_tpm,
             iterations=args.iterations,
-            experiment_name=args.experiment_name
+            experiment_name=args.experiment_name,
+            dataset=args.dataset,
+            ground_truth_path=args.ground_truth
         )
         
         print("\n🎉 Baseline experiment completed successfully!")

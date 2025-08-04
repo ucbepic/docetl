@@ -17,7 +17,7 @@ from docetl.reasoning_optimizer.directives import (
     DeterministicDocCompressionDirective,
     DocumentChunkingDirective,
     ChunkHeaderSummaryDirective,
-    ChunkSamplingDirective
+    TakeHeadTailDirective
 )
 
 
@@ -439,17 +439,38 @@ def test_doc_chunking_apply():
         }
     ]
     
-    from docetl.reasoning_optimizer.instantiate_schemas import DocumentChunkingInstantiateSchema
-    rewrite = DocumentChunkingInstantiateSchema(
+    from docetl.reasoning_optimizer.instantiate_schemas import DocumentChunkingInstantiateSchema, SamplingConfig
+    
+    # Test without sampling
+    rewrite_no_sample = DocumentChunkingInstantiateSchema(
         chunk_size=1000,
         split_key="document",
         sub_prompt="Analyze this document chunk: {{ input.document_chunk_rendered }}",
         reduce_prompt="Combine the analysis results: {% for input in inputs %}{{ input.analysis }}{% endfor %}"
     )
     
-    result = directive.apply("azure/gpt-4o-mini", ops_list, "analyze_document", rewrite)
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "analyze_document", rewrite_no_sample)
     assert isinstance(result, list)
     assert len(result) == 4  # Should be split -> gather -> map -> reduce
+    
+    # Test with sampling
+    rewrite_with_sample = DocumentChunkingInstantiateSchema(
+        chunk_size=1000,
+        split_key="document",
+        sub_prompt="Analyze this document chunk: {{ input.document_chunk_rendered }}",
+        reduce_prompt="Combine the analysis results: {% for input in inputs %}{{ input.analysis }}{% endfor %}",
+        sampling_config=SamplingConfig(
+            method="uniform",
+            samples=5
+        )
+    )
+    
+    result_with_sample = directive.apply("azure/gpt-4o-mini", ops_list, "analyze_document", rewrite_with_sample)
+    assert isinstance(result_with_sample, list)
+    assert len(result_with_sample) == 5  # Should be split -> gather -> sample -> map -> reduce
+    assert result_with_sample[2]["type"] == "sample"
+    assert result_with_sample[2]["method"] == "uniform"
+    assert result_with_sample[2]["samples"] == 5
 
 
 def test_chunk_header_summary_apply():
@@ -491,41 +512,71 @@ def test_chunk_header_summary_apply():
     assert "doc_header_key" in result[2]  # gather should have doc_header_key
 
 
-def test_chunk_sampling_apply():
-    """Test that chunk sampling apply doesn't crash"""
-    directive = ChunkSamplingDirective()
+
+
+def test_take_head_tail_apply():
+    """Test that take head tail apply doesn't crash"""
+    directive = TakeHeadTailDirective()
     
-    # Simple Gather -> Map sequence
+    # Test with Map operation
     ops_list = [
         {
-            "name": "gather_chunks",
-            "type": "gather",
-            "content_key": "document_chunk",
-            "doc_id_key": "split_docs_id",
-            "order_key": "split_docs_chunk_num",
-        },
-        {
-            "name": "categorize_document",
+            "name": "classify_document",
             "type": "map",
-            "prompt": "What category does this document belong to? {{ input.document_chunk_rendered }}",
-            "output": {"schema": {"category": "string"}},
-        },
+            "prompt": "Classify this document: {{ input.content }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"category": "string"}}
+        }
     ]
     
-    from docetl.reasoning_optimizer.instantiate_schemas import ChunkSamplingInstantiateSchema
-    rewrite = ChunkSamplingInstantiateSchema(
-        method="uniform",
-        samples=0.05
+    from docetl.reasoning_optimizer.instantiate_schemas import TakeHeadTailInstantiateSchema
+    rewrite = TakeHeadTailInstantiateSchema(
+        name="truncate_content",
+        document_key="content",
+        head_words=5,
+        tail_words=5
     )
     
-    result = directive.apply("azure/gpt-4o-mini", ops_list, ["gather_chunks", "categorize_document"], rewrite)
+    result = directive.apply(ops_list, "classify_document", rewrite)
     assert isinstance(result, list)
-    assert len(result) == 3  # Should insert sample between gather and map
-    assert result[0]["name"] == "gather_chunks"
-    assert result[1]["type"] == "sample"
-    assert result[1]["method"] == "uniform"
-    assert result[1]["samples"] == 0.05
-    assert result[2]["name"] == "categorize_document"
+    assert len(result) == 2  # Should add code_map before target
+    assert result[0]["name"] == "truncate_content"
+    assert result[0]["type"] == "code_map"
+    assert "def transform" in result[0]["function"]
+    assert result[1]["name"] == "classify_document"
+    
+    # Test with Filter operation
+    filter_ops_list = [
+        {
+            "name": "filter_spam",
+            "type": "filter",
+            "prompt": "Is this spam? {{ input.email_text }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"_bool": "bool"}}
+        }
+    ]
+    
+    filter_rewrite = TakeHeadTailInstantiateSchema(
+        name="truncate_email",
+        document_key="email_text",
+        head_words=10,
+        tail_words=0
+    )
+    
+    filter_result = directive.apply(filter_ops_list, "filter_spam", filter_rewrite)
+    assert isinstance(filter_result, list)
+    assert len(filter_result) == 2
+    assert filter_result[0]["type"] == "code_map"
+    assert filter_result[1]["type"] == "filter"
+    
+    # Assert that you can run the function on some document
+    doc = {"content": "This is a test document with more than ten words that should be truncated properly"}
+    namespace = {}
+    exec(result[0]["function"], namespace)
+    transformed_result = namespace["transform"](doc)
+    # With 5 head words and 5 tail words, and original has more than 10 words, should be truncated
+    assert "content" in transformed_result
+    assert len(transformed_result["content"].split()) <= 12  # 5 + " ... " + 5 = at most 12 tokens
 
 
 if __name__ == "__main__":
@@ -575,7 +626,8 @@ if __name__ == "__main__":
     test_chunk_header_summary_apply()
     print("✅ Chunk header summary apply test passed")
 
-    test_chunk_sampling_apply()
-    print("✅ Chunk sampling apply test passed")
+
+    test_take_head_tail_apply()
+    print("✅ Take head tail apply test passed")
 
     print("\n🎉 All directive apply tests passed!")

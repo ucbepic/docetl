@@ -312,9 +312,6 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 result = {
                     "file": display_path,
                     "combined_accuracy_score": metrics["weighted_score"],  # Use weighted score (50-50 Kendall's tau + sentiment)
-                    "temporal_distribution_score": metrics["temporal_distribution_score"],
-                    "sorting_accuracy": metrics["sorting_accuracy"],
-                    "hallucination_score": metrics["hallucination_score"],
                     "sentiment_accuracy": metrics["sentiment_accuracy"],
                     "kendall_tau_score": metrics["kendall_tau_score"],
                     "weighted_score": metrics["weighted_score"],

@@ -66,11 +66,11 @@ class DocumentChunkingDirective(Directive):
                 "previous": {
                   "head": {
                     "count": 1,
-                    "content_key": "contract_text"
+                    "content_key": "contract_text_chunk"
                   },
                   "tail": {
                     "count": 2,
-                    "content_key": "contract_text"
+                    "content_key": "contract_text_chunk"
                   }
                 }
               }
@@ -82,13 +82,13 @@ class DocumentChunkingDirective(Directive):
                 "previous": {
                   "tail": {
                     "count": 1,
-                    "content_key": "contract_text"
+                    "content_key": "contract_text_chunk"
                   }
                 },
                 "next": {
                   "head": {
                     "count": 1,
-                    "content_key": "contract_text"
+                    "content_key": "contract_text_chunk"
                   }
                 }
               }
@@ -207,7 +207,7 @@ class DocumentChunkingDirective(Directive):
             f"5. sampling_config: IMPORTANT - Include sampling by default UNLESS the task requires ALL chunks:\n"
             f"   - ALWAYS use sampling for: categorization, theme identification, sentiment analysis, document type classification\n"
             f"   - NEVER use sampling for: comprehensive extraction ('extract ALL instances'), complete analysis requiring every chunk\n"
-            f"   - Default sampling: method='uniform', samples=5-10 chunks\n"
+            f"   - Default sampling: method='stratify', samples=5-10 chunks\n"
             f"   - For simple tasks (categorization): samples=1-3 chunks\n"
             f"   - For complex analysis: samples=5-15 chunks\n"
             f"   - For stratified sampling: specify method='stratify' and optionally a stratify_key (note: split document ID is automatically included)\n"
@@ -217,16 +217,14 @@ class DocumentChunkingDirective(Directive):
             f"     previous:  # chunks before current chunk\n"
             f"       head:    # first chunk(s) in document\n"
             f"         count: 1\n"
-            f"         content_key: full_content  # optional, defaults to main content\n"
-            f"       middle:  # chunks between head and tail (summarized)\n"
-            f"         content_key: summary_content  # optional\n"
+            f"         content_key: full_content_chunk  # optional, defaults to main key chunk\n"
             f"       tail:    # chunk(s) immediately before current\n"
             f"         count: 2\n"
-            f"         content_key: full_content  # optional\n"
+            f"         content_key: full_content_chunk  # optional\n"
             f"     next:      # chunks after current chunk\n"
             f"       head:    # chunk(s) immediately after current\n"
             f"         count: 1\n"
-            f"         content_key: full_content  # optional\n"
+            f"         content_key: full_content_chunk  # optional\n"
             f"   Usage guidelines:\n"
             f"   - Use 'previous.head' when document has important metadata/definitions at start\n"
             f"   - Use 'previous.tail' to maintain references and immediate context\n"
@@ -235,7 +233,6 @@ class DocumentChunkingDirective(Directive):
             f"   - Count can be float (e.g., 0.5 for half chunk, 1.5 for chunk and a half)\n"
             f"   - More context increases token usage and cost - be judicious\n"
             f"   - Default to 0.5 previous tail if unsure about context needs\n"
-            f" If a content_key is specified that's different from the main content key, it's treated as a summary. This is useful for including condensed versions of chunks in the middle section to save space. If no content_key is specified, it defaults to the main content key of the operation.\n"
             f"7. model: Use the same model as the original operation or a suitable alternative\n\n"
             f"The sub_prompt should focus on the main chunk content and extract the same type of information as the original.\n"
             f"The reduce_prompt must produce the same output schema as the original operation.\n\n"
@@ -390,7 +387,7 @@ class DocumentChunkingDirective(Directive):
             sample_op = {
                 "name": sample_name,
                 "type": "sample",
-                "method": rewrite.sampling_config.method,
+                "method": "stratify",
                 "samples": rewrite.sampling_config.samples,
             }
 

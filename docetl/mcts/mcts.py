@@ -51,6 +51,7 @@ class MCTS:
         max_time: Optional[float] = 600.0,
         expansion_count: int = 6,
         model="gpt-4.1",
+        output_dir: Optional[str] = None,
     ):
         """
         Initialize the MCTS algorithm with Pareto frontier integration.
@@ -63,6 +64,7 @@ class MCTS:
             max_iterations: Maximum number of MCTS iterations
             max_time: Maximum time to run MCTS in seconds (None for no limit)
             sample_input: sample input data
+            output_dir: Directory to save new pipeline files (None means same dir as original)
         """
         self.root = Node(root_yaml_path, c=exploration_constant)
         self.available_actions = available_actions
@@ -76,6 +78,7 @@ class MCTS:
         self.model = model
         self.sample_input = sample_input
         self.dataset_stats = dataset_stats
+        self.output_dir = output_dir
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(
             accuracy_comparator, self.action_rewards, evaluate_func
@@ -630,7 +633,21 @@ class MCTS:
         )
 
         self.fix_models_azure(new_parsed_yaml)
-        base_path = node.yaml_file_path.removesuffix(".yaml")
+
+        # Determine where to save the new pipeline file
+        if self.output_dir:
+            # Use output directory with original filename as base
+            import os
+
+            original_filename = os.path.basename(node.yaml_file_path).removesuffix(
+                ".yaml"
+            )
+            base_path = os.path.join(self.output_dir, original_filename)
+            os.makedirs(self.output_dir, exist_ok=True)
+        else:
+            # Use same directory as original pipeline
+            base_path = node.yaml_file_path.removesuffix(".yaml")
+
         new_yaml_path = f"{base_path}_{len(node.children)+1}_{optimize_goal}.yaml"
         new_parsed_yaml["pipeline"]["output"][
             "path"

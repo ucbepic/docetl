@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from .cuad import evaluate_results as cuad_evaluate
 from .blackvault import evaluate_results as blackvault_evaluate
+from .game_reviews import evaluate_results as game_reviews_evaluate
 
 def get_evaluate_func(dataset):
     """
@@ -24,6 +25,11 @@ def get_evaluate_func(dataset):
         def blackvault_eval_func(method_name, results_file_path):
             return blackvault_evaluate(method_name, results_file_path)
         return blackvault_eval_func
+    
+    elif dataset.lower() == "game_reviews":
+        def game_reviews_eval_func(method_name, results_file_path):
+            return game_reviews_evaluate(method_name, results_file_path)
+        return game_reviews_eval_func
     
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
@@ -267,6 +273,69 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             # Create plots and compute AUC
             pareto_auc = _create_blackvault_plots_and_auc(eval_results, output_path)
     
+    elif dataset.lower() == "game_reviews":
+        print(f"\n🧪 Evaluating game reviews analysis results ...")
+
+        for item in nodes_or_files:
+            # Handle both node objects and file paths
+            if hasattr(item, 'result_path'):
+                # This is a node object
+                jf = item.result_path
+                node_data = {
+                    "node_id": item.get_id(),
+                    "cost": item.cost,
+                    "visits": getattr(item, 'visits', 0),
+                    "value": getattr(item, 'value', 0),
+                }
+            else:
+                # This is a file path with associated data
+                jf = item["file_path"]
+                node_data = {
+                    "node_id": item.get("node_id", "unknown"),
+                    "cost": item.get("cost", 0.0),
+                    "visits": item.get("visits", 0),
+                    "value": item.get("value", 0),
+                }
+            
+            if jf is None or not Path(jf).exists():
+                continue
+            
+            try:
+                metrics = game_reviews_evaluate(method_name, jf)
+                jp = Path(jf).resolve()
+                op_root = output_path.resolve()
+                if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
+                    display_path = str(jp.relative_to(op_root))
+                else:
+                    display_path = jp.name
+
+                result = {
+                    "file": display_path,
+                    "combined_accuracy_score": metrics["weighted_score"],  # Use weighted score (50-50 Kendall's tau + sentiment)
+                    "temporal_distribution_score": metrics["temporal_distribution_score"],
+                    "sorting_accuracy": metrics["sorting_accuracy"],
+                    "hallucination_score": metrics["hallucination_score"],
+                    "sentiment_accuracy": metrics["sentiment_accuracy"],
+                    "kendall_tau_score": metrics["kendall_tau_score"],
+                    "weighted_score": metrics["weighted_score"],
+                    **node_data
+                }
+                
+                # Add frontier information if available
+                if hasattr(item, 'result_path'):
+                    result.update({
+                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "on_frontier": getattr(item, 'on_frontier', False),
+                    })
+                
+                eval_results.append(result)
+            except Exception as e:
+                print(f"   ⚠️  Evaluation failed for {jf}: {e}")
+
+        if eval_results:
+            # Create plots and compute AUC based on weighted score (50-50 Kendall's tau + sentiment)
+            pareto_auc = _create_game_reviews_plots_and_auc(eval_results, output_path)
+    
     # Save evaluation results
     if eval_results:
         eval_out_file = output_path / "evaluation_metrics.json"
@@ -331,6 +400,61 @@ def _create_cuad_plots_and_auc(eval_results, output_path):
     
     return pareto_auc
 
+def _create_game_reviews_plots_and_auc(eval_results, output_path):
+    """Create plots and compute AUC for game reviews dataset"""
+    pareto_auc = None
+    
+    # Plot Combined Accuracy Score vs Cost scatter
+    try:
+        costs = [row["cost"] for row in eval_results]
+        combined_scores = [row["combined_accuracy_score"] for row in eval_results]
+        colors = ["blue" if row.get("on_frontier", False) else "grey" for row in eval_results]
+
+        plt.figure(figsize=(8,6))
+        plt.scatter(costs, combined_scores, c=colors)
+        for row in eval_results:
+            mcts_accuracy = row.get("mcts_accuracy", 0)
+            if mcts_accuracy is not None:
+                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            else:
+                label = row["file"]
+            plt.annotate(label, (row["cost"], row["combined_accuracy_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
+
+        plt.xlabel("Cost ($)")
+        plt.ylabel("Weighted Score (Kendall's τ + Sentiment)")
+        plt.title("Cost vs Weighted Score (50-50 Kendall's τ + Sentiment) for all plans")
+        plt.grid(True, linestyle="--", alpha=0.5)
+        plot_path = output_path / "cost_vs_weighted_score.png"
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"📈 Scatter plot saved to: {plot_path}")
+    except Exception as e:
+        print(f"⚠️  Failed to create scatter plot: {e}")
+    
+    # Compute Area Under the Pareto Frontier (Cost vs Weighted Score)
+    try:
+        frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
+        if len(frontier_points) >= 2:
+            # Sort frontier points by cost (x-axis)
+            frontier_points.sort(key=lambda r: r["cost"])
+
+            pareto_auc = 0.0
+            prev_point = frontier_points[0]
+            for curr_point in frontier_points[1:]:
+                width = curr_point["cost"] - prev_point["cost"]
+                if width > 0:  # Ignore duplicate cost values
+                    pareto_auc += 0.5 * width * (prev_point["combined_accuracy_score"] + curr_point["combined_accuracy_score"])
+                prev_point = curr_point
+        elif frontier_points:
+            pareto_auc = 0.0  # Single point frontier → zero area
+
+        if pareto_auc is not None:
+            print(f"📐 Area under Pareto frontier (Cost vs Weighted Score): {pareto_auc:.4f}")
+    except Exception as e:
+        print(f"⚠️  Failed to compute Pareto AUC: {e}")
+    
+    return pareto_auc
+
 def _create_blackvault_plots_and_auc(eval_results, output_path):
     """Create plots and compute AUC for BlackVault dataset"""
     pareto_auc = None
@@ -385,3 +509,4 @@ def _create_blackvault_plots_and_auc(eval_results, output_path):
         print(f"⚠️  Failed to compute Pareto AUC: {e}")
     
     return pareto_auc
+

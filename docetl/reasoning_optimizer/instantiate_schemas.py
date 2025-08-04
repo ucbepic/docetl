@@ -453,10 +453,6 @@ class SamplingMethodKwargs(BaseModel):
 class SamplingConfig(BaseModel):
     """Configuration for optional sampling in document chunking."""
 
-    method: str = Field(
-        default="uniform",
-        description="The sampling method to use. Can be 'uniform', 'first', or 'stratify'",
-    )
     samples: int = Field(
         ...,
         description="Number of chunks to sample (e.g., 1 for one chunk, 5 for five chunks)",
@@ -471,14 +467,6 @@ class SamplingConfig(BaseModel):
     def validate_samples_count(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("samples must be a positive integer")
-        return v
-
-    @field_validator("method")
-    @classmethod
-    def validate_method(cls, v: str) -> str:
-        allowed_methods = ["uniform", "stratify", "first"]
-        if v not in allowed_methods:
-            raise ValueError(f"method must be one of {allowed_methods}")
         return v
 
 
@@ -550,42 +538,6 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         """
         # The Pydantic model structure already enforces the basic validation
         # We can add additional business logic validation here if needed
-        return v
-
-
-class ChunkSamplingInstantiateSchema(BaseModel):
-    """
-    Schema for chunk sampling operations in a data processing pipeline.
-    Adds a sample operation between gather and map in a Split -> Gather -> Map -> Reduce sequence.
-    Only for tasks that don't need to examine ALL chunks (e.g., categorization, determine X reasons).
-    """
-
-    method: str = Field(
-        default="uniform",
-        description="The sampling method to use. Can be 'uniform', 'first', or 'stratify'",
-    )
-    samples: float = Field(
-        ...,
-        description="Float fraction of chunks to sample (e.g., 0.1 for 10%, 0.3 for 30%)",
-    )
-    method_kwargs: Optional[SamplingMethodKwargs] = Field(
-        default_factory=SamplingMethodKwargs,
-        description="Additional parameters for the sampling method (e.g., stratify_key for stratified sampling)",
-    )
-
-    @field_validator("samples")
-    @classmethod
-    def validate_samples_fraction(cls, v: float) -> float:
-        if not (0.0 < v <= 1.0):
-            raise ValueError("samples must be a fraction between 0.0 and 1.0")
-        return v
-
-    @field_validator("method")
-    @classmethod
-    def validate_method(cls, v: str) -> str:
-        allowed_methods = ["uniform", "stratify", "first"]
-        if v not in allowed_methods:
-            raise ValueError(f"method must be one of {allowed_methods}")
         return v
 
 

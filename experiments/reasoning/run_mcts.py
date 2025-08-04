@@ -95,6 +95,7 @@ def run_mcts_experiment(
         exploration_constant=exploration_weight,
         max_iterations=max_iterations,
         model=model,
+        output_dir=str(output_path),
     )
     
     print(f"✅ MCTS initialized with root node: {yaml_path}")

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-import json
+
 from litellm import completion
 from pydantic import BaseModel, Field
-
+import json
 # Configuration constants
 MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS = 3
 DEFAULT_MODEL = "gpt-4.1"

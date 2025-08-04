@@ -243,6 +243,8 @@ class DocumentChunkingDirective(Directive):
 
     def llm_instantiate(
         self,
+        operators, 
+        input_file_path,
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
@@ -282,6 +284,8 @@ class DocumentChunkingDirective(Directive):
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = DocumentChunkingInstantiateSchema(**parsed_res)
+                schema.validate_stratify_key_in_pipeline(operators)
+                schema.validate_split_key_exists_in_input(input_file_path)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
@@ -434,6 +438,8 @@ class DocumentChunkingDirective(Directive):
         ), "There must be exactly one target op to instantiate this document chunking directive"
         target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
 
+        input_file_path = kwargs.get("input_file_path", None)
+
         # Validate that the target operation is a map operation
         if target_op_config.get("type") != "map":
             raise ValueError(
@@ -442,7 +448,7 @@ class DocumentChunkingDirective(Directive):
 
         # Instantiate the directive
         rewrite, message_history = self.llm_instantiate(
-            target_op_config, agent_llm, message_history
+            operators, input_file_path, target_op_config, agent_llm, message_history
         )
 
         # Apply the rewrite to the operators

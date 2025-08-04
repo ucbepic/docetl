@@ -53,7 +53,7 @@ class Node:
             self.used_actions_acc[op_name] = set()
             self.used_actions_cost[op_name] = set()
         self.visits = 0
-        self.value = float("-inf")
+        self.value = 0
         self.parent = parent
         self.children = []
         self.c = c  # Exploration constant for UCB
@@ -123,6 +123,7 @@ class Node:
             
         except Exception as e:
             self.cost = -1  # Indicate failure
+            self.value = float("-inf")
             raise Exception(f"Failed to execute plan {self.yaml_file_path}: {str(e)}")
 
 

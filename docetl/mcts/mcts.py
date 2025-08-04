@@ -540,7 +540,13 @@ class MCTS:
                     node.mark_action_used_cost(target_op, directive)
 
             orig_default_model = node.parsed_yaml.get("default_model")
+            input_file_path = (
+                node.parsed_yaml.get("datasets", {})
+                .get("articles", {})
+                .get("path")
+            )
             rewrites = []
+
 
             try:
                 new_ops_list, message_history = directive.instantiate(
@@ -550,6 +556,7 @@ class MCTS:
                     optimize_goal=optimize_goal,
                     global_default_model=orig_default_model,
                     message_history=messages,
+                    input_file_path = input_file_path
                 )
             except Exception as e:
                 raise RuntimeError(f"Failed to instantiate directive: {str(e)}")

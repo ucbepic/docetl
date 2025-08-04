@@ -13,6 +13,7 @@ from docetl.reasoning_optimizer.directives import (
     Directive,
     get_all_directive_strings,
 )
+from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
 
 from .acc_comparator import AccuracyComparator
@@ -268,7 +269,7 @@ class MCTS:
             # if len(node.used_actions_cost[op_name]) < 1: return False
         return True
 
-    def expansion_prompt_acc(self, action_options, input_query) -> str:
+    def expansion_prompt_acc(self, node, action_options, input_query) -> str:
 
         availabel_actions_str = ""
         for item in action_options:
@@ -289,17 +290,8 @@ class MCTS:
 
         print(action_stats_str)
 
-        input_schema = """
-        Dataset: contracts_data
-        Type: file
-        Records loaded: 50
-        Input schema:
-            document: string (avg: 10993.9 tokens)
-            id: string (avg: 22.9 tokens)
-            name: string (avg: 27.6 tokens)
-        Total tokens: 546,693
-        """
-
+        input_schema = load_input_doc(node.yaml_file_path)
+        
         user_message = f"""
         I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.
         Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and specify which operators (specify by their names) in the pipeline the directive should be applied to.
@@ -447,7 +439,7 @@ class MCTS:
                 )
             print("OPTIMIZING ACC:")
             user_message = self.expansion_prompt_acc(
-                action_options=action_options, input_query=node.parsed_yaml
+                node, action_options=action_options, input_query=node.parsed_yaml
             )
 
         elif optimize_goal == "cost":

@@ -147,6 +147,7 @@ class DocCompressionDirective(Directive):
     def llm_instantiate(
         self,
         target_ops_configs: List[Dict],
+        input_file_path: str, 
         agent_llm: str,
         message_history: list = [],
     ) -> tuple:
@@ -178,6 +179,7 @@ class DocCompressionDirective(Directive):
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = DocCompressionInstantiateSchema(**parsed_res)
+                schema.validate_document_keys_exists_in_input(input_file_path)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
@@ -237,13 +239,14 @@ class DocCompressionDirective(Directive):
         2. Apply the transformation using that schema
         """
         assert len(target_ops) >= 1, "This directive requires at least one target op"
+        input_file_path = kwargs.get("input_file_path", None)
 
         # Get configurations for all target operations
         target_ops_configs = [op for op in operators if op["name"] in target_ops]
 
         # Step 1: Agent generates the instantiate schema considering all target ops
         rewrite, message_history = self.llm_instantiate(
-            target_ops_configs, agent_llm, message_history
+            target_ops_configs, input_file_path, agent_llm, message_history
         )
 
         # Step 2: Apply transformation using the schema

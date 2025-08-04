@@ -2,6 +2,7 @@ import sys
 import os
 import argparse
 import json
+import argparse
 from dotenv import load_dotenv
 from docetl.utils import load_config
 from docetl.dataset import Dataset, create_parsing_tool_map
@@ -184,19 +185,3 @@ def load_input_doc(yaml_path):
         except Exception as e:
             doc_info += f"  [ERROR] Failed to load dataset '{name}': {e}\n"
     return doc_info
-
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Analyze DocETL YAML schema and print output as a string.")
-    parser.add_argument("yaml_path", nargs="?", help="Path to the YAML config file")
-    args = parser.parse_args()
-
-    if not args.yaml_path:
-        args.yaml_path = input("Enter the path to your YAML config file: ").strip()
-
-    result_str = load_input_doc(args.yaml_path)
-    print(result_str)
-
-if __name__ == "__main__":
-    main() 

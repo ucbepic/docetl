@@ -221,7 +221,7 @@ class SampleOperation(BaseOperation):
                             random.seed(random_state)
 
                         for group_items in groups.values():
-                            if isinstance(samples, float):
+                            if not isinstance(samples, int):
                                 group_samples = int(samples * len(group_items))
                             else:
                                 group_samples = min(samples, len(group_items))

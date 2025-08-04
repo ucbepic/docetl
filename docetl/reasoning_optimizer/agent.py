@@ -411,8 +411,10 @@ def run_single_iteration(
         print(f"Failed to instantiate directive '{directive}': {e}")
         return None, message_history
 
+    # Use output_dir if provided, otherwise fall back to data_dir
+    save_dir = output_dir if output_dir else data_dir
     output_file_path = os.path.join(
-        data_dir,
+        save_dir,
         f"{dataset}-map_opt_iter_{iteration_num}.yaml",
     )
 

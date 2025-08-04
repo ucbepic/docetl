@@ -53,7 +53,7 @@ class Node:
             self.used_actions_acc[op_name] = set()
             self.used_actions_cost[op_name] = set()
         self.visits = 0
-        self.value = 0
+        self.value = float("-inf")
         self.parent = parent
         self.children = []
         self.c = c  # Exploration constant for UCB

@@ -590,8 +590,8 @@ class MCTS:
         except Exception as e:
             print(f"Failed to execute plan for node {node.get_id()}: {str(e)}")
             # Set cost to -1 to indicate failure (this is already done in Node.execute_plan)
-            # Continue with adding to frontier so it can be tracked as a failed plan
-            pass
+            # Do not add failed plans to the frontier
+            return {}, False
             
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node)
         self.action_rewards = self.pareto_frontier.action_rewards
@@ -605,7 +605,6 @@ class MCTS:
         for node, val in affected_nodes.items():
             current = node
             while current is not None:
-                # print("$$$$ ID: ", current.get_id(), "VAL: ",  val)
                 current.update_value(val)
                 current = current.parent
 
@@ -709,7 +708,7 @@ class MCTS:
         child = Node(yaml_file_path=new_yaml_path, parent=node)
         action = self.directive_name_to_obj.get(directive_name)
         child.latest_action = action
-        print("!!!", child.latest_action.name, child.id)
+        print("last action: ", child.latest_action.name, child.id)
         if directive_name == "gleaning":
             chaining = self.directive_name_to_obj.get("chaining")
             assert chaining

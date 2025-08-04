@@ -92,6 +92,7 @@ class ParetoFrontier:
             Dict containing affected nodes, bool indicating wether the frontier is updated
         """
         if node.cost == -1:  # Handle error case
+            self.plans_accuracy[node] = float('-inf')
             return {}, False
 
         # Store plan information
@@ -331,7 +332,7 @@ class ParetoFrontier:
             if (
                 node in valid_nodes and node in self.plans_scaled_cost
             ):  # Only include valid nodes
-                acc = self.plans_accuracy.get(node, 0.0)
+                acc = self.plans_accuracy.get(node, float('-inf'))
                 scaled_cost = self.plans_scaled_cost[node]
                 archive_frontier_data.append([acc, scaled_cost])
             else:
@@ -340,7 +341,7 @@ class ParetoFrontier:
                 )
 
         frontier = []
-        max_accuracy_so_far = -1
+        max_accuracy_so_far = float('-inf')
 
         for node in valid_nodes:
             accuracy = self.plans_accuracy.get(node, 0.0)

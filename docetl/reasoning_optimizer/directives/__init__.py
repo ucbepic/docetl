@@ -24,17 +24,17 @@ from .take_head_tail import TakeHeadTailDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
-    # ChainingDirective(),
-    # GleaningDirective(), 
-    # ReduceGleaningDirective(),
-    # ChangeModelDirective(),
-    # DocSummarizationDirective(),
-    # IsolatingSubtasksDirective(),
-    # DocCompressionDirective(),
-    # DeterministicDocCompressionDirective(),
-    # OperatorFusionDirective(),
-    # DocumentChunkingDirective(),
-    # ChunkHeaderSummaryDirective(),
+    ChainingDirective(),
+    GleaningDirective(), 
+    ReduceGleaningDirective(),
+    ChangeModelDirective(),
+    DocSummarizationDirective(),
+    IsolatingSubtasksDirective(),
+    DocCompressionDirective(),
+    DeterministicDocCompressionDirective(),
+    OperatorFusionDirective(),
+    DocumentChunkingDirective(),
+    ChunkHeaderSummaryDirective(),
     TakeHeadTailDirective(),
 ]
 

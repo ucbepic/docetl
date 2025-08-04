@@ -42,15 +42,9 @@ class ParetoFrontier:
             {}
         )  # Scaled costs [0,1] for calculations
         self.frontier_plans: List[Node] = []  # List of nodes on frontier
-        self.frontier_data: List[List[int]] = (
-            []
-        )  # List of [acc, scaled_cost] of nodes on frontier
-
+        self.frontier_data: List[List[int]] = [] # List of [acc, scaled_cost] of nodes on frontier
         self.action_rewards = action_rewards
-        self.action_counts: Dict[str, int] = {
-            action: 0 for action in self.action_rewards.keys()
-        }
-
+        
         # Root plan reference point for hypervolume calculation
         self.root_accuracy: Optional[float] = None
         self.root_cost: Optional[float] = None
@@ -262,8 +256,8 @@ class ParetoFrontier:
     def _update_action_rewards(self, node: Node, reward: float) -> None:
         """
         Update action rewards based on the reward received by a node.
-        Updates the running average for the latest action that led to this node.
-
+        Updates the cumulative sum for the latest action that led to this node.
+        
         Args:
             node: The node that received the reward
             reward: The reward value to incorporate
@@ -272,16 +266,9 @@ class ParetoFrontier:
             return
         action = node.latest_action
         if action in self.action_rewards:
-            old_count = self.action_counts.get(action, 0)
-            old_avg = self.action_rewards[action]
-
-            # Update running average: new_avg = (old_avg * old_count + new_reward) / (old_count + 1)
-            new_count = old_count + 1
-            new_avg = (old_avg * old_count + reward) / new_count
-
-            self.action_rewards[action] = new_avg
-            self.action_counts[action] = new_count
-
+            # Update cumulative sum
+            self.action_rewards[action] += reward
+    
     def _update_scaled_costs(self, valid_nodes: List[Node]) -> None:
         """
         Calculate and update scaled costs for all valid nodes to [0,1] range.
@@ -413,19 +400,6 @@ class ParetoFrontier:
 
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
-
-        # Print action rewards with action names only
-        action_rewards_names = {
-            getattr(action, "name", str(action)): reward
-            for action, reward in self.action_rewards.items()
-        }
-        action_counts_names = {
-            getattr(action, "name", str(action)): count
-            for action, count in self.action_counts.items()
-        }
-        print("ACTION REWARDS:", action_rewards_names)
-        print("ACTION COUNTS:", action_counts_names)
-
         self.plot_plans()
         return affected_nodes, frontier_updated
 

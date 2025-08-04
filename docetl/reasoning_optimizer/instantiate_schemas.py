@@ -1,6 +1,7 @@
 import re
 from typing import Dict, List, Optional
-
+import os
+import json
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -459,7 +460,7 @@ class SamplingMethodKwargs(BaseModel):
 
     stratify_key: str = Field(
         default="",
-        description="Key for stratified sampling (required when method='stratify', empty otherwise)",
+        description="Key for stratified sampling (required when method='stratify', empty otherwise). MUST be a valid key.",
     )
     samples_per_group: bool = Field(
         default=True,
@@ -522,6 +523,45 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         default="gpt-4o-mini", description="The model to use for the new operations"
     )
 
+    def validate_split_key_exists_in_input(self, input_file_path: str) -> None:
+        """
+        Validates that the split_key exists in the input JSON file items.
+
+        Args:
+            input_file_path (str): Path to the input JSON file
+
+        Raises:
+            ValueError: If split_key is not found in any input items
+        """
+
+        if not os.path.exists(input_file_path):
+            raise ValueError(f"Input file not found: {input_file_path}")
+
+        try:
+            with open(input_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in input file: {e}")
+
+        if not isinstance(data, list) or not data:
+            raise ValueError("Input file must contain a non-empty list of items")
+
+        # Check if split_key exists in any of the input items
+        available_keys = set()
+        split_key_found = False
+
+        for item in data:
+            if isinstance(item, dict):
+                available_keys.update(item.keys())
+                if self.split_key in item:
+                    split_key_found = True
+
+        if not split_key_found:
+            raise ValueError(
+                f"split_key '{self.split_key}' not found in any input items. "
+                f"Available keys: {sorted(available_keys)}"
+            )
+
     @field_validator("sub_prompt")
     @classmethod
     def check_sub_prompt_references_chunk_rendered(cls, v: str, info) -> str:
@@ -556,6 +596,36 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         # The Pydantic model structure already enforces the basic validation
         # We can add additional business logic validation here if needed
         return v
+
+    def validate_stratify_key_in_pipeline(self, pipeline_operations: List[Dict]) -> None:
+        """
+        Validates that if sampling_config contains a stratify_key, it corresponds to
+        a doc_id_key field mentioned somewhere in the pipeline operations.
+        
+        Args:
+            pipeline_operations: List of operation configurations from the pipeline
+        """
+        if not self.sampling_config or not self.sampling_config.method_kwargs:
+            return
+        
+        stratify_key = self.sampling_config.method_kwargs.stratify_key
+        if not stratify_key:
+            return
+        
+        # Collect all doc_id_key values from pipeline operations
+        doc_id_keys = set()
+        for op in pipeline_operations:
+            if 'doc_id_key' in op:
+                doc_id_keys.add(op['doc_id_key'])
+        
+        # Check if stratify_key is mentioned as a doc_id_key
+        if stratify_key not in doc_id_keys:
+            available_keys = sorted(doc_id_keys) if doc_id_keys else "None"
+            raise ValueError(
+                f"stratify_key '{stratify_key}' is not found as a doc_id_key in any pipeline operation. "
+                f"Available doc_id_keys in pipeline: {available_keys}. "
+                f"The stratify_key must correspond to a doc_id_key field that will be present in the data."
+            )
 
 
 class TakeHeadTailInstantiateSchema(BaseModel):

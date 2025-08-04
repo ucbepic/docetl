@@ -283,6 +283,7 @@ class ChangeModelDirective(Directive):
         message_history: list = [],
         optimize_goal="acc",
         global_default_model: str = None,
+        **kwargs
     ) -> tuple:
         """
         Instantiate the directive for a list of operators.

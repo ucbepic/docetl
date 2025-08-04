@@ -52,7 +52,7 @@ class TakeHeadTailDirective(Directive):
         Resulting Pipeline:
         - name: extract_paper_abstract
           type: code_map
-          function: |
+          code: |
             def transform(input_doc):
                 paper_text_content = input_doc.get('paper_text', '')
                 words = paper_text_content.split()
@@ -296,7 +296,7 @@ class TakeHeadTailDirective(Directive):
         code_map_op = {
             "name": rewrite.name,
             "type": "code_map",
-            "function": code_map_function,
+            "code": code_map_function,
         }
 
         new_ops_list.insert(pos_to_replace, code_map_op)

@@ -215,6 +215,10 @@ class OperatorFusionDirective(Directive):
         new_ops_list = deepcopy(ops_list)
         op1_name, op2_name = target_ops[0], target_ops[1]
 
+        assert (
+            op1_name != "reduce" and op2_name != "reduce"
+        ), "Cannot apply fusion on reduce"
+
         # Find the operations
         op1_idx = next(i for i, op in enumerate(ops_list) if op["name"] == op1_name)
         op2_idx = next(i for i, op in enumerate(ops_list) if op["name"] == op2_name)
@@ -254,12 +258,6 @@ class OperatorFusionDirective(Directive):
             # filter + filter => fuse into one filter with bool output
             fused_op["type"] = "filter"
             fused_op["output"] = {"schema": {"_bool": "bool"}}
-            needs_code_filter = False
-
-        elif op1_type == "map" and op2_type == "reduce":
-            # map + reduce => fuse into reduce
-            fused_op["type"] = "reduce"
-            fused_op["output"] = deepcopy(op2["output"])
             needs_code_filter = False
 
         # Replace the original operations

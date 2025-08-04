@@ -535,17 +535,26 @@ class MCTS:
                 messages.append({"role": "user", "content": feedback_message})
                 continue
 
-            # Mark action as used
-            if optimize_goal == "acc":
-                for target_op in target_op_list:
-                    node.mark_action_used_acc(target_op, directive)
-            else:
-                for target_op in target_op_list:
-                    node.mark_action_used_cost(target_op, directive)
+            # Valid directive found - break out of directive selection loop
+            break
 
-            orig_default_model = node.parsed_yaml.get("default_model")
-            rewrites = []
+        # If we've exhausted directive selection retries
+        if retry_count >= max_retries:
+            raise RuntimeError(
+                f"Failed to find unused directive after {max_retries} retries"
+            )
 
+        orig_default_model = node.parsed_yaml.get("default_model")
+        input_file_path = (
+            node.parsed_yaml.get("datasets", {}).get("articles", {}).get("path")
+        )
+        rewrites = []
+
+        # Independent retry loop for instantiation
+        max_instantiation_retries = 3
+        instantiation_retry_count = 0
+
+        while instantiation_retry_count < max_instantiation_retries:
             try:
                 new_ops_list, message_history = directive.instantiate(
                     operators=node.parsed_yaml["operations"],
@@ -554,29 +563,53 @@ class MCTS:
                     optimize_goal=optimize_goal,
                     global_default_model=orig_default_model,
                     message_history=messages,
+                    input_file_path=input_file_path,
                 )
+
+                if new_ops_list is None:
+                    instantiation_retry_count += 1
+                    print(
+                        f"Instantiation returned None. Retry {instantiation_retry_count}/{max_instantiation_retries}"
+                    )
+                    if instantiation_retry_count < max_instantiation_retries:
+                        continue
+                    else:
+                        raise RuntimeError(
+                            "Failed to instantiate directive: no new ops list returned after retries."
+                        )
+
+                # Success - break out of retry loop
+                rewrites.append(new_ops_list)
+                break
+
             except Exception as e:
-                raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
-
-            if new_ops_list is None:
-                raise RuntimeError(
-                    "Failed to instantiate directive: no new ops list returned."
+                instantiation_retry_count += 1
+                print(
+                    f"Instantiation failed: {str(e)}. Retry {instantiation_retry_count}/{max_instantiation_retries}"
                 )
-            rewrites.append(new_ops_list)
 
-            self.action_counts[directive] += 1
-            children = []
-            for new_ops in rewrites:
-                child = self.instantiate_node(
-                    node, new_ops, directive_name, target_op_list, optimize_goal
-                )
-                children.append(child)
-            return children
+                if instantiation_retry_count >= max_instantiation_retries:
+                    raise RuntimeError(
+                        f"Failed to instantiate directive after {max_instantiation_retries} retries: {str(e)}"
+                    )
+                # Continue to next retry attempt
 
-        # If we've exhausted retries
-        raise RuntimeError(
-            f"Failed to find unused directive after {max_retries} retries"
-        )
+        # Mark action as used
+        if optimize_goal == "acc":
+            for target_op in target_op_list:
+                node.mark_action_used_acc(target_op, directive)
+        else:
+            for target_op in target_op_list:
+                node.mark_action_used_cost(target_op, directive)
+
+        self.action_counts[directive] += 1
+        children = []
+        for new_ops in rewrites:
+            child = self.instantiate_node(
+                node, new_ops, directive_name, target_op_list, optimize_goal
+            )
+            children.append(child)
+        return children
 
     def simulate(self, node: Node):
         """
@@ -594,8 +627,8 @@ class MCTS:
         except Exception as e:
             print(f"Failed to execute plan for node {node.get_id()}: {str(e)}")
             # Set cost to -1 to indicate failure (this is already done in Node.execute_plan)
-            # Continue with adding to frontier so it can be tracked as a failed plan
-            pass
+            # Do not add failed plans to the frontier
+            return {}, False
 
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node)
         self.action_rewards = self.pareto_frontier.action_rewards
@@ -609,7 +642,6 @@ class MCTS:
         for node, val in affected_nodes.items():
             current = node
             while current is not None:
-                # print("$$$$ ID: ", current.get_id(), "VAL: ",  val)
                 current.update_value(val)
                 current = current.parent
 
@@ -682,8 +714,6 @@ class MCTS:
         # Determine where to save the new pipeline file
         if self.output_dir:
             # Use output directory with original filename as base
-            import os
-
             original_filename = os.path.basename(node.yaml_file_path).removesuffix(
                 ".yaml"
             )
@@ -713,7 +743,7 @@ class MCTS:
         child = Node(yaml_file_path=new_yaml_path, parent=node)
         action = self.directive_name_to_obj.get(directive_name)
         child.latest_action = action
-        print("!!!", child.latest_action.name, child.id)
+        print("last action: ", child.latest_action.name, child.id)
         if directive_name == "gleaning":
             chaining = self.directive_name_to_obj.get("chaining")
             assert chaining

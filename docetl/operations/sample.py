@@ -72,6 +72,22 @@ class SampleOperation(BaseOperation):
                     raise TypeError("All items in 'stratify_key' list must be strings")
                 if len(stratify_key) == 0:
                     raise ValueError("'stratify_key' list cannot be empty")
+                
+                # Check if every key is mentioned as a "doc_id_key" in the pipeline
+                pipeline_config = self.runner.config
+                doc_id_keys = set()
+                
+                # Collect all doc_id_key values from the pipeline operations
+                if 'operations' in pipeline_config:
+                    for op in pipeline_config['operations']:
+                        if 'doc_id_key' in op:
+                            doc_id_keys.add(op['doc_id_key'])
+                
+                # Check if all stratify keys are mentioned as doc_id_keys
+                for key in stratify_key:
+                    if key not in doc_id_keys:
+                        print(f"Warning: stratify_key '{key}' is not found as a doc_id_key in any pipeline operation")
+                        print(f"Available doc_id_keys in pipeline: {sorted(doc_id_keys) if doc_id_keys else 'None'}")
             else:
                 raise TypeError("'stratify_key' must be a string or list of strings")
 

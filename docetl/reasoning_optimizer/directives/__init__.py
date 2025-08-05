@@ -17,6 +17,7 @@ from .isolating_subtasks import IsolatingSubtasksDirective
 from .doc_compression import DocCompressionDirective
 from .deterministic_doc_compression import DeterministicDocCompressionDirective
 from .reduce_gleaning import ReduceGleaningDirective
+from .reduce_chaining import ReduceChainingDirective
 from .operator_fusion import OperatorFusionDirective
 from .doc_chunking import DocumentChunkingDirective
 from .chunk_header_summary import ChunkHeaderSummaryDirective
@@ -27,6 +28,7 @@ ALL_DIRECTIVES = [
     ChainingDirective(),
     GleaningDirective(), 
     ReduceGleaningDirective(),
+    ReduceChainingDirective(),
     ChangeModelDirective(),
     DocSummarizationDirective(),
     IsolatingSubtasksDirective(),
@@ -105,6 +107,7 @@ __all__ = [
     "ChainingDirective",
     "GleaningDirective",
     "ReduceGleaningDirective",
+    "ReduceChainingDirective",
     "ChangeModelDirective",
     "DocSummarizationDirective",
     "IsolatingSubtasksDirective",

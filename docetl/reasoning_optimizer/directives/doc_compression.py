@@ -147,7 +147,7 @@ class DocCompressionDirective(Directive):
     def llm_instantiate(
         self,
         target_ops_configs: List[Dict],
-        input_file_path: str, 
+        input_file_path: str,
         agent_llm: str,
         message_history: list = [],
     ) -> tuple:
@@ -164,6 +164,7 @@ class DocCompressionDirective(Directive):
                 },
             ]
         )
+        error_message = ""
 
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
             resp = completion(
@@ -189,7 +190,7 @@ class DocCompressionDirective(Directive):
                 message_history.append({"role": "user", "content": error_message})
 
         raise Exception(
-            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts."
+            f"Failed to instantiate directive after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Error: {error_message}"
         )
 
     def apply(

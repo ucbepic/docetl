@@ -1,7 +1,8 @@
+import json
+import os
 import re
 from typing import Dict, List, Optional
-import os
-import json
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -263,24 +264,37 @@ class IsolatingSubtasksInstantiateSchema(BaseModel):
         missing_references = []
         for i, subtask in enumerate(self.subtasks):
 
-            #  {{input.subtask_i_output}} 
-            pattern_subtask_output = r"\{\{\s*input\.subtask_" + str(i+1) + r"_output\s*\}\}"
-            has_subtask_output = bool(re.search(pattern_subtask_output, self.aggregation_prompt))
-            
+            #  {{input.subtask_i_output}}
+            pattern_subtask_output = (
+                r"\{\{\s*input\.subtask_" + str(i + 1) + r"_output\s*\}\}"
+            )
+            has_subtask_output = bool(
+                re.search(pattern_subtask_output, self.aggregation_prompt)
+            )
+
             if has_subtask_output:
                 continue
             subtask_has_reference = False
-            
+
             for output_key in subtask.output_keys:
-                pattern_output_key = r"\{\{\s*input\." + re.escape(output_key) + r"\s*\}\}"
-                
-                pattern_subtask_output_key = r"\{\{\s*input\.subtask_" + str(i+1) + r"_output\." + re.escape(output_key) + r"\s*\}\}"
-                
-                if re.search(pattern_output_key, self.aggregation_prompt) or \
-                re.search(pattern_subtask_output_key, self.aggregation_prompt):
+                pattern_output_key = (
+                    r"\{\{\s*input\." + re.escape(output_key) + r"\s*\}\}"
+                )
+
+                pattern_subtask_output_key = (
+                    r"\{\{\s*input\.subtask_"
+                    + str(i + 1)
+                    + r"_output\."
+                    + re.escape(output_key)
+                    + r"\s*\}\}"
+                )
+
+                if re.search(pattern_output_key, self.aggregation_prompt) or re.search(
+                    pattern_subtask_output_key, self.aggregation_prompt
+                ):
                     subtask_has_reference = True
                     break
-            
+
             if not subtask_has_reference:
                 missing_references.extend(subtask.output_keys)
 
@@ -326,7 +340,7 @@ class DocCompressionInstantiateSchema(BaseModel):
             raise ValueError(f"Input file not found: {input_file_path}")
 
         try:
-            with open(input_file_path, 'r', encoding='utf-8') as f:
+            with open(input_file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in input file: {e}")
@@ -337,14 +351,13 @@ class DocCompressionInstantiateSchema(BaseModel):
         # Check if document_keys exists in any of the input items
         available_keys = set()
         document_keys_found = False
-        
+
         for item in data:
             if isinstance(item, dict):
                 available_keys.update(item.keys())
                 if self.document_key in available_keys:
                     document_keys_found = True
-        
-        
+
         if not document_keys_found:
             raise ValueError(
                 f"document_keys '{self.document_key}' not found in any input items. "
@@ -578,7 +591,7 @@ class DocumentChunkingInstantiateSchema(BaseModel):
             raise ValueError(f"Input file not found: {input_file_path}")
 
         try:
-            with open(input_file_path, 'r', encoding='utf-8') as f:
+            with open(input_file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in input file: {e}")
@@ -637,27 +650,29 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         # We can add additional business logic validation here if needed
         return v
 
-    def validate_stratify_key_in_pipeline(self, pipeline_operations: List[Dict]) -> None:
+    def validate_stratify_key_in_pipeline(
+        self, pipeline_operations: List[Dict]
+    ) -> None:
         """
         Validates that if sampling_config contains a stratify_key, it corresponds to
         a doc_id_key field mentioned somewhere in the pipeline operations.
-        
+
         Args:
             pipeline_operations: List of operation configurations from the pipeline
         """
         if not self.sampling_config or not self.sampling_config.method_kwargs:
             return
-        
+
         stratify_key = self.sampling_config.method_kwargs.stratify_key
         if not stratify_key:
             return
-        
+
         # Collect all doc_id_key values from pipeline operations
         doc_id_keys = set()
         for op in pipeline_operations:
-            if 'doc_id_key' in op:
-                doc_id_keys.add(op['doc_id_key'])
-        
+            if "doc_id_key" in op:
+                doc_id_keys.add(op["doc_id_key"])
+
         # Check if stratify_key is mentioned as a doc_id_key
         if stratify_key not in doc_id_keys:
             available_keys = sorted(doc_id_keys) if doc_id_keys else "None"
@@ -701,3 +716,66 @@ class TakeHeadTailInstantiateSchema(BaseModel):
         if v < 0:
             raise ValueError("tail_words must be a non-negative integer")
         return v
+
+
+class ReduceChainingInstantiateSchema(BaseModel):
+    """
+    Schema for chaining a reduce operation with a map operation.
+    Transforms Reduce => Map -> Reduce pattern where the Map operation
+    preprocesses individual documents before the Reduce operation aggregates them.
+    """
+
+    map_name: str = Field(..., description="The name of the new Map operator")
+    map_prompt: str = Field(
+        ...,
+        description="Jinja prompt template for the Map operator that processes individual documents. Must reference {{ input.document_key }} to access the document content.",
+    )
+    new_key: str = Field(
+        ...,
+        description="The new key name that the Map operation will output, which the Reduce operation will reference instead of the original document key.",
+    )
+    modified_reduce_prompt: str = Field(
+        ...,
+        description="The modified reduce prompt that references the new key ({{ input.new_key }}) instead of the original document content.",
+    )
+    model: str = Field(
+        default="gpt-4o-mini", description="The model to use for the Map operator."
+    )
+
+    @field_validator("map_prompt")
+    @classmethod
+    def check_map_prompt(cls, v: str) -> str:
+        return MapOpConfig.validate_prompt_contains_input_key(v)
+
+    @classmethod
+    def validate_reduce_prompt_references_new_key(
+        cls,
+        modified_reduce_prompt: str,
+        new_key: str,
+        original_document_key: str,
+    ) -> None:
+        """
+        Validates that the modified reduce prompt references the new key
+        and doesn't reference the original document key.
+        """
+        # Check that it references the new key
+        new_key_pattern = r"\{\{\s*input\." + re.escape(new_key) + r"\s*\}\}"
+        if not re.search(new_key_pattern, modified_reduce_prompt):
+            raise ValueError(
+                "Modified reduce prompt must reference the new key as '{{ input."
+                + new_key
+                + " }}'"
+            )
+
+        # Check that it doesn't reference the original document key
+        old_key_pattern = (
+            r"\{\{\s*input\." + re.escape(original_document_key) + r"\s*\}\}"
+        )
+        if re.search(old_key_pattern, modified_reduce_prompt):
+            raise ValueError(
+                "Modified reduce prompt should not reference the original document key '{{ input."
+                + original_document_key
+                + " }}'. Use '{{ input."
+                + new_key
+                + " }}' instead."
+            )

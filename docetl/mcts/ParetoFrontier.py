@@ -1,3 +1,5 @@
+# Import evaluation function lookup
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -5,7 +7,17 @@ import matplotlib.pyplot as plt
 from .acc_comparator import AccuracyComparator
 from .Node import Node
 
-# Evaluation functions will be provided via constructor
+sys.path.append("../../experiments/reasoning")
+try:
+    from experiments.reasoning.evaluation.utils import get_evaluate_func
+except ImportError:
+    # Fallback import path
+    import os
+
+    sys.path.append(
+        os.path.join(os.path.dirname(__file__), "../../experiments/reasoning")
+    )
+    from evaluation.utils import get_evaluate_func
 
 
 class ParetoFrontier:
@@ -21,7 +33,7 @@ class ParetoFrontier:
         self,
         accuracy_comparator: AccuracyComparator,
         action_rewards: Dict[str, float],
-        evaluate_func,
+        dataset_name: str,
     ):
         """
         Initialize the Pareto Frontier.
@@ -29,10 +41,22 @@ class ParetoFrontier:
         Args:
             accuracy_comparator: Comparator for evaluating plan accuracy
             action_rewards: Reference to MCTS action_rewards dictionary
-            evaluate_func: Function to evaluate results (dataset-specific)
+            dataset_name: Name of the dataset being optimized (for evaluation and metric selection)
         """
         self.accuracy_comparator = accuracy_comparator
-        self.evaluate_func = evaluate_func
+        self.dataset_name = dataset_name
+
+        # Get evaluation function for this dataset
+        self.evaluate_func = get_evaluate_func(dataset_name)
+
+        # Dataset-to-primary-metric mapping
+        self.dataset_metrics = {
+            "cuad": "avg_f1",
+            "blackvault": "avg_distinct_locations",
+            "game_reviews": "weighted_score",
+            "medec": "combined_score",
+            "sustainability": "economic_activity_accuracy",
+        }
 
         # Internal state
         self.plans: List[Node] = []
@@ -42,9 +66,11 @@ class ParetoFrontier:
             {}
         )  # Scaled costs [0,1] for calculations
         self.frontier_plans: List[Node] = []  # List of nodes on frontier
-        self.frontier_data: List[List[int]] = [] # List of [acc, scaled_cost] of nodes on frontier
+        self.frontier_data: List[List[int]] = (
+            []
+        )  # List of [acc, scaled_cost] of nodes on frontier
         self.action_rewards = action_rewards
-        
+
         # Root plan reference point for hypervolume calculation
         self.root_accuracy: Optional[float] = None
         self.root_cost: Optional[float] = None
@@ -92,7 +118,7 @@ class ParetoFrontier:
             Dict containing affected nodes, bool indicating wether the frontier is updated
         """
         if node.cost == -1:  # Handle error case
-            self.plans_accuracy[node] = float('-inf')
+            self.plans_accuracy[node] = float("-inf")
             return {}, False
 
         # Store plan information
@@ -104,13 +130,12 @@ class ParetoFrontier:
 
         results = self.evaluate_func("docetl_preprint", result_file_path)
 
-        # Extract the appropriate metric based on what's available in results
-        if "avg_f1" in results:
-            true_accuracy = results["avg_f1"]
-        elif "avg_distinct_locations" in results:
-            true_accuracy = results["avg_distinct_locations"]
+        # Extract the appropriate metric based on dataset
+        primary_metric = self.dataset_metrics.get(self.dataset_name)
+        if primary_metric and primary_metric in results:
+            true_accuracy = results[primary_metric]
         else:
-            # Fallback to first numerical value found
+            # Fallback to first numerical value found if dataset unknown or metric missing
             true_accuracy = next(
                 (v for v in results.values() if isinstance(v, (int, float))), 0.5
             )
@@ -258,7 +283,7 @@ class ParetoFrontier:
         """
         Update action rewards based on the reward received by a node.
         Updates the cumulative sum for the latest action that led to this node.
-        
+
         Args:
             node: The node that received the reward
             reward: The reward value to incorporate
@@ -269,7 +294,7 @@ class ParetoFrontier:
         if action in self.action_rewards:
             # Update cumulative sum
             self.action_rewards[action] += reward
-    
+
     def _update_scaled_costs(self, valid_nodes: List[Node]) -> None:
         """
         Calculate and update scaled costs for all valid nodes to [0,1] range.
@@ -332,7 +357,7 @@ class ParetoFrontier:
             if (
                 node in valid_nodes and node in self.plans_scaled_cost
             ):  # Only include valid nodes
-                acc = self.plans_accuracy.get(node, float('-inf'))
+                acc = self.plans_accuracy.get(node, float("-inf"))
                 scaled_cost = self.plans_scaled_cost[node]
                 archive_frontier_data.append([acc, scaled_cost])
             else:
@@ -341,7 +366,7 @@ class ParetoFrontier:
                 )
 
         frontier = []
-        max_accuracy_so_far = float('-inf')
+        max_accuracy_so_far = float("-inf")
 
         for node in valid_nodes:
             accuracy = self.plans_accuracy.get(node, 0.0)

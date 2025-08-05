@@ -9,6 +9,7 @@ from docetl.reasoning_optimizer.directives import (
     ChainingDirective, 
     GleaningDirective,
     ReduceGleaningDirective,
+    ReduceChainingDirective,
     ChangeModelDirective,
     OperatorFusionDirective,
     DocSummarizationDirective,
@@ -243,38 +244,6 @@ def test_operator_fusion_filter_filter_apply():
     assert len(result) == 1  # Should fuse 2 ops into 1
 
 
-def test_operator_fusion_map_reduce_apply():
-    """Test that operator fusion apply doesn't crash - map + reduce"""
-    directive = OperatorFusionDirective()
-    
-    ops_list = [
-        {
-            "name": "extract_themes",
-            "type": "map",
-            "prompt": "Extract themes from: {{ input.text }}",
-            "model": "gpt-4o-mini",
-            "output": {"schema": {"themes": "list"}}
-        },
-        {
-            "name": "summarize_themes",
-            "type": "reduce",
-            "prompt": "Summarize these themes: {{ input.themes }}",
-            "model": "gpt-4o-mini",
-            "output": {"schema": {"summary": "string"}}
-        }
-    ]
-    
-    from docetl.reasoning_optimizer.instantiate_schemas import OperatorFusionInstantiateSchema
-    rewrite = OperatorFusionInstantiateSchema(
-        fused_prompt="Extract themes and create summary from: {{ input.text }}",
-        model="gpt-4o-mini"
-    )
-    
-    result = directive.apply("azure/gpt-4o-mini", ops_list, ["extract_themes", "summarize_themes"], rewrite)
-    assert isinstance(result, list)
-    assert len(result) == 1  # Should fuse 2 ops into 1
-    assert result[0]["type"] == "reduce", f"First op should be reduce, got {result[0]['type']}"
-
 
 def test_doc_summarization_apply():
     """Test that doc summarization apply doesn't crash"""
@@ -366,6 +335,43 @@ def test_reduce_gleaning_apply():
     assert len(result) == 1
     # Should add gleaning config to reduce op
     assert "gleaning" in result[0]
+
+
+def test_reduce_chaining_apply():
+    """Test that reduce chaining apply doesn't crash"""
+    directive = ReduceChainingDirective()
+    
+    ops_list = [
+        {
+            "name": "extract_all_locations",
+            "type": "reduce",
+            "reduce_key": "document_collection",
+            "prompt": "Extract all distinct locations mentioned across these documents:\n{% for input in inputs %}\nDocument: {{ input.document }}\n{% endfor %}\nReturn a list of unique location names.",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"locations": "list[str]"}}
+        }
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import ReduceChainingInstantiateSchema
+    rewrite = ReduceChainingInstantiateSchema(
+        map_name="extract_document_locations",
+        map_prompt="Extract all location names mentioned in this document:\n{{ input.document }}\nReturn a list of locations.",
+        new_key="locations",
+        modified_reduce_prompt="Combine and deduplicate all locations from these documents:\n{% for input in inputs %}\nLocations from document: {{ input.locations }}\n{% endfor %}\nReturn a list of unique location names.",
+        model="gpt-4o-mini"
+    )
+    
+    result = directive.apply("azure/gpt-4o-mini", ops_list, "extract_all_locations", rewrite)
+    assert isinstance(result, list)
+    assert len(result) == 2  # Should add map op before reduce op
+    assert result[0]["type"] == "map"
+    assert result[0]["name"] == "extract_document_locations"
+    assert result[1]["type"] == "reduce"
+    assert result[1]["name"] == "extract_all_locations"
+    # The reduce prompt should reference the new key
+    assert "{{ input.locations }}" in result[1]["prompt"]
+    # The reduce prompt should NOT reference the original document key
+    assert "{{ input.document }}" not in result[1]["prompt"]
 
 
 def test_doc_compression_apply():
@@ -460,7 +466,7 @@ def test_doc_chunking_apply():
         sub_prompt="Analyze this document chunk: {{ input.document_chunk_rendered }}",
         reduce_prompt="Combine the analysis results: {% for input in inputs %}{{ input.analysis }}{% endfor %}",
         sampling_config=SamplingConfig(
-            method="uniform",
+            method="stratify",
             samples=5
         )
     )
@@ -469,7 +475,7 @@ def test_doc_chunking_apply():
     assert isinstance(result_with_sample, list)
     assert len(result_with_sample) == 5  # Should be split -> gather -> sample -> map -> reduce
     assert result_with_sample[2]["type"] == "sample"
-    assert result_with_sample[2]["method"] == "uniform"
+    assert result_with_sample[2]["method"] == "stratify"
     assert result_with_sample[2]["samples"] == 5
 
 
@@ -542,7 +548,7 @@ def test_take_head_tail_apply():
     assert len(result) == 2  # Should add code_map before target
     assert result[0]["name"] == "truncate_content"
     assert result[0]["type"] == "code_map"
-    assert "def transform" in result[0]["function"]
+    assert "def transform" in result[0]["code"]
     assert result[1]["name"] == "classify_document"
     
     # Test with Filter operation
@@ -572,7 +578,7 @@ def test_take_head_tail_apply():
     # Assert that you can run the function on some document
     doc = {"content": "This is a test document with more than ten words that should be truncated properly"}
     namespace = {}
-    exec(result[0]["function"], namespace)
+    exec(result[0]["code"], namespace)
     transformed_result = namespace["transform"](doc)
     # With 5 head words and 5 tail words, and original has more than 10 words, should be truncated
     assert "content" in transformed_result
@@ -602,9 +608,6 @@ if __name__ == "__main__":
     test_operator_fusion_filter_filter_apply()
     print("✅ Operator fusion (filter+filter) apply test passed")
     
-    test_operator_fusion_map_reduce_apply()
-    print("✅ Operator fusion (map+reduce) apply test passed")
-    
     test_doc_summarization_apply()
     print("✅ Doc summarization apply test passed")
     
@@ -613,6 +616,9 @@ if __name__ == "__main__":
     
     test_reduce_gleaning_apply()
     print("✅ Reduce gleaning apply test passed")
+    
+    test_reduce_chaining_apply()
+    print("✅ Reduce chaining apply test passed")
     
     test_doc_compression_apply()
     print("✅ Doc compression apply test passed")

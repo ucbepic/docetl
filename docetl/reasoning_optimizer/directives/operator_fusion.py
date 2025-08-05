@@ -22,7 +22,7 @@ class OperatorFusionDirective(Directive):
         default="Combines two sequential operations into a single operation to reduce LLM processing costs by avoiding duplicate document reads and API calls"
     )
     when_to_use: str = Field(
-        default="When you have two sequential LLM operations processing the same documents and want to optimize cost by combining them into one operation that performs both tasks. The target operators should be two consecutive operations.  Make sure you specify two operators when choosing this directive."
+        default="When you have two sequential LLM operations processing the same documents keys and want to optimize cost by combining them into one operation that performs both tasks. The target operators should be two consecutive operations.  Make sure you specify two operators when choosing this directive."
     )
 
     instantiate_schema_type: Type[BaseModel] = Field(

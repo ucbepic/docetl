@@ -22,6 +22,7 @@ from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_e
 
 def run_mcts_experiment(
     yaml_path: str,
+    dataset_path: str,
     data_dir: str = None,
     output_dir: str = None, 
     experiment_name: str = "mcts_experiment",
@@ -36,6 +37,7 @@ def run_mcts_experiment(
     
     Args:
         yaml_path: Path to the input YAML pipeline file
+        dataset_path: Path to the dataset file for sample input data
         data_dir: Directory containing input data files
         output_dir: Directory to save experiment outputs
         experiment_name: Name for this experiment run
@@ -71,8 +73,15 @@ def run_mcts_experiment(
     # Initialize MCTS
     print("🚀 Initializing MCTS...")
     
-    # Load sample input data for accuracy comparator
-    sample_input_data = {"document": "Sample contract document for comparison purposes..."}
+    # Load sample input data for accuracy comparator from dataset_path
+    with open(dataset_path, 'r') as f:
+        dataset_data = json.load(f)
+    
+    # Take only the first 5 documents
+    if isinstance(dataset_data, list):
+        sample_input_data = dataset_data[:5]
+    else:
+        sample_input_data = dataset_data
     
     # Initialize accuracy comparator
     accuracy_comparator = AccuracyComparator(input_data=sample_input_data, model=model)
@@ -80,8 +89,7 @@ def run_mcts_experiment(
     # Use all registered rewrite directives from the central registry
     available_actions = set(ALL_DIRECTIVES)
     
-    # Get dataset-specific evaluation function and statistics
-    evaluate_func = get_evaluate_func(dataset)
+    # Get dataset statistics
     dataset_stats = get_dataset_stats(dataset, yaml_path)
     
     # Initialize MCTS
@@ -90,8 +98,8 @@ def run_mcts_experiment(
         accuracy_comparator=accuracy_comparator,
         available_actions=available_actions,
         sample_input=sample_input_data,
-        evaluate_func=evaluate_func,
         dataset_stats=dataset_stats,
+        dataset_name=dataset,
         exploration_constant=exploration_weight,
         max_iterations=max_iterations,
         model=model,
@@ -204,6 +212,8 @@ Examples:
     
     parser.add_argument("--yaml_path", type=str, required=True,
                        help="Path to the input YAML pipeline file")
+    parser.add_argument("--dataset_path", type=str, required=True,
+                       help="Path to the dataset file for sample input data")
     parser.add_argument("--data_dir", type=str,
                        help="Directory containing input data files (sets EXPERIMENT_DATA_DIR)")
     parser.add_argument("--output_dir", type=str,
@@ -223,6 +233,7 @@ Examples:
     
     result = run_mcts_experiment(
         yaml_path=args.yaml_path,
+        dataset_path=args.dataset_path,
         data_dir=args.data_dir,
         output_dir=args.output_dir,
         experiment_name=args.experiment_name,

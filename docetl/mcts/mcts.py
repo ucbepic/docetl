@@ -45,8 +45,8 @@ class MCTS:
         accuracy_comparator: AccuracyComparator,
         available_actions: set[Directive],
         sample_input,
-        evaluate_func,
         dataset_stats: str,
+        dataset_name: str,
         exploration_constant: float = 1.414,
         max_iterations: int = 20,
         max_time: Optional[float] = 600.0,
@@ -70,7 +70,9 @@ class MCTS:
         self.root = Node(root_yaml_path, c=exploration_constant)
         self.available_actions = available_actions
         self.action_rewards = {action: 0.0 for action in available_actions}
-        self.action_counts = {action: 0.0 for action in available_actions} # number of times an action has been applied
+        self.action_counts = {
+            action: 0.0 for action in available_actions
+        }  # number of times an action has been applied
         self.exploration_constant = exploration_constant
         self.max_iterations = max_iterations
         self.max_time = max_time
@@ -83,7 +85,7 @@ class MCTS:
         self.output_dir = output_dir
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(
-            accuracy_comparator, self.action_rewards, evaluate_func
+            accuracy_comparator, self.action_rewards, dataset_name
         )
         self.directive_name_to_obj = {
             action.name: action for action in self.available_actions
@@ -280,12 +282,14 @@ class MCTS:
 
         print(availabel_actions_str)
         action_stats = []
-        for action in self.available_actions:  
+        for action in self.available_actions:
             reward = self.action_rewards.get(action, 0)
             count = self.action_counts.get(action, 0)
             avg_reward = reward / count if count > 0 else "Unknown (never tried)"
-            action_stats.append(f"- {action.name}: {count} uses, avg reward: {avg_reward}")
-        
+            action_stats.append(
+                f"- {action.name}: {count} uses, avg reward: {avg_reward}"
+            )
+
         action_stats_str = "\n".join(action_stats)
 
         print(action_stats_str)
@@ -334,7 +338,7 @@ class MCTS:
         Consider the current query pipeline, which directive can best improve the accuracy.
         Prioritize exploration of untested actions while balancing with exploitation of proven performers:
         - Actions with 0 uses have unknown potential please explore if applicable. Try change model directive if it has not been used. change model is typically useful!
-        - Actions with few uses might need more data to be reliable  
+        - Actions with few uses might need more data to be reliable
         - High average reward indicates good historical performance
         - Consider both immediate improvement and learning about the action space
 
@@ -522,7 +526,7 @@ class MCTS:
                 feedback_message = f"We have already tried the directive '{directive_name}' on these operators: {target_op_list}. Please pick another directive from the available options we listed in the previous message."
                 messages.append({"role": "user", "content": feedback_message})
                 continue
-            
+
             # Valid directive found - break out of directive selection loop
             break
 
@@ -534,12 +538,10 @@ class MCTS:
 
         orig_default_model = node.parsed_yaml.get("default_model")
         input_file_path = (
-            node.parsed_yaml.get("datasets", {})
-            .get("articles", {})
-            .get("path")
+            node.parsed_yaml.get("datasets", {}).get("articles", {}).get("path")
         )
         rewrites = []
-
+        
         # Mark action as used
         if optimize_goal == "acc":
             for target_op in target_op_list:
@@ -576,7 +578,7 @@ class MCTS:
             )
             children.append(child)
         return children
-        
+
     def simulate(self, node: Node):
         """
         Simulate a node (plan). Execute the plan and add it to the pareto frontier.
@@ -595,7 +597,7 @@ class MCTS:
             # Set cost to -1 to indicate failure (this is already done in Node.execute_plan)
             # Do not add failed plans to the frontier
             return {}, False
-            
+
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node)
         self.action_rewards = self.pareto_frontier.action_rewards
         return affected_nodes, is_frontier_updated

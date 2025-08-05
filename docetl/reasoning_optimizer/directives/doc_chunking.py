@@ -194,7 +194,7 @@ class DocumentChunkingDirective(Directive):
             f"into a Split -> Gather -> Map -> Reduce pipeline for processing long documents in chunks.\n\n"
             f"Key requirements:\n"
             f"1. chunk_size: Choose an appropriate token count (typically 500-2000) based on the complexity of the task\n"
-            f"2. split_key: Identify the document field to split from the original operation's prompt\n"
+            f"2. split_key: Identify the document field to split from the original operation's prompt. Make sure to use the same field as the original operation's prompt.\n"
             f"3. sub_prompt: Take the original prompt exactly but:\n"
             f"   - Add instruction at start: 'You are analyzing a chunk of a larger document.'\n"
             f"   - Replace '{{{{ input.<split_key> }}}}' with '{{{{ input.<split_key>_chunk_rendered }}}}'\n"
@@ -243,7 +243,7 @@ class DocumentChunkingDirective(Directive):
 
     def llm_instantiate(
         self,
-        operators, 
+        operators,
         input_file_path,
         original_op: Dict,
         agent_llm: str,

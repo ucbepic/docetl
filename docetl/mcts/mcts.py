@@ -541,7 +541,7 @@ class MCTS:
             node.parsed_yaml.get("datasets", {}).get("articles", {}).get("path")
         )
         rewrites = []
-        
+
         # Mark action as used
         if optimize_goal == "acc":
             for target_op in target_op_list:
@@ -550,7 +550,6 @@ class MCTS:
             for target_op in target_op_list:
                 node.mark_action_used_cost(target_op, directive)
 
-        
         try:
             new_ops_list, message_history = directive.instantiate(
                 operators=node.parsed_yaml["operations"],
@@ -559,16 +558,25 @@ class MCTS:
                 optimize_goal=optimize_goal,
                 global_default_model=orig_default_model,
                 message_history=messages,
-                input_file_path = input_file_path
+                input_file_path=input_file_path,
             )
             if new_ops_list is None:
-                raise RuntimeError("Failed to instantiate directive: no new ops list returned after retries.")
-            
+                raise RuntimeError(
+                    "Failed to instantiate directive: no new ops list returned after retries."
+                )
+
             rewrites.append(new_ops_list)
-            
+
         except Exception as e:
             raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
 
+        # Get the first dataset's path dynamically (do not hardcode)
+        datasets = node.parsed_yaml.get("datasets", {})
+        input_file_path = None
+        if isinstance(datasets, dict) and datasets:
+            first_dataset = next(iter(datasets.values()))
+            if isinstance(first_dataset, dict):
+                input_file_path = first_dataset.get("path")
 
         self.action_counts[directive] += 1
         children = []

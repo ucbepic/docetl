@@ -1,15 +1,17 @@
+import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 from litellm import completion
 from pydantic import BaseModel, Field
-import json
+
 # Configuration constants
 MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS = 3
-DEFAULT_MODEL = "gpt-4.1"
+DEFAULT_MODEL = "o3"
 DEFAULT_MAX_TPM = 5000000
 AVAILABLE_MODELS = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4o", "gpt-4.1"]
 DEFAULT_OUTPUT_DIR = "./outputs"
+
 
 class TestResult(BaseModel):
     test_name: str
@@ -161,7 +163,10 @@ class Directive(BaseModel, ABC):
             reason: str
 
         response = completion(
-            model=agent_llm, messages=messages, response_format=JudgeResponse, azure=True
+            model=agent_llm,
+            messages=messages,
+            response_format=JudgeResponse,
+            azure=True,
         )
 
         # Parse the JSON response

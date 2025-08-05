@@ -22,7 +22,7 @@ class OperatorFusionDirective(Directive):
         default="Combines two sequential operations into a single operation to reduce LLM processing costs by avoiding duplicate document reads and API calls"
     )
     when_to_use: str = Field(
-        default="When you have two sequential LLM operations processing the same document keys and want to optimize cost by combining them into one operation that performs both tasks"
+        default="When you have two sequential LLM operations processing the same documents keys and want to optimize cost by combining them into one operation that performs both tasks. The target operators should be two consecutive operations.  Make sure you specify two operators when choosing this directive."
     )
 
     instantiate_schema_type: Type[BaseModel] = Field(
@@ -215,9 +215,6 @@ class OperatorFusionDirective(Directive):
         new_ops_list = deepcopy(ops_list)
         op1_name, op2_name = target_ops[0], target_ops[1]
 
-        assert (
-            op1_name != "reduce" and op2_name != "reduce"
-        ), "Cannot apply fusion on reduce"
 
         # Find the operations
         op1_idx = next(i for i, op in enumerate(ops_list) if op["name"] == op1_name)
@@ -226,6 +223,10 @@ class OperatorFusionDirective(Directive):
 
         # Determine fused operation type and schema based on the combination
         op1_type, op2_type = op1.get("type"), op2.get("type")
+
+        assert (
+            op1_type != "reduce" and op2_type != "reduce"
+        ), "Cannot apply fusion on reduce"
 
         # Create base fused operation
         fused_op = {
@@ -243,7 +244,6 @@ class OperatorFusionDirective(Directive):
                 "schema": {**op1["output"]["schema"], **op2["output"]["schema"]}
             }
             needs_code_filter = False
-
         elif (op1_type == "map" and op2_type == "filter") or (
             op1_type == "filter" and op2_type == "map"
         ):

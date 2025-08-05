@@ -295,7 +295,7 @@ class MCTS:
         print(action_stats_str)
 
         input_schema = load_input_doc(node.yaml_file_path)
-        
+
         user_message = f"""
         I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.
         Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and specify which operators (specify by their names) in the pipeline the directive should be applied to.
@@ -541,51 +541,7 @@ class MCTS:
             node.parsed_yaml.get("datasets", {}).get("articles", {}).get("path")
         )
         rewrites = []
-
-        # Independent retry loop for instantiation
-        max_instantiation_retries = 3
-        instantiation_retry_count = 0
-
-        while instantiation_retry_count < max_instantiation_retries:
-            try:
-                new_ops_list, message_history = directive.instantiate(
-                    operators=node.parsed_yaml["operations"],
-                    target_ops=target_op_list,
-                    agent_llm=self.model,
-                    optimize_goal=optimize_goal,
-                    global_default_model=orig_default_model,
-                    message_history=messages,
-                    input_file_path=input_file_path,
-                )
-
-                if new_ops_list is None:
-                    instantiation_retry_count += 1
-                    print(
-                        f"Instantiation returned None. Retry {instantiation_retry_count}/{max_instantiation_retries}"
-                    )
-                    if instantiation_retry_count < max_instantiation_retries:
-                        continue
-                    else:
-                        raise RuntimeError(
-                            "Failed to instantiate directive: no new ops list returned after retries."
-                        )
-
-                # Success - break out of retry loop
-                rewrites.append(new_ops_list)
-                break
-
-            except Exception as e:
-                instantiation_retry_count += 1
-                print(
-                    f"Instantiation failed: {str(e)}. Retry {instantiation_retry_count}/{max_instantiation_retries}"
-                )
-
-                if instantiation_retry_count >= max_instantiation_retries:
-                    raise RuntimeError(
-                        f"Failed to instantiate directive after {max_instantiation_retries} retries: {str(e)}"
-                    )
-                # Continue to next retry attempt
-
+        
         # Mark action as used
         if optimize_goal == "acc":
             for target_op in target_op_list:
@@ -593,6 +549,26 @@ class MCTS:
         else:
             for target_op in target_op_list:
                 node.mark_action_used_cost(target_op, directive)
+
+        
+        try:
+            new_ops_list, message_history = directive.instantiate(
+                operators=node.parsed_yaml["operations"],
+                target_ops=target_op_list,
+                agent_llm=self.model,
+                optimize_goal=optimize_goal,
+                global_default_model=orig_default_model,
+                message_history=messages,
+                input_file_path = input_file_path
+            )
+            if new_ops_list is None:
+                raise RuntimeError("Failed to instantiate directive: no new ops list returned after retries.")
+            
+            rewrites.append(new_ops_list)
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
+
 
         self.action_counts[directive] += 1
         children = []

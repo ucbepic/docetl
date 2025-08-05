@@ -55,6 +55,7 @@ class ParetoFrontier:
             "blackvault": "avg_distinct_locations",
             "game_reviews": "weighted_score",
             "medec": "combined_score",
+            "sustainability": "economic_activity_accuracy",
         }
 
         # Internal state

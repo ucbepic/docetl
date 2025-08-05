@@ -168,6 +168,8 @@ def run_baseline_experiment(
                 sample_data_path = Path("experiments/reasoning/data/blackvault_random_sample.json")
             elif dataset.lower() == "game_reviews":
                 sample_data_path = Path("experiments/reasoning/data/reviews.json")
+            elif dataset.lower() == "sustainability":
+                sample_data_path = Path("experiments/reasoning/data/company_reports_sample.json")
             else:
                 sample_data_path = None
             

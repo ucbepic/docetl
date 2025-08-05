@@ -5,6 +5,7 @@ from .cuad import evaluate_results as cuad_evaluate
 from .blackvault import evaluate_results as blackvault_evaluate
 from .game_reviews import evaluate_results as game_reviews_evaluate
 from .medec import evaluate_results as medec_evaluate
+from .sustainability import evaluate_results as sustainability_evaluate
 
 def get_evaluate_func(dataset):
     """
@@ -37,6 +38,12 @@ def get_evaluate_func(dataset):
             return medec_evaluate(method_name, results_file_path)
         return medec_eval_func
     
+    elif dataset.lower() == "sustainability":
+        def sustainability_eval_func(method_name, results_file_path):
+            ground_truth_path = "experiments/reasoning/data/company_reports_sample.json"
+            return sustainability_evaluate(method_name, results_file_path, ground_truth_path)
+        return sustainability_eval_func
+    
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
 
@@ -62,6 +69,10 @@ def compute_dataset_stats(data, dataset_name="data"):
     for record in data:
         if isinstance(record, dict):
             for key, value in record.items():
+                # Skip if key starts with "GT "
+                if key.startswith("GT "):
+                    continue
+                
                 if key not in field_stats:
                     field_stats[key] = {'total_chars': 0, 'count': 0, 'type': type(value).__name__}
                 
@@ -402,6 +413,71 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
             # Create plots and compute AUC
             pareto_auc = _create_medec_plots_and_auc(eval_results, output_path)
     
+    elif dataset.lower() == "sustainability":
+        if ground_truth_path is None:
+            default_gt = Path("experiments/reasoning/data/company_reports_sample.json")
+            ground_truth_path = str(default_gt)
+
+        print(f"\n🧪 Evaluating sustainability analysis results ...")
+
+        for item in nodes_or_files:
+            # Handle both node objects and file paths
+            if hasattr(item, 'result_path'):
+                # This is a node object
+                jf = item.result_path
+                node_data = {
+                    "node_id": item.get_id(),
+                    "cost": item.cost,
+                    "visits": getattr(item, 'visits', 0),
+                    "value": getattr(item, 'value', 0),
+                }
+            else:
+                # This is a file path with associated data
+                jf = item["file_path"]
+                node_data = {
+                    "node_id": item.get("node_id", "unknown"),
+                    "cost": item.get("cost", 0.0),
+                    "visits": item.get("visits", 0),
+                    "value": item.get("value", 0),
+                }
+            
+            if jf is None or not Path(jf).exists():
+                continue
+            
+            try:
+                metrics = sustainability_evaluate(method_name, jf, ground_truth_path)
+                jp = Path(jf).resolve()
+                op_root = output_path.resolve()
+                if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
+                    display_path = str(jp.relative_to(op_root))
+                else:
+                    display_path = jp.name
+
+                result = {
+                    "file": display_path,
+                    "economic_activity_accuracy": metrics["economic_activity_accuracy"],
+                    "company_name_accuracy": metrics["company_name_accuracy"],
+                    "total_companies_processed": metrics["total_companies_processed"],
+                    "avg_findings_length": metrics["avg_findings_length"],
+                    "total_economic_activities": metrics["total_economic_activities"],
+                    **node_data
+                }
+                
+                # Add frontier information if available
+                if hasattr(item, 'result_path'):
+                    result.update({
+                        "mcts_accuracy": getattr(item, 'mcts_accuracy', None),
+                        "on_frontier": getattr(item, 'on_frontier', False),
+                    })
+                
+                eval_results.append(result)
+            except Exception as e:
+                print(f"   ⚠️  Evaluation failed for {jf}: {e}")
+
+        if eval_results:
+            # Create plots and compute AUC
+            pareto_auc = _create_sustainability_plots_and_auc(eval_results, output_path)
+    
     # Save evaluation results
     if eval_results:
         eval_out_file = output_path / "evaluation_metrics.json"
@@ -626,6 +702,61 @@ def _create_medec_plots_and_auc(eval_results, output_path):
 
         if pareto_auc is not None:
             print(f"📐 Area under Pareto frontier (Cost vs Combined Score): {pareto_auc:.4f}")
+    except Exception as e:
+        print(f"⚠️  Failed to compute Pareto AUC: {e}")
+    
+    return pareto_auc
+
+def _create_sustainability_plots_and_auc(eval_results, output_path):
+    """Create plots and compute AUC for sustainability dataset"""
+    pareto_auc = None
+    
+    # Plot Economic Activity Accuracy vs Cost scatter
+    try:
+        costs = [row["cost"] for row in eval_results]
+        accuracies = [row["economic_activity_accuracy"] for row in eval_results]
+        colors = ["blue" if row.get("on_frontier", False) else "grey" for row in eval_results]
+
+        plt.figure(figsize=(8,6))
+        plt.scatter(costs, accuracies, c=colors)
+        for row in eval_results:
+            mcts_accuracy = row.get("mcts_accuracy", 0)
+            if mcts_accuracy is not None:
+                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            else:
+                label = row["file"]
+            plt.annotate(label, (row["cost"], row["economic_activity_accuracy"]), textcoords="offset points", xytext=(4,4), fontsize=8)
+
+        plt.xlabel("Cost ($)")
+        plt.ylabel("Economic Activity Accuracy")
+        plt.title("Cost vs Economic Activity Accuracy for all plans")
+        plt.grid(True, linestyle="--", alpha=0.5)
+        plot_path = output_path / "cost_vs_economic_activity_accuracy.png"
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"📈 Scatter plot saved to: {plot_path}")
+    except Exception as e:
+        print(f"⚠️  Failed to create scatter plot: {e}")
+    
+    # Compute Area Under the Pareto Frontier (Cost vs Economic Activity Accuracy)
+    try:
+        frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
+        if len(frontier_points) >= 2:
+            # Sort frontier points by cost (x-axis)
+            frontier_points.sort(key=lambda r: r["cost"])
+
+            pareto_auc = 0.0
+            prev_point = frontier_points[0]
+            for curr_point in frontier_points[1:]:
+                width = curr_point["cost"] - prev_point["cost"]
+                if width > 0:  # Ignore duplicate cost values
+                    pareto_auc += 0.5 * width * (prev_point["economic_activity_accuracy"] + curr_point["economic_activity_accuracy"])
+                prev_point = curr_point
+        elif frontier_points:
+            pareto_auc = 0.0  # Single point frontier → zero area
+
+        if pareto_auc is not None:
+            print(f"📐 Area under Pareto frontier (Cost vs Economic Activity Accuracy): {pareto_auc:.4f}")
     except Exception as e:
         print(f"⚠️  Failed to compute Pareto AUC: {e}")
     

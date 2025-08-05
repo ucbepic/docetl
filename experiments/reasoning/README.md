@@ -40,6 +40,7 @@ Run the MCTS optimization experiment:
 ```bash
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/cuad.yaml \
+  --dataset_path experiments/reasoning/data/CUAD_input_data.json \
   --experiment_name cuad_mcts \
   --max_iterations 10 \
   --model gpt-4.1
@@ -67,6 +68,7 @@ Run the MCTS optimization experiment:
 ```bash
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/blackvault.yaml \
+  --dataset_path experiments/reasoning/data/blackvault_articles_pdfs.json \
   --experiment_name blackvault_mcts \
   --max_iterations 10 \
   --model gpt-4.1 \
@@ -95,6 +97,7 @@ Run the MCTS optimization experiment:
 ```bash
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/game_reviews.yaml \
+  --dataset_path experiments/reasoning/data/reviews.json \
   --experiment_name game_reviews_mcts \
   --max_iterations 10 \
   --model gpt-4.1 \
@@ -123,10 +126,40 @@ Run the MCTS optimization experiment:
 ```bash
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/medec.yaml \
+  --dataset_path experiments/reasoning/data/medec_sample_50.json \
   --experiment_name medec_mcts \
   --max_iterations 10 \
   --model gpt-4.1 \
   --dataset medec
+```
+
+### Sustainability Experiments
+
+#### Sustainability Baseline
+
+Run the baseline agent experiment:
+
+```bash
+python experiments/reasoning/run_baseline.py \
+  --yaml_path experiments/reasoning/pipelines/sustainability.yaml \
+  --experiment_name sustainability_baseline \
+  --iterations 5 \
+  --model gpt-4.1 \
+  --dataset sustainability
+```
+
+#### Sustainability MCTS
+
+Run the MCTS optimization experiment:
+
+```bash
+python experiments/reasoning/run_mcts.py \
+  --yaml_path experiments/reasoning/pipelines/sustainability.yaml \
+  --dataset_path experiments/reasoning/data/company_reports_sample.json \
+  --experiment_name sustainability_mcts \
+  --max_iterations 10 \
+  --model gpt-4.1 \
+  --dataset sustainability
 ```
 
 ## Output
@@ -137,12 +170,14 @@ Results are saved to `outputs/{experiment_name}/` containing:
 - For BlackVault: `cost_vs_avg_locations.png` - Plot of cost vs average distinct locations
 - For Game Reviews: Performance metrics for review analysis and selection
 - For MEDEC: `cost_vs_combined_score.png` - Plot showing medical error detection performance
+- For Sustainability: Performance metrics for economic activity classification and sustainability analysis
 
 ## Parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `--yaml_path` | Required | Path to input pipeline YAML |
+| `--dataset_path` | Required | Path to dataset file for sample input data |
 | `--experiment_name` | Required | Unique experiment identifier |
 | `--iterations` | `1` | Number of optimization rounds (baseline) |
 | `--max_iterations` | `100` | MCTS search iterations |

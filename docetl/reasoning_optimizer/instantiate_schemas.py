@@ -311,6 +311,46 @@ class DocCompressionInstantiateSchema(BaseModel):
         default="gpt-4o-mini", description="The model to use for extraction."
     )
 
+    def validate_document_keys_exists_in_input(self, input_file_path: str) -> None:
+        """
+        Validates that the split_key exists in the input JSON file items.
+
+        Args:
+            input_file_path (str): Path to the input JSON file
+
+        Raises:
+            ValueError: If document_keys is not found in any input items
+        """
+
+        if not os.path.exists(input_file_path):
+            raise ValueError(f"Input file not found: {input_file_path}")
+
+        try:
+            with open(input_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in input file: {e}")
+
+        if not isinstance(data, list) or not data:
+            raise ValueError("Input file must contain a non-empty list of items")
+
+        # Check if document_keys exists in any of the input items
+        available_keys = set()
+        document_keys_found = False
+        
+        for item in data:
+            if isinstance(item, dict):
+                available_keys.update(item.keys())
+                if self.document_key in available_keys:
+                    document_keys_found = True
+        
+        
+        if not document_keys_found:
+            raise ValueError(
+                f"document_keys '{self.document_key}' not found in any input items. "
+                f"Available keys: {sorted(available_keys)}"
+            )
+
 
 class DeterministicDocCompressionInstantiateSchema(BaseModel):
     """

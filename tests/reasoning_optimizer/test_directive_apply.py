@@ -18,7 +18,9 @@ from docetl.reasoning_optimizer.directives import (
     DeterministicDocCompressionDirective,
     DocumentChunkingDirective,
     ChunkHeaderSummaryDirective,
-    TakeHeadTailDirective
+    TakeHeadTailDirective,
+    ClarifyInstructionsDirective,
+    SwapWithCodeDirective
 )
 
 
@@ -585,6 +587,116 @@ def test_take_head_tail_apply():
     assert len(transformed_result["content"].split()) <= 12  # 5 + " ... " + 5 = at most 12 tokens
 
 
+def test_clarify_instructions_apply():
+    """Test that clarify instructions apply doesn't crash"""
+    directive = ClarifyInstructionsDirective()
+    
+    # Simple pipeline with one map op
+    ops_list = [
+        {
+            "name": "analyze_feedback",
+            "type": "map",
+            "prompt": "Analyze the feedback: {{ input.feedback }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"sentiment": "string", "issues": "list[str]"}}
+        }
+    ]
+    
+    # Mock rewrite schema
+    from docetl.reasoning_optimizer.instantiate_schemas import ClarifyInstructionsInstantiateSchema
+    rewrite = ClarifyInstructionsInstantiateSchema(
+        clarified_prompt="Analyze the customer feedback in {{ input.feedback }}. Determine the overall sentiment (positive, negative, neutral) and identify specific issues mentioned. Look for complaints about: product quality, delivery, customer service, pricing. Extract concrete problems rather than general dissatisfaction."
+    )
+    
+    result = directive.apply("gpt-4o-mini", ops_list, ["analyze_feedback"], rewrite)
+    
+    # Should return modified ops list with updated prompt
+    assert isinstance(result, list)
+    assert len(result) == 1  # Same number of operations
+    assert result[0]["name"] == "analyze_feedback"
+    assert result[0]["type"] == "map"
+    assert result[0]["prompt"] == rewrite.clarified_prompt
+    assert "{{ input.feedback }}" in result[0]["prompt"]  # Should preserve input variables
+    assert result[0]["model"] == "gpt-4o-mini"  # Should preserve other fields
+
+
+def test_swap_with_code_apply():
+    """Test that swap with code apply doesn't crash"""
+    directive = SwapWithCodeDirective()
+    
+    # Test with reduce operation - no map needed (code reduce outputs correct schema)
+    ops_list = [
+        {
+            "name": "count_locations",
+            "type": "reduce",
+            "reduce_key": "_all",
+            "prompt": "Count unique locations: {% for input in inputs %}{{ input.location }}{% endfor %}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"unique_count": "int", "locations": "list[str]"}}
+        }
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import SwapWithCodeInstantiateSchema
+    rewrite_no_map = SwapWithCodeInstantiateSchema(
+        code_reduce_name="code_count_locations",
+        code='''def transform(inputs):
+    locations = set()
+    for item in inputs:
+        if "location" in item:
+            locations.add(item["location"])
+    return {"unique_count": len(locations), "locations": sorted(list(locations))}''',
+        map_prompt=None  # No map needed
+    )
+    
+    result = directive.apply("gpt-4o-mini", ops_list, ["count_locations"], rewrite_no_map)
+    assert isinstance(result, list)
+    assert len(result) == 1  # Should replace reduce with code_reduce only
+    assert result[0]["name"] == "count_locations"  # Should preserve original name
+    assert result[0]["type"] == "code_reduce"
+    assert "code" in result[0]
+    assert result[0]["reduce_key"] == "_all"
+    
+    # Test with reduce operation + map needed (code reduce needs formatting)
+    ops_list_with_map = [
+        {
+            "name": "summarize_locations", 
+            "type": "reduce",
+            "reduce_key": "_all",
+            "prompt": "Summarize all locations: {% for input in inputs %}{{ input.location }}{% endfor %}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"summary": "str", "count": "int"}}
+        }
+    ]
+    
+    rewrite_with_map = SwapWithCodeInstantiateSchema(
+        code_reduce_name="collect_locations",
+        code='''def transform(inputs):
+    locations = []
+    for item in inputs:
+        if "location" in item:
+            locations.append(item["location"])
+    return {"all_locations": locations}''',
+        map_prompt="Create a summary from these locations {{ input.all_locations }}. Output: summary (descriptive text), count (number of locations)."
+    )
+    
+    result_with_map = directive.apply("gpt-4o-mini", ops_list_with_map, ["summarize_locations"], rewrite_with_map)
+    assert isinstance(result_with_map, list)
+    assert len(result_with_map) == 2  # Should have code_reduce + map
+    
+    # Check code reduce operation
+    assert result_with_map[0]["name"] == "collect_locations"
+    assert result_with_map[0]["type"] == "code_reduce"
+    assert "code" in result_with_map[0]
+    assert result_with_map[0]["reduce_key"] == "_all"
+    
+    # Check map operation
+    assert result_with_map[1]["name"] == "summarize_locations"  # Should preserve original name
+    assert result_with_map[1]["type"] == "map"
+    assert "prompt" in result_with_map[1]
+    assert result_with_map[1]["model"] == "gpt-4o-mini"
+    assert "output" in result_with_map[1]
+
+
 if __name__ == "__main__":
     # Run all tests
     test_chaining_apply()
@@ -635,5 +747,11 @@ if __name__ == "__main__":
 
     test_take_head_tail_apply()
     print("✅ Take head tail apply test passed")
+
+    test_clarify_instructions_apply()
+    print("✅ Clarify instructions apply test passed")
+
+    test_swap_with_code_apply()
+    print("✅ Swap with code apply test passed")
 
     print("\n🎉 All directive apply tests passed!")

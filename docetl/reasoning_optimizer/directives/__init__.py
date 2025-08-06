@@ -22,6 +22,8 @@ from .operator_fusion import OperatorFusionDirective
 from .doc_chunking import DocumentChunkingDirective
 from .chunk_header_summary import ChunkHeaderSummaryDirective
 from .take_head_tail import TakeHeadTailDirective
+from .clarify_instructions import ClarifyInstructionsDirective
+from .swap_with_code import SwapWithCodeDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
@@ -38,6 +40,8 @@ ALL_DIRECTIVES = [
     DocumentChunkingDirective(),
     ChunkHeaderSummaryDirective(),
     TakeHeadTailDirective(),
+    ClarifyInstructionsDirective(),
+    SwapWithCodeDirective(),
 ]
 
 ALL_COST_DIRECTIVES = [
@@ -131,6 +135,8 @@ __all__ = [
     "DocumentChunkingDirective",
     "ChunkHeaderSummaryDirective",
     "TakeHeadTailDirective",
+    "ClarifyInstructionsDirective",
+    "SwapWithCodeDirective",
     "ALL_DIRECTIVES",
     "DIRECTIVE_REGISTRY", 
     "get_all_directive_strings",

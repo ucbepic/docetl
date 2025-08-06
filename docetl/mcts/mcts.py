@@ -610,17 +610,15 @@ class MCTS:
 
         orig_default_model = node.parsed_yaml.get("default_model")
         
-        # Get input file path from any dataset (since dataset name can vary)
-        input_file_path = None
         datasets = node.parsed_yaml.get("datasets", {})
-        if datasets:
-            # Get the first dataset's path (assuming there's only one dataset)
-            for dataset_name, dataset_config in datasets.items():
-                if isinstance(dataset_config, dict) and "path" in dataset_config:
-                    input_file_path = dataset_config["path"]
-                    break
+        input_file_path = None
+        if isinstance(datasets, dict) and datasets:
+            first_dataset = next(iter(datasets.values()))
+            if isinstance(first_dataset, dict):
+                input_file_path = first_dataset.get("path")
+
         rewrites = []
-        
+
         # Mark action as used
         for target_op in target_op_list:
             node.mark_action_used(target_op, directive)
@@ -633,13 +631,16 @@ class MCTS:
                 optimize_goal=optimize_goal,
                 global_default_model=orig_default_model,
                 message_history=messages,
-                input_file_path = input_file_path
+                input_file_path=input_file_path,
+                pipeline_code=node.parsed_yaml,
             )
             if new_ops_list is None:
-                raise RuntimeError("Failed to instantiate directive: no new ops list returned after retries.")
-            
+                raise RuntimeError(
+                    "Failed to instantiate directive: no new ops list returned after retries."
+                )
+
             rewrites.append(new_ops_list)
-            
+
         except Exception as e:
             print(e)
             raise RuntimeError(f"Failed to instantiate directive: {str(e)}")

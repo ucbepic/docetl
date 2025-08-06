@@ -23,7 +23,7 @@ class ReduceChainingDirective(Directive):
         default="Transform a reduce operation that processes long documents by inserting a Map step that extracts/processes relevant information from each document first, then modifying the reduce prompt to work with the processed results instead of full document content."
     )
     when_to_use: str = Field(
-        default="When a reduce operation iterates through long documents to extract specific information (e.g., locations, entities, themes) that could be pre-extracted per document to make the reduce step more efficient and focused."
+        default="When a reduce operation iterates through long documents to extract specific information (e.g., locations, entities, themes) that could be pre-extracted per document to make the reduce step more efficient and focused. The target operator must be a reduce operator. You should specify a reduce operator as the target operator when choosing this directive."
     )
     instantiate_schema_type: Type[BaseModel] = ReduceChainingInstantiateSchema
 
@@ -128,8 +128,7 @@ class ReduceChainingDirective(Directive):
         original_op: Dict,
         expected_document_key: str,
         agent_llm: str,
-        message_history: list = [],
-        temperature=0.8,
+        message_history: list = []
     ) -> tuple:
         """
         Use LLM to instantiate this directive by decomposing the reduce operation.
@@ -166,8 +165,7 @@ class ReduceChainingDirective(Directive):
                 api_base=os.environ.get("AZURE_API_BASE"),
                 api_version=os.environ.get("AZURE_API_VERSION"),
                 azure=True,
-                response_format=ReduceChainingInstantiateSchema,
-                temperature=temperature,
+                response_format=ReduceChainingInstantiateSchema
             )
 
             try:
@@ -252,7 +250,6 @@ class ReduceChainingDirective(Directive):
         message_history: list = [],
         optimize_goal="acc",
         global_default_model: str = None,
-        temperature=0.8,
         **kwargs,
     ) -> tuple:
         """
@@ -273,9 +270,9 @@ class ReduceChainingDirective(Directive):
         # Extract expected document key from the reduce prompt template
         prompt_template = target_op_config["prompt"]
         # Find all occurrences of {{ input.key }} in the prompt
-        input_key_pattern = r"\{\{\s*input\.([^\}\s]+)\s*\}\}"
+        input_key_pattern = r"\{\{\s*([^\}\s]+)\s*\}\}"
         input_keys = list(set(re.findall(input_key_pattern, prompt_template)))
-
+        print("input_keys: ", input_keys)
         # Heuristic: pick the key that's most likely to contain document content
         # Look for common document field names
         document_key_candidates = [
@@ -288,9 +285,7 @@ class ReduceChainingDirective(Directive):
         ]
 
         if document_key_candidates:
-            expected_document_key = document_key_candidates[
-                0
-            ]  # Pick the first candidate
+            expected_document_key = document_key_candidates[0]  # Pick the first candidate
         elif input_keys:
             expected_document_key = input_keys[0]  # Fall back to the first input key
         else:
@@ -304,7 +299,6 @@ class ReduceChainingDirective(Directive):
             expected_document_key,
             agent_llm,
             message_history,
-            temperature,
         )
 
         # Apply the rewrite to the operators

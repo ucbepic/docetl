@@ -10,8 +10,10 @@ import yaml
 
 from docetl.reasoning_optimizer.directives import (
     ALL_DIRECTIVES,
+    ALL_COST_DIRECTIVES,
     Directive,
     get_all_directive_strings,
+    get_all_cost_directive_strings,
 )
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
@@ -112,8 +114,12 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            if self.mcts_iteration():
-                self.iteration_count += 1
+            if self.iteration_count < 5: 
+                if self.mcts_cost_iteration():
+                    self.iteration_count += 1
+            else: 
+                if self.mcts_iteration():
+                    self.iteration_count += 1
 
         # Final statistics
         print(f"\nMCTS search completed!")
@@ -153,33 +159,98 @@ class MCTS:
         try:
             acc_children = self.expand(leaf, optimize_goal="acc")
         except RuntimeError as e:
+            print(e)
             has_leaf_acc = 0
 
-        # has_leaf_cost = 1
-        # try:
-        #     cost_children = self.expand(leaf, optimize_goal="cost")
-        # except RuntimeError as e:
-        #     has_leaf_cost= 0
-
         # 3. Simulation: Run simulations from the leaf
-        print("SIMULATION")
 
         is_frontier_updated = False
         if has_leaf_acc:
-            print("HAS LEAF ACC")
+            print("HAS LEAF ACC SIMULATION")
             for leaf_acc in acc_children:
                 affected_nodes, is_frontier_updated = self.simulate(leaf_acc)
                 # Check if any node was added to the frontier (value = 1)
                 self.backpropagate(affected_nodes, leaf_acc)
 
-            # if has_leaf_cost:
-            #     print("HAS LEAF COST")
-            #     for leaf_cost in cost_children:
-            #         affected_nodes = self.simulate(leaf_cost)
-            #         # Check if any node was added to the frontier (value = 1)
-            #         if any(val == 1 for val in affected_nodes.values()):
-            #             found_new_pareto_plan = True
-            #         self.backpropagate(affected_nodes, leaf_cost)
+            # Update counter for early stopping
+            if is_frontier_updated:
+                self.iterations_without_improvement = 0
+            else:
+                self.iterations_without_improvement += 1
+
+        self.print_tree_visits_and_values()
+        return has_leaf_acc
+
+    def mcts_cost_iteration(self):
+        """Perform one complete MCTS iteration optimizing for cost."""
+        # Track if any new Pareto optimal plans are found in this iteration
+        found_new_pareto_plan = False
+
+        # 1. Selection: Find the best leaf node
+        print("SELECTION (COST)")
+        leaf = self.select(self.root)
+        print("SELECTED NODE: ", leaf.get_id())
+
+        # 2. Expansion: Always attempt to expand the leaf, catch errors
+        print("EXPANSION (COST)")
+        cost_children = []
+
+        has_leaf_cost = 1
+        try:
+            cost_children = self.expand(leaf, optimize_goal="cost")
+        except RuntimeError as e:
+            print(e)
+            has_leaf_cost = 0
+
+        # 3. Simulation: Run simulations from the leaf
+        is_frontier_updated = False
+        if has_leaf_cost:
+            print("HAS LEAF COST SIMULATION")
+            for leaf_cost in cost_children:
+                affected_nodes, is_frontier_updated = self.simulate(leaf_cost)
+                # Check if any node was added to the frontier (value = 1)
+                self.backpropagate(affected_nodes, leaf_cost)
+
+            # Update counter for early stopping
+            if is_frontier_updated:
+                self.iterations_without_improvement = 0
+            else:
+                self.iterations_without_improvement += 1
+
+        self.print_tree_visits_and_values()
+        return has_leaf_cost
+
+    def mcts_iteration(self):
+        """Perform one complete MCTS iteration."""
+        # Track if any new Pareto optimal plans are found in this iteration
+        found_new_pareto_plan = False
+
+        # 1. Selection: Find the best leaf node
+        print("SELECTION")
+        leaf = self.select(self.root)
+        print("SELECTED NODE: ", leaf.get_id())
+
+        # 2. Expansion: Always attempt to expand the leaf, catch errors
+        print("EXPANSION")
+        acc_children = []
+        # cost_children = []
+
+        has_leaf_acc = 1
+        try:
+            acc_children = self.expand(leaf, optimize_goal="acc")
+        except RuntimeError as e:
+            print(e)
+            has_leaf_acc = 0
+
+        # 3. Simulation: Run simulations from the leaf
+
+        is_frontier_updated = False
+        if has_leaf_acc:
+            print("HAS LEAF ACC SIMULATION")
+            for leaf_acc in acc_children:
+                affected_nodes, is_frontier_updated = self.simulate(leaf_acc)
+                # Check if any node was added to the frontier (value = 1)
+                self.backpropagate(affected_nodes, leaf_acc)
 
             # Update counter for early stopping
             if is_frontier_updated:
@@ -342,6 +413,7 @@ class MCTS:
         - High average reward indicates good historical performance
         - Consider both immediate improvement and learning about the action space
 
+        Make sure you read every rewrite directive carefully.
         Make sure you only choose from the valid choices above and avoid already used combinations.
 
         Input document schema with token statistics: {input_schema} \n
@@ -350,7 +422,8 @@ class MCTS:
         """
         return user_message
 
-    def expansion_prompt_cost(self, action_options, input_query) -> str:
+
+    def expansion_prompt_cost(self, node, action_options, input_query) -> str:
 
         availabel_actions_str = ""
         for item in action_options:
@@ -360,13 +433,25 @@ class MCTS:
             availabel_actions_str += action_str
 
         print(availabel_actions_str)
+        action_stats = []
+        for action in self.available_actions:
+            reward = self.action_rewards.get(action, 0)
+            count = self.action_counts.get(action, 0)
+            avg_reward = reward / count if count > 0 else "Unknown (never tried)"
+            action_stats.append(
+                f"- {action.name}: {count} uses, avg reward: {avg_reward}"
+            )
 
-        input_schema = self.dataset_stats
+        action_stats_str = "\n".join(action_stats)
+
+        print(action_stats_str)
+
+        input_schema = load_input_doc(node.yaml_file_path)
 
         user_message = f"""
-        I have a set of operations used to process long documents, along with a list of possible rewrite directives.
-        Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would reduce the cost of the plan and specify which operators (specify by their names) in the pipeline the directive should be applied to.
-        Make sure that your chosen directive is in the provided list of rewrite directives.
+        I have a set of operations used to process long documents, along with a list of possible rewrite directives designed to improve the cost effectiveness of the pipeline, while maintaining similar or better accuracy.
+        Given a query pipeline composed of these operations, recommend one specific rewrite directive (identified by its name from the provided list) that would improve cost effectiveness. Also, specify which operator(s) (by name) in the pipeline the directive should be applied to.
+        xMake sure your recommended directive is selected from the provided list.
 
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
@@ -390,10 +475,24 @@ class MCTS:
         {op_resolve.to_string()}\n
 
         Rewrite directives:
-        {get_all_directive_strings()}\n
+        {get_all_cost_directive_strings()}\n
 
-        Your valid choice of operation and rewrite directive combination. Only choose one of these:
+        Your valid choice of operation and rewrite directive combination. Only choose one of these:\n
         {availabel_actions_str}
+
+        Action Performance History:
+        Based on previous executions across DIFFERENT query pipelines, here's how each action has performed:\n
+        {action_stats_str}
+
+        Note: These statistics come from applying actions to various other query pipelines, not the current one. Use this as general guidance about action effectiveness, but consider that performance may vary significantly for your specific pipeline structure and data.
+
+        Selection Strategy:
+        Consider the current query pipeline, which directive can best improve cost effectiveness. 
+        Prioritize exploration of untested actions while balancing with exploitation of proven performers:
+        - Actions with 0 uses have unknown potential please explore if applicable. 
+        - Actions with few uses might need more data to be reliable
+        - High average reward indicates good historical performance
+        - Consider both immediate improvement and learning about the action space
 
         Make sure you only choose from the valid choices above and avoid already used combinations.
 
@@ -402,6 +501,7 @@ class MCTS:
         The original query in YAML format using our operations: {input_query} \n
         """
         return user_message
+
 
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
         """
@@ -447,12 +547,17 @@ class MCTS:
             )
 
         elif optimize_goal == "cost":
-            action_options = []
+            action_options = []  # a list of tuple
             for op_name in op_list:
-                used_actions = node.used_actions_cost[op_name]
-                change_model = self.directive_name_to_obj.get("change model")
-                if change_model not in used_actions:
-                    action_options.append((op_name, "change model"))
+                if op_name in node.used_actions_cost:
+                    used_actions = node.used_actions_cost[op_name]
+                else:
+                    used_actions = set()
+                action_space = (
+                    set(ALL_COST_DIRECTIVES) - used_actions
+                )  # The cost actions that are not used on this operator
+                for action in action_space:
+                    action_options.append((op_name, action.name))
             print(action_options)
             print("OPTIMIZING COST:")
             if len(action_options) < 1:
@@ -461,7 +566,7 @@ class MCTS:
                     "No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable."
                 )
             user_message = self.expansion_prompt_cost(
-                action_options=action_options, input_query=node.parsed_yaml
+                node, action_options=action_options, input_query=node.parsed_yaml
             )
 
         # Initialize messages once before retry loop
@@ -537,9 +642,16 @@ class MCTS:
             )
 
         orig_default_model = node.parsed_yaml.get("default_model")
-        input_file_path = (
-            node.parsed_yaml.get("datasets", {}).get("articles", {}).get("path")
-        )
+        
+        # Get input file path from any dataset (since dataset name can vary)
+        input_file_path = None
+        datasets = node.parsed_yaml.get("datasets", {})
+        if datasets:
+            # Get the first dataset's path (assuming there's only one dataset)
+            for dataset_name, dataset_config in datasets.items():
+                if isinstance(dataset_config, dict) and "path" in dataset_config:
+                    input_file_path = dataset_config["path"]
+                    break
         rewrites = []
         
         # Mark action as used
@@ -548,7 +660,7 @@ class MCTS:
                 node.mark_action_used_acc(target_op, directive)
         else:
             for target_op in target_op_list:
-                node.mark_action_used_cost(target_op, directive)
+                node.mark_action_used_acc(target_op, directive)
 
         
         try:
@@ -567,8 +679,8 @@ class MCTS:
             rewrites.append(new_ops_list)
             
         except Exception as e:
+            print(e)
             raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
-
 
         self.action_counts[directive] += 1
         children = []
@@ -630,8 +742,6 @@ class MCTS:
             )
             return False
 
-        # if self.max_time and self.start_time and time.time() - self.start_time >= self.max_time:
-        #     return False
 
         return True
 
@@ -729,7 +839,6 @@ class MCTS:
             assert change_model
             for op in target_op_list:
                 child.mark_action_used_acc(op, change_model)
-                child.mark_action_used_cost(op, change_model)
 
         elif directive_name == "doc_chunking":
             doc_chunking = self.directive_name_to_obj.get("doc_chunking")
@@ -744,6 +853,13 @@ class MCTS:
             for op in child.parsed_yaml["operations"]:
                 op_name = op["name"]
                 child.mark_action_used_acc(op_name, d_comp)
+        
+        elif directive_name == "reduce_chaining":
+            reduce_chain = self.directive_name_to_obj.get("reduce_chaining")
+            assert reduce_chain
+            for op in child.parsed_yaml["operations"]:
+                op_name = op["name"]
+                child.mark_action_used_acc(op_name, reduce_chain)
 
         node.add_child(child)
         return child

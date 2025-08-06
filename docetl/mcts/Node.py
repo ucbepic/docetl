@@ -42,16 +42,14 @@ class Node:
         except Exception:
             self.result_path = None
         self.on_frontier = False
-        self.used_actions_acc = {}
-        self.used_actions_cost = {}
+        self.used_actions = {}
 
 
         self.op_dict = {} # Dict: op_name -> op
         for op in self.parsed_yaml["operations"]:
             op_name = op["name"]
             self.op_dict[op_name] = op
-            self.used_actions_acc[op_name] = set()
-            self.used_actions_cost[op_name] = set()
+            self.used_actions[op_name] = set()
         self.visits = 0
         self.value = 0
         self.parent = parent
@@ -187,23 +185,14 @@ class Node:
         """
         return len(self.children) == 0
     
-    def mark_action_used_acc(self, op_name, action: Directive):
+    def mark_action_used(self, op_name, action: Directive):
         """
         Mark a rewrite action as used.
         
         Args:
             action: The action identifier to mark as used
         """
-        self.used_actions_acc[op_name].add(action)
-
-    def mark_action_used_cost(self, op_name, action: Directive):
-        """
-        Mark a rewrite action as used.
-        
-        Args:
-            action: The action identifier to mark as used
-        """
-        self.used_actions_cost[op_name].add(action)
+        self.used_actions[op_name].add(action)
     
     def is_root(self) -> bool:
         """

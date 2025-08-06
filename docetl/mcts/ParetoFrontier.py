@@ -1,5 +1,6 @@
 # Import evaluation function lookup
 import sys
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -426,58 +427,29 @@ class ParetoFrontier:
 
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
-        self.plot_plans()
+        if new_node.id > 0:
+            graph_dir = new_node.yaml_file_path.rsplit("/", 1)[0] + "/graph/"
+            os.makedirs(graph_dir, exist_ok=True)
+            save_path = graph_dir + f"plan_{new_node.id}.png"
+            self.plot_plans(save_path, new_node.id, new_node.yaml_file_path)
         return affected_nodes, frontier_updated
 
-    def update_pareto_frontier(self) -> Dict[Node, int]:
-        """
-        Update the Pareto frontier based on current plans.
-        """
-
-        print("UPDATING Pareto Frontier")
-        valid_nodes = [node for node in self.plans if node.cost != -1]
-        affected_nodes = {}
-
-        if not valid_nodes:
-            self.frontier_plans = []
-            return affected_nodes
-
-        # Sort by cost
-        valid_nodes.sort(key=lambda node: node.cost)
-
-        frontier = []
-        max_accuracy_so_far = -1
-
-        for node in valid_nodes:
-            accuracy = self.plans_accuracy.get(node, 0.0)
-
-            # Plan is on frontier if it has higher accuracy than all lower-cost plans
-            if accuracy > max_accuracy_so_far:
-                frontier.append(node)
-                max_accuracy_so_far = accuracy
-
-        for node in valid_nodes:
-            if node in frontier and node not in self.frontier_plans:  # reward 0 -> 1
-                node.on_frontier = True
-                affected_nodes[node] = 1
-            elif node in self.frontier_plans and node not in frontier:  # reward 1 -> 0
-                affected_nodes[node] = -1
-
-        self.frontier_plans = frontier
-
-        self.plot_plans()
-        return affected_nodes
-
-    def plot_plans(self):
+    def plot_plans(self, save_path=None, plan_num=None, yaml_file=None):
         """
         Plot all current plans as dots on a cost vs. accuracy graph, annotating each with its id.
         Frontier plans are blue, non-frontier plans are grey.
+        
+        Args:
+            save_path: If provided, save the plot to this path instead of showing it
+            iteration_num: If provided, include iteration number in the title
         """
         if plt is None:
             raise ImportError(
                 "matplotlib is required for plotting. Please install it with 'pip install matplotlib'."
             )
 
+        plt.figure(figsize=(10, 8))
+        
         # Separate frontier and non-frontier plans
         frontier_nodes = [node for node in self.plans if node in self.frontier_plans]
         non_frontier_nodes = [
@@ -520,11 +492,19 @@ class ParetoFrontier:
 
         plt.xlabel("Cost")
         plt.ylabel("Accuracy")
-        plt.title("Plans: Cost vs. Accuracy")
+        
+        if plan_num is not None:
+            plt.title(f"Plan {plan_num}: {yaml_file}")
+        else:
+            plt.title("Plans: Cost vs. Accuracy")
+            
         plt.grid(True, linestyle="--", alpha=0.5)
         plt.legend()
         plt.tight_layout()
-        plt.show()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            plt.close()  
 
     def __len__(self) -> int:
         """Return number of plans in the frontier."""

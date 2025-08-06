@@ -85,6 +85,20 @@ class MCTS:
         self.sample_input = sample_input
         self.dataset_stats = dataset_stats
         self.output_dir = output_dir
+        
+        # Set up log file path
+        if self.output_dir:
+            self.log_path = os.path.join(self.output_dir, "mcts_tree_log.txt")
+        else:
+            self.log_path = "mcts_tree_log.txt"
+            
+        # Initialize log file (clear it)
+        with open(self.log_path, "w", encoding="utf-8") as f:
+            f.write(f"MCTS Tree Visits and Values Log\n")
+            f.write(f"Root YAML: {root_yaml_path}\n")
+            f.write(f"Max iterations: {max_iterations}\n")
+            f.write(f"{'='*50}\n")
+            
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(
             accuracy_comparator, self.action_rewards, dataset_name
@@ -126,7 +140,7 @@ class MCTS:
         print(f"Total iterations: {self.iteration_count}")
         print(f"Pareto frontier size: {len(self.pareto_frontier)}")
         print(f"Frontier plans: {len(self.pareto_frontier.frontier_plans)}")
-        self.pareto_frontier.plot_plans()
+        #self.pareto_frontier.plot_plans()
         print("pareto frontier yaml files: ")
         for plan in self.pareto_frontier.frontier_plans:
             print(plan.yaml_file_path)
@@ -139,47 +153,6 @@ class MCTS:
         ]
 
         return frontier_plans
-
-    def mcts_iteration(self):
-        """Perform one complete MCTS iteration."""
-        # Track if any new Pareto optimal plans are found in this iteration
-        found_new_pareto_plan = False
-
-        # 1. Selection: Find the best leaf node
-        print("SELECTION")
-        leaf = self.select(self.root)
-        print("SELECTED NODE: ", leaf.get_id())
-
-        # 2. Expansion: Always attempt to expand the leaf, catch errors
-        print("EXPANSION")
-        acc_children = []
-        # cost_children = []
-
-        has_leaf_acc = 1
-        try:
-            acc_children = self.expand(leaf, optimize_goal="acc")
-        except RuntimeError as e:
-            print(e)
-            has_leaf_acc = 0
-
-        # 3. Simulation: Run simulations from the leaf
-
-        is_frontier_updated = False
-        if has_leaf_acc:
-            print("HAS LEAF ACC SIMULATION")
-            for leaf_acc in acc_children:
-                affected_nodes, is_frontier_updated = self.simulate(leaf_acc)
-                # Check if any node was added to the frontier (value = 1)
-                self.backpropagate(affected_nodes, leaf_acc)
-
-            # Update counter for early stopping
-            if is_frontier_updated:
-                self.iterations_without_improvement = 0
-            else:
-                self.iterations_without_improvement += 1
-
-        self.print_tree_visits_and_values()
-        return has_leaf_acc
 
     def mcts_cost_iteration(self):
         """Perform one complete MCTS iteration optimizing for cost."""
@@ -217,7 +190,7 @@ class MCTS:
             else:
                 self.iterations_without_improvement += 1
 
-        self.print_tree_visits_and_values()
+        self.log_tree_to_file(self.iteration_count + 1)
         return has_leaf_cost
 
     def mcts_iteration(self):
@@ -258,7 +231,7 @@ class MCTS:
             else:
                 self.iterations_without_improvement += 1
 
-        self.print_tree_visits_and_values()
+        self.log_tree_to_file(self.iteration_count + 1)
         return has_leaf_acc
 
     def select(self, node: Node) -> Node:
@@ -336,10 +309,9 @@ class MCTS:
             return True
         for op in node.parsed_yaml["operations"]:
             op_name = op.get("name")
-            print(op_name, len(node.used_actions_acc[op_name]))
-            if len(node.used_actions_acc[op_name]) < len(ALL_DIRECTIVES):
+            print(op_name, len(node.used_actions[op_name]))
+            if len(node.used_actions[op_name]) < len(ALL_DIRECTIVES):
                 return False
-            # if len(node.used_actions_cost[op_name]) < 1: return False
         return True
 
     def expansion_prompt_acc(self, node, action_options, input_query) -> str:
@@ -526,8 +498,8 @@ class MCTS:
         if optimize_goal == "acc":
             action_options = []  # a list of tuple
             for op_name in op_list:
-                if op_name in node.used_actions_acc:
-                    used_actions = node.used_actions_acc[op_name]
+                if op_name in node.used_actions:
+                    used_actions = node.used_actions[op_name]
                 else:
                     used_actions = set()
                 action_space = (
@@ -549,8 +521,8 @@ class MCTS:
         elif optimize_goal == "cost":
             action_options = []  # a list of tuple
             for op_name in op_list:
-                if op_name in node.used_actions_cost:
-                    used_actions = node.used_actions_cost[op_name]
+                if op_name in node.used_actions:
+                    used_actions = node.used_actions[op_name]
                 else:
                     used_actions = set()
                 action_space = (
@@ -611,16 +583,11 @@ class MCTS:
 
             # Check if already used
             already_used = False
-            if optimize_goal == "acc":
-                for target_op in target_op_list:
-                    if directive in node.used_actions_acc[target_op]:
-                        already_used = True
-                        break
-            else:
-                for target_op in target_op_list:
-                    if directive in node.used_actions_cost[target_op]:
-                        already_used = True
-                        break
+            for target_op in target_op_list:
+                if directive in node.used_actions[target_op]:
+                    already_used = True
+                    break
+            
 
             if already_used:
                 retry_count += 1
@@ -655,14 +622,9 @@ class MCTS:
         rewrites = []
         
         # Mark action as used
-        if optimize_goal == "acc":
-            for target_op in target_op_list:
-                node.mark_action_used_acc(target_op, directive)
-        else:
-            for target_op in target_op_list:
-                node.mark_action_used_acc(target_op, directive)
-
-        
+        for target_op in target_op_list:
+            node.mark_action_used(target_op, directive)
+     
         try:
             new_ops_list, message_history = directive.instantiate(
                 operators=node.parsed_yaml["operations"],
@@ -749,21 +711,59 @@ class MCTS:
         """Get summary of all plans in the Pareto frontier."""
         return self.pareto_frontier.get_all_plans_summary()
 
-    def print_tree_visits_and_values(self, node=None, depth=0):
+    def print_tree_visits_and_values(self, node=None, depth=0, file_handle=None):
         """
         Recursively print every node's visits and value in the MCTS tree.
         Args:
             node: The node to start from (default: root)
             depth: Current depth for indentation
+            file_handle: If provided, write to this file instead of printing
         """
         if node is None:
             node = self.root
         indent = "  " * depth
-        print(
-            f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}"
-        )
+        
+        # Include action information if available
+        action_info = ""
+        if hasattr(node, 'latest_action') and node.latest_action is not None:
+            action_info = f", Action: {node.latest_action.name}"
+        elif node == self.root:
+            action_info = ", Action: ROOT"
+        
+        output = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}{action_info}"
+        
+        if file_handle:
+            file_handle.write(output + "\n")
+        else:
+            print(output)
+            
         for child in node.children:
-            self.print_tree_visits_and_values(child, depth + 1)
+            self.print_tree_visits_and_values(child, depth + 1, file_handle)
+
+    def log_tree_to_file(self, iteration_num):
+        """
+        Append the current tree state to a log file with iteration information.
+        Args:
+            iteration_num: Current iteration number
+        """
+        with open(self.log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*50}\n")
+            f.write(f"ITERATION {iteration_num}\n")
+            f.write(f"{'='*50}\n")
+            
+            # Add action reward statistics
+            f.write(f"Action Performance Statistics:\n")
+            for action in self.available_actions:
+                reward = self.action_rewards.get(action, 0)
+                count = self.action_counts.get(action, 0)
+                avg_reward = reward / count if count > 0 else "Unknown (never tried)"
+                f.write(f"- {action.name}: {count} uses, avg reward: {avg_reward}\n")
+            f.write(f"\n")
+            
+            # Add tree structure
+            f.write(f"Tree Structure:\n")
+            self.print_tree_visits_and_values(file_handle=f)
+            f.write(f"\n")
 
     def instantiate_node(
         self, node, new_ops_list, directive_name, target_op_list, optimize_goal
@@ -830,36 +830,36 @@ class MCTS:
             gleaning = self.directive_name_to_obj.get("gleaning")
             assert gleaning
             for op in target_op_list:
-                child.mark_action_used_acc(op, chaining)
-                child.mark_action_used_acc(op, chunking)
-                child.mark_action_used_acc(op, gleaning)
+                child.mark_action_used(op, chaining)
+                child.mark_action_used(op, chunking)
+                child.mark_action_used(op, gleaning)
 
         elif directive_name == "change model":
             change_model = self.directive_name_to_obj.get("change model")
             assert change_model
             for op in target_op_list:
-                child.mark_action_used_acc(op, change_model)
+                child.mark_action_used(op, change_model)
 
         elif directive_name == "doc_chunking":
             doc_chunking = self.directive_name_to_obj.get("doc_chunking")
             assert doc_chunking
             for op in child.parsed_yaml["operations"]:
                 op_name = op["name"]
-                child.mark_action_used_acc(op_name, doc_chunking)
+                child.mark_action_used(op_name, doc_chunking)
 
         elif directive_name == "deterministic_doc_compression":
             d_comp = self.directive_name_to_obj.get("deterministic_doc_compression")
             assert d_comp
             for op in child.parsed_yaml["operations"]:
                 op_name = op["name"]
-                child.mark_action_used_acc(op_name, d_comp)
+                child.mark_action_used(op_name, d_comp)
         
         elif directive_name == "reduce_chaining":
             reduce_chain = self.directive_name_to_obj.get("reduce_chaining")
             assert reduce_chain
             for op in child.parsed_yaml["operations"]:
                 op_name = op["name"]
-                child.mark_action_used_acc(op_name, reduce_chain)
+                child.mark_action_used(op_name, reduce_chain)
 
         node.add_child(child)
         return child

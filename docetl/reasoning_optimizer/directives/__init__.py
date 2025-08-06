@@ -23,6 +23,7 @@ from .doc_chunking import DocumentChunkingDirective
 from .chunk_header_summary import ChunkHeaderSummaryDirective
 from .take_head_tail import TakeHeadTailDirective
 from .clarify_instructions import ClarifyInstructionsDirective
+from .swap_with_code import SwapWithCodeDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
@@ -40,6 +41,7 @@ ALL_DIRECTIVES = [
     ChunkHeaderSummaryDirective(),
     TakeHeadTailDirective(),
     ClarifyInstructionsDirective(),
+    SwapWithCodeDirective(),
 ]
 
 # Create a mapping from directive names to directive instances
@@ -120,6 +122,7 @@ __all__ = [
     "ChunkHeaderSummaryDirective",
     "TakeHeadTailDirective",
     "ClarifyInstructionsDirective",
+    "SwapWithCodeDirective",
     "ALL_DIRECTIVES",
     "DIRECTIVE_REGISTRY", 
     "get_all_directive_strings",

@@ -822,3 +822,45 @@ class ClarifyInstructionsInstantiateSchema(BaseModel):
                 f"Clarified prompt is missing input variables from original prompt: {sorted(missing_vars)}. "
                 f"Original variables: {sorted(original_vars)}, Clarified variables: {sorted(clarified_vars)}"
             )
+
+
+class SwapWithCodeInstantiateSchema(BaseModel):
+    """
+    Schema for swapping a Reduce operation with a Code Reduce + optional Map operation.
+    Transforms Reduce => Code Reduce + Map pattern where the Code Reduce performs the core reduction logic
+    and the optional Map operation converts the output to match the original reduce operation's schema.
+    """
+
+    code_reduce_name: str = Field(
+        ..., description="The name of the new Code Reduce operator"
+    )
+    code: str = Field(
+        ...,
+        description="Python code defining a 'transform' function that takes a list of inputs and returns a dictionary with the reduced result fields. Must include all necessary imports within the function.",
+    )
+    map_prompt: Optional[str] = Field(
+        default=None,
+        description="Optional Jinja prompt template for the Map operator that converts the code reduce output to match the original reduce schema. Should reference {{ input.field_name }} to access fields returned by the code reduce operation. If None, no map operation will be added.",
+    )
+
+    @field_validator("code")
+    @classmethod
+    def check_code_has_function(cls, v: str) -> str:
+        if "def transform(" not in v:
+            raise ValueError(
+                "Code must define a function named 'transform' that takes a list of inputs as parameter"
+            )
+        if "return {" not in v and "return dict(" not in v:
+            raise ValueError("Code must return a dictionary")
+        return v
+
+    @field_validator("map_prompt")
+    @classmethod
+    def check_map_prompt_has_input_reference(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if "{{ input." not in v:
+            raise ValueError(
+                "Map prompt must reference input fields using {{ input.field_name }} syntax"
+            )
+        return v

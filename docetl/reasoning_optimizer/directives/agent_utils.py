@@ -8,11 +8,14 @@ from rich import print as rprint
 
 from docetl.operations.utils.llm import count_tokens
 
+# Configuration for how many documents to read at once
+DOCS_TO_READ_PER_ITERATION = 3
+
 
 class AgentDecision(BaseModel):
     """Schema for agent decision-making in agentic loops."""
 
-    action: Literal["read_next_doc", "output_schema"] = Field(
+    action: Literal["read_next_docs", "output_schema"] = Field(
         ..., description="The action the agent wants to take"
     )
     reasoning: str = Field(
@@ -38,6 +41,16 @@ class ReadNextDocTool:
         doc = self.input_data[self.current_index]
         self.current_index += 1
         return doc
+
+    def read_next_docs(self, count: int = DOCS_TO_READ_PER_ITERATION) -> List[Dict]:
+        """Read the next N documents from the input data."""
+        docs = []
+        for _ in range(count):
+            if self.current_index >= len(self.input_data):
+                break
+            docs.append(self.input_data[self.current_index])
+            self.current_index += 1
+        return docs
 
     def has_more_docs(self) -> bool:
         """Check if there are more documents to read."""
@@ -151,11 +164,11 @@ class AgenticDirectiveRunner:
         self, system_prompt: str, initial_user_message: str, response_schema: BaseModel
     ) -> Tuple[Any, List[Dict]]:
         """
-        Run an agentic loop where the agent analyzes input data to improve prompts.
+        Run an agentic loop where the agent analyzes input data for directive instantiation.
 
         Args:
             system_prompt: System message for the agent
-            initial_user_message: Initial user message with original prompt and task
+            initial_user_message: Initial user message with task description
             response_schema: Pydantic schema for the expected response
 
         Returns:
@@ -169,10 +182,10 @@ class AgenticDirectiveRunner:
 
         max_iterations = min(
             20, len(self.input_data)
-        )  # More conservative limit for prompt analysis
+        )  # Conservative limit for analysis
 
         rprint(
-            f"[blue]🤖 Determining instantiation for rewrite with {len(self.input_data)} documents available[/blue]"
+            f"[blue]🤖 Determining rewrite instantiation with {len(self.input_data)} documents available[/blue]"
         )
 
         for iteration in range(max_iterations):
@@ -183,25 +196,21 @@ class AgenticDirectiveRunner:
             )
             remaining_tokens = self.context_window - current_tokens - 2000  # Buffer
 
-            # Add context info focused on prompt improvement
+            # Add context info for analysis
             context_info = f"""
 Analysis Progress:
 - Remaining context window: ~{remaining_tokens} tokens
 - Documents analyzed: {self.doc_reader.current_index}/{self.doc_reader.total_docs}
 - Documents remaining: {self.doc_reader.get_remaining_count()}
 
-Your goal is to analyze input samples to create a more specific, clearer prompt. Consider:
-- What patterns do you see in the data that could make the prompt more specific?
-- Are there ambiguities in the original prompt that examples clarify?
-- What concrete details from the data should be incorporated?
-- Do you have enough diverse examples to confidently improve the prompt?
+Analyze the input samples to understand patterns, edge cases, and data characteristics that will help you complete your task effectively.
 """
 
             # Create action guidance
-            action_guidance = """
+            action_guidance = f"""
 Choose your next action:
-- read_next_doc: If you need more examples to understand data patterns, edge cases, or to resolve ambiguities in how the prompt should be interpreted
-- output_schema: If you have sufficient examples to create a significantly improved, more specific prompt that addresses ambiguities and incorporates concrete patterns from the data
+- read_next_docs: If you need more examples to understand data patterns, edge cases, or to gather more information for your analysis (reads ~{DOCS_TO_READ_PER_ITERATION} documents at once)
+- output_schema: If you have sufficient examples to complete your task based on the patterns and insights you've gathered from the data
 
 Focus on quality over quantity - a few diverse, informative examples are better than many similar ones.
 """
@@ -241,24 +250,30 @@ Focus on quality over quantity - a few diverse, informative examples are better 
             )
 
             # Handle agent's decision
-            if decision.action == "read_next_doc":
+            if decision.action == "read_next_docs":
                 # Agent wants to analyze more data
-                next_doc = self.doc_reader.read_next_doc()
-                if next_doc is None:
+                next_docs = self.doc_reader.read_next_docs()
+                if not next_docs:
                     # No more documents - force output
                     rprint(
-                        f"[red]📄 No more documents available. Proceeding with schema generation.[/red]"
+                        "[red]📄 No more documents available. Proceeding with schema generation.[/red]"
                     )
-                    user_message = "No more documents available. Based on the samples you've analyzed, please create your improved prompt."
+                    user_message = "No more documents available. Based on the samples you've analyzed, please complete your task."
                     self.message_history.append(
                         {"role": "user", "content": user_message}
                     )
                     break
                 else:
                     rprint(
-                        f"[green]📄 Agent reading document {self.doc_reader.current_index}/{len(self.input_data)}[/green]"
+                        f"[green]📄 Agent reading {len(next_docs)} documents (up to {self.doc_reader.current_index}/{len(self.input_data)})[/green]"
                     )
-                    user_message = f"Sample {self.doc_reader.current_index}:\n{json.dumps(next_doc, indent=2)}\n\nAnalyze this sample for patterns, edge cases, or clarifications that could improve the original prompt."
+                    docs_content = "\n".join(
+                        [
+                            f"Sample {self.doc_reader.current_index - len(next_docs) + i + 1}:\n{json.dumps(doc, indent=2)}"
+                            for i, doc in enumerate(next_docs)
+                        ]
+                    )
+                    user_message = f"{docs_content}\n\nAnalyze these samples for patterns, edge cases, and characteristics that will help with your task."
                     self.message_history.append(
                         {"role": "user", "content": user_message}
                     )
@@ -268,18 +283,14 @@ Focus on quality over quantity - a few diverse, informative examples are better 
                 rprint(
                     f"[cyan]✨ Agent ready to generate final schema after analyzing {self.doc_reader.current_index} documents[/cyan]"
                 )
-                schema_prompt = f"""Based on your analysis of the input samples, create an improved prompt that:
-1. Incorporates specific patterns and details you observed in the data
-2. Resolves ambiguities from the original prompt using concrete examples
-3. Maintains all original input variable references
-4. Is more specific and actionable than the original
+                schema_prompt = f"""Based on your analysis of the input samples, complete your task using the patterns and insights you've gathered from the data.
 
 Provide your response as a JSON object matching this schema: {response_schema.model_json_schema()}"""
                 self.message_history.append({"role": "user", "content": schema_prompt})
                 break
 
         # Get the final schema response with validation and retries
-        rprint(f"[magenta]🔧 Generating final rewrite schema...[/magenta]")
+        rprint("[magenta]🔧 Generating final rewrite schema...[/magenta]")
 
         from .base import MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS
 

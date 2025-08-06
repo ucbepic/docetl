@@ -134,6 +134,8 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
             f"- Address potential ambiguities or edge cases discovered in samples\n"
             f"- Consider the pipeline context and how this operation contributes to the overall goal\n"
             f"- Maintain the same general task but with much clearer execution details\n\n"
+            f"Example transformation:\n"
+            f"{self.example}\n\n"
             f"Analyze samples strategically - focus on diversity and understanding patterns rather than reading every document.\n"
             f"When you have enough information to create a substantially improved prompt, output your result.\n\n"
             f"Remember: Your goal is to make the prompt so clear and specific that it produces more consistent, higher-quality results."

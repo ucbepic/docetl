@@ -140,7 +140,6 @@ class MCTS:
         print(f"Total iterations: {self.iteration_count}")
         print(f"Pareto frontier size: {len(self.pareto_frontier)}")
         print(f"Frontier plans: {len(self.pareto_frontier.frontier_plans)}")
-        #self.pareto_frontier.plot_plans()
         print("pareto frontier yaml files: ")
         for plan in self.pareto_frontier.frontier_plans:
             print(plan.yaml_file_path)
@@ -541,14 +540,17 @@ class MCTS:
                 node, action_options=action_options, input_query=node.parsed_yaml
             )
 
-        # Initialize messages once before retry loop
-        messages = [
-            {
+        # Initialize messages with accumulated message history from the path to this node
+        messages = node.message_history.copy()
+        
+        # Add the current system message and user message for this expansion
+        if not messages or messages[0]["role"] != "system":
+            messages.insert(0, {
                 "role": "system",
                 "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
-            },
-            {"role": "user", "content": user_message},
-        ]
+            })
+        
+        messages.append({"role": "user", "content": user_message})
 
         while retry_count < max_retries:
 
@@ -646,6 +648,11 @@ class MCTS:
             raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
 
         self.action_counts[directive] += 1
+        
+        # Update the node's message history with the conversation from directive expansion
+        # and the conversation from directive.instantiate
+        node.message_history.extend(message_history[len(node.message_history):])
+        
         children = []
         for new_ops in rewrites:
             child = self.instantiate_node(

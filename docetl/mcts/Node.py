@@ -59,6 +59,12 @@ class Node:
         self.scaled_cost = -1.0  # Scaled cost in [0,1] range for reward calculations
         self.sample_result = []
         self.latest_action = None  # Latest action that led to this node
+        
+        # Message history from root to this node (accumulated LLM conversations)
+        self.message_history = []
+        if parent is not None:
+            # Inherit message history from parent
+            self.message_history = parent.message_history.copy()
 
         
         # Assign a unique ID to this node

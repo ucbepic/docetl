@@ -280,7 +280,6 @@ class DocumentChunkingDirective(Directive):
                 azure=True,
                 response_format=DocumentChunkingInstantiateSchema,
             )
-
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = DocumentChunkingInstantiateSchema(**parsed_res)

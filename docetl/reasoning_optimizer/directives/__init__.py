@@ -44,6 +44,15 @@ ALL_DIRECTIVES = [
     SwapWithCodeDirective(),
 ]
 
+ALL_COST_DIRECTIVES = [
+    ReduceChainingDirective(),
+    DocSummarizationDirective(),
+    DocCompressionDirective(),
+    DeterministicDocCompressionDirective(),
+    OperatorFusionDirective(),
+    TakeHeadTailDirective(),
+]
+
 # Create a mapping from directive names to directive instances
 DIRECTIVE_REGISTRY = {directive.name: directive for directive in ALL_DIRECTIVES}
 
@@ -55,6 +64,11 @@ def get_all_directive_strings() -> str:
         str: Formatted string containing all directive descriptions
     """
     return "\n".join([directive.to_string_for_plan() for directive in ALL_DIRECTIVES])
+
+
+def get_all_cost_directive_strings() -> str:
+    return "\n".join([directive.to_string_for_plan() for directive in ALL_COST_DIRECTIVES])
+
 
 def instantiate_directive(
     directive_name: str,

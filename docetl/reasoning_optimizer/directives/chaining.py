@@ -142,8 +142,7 @@ class ChainingDirective(Directive):
         expected_input_keys: List[str],
         expected_output_keys: List[str],
         agent_llm: str,
-        message_history: list = [],
-        temperature = 0.8
+        message_history: list = []
     ) -> tuple:
         """
         Use LLM to instantiate this directive by decomposing the original operation.
@@ -174,8 +173,7 @@ class ChainingDirective(Directive):
                 api_version=os.environ.get("AZURE_API_VERSION"),
                 # api_key=os.environ["GEMINI_API_KEY"],
                 azure=True,
-                response_format=ChainingInstantiateSchema,
-                temperature=temperature
+                response_format=ChainingInstantiateSchema
             )
             
             try:
@@ -264,7 +262,6 @@ class ChainingDirective(Directive):
         message_history: list = [], 
         optimize_goal="acc", 
         global_default_model: str = None, 
-        temperature=0.8, 
         **kwargs
     ) -> tuple:
         """
@@ -287,7 +284,7 @@ class ChainingDirective(Directive):
         print("output key: ", expected_output_keys)
         
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(target_op_config, expected_input_keys, expected_output_keys, agent_llm, message_history, temperature)
+        rewrite, message_history = self.llm_instantiate(target_op_config, expected_input_keys, expected_output_keys, agent_llm, message_history)
         
         # Apply the rewrite to the operators
         new_ops_plan = self.apply(global_default_model, operators, target_ops[0], rewrite)

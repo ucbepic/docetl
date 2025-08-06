@@ -18,10 +18,10 @@ class ClarifyInstructionsDirective(Directive):
     )
     formal_description: str = Field(default="Single-op => Op")
     nl_description: str = Field(
-        default="Improves prompt clarity and specificity by analyzing sample input data to identify patterns, resolve ambiguities, and create more precise instructions that reduce LLM confusion and improve output consistency"
+        default="Improves a single operation's prompt clarity and specificity by analyzing sample input data to identify patterns, resolve ambiguities, and create more precise instructions that reduce LLM confusion and improve output consistency"
     )
     when_to_use: str = Field(
-        default="When prompts are vague, ambiguous, or could benefit from more specific instructions based on actual data patterns. Particularly useful when you have multiple samples of input data and want to create a prompt that handles the specific patterns and edge cases present in your dataset"
+        default="When a single operation has a vague or ambiguous prompt that could benefit from more specific instructions based on actual data patterns. Particularly useful when you have multiple samples of input data and want to create a prompt for one specific operation that handles the patterns and edge cases present in your dataset"
     )
 
     instantiate_schema_type: Type[BaseModel] = Field(

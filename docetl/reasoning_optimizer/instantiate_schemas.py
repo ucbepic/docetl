@@ -779,3 +779,46 @@ class ReduceChainingInstantiateSchema(BaseModel):
                 + new_key
                 + " }}' instead."
             )
+
+
+class ClarifyInstructionsInstantiateSchema(BaseModel):
+    """
+    Schema for clarifying instructions in prompts using sample data.
+    This directive rewrites a single operation's prompt by analyzing multiple samples
+    from the input data to create a more specific and clear prompt.
+    """
+
+    clarified_prompt: str = Field(
+        ...,
+        description="The improved, more specific prompt based on analysis of sample data. Should be a Jinja template that references the same input fields as the original prompt.",
+    )
+
+    @classmethod
+    def validate_input_variables_preserved(
+        cls, clarified_prompt: str, original_prompt: str
+    ) -> None:
+        """
+        Validates that all input variables from the original prompt are preserved in the clarified prompt.
+        Only validates if the original prompt contains Jinja templates.
+        """
+        # Extract all {{ input.xxx }} patterns from original prompt
+        original_vars = set(
+            re.findall(r"\{\{\s*input\.([^}\s]+)\s*\}\}", original_prompt)
+        )
+
+        # If original prompt has no input variables, skip validation (e.g., extract, rank operators)
+        if not original_vars:
+            return
+
+        # Extract all {{ input.xxx }} patterns from clarified prompt
+        clarified_vars = set(
+            re.findall(r"\{\{\s*input\.([^}\s]+)\s*\}\}", clarified_prompt)
+        )
+
+        # Check that all original variables are present in clarified prompt
+        missing_vars = original_vars - clarified_vars
+        if missing_vars:
+            raise ValueError(
+                f"Clarified prompt is missing input variables from original prompt: {sorted(missing_vars)}. "
+                f"Original variables: {sorted(original_vars)}, Clarified variables: {sorted(clarified_vars)}"
+            )

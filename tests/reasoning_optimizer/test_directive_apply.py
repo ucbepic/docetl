@@ -18,7 +18,8 @@ from docetl.reasoning_optimizer.directives import (
     DeterministicDocCompressionDirective,
     DocumentChunkingDirective,
     ChunkHeaderSummaryDirective,
-    TakeHeadTailDirective
+    TakeHeadTailDirective,
+    ClarifyInstructionsDirective
 )
 
 
@@ -585,6 +586,39 @@ def test_take_head_tail_apply():
     assert len(transformed_result["content"].split()) <= 12  # 5 + " ... " + 5 = at most 12 tokens
 
 
+def test_clarify_instructions_apply():
+    """Test that clarify instructions apply doesn't crash"""
+    directive = ClarifyInstructionsDirective()
+    
+    # Simple pipeline with one map op
+    ops_list = [
+        {
+            "name": "analyze_feedback",
+            "type": "map",
+            "prompt": "Analyze the feedback: {{ input.feedback }}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"sentiment": "string", "issues": "list[str]"}}
+        }
+    ]
+    
+    # Mock rewrite schema
+    from docetl.reasoning_optimizer.instantiate_schemas import ClarifyInstructionsInstantiateSchema
+    rewrite = ClarifyInstructionsInstantiateSchema(
+        clarified_prompt="Analyze the customer feedback in {{ input.feedback }}. Determine the overall sentiment (positive, negative, neutral) and identify specific issues mentioned. Look for complaints about: product quality, delivery, customer service, pricing. Extract concrete problems rather than general dissatisfaction."
+    )
+    
+    result = directive.apply("gpt-4o-mini", ops_list, ["analyze_feedback"], rewrite)
+    
+    # Should return modified ops list with updated prompt
+    assert isinstance(result, list)
+    assert len(result) == 1  # Same number of operations
+    assert result[0]["name"] == "analyze_feedback"
+    assert result[0]["type"] == "map"
+    assert result[0]["prompt"] == rewrite.clarified_prompt
+    assert "{{ input.feedback }}" in result[0]["prompt"]  # Should preserve input variables
+    assert result[0]["model"] == "gpt-4o-mini"  # Should preserve other fields
+
+
 if __name__ == "__main__":
     # Run all tests
     test_chaining_apply()
@@ -635,5 +669,8 @@ if __name__ == "__main__":
 
     test_take_head_tail_apply()
     print("✅ Take head tail apply test passed")
+
+    test_clarify_instructions_apply()
+    print("✅ Clarify instructions apply test passed")
 
     print("\n🎉 All directive apply tests passed!")

@@ -537,9 +537,12 @@ class MCTS:
             )
 
         orig_default_model = node.parsed_yaml.get("default_model")
-        input_file_path = (
-            node.parsed_yaml.get("datasets", {}).get("articles", {}).get("path")
-        )
+        datasets = node.parsed_yaml.get("datasets", {})
+        input_file_path = None
+        if isinstance(datasets, dict) and datasets:
+            first_dataset = next(iter(datasets.values()))
+            if isinstance(first_dataset, dict):
+                input_file_path = first_dataset.get("path")
         rewrites = []
 
         # Mark action as used
@@ -559,6 +562,7 @@ class MCTS:
                 global_default_model=orig_default_model,
                 message_history=messages,
                 input_file_path=input_file_path,
+                pipeline_code=node.parsed_yaml,
             )
             if new_ops_list is None:
                 raise RuntimeError(

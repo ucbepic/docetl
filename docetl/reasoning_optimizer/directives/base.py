@@ -76,36 +76,87 @@ class Directive(BaseModel, ABC):
 
     def run_tests(self, agent_llm: str = "gpt-4o-mini") -> List[TestResult]:
         """Run all test cases for this directive using LLM judge"""
+        import json
+        import os
+        import tempfile
+
         results = []
 
         for test_case in self.test_cases:
             try:
-                # 1. Execute the directive
-                actual_output, _ = self.instantiate(
-                    operators=(
+                # Create fake sample data and pipeline for directives that need them
+                sample_data = [
+                    {
+                        "text": "Sample document 1",
+                        "feedback": "Great product!",
+                        "doc1": "Document A",
+                        "doc2": "Document B",
+                    },
+                    {
+                        "text": "Sample document 2",
+                        "feedback": "Could be better",
+                        "doc1": "Report 1",
+                        "doc2": "Report 2",
+                    },
+                    {
+                        "text": "Sample document 3",
+                        "feedback": "Excellent service",
+                        "doc1": "Policy A",
+                        "doc2": "Policy B",
+                    },
+                ]
+
+                fake_pipeline = {
+                    "operations": (
                         [test_case.input_config]
                         if isinstance(test_case.input_config, dict)
                         else test_case.input_config
                     ),
-                    target_ops=test_case.target_ops,
-                    agent_llm=agent_llm,
-                )
+                    "name": "test_pipeline",
+                }
 
-                # 2. Use LLM judge to evaluate
-                judge_result = self._llm_judge_test(
-                    test_case=test_case,
-                    actual_output=actual_output,
-                    agent_llm=agent_llm,
-                )
+                # Create temporary input file
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".json", delete=False
+                ) as f:
+                    json.dump(sample_data, f, indent=2)
+                    temp_file_path = f.name
 
-                results.append(
-                    TestResult(
-                        test_name=test_case.name,
-                        passed=judge_result["passed"],
-                        reason=judge_result["reason"],
-                        actual_output=actual_output,
+                try:
+                    # 1. Execute the directive
+                    actual_output, _ = self.instantiate(
+                        operators=(
+                            [test_case.input_config]
+                            if isinstance(test_case.input_config, dict)
+                            else test_case.input_config
+                        ),
+                        target_ops=test_case.target_ops,
+                        agent_llm=agent_llm,
+                        input_file_path=temp_file_path,
+                        pipeline_code=fake_pipeline,
                     )
-                )
+
+                    # 2. Use LLM judge to evaluate
+                    judge_result = self._llm_judge_test(
+                        test_case=test_case,
+                        actual_output=actual_output,
+                        agent_llm=agent_llm,
+                    )
+
+                    results.append(
+                        TestResult(
+                            test_name=test_case.name,
+                            passed=judge_result["passed"],
+                            reason=judge_result["reason"],
+                            actual_output=actual_output,
+                        )
+                    )
+                finally:
+                    # Clean up temporary file
+                    try:
+                        os.unlink(temp_file_path)
+                    except:
+                        pass
 
             except Exception as e:
                 # Handle execution errors

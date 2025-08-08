@@ -170,6 +170,8 @@ def run_baseline_experiment(
                 sample_data_path = Path("experiments/reasoning/data/reviews.json")
             elif dataset.lower() == "sustainability":
                 sample_data_path = Path("experiments/reasoning/data/company_reports_sample.json")
+            elif dataset.lower() == "biodex":
+                sample_data_path = Path("experiments/reasoning/data/train/biodex.json")
             else:
                 sample_data_path = None
             

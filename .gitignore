@@ -57,6 +57,7 @@ website/next-env.d.ts
 
 # experiments
 experiments/*.json
+experiments/reasoning/data/*.json
 
 metrics_vs_cost.png
 tests/data/anthropic-red-team-attempts.jsonl

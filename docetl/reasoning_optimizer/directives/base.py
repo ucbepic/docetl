@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 # Configuration constants
 MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS = 3
-DEFAULT_MODEL = "o3"
+DEFAULT_MODEL = "gpt-5"
 DEFAULT_MAX_TPM = 5000000
 AVAILABLE_MODELS = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4o", "gpt-4.1"]
 DEFAULT_OUTPUT_DIR = "./outputs"

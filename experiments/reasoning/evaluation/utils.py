@@ -602,15 +602,33 @@ def _create_cuad_plots_and_auc(eval_results, output_path, root_cost=None):
             frontier_points.sort(key=lambda r: r["cost"])
             
             hypervolume = 0.0
-            prev_cost = ref_cost  # Start from reference cost
             
-            for point in frontier_points:
-                if point["cost"] < ref_cost and point["f1"] > ref_accuracy:
-                    width = prev_cost - point["cost"]  # Cost improvement (lower cost = positive width)
-                    height = point["f1"] - ref_accuracy  # Accuracy improvement
-                    if width > 0 and height > 0:
-                        hypervolume += width * height
-                        prev_cost = point["cost"]
+            # Calculate trapezoid areas between consecutive frontier points
+            for i in range(len(frontier_points) - 1):
+                curr_point = frontier_points[i]
+                next_point = frontier_points[i + 1]
+                
+                if (curr_point["cost"] < ref_cost and curr_point["f1"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["f1"] > ref_accuracy):
+                    
+                    # Trapezoid area: (height1 + height2) * width / 2
+                    width = next_point["cost"] - curr_point["cost"]
+                    height1 = curr_point["f1"] - ref_accuracy
+                    height2 = next_point["f1"] - ref_accuracy
+                    
+                    if width > 0 and height1 > 0 and height2 > 0:
+                        trapezoid_area = (height1 + height2) * width / 2
+                        hypervolume += trapezoid_area
+            
+            # Add final rectangle from last point to reference cost
+            if frontier_points:
+                last_point = frontier_points[-1]
+                if last_point["cost"] < ref_cost and last_point["f1"] > ref_accuracy:
+                    final_width = ref_cost - last_point["cost"]
+                    final_height = last_point["f1"] - ref_accuracy
+                    if final_width > 0 and final_height > 0:
+                        final_rectangle = final_width * final_height
+                        hypervolume += final_rectangle
             
             pareto_auc = hypervolume
             print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
@@ -671,15 +689,33 @@ def _create_game_reviews_plots_and_auc(eval_results, output_path, root_cost=None
             frontier_points.sort(key=lambda r: r["cost"])
             
             hypervolume = 0.0
-            prev_cost = ref_cost  # Start from reference cost
             
-            for point in frontier_points:
-                if point["cost"] < ref_cost and point["combined_accuracy_score"] > ref_accuracy:
-                    width = prev_cost - point["cost"]  # Cost improvement (lower cost = positive width)
-                    height = point["combined_accuracy_score"] - ref_accuracy  # Accuracy improvement
-                    if width > 0 and height > 0:
-                        hypervolume += width * height
-                        prev_cost = point["cost"]
+            # Calculate trapezoid areas between consecutive frontier points
+            for i in range(len(frontier_points) - 1):
+                curr_point = frontier_points[i]
+                next_point = frontier_points[i + 1]
+                
+                if (curr_point["cost"] < ref_cost and curr_point["combined_accuracy_score"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["combined_accuracy_score"] > ref_accuracy):
+                    
+                    # Trapezoid area: (height1 + height2) * width / 2
+                    width = next_point["cost"] - curr_point["cost"]
+                    height1 = curr_point["combined_accuracy_score"] - ref_accuracy
+                    height2 = next_point["combined_accuracy_score"] - ref_accuracy
+                    
+                    if width > 0 and height1 > 0 and height2 > 0:
+                        trapezoid_area = (height1 + height2) * width / 2
+                        hypervolume += trapezoid_area
+            
+            # Add final rectangle from last point to reference cost
+            if frontier_points:
+                last_point = frontier_points[-1]
+                if last_point["cost"] < ref_cost and last_point["combined_accuracy_score"] > ref_accuracy:
+                    final_width = ref_cost - last_point["cost"]
+                    final_height = last_point["combined_accuracy_score"] - ref_accuracy
+                    if final_width > 0 and final_height > 0:
+                        final_rectangle = final_width * final_height
+                        hypervolume += final_rectangle
             
             pareto_auc = hypervolume
             print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
@@ -742,15 +778,33 @@ def _create_blackvault_plots_and_auc(eval_results, output_path, root_cost=None):
             frontier_points.sort(key=lambda r: r["cost"])
             
             hypervolume = 0.0
-            prev_cost = ref_cost  # Start from reference cost
             
-            for point in frontier_points:
-                if point["cost"] < ref_cost and point["avg_distinct_locations"] > ref_accuracy:
-                    width = prev_cost - point["cost"]  # Cost improvement (lower cost = positive width)
-                    height = point["avg_distinct_locations"] - ref_accuracy  # Accuracy improvement
-                    if width > 0 and height > 0:
-                        hypervolume += width * height
-                        prev_cost = point["cost"]
+            # Calculate trapezoid areas between consecutive frontier points
+            for i in range(len(frontier_points) - 1):
+                curr_point = frontier_points[i]
+                next_point = frontier_points[i + 1]
+                
+                if (curr_point["cost"] < ref_cost and curr_point["avg_distinct_locations"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["avg_distinct_locations"] > ref_accuracy):
+                    
+                    # Trapezoid area: (height1 + height2) * width / 2
+                    width = next_point["cost"] - curr_point["cost"]
+                    height1 = curr_point["avg_distinct_locations"] - ref_accuracy
+                    height2 = next_point["avg_distinct_locations"] - ref_accuracy
+                    
+                    if width > 0 and height1 > 0 and height2 > 0:
+                        trapezoid_area = (height1 + height2) * width / 2
+                        hypervolume += trapezoid_area
+            
+            # Add final rectangle from last point to reference cost
+            if frontier_points:
+                last_point = frontier_points[-1]
+                if last_point["cost"] < ref_cost and last_point["avg_distinct_locations"] > ref_accuracy:
+                    final_width = ref_cost - last_point["cost"]
+                    final_height = last_point["avg_distinct_locations"] - ref_accuracy
+                    if final_width > 0 and final_height > 0:
+                        final_rectangle = final_width * final_height
+                        hypervolume += final_rectangle
             
             pareto_auc = hypervolume
             print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
@@ -813,15 +867,34 @@ def _create_medec_plots_and_auc(eval_results, output_path, root_cost=None):
             frontier_points.sort(key=lambda r: r["cost"])
             
             hypervolume = 0.0
-            prev_cost = ref_cost  # Start from reference cost
             
-            for point in frontier_points:
-                if point["cost"] < ref_cost and point["combined_score"] > ref_accuracy:
-                    width = prev_cost - point["cost"]  # Cost improvement (lower cost = positive width)
-                    height = point["combined_score"] - ref_accuracy  # Accuracy improvement
-                    if width > 0 and height > 0:
-                        hypervolume += width * height
-                        prev_cost = point["cost"]
+            # Calculate trapezoid areas between consecutive frontier points
+            for i in range(len(frontier_points) - 1):
+                curr_point = frontier_points[i]
+                next_point = frontier_points[i + 1]
+                
+                if (curr_point["cost"] < ref_cost and curr_point["combined_score"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["combined_score"] > ref_accuracy):
+                    
+                    # Trapezoid area: (height1 + height2) * width / 2
+                    width = next_point["cost"] - curr_point["cost"]
+                    height1 = curr_point["combined_score"] - ref_accuracy
+                    height2 = next_point["combined_score"] - ref_accuracy
+                    
+                    if width > 0 and height1 > 0 and height2 > 0:
+                        trapezoid_area = (height1 + height2) * width / 2
+                        hypervolume += trapezoid_area
+            
+            # Add final rectangle from last point to reference cost
+            if frontier_points:
+                last_point = frontier_points[-1]
+                if last_point["cost"] < ref_cost and last_point["combined_score"] > ref_accuracy:
+                    final_width = ref_cost - last_point["cost"]
+                    final_height = last_point["combined_score"] - ref_accuracy
+                    if final_width > 0 and final_height > 0:
+                        final_rectangle = final_width * final_height
+                        hypervolume += final_rectangle
+                        
             
             pareto_auc = hypervolume
             print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
@@ -883,15 +956,33 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
             frontier_points.sort(key=lambda r: r["cost"])
             
             hypervolume = 0.0
-            prev_cost = ref_cost  # Start from reference cost
             
-            for point in frontier_points:
-                if point["cost"] < ref_cost and point["economic_activity_accuracy"] > ref_accuracy:
-                    width = prev_cost - point["cost"]  # Cost improvement (lower cost = positive width)
-                    height = point["economic_activity_accuracy"] - ref_accuracy  # Accuracy improvement
-                    if width > 0 and height > 0:
-                        hypervolume += width * height
-                        prev_cost = point["cost"]
+            # Calculate trapezoid areas between consecutive frontier points
+            for i in range(len(frontier_points) - 1):
+                curr_point = frontier_points[i]
+                next_point = frontier_points[i + 1]
+                
+                if (curr_point["cost"] < ref_cost and curr_point["economic_activity_accuracy"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["economic_activity_accuracy"] > ref_accuracy):
+                    
+                    # Trapezoid area: (height1 + height2) * width / 2
+                    width = next_point["cost"] - curr_point["cost"]
+                    height1 = curr_point["economic_activity_accuracy"] - ref_accuracy
+                    height2 = next_point["economic_activity_accuracy"] - ref_accuracy
+                    
+                    if width > 0 and height1 > 0 and height2 > 0:
+                        trapezoid_area = (height1 + height2) * width / 2
+                        hypervolume += trapezoid_area
+            
+            # Add final rectangle from last point to reference cost
+            if frontier_points:
+                last_point = frontier_points[-1]
+                if last_point["cost"] < ref_cost and last_point["economic_activity_accuracy"] > ref_accuracy:
+                    final_width = ref_cost - last_point["cost"]
+                    final_height = last_point["economic_activity_accuracy"] - ref_accuracy
+                    if final_width > 0 and final_height > 0:
+                        final_rectangle = final_width * final_height
+                        hypervolume += final_rectangle
             
             pareto_auc = hypervolume
             print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
@@ -952,15 +1043,33 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
             frontier_points.sort(key=lambda r: r["cost"])
             
             hypervolume = 0.0
-            prev_cost = ref_cost  # Start from reference cost
             
-            for point in frontier_points:
-                if point["cost"] < ref_cost and point["avg_rp_at_10"] > ref_accuracy:
-                    width = prev_cost - point["cost"]  # Cost improvement (lower cost = positive width)
-                    height = point["avg_rp_at_10"] - ref_accuracy  # Accuracy improvement
-                    if width > 0 and height > 0:
-                        hypervolume += width * height
-                        prev_cost = point["cost"]
+            # Calculate trapezoid areas between consecutive frontier points
+            for i in range(len(frontier_points) - 1):
+                curr_point = frontier_points[i]
+                next_point = frontier_points[i + 1]
+                
+                if (curr_point["cost"] < ref_cost and curr_point["avg_rp_at_10"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["avg_rp_at_10"] > ref_accuracy):
+                    
+                    # Trapezoid area: (height1 + height2) * width / 2
+                    width = next_point["cost"] - curr_point["cost"]
+                    height1 = curr_point["avg_rp_at_10"] - ref_accuracy
+                    height2 = next_point["avg_rp_at_10"] - ref_accuracy
+                    
+                    if width > 0 and height1 > 0 and height2 > 0:
+                        trapezoid_area = (height1 + height2) * width / 2
+                        hypervolume += trapezoid_area
+            
+            # Add final rectangle from last point to reference cost
+            if frontier_points:
+                last_point = frontier_points[-1]
+                if last_point["cost"] < ref_cost and last_point["avg_rp_at_10"] > ref_accuracy:
+                    final_width = ref_cost - last_point["cost"]
+                    final_height = last_point["avg_rp_at_10"] - ref_accuracy
+                    if final_width > 0 and final_height > 0:
+                        final_rectangle = final_width * final_height
+                        hypervolume += final_rectangle
             
             pareto_auc = hypervolume
             print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")

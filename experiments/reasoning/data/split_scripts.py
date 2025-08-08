@@ -29,9 +29,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]  # <repo_root>/…/split_scri
 DATA_DIR = PROJECT_ROOT / "experiments/reasoning/data"
 TRAIN_DIR = DATA_DIR / "train"
 TEST_DIR = DATA_DIR / "test"
-TRAIN_N = 25
+TRAIN_N = 50
 TEST_N = 100
-SAMPLE_FRAC = 0.5
+SAMPLE_FRAC = 0.75
 SEED = 42
 
 # Ensure deterministic sampling

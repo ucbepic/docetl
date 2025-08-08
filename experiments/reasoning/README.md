@@ -162,6 +162,37 @@ python experiments/reasoning/run_mcts.py \
   --dataset sustainability
 ```
 
+### BioDEX Experiments
+
+BioDEX is a biomedical dataset for extracting adverse drug reactions from scientific papers. The task involves identifying and matching reactions to standardized medical terms.
+
+#### BioDEX Baseline
+
+Run the baseline agent experiment:
+
+```bash
+python experiments/reasoning/run_baseline.py \
+  --yaml_path experiments/reasoning/pipelines/biodex.yaml \
+  --experiment_name biodex_baseline \
+  --iterations 5 \
+  --model gpt-4.1 \
+  --dataset biodex
+```
+
+#### BioDEX MCTS
+
+Run the MCTS optimization experiment:
+
+```bash
+python experiments/reasoning/run_mcts.py \
+  --yaml_path experiments/reasoning/pipelines/biodex.yaml \
+  --dataset_path experiments/reasoning/data/train/biodex.json \
+  --experiment_name biodex_mcts \
+  --max_iterations 10 \
+  --model gpt-4.1 \
+  --dataset biodex
+```
+
 ## Output
 
 Results are saved to `outputs/{experiment_name}/` containing:
@@ -171,6 +202,7 @@ Results are saved to `outputs/{experiment_name}/` containing:
 - For Game Reviews: Performance metrics for review analysis and selection
 - For MEDEC: `cost_vs_combined_score.png` - Plot showing medical error detection performance
 - For Sustainability: Performance metrics for economic activity classification and sustainability analysis
+- For BioDEX: `cost_vs_rp_at_10.png` - Plot of cost vs Rank Precision @ 10 (primary optimization metric)
 
 ## Parameters
 

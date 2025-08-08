@@ -1,6 +1,6 @@
 # Import evaluation function lookup
-import sys
 import os
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -57,6 +57,7 @@ class ParetoFrontier:
             "game_reviews": "weighted_score",
             "medec": "combined_score",
             "sustainability": "economic_activity_accuracy",
+            "biodex": "avg_rp_at_10",  # Optimize for RP@10 as specified
         }
 
         # Internal state
@@ -438,7 +439,7 @@ class ParetoFrontier:
         """
         Plot all current plans as dots on a cost vs. accuracy graph, annotating each with its id.
         Frontier plans are blue, non-frontier plans are grey.
-        
+
         Args:
             save_path: If provided, save the plot to this path instead of showing it
             iteration_num: If provided, include iteration number in the title
@@ -449,7 +450,7 @@ class ParetoFrontier:
             )
 
         plt.figure(figsize=(10, 8))
-        
+
         # Separate frontier and non-frontier plans
         frontier_nodes = [node for node in self.plans if node in self.frontier_plans]
         non_frontier_nodes = [
@@ -492,19 +493,19 @@ class ParetoFrontier:
 
         plt.xlabel("Cost")
         plt.ylabel("Accuracy")
-        
+
         if plan_num is not None:
             plt.title(f"Plan {plan_num}: {yaml_file}")
         else:
             plt.title("Plans: Cost vs. Accuracy")
-            
+
         plt.grid(True, linestyle="--", alpha=0.5)
         plt.legend()
         plt.tight_layout()
-        
+
         if save_path:
-            plt.savefig(save_path, dpi=150, bbox_inches='tight')
-            plt.close()  
+            plt.savefig(save_path, dpi=150, bbox_inches="tight")
+            plt.close()
 
     def __len__(self) -> int:
         """Return number of plans in the frontier."""

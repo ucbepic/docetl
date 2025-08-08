@@ -542,7 +542,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
 
         if eval_results:
             # Create plots and compute AUC
-            pareto_auc = _create_biodex_plots_and_auc(eval_results, output_path)
+            pareto_auc = _create_biodex_plots_and_auc(eval_results, output_path, root_cost)
     
     # Save evaluation results
     if eval_results:
@@ -691,61 +691,6 @@ def _create_game_reviews_plots_and_auc(eval_results, output_path, root_cost=None
     
     return pareto_auc
 
-
-def _create_biodex_plots_and_auc(eval_results, output_path):
-    """Create plots and compute AUC for BioDEX dataset"""
-    pareto_auc = None
-    
-    # Plot RP@10 vs Cost scatter (since we're optimizing for RP@10)
-    try:
-        costs = [row["cost"] for row in eval_results]
-        rp_at_10_scores = [row["avg_rp_at_10"] for row in eval_results]
-        colors = ["blue" if row.get("on_frontier", False) else "grey" for row in eval_results]
-
-        plt.figure(figsize=(8,6))
-        plt.scatter(costs, rp_at_10_scores, c=colors)
-        for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy", 0)
-            if mcts_accuracy is not None:
-                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
-            else:
-                label = row["file"]
-            plt.annotate(label, (row["cost"], row["avg_rp_at_10"]), textcoords="offset points", xytext=(4,4), fontsize=8)
-
-        plt.xlabel("Cost ($)")
-        plt.ylabel("Rank Precision @ 10")
-        plt.title("Cost vs RP@10 for all plans")
-        plt.grid(True, linestyle="--", alpha=0.5)
-        plot_path = output_path / "cost_vs_rp_at_10.png"
-        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
-        plt.close()
-        print(f"📈 Scatter plot saved to: {plot_path}")
-    except Exception as e:
-        print(f"⚠️  Failed to create scatter plot: {e}")
-    
-    # Compute Area Under the Pareto Frontier (Cost vs RP@10)
-    try:
-        frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
-        if len(frontier_points) >= 2:
-            # Sort frontier points by cost (x-axis)
-            frontier_points.sort(key=lambda r: r["cost"])
-
-            pareto_auc = 0.0
-            prev_point = frontier_points[0]
-            for curr_point in frontier_points[1:]:
-                width = curr_point["cost"] - prev_point["cost"]
-                if width > 0:  # Ignore duplicate cost values
-                    pareto_auc += 0.5 * width * (prev_point["avg_rp_at_10"] + curr_point["avg_rp_at_10"])
-                prev_point = curr_point
-        elif frontier_points:
-            pareto_auc = 0.0  # Single point frontier → zero area
-
-        if pareto_auc is not None:
-            print(f"📐 Area under Pareto frontier (Cost vs RP@10): {pareto_auc:.4f}")
-    except Exception as e:
-        print(f"⚠️  Failed to compute Pareto AUC: {e}")
-    
-    return pareto_auc
 
 def _create_blackvault_plots_and_auc(eval_results, output_path, root_cost=None):
 
@@ -958,7 +903,7 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
     
     return pareto_auc
 
-def _create_biodex_plots_and_auc(eval_results, output_path):
+def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
     """Create plots and compute AUC for BioDEX dataset"""
     pareto_auc = None
     
@@ -989,27 +934,41 @@ def _create_biodex_plots_and_auc(eval_results, output_path):
     except Exception as e:
         print(f"⚠️  Failed to create scatter plot: {e}")
     
-    # Compute Area Under the Pareto Frontier (Cost vs RP@10)
+    # Compute Hypervolume with reference point (accuracy=0, cost=baseline_cost*10)
     try:
         frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
-        if len(frontier_points) >= 2:
-            # Sort frontier points by cost (x-axis)
+        if frontier_points:
+            # Use root cost if provided, otherwise fall back to minimum cost
+            if root_cost is not None:
+                ref_cost = root_cost * 10
+                print(f"Using root cost reference: {root_cost} -> ref_cost: {ref_cost}")
+            else:
+                baseline_cost = min(row["cost"] for row in eval_results)
+                ref_cost = baseline_cost * 10
+                print(f"Using baseline cost reference: {baseline_cost} -> ref_cost: {ref_cost}")
+            ref_accuracy = 0.0
+            
+            # Sort frontier points by cost (ascending)
             frontier_points.sort(key=lambda r: r["cost"])
-
+            
+            hypervolume = 0.0
+            prev_cost = ref_cost  # Start from reference cost
+            
+            for point in frontier_points:
+                if point["cost"] < ref_cost and point["avg_rp_at_10"] > ref_accuracy:
+                    width = prev_cost - point["cost"]  # Cost improvement (lower cost = positive width)
+                    height = point["avg_rp_at_10"] - ref_accuracy  # Accuracy improvement
+                    if width > 0 and height > 0:
+                        hypervolume += width * height
+                        prev_cost = point["cost"]
+            
+            pareto_auc = hypervolume
+            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
+        else:
             pareto_auc = 0.0
-            prev_point = frontier_points[0]
-            for curr_point in frontier_points[1:]:
-                width = curr_point["cost"] - prev_point["cost"]
-                if width > 0:  # Ignore duplicate cost values
-                    pareto_auc += 0.5 * width * (prev_point["avg_rp_at_10"] + curr_point["avg_rp_at_10"])
-                prev_point = curr_point
-        elif frontier_points:
-            pareto_auc = 0.0  # Single point frontier → zero area
-
-        if pareto_auc is not None:
-            print(f"📐 Area under Pareto frontier (Cost vs RP@10): {pareto_auc:.4f}")
     except Exception as e:
-        print(f"⚠️  Failed to compute Pareto AUC: {e}")
+        print(f"⚠️  Failed to compute Hypervolume: {e}")
+        pareto_auc = None
     
     return pareto_auc
 

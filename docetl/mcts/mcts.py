@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import litellm
 import yaml
+import re
 
 from docetl.reasoning_optimizer.directives import (
     ALL_DIRECTIVES,
@@ -21,6 +22,50 @@ from docetl.reasoning_optimizer.op_descriptions import *
 from .acc_comparator import AccuracyComparator
 from .Node import Node
 from .ParetoFrontier import ParetoFrontier
+
+
+def count_num_pass(mcts_instance, node: Node) -> int:
+    """
+    Count the number of times the main content key is mentioned in prompts of 
+    map/filter/extract/reduce operators.
+    
+    Args:
+        mcts_instance: The MCTS instance containing the main_content_key
+        node: The node containing the parsed_yaml to analyze
+        
+    Returns:
+        Total count of main content key mentions across all relevant operators
+    """
+    relevant_ops = ["map", "filter", "extract", "reduce"]
+    total_count = 0
+    
+    # Use the pre-identified main content key from MCTS instance
+    main_content_key = mcts_instance.main_content_key
+    
+    if not main_content_key:
+        print("No main content key available")
+        return 0
+    
+    print("--"*50)
+    print(f"Using main content key: {main_content_key}")
+    
+    # Count mentions in relevant operators
+    operations = node.parsed_yaml.get("operations", [])
+    for op in operations:
+        op_type = op.get("type", "").lower()
+        if op_type in relevant_ops:
+            prompt = op.get("prompt", "")
+            if isinstance(prompt, str):
+                # Count occurrences of {{ anything.main_content_key }}
+                pattern = rf"\{{\{{\s*\w+\.{re.escape(main_content_key)}\s*\}}\}}"
+                matches = re.findall(pattern, prompt)
+                count_in_op = len(matches)
+                total_count += count_in_op
+                print(f"Operator {op.get('name', 'unnamed')} ({op_type}): {count_in_op} mentions of {main_content_key}")
+    
+    print(f"Total mentions of main content key '{main_content_key}': {total_count}")
+    print("--"*50)
+    return total_count
 
 
 class ExpandResponseFormat(BaseModel):
@@ -110,9 +155,49 @@ class MCTS:
         # Track iterations without new Pareto optimal plans for early stopping
         self.iterations_without_improvement = 0
 
+        # Identify main content key once during initialization
+        self.main_content_key = self._identify_main_content_key()
+
         # execute root node and add it to the pareto frontier
         _ = self.simulate(self.root)
         self.root.visits = 1
+
+    def _identify_main_content_key(self) -> str:
+        """
+        Identify the main content key (key with longest value) from the input dataset.
+        
+        Returns:
+            The key name with the longest average value, or None if not found
+        """
+        try:
+            datasets = self.root.parsed_yaml.get("datasets", {})
+            if datasets:
+                # Get the first dataset's path
+                for dataset_name, dataset_config in datasets.items():
+                    if isinstance(dataset_config, dict) and "path" in dataset_config:
+                        input_file_path = dataset_config["path"]
+                        # Load a sample to find the key with longest value
+                        with open(input_file_path, 'r') as f:
+                            data = json.load(f)
+                            if data and isinstance(data, list) and data[0]:
+                                sample_item = data[0]
+                                if isinstance(sample_item, dict):
+                                    # Find key with longest average value length
+                                    max_avg_length = 0
+                                    main_content_key = None
+                                    for key, value in sample_item.items():
+                                        if isinstance(value, str):
+                                            if len(value) > max_avg_length:
+                                                max_avg_length = len(value)
+                                                main_content_key = key
+                                    print(f"Main content key identified: {main_content_key}")
+                                    return main_content_key
+                        break
+        except Exception as e:
+            print(f"Could not determine main content key: {e}")
+        
+        print("No main content key found")
+        return None
 
     def search(self):
         """
@@ -129,6 +214,7 @@ class MCTS:
 
         while self.should_continue():
             if self.iteration_count < 5: 
+            # if self.iteration_count >= self.max_iterations - 5:
                 if self.mcts_cost_iteration():
                     self.iteration_count += 1
             else: 
@@ -379,8 +465,7 @@ class MCTS:
         Selection Strategy:
         Consider the current query pipeline, which directive can best improve the accuracy.
         Prioritize exploration of untested actions while balancing with exploitation of proven performers:
-        - Actions with 0 uses have unknown potential please explore if applicable. Try change model directive if it has not been used. change model is typically useful!
-        - Actions with few uses might need more data to be reliable
+        - Actions with 0 uses have unknown potential, so you should explore them if applicable. Try change model directive if it has not been used in the past iterations. 
         - High average reward indicates good historical performance
         - Consider both immediate improvement and learning about the action space
 
@@ -394,7 +479,7 @@ class MCTS:
         return user_message
 
 
-    def expansion_prompt_cost(self, node, action_options, input_query) -> str:
+    def expansion_prompt_cost(self, node, action_options, input_query, num_of_passes=0) -> str:
 
         availabel_actions_str = ""
         for item in action_options:
@@ -422,7 +507,7 @@ class MCTS:
         user_message = f"""
         I have a set of operations used to process long documents, along with a list of possible rewrite directives designed to improve the cost effectiveness of the pipeline, while maintaining similar or better accuracy.
         Given a query pipeline composed of these operations, recommend one specific rewrite directive (identified by its name from the provided list) that would improve cost effectiveness. Also, specify which operator(s) (by name) in the pipeline the directive should be applied to.
-        xMake sure your recommended directive is selected from the provided list.
+        Make sure your recommended directive is selected from the provided list.
 
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
@@ -460,8 +545,7 @@ class MCTS:
         Selection Strategy:
         Consider the current query pipeline, which directive can best improve cost effectiveness. 
         Prioritize exploration of untested actions while balancing with exploitation of proven performers:
-        - Actions with 0 uses have unknown potential please explore if applicable. 
-        - Actions with few uses might need more data to be reliable
+        - Actions with 0 uses have unknown potential, so you should explore them if applicable.
         - High average reward indicates good historical performance
         - Consider both immediate improvement and learning about the action space
 
@@ -490,6 +574,8 @@ class MCTS:
 
         max_retries = 3
         retry_count = 0
+
+        num_of_passes = count_num_pass(self, node)
 
         # Build action options and initial prompt once
         op_list = list(node.op_dict.keys())
@@ -537,7 +623,7 @@ class MCTS:
                     "No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable."
                 )
             user_message = self.expansion_prompt_cost(
-                node, action_options=action_options, input_query=node.parsed_yaml
+                node, action_options=action_options, input_query=node.parsed_yaml, num_of_passes=num_of_passes
             )
 
         # Initialize messages with accumulated message history from the path to this node
@@ -647,8 +733,6 @@ class MCTS:
             print(e)
             raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
 
-        self.action_counts[directive] += 1
-        
         # Update the node's message history with the conversation from directive expansion
         # and the conversation from directive.instantiate
         node.message_history.extend(message_history[len(node.message_history):])
@@ -679,6 +763,10 @@ class MCTS:
             # Set cost to -1 to indicate failure (this is already done in Node.execute_plan)
             # Do not add failed plans to the frontier
             return {}, False
+
+        # Only increment action count after successful execution
+        if hasattr(node, 'latest_action') and node.latest_action is not None:
+            self.action_counts[node.latest_action] += 1
 
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node)
         self.action_rewards = self.pareto_frontier.action_rewards
@@ -809,7 +897,7 @@ class MCTS:
             # Use same directory as original pipeline
             base_path = node.yaml_file_path.removesuffix(".yaml")
 
-        new_yaml_path = f"{base_path}_{len(node.children)+1}_{optimize_goal}.yaml"
+        new_yaml_path = f"{base_path}_{len(node.children)+1}.yaml"
         new_parsed_yaml["pipeline"]["output"][
             "path"
         ] = f"{base_path}_{len(node.children)+1}.json"

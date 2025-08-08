@@ -24,6 +24,7 @@ from .chunk_header_summary import ChunkHeaderSummaryDirective
 from .take_head_tail import TakeHeadTailDirective
 from .clarify_instructions import ClarifyInstructionsDirective
 from .swap_with_code import SwapWithCodeDirective
+from .map_reduce_fusion import MapReduceFusionDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
@@ -42,6 +43,7 @@ ALL_DIRECTIVES = [
     TakeHeadTailDirective(),
     ClarifyInstructionsDirective(),
     SwapWithCodeDirective(),
+    MapReduceFusionDirective(),
 ]
 
 ALL_COST_DIRECTIVES = [
@@ -51,6 +53,7 @@ ALL_COST_DIRECTIVES = [
     DeterministicDocCompressionDirective(),
     OperatorFusionDirective(),
     TakeHeadTailDirective(),
+    MapReduceFusionDirective(),
 ]
 
 # Create a mapping from directive names to directive instances
@@ -137,6 +140,7 @@ __all__ = [
     "TakeHeadTailDirective",
     "ClarifyInstructionsDirective",
     "SwapWithCodeDirective",
+    "MapReduceFusionDirective",
     "ALL_DIRECTIVES",
     "DIRECTIVE_REGISTRY", 
     "get_all_directive_strings",

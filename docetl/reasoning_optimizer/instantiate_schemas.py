@@ -864,3 +864,51 @@ class SwapWithCodeInstantiateSchema(BaseModel):
                 "Map prompt must reference input fields using {{ input.field_name }} syntax"
             )
         return v
+
+
+class MapReduceFusionInstantiateSchema(BaseModel):
+    """
+    Schema for map-reduce fusion operations in a data processing pipeline.
+    Transforms a Map -> Reduce pattern by having the Map pre-extract information
+    that the Reduce operation needs, making the Reduce step more efficient.
+    """
+    new_map_name: str = Field(..., description="The name of the modified Map operator")
+    new_map_prompt: str = Field(..., description="Jinja template for the modified Map operator prompt")
+    new_key: str = Field(
+        ...,
+        description="The new key name that the Map operation will output, which the Reduce operation will reference instead of the original document key.",
+    )
+    new_reduce_prompt: str = Field(..., description="Jinja template for the Reduce operator prompt")
+    
+    @classmethod
+    def validate_reduce_prompt_references_new_key(
+        cls,
+        new_reduce_prompt: str,
+        new_key: str,
+        original_document_key: str,
+    ) -> None:
+        """
+        Validates that the modified reduce prompt references the new key
+        and doesn't reference the original document key.
+        """
+        # Check that it references the new key
+        new_key_pattern = r"\{\{\s*input\." + re.escape(new_key) + r"\s*\}\}"
+        if not re.search(new_key_pattern, new_reduce_prompt):
+            raise ValueError(
+                "Modified reduce prompt must reference the new key as '{{ input."
+                + new_key
+                + " }}'"
+            )
+
+        # Check that it doesn't reference the original document key
+        old_key_pattern = (
+            r"\{\{\s*input\." + re.escape(original_document_key) + r"\s*\}\}"
+        )
+        if re.search(old_key_pattern, new_reduce_prompt):
+            raise ValueError(
+                "Modified reduce prompt should not reference the original document key '{{ input."
+                + original_document_key
+                + " }}'. Use '{{ input."
+                + new_key
+                + " }}' instead."
+            )

@@ -135,7 +135,8 @@ def run_mcts_experiment(
         nodes_or_files=nodes_for_evaluation,
         output_path=output_path,
         ground_truth_path=ground_truth_path,
-        method_name="docetl_mcts"
+        method_name="docetl_mcts",
+        root_cost=mcts.root.cost
     )
     
     # Save results

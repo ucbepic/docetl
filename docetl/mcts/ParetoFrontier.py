@@ -73,6 +73,9 @@ class ParetoFrontier:
         )  # List of [acc, scaled_cost] of nodes on frontier
         self.action_rewards = action_rewards
 
+        # Distance to current Pareto frontier: positive for on-frontier, negative for off-frontier
+        self.node_distances: Dict[Node, float] = {}
+
         # Root plan reference point for hypervolume calculation
         self.root_accuracy: Optional[float] = None
         self.root_cost: Optional[float] = None
@@ -408,10 +411,12 @@ class ParetoFrontier:
                     + (node_scaled_cost - projected_point_old[1]) ** 2
                 ) ** 0.5
                 affected_nodes[node] = weighted_distance_to_old
+                # Update node distances - positive for on frontier
+                self.node_distances[node] = weighted_distance_to_old
                 # Update action rewards
                 self._update_action_rewards(node, weighted_distance_to_old)
-            elif node not in new_frontier_set:
-                # Not on frontier - give negative reward based on distance to NEW frontier
+            elif (node not in new_frontier_set and node in old_frontier_set) or (node.id == new_node.id):
+                # Newly off frontier - give negative reward based on distance to NEW frontier
                 node.on_frontier = False
                 projected_point = self.project_to_frontier(
                     node_acc, node_scaled_cost, new_frontier_data
@@ -422,10 +427,27 @@ class ParetoFrontier:
                     + (node_scaled_cost - projected_point[1]) ** 2
                 ) ** 0.5
                 affected_nodes[node] = -weighted_distance
+                # Update node distances - negative for off frontier
+                self.node_distances[node] = -weighted_distance
                 # Update action rewards
-                self._update_action_rewards(node, -weighted_distance)
-            # Nodes that stayed on frontier don't get updated (maintain their current reward)
-
+                if node.id == new_node.id: self._update_action_rewards(node, -weighted_distance)
+            elif node not in new_frontier_set:
+                # stay off frontier nodes - update the reward to be negative distance to the NEW frontier
+                node.on_frontier = False
+                projected_point = self.project_to_frontier(
+                    node_acc, node_scaled_cost, new_frontier_data
+                )
+                # Weight accuracy 2x more important than cost
+                weighted_distance = (
+                    (2 * (node_acc - projected_point[0])) ** 2
+                    + (node_scaled_cost - projected_point[1]) ** 2
+                ) ** 0.5
+                distance_diff =  -weighted_distance - self.node_distances[node]
+                affected_nodes[node] = distance_diff
+                # Update node distances - negative for off frontier
+                self.node_distances[node] = -weighted_distance
+            
+            
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
         if new_node.id > 0:

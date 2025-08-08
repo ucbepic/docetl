@@ -127,7 +127,6 @@ class Node:
             
         except Exception as e:
             self.cost = -1  # Indicate failure
-            self.value = float("-inf")
             raise Exception(f"Failed to execute plan {self.yaml_file_path}: {str(e)}")
 
 

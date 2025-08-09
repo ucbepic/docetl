@@ -409,9 +409,11 @@ def run_single_iteration(
         )
         orig_config["operations"] = new_ops_list
 
+        # Update pipeline steps to reflect new operation names
+        orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
+
         # Apply special post-processing for chaining directive
         if directive == "chaining":
-            orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
             new_ops_list = update_sample(new_ops_list, target_ops, orig_operators)
             orig_config["operations"] = new_ops_list
 

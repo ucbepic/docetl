@@ -1,0 +1,281 @@
+# =========================
+# How Congress Talks About Your Health — DocETL
+# =========================
+
+default_model: azure/gpt-5-nano
+bypass_cache: false
+
+system_prompt:
+  dataset_description: Long-form House Energy & Commerce hearing transcripts (2014–2025)
+  persona: A careful hearings analyst who flags surprising moments, evasions, and memorable quotes for a general audience
+
+# --------
+# Datasets
+# --------
+datasets:
+  hearings:
+    type: file
+    path: "congressional-hearings/hearings_2000_plus.json"  # fields: hearing_id, date, title, committee, transcript
+
+# -----------
+# Operations
+# -----------
+operations:
+
+  # Stage 1: Health gate (cheap classifier over metadata + first ~1k tokens)
+  - name: classify_health
+    type: map
+    prompt: |
+      Decide if this hearing is primarily about healthcare (delivery, costs, regulation, drugs/devices, Medicare/Medicaid, public health, workforce, privacy/security in healthcare).
+      Consider the following fields if present:
+        - title: {{ input.title }}
+        - committee: {{ input.committee }}
+        - first portion of transcript (up to 4000 characters for context): {{ input.text[:4000] if input.text }}
+      Assign one primary_topic from:
+        [drug_pricing, opioids, fda_safety, medicare, medicaid, pbms, hospital_consolidation, telehealth,
+         ai_in_health, public_health, workforce, privacy_security, other_health].
+      Return a JSON object with:
+        "is_health": boolean,
+        "primary_topic": string (one of the list above)
+    output:
+      schema:
+        is_health: boolean
+        primary_topic: string
+
+  # Code filter
+  - name: code_filter_health
+    type: code_filter
+    code: |
+      def transform(input_doc):
+          return input_doc.get("is_health") is True
+
+  # Stage 2: Chunking + local context
+  - name: split_hearing
+    type: split
+    split_key: text
+    method: token_count
+    method_kwargs:
+      num_tokens: 250000
+
+  - name: gather_context
+    type: gather
+    content_key: text_chunk
+    doc_id_key: split_hearing_id
+    order_key: split_hearing_chunk_num
+    peripheral_chunks:
+      previous:
+        tail:
+          count: 1
+          content_key: text_chunk
+
+  # Stage 3–5: Mine quotes, then label/score per quote (returns list of quote objects)
+  - name: mine_label_quotes
+    type: map
+    prompt: |
+      Screen the transcript chunk for material a general audience would find surprising, contentious, or revealing.
+      Use all available context:
+        - Hearing title: {{ input.title }}
+        - committee: {{ input.committee }}
+        - Primary topic: {{ input.primary_topic }}
+        - Date: {{ input.date }}
+        - Transcript chunk: {{ input.text_chunk_rendered }}
+
+      KEEP if you see any of:
+      - heated exchange / confrontation / sharp follow-up
+      - revealing admission or specific statistic about costs/outcomes
+      - emotional testimony with stakes for patients
+      - obvious dodge or refusal to answer a direct question
+      - policy stakes (FDA/NIH/CMS actions) framed concretely
+      Otherwise DROP.
+
+      If not juicy, return:
+      { "quotes": [] }
+
+      If juicy, extract up to 8 short verbatim quotes (each ≤ 240 characters) that best represent the juicy content.
+      - Focus on lines that are concrete, memorable, or that clearly answer or dodge a question.
+      - Quotes should be self-contained and completely understandable out of context.
+      - Do not include speaker names within the quote text.
+
+      For each quote, infer and provide:
+      - quote: the verbatim quote text (≤ 240 chars)
+      - speaker: inferred name or label if clear, otherwise "Unknown"
+      - role: one of [Member, Chair, Staff, Witness-Physician, Witness-Patient, Witness-Industry, Witness-Agency, Witness-Advocate, Other]
+      - topic: concise phrase summarizing the subject; use primary_topic if unclear
+      - tone: [Empathetic, Adversarial, Defensive, Evasive, Neutral]
+      - interaction: [Direct Q→A, Follow-up grilling, Opening, Statement]
+      - response_type: [Direct, Partial, Evasive]
+      - quotability_score: average of four subscores (each 0–1): clarity, specificity, emotional_salience, public_interest
+
+      Return strict JSON with exactly this structure:
+      {
+        "quotes": [
+          {"quote": "...", "speaker": "...", "role": "...", "topic": "...", "tone": "...", "interaction": "...", "response_type": "...", "quotability_score": 0.0}
+        ]
+      }
+
+      Transcript chunk:
+      {{ input.text_chunk_rendered }}
+      Hearing: "{{ input.title }}" ({{ input.committee }}) on {{ input.date }}
+      Primary topic: {{ input.primary_topic }}
+    output:
+      schema:
+        quotes: "list[{quote: string, speaker: string, role: string, topic: string, tone: string, interaction: string, response_type: string, quotability_score: float}]"
+
+  - name: unnest_quotes
+    type: unnest
+    unnest_key: quotes
+    recursive: true
+
+  # Stage 6: Derive convenience fields
+  - name: derive_fields
+    type: map
+    prompt: |
+      From the date "{{ input.date }}", extract:
+      - year: 4-digit year
+      Return JSON { "year": "YYYY" }.
+    output:
+      schema:
+        year: string
+
+  # Stage 7 (optional): Hearing-level rollup of juicy moments
+  - name: rollup_hearing
+    type: code_reduce
+    reduce_key: title
+    pass_through: false
+    code: |
+      from collections import Counter
+      from typing import Any, Dict, List
+
+      def _normalize_quote_fields(item: Dict[str, Any]) -> Dict[str, Any]:
+          # Merge nested quotes if present, fall back to item fields
+          quote_obj: Dict[str, Any] = item
+          quotes_field = item.get("quotes")
+          if isinstance(quotes_field, dict):
+              merged = dict(item)
+              merged.update(quotes_field)
+              quote_obj = merged
+          # Normalize fields with defaults
+          try:
+              score = float(quote_obj.get("quotability_score", 0.0))
+          except Exception:
+              score = 0.0
+          return {
+              "quote": quote_obj.get("quote", ""),
+              "speaker": quote_obj.get("speaker", "Unknown"),
+              "role": quote_obj.get("role", "Other"),
+              # Fall back to hearing's primary_topic if topic missing
+              "topic": quote_obj.get("topic", item.get("primary_topic", "other_health")),
+              "tone": quote_obj.get("tone", "Neutral"),
+              "interaction": quote_obj.get("interaction", "Statement"),
+              "response_type": quote_obj.get("response_type", "Partial"),
+              "quotability_score": score,
+          }
+
+      def transform(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+          if not items:
+              return {}
+
+          title = items[0].get("title", "")
+          date = items[0].get("date", "")
+          committee = items[0].get("committee", "")
+          text = items[0].get("text", "")
+
+          # Build normalized quotes and aggregate stats from them
+          quotes: List[Dict[str, Any]] = []
+          roles_for_stats: List[str] = []
+          topics_for_stats: List[str] = []
+
+          for it in items:
+              q = _normalize_quote_fields(it)
+              quotes.append(q)
+              roles_for_stats.append(q["role"])
+              topics_for_stats.append(q["topic"])
+
+          total = max(1, len(quotes))
+
+          role_counts = Counter(roles_for_stats)
+          role_shares = {r: round(c / total, 3) for r, c in role_counts.items()}
+
+          topic_counts = Counter(topics_for_stats)
+          top_topics = [t for t, _ in topic_counts.most_common(5)]
+
+          evasive_count = sum(1 for q in quotes if q.get("response_type") == "Evasive")
+          evasion_rate = round(evasive_count / total, 3)
+
+          most_quoted = sorted(quotes, key=lambda q: q.get("quotability_score", 0.0), reverse=True)[:5]
+
+          return {
+              "title": title,
+              "date": date,
+              "committee": committee,
+              "text": text,
+              "role_shares": role_shares,
+              "top_topics": top_topics,
+              "evasion_rate": evasion_rate,
+              "most_quoted": most_quoted,
+              "quotes": quotes,
+          }
+    output:
+      schema:
+        title: string
+        date: string
+        committee: string
+        text: string
+        role_shares: "{role: float}"
+        top_topics: list[string]
+        evasion_rate: float
+        most_quoted: "list[{quote: string, speaker: string, role: string, topic: string, tone: string, interaction: string, response_type: string, quotability_score: float}]"
+        quotes: "list[{quote: string, speaker: string, role: string, topic: string, tone: string, interaction: string, response_type: string, quotability_score: float}]"
+
+  - name: summarize_hearing
+    type: map
+    model: azure/gpt-5
+    drop_keys:
+      - text
+    prompt: |
+      You are summarizing a single congressional hearing given its computed aggregates, full quotes list, and the full hearing text.
+
+      Context:
+        - Title: {{ input.title }}
+        - Date: {{ input.date }}
+        - Committee: {{ input.committee }}
+        - Role shares: {{ input.role_shares }}
+        - Top topics: {{ input.top_topics }}
+        - Evasion rate: {{ input.evasion_rate }}
+        - Most controversial or spicy quotes (top 5): {{ input.most_quoted }}
+
+      Hearing text:
+      {{ input.text }}
+
+      Quotes:
+      {% for q in input.quotes %}
+      - role={{ q.role }}, topic={{ q.topic }}, response={{ q.response_type }}, score={{ q.quotability_score }}, quote="{{ q.quote }}"
+      {% endfor %}
+
+      Write a 5–7 sentence narrative of what made this hearing notable, referencing the most quoted lines, key roles, and notable patterns.
+      Return strict JSON: { "summary": "<text>" }
+    output:
+      schema:
+        summary: string
+
+# ----------
+# Pipelines
+# ----------
+pipeline:
+  steps:
+    - name: health_quotes
+      input: hearings
+      operations:
+        - classify_health
+        - code_filter_health
+        - split_hearing
+        - gather_context
+        - mine_label_quotes
+        - unnest_quotes
+        - derive_fields
+        - rollup_hearing
+        - summarize_hearing
+  output:
+    type: file
+    path: "congressional-hearings/health_quotes.json"
+    intermediate_dir: "congressional-hearings/_intermediate"

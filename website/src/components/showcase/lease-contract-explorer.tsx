@@ -108,7 +108,7 @@ export default function LeaseContractExplorer() {
       {selected ? (
         <ContractViewer contract={selected} />
       ) : (
-        <div className="flex-1 border rounded-md p-4 text-muted-foreground">
+        <div className="flex-1 border border-gray-200 rounded-md p-4 text-gray-500 bg-white">
           Select a contract on the left to view its contents.
         </div>
       )}
@@ -208,15 +208,15 @@ function ContractViewer({ contract }: { contract: Contract }) {
       {/* Middle: Document Text */}
       <div
         ref={docRef}
-        className="flex-1 md:w-5/12 border rounded-md p-3 overflow-y-auto max-h-[75vh] whitespace-pre-wrap text-sm"
+        className="flex-1 md:w-5/12 border border-gray-200 rounded-md p-3 overflow-y-auto max-h-[75vh] whitespace-pre-wrap text-sm bg-white text-gray-800"
         dangerouslySetInnerHTML={{ __html: highlighted }}
       />
 
       {/* Right: Red Flags List */}
-      <div className="md:w-1/3 lg:w-1/4 border rounded-md p-2 overflow-y-auto max-h-[75vh]">
+      <div className="md:w-1/3 lg:w-1/4 border border-gray-200 rounded-md p-2 overflow-y-auto max-h-[75vh] bg-white">
         <Card className="shadow-none border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">
+            <CardTitle className="text-base text-gray-900">
               Red Flags ({contract.extracted_red_flags.length})
             </CardTitle>
           </CardHeader>
@@ -225,7 +225,7 @@ function ContractViewer({ contract }: { contract: Contract }) {
               {contract.extracted_red_flags.map((flag, i) => (
                 <div
                   key={i}
-                  className="cursor-pointer hover:text-primary break-words"
+                  className="cursor-pointer hover:text-blue-600 break-words text-gray-700"
                   onClick={() => handleScrollTo(i)}
                 >
                   {flag}

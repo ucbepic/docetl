@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Info } from "lucide-react";
+import { showcaseStyles } from "@/lib/showcase-styles";
 
 // Define the type for a single response object
 interface RfiResponse {
@@ -148,8 +149,8 @@ export default function RfiResponseExplorer() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2">Loading responses (may take 10 seconds)...</span>
+        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+        <span className="ml-2 text-gray-600">Loading responses (may take 10 seconds)...</span>
       </div>
     );
   }
@@ -168,9 +169,9 @@ export default function RfiResponseExplorer() {
   return (
     <div className="space-y-6">
       {/* Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-md">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-gray-200 rounded-md bg-white">
         <div className="space-y-2">
-          <Label className="font-semibold">Filter by Notable Entity</Label>
+          <Label className="font-semibold text-gray-800">Filter by Notable Entity</Label>
           <div className="flex flex-col space-y-1">
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -203,7 +204,7 @@ export default function RfiResponseExplorer() {
           </div>
         </div>
         <div className="space-y-2">
-          <Label className="font-semibold">Filter by Proposal Type</Label>
+          <Label className="font-semibold text-gray-800">Filter by Proposal Type</Label>
           <div className="flex flex-col space-y-1">
             <div className="flex items-center space-x-2">
               <Checkbox

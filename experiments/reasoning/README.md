@@ -158,6 +158,40 @@ modal run experiments/reasoning/run_mcts.py \
 
 Outputs are written to `/mnt/docetl-ro-experiments/outputs/{experiment_name}` in the shared Modal volume.
 
+#### Run multiple datasets at once with Modal using run_all.py
+
+Use `experiments/reasoning/run_all.py` to spawn baseline and MCTS runs together per dataset.
+
+1) Edit the inline `CONFIG` in `experiments/reasoning/run_all.py` to list your datasets and settings. Example:
+
+```python
+CONFIG = {
+    "experiments": [
+        {
+            "dataset": "medec",
+            "baseline": {"iterations": 3, "model": "gpt-4o-mini"},
+            "mcts": {"max_iterations": 30, "exploration_weight": 1.414, "model": "gpt-4o-mini"}
+        },
+        {
+            "dataset": "biodex",
+            "baseline": {"iterations": 5},
+            "mcts": {"max_iterations": 50}
+        }
+    ]
+}
+```
+
+- Defaults for pipeline YAMLs and dataset inputs are provided internally for these dataset keys: `cuad`, `blackvault`, `game_reviews`, `sustainability`, `biodex`, `medec`.
+- You can override paths per experiment with optional keys: `yaml_path`, `dataset_path`, `data_dir`, `output_dir`, `ground_truth`.
+
+2) Run all experiments on Modal (uses the same shared volume as above):
+
+```bash
+modal run experiments/reasoning/run_all.py
+```
+
+This will spawn the requested baseline and MCTS jobs concurrently per dataset and wait for completion. Outputs are saved under `/mnt/docetl-ro-experiments/outputs/{dataset}_{baseline|mcts}`.
+
 ### Sustainability Experiments
 
 #### Sustainability Baseline

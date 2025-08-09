@@ -180,9 +180,7 @@ class AgenticDirectiveRunner:
             {"role": "user", "content": initial_user_message},
         ]
 
-        max_iterations = min(
-            20, len(self.input_data)
-        )  # Conservative limit for analysis
+        max_iterations = min(3, len(self.input_data))  # Conservative limit for analysis
 
         rprint(
             f"[blue]🤖 Determining rewrite instantiation with {len(self.input_data)} documents available[/blue]"

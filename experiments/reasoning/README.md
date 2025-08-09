@@ -133,6 +133,31 @@ python experiments/reasoning/run_mcts.py \
   --dataset medec
 ```
 
+### Running on Modal (shared volume)
+
+- Baseline (MEDEC):
+
+```bash
+modal run experiments/reasoning/run_baseline.py \
+  --yaml-path=experiments/reasoning/pipelines/medec.yaml \
+  --experiment-name=medec_baseline \
+  --dataset=medec \
+  --iterations=3
+```
+
+- MCTS (MEDEC):
+
+```bash
+modal run experiments/reasoning/run_mcts.py \
+  --yaml-path=experiments/reasoning/pipelines/medec.yaml \
+  --dataset-path=experiments/reasoning/data/train/medec.json \
+  --experiment-name=medec_mcts \
+  --dataset=medec
+  --max-iterations=30
+```
+
+Outputs are written to `/mnt/docetl-ro-experiments/outputs/{experiment_name}` in the shared Modal volume.
+
 ### Sustainability Experiments
 
 #### Sustainability Baseline

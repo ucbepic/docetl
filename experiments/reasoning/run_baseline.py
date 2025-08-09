@@ -27,6 +27,130 @@ from docetl.reasoning_optimizer.agent import (
 )
 from docetl.reasoning_optimizer.directives import DEFAULT_MODEL, DEFAULT_MAX_TPM, DEFAULT_OUTPUT_DIR
 
+# Modal integration (mirrors experiments/reasoning/run_mcts.py)
+import modal
+import yaml
+
+app = modal.App("docetl-baseline")
+
+image = (
+    modal.Image.debian_slim(python_version="3.10")
+    .add_local_file("pyproject.toml", "/pyproject.toml", copy=True)
+    .add_local_file("poetry.lock", "/poetry.lock", copy=True)
+    .add_local_file("README.md", "/README.md", copy=True)
+    .add_local_dir("docetl", remote_path="/docetl", copy=True)
+    .pip_install("poetry")
+    .run_commands([
+        "poetry config virtualenvs.create false",
+        "poetry install --all-extras --no-root && poetry install --all-extras",
+    ])
+    .pip_install("matplotlib", "Levenshtein", "nltk")
+    .add_local_python_source("experiments", ignore=["**/.venv/*"])
+    .add_local_python_source("docetl", ignore=["**/.venv/*"])
+)
+
+VOLUME_NAME = "docetl-ro-experiments"
+VOLUME_MOUNT_PATH = "/mnt/docetl-ro-experiments"
+volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
+
+
+def _resolve_in_volume(path: str | None) -> str | None:
+    if path is None:
+        return None
+    p = Path(path)
+    if p.is_absolute():
+        return str(p)
+    return str((Path(VOLUME_MOUNT_PATH) / p).resolve())
+
+
+def _rewrite_pipeline_yaml_for_modal(orig_yaml_path: str, experiment_name: str) -> str:
+    with open(orig_yaml_path, "r") as f:
+        cfg = yaml.safe_load(f)
+
+    base_mount = Path(VOLUME_MOUNT_PATH)
+
+    # Ensure pipeline outputs go into the mounted volume under outputs/experiment_name
+    pipeline_cfg = cfg.get("pipeline", {})
+    output_root = base_mount / "outputs" / experiment_name
+    if isinstance(pipeline_cfg, dict):
+        out = pipeline_cfg.get("output")
+        if isinstance(out, dict):
+            if isinstance(out.get("path"), str):
+                original_name = Path(out["path"]).name
+                output_root.mkdir(parents=True, exist_ok=True)
+                out["path"] = str(output_root / original_name)
+            if isinstance(out.get("intermediate_dir"), str):
+                out["intermediate_dir"] = str(output_root / "intermediates")
+
+    # Save rewritten YAML into volume tmp
+    tmp_dir = base_mount / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    new_yaml_path = tmp_dir / f"{Path(orig_yaml_path).stem}_modal.yaml"
+    with open(new_yaml_path, "w") as f:
+        yaml.safe_dump(cfg, f, sort_keys=False)
+
+    return str(new_yaml_path)
+
+
+@app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 60 * 12)
+def run_baseline_remote(
+    yaml_path: str,
+    data_dir: str | None = None,
+    output_dir: str | None = None,
+    model: str = DEFAULT_MODEL,
+    max_tpm: int = DEFAULT_MAX_TPM,
+    iterations: int = 1,
+    experiment_name: str = "baseline_experiment",
+    dataset: str = "cuad",
+    ground_truth_path: str | None = None,
+):
+    os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+    resolved_output_dir = _resolve_in_volume(output_dir) if output_dir else None
+    resolved_data_dir = _resolve_in_volume(data_dir) if data_dir else None
+
+    # Write a temporary YAML with output paths rewritten into the mounted volume
+    modal_yaml_path = _rewrite_pipeline_yaml_for_modal(yaml_path, experiment_name)
+
+    results = run_baseline_experiment(
+        yaml_path=modal_yaml_path,
+        data_dir=resolved_data_dir,
+        output_dir=resolved_output_dir,
+        model=model,
+        max_tpm=max_tpm,
+        iterations=iterations,
+        experiment_name=experiment_name,
+        dataset=dataset,
+        ground_truth_path=ground_truth_path,
+    )
+    volume.commit()
+    return results
+
+
+@app.local_entrypoint()
+def modal_main(
+    yaml_path: str,
+    experiment_name: str,
+    data_dir: str | None = None,
+    output_dir: str | None = None,
+    model: str = DEFAULT_MODEL,
+    max_tpm: int = DEFAULT_MAX_TPM,
+    iterations: int = 1,
+    dataset: str = "cuad",
+    ground_truth: str | None = None,
+):
+    run_baseline_remote.remote(
+        yaml_path=yaml_path,
+        data_dir=data_dir,
+        output_dir=output_dir,
+        model=model,
+        max_tpm=max_tpm,
+        iterations=iterations,
+        experiment_name=experiment_name,
+        dataset=dataset,
+        ground_truth_path=ground_truth,
+    )
+
+
 def run_baseline_experiment(
     yaml_path: str,
     data_dir: str = None,

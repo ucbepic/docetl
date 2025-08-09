@@ -1,8 +1,9 @@
 # Build stage for Python dependencies
 FROM python:3.11-slim AS python-builder
 
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install curl and uv for dependency management
+RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/* && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 ENV DOCETL_HOME_DIR="/docetl-data"
 
@@ -14,9 +15,9 @@ COPY server/ ./server/
 COPY tests/ ./tests/
 RUN touch README.md
 
-# Create venv and sync dependencies (including extras)
+# Create venv and sync only runtime + extras (omit dev deps)
 RUN uv venv && \
-    uv sync --all-extras --all-groups
+    uv sync --all-extras
 
 # Build stage for Node.js dependencies
 FROM node:20-alpine AS node-builder

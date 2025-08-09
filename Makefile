@@ -1,9 +1,9 @@
 # Load environment variables from .env file
 include .env
 
-.PHONY: tests tests-basic lint install mypy update ui-install ui-run docker
+.PHONY: tests tests-basic lint install mypy update install-ui run-ui-dev run-ui docker docker-clean test-aws help
 
-# Existing commands
+# Test commands
 tests:
 	uv run pytest --ignore=tests/ranking --ignore=tests/test_ollama.py
 
@@ -29,28 +29,31 @@ update:
 	uv lock --upgrade
 
 # UI-related commands
-UI_DIR := ./website 
+UI_DIR := ./website
 
 install-ui:
 	cd $(UI_DIR) && npm install
 
 run-ui-dev:
 	@echo "Starting server..."
-	@python server/app/main.py & \
+	@export PATH=$$HOME/.local/bin:$$PATH; \
+	uv sync --all-extras; \
+	uv run python server/app/main.py & \
 	echo "Starting UI development server..." && \
-	cd $(UI_DIR) && HOST=${FRONTEND_HOST}  PORT=${FRONTEND_PORT} npm run dev
+	cd $(UI_DIR) && HOST=$${FRONTEND_HOST:-127.0.0.1} PORT=$${FRONTEND_PORT:-3000} npm run dev
 
 run-ui:
 	@echo "Starting server..."
-	@python server/app/main.py & \
+	@export PATH=$$HOME/.local/bin:$$PATH; \
+	uv sync --all-extras; \
+	uv run python server/app/main.py & \
 	echo "Building UI..." && \
-	cd $(UI_DIR) && npm run build && HOST=${FRONTEND_HOST}  PORT=${FRONTEND_PORT} NEXT_PUBLIC_FRONTEND_ALLOWED_HOSTS=${FRONTEND_ALLOWED_HOSTS} npm run start
+	cd $(UI_DIR) && npm run build && HOST=$${FRONTEND_HOST:-127.0.0.1} PORT=$${FRONTEND_PORT:-3000} NEXT_PUBLIC_FRONTEND_ALLOWED_HOSTS=$${FRONTEND_ALLOWED_HOSTS} npm run start
 
-# Single Docker command to build and run
+# Docker commands
 docker:
 	docker volume create docetl-data
 	docker build -t docetl .
-
 	@if [ -n "$${AWS_PROFILE}" ]; then \
 		echo "[INFO] Detected AWS_PROFILE — including AWS credentials."; \
 		DOCKER_AWS_FLAGS="-v ~/.aws:/root/.aws:ro \
@@ -71,7 +74,6 @@ docker:
 		-e BACKEND_PORT=8000 \
 		docetl
 
-# Add new command for cleaning up docker resources
 docker-clean:
 	docker volume rm docetl-data
 

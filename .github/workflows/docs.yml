@@ -18,14 +18,11 @@
         - uses: actions/setup-python@v5
           with:
             python-version: 3.x
-        - name: Install dependencies
+        - name: Install uv and sync docs deps
           run: |
-            pip install mkdocs==1.6.1 \
-                        mkdocs-material==9.5.34 \
-                        mkdocstrings==0.26.1 \
-                        mkdocstrings-python==1.11.1 \
-                        mkdocs-glightbox==0.4.0 \
-                        pytkdocs==0.16.2
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo "$HOME/.local/bin" >> $GITHUB_PATH
+            uv sync --group dev
         - name: Copy environment file
           run: cp .env.sample .env
         - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV

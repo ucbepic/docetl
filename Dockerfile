@@ -1,25 +1,22 @@
 # Build stage for Python dependencies
 FROM python:3.11-slim AS python-builder
 
-RUN pip install poetry==1.4.2
-
-ENV POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_IN_PROJECT=1 \
-    POETRY_VIRTUALENVS_CREATE=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache \
-    DOCETL_HOME_DIR="/docetl-data"
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+ENV DOCETL_HOME_DIR="/docetl-data"
 
 WORKDIR /app
 
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml ./
 COPY docetl/ ./docetl/
 COPY server/ ./server/
 COPY tests/ ./tests/
 RUN touch README.md
 
-# Install with --no-root first for dependencies, then install with root for entrypoints
-RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --all-extras --no-root && \
-    poetry install --all-extras
+# Create venv and sync dependencies (including extras)
+RUN uv venv && \
+    uv sync --all-extras --all-groups
 
 # Build stage for Node.js dependencies
 FROM node:20-alpine AS node-builder
@@ -58,7 +55,7 @@ COPY --from=python-builder /app/.venv ${VIRTUAL_ENV}
 COPY docetl/ ./docetl/
 COPY server/ ./server/
 COPY tests/ ./tests/
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml ./
 COPY .env ./
 
 # Copy Node.js dependencies and application files

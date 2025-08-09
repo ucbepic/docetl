@@ -1,6 +1,6 @@
 [project]
 name = "docetl"
-version = "0.2.4"
+version = "0.2.5"
 description = "ETL with LLM operations."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -24,10 +24,10 @@ dependencies = [
   "websockets>=13.1",
   "lzstring>=1.0.4",
   "pydantic>=2.9.2",
-  "litellm>=1.59.10",
   "boto3>=1.37.27",
   "pandas>=2.3.0",
   "python-multipart>=0.0.20",
+  "litellm>=1.75.4",
 ]
 
 # Optional extras mapped from Poetry extras and optional deps

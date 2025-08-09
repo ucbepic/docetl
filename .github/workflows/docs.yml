@@ -32,5 +32,5 @@
             path: .cache
             restore-keys: |
               mkdocs-material-
-        - run: mkdocs build
-        - run: mkdocs gh-deploy --force
+        - run: uv run mkdocs build
+        - run: uv run mkdocs gh-deploy --force

@@ -21,8 +21,7 @@ from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_e
 # Modal integration
 import modal
 import yaml
-
-app = modal.App("docetl-mcts")
+from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH
 
 # Build image with project deps and local sources for experiments (docetl installed from pyproject)
 image = (
@@ -40,11 +39,6 @@ image = (
     .add_local_python_source("experiments", ignore=["**/.venv/*"])
     .add_local_python_source("docetl", ignore=["**/.venv/*"])
 )
-
-# Named volume for datasets and outputs
-VOLUME_NAME = "docetl-ro-experiments"
-VOLUME_MOUNT_PATH = "/mnt/docetl-ro-experiments"
-volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
 
 def _resolve_in_volume(path: str | None) -> str | None:
@@ -131,7 +125,7 @@ def run_mcts_remote(
 
 
 @app.local_entrypoint()
-def modal_main(
+def modal_main_mcts(
     yaml_path: str,
     dataset_path: str,
     experiment_name: str,

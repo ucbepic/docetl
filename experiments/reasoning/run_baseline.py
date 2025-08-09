@@ -30,8 +30,7 @@ from docetl.reasoning_optimizer.directives import DEFAULT_MODEL, DEFAULT_MAX_TPM
 # Modal integration (mirrors experiments/reasoning/run_mcts.py)
 import modal
 import yaml
-
-app = modal.App("docetl-baseline")
+from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH
 
 image = (
     modal.Image.debian_slim(python_version="3.10")
@@ -48,10 +47,6 @@ image = (
     .add_local_python_source("experiments", ignore=["**/.venv/*"])
     .add_local_python_source("docetl", ignore=["**/.venv/*"])
 )
-
-VOLUME_NAME = "docetl-ro-experiments"
-VOLUME_MOUNT_PATH = "/mnt/docetl-ro-experiments"
-volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
 
 def _resolve_in_volume(path: str | None) -> str | None:
@@ -127,7 +122,7 @@ def run_baseline_remote(
 
 
 @app.local_entrypoint()
-def modal_main(
+def modal_main_baseline(
     yaml_path: str,
     experiment_name: str,
     data_dir: str | None = None,

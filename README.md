@@ -198,8 +198,14 @@ NEXT_PUBLIC_HOSTED_DOCWRANGLER=false
 
 3. Install dependencies:
 ```bash
-make install      # Install Python package
+make install      # Install Python deps with uv and set up pre-commit
 make install-ui   # Install UI dependencies
+```
+
+If you prefer using uv directly instead of Make:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync --all-groups --all-extras
 ```
 
 Note that the OpenAI API key, base, and model name are for the UI assistant only; not the DocETL pipeline execution engine.

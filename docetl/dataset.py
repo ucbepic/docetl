@@ -278,15 +278,18 @@ class Dataset:
                     self.user_defined_parsing_tool_map
                     and tool["function"] in self.user_defined_parsing_tool_map
                 ):
-                    # Define the custom function in the current scope
+                    # Define the custom function in an explicit namespace to reliably capture it
+                    _namespace: dict[str, Any] = {}
                     exec(
                         "from typing import List, Dict\n"
                         + self.user_defined_parsing_tool_map[
                             tool["function"]
-                        ].function_code
+                        ].function_code,
+                        _namespace,
+                        _namespace,
                     )
-                    # Get the function object
-                    func = locals()[tool["function"]]
+                    # Get the function object from the exec namespace
+                    func = _namespace[tool["function"]]
                 else:
                     raise ValueError(
                         f"Parsing tool {tool['function']} not found. Please define it or use one of our existing parsing tools: {get_parsing_tools()}"

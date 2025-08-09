@@ -5,28 +5,28 @@ include .env
 
 # Existing commands
 tests:
-	poetry run pytest --ignore=tests/ranking --ignore=tests/test_ollama.py
+	uv run pytest --ignore=tests/ranking --ignore=tests/test_ollama.py
 
 tests-basic:
-	poetry run pytest -s tests/basic
-	poetry run pytest -s tests/test_api.py
-	poetry run pytest -s tests/test_runner_caching.py
-	poetry run pytest -s tests/test_pandas_accessors.py
-	poetry run pytest -s tests/test_output_modes.py
+	uv run pytest -s tests/basic
+	uv run pytest -s tests/test_api.py
+	uv run pytest -s tests/test_runner_caching.py
+	uv run pytest -s tests/test_pandas_accessors.py
+	uv run pytest -s tests/test_output_modes.py
 
 lint:
-	poetry run ruff check docetl/* --fix
+	uv run ruff check docetl/* --fix
 
 install:
-	pip install poetry
-	poetry install --all-extras
-	poetry run pre-commit install
+	curl -LsSf https://astral.sh/uv/install.sh | sh
+	export PATH=$$HOME/.local/bin:$$PATH && uv sync --all-groups --all-extras
+	export PATH=$$HOME/.local/bin:$$PATH && uv run pre-commit install
 
 mypy:
-	poetry run mypy
+	uv run mypy
 
 update:
-	poetry update
+	uv lock --upgrade
 
 # UI-related commands
 UI_DIR := ./website 
@@ -118,7 +118,7 @@ help:
 	@echo "  make tests        : Run all tests"
 	@echo "  make tests-basic  : Run basic tests"
 	@echo "  make lint         : Run linter"
-	@echo "  make install      : Install dependencies using Poetry"
+	@echo "  make install      : Install dependencies using uv"
 	@echo "  make mypy         : Run mypy for type checking"
 	@echo "  make update       : Update dependencies"
 	@echo "  make install-ui   : Install UI dependencies"

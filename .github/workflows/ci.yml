@@ -18,21 +18,24 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Copy environment file
         run: cp .env.sample .env
 
       - name: Install dependencies
-        run: make install
+        run: |
+          uv sync --all-groups --all-extras
 
       - name: Run pytest
-        run: make tests-basic
+        run: uv run make tests-basic

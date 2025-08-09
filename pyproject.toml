@@ -1,95 +1,60 @@
-[tool.poetry]
+[project]
 name = "docetl"
 version = "0.2.4"
 description = "ETL with LLM operations."
-authors = ["Shreya Shankar <shreyashankar@berkeley.edu>"]
-license = "MIT"
 readme = "README.md"
-packages = [
-    { include = "docetl" }
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Shreya Shankar", email = "shreyashankar@berkeley.edu" }
 ]
-exclude = ["website/**/*"]
-[tool.poetry.scripts]
+
+# Core runtime dependencies (from Poetry)
+dependencies = [
+  "tqdm>=4.66.4",
+  "rich>=13.7.1",
+  "frozendict>=2.4.4",
+  "diskcache>=5.6.3",
+  "typer>=0.16.0",
+  "asteval>=1.0.4",
+  "scikit-learn>=1.5.2",
+  "pyrate-limiter>=3.7.0",
+  "jsonschema>=4.23.0",
+  "rapidfuzz>=3.10.0",
+  "websockets>=13.1",
+  "lzstring>=1.0.4",
+  "pydantic>=2.9.2",
+  "boto3>=1.37.27",
+  "pandas>=2.3.0",
+  "python-multipart>=0.0.20",
+  "litellm>=1.75.4",
+]
+
+# Optional extras mapped from Poetry extras and optional deps
+[project.optional-dependencies]
+parsing = [
+  "python-docx>=1.1.2",
+  "openpyxl>=3.1.5",
+  "pydub>=0.25.1",
+  "python-pptx>=1.0.2",
+  "azure-ai-documentintelligence>=1.0.0b4",
+  "paddlepaddle>=2.6.2",
+  "pymupdf>=1.24.10",
+]
+server = [
+  "fastapi>=0.115.4",
+  "uvicorn>=0.31.0",
+  "docling>=2.5.2",
+  "azure-ai-formrecognizer>=3.3.3",
+  "azure-ai-documentintelligence>=1.0.0b4",
+  "httpx>=0.27.2",
+]
+
+[project.scripts]
 docetl = "docetl.cli:app"
 
-[tool.poetry.dependencies]
-python = "^3.10"
-tqdm = "^4.66.4"
-rich = "^13.7.1"
-frozendict = "^2.4.4"
-diskcache = "^5.6.3"
-typer = "^0.16.0"
-asteval = "^1.0.4"
-scikit-learn = "^1.5.2"
-pyrate-limiter = "^3.7.0"
-openpyxl = { version = "^3.1.5", optional = true }
-python-docx = { version = "^1.1.2", optional = true }
-pydub = { version = "^0.25.1", optional = true }
-python-pptx = { version = "^1.0.2", optional = true }
-paddlepaddle = { version = "^2.6.2", optional = true }
-pymupdf = { version = "^1.24.10", optional = true }
-jsonschema = "^4.23.0"
-rapidfuzz = "^3.10.0"
-uvicorn = { version = "^0.31.0", optional = true }
-websockets = "^13.1"
-docling = { version  = "^2.5.2", optional = true }
-azure-ai-formrecognizer = { version = "^3.3.3", optional = true }
-lzstring = "^1.0.4"
-azure-ai-documentintelligence = { version = "^1.0.0b4", optional = true }
-pydantic = "^2.9.2"
-litellm = "^1.59.10"
-httpx = { version = "^0.27.2", optional = true }
-boto3 = "^1.37.27"
-pandas = "^2.3.0"
-python-multipart = "^0.0.20"
-fastapi = { version = "^0.115.4", optional = true }
-
-[tool.poetry.extras]
-parsing = ["python-docx", "openpyxl", "pydub", "python-pptx", "azure-ai-documentintelligence", "paddlepaddle", "pymupdf"]
-server = ["fastapi", "uvicorn", "docling", "azure-ai-formrecognizer", "azure-ai-documentintelligence", "httpx"]
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.2"
-python-dotenv = "^1.0.1"
-ruff = "^0.6.1"
-mypy = "^1.11.1"
-pre-commit = "^3.8.0"
-mkdocs = "^1.6.1"
-mkdocs-material = "^9.5.34"
-mkdocstrings = "^0.26.1"
-linkchecker = "^10.5.0"
-pytkdocs = "^0.16.2"
-mkdocstrings-python = "^1.11.1"
-mkdocs-glightbox = "^0.4.0"
-pytest-sugar = "^1.0.0"
-pytest-xdist = "^3.6.1"
-types-pyyaml = "^6.0.12.20250516"
-types-requests = "^2.32.4.20250611"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "--basetemp=/tmp/pytest"
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::UserWarning",
-    "ignore::RuntimeWarning"
-]
-
-[tool.mypy]
-files = "docetl"
-mypy_path = "docetl"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-exclude = ['docetl/tests*']
-ignore_missing_imports = true
-show_error_codes = true
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.plugins."docetl.operation"]
+# Preserve plugin entry points under a namespaced group
+[project.entry-points."docetl.operation"]
 map = "docetl.operations.map:MapOperation"
 parallel_map = "docetl.operations.map:ParallelMapOperation"
 filter = "docetl.operations.filter:FilterOperation"
@@ -106,7 +71,7 @@ code_map = "docetl.operations.code_operations:CodeMapOperation"
 code_reduce = "docetl.operations.code_operations:CodeReduceOperation"
 code_filter = "docetl.operations.code_operations:CodeFilterOperation"
 
-[tool.poetry.plugins."docetl.parser"]
+[project.entry-points."docetl.parser"]
 llama_index_simple_directory_reader = "docetl.parsing_tools:llama_index_simple_directory_reader"
 llama_index_wikipedia_reader = "docetl.parsing_tools:llama_index_wikipedia_reader"
 whisper_speech_to_text = "docetl.parsing_tools:whisper_speech_to_text"
@@ -116,3 +81,52 @@ docx_to_string = "docetl.parsing_tools:docx_to_string"
 pptx_to_string = "docetl.parsing_tools:pptx_to_string"
 azure_di_read = "docetl.parsing_tools:azure_di_read"
 paddleocr_pdf_to_string = "docetl.parsing_tools:paddleocr_pdf_to_string"
+
+# Development dependency groups (from Poetry group.dev)
+[dependency-groups]
+dev = [
+  "pytest>=8.3.2",
+  "python-dotenv>=1.0.1",
+  "ruff>=0.6.1",
+  "mypy>=1.11.1",
+  "pre-commit>=3.8.0",
+  "mkdocs>=1.6.1",
+  "mkdocs-material>=9.5.34",
+  "mkdocstrings>=0.26.1",
+  "linkchecker>=10.5.0",
+  "pytkdocs>=0.16.2",
+  "mkdocstrings-python>=1.11.1",
+  "mkdocs-glightbox>=0.4.0",
+  "pytest-sugar>=1.0.0",
+  "pytest-xdist>=3.6.1",
+  "types-pyyaml>=6.0.12.20250516",
+  "types-requests>=2.32.4.20250611",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+packages = ["docetl"]
+include = ["docetl/**", "server/**", "README.md", "LICENSE"]
+exclude = ["website/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--basetemp=/tmp/pytest"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+    "ignore::RuntimeWarning",
+]
+
+[tool.mypy]
+files = "docetl"
+mypy_path = "docetl"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+exclude = ['docetl/tests*']
+ignore_missing_imports = true
+show_error_codes = true

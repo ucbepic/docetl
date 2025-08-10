@@ -399,7 +399,7 @@ class MCTS:
                 return False
         return True
 
-    def expansion_prompt_acc(self, node, action_options, input_query) -> str:
+    def expansion_prompt_acc(self, node, action_options, input_query) -> tuple[str, str]:
 
         availabel_actions_str = ""
         for item in action_options:
@@ -476,10 +476,24 @@ class MCTS:
         Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
         """
-        return user_message
+        
+        # Create a condensed version for message history (without full operator/directive descriptions)
+        condensed_user_message = f"""
+        Recommend one specific rewrite directive for accuracy optimization.
+        
+        Valid choices:
+        {availabel_actions_str}
+        
+        Action Performance History:
+        {action_stats_str}
+        
+        Current pipeline: {input_query} 
+        """
+        
+        return user_message, condensed_user_message
 
 
-    def expansion_prompt_cost(self, node, action_options, input_query, num_of_passes=0) -> str:
+    def expansion_prompt_cost(self, node, action_options, input_query, num_of_passes=0) -> tuple[str, str]:
 
         availabel_actions_str = ""
         for item in action_options:
@@ -555,7 +569,21 @@ class MCTS:
         Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
         """
-        return user_message
+        
+        # Create a condensed version for message history (without full operator/directive descriptions)
+        condensed_user_message = f"""
+        Recommend one specific rewrite directive for cost optimization.
+        
+        Valid choices:
+        {availabel_actions_str}
+        
+        Action Performance History:
+        {action_stats_str}
+        
+        Current pipeline: {input_query}
+        """
+        
+        return user_message, condensed_user_message
 
 
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
@@ -599,7 +627,7 @@ class MCTS:
                     "No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable."
                 )
             print("OPTIMIZING ACC:")
-            user_message = self.expansion_prompt_acc(
+            user_message, condensed_user_message = self.expansion_prompt_acc(
                 node, action_options=action_options, input_query=node.parsed_yaml
             )
 
@@ -622,7 +650,7 @@ class MCTS:
                 raise RuntimeError(
                     "No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable."
                 )
-            user_message = self.expansion_prompt_cost(
+            user_message, condensed_user_message = self.expansion_prompt_cost(
                 node, action_options=action_options, input_query=node.parsed_yaml, num_of_passes=num_of_passes
             )
 

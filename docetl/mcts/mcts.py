@@ -656,15 +656,23 @@ class MCTS:
 
         # Initialize messages with accumulated message history from the path to this node
         messages = node.message_history.copy()
+        message_condensed = node.message_history.copy()
         
         # Add the current system message and user message for this expansion
         if not messages or messages[0]["role"] != "system":
             messages.insert(0, {
-                "role": "system",
+                "role": "system", 
                 "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
             })
         
         messages.append({"role": "user", "content": user_message})
+        if len(message_condensed) == 0 or message_condensed[0]["role"] != "system":
+            message_condensed.append({
+                    "role": "system",
+                    "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
+                })
+        message_condensed.append({"role": "user", "content": condensed_user_message})
+
 
         while retry_count < max_retries:
 
@@ -685,6 +693,7 @@ class MCTS:
                 target_op_list = parsed.get("operators")
                 print(f"Directive: {directive_name}, Target ops: {target_op_list}")
                 messages.append({"role": "assistant", "content": reply})
+                message_condensed.append({"role": "assistant", "content": reply})
             except Exception as e:
                 print(f"Failed to parse agent response: {e}")
                 retry_count += 1
@@ -713,6 +722,7 @@ class MCTS:
                 # Append feedback message as new user message
                 feedback_message = f"We have already tried the directive '{directive_name}' on these operators: {target_op_list}. Please pick another directive from the available options we listed in the previous message."
                 messages.append({"role": "user", "content": feedback_message})
+                message_condensed.append({"role": "user", "content": feedback_message})
                 continue
 
             # Valid directive found - break out of directive selection loop
@@ -738,7 +748,8 @@ class MCTS:
         # Mark action as used
         for target_op in target_op_list:
             node.mark_action_used(target_op, directive)
-     
+
+        message_length = len(messages)
         try:
             new_ops_list, message_history = directive.instantiate(
                 operators=node.parsed_yaml["operations"],
@@ -761,14 +772,12 @@ class MCTS:
             print(e)
             raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
 
-        # Update the node's message history with the conversation from directive expansion
-        # and the conversation from directive.instantiate
-        node.message_history.extend(message_history[len(node.message_history):])
+        message_condensed.extend(message_history[message_length:])
         
         children = []
         for new_ops in rewrites:
             child = self.instantiate_node(
-                node, new_ops, directive_name, target_op_list, optimize_goal
+                node, new_ops, directive_name, target_op_list, optimize_goal, message_condensed
             )
             children.append(child)
         return children
@@ -890,7 +899,7 @@ class MCTS:
             f.write(f"\n")
 
     def instantiate_node(
-        self, node, new_ops_list, directive_name, target_op_list, optimize_goal
+        self, node, new_ops_list, directive_name, target_op_list, optimize_goal, message_condensed
     ):
         """
         Instantiate a new child node by applying the directive to the given node and target operations.
@@ -942,7 +951,7 @@ class MCTS:
         print("NEW YAML FILE: ", new_yaml_path)
 
         # generate the child node
-        child = Node(yaml_file_path=new_yaml_path, parent=node)
+        child = Node(yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed)
         action = self.directive_name_to_obj.get(directive_name)
         child.latest_action = action
         print("last action: ", child.latest_action.name, child.id)

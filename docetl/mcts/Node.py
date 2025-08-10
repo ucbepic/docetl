@@ -2,6 +2,7 @@ from __future__ import annotations
 from platform import node
 import yaml
 import math
+import json
 from typing import Optional, List, Dict, Any
 import os
 from dotenv import load_dotenv
@@ -22,7 +23,7 @@ class Node:
     # A class-level counter for unique IDs
     _id_counter = 0
 
-    def __init__(self, yaml_file_path: str, parent: Optional[Node] = None, c: float = 1.414):
+    def __init__(self, yaml_file_path: str, parent: Optional[Node] = None, c: float = 1.414, message_history = []):
         """
         Initialize a Node with YAML file information.
         
@@ -61,18 +62,11 @@ class Node:
         self.latest_action = None  # Latest action that led to this node
         
         # Message history from root to this node (accumulated LLM conversations)
-        self.message_history = []
-        if parent is not None:
-            # Inherit message history from parent
-            self.message_history = parent.message_history.copy()
-
+        self.message_history = message_history
         
         # Assign a unique ID to this node
         self.id = Node._id_counter
         Node._id_counter += 1
-
-
-        print("NODE ID: ", self.id)
 
 
     def execute_plan(self, max_threads: Optional[int] = None) -> tuple[float, list]:

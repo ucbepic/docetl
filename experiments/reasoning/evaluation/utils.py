@@ -566,11 +566,11 @@ def _create_cuad_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, f1s, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy", 0)
+            mcts_accuracy = row.get("mcts_accuracy")
             if mcts_accuracy is not None:
                 label = f"{row['node_id']} ({mcts_accuracy:.2f})"
             else:
-                label = row["file"]
+                label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["f1"]), textcoords="offset points", xytext=(4,4), fontsize=8)
 
         plt.xlabel("Cost ($)")
@@ -653,11 +653,11 @@ def _create_game_reviews_plots_and_auc(eval_results, output_path, root_cost=None
         plt.figure(figsize=(8,6))
         plt.scatter(costs, combined_scores, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy", 0)
+            mcts_accuracy = row.get("mcts_accuracy")
             if mcts_accuracy is not None:
                 label = f"{row['node_id']} ({mcts_accuracy:.2f})"
             else:
-                label = row["file"]
+                label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["combined_accuracy_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
 
         plt.xlabel("Cost ($)")
@@ -742,11 +742,11 @@ def _create_blackvault_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, avg_locations, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy", 0)
+            mcts_accuracy = row.get("mcts_accuracy")
             if mcts_accuracy is not None:
                 label = f"{row['node_id']} ({mcts_accuracy:.2f})"
             else:
-                label = row["file"]
+                label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["avg_distinct_locations"]), textcoords="offset points", xytext=(4,4), fontsize=8)
 
         plt.xlabel("Cost ($)")
@@ -831,11 +831,11 @@ def _create_medec_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, scores, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy", 0)
+            mcts_accuracy = row.get("mcts_accuracy")
             if mcts_accuracy is not None:
                 label = f"{row['node_id']} ({mcts_accuracy:.2f})"
             else:
-                label = row["file"]
+                label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["combined_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
 
         plt.xlabel("Cost ($)")
@@ -920,11 +920,11 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
         plt.figure(figsize=(8,6))
         plt.scatter(costs, accuracies, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy", 0)
+            mcts_accuracy = row.get("mcts_accuracy")
             if mcts_accuracy is not None:
                 label = f"{row['node_id']} ({mcts_accuracy:.2f})"
             else:
-                label = row["file"]
+                label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["economic_activity_accuracy"]), textcoords="offset points", xytext=(4,4), fontsize=8)
 
         plt.xlabel("Cost ($)")
@@ -1007,11 +1007,11 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
         plt.figure(figsize=(8,6))
         plt.scatter(costs, rp_at_10_scores, c=colors)
         for row in eval_results:
-            mcts_accuracy = row.get("mcts_accuracy", 0)
+            mcts_accuracy = row.get("mcts_accuracy")
             if mcts_accuracy is not None:
                 label = f"{row['node_id']} ({mcts_accuracy:.2f})"
             else:
-                label = row["file"]
+                label = row.get("node_id", row.get("file", ""))
             plt.annotate(label, (row["cost"], row["avg_rp_at_10"]), textcoords="offset points", xytext=(4,4), fontsize=8)
 
         plt.xlabel("Cost ($)")

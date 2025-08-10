@@ -364,6 +364,12 @@ def run_single_iteration(
         config = yaml.safe_load(file)
 
     global_default_model = config.get("default_model")
+    datasets = config.get("datasets", {})
+    input_file_path = None
+    if isinstance(datasets, dict) and datasets:
+        first_dataset = next(iter(datasets.values()))
+        if isinstance(first_dataset, dict):
+            input_file_path = first_dataset.get("path")
 
     input_schema = load_input_doc(yaml_path)
 
@@ -398,12 +404,16 @@ def run_single_iteration(
             agent_llm=model,
             message_history=message_history,
             global_default_model=global_default_model,
+            input_file_path=input_file_path,
+            pipeline_code=orig_config,
         )
         orig_config["operations"] = new_ops_list
 
+        # Update pipeline steps to reflect new operation names
+        orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
+
         # Apply special post-processing for chaining directive
         if directive == "chaining":
-            orig_config = update_pipeline(orig_config, new_ops_list, target_ops)
             new_ops_list = update_sample(new_ops_list, target_ops, orig_operators)
             orig_config["operations"] = new_ops_list
 

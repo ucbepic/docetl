@@ -280,6 +280,28 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
     return orig_config
 
 
+def fix_models_azure(parsed_yaml):
+    """
+    Recursively traverse the parsed YAML and ensure all model references start with 'azure/'.
+    
+    Args:
+        parsed_yaml: The parsed YAML configuration to fix
+    """
+    def traverse(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key == "model" and isinstance(value, str):
+                    if not value.startswith("azure"):
+                        obj[key] = f"azure/{value}"
+                else:
+                    traverse(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                traverse(item)
+
+    traverse(parsed_yaml)
+
+
 def update_sample(new_ops_list, target_ops, orig_operators):
     """
     Update sample settings in new operations based on original operators.
@@ -368,6 +390,7 @@ def run_single_iteration(
     """
     print(f"\n=== Running Iteration {iteration_num} ===")
     print(f"Input file: {yaml_path}")
+    print(f"curr_yaml_path: {yaml_path}")
 
     # Parse input yaml file to get the list of operations
     orig_config = load_config(yaml_path)
@@ -405,12 +428,22 @@ def run_single_iteration(
     )
     print("Agent:", reply)
 
+    # Use output_dir if provided, otherwise fall back to data_dir
+    save_dir = output_dir if output_dir else data_dir
+
     # Parse agent response
     try:
         parsed = json.loads(reply)
         directive = parsed.get("directive")
         target_ops = parsed.get("operators")
         print(f"Directive: {directive}, Target ops: {target_ops}")
+        
+        # Log directive and target ops to baseline_log.txt in the same directory as output YAML
+        log_file_path = os.path.join(save_dir, "baseline_log.txt")
+        log_message = f"Iteration {iteration_num}: Directive: {directive}, Target ops: {target_ops}\n"
+        with open(log_file_path, "a") as log_file:
+            log_file.write(log_message)
+            
     except Exception as e:
         print(f"Failed to parse agent response: {e}")
         return None, message_history
@@ -436,15 +469,17 @@ def run_single_iteration(
             new_ops_list = update_sample(new_ops_list, target_ops, orig_operators)
             orig_config["operations"] = new_ops_list
 
+        # Ensure all model references start with 'azure/'
+        fix_models_azure(orig_config)
+
     except ValueError as e:
         print(f"Failed to instantiate directive '{directive}': {e}")
         return None, message_history
 
-    # Use output_dir if provided, otherwise fall back to data_dir
-    save_dir = output_dir if output_dir else data_dir
+    
     output_file_path = os.path.join(
         save_dir,
-        f"{dataset}-map_opt_iter_{iteration_num}.yaml",
+        f"iteration_{iteration_num}.yaml",
     )
 
     # Ensure every operator's model starts with 'azure/'

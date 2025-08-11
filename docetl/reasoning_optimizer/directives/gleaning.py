@@ -113,7 +113,7 @@ class GleaningDirective(Directive):
             f"Directive: {self.name}\n"
             f"Your task is to instantiate this directive by generating a configuration that adds validation loops to the original operation. "
             f"The gleaning configuration should include a validation prompt that evaluates the output quality and provides feedback for improvement, "
-            f"along with the number of refinement rounds to attempt.\n\n"
+            f"along with the number of refinement rounds to attempt. In the prompt, you shuold only refer to the output of the original operation, not the input of the entire pipeline. \n\n The prompt does not need to include input in Jinja format."
             f"Example:\n"
             f"{self.example}\n\n"
             f"Please output only the GleaningInstantiateSchema object that specifies how to validate and refine the output of the original operation."

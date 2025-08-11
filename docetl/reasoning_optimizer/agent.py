@@ -126,8 +126,6 @@ def get_openai_response(
     The first LLM call. Generates a rewrite plan given the rewrite directives.
     """
 
-    print("CURR PLAN OUTPUT: ", curr_plan_output)
-
     if iteration == 1:
         user_message = f"""
         I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.
@@ -390,7 +388,6 @@ def run_single_iteration(
     """
     print(f"\n=== Running Iteration {iteration_num} ===")
     print(f"Input file: {yaml_path}")
-    print(f"curr_yaml_path: {yaml_path}")
 
     # Parse input yaml file to get the list of operations
     orig_config = load_config(yaml_path)
@@ -426,7 +423,6 @@ def run_single_iteration(
         prev_plan_cost=prev_plan_cost,
         iteration=iteration_num,
     )
-    print("Agent:", reply)
 
     # Use output_dir if provided, otherwise fall back to data_dir
     save_dir = output_dir if output_dir else data_dir

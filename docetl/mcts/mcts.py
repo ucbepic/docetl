@@ -443,7 +443,6 @@ class MCTS:
             return True
         for op in node.parsed_yaml["operations"]:
             op_name = op.get("name")
-            print(op_name, len(node.used_actions[op_name]))
             if len(node.used_actions[op_name]) < len(ALL_DIRECTIVES):
                 return False
         return True
@@ -671,7 +670,6 @@ class MCTS:
                 )  # The actions that are not used on this operator
                 for action in action_space:
                     action_options.append((op_name, action.name))
-            print(action_options)
             if len(action_options) < 1:
                 print("NO ACTION FOUND")
                 raise RuntimeError(
@@ -694,7 +692,6 @@ class MCTS:
                 )  # The cost actions that are not used on this operator
                 for action in action_space:
                     action_options.append((op_name, action.name))
-            print(action_options)
             print("OPTIMIZING COST:")
             if len(action_options) < 1:
                 print("NO ACTION FOUND")

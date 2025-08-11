@@ -1,6 +1,13 @@
 import React from "react";
 import HealthQuotesExplorer from "@/components/showcase/health-quotes-explorer";
-import { Info, Download, FileJson, ExternalLink, ArrowLeft, Scroll } from "lucide-react";
+import {
+  Info,
+  Download,
+  FileJson,
+  ExternalLink,
+  ArrowLeft,
+  Scroll,
+} from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -54,24 +61,29 @@ export default function CongressionalHealthHearingsPage() {
         <AlertDescription className="text-blue-800">
           <div className="space-y-3 mt-2">
             <p>
-              DocETL analyzed 243 congressional hearing transcripts about health policy, extracting the most 
-              memorable quotes and tracking how different speakers engage with critical healthcare topics. 
-              The pipeline uses GPT-5 to identify impactful statements, measure evasion rates when witnesses 
-              dodge questions, and classify the emotional tone of responses.
+              DocETL analyzed 243 congressional hearing transcripts about health
+              policy, extracting the most memorable quotes and tracking how
+              different speakers engage with critical healthcare topics. The
+              pipeline uses GPT-5 to identify impactful statements, measure
+              evasion rates when witnesses dodge questions, and classify the
+              emotional tone of responses.
             </p>
-            
+
             <p>
-              Each quote receives an <strong>impact score</strong> (0-100%) indicating how memorable or policy-relevant 
-              it is, while the <strong>evasion rate</strong> shows what percentage of questions went unanswered. 
-              Speaker roles distinguish between Congress members, committee chairs, and various witness types 
-              (industry representatives, physicians, academics, patients).
+              Each quote receives an <strong>impact score</strong> (0-100%)
+              indicating how memorable or policy-relevant it is, while the{" "}
+              <strong>evasion rate</strong> shows what percentage of questions
+              went unanswered. Speaker roles distinguish between Congress
+              members, committee chairs, and various witness types (industry
+              representatives, physicians, academics, patients).
             </p>
 
             <p className="text-sm">
-              <strong>Processing details:</strong> 243 transcripts • GPT-5 series model • $17.33 total cost • 
-              Extracted from government API (2000-2025)
+              <strong>Processing details:</strong> 243 transcripts • GPT-5
+              series model • $17.33 total cost • Extracted from government API
+              (2000-2025)
             </p>
-            
+
             <div className="flex flex-wrap gap-3 mt-4">
               <a
                 href="https://docetlcloudbank.blob.core.windows.net/demos/hearings_2000_plus.json"
@@ -93,14 +105,10 @@ export default function CongressionalHealthHearingsPage() {
                   Download Pipeline Output
                 </Button>
               </a>
-              <a
-                href="https://www.congress.gov/committees/video"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a href="/demos/congress_health_pipeline.yaml" download>
                 <Button variant="outline" size="sm" className="bg-white">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View Original Transcripts
+                  <FileJson className="h-4 w-4 mr-2" />
+                  Download Pipeline YAML
                 </Button>
               </a>
             </div>

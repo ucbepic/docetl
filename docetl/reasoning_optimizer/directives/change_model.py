@@ -22,7 +22,7 @@ class ChangeModelDirective(Directive):
         default="Op => Op* (same operation with a different model choice)"
     )
     nl_description: str = Field(
-        default="Rewrites an operator to use a different LLM model based on task requirements. Generally, simpler tasks like extraction or classification may work well with cheaper models (gpt-4o-mini, gpt-4.1-nano), while complex reasoning tasks often benefit from more powerful models (gpt-4.1, gpt-4o), though actual performance and constraints should guide the choice."
+        default="Rewrites an operator to use a different LLM model based on task requirements. Generally, simpler tasks like extraction or classification may work well with cheaper models (gpt-4o-mini, gpt-5-nano), while complex reasoning tasks often benefit from more powerful models (gpt-5), though actual performance and constraints should guide the choice."
     )
     when_to_use: str = Field(
         default="When the current model choice may not be optimal for the task requirements, considering factors like task complexity, performance needs, cost constraints, and quality requirements."
@@ -41,7 +41,7 @@ class ChangeModelDirective(Directive):
             "  output:\n"
             "    schema:\n"
             '      insights_summary: "string"\n'
-            "  model: gpt-4o\n"
+            "  model: gpt-5\n"
             "\n"
             "Example InstantiateSchema:\n"
             "{\n"
@@ -58,27 +58,27 @@ class ChangeModelDirective(Directive):
     model_info: str = Field(
         default=(
             """
-        OpenAI-MRCR evaluates a model's ability to locate and disambiguate multiple well-hidden "needles" within a large context.
+            OpenAI-MRCR evaluates a model's ability to locate and disambiguate multiple well-hidden "needles" within a large context.
             Below are the actual performance scores for the 8-needle retrieval task at various context lengths. Use these results to compare the retrieval capabilities of each model.
+            The below results are the mean match ratio.
 
-            Input Tokens (1000s) | GPT-4.1 | GPT-4.1 nano | GPT-4o (2024-11-20) | GPT-4o mini
-            ---------------------|---------|--------------|---------------------|-------------
-            8                    | 32.5%   | 21.0%        | 17.5%               | 20.5%
-            16                   | 26.0%   | 18.5%        | 17.5%               | 15.5%
-            32                   | 16.5%   | 13.5%        | 17.0%               | 12.0%
-            64                   | 21.5%   | 16.0%        | 19.5%               | 13.5%
-            128                  | 18.5%   | 14.5%        | 18.0%               | 11.0%
-            256                  | 17.0%   | 14.5%        | -                   | -
-            512                  | 16.5%   | 9.0%         | -                   | -
-            1024                 | 16.0%   | 5.0%         | -                   | -
+            Input Tokens (1000s) | GPT-5   | GPT-5 nano   | GPT-4o mini
+            ---------------------|---------|--------------|-------------------|
+            8                    | 99%     | 69%          | 32%               | 
+            16                   | 100%    | 64%          | 30%               | 
+            32                   | 96%     | 55%          | 27%               |
+            64                   | 98%     | 45%          | 25%               | 
+            128                  | 97%     | 44%          | 25%               | 
+            256                  | 92%     | 40%          | -                 | 
+              
 
             The context window and pricing details for each model are shown below (token prices are per 1 million tokens):
-            Model              | GPT-4.1-nano | GPT-4o-mini | GPT-4o     | GPT-4.1
-            -------------------|--------------|-------------|------------|---------
-            Context Window     | 1,047,576    | 128,000     | 128,000    | 1,047,576
-            Max Output Tokens  | 32,768       | 16,384      | 16,384     | 32,768
-            Input Token Price  | $0.10        | $0.15       | $2.50      | $2.00
-            Output Token Price | $0.40        | $0.60       | $1.25      | $8.00
+            Model              | GPT-5-nano   | GPT-4o-mini | GPT-5     
+            -------------------|--------------|-------------|----------
+            Context Window     | 400,000      | 128,000     | 400,000    
+            Max Output Tokens  | 128,000      | 16,384      | 128,000   
+            Input Token Price  | $0.05        | $0.15       | $1.25    
+            Output Token Price | $0.40        | $0.60       | $10    
         """
         ),
     )
@@ -93,10 +93,10 @@ class ChangeModelDirective(Directive):
                     "type": "map",
                     "prompt": "Extract person names from: {{ input.text }}",
                     "output": {"schema": {"names": "list[str]"}},
-                    "model": "gpt-4.1",
+                    "model": "gpt-5",
                 },
                 target_ops=["extract_names"],
-                expected_behavior="Should recommend gpt-4o-mini or gpt-4.1-nano for cost savings on simple task",
+                expected_behavior="Should recommend gpt-4o-mini or gpt-5-nano for cost savings on simple task",
                 should_pass=True,
             ),
             DirectiveTestCase(
@@ -110,7 +110,7 @@ class ChangeModelDirective(Directive):
                     "model": "gpt-4o-mini",
                 },
                 target_ops=["analyze_legal_implications"],
-                expected_behavior="Should recommend gpt-4.1 or gpt-4o for complex legal analysis requiring strong reasoning",
+                expected_behavior="Should recommend gpt-5 for complex legal analysis requiring strong reasoning",
                 should_pass=True,
             ),
             DirectiveTestCase(
@@ -121,10 +121,10 @@ class ChangeModelDirective(Directive):
                     "type": "map",
                     "prompt": "Summarize this document in 2-3 sentences: {{ input.document }}",
                     "output": {"schema": {"summary": "str"}},
-                    "model": "gpt-4.1",
+                    "model": "gpt-5",
                 },
                 target_ops=["batch_document_summary"],
-                expected_behavior="Should recommend faster/cheaper model like gpt-4o-mini or gpt-4.1-nano for high-volume simple summarization",
+                expected_behavior="Should recommend faster/cheaper model like gpt-4o-mini or gpt-5-nano for high-volume simple summarization",
                 should_pass=True,
             ),
         ]

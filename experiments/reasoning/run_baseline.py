@@ -12,6 +12,7 @@ import json
 import argparse
 import glob
 from pathlib import Path
+from docetl.utils import extract_output_from_json
 import matplotlib.pyplot as plt
 from docetl.runner import DSLRunner
 import yaml as _yaml
@@ -238,14 +239,12 @@ def run_baseline_experiment(
         runner.reset_env()
 
         # Load sample output (truncate if huge)
-        sample_output = {}
         try:
-            with open(baseline_json_path, 'r') as jf:
-                sample_output = json.load(jf)
+            orig_output_sample = extract_output_from_json(baseline_yaml_path, baseline_json_path)[:1]
         except Exception as e:
             print(f"⚠️  Could not load baseline output JSON: {e}")
 
-        return sample_output, total_cost
+        return orig_output_sample, total_cost
 
 
     print("▶️  Running baseline (iteration 0)")
@@ -337,9 +336,7 @@ def run_baseline_experiment(
                 # The pipeline saved results to iteration_{i}_results.json – load a snippet
                 result_json_path = output_path / f"iteration_{i}_results.json"
                 if result_json_path.exists():
-                    with open(result_json_path, 'r') as rf:
-                        result_json = json.load(rf)
-                    orig_output_sample = json.dumps(result_json)[:2000]
+                    orig_output_sample = extract_output_from_json(iteration_output, result_json_path)[:1]
                 else:
                     orig_output_sample = ""
             except Exception:

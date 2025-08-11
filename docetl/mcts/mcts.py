@@ -24,6 +24,55 @@ from .Node import Node
 from .ParetoFrontier import ParetoFrontier
 
 
+# Maximum number of tokens we will allow in the prompt we send to the model.
+# The Azure GPT-5 family allows 272,000 tokens.
+MAX_CONTEXT_TOKENS = 270_000
+
+
+def count_tokens(messages):
+    """Count estimated tokens in messages list."""
+    # messages should be a list of dicts, each with a "content" key
+    total_chars = sum(
+        len(m.get("content", "")) for m in messages if isinstance(m, dict)
+    )
+    return max(1, total_chars // 4)
+
+
+def _trim_history(history: list, keep_system_first: bool = True) -> list:
+    """Trim the conversation history in-place so its estimated token count
+    (via ``count_tokens``) does not exceed ``MAX_CONTEXT_TOKENS``.
+
+    We always keep the very first system message and the first user message so the 
+    assistant retains the global instructions and the initial query context. After 
+    that we drop the oldest messages until the budget is satisfied. Returns the 
+    trimmed history list.
+    """
+
+    # Determine starting index to preserve the initial system message and first user message
+    start_idx = 0
+    if keep_system_first and history:
+        if history[0].get("role") == "system":
+            start_idx = 1
+            # Find the first user message after the system message
+            for i in range(1, len(history)):
+                if history[i].get("role") == "user":
+                    start_idx = i + 1
+                    break
+        elif history[0].get("role") == "user":
+            # If first message is user, keep it and find the next user message
+            start_idx = 1
+            for i in range(1, len(history)):
+                if history[i].get("role") == "user":
+                    start_idx = i + 1
+                    break
+
+    # Drop oldest messages (just after the preserved block) until within limit
+    while len(history) > start_idx + 1 and count_tokens(history) > MAX_CONTEXT_TOKENS:
+        history.pop(start_idx)
+
+    return history
+
+
 def count_num_pass(mcts_instance, node: Node) -> int:
     """
     Count the number of times the main content key is mentioned in prompts of 
@@ -475,6 +524,7 @@ class MCTS:
         Input document schema with token statistics: {input_schema} \n
         Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
+        The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
         """
         
         # Create a condensed version for message history (without full operator/directive descriptions)
@@ -568,6 +618,7 @@ class MCTS:
         Input document schema with token statistics: {input_schema} \n
         Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
+        The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
         """
         
         # Create a condensed version for message history (without full operator/directive descriptions)
@@ -673,6 +724,10 @@ class MCTS:
                 })
         message_condensed.append({"role": "user", "content": condensed_user_message})
 
+        
+        # Trim the history to prevent context window overflow before sending to the model
+        messages = _trim_history(messages)
+        message_condensed = _trim_history(message_condensed)
 
         while retry_count < max_retries:
 

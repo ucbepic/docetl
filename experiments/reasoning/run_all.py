@@ -56,7 +56,7 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "biodex",
+            "dataset": "CUAD",
             "baseline": {"iterations": 10},
             "mcts": {"max_iterations": 30}
         }

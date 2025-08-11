@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 from docetl.runner import DSLRunner
 from docetl.reasoning_optimizer.directives import Directive
+from docetl.utils import extract_output_from_json
 
 class Node:
     """
@@ -116,9 +117,13 @@ class Node:
             runner.reset_env()
             
             self.cost = total_cost
-            self.sample_result = result_data
-            return total_cost, result_data
-            
+
+            self.sample_result = extract_output_from_json(self.yaml_file_path)[:1]
+            print("="*100)
+            print("SAMPLE RESULT: ", self.sample_result)
+            print("="*100)
+            return total_cost
+             
         except Exception as e:
             self.cost = -1  # Indicate failure
             raise Exception(f"Failed to execute plan {self.yaml_file_path}: {str(e)}")

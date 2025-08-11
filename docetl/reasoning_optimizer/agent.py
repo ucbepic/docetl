@@ -67,25 +67,37 @@ def count_tokens(messages):
 # 🔒 Context-window safety helpers
 # ------------------------------------------------------------------
 # Maximum number of tokens we will allow in the prompt we send to the model.
-# The Azure GPT-4.1 family allows ~1 M tokens, so we keep a ~20 % buffer.
-MAX_CONTEXT_TOKENS = 800_000
+# The Azure GPT-5 family allows 272,000 tokens.
+MAX_CONTEXT_TOKENS = 270_000
 
 
 def _trim_history(history: list, keep_system_first: bool = True) -> list:
     """Trim the conversation history in-place so its estimated token count
     (via ``count_tokens``) does not exceed ``MAX_CONTEXT_TOKENS``.
 
-    We always keep the very first system message so the assistant retains the
-    global instructions. After that we drop the oldest messages until the
-    budget is satisfied. Returns the trimmed history list.
+    We always keep the very first system message and the first user message so the 
+    assistant retains the global instructions and the initial query context. After 
+    that we drop the oldest messages until the budget is satisfied. Returns the 
+    trimmed history list.
     """
 
-    # Determine starting index to preserve the initial system message if present
-    start_idx = (
-        1
-        if (keep_system_first and history and history[0].get("role") == "system")
-        else 0
-    )
+    # Determine starting index to preserve the initial system message and first user message
+    start_idx = 0
+    if keep_system_first and history:
+        if history[0].get("role") == "system":
+            start_idx = 1
+            # Find the first user message after the system message
+            for i in range(1, len(history)):
+                if history[i].get("role") == "user":
+                    start_idx = i + 1
+                    break
+        elif history[0].get("role") == "user":
+            # If first message is user, keep it and find the next user message
+            start_idx = 1
+            for i in range(1, len(history)):
+                if history[i].get("role") == "user":
+                    start_idx = i + 1
+                    break
 
     # Drop oldest messages (just after the preserved block) until within limit
     while len(history) > start_idx + 1 and count_tokens(history) > MAX_CONTEXT_TOKENS:
@@ -114,11 +126,12 @@ def get_openai_response(
     The first LLM call. Generates a rewrite plan given the rewrite directives.
     """
 
-    if iteration == 1:
+    print("CURR PLAN OUTPUT: ", curr_plan_output)
 
+    if iteration == 1:
         user_message = f"""
         I have a set of operations used to process long documents, along with a list of possible rewrite directives aimed at improving the quality of the query result.
-        Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and pecify which operators (specify by the names) in the pipeline the directive should be applied to.
+        Given a query pipeline made up of these operations, recommend one specific rewrite directive (specify by its name) that would improve accuracy and specify which operators (specify by the names) in the pipeline the directive should be applied to.
         Make sure that your cosen directive is in the provided list of rewrite directives.
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
@@ -146,32 +159,34 @@ def get_openai_response(
 
         Input document schema with token statistics: {input_schema} \n
         Cost of previous plan execution: ${prev_plan_cost:.4f} \n
-        Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
-        Sample of the result from executing the original query: {json.dumps(curr_plan_output, indent=2)} \n
+        Input data sample: {json.dumps(input_data_sample, indent=2)[:3000]} \n
+        Sample of the result from executing the original query: {json.dumps(curr_plan_output, indent=2)[:3000]} \n
         """
     else:
         user_message = f"""
-        Given the previously rewritten pipeline, recommend one specific rewrite directive (specify by its name) that would improve accuracy and pecify which operator (specify by the name) in the pipeline the directive should be applied to.
+        Given the previously rewritten pipeline, recommend one specific rewrite directive (specify by its name) that would improve accuracy and specify which operator (specify by the name) in the pipeline the directive should be applied to.
         Make sure that your cosen directive is in the provided list of rewrite directives.
-         Rewrite directives:
+        Rewrite directives:
         {get_all_directive_strings()}\n
 
         Cost of previous plan execution: ${prev_plan_cost:.4f} \n
-        Input data sample: {json.dumps(input_data_sample, indent=2)[:5000]} \n
         The original query in YAML format using our operations: {input_query} \n
-        Sample of the result from executing the previously rewritten query: {json.dumps(curr_plan_output, indent=2)} \n
+        Sample of the result from executing the original query: {json.dumps(curr_plan_output, indent=2)[:3000]} \n
         """
 
-    message_history.extend(
-        [
-            {
-                "role": "system",
-                "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate execution plans. Your output must follow the structured output format.",
-            },
-            {"role": "user", "content": user_message},
-        ]
-    )
+    if len(message_history) == 0:
+        message_history.extend(
+            [
+                {
+                    "role": "system",
+                    "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate execution plans. Your output must follow the structured output format.",
+                },
+                {"role": "user", "content": user_message},
+            ]
+        )
+    else: 
+        message_history.append({"role": "user", "content": user_message})
 
     # Trim the history to prevent context window overflow before sending to the model
     message_history = _trim_history(message_history)
@@ -184,6 +199,10 @@ def get_openai_response(
         tokens = count_tokens(messages)
         limiter.wait_for_slot(tokens)
 
+    # Count the number of tokens in the messages for debugging/monitoring
+    num_tokens = count_tokens(messages)
+    print(f"Token count for current messages: {num_tokens}")
+    # litellm._turn_on_debug()
     response = litellm.completion(
         model=model,
         messages=messages,
@@ -497,6 +516,4 @@ def run_single_iteration(
 
     return output_file_path, message_history, total_cost
 
-
-# agent.py is now a pure module - no experiment code
 # Use experiments/reasoning/run_baseline.py to run experiments

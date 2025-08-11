@@ -7,6 +7,7 @@ for DocETL pipelines. It's extracted from the reasoning_optimizer/agent.py to
 provide a clean experiment interface.
 """
 
+from ast import Continue
 import os
 import json
 import argparse
@@ -272,7 +273,7 @@ def run_baseline_experiment(
     # ------------------------------------------------------------------
     # Optimisation iterations
     # ------------------------------------------------------------------
-
+    curr_yaml_path = yaml_path
     for i in range(1, iterations + 1):
         try:
             print(f"\n🔄 Running Iteration {i}/{iterations}")
@@ -299,9 +300,10 @@ def run_baseline_experiment(
                         sample_data = json.load(f)
                 except Exception as e:
                     print(f"Warning: Could not load sample data from {sample_data_path}: {e}")
-            
+            print("="*100)
+            print("curr_yaml_path: ", curr_yaml_path)
             output_file, updated_history, iteration_cost = run_single_iteration(
-                yaml_path=yaml_path,
+                yaml_path=curr_yaml_path,
                 model=model,
                 max_tpm=max_tpm,
                 message_history=message_history,
@@ -312,12 +314,19 @@ def run_baseline_experiment(
                 dataset=dataset,
                 sample_data=sample_data
             )
-            
-            # Save iteration results
-            iteration_output = output_path / f"iteration_{i}_output.yaml"
-            if output_file and os.path.exists(output_file):
-                shutil.copy2(output_file, iteration_output)
-                print(f"✅ Iteration {i} output saved to: {iteration_output}")
+
+            if not output_file:
+                print(f"❌ Iteration {i} failed: No output yaml file")
+                results.append({
+                    "iteration": i,
+                    "error": "No output file",
+                    "success": False,
+                    "cost": 0.0
+                })
+                continue
+
+            curr_yaml_path = output_file
+            print("output_file: ", output_file)
             
             # Update message history
             message_history = updated_history
@@ -325,7 +334,7 @@ def run_baseline_experiment(
             
             results.append({
                 "iteration": i,
-                "output_file": str(iteration_output),
+                "output_file": str(output_file),
                 "success": True,
                 "cost": iteration_cost
             })
@@ -336,7 +345,7 @@ def run_baseline_experiment(
                 # The pipeline saved results to iteration_{i}_results.json – load a snippet
                 result_json_path = output_path / f"iteration_{i}_results.json"
                 if result_json_path.exists():
-                    orig_output_sample = extract_output_from_json(iteration_output, result_json_path)[:1]
+                    orig_output_sample = extract_output_from_json(output_file, result_json_path)[:1]
                 else:
                     orig_output_sample = ""
             except Exception:

@@ -184,8 +184,12 @@ Reference anchors:"""
 
             # Call LLM to get calibration suggestions
             messages = [{"role": "user", "content": calibration_prompt}]
-            completion_kwargs = self.config.get("litellm_completion_kwargs", {})
-            completion_kwargs["temperature"] = 0.0
+            # Use a copy of the user-provided completion kwargs so we don't mutate the original
+            # and avoid hard-coding temperature to a value that may not be supported by certain models.
+            completion_kwargs = dict(self.config.get("litellm_completion_kwargs", {}))
+            # If the user did not explicitly specify a temperature, let the model default handle it
+            # to prevent incompatibility errors with providers that don't support 0.0.
+            # If a temperature is already provided, respect the user's choice.
 
             llm_result = self.runner.api.call_llm(
                 self.config.get("model", self.default_model),

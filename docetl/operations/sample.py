@@ -11,15 +11,14 @@ from docetl.operations.clustering_utils import get_embeddings_for_clustering
 
 class SampleOperation(BaseOperation):
     """
-    Samples items from input data using various methods.
+    Samples items from input data using various methods with optional stratification.
     
     Params:
-    - method: "uniform", "stratify", "outliers", "custom", "first"
+    - method: "uniform", "outliers", "custom", "first"
     - samples: int, float, or list depending on method
+    - stratify_key: str or list[str] - Optional keys to stratify by (works with all methods except custom)
+    - samples_per_group: bool - When stratifying, sample N items per group vs. dividing total
     - method_kwargs: dict with method-specific parameters:
-        For stratify:
-            - stratify_key: str or list[str] - Keys to stratify by
-            - samples_per_group: bool - Sample N items per group vs. dividing total
         For outliers:
             - embedding_keys: list[str] - Keys for embeddings
             - std: float - Std deviation cutoff
@@ -30,8 +29,10 @@ class SampleOperation(BaseOperation):
 
     class schema(BaseOperation.schema):
         type: str = "sample"
-        method: Literal["uniform", "stratify", "outliers", "custom", "first"]
+        method: Literal["uniform", "outliers", "custom", "first"]
         samples: Union[int, float, list] | None = None
+        stratify_key: Union[str, list[str]] | None = None
+        samples_per_group: bool = False
         method_kwargs: dict[str, Any] | None = Field(default_factory=dict)
         random_state: int | None = Field(None, ge=0)
 
@@ -51,6 +52,23 @@ class SampleOperation(BaseOperation):
                     
             return v
 
+        @field_validator("stratify_key")
+        def validate_stratify_key(cls, v):
+            if v is None:
+                return v
+                
+            if isinstance(v, str):
+                pass  # Single key is valid
+            elif isinstance(v, list):
+                if not v:
+                    raise ValueError("'stratify_key' list cannot be empty")
+                if not all(isinstance(key, str) for key in v):
+                    raise TypeError("All items in 'stratify_key' must be strings")
+            else:
+                raise TypeError("'stratify_key' must be a string or list of strings")
+                
+            return v
+
         @field_validator("method_kwargs")
         def validate_method_kwargs(cls, v, info):
             if v is None:
@@ -61,22 +79,6 @@ class SampleOperation(BaseOperation):
 
             # Get method from context if available
             method = info.data.get("method") if hasattr(info, "data") else None
-
-            # Validate stratify-specific kwargs
-            if "stratify_key" in v:
-                stratify_key = v["stratify_key"]
-                if isinstance(stratify_key, str):
-                    pass  # Single key is valid
-                elif isinstance(stratify_key, list):
-                    if not stratify_key:
-                        raise ValueError("'stratify_key' list cannot be empty")
-                    if not all(isinstance(key, str) for key in stratify_key):
-                        raise TypeError("All items in 'stratify_key' must be strings")
-                else:
-                    raise TypeError("'stratify_key' must be a string or list of strings")
-
-            if "samples_per_group" in v and not isinstance(v["samples_per_group"], bool):
-                raise TypeError("'samples_per_group' must be a boolean")
 
             # Validate outlier-specific kwargs
             if "embedding_keys" in v:
@@ -105,12 +107,8 @@ class SampleOperation(BaseOperation):
             method_kwargs = self.method_kwargs or {}
 
             # Methods that require samples parameter
-            if method in ["uniform", "stratify", "first"] and self.samples is None:
+            if method in ["uniform", "first"] and self.samples is None:
                 raise ValueError(f"Must specify 'samples' for {method} sampling")
-
-            # Stratify method requirements
-            if method == "stratify" and "stratify_key" not in method_kwargs:
-                raise ValueError("Must specify 'stratify_key' for stratify sampling")
 
             # Outliers method requirements
             if method == "outliers":
@@ -124,16 +122,23 @@ class SampleOperation(BaseOperation):
                     )
 
             # Custom method requirements
-            if method == "custom" and self.samples is None:
-                raise ValueError("Must specify 'samples' for custom sampling")
+            if method == "custom":
+                if self.samples is None:
+                    raise ValueError("Must specify 'samples' for custom sampling")
+                if self.stratify_key is not None:
+                    raise ValueError("Stratification is not supported with custom sampling")
+                    
+            # Validate samples_per_group only makes sense with stratification
+            if self.samples_per_group and not self.stratify_key:
+                raise ValueError("'samples_per_group' requires 'stratify_key' to be set")
 
             return self
 
         @model_validator(mode="after")
         def validate_stratify_keys_in_pipeline(self):
             """Warn if stratify keys are not found as doc_id_keys in pipeline."""
-            if self.method == "stratify" and hasattr(self, "_runner"):
-                stratify_key = self.method_kwargs.get("stratify_key")
+            if self.stratify_key and hasattr(self, "_runner"):
+                stratify_key = self.stratify_key
                 if isinstance(stratify_key, list):
                     # Check pipeline config for doc_id_keys
                     pipeline_config = getattr(self._runner, "config", {})
@@ -175,14 +180,17 @@ class SampleOperation(BaseOperation):
             return [], 0.0
 
         method = self.config["method"]
+        stratify_key = self.config.get("stratify_key")
         
-        # Dispatch to appropriate sampling method
+        # If stratification is requested, handle it here
+        if stratify_key:
+            return self._sample_with_stratification(input_data, method)
+        
+        # Otherwise, dispatch to appropriate sampling method
         if method == "first":
             return self._sample_first(input_data)
         elif method == "uniform":
             return self._sample_uniform(input_data)
-        elif method == "stratify":
-            return self._sample_stratify(input_data)
         elif method == "outliers":
             return self._sample_outliers(input_data)
         elif method == "custom":
@@ -190,82 +198,141 @@ class SampleOperation(BaseOperation):
         else:
             raise ValueError(f"Unknown sampling method: {method}")
 
+    def _get_stratify_value(self, item: dict) -> Union[str, tuple]:
+        """Get the stratification value(s) for an item."""
+        stratify_key = self.config.get("stratify_key")
+        if isinstance(stratify_key, str):
+            return item[stratify_key]
+        else:  # list of keys
+            return tuple(item[key] for key in stratify_key)
+
+    def _sample_with_stratification(
+        self, input_data: list[dict], method: str
+    ) -> tuple[list[dict], float]:
+        """Apply stratification to any sampling method."""
+        samples_per_group = self.config.get("samples_per_group", False)
+        
+        # Group data by stratification key(s)
+        groups = defaultdict(list)
+        for item in input_data:
+            groups[self._get_stratify_value(item)].append(item)
+
+        # Apply sampling method to each group
+        output_data = []
+        total_cost = 0.0
+        
+        if samples_per_group:
+            # Sample N items from each group
+            for group_items in groups.values():
+                if method == "first":
+                    sampled, cost = self._sample_first(group_items)
+                elif method == "uniform":
+                    sampled, cost = self._sample_uniform(group_items)
+                elif method == "outliers":
+                    sampled, cost = self._sample_outliers(group_items)
+                else:
+                    raise ValueError(f"Method {method} not supported with stratification")
+                
+                output_data.extend(sampled)
+                total_cost += cost
+        else:
+            # Traditional stratified sampling - sample proportionally from each group
+            if method == "uniform":
+                return self._sample_stratified_proportional(input_data, groups)
+            elif method == "first":
+                # For "first" method with stratification, take proportional first items from each group
+                return self._sample_stratified_first(input_data, groups)
+            elif method == "outliers":
+                # For outliers, we need to handle differently
+                return self._sample_stratified_outliers(input_data, groups)
+            else:
+                raise ValueError(f"Method {method} not supported with proportional stratification")
+        
+        return output_data, total_cost
+
+    def _sample_stratified_proportional(
+        self, input_data: list[dict], groups: dict
+    ) -> tuple[list[dict], float]:
+        """Traditional stratified sampling with proportional allocation."""
+        import sklearn.model_selection
+        
+        stratify_values = [self._get_stratify_value(item) for item in input_data]
+        
+        output_data, _ = sklearn.model_selection.train_test_split(
+            input_data,
+            train_size=self.config["samples"],
+            random_state=self.config.get("random_state"),
+            stratify=stratify_values,
+        )
+        return output_data, 0.0
+
+    def _sample_stratified_first(
+        self, input_data: list[dict], groups: dict
+    ) -> tuple[list[dict], float]:
+        """Take first N items proportionally from each stratum."""
+        samples = self.config["samples"]
+        if isinstance(samples, float):
+            n_samples = int(samples * len(input_data))
+        else:
+            n_samples = samples
+        
+        # Calculate proportional samples per group
+        output_data = []
+        for group_key, group_items in groups.items():
+            group_proportion = len(group_items) / len(input_data)
+            group_samples = int(n_samples * group_proportion)
+            if group_samples > 0:
+                output_data.extend(group_items[:group_samples])
+        
+        # If we're short due to rounding, add more from largest group
+        while len(output_data) < n_samples and len(output_data) < len(input_data):
+            largest_group = max(groups.values(), key=len)
+            for item in largest_group:
+                if item not in output_data:
+                    output_data.append(item)
+                    break
+        
+        return output_data[:n_samples], 0.0
+
+    def _sample_stratified_outliers(
+        self, input_data: list[dict], groups: dict
+    ) -> tuple[list[dict], float]:
+        """Apply outlier detection within each stratum and combine results."""
+        output_data = []
+        total_cost = 0.0
+        
+        # Apply outlier detection to each group
+        for group_items in groups.values():
+            if len(group_items) > 0:
+                sampled, cost = self._sample_outliers(group_items)
+                output_data.extend(sampled)
+                total_cost += cost
+        
+        return output_data, total_cost
+
     def _sample_first(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """Take the first N samples."""
-        n_samples = self.config["samples"]
+        samples = self.config["samples"]
+        if isinstance(samples, float):
+            n_samples = int(samples * len(input_data))
+        else:
+            n_samples = samples
         return input_data[:n_samples], 0.0
 
     def _sample_uniform(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """Uniformly sample from input data."""
         import sklearn.model_selection
         
-        output_data, _ = sklearn.model_selection.train_test_split(
-            input_data,
-            train_size=self.config["samples"],
-            random_state=self.config.get("random_state"),
-        )
-        return output_data, 0.0
-
-    def _sample_stratify(self, input_data: list[dict]) -> tuple[list[dict], float]:
-        """Stratified sampling based on one or more keys."""
-        method_kwargs = self.config.get("method_kwargs", {})
-        stratify_key = method_kwargs["stratify_key"]
-        samples_per_group = method_kwargs.get("samples_per_group", False)
         samples = self.config["samples"]
         
-        # Helper to get stratify value(s)
-        def get_stratify_value(item):
-            if isinstance(stratify_key, str):
-                return item[stratify_key]
-            else:  # list of keys
-                return tuple(item[key] for key in stratify_key)
-
-        if samples_per_group:
-            return self._sample_per_group(input_data, get_stratify_value, samples)
-        else:
-            return self._sample_stratified(input_data, get_stratify_value, samples)
-
-    def _sample_per_group(
-        self, input_data: list[dict], get_group_fn, samples
-    ) -> tuple[list[dict], float]:
-        """Sample N items from each group."""
-        # Group data
-        groups = defaultdict(list)
-        for item in input_data:
-            groups[get_group_fn(item)].append(item)
-
-        # Set random seed if specified
-        random_state = self.config.get("random_state")
-        if random_state is not None:
-            random.seed(random_state)
-
-        # Sample from each group
-        output_data = []
-        for group_items in groups.values():
-            if isinstance(samples, float):
-                n_samples = int(samples * len(group_items))
-            else:
-                n_samples = min(samples, len(group_items))
-            
-            if n_samples > 0:
-                sampled = random.sample(group_items, n_samples)
-                output_data.extend(sampled)
-
-        return output_data, 0.0
-
-    def _sample_stratified(
-        self, input_data: list[dict], get_group_fn, samples
-    ) -> tuple[list[dict], float]:
-        """Traditional stratified sampling."""
-        import sklearn.model_selection
-        
-        stratify_values = [get_group_fn(item) for item in input_data]
+        # Handle the case where we have very few items
+        if isinstance(samples, int) and samples >= len(input_data):
+            return input_data, 0.0
         
         output_data, _ = sklearn.model_selection.train_test_split(
             input_data,
             train_size=samples,
             random_state=self.config.get("random_state"),
-            stratify=stratify_values,
         )
         return output_data, 0.0
 

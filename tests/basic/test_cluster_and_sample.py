@@ -187,8 +187,8 @@ def test_sample_operation_with_stratify(
     sample_config, sample_data, runner, default_model, max_threads
 ):
     sample_config["samples"] = 5
-    sample_config["method"] = "stratify"
-    sample_config["method_kwargs"] = {"stratify_key": "group"}
+    sample_config["method"] = "uniform"
+    sample_config["stratify_key"] = "group"
     operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
@@ -264,8 +264,8 @@ def test_sample_operation_with_multiple_stratify_keys(
     ]
     
     sample_config["samples"] = 4
-    sample_config["method"] = "stratify"
-    sample_config["method_kwargs"] = {"stratify_key": ["type", "size"]}
+    sample_config["method"] = "uniform"
+    sample_config["stratify_key"] = ["type", "size"]
     
     operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(test_data)
@@ -298,11 +298,9 @@ def test_sample_operation_with_samples_per_group(
     ]
     
     sample_config["samples"] = 2
-    sample_config["method"] = "stratify"
-    sample_config["method_kwargs"] = {
-        "stratify_key": "category",
-        "samples_per_group": True
-    }
+    sample_config["method"] = "uniform"
+    sample_config["stratify_key"] = "category"
+    sample_config["samples_per_group"] = True
     
     operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(test_data)
@@ -333,11 +331,9 @@ def test_sample_operation_with_samples_per_group_fraction(
     ]
     
     sample_config["samples"] = 0.5  # 50% from each group
-    sample_config["method"] = "stratify"
-    sample_config["method_kwargs"] = {
-        "stratify_key": "category",
-        "samples_per_group": True
-    }
+    sample_config["method"] = "uniform"
+    sample_config["stratify_key"] = "category"
+    sample_config["samples_per_group"] = True
     
     operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(test_data)

@@ -362,110 +362,151 @@ class SampleOperation(BaseOperation):
         table_name = method_kwargs.get("table_name", "docetl_vectors")
         persist = method_kwargs.get("persist", False)
         output_key = method_kwargs.get("output_key", "_retrieved")
+        stratify_key = method_kwargs.get("stratify_key", None)
         
         total_cost = 0.0
         
-        # Prepare documents for embedding
-        docs_to_embed = []
-        for i, doc in enumerate(input_data):
-            text = self._prepare_text_for_embedding(doc, embedding_keys)
-            if text:
-                docs_to_embed.append({
-                    "_index": i,
-                    "text": text,
-                    "document": doc
-                })
+        # Helper function to get stratify value(s) for an item
+        def get_stratify_value(item):
+            if stratify_key is None:
+                return None
+            elif isinstance(stratify_key, str):
+                return item.get(stratify_key)
+            else:  # list of keys
+                return tuple(item.get(key) for key in stratify_key)
         
-        if not docs_to_embed:
-            return [], 0.0
+        # Group data by stratify key if specified
+        if stratify_key:
+            from collections import defaultdict
+            strata_groups = defaultdict(list)
+            for i, doc in enumerate(input_data):
+                strata_groups[get_stratify_value(doc)].append((i, doc))
+        else:
+            # No stratification - treat all data as one group
+            strata_groups = {None: [(i, doc) for i, doc in enumerate(input_data)]}
         
-        # Get embeddings for all documents
-        texts = [d["text"] for d in docs_to_embed]
-        embeddings, embedding_cost = get_embeddings_for_clustering(
-            [{"text": t} for t in texts],
-            {"embedding_keys": ["text"], "embedding_model": embedding_model},
-            self.runner.api
-        )
-        total_cost += embedding_cost
+        # Process each stratum separately
+        all_results = [None] * len(input_data)
         
-        # Prepare data for LanceDB
-        vector_dim = len(embeddings[0]) if embeddings else 0
-        
-        # Create dynamic model for LanceDB
-        class DocumentVector(LanceModel):
-            text: str
-            vector: Vector(vector_dim)
-            _index: int
+        for stratum_key, stratum_docs in strata_groups.items():
+            # Prepare documents for embedding within this stratum
+            docs_to_embed = []
+            for idx, doc in stratum_docs:
+                text = self._prepare_text_for_embedding(doc, embedding_keys)
+                if text:
+                    docs_to_embed.append({
+                        "_original_index": idx,
+                        "_stratum_index": len(docs_to_embed),
+                        "text": text,
+                        "document": doc
+                    })
             
-        # Add document data to records
-        records = []
-        for i, (doc_info, embedding) in enumerate(zip(docs_to_embed, embeddings)):
-            record = {
-                "text": doc_info["text"],
-                "vector": embedding,
-                "_index": doc_info["_index"]
-            }
-            records.append(record)
-        
-        # Create or overwrite table
-        if table_name in self._db.table_names():
-            if not persist:
-                self._db.drop_table(table_name)
-                self._table = self._db.create_table(
-                    table_name, 
+            if not docs_to_embed:
+                # No valid documents in this stratum
+                for idx, doc in stratum_docs:
+                    all_results[idx] = {**doc, output_key: []}
+                continue
+            
+            # Get embeddings for documents in this stratum
+            texts = [d["text"] for d in docs_to_embed]
+            embeddings, embedding_cost = get_embeddings_for_clustering(
+                [{"text": t} for t in texts],
+                {"embedding_keys": ["text"], "embedding_model": embedding_model},
+                self.runner.api
+            )
+            total_cost += embedding_cost
+            
+            # Prepare data for LanceDB
+            vector_dim = len(embeddings[0]) if embeddings else 0
+            
+            # Create dynamic model for LanceDB
+            class DocumentVector(LanceModel):
+                text: str
+                vector: Vector(vector_dim)
+                _stratum_index: int
+                _original_index: int
+                
+            # Add document data to records
+            records = []
+            for i, (doc_info, embedding) in enumerate(zip(docs_to_embed, embeddings)):
+                record = {
+                    "text": doc_info["text"],
+                    "vector": embedding,
+                    "_stratum_index": doc_info["_stratum_index"],
+                    "_original_index": doc_info["_original_index"]
+                }
+                records.append(record)
+            
+            # Create table name specific to this stratum
+            if stratify_key:
+                stratum_suffix = str(hash(str(stratum_key)))[-8:]  # Use last 8 chars of hash
+                stratum_table_name = f"{table_name}_stratum_{stratum_suffix}"
+            else:
+                stratum_table_name = table_name
+            
+            # Create or overwrite table for this stratum
+            if stratum_table_name in self._db.table_names():
+                if not persist:
+                    self._db.drop_table(stratum_table_name)
+                    stratum_table = self._db.create_table(
+                        stratum_table_name, 
+                        data=records,
+                        schema=DocumentVector
+                    )
+                else:
+                    stratum_table = self._db.open_table(stratum_table_name)
+                    stratum_table.add(records)
+            else:
+                stratum_table = self._db.create_table(
+                    stratum_table_name,
                     data=records,
                     schema=DocumentVector
                 )
-            else:
-                self._table = self._db.open_table(table_name)
-                self._table.add(records)
-        else:
-            self._table = self._db.create_table(
-                table_name,
-                data=records,
-                schema=DocumentVector
-            )
-        
-        # Get embedding for the query
-        query_embeddings, query_cost = get_embeddings_for_clustering(
-            [{"text": query}],
-            {"embedding_keys": ["text"], "embedding_model": embedding_model},
-            self.runner.api
-        )
-        total_cost += query_cost
-        
-        if not query_embeddings:
-            return [{**doc, output_key: []} for doc in input_data], total_cost
             
-        query_vector = query_embeddings[0]
+            # Get embedding for the query
+            query_embeddings, query_cost = get_embeddings_for_clustering(
+                [{"text": query}],
+                {"embedding_keys": ["text"], "embedding_model": embedding_model},
+                self.runner.api
+            )
+            total_cost += query_cost
+            
+            if not query_embeddings:
+                # If query embedding fails, return empty results for this stratum
+                for idx, doc in stratum_docs:
+                    all_results[idx] = {**doc, output_key: []}
+                continue
+                
+            query_vector = query_embeddings[0]
+            
+            # Search for similar documents within this stratum
+            search_results = (
+                stratum_table.search(query_vector)
+                .limit(num_chunks)
+                .to_list()
+            )
+            
+            # Prepare retrieved documents for this stratum
+            retrieved_docs = []
+            for result in search_results:
+                # Get the original document from the stratum
+                stratum_idx = result["_stratum_index"]
+                if stratum_idx < len(docs_to_embed):
+                    original_idx = docs_to_embed[stratum_idx]["_original_index"]
+                    retrieved_doc = input_data[original_idx]
+                    retrieved_docs.append({
+                        **retrieved_doc,
+                        "_distance": result.get("_distance", None)
+                    })
+            
+            # Assign retrieved docs to all documents in this stratum
+            for idx, doc in stratum_docs:
+                all_results[idx] = {
+                    **doc,
+                    output_key: retrieved_docs
+                }
         
-        # Search for similar documents
-        search_results = (
-            self._table.search(query_vector)
-            .limit(num_chunks)
-            .to_list()
-        )
-        
-        # Prepare retrieved documents
-        retrieved_docs = []
-        for result in search_results:
-            original_idx = result["_index"]
-            if original_idx < len(input_data):
-                retrieved_doc = input_data[original_idx]
-                retrieved_docs.append({
-                    **retrieved_doc,
-                    "_distance": result.get("_distance", None)
-                })
-        
-        # Create output - each input document gets the same retrieved results
-        results = []
-        for doc in input_data:
-            results.append({
-                **doc,
-                output_key: retrieved_docs
-            })
-        
-        return results, total_cost
+        return all_results, total_cost
 
     def _retrieve_fts(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
         """Perform full-text search with optional semantic reranking using LanceDB."""

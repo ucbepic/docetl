@@ -427,6 +427,7 @@ class SemanticAccessor:
         fuzzy: bool = False,
         comparison_prompt: str | None = None,
         resolution_prompt: str | None = None,
+        resolution_output: dict[str, Any] | None = None,
         resolution_output_schema: dict[str, Any] | None = None,
         reduce_keys: str | list[str] = ["_all"],
         resolve_kwargs: dict[str, Any] = {},
@@ -459,7 +460,8 @@ class SemanticAccessor:
             fuzzy: Whether to use fuzzy matching for resolution (default: False)
             comparison_prompt: Prompt template for comparing records during resolution
             resolution_prompt: Prompt template for resolving conflicts
-            resolution_output_schema: Schema for resolution output
+            resolution_output: Output configuration for resolution (new API with schema key)
+            resolution_output_schema: Schema for resolution output (deprecated, use resolution_output)
             reduce_keys: Keys to group by for reduction (default: ["_all"])
             resolve_kwargs: Additional kwargs for resolve operation:
                 - model: LLM model to use
@@ -495,7 +497,7 @@ class SemanticAccessor:
             ...     fuzzy=True,
             ...     comparison_prompt="Are these items similar: {{input1.text}} vs {{input2.text}}",
             ...     resolution_prompt="Resolve conflicts between: {{items}}",
-            ...     resolution_output_schema={"resolved": "str"}
+            ...     resolution_output={"schema": {"resolved": "str"}}
             ... )
 
             >>> # Fuzzy matching with manual blocking parameters
@@ -528,6 +530,14 @@ class SemanticAccessor:
             raise ValueError("output must be a dictionary")
         if "schema" not in output:
             raise ValueError("output must contain a 'schema' key")
+
+        # Handle backward compatibility for resolution_output_schema
+        if resolution_output_schema is not None and resolution_output is None:
+            resolution_output = {"schema": resolution_output_schema}
+        elif resolution_output is not None and resolution_output_schema is not None:
+            raise ValueError(
+                "Cannot provide both 'resolution_output' and 'resolution_output_schema' parameters"
+            )
 
         # Validate output mode if provided
         output_mode = output.get("mode", "tools")
@@ -570,10 +580,17 @@ Record 2: {record_template.replace('input0', 'input2')}"""
             # Add resolution prompt and schema if provided
             if resolution_prompt:
                 resolve_config["resolution_prompt"] = resolution_prompt
-                resolve_config["output"] = {
-                    "schema": resolution_output_schema,
-                    "keys": list(resolution_output_schema.keys()),
-                }
+                if resolution_output:
+                    # Use the new resolution_output format
+                    resolve_config["output"] = resolution_output
+                    if "keys" not in resolve_config["output"]:
+                        # Add keys from schema if not explicitly provided
+                        resolve_config["output"]["keys"] = list(
+                            resolution_output["schema"].keys()
+                        )
+                else:
+                    # No resolution output provided, use reduce_keys
+                    resolve_config["output"] = {"keys": reduce_keys}
             else:
                 resolve_config["output"] = {"keys": reduce_keys}
 

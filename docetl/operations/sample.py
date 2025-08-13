@@ -16,6 +16,10 @@ class SampleOperation(BaseOperation):
         - embedding_model: str, optional
         - embedding_keys: list, optional
         - center: dict, optional
+        - stratify_key: str or list of str (for stratify method)
+            Single key or list of keys to stratify by. Multiple keys create groups by combination of values.
+        - samples_per_group: bool, optional (for stratify method)
+            If True, sample 'samples' items from each stratify group instead of dividing total samples across groups
     """
 
     class schema(BaseOperation.schema):
@@ -43,9 +47,24 @@ class SampleOperation(BaseOperation):
                 if not isinstance(v, dict):
                     raise TypeError("'method_kwargs' must be a dictionary")
 
-                # Validate specific keys in method_kwargs
-                if "stratify_key" in v and not isinstance(v["stratify_key"], str):
-                    raise TypeError("'stratify_key' must be a string")
+                # Validate stratify_key - can be string or list of strings
+                if "stratify_key" in v:
+                    stratify_key = v["stratify_key"]
+                    if isinstance(stratify_key, str):
+                        # Single key is fine
+                        pass
+                    elif isinstance(stratify_key, list):
+                        if not all(isinstance(key, str) for key in stratify_key):
+                            raise TypeError("All items in 'stratify_key' list must be strings")
+                        if len(stratify_key) == 0:
+                            raise ValueError("'stratify_key' list cannot be empty")
+                    else:
+                        raise TypeError("'stratify_key' must be a string or list of strings")
+
+                # Validate samples_per_group if present
+                if "samples_per_group" in v:
+                    if not isinstance(v["samples_per_group"], bool):
+                        raise TypeError("'samples_per_group' must be a boolean")
 
                 if "center" in v and not isinstance(v["center"], dict):
                     raise TypeError("'center' must be a dictionary")
@@ -105,6 +124,36 @@ class SampleOperation(BaseOperation):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+
+    def syntax_check(self) -> None:
+        """
+        Checks the configuration of the SampleOperation for required keys and valid structure.
+
+        Raises:
+            ValueError: If required keys are missing or invalid in the configuration.
+            TypeError: If configuration values have incorrect types.
+        """
+        super().syntax_check()
+        
+        # Additional validation for stratify_key when it's a list
+        if self.config["method"] == "stratify":
+            stratify_key = self.config.get("method_kwargs", {}).get("stratify_key")
+            if isinstance(stratify_key, list):
+                # Check if every key is mentioned as a "doc_id_key" in the pipeline
+                pipeline_config = self.runner.config
+                doc_id_keys = set()
+                
+                # Collect all doc_id_key values from the pipeline operations
+                if 'operations' in pipeline_config:
+                    for op in pipeline_config['operations']:
+                        if 'doc_id_key' in op:
+                            doc_id_keys.add(op['doc_id_key'])
+                
+                # Check if all stratify keys are mentioned as doc_id_keys
+                for key in stratify_key:
+                    if key not in doc_id_keys:
+                        print(f"Warning: stratify_key '{key}' is not found as a doc_id_key in any pipeline operation")
+                        print(f"Available doc_id_keys in pipeline: {sorted(doc_id_keys) if doc_id_keys else 'None'}")
 
     def execute(
         self, input_data: list[dict], is_build: bool = False
@@ -178,20 +227,61 @@ class SampleOperation(BaseOperation):
                     for sample in samples
                 ]
             else:
-                stratify = None
                 if self.config["method"] == "stratify":
-                    stratify = [
-                        data[self.config.get("method_kwargs", {})["stratify_key"]]
-                        for data in input_data
-                    ]
+                    method_kwargs = self.config.get("method_kwargs", {})
+                    stratify_key = method_kwargs["stratify_key"]
+                    samples_per_group = method_kwargs.get("samples_per_group", False)
 
-                import sklearn.model_selection
+                    # Helper function to get stratify value(s) for an item
+                    def get_stratify_value(item):
+                        if isinstance(stratify_key, str):
+                            return item[stratify_key]
+                        else:  # list of keys
+                            return tuple(item[key] for key in stratify_key)
 
-                output_data, _ = sklearn.model_selection.train_test_split(
-                    input_data,
-                    train_size=samples,
-                    random_state=self.config.get("random_state", None),
-                    stratify=stratify,
-                )
+                    if samples_per_group:
+                        # Sample N items from each group
+                        import random
+                        from collections import defaultdict
+
+                        # Group data by stratify key(s)
+                        groups = defaultdict(list)
+                        for item in input_data:
+                            groups[get_stratify_value(item)].append(item)
+
+                        # Sample from each group
+                        output_data = []
+                        random_state = self.config.get("random_state", None)
+                        if random_state is not None:
+                            random.seed(random_state)
+
+                        for group_items in groups.values():
+                            if not isinstance(samples, int):
+                                group_samples = int(samples * len(group_items))
+                            else:
+                                group_samples = min(samples, len(group_items))
+
+                            sampled_items = random.sample(group_items, group_samples)
+                            output_data.extend(sampled_items)
+                    else:
+                        # Original stratified sampling behavior
+                        stratify = [get_stratify_value(data) for data in input_data]
+
+                        import sklearn.model_selection
+
+                        output_data, _ = sklearn.model_selection.train_test_split(
+                            input_data,
+                            train_size=samples,
+                            random_state=self.config.get("random_state", None),
+                            stratify=stratify,
+                        )
+                else:
+                    import sklearn.model_selection
+
+                    output_data, _ = sklearn.model_selection.train_test_split(
+                        input_data,
+                        train_size=samples,
+                        random_state=self.config.get("random_state", None),
+                    )
 
         return output_data, cost

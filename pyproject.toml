@@ -28,6 +28,7 @@ dependencies = [
   "pandas>=2.3.0",
   "python-multipart>=0.0.20",
   "litellm>=1.75.4",
+  "rank-bm25>=0.2.2",
 ]
 
 # Optional extras mapped from Poetry extras and optional deps
@@ -66,6 +67,7 @@ resolve = "docetl.operations.resolve:ResolveOperation"
 gather = "docetl.operations.gather:GatherOperation"
 cluster = "docetl.operations.cluster:ClusterOperation"
 sample = "docetl.operations.sample:SampleOperation"
+topk = "docetl.operations.topk:TopKOperation"
 link_resolve = "docetl.operations.link_resolve:LinkResolveOperation"
 code_map = "docetl.operations.code_operations:CodeMapOperation"
 code_reduce = "docetl.operations.code_operations:CodeReduceOperation"

@@ -21,7 +21,7 @@ This sample operation will return a pseudo-randomly selected 10% of the samples 
 
 - name: A unique name for the operation.
 - type: Must be set to "sample".
-- method: The sampling method to use. Can be "uniform", "outliers", "custom", or "first".
+- method: The sampling method to use. Can be "uniform", "outliers", "custom", "first", "top_embedding", or "top_fts".
 - samples: Either a list of key-value pairs representing document ids and values, an integer count of samples, or a float fraction of samples.
 
 ## Optional Parameters
@@ -94,9 +94,77 @@ Samples specific items by matching key-value pairs. Stratification is not suppor
     - id: 5
 ```
 
+### Top Embedding Sampling
+
+Retrieves the top N most similar items to a query based on semantic similarity using embeddings. Requires the following in method_kwargs:
+
+- keys: A list of keys to use for creating embeddings
+- query: The query string to match against (supports Jinja templates)
+- embedding_model: (Optional) The embedding model to use. Defaults to "text-embedding-3-small"
+
+```yaml
+- name: semantic_search
+  type: sample
+  method: top_embedding
+  samples: 10
+  method_kwargs:
+    keys:
+      - title
+      - content
+    query: "machine learning applications in healthcare"
+    embedding_model: text-embedding-3-small
+```
+
+With Jinja template for dynamic queries:
+
+```yaml
+- name: personalized_search
+  type: sample
+  method: top_embedding
+  samples: 5
+  method_kwargs:
+    keys:
+      - description
+    query: "{{ input.user_query }}"
+```
+
+### Top FTS Sampling
+
+Retrieves the top N items using full-text search with BM25 algorithm. Requires the following in method_kwargs:
+
+- keys: A list of keys to search within
+- query: The query string for keyword matching (supports Jinja templates)
+
+```yaml
+- name: keyword_search
+  type: sample
+  method: top_fts
+  samples: 20
+  method_kwargs:
+    keys:
+      - title
+      - content
+      - tags
+    query: "python programming tutorial"
+```
+
+With dynamic query:
+
+```yaml
+- name: search_products
+  type: sample
+  method: top_fts
+  samples: 0.1  # Top 10% of results
+  method_kwargs:
+    keys:
+      - product_name
+      - description
+    query: "{{ input.search_terms }}"
+```
+
 ## Stratification
 
-Stratification can be applied to "uniform", "first", and "outliers" methods. It ensures that the sample maintains the distribution of specified key(s) in the data.
+Stratification can be applied to "uniform", "first", "outliers", "top_embedding", and "top_fts" methods. It ensures that the sample maintains the distribution of specified key(s) in the data or retrieves top items from each stratum.
 
 ### Single Key Stratification
 
@@ -192,3 +260,46 @@ Outlier sampling with a custom center:
     samples: 20  # Keep the 20 furthest items from the center
     keep: true
 ```
+
+Stratified semantic search - retrieve top documents from each category:
+
+```yaml
+- name: stratified_semantic_search
+  type: sample
+  method: top_embedding
+  samples: 5  # Get top 5 from each category
+  stratify_key: category
+  samples_per_group: true
+  method_kwargs:
+    keys:
+      - title
+      - abstract
+    query: "recent advances in artificial intelligence"
+```
+
+Full-text search with multiple stratification keys:
+
+```yaml
+- name: stratified_keyword_search
+  type: sample
+  method: top_fts
+  samples: 3
+  stratify_key:
+    - department
+    - priority
+  samples_per_group: true
+  method_kwargs:
+    keys:
+      - subject
+      - content
+    query: "urgent customer complaint refund"
+```
+
+## Note on TopK Operation
+
+For retrieval use cases, consider using the dedicated [TopK operation](topk.md) which provides a cleaner interface specifically designed for top-k retrieval with three methods:
+- `embedding`: Semantic similarity search
+- `fts`: Full-text search using BM25
+- `llm_compare`: LLM-based ranking
+
+The TopK operation offers the same functionality as the sample operation's `top_embedding` and `top_fts` methods, but with a more intuitive API for retrieval tasks.

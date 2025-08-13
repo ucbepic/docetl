@@ -39,6 +39,7 @@ nav:
           - Gather: operators/gather.md
           - Unnest: operators/unnest.md
           - Sample: operators/sample.md
+          - TopK: operators/topk.md
           - Code: operators/code.md
       - APIs:
           - Python API Guide: 

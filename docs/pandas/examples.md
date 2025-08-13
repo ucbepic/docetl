@@ -122,9 +122,11 @@ summaries = df.semantic.agg(
     Articles:
     {{inputs}}""",
     
-    output_schema={
-        "summary": "str",
-        "key_points": "list[str]"
+    output={
+        "schema": {
+            "summary": "str",
+            "key_points": "list[str]"
+        }
     }
 )
 
@@ -174,10 +176,12 @@ summaries = relevant.semantic.agg(
     reduce_keys=["product"],
     comparison_prompt="Do these posts discuss the same product?",
     reduce_prompt="Summarize the feedback about this product",
-    output_schema={
-        "summary": "str",
-        "frequency": "int",
-        "severity": "str"
+    output={
+        "schema": {
+            "summary": "str",
+            "frequency": "int",
+            "severity": "str"
+        }
     }
 )
 
@@ -366,10 +370,12 @@ document_summaries = analyzed_chunks.semantic.agg(
     Action items: {{chunk.action_items | join(', ')}}
     ---
     {% endfor %}""",
-    output_schema={
-        "document_summary": "str",
-        "all_key_concepts": "list[str]",
-        "all_action_items": "list[str]"
+    output={
+        "schema": {
+            "document_summary": "str",
+            "all_key_concepts": "list[str]",
+            "all_action_items": "list[str]"
+        }
     }
 )
 
@@ -449,10 +455,12 @@ category_insights = interest_analysis.semantic.agg(
     {% for person in inputs %}
     - {{person.age}} year old {{person.education}} from {{person.location}}: {{person.demographic_insight}}
     {% endfor %}""",
-    output_schema={
-        "category_summary": "str",
-        "typical_demographics": "str",
-        "satisfaction_patterns": "str"
+    output={
+        "schema": {
+            "category_summary": "str",
+            "typical_demographics": "str",
+            "satisfaction_patterns": "str"
+        }
     }
 )
 ```
@@ -540,11 +548,13 @@ Technical concepts: {{section.technical_concepts | join(', ')}}
 {% endfor %}
 
 Provide a structured summary.""",
-    output_schema={
-        "comprehensive_summary": "str",
-        "main_contributions": "list[str]",
-        "methodology_type": "str",
-        "research_field": "str"
+    output={
+        "schema": {
+            "comprehensive_summary": "str",
+            "main_contributions": "list[str]",
+            "methodology_type": "str",
+            "research_field": "str"
+        }
     }
 )
 
@@ -560,10 +570,12 @@ Summary: {{paper.comprehensive_summary}}
 Contributions: {{paper.main_contributions | join(', ')}}
 ---
 {% endfor %}""",
-    output_schema={
-        "field_trends": "str",
-        "common_methodologies": "list[str]",
-        "emerging_themes": "list[str]"
+    output={
+        "schema": {
+            "field_trends": "str",
+            "common_methodologies": "list[str]",
+            "emerging_themes": "list[str]"
+        }
     }
 )
 

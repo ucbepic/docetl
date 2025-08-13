@@ -188,7 +188,7 @@ def test_semantic_map(sample_df):
     """Test semantic map operation."""
     result = sample_df.semantic.map(
         prompt="Extract key entities from: {{input.text}}",
-        output_schema={"entities": "list[str]", "main_topic": "str"},
+        output={"schema": {"entities": "list[str]", "main_topic": "str"}},
         model="gpt-4o-mini"
     )
     
@@ -234,7 +234,7 @@ def test_semantic_agg_simple(sample_df):
         - {{item.text}}
         {% endfor %}""",
         reduce_keys="category",
-        output_schema={"summary": "str", "key_points": "list[str]"}
+        output={"schema": {"summary": "str", "key_points": "list[str]"}}
     )
     
     assert isinstance(result, pd.DataFrame)
@@ -251,7 +251,7 @@ def test_semantic_agg_fuzzy_auto(sample_df):
         - {{item.text}}
         {% endfor %}""",
         reduce_keys=["category"],
-        output_schema={"summary": "str", "key_points": "list[str]"},
+        output={"schema": {"summary": "str", "key_points": "list[str]"}},
         fuzzy=True  # Should auto-synthesize comparison prompt
     )
     
@@ -270,7 +270,7 @@ def test_semantic_agg_fuzzy_custom(sample_df):
         - {{item.text}}
         {% endfor %}""",
         reduce_keys="category",
-        output_schema={"summary": "str", "key_points": "list[str]"},
+        output={"schema": {"summary": "str", "key_points": "list[str]"}},
         
         # Resolution config
         fuzzy=True,
@@ -279,7 +279,7 @@ def test_semantic_agg_fuzzy_custom(sample_df):
         {% for item in inputs %}
         - {{item.category}}
         {% endfor %}""",
-        resolution_output_schema={"standardized_category": "str"}
+        resolution_output={"schema": {"standardized_category": "str"}}
     )
     
     assert isinstance(result, pd.DataFrame)
@@ -296,7 +296,7 @@ def test_semantic_agg_global(sample_df):
         - {{item.text}}
         {% endfor %}""",
         reduce_keys=["_all"],  # Should skip resolution phase
-        output_schema={"summary": "str", "key_points": "list[str]"}
+        output={"schema": {"summary": "str", "key_points": "list[str]"}}
     )
     
     assert isinstance(result, pd.DataFrame)
@@ -313,7 +313,7 @@ def test_cost_tracking(sample_df):
     # Run a map operation
     _ = sample_df.semantic.map(
         prompt="Count words in: {{input.text}}",
-        output_schema={"word_count": "int"},
+        output={"schema": {"word_count": "int"}},
         model="gpt-4o-mini",
         bypass_cache=True
     )
@@ -349,7 +349,7 @@ def test_error_handling(sample_df):
     with pytest.raises(ValueError):
         sample_df.semantic.map(
             prompt="test",
-            output_schema={"invalid_type": "not_a_real_type"}
+            output={"schema": {"invalid_type": "not_a_real_type"}}
         )
     
     # Test invalid reduce keys
@@ -358,7 +358,7 @@ def test_error_handling(sample_df):
             comparison_prompt="test",
             reduce_prompt="test",
             reduce_keys=123,  # Should be str or list
-            output_schema={"summary": "str"}
+            output={"schema": {"summary": "str"}}
         )
     
     # Test missing required args
@@ -373,7 +373,7 @@ def test_operation_history(sample_df):
     # Run a map operation
     result = sample_df.semantic.map(
         prompt="Extract entities from: {{input.text}}",
-        output_schema={"entities": "list[str]", "topic": "str"}
+        output={"schema": {"entities": "list[str]", "topic": "str"}}
     )
     
     # Check history
@@ -394,14 +394,14 @@ def test_fuzzy_agg_with_context(sample_df):
     # First create a derived column
     df_with_topic = sample_df.semantic.map(
         prompt="Extract the main topic: {{input.text}}",
-        output_schema={"main_topic": "str"}
+        output={"schema": {"main_topic": "str"}}
     )
     
     # Now do fuzzy aggregation using that column
     result = df_with_topic.semantic.agg(
         reduce_prompt="Summarize texts for topic: {% for item in inputs %}{{item.text}}{% endfor %}",
         reduce_keys=["main_topic"],
-        output_schema={"summary": "str"},
+        output={"schema": {"summary": "str"}},
         fuzzy=True  # Should auto-synthesize comparison with context
     )
     
@@ -420,7 +420,7 @@ def test_history_preservation(sample_df):
     # Run a map operation
     df1 = sample_df.semantic.map(
         prompt="Extract entities from: {{input.text}}",
-        output_schema={"entities": "list[str]"}
+        output={"schema": {"entities": "list[str]"}}
     )
     assert len(df1.semantic.history) == 1
     
@@ -438,7 +438,7 @@ def test_cost_preservation(sample_df):
     # Run a map operation
     df1 = sample_df.semantic.map(
         prompt="Extract entities from: {{input.text}}",
-        output_schema={"entities": "list[str]"},
+        output={"schema": {"entities": "list[str]"}},
         bypass_cache=True
     )
     map_cost = df1.semantic.total_cost
@@ -457,20 +457,20 @@ def test_context_preservation_in_agg(sample_df):
     # First create a derived column
     df1 = sample_df.semantic.map(
         prompt="Extract topic and sentiment: {{input.text}}",
-        output_schema={"topic": "str", "sentiment": "str"}
+        output={"schema": {"topic": "str", "sentiment": "str"}}
     )
     
     # Then create another derived column
     df2 = df1.semantic.map(
         prompt="Rate confidence in topic (1-5): {{input.text}}",
-        output_schema={"topic_confidence": "int"}
+        output={"schema": {"topic_confidence": "int"}}
     )
     
     # Now aggregate with fuzzy matching
     result = df2.semantic.agg(
         reduce_prompt="Summarize sentiments by topic for these inputs: {{ inputs }}",
         reduce_keys=["topic"],
-        output_schema={"summary": "str"},
+        output={"schema": {"summary": "str"}},
         fuzzy=True  # Should auto-synthesize with context from both operations
     )
     

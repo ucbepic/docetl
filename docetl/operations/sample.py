@@ -316,8 +316,14 @@ class SampleOperation(BaseOperation):
                 "Install it with: pip install lancedb"
             )
         
+        # Import DOCETL_HOME_DIR from utils
+        from docetl.operations.utils import DOCETL_HOME_DIR
+        
         method_kwargs = self.config.get("method_kwargs", {})
-        db_path = Path(method_kwargs.get("db_path", "./.lancedb"))
+        
+        # Default path: DOCETL_HOME_DIR/lancedb/{operation_name}
+        default_db_path = os.path.join(DOCETL_HOME_DIR, "lancedb", self.config["name"])
+        db_path = Path(method_kwargs.get("db_path", default_db_path))
         db_path.mkdir(parents=True, exist_ok=True)
         
         # Connect to database

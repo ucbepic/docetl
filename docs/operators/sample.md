@@ -178,6 +178,8 @@ First sampling simply takes the first N items from the input. This is primarily 
 
 Retrieve Vector performs vector-based similarity search using LanceDB. It embeds documents and retrieves the most similar items based on embedding distance.
 
+**Note**: This method requires LanceDB. If not already installed, run: `uv add lancedb` or `pip install lancedb`
+
 **How it works**:
 1. Embeds all input documents using specified fields
 2. Creates or updates a LanceDB vector index
@@ -191,7 +193,7 @@ Retrieve Vector performs vector-based similarity search using LanceDB. It embeds
 - `num_chunks`: Number of top similar documents to retrieve (default: 10)
 - `embedding_model`: The embedding model to use (default: "text-embedding-3-small")
 - `table_name`: Name of the LanceDB table (default: "docetl_vectors")
-- `db_path`: Path to the LanceDB database (default: "./.lancedb")
+- `db_path`: Path to the LanceDB database (default: `~/.cache/docetl/lancedb/{operation_name}`)
 - `persist`: Whether to persist the vector database between runs (default: false)
 - `output_key`: Key to store retrieved documents in the output (default: "_retrieved")
 
@@ -213,6 +215,8 @@ Retrieve Vector performs vector-based similarity search using LanceDB. It embeds
 
 Retrieve FTS performs full-text search with optional semantic reranking using LanceDB. It can use either pure text search or combine it with embeddings for enhanced semantic search.
 
+**Note**: This method requires LanceDB. If not already installed, run: `uv add lancedb` or `pip install lancedb`
+
 **How it works**:
 1. Indexes documents based on specified fields
 2. Optionally generates embeddings for semantic reranking
@@ -225,7 +229,7 @@ Retrieve FTS performs full-text search with optional semantic reranking using La
 - `num_chunks`: Number of top results to retrieve (default: 10)
 - `embedding_model`: The embedding model for semantic search (default: "text-embedding-3-small")
 - `table_name`: Name of the LanceDB table (default: "docetl_fts")
-- `db_path`: Path to the LanceDB database (default: "./.lancedb")
+- `db_path`: Path to the LanceDB database (default: `~/.cache/docetl/lancedb/{operation_name}`)
 - `persist`: Whether to persist the database between runs (default: false)
 - `rerank`: Whether to use embeddings for semantic reranking (default: true)
 - `output_key`: Key to store retrieved documents (default: "_retrieved")

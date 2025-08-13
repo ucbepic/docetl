@@ -8,6 +8,202 @@ from .medec import evaluate_results as medec_evaluate
 from .sustainability import evaluate_results as sustainability_evaluate
 from .biodex import evaluate_results as biodex_evaluate
 
+def identify_pareto_frontier(eval_results, dataset):
+    """
+    Identify the Pareto frontier for a given dataset based on accuracy vs cost.
+    
+    Args:
+        eval_results (list): List of evaluation results with cost and accuracy metrics
+        dataset (str): Dataset name to determine which accuracy metric to use
+        
+    Returns:
+        list: Updated eval_results with 'on_frontier' field set to True/False
+    """
+    if not eval_results:
+        return eval_results
+    
+    # Define the accuracy metric for each dataset
+    dataset_metrics = {
+        "cuad": "f1",
+        "blackvault": "avg_distinct_locations", 
+        "game_reviews": "combined_accuracy_score",
+        "medec": "combined_score",
+        "sustainability": "economic_activity_accuracy",
+        "biodex": "avg_rp_at_10",
+    }
+    
+    accuracy_metric = dataset_metrics.get(dataset.lower())
+    if not accuracy_metric:
+        print(f"⚠️  Unknown dataset '{dataset}', cannot identify Pareto frontier")
+        return eval_results
+    
+    # Filter out results that don't have the required metrics
+    valid_results = [r for r in eval_results if accuracy_metric in r and "cost" in r]
+    if not valid_results:
+        print(f"⚠️  No valid results with {accuracy_metric} and cost metrics")
+        return eval_results
+    
+    # Sort by cost (ascending) and accuracy (descending for maximization)
+    valid_results.sort(key=lambda x: (x["cost"], -x[accuracy_metric]))
+    
+    # Initialize frontier status
+    for result in eval_results:
+        result["on_frontier"] = False
+    
+    # Identify Pareto frontier points
+    frontier_points = []
+    for result in valid_results:
+        # Check if this point is dominated by any existing frontier point
+        is_dominated = False
+        for frontier_point in frontier_points:
+            # A point is dominated if another point has lower or equal cost AND higher or equal accuracy
+            if (frontier_point["cost"] <= result["cost"] and 
+                frontier_point[accuracy_metric] >= result[accuracy_metric]):
+                is_dominated = True
+                break
+        
+        if not is_dominated:
+            frontier_points.append(result)
+            # Mark this result as on the frontier
+            for eval_result in eval_results:
+                if (eval_result.get("file") == result.get("file") and 
+                    eval_result.get("cost") == result.get("cost")):
+                    eval_result["on_frontier"] = True
+                    break
+    
+    print(f"📊 Identified {len(frontier_points)} Pareto frontier points for {dataset} dataset")
+    print(f"   Accuracy metric: {accuracy_metric}")
+    
+    return eval_results
+
+def print_pareto_frontier_summary(eval_results, dataset):
+    """
+    Print a summary of the Pareto frontier for a dataset.
+    
+    Args:
+        eval_results (list): List of evaluation results with 'on_frontier' field
+        dataset (str): Dataset name for display purposes
+    """
+    frontier_points = [r for r in eval_results if r.get("on_frontier", False)]
+    
+    if not frontier_points:
+        print(f"📊 No Pareto frontier points found for {dataset} dataset")
+        return
+    
+    # Define the accuracy metric for each dataset
+    dataset_metrics = {
+        "cuad": "f1",
+        "blackvault": "avg_distinct_locations", 
+        "game_reviews": "combined_accuracy_score",
+        "medec": "combined_score",
+        "sustainability": "economic_activity_accuracy",
+        "biodex": "avg_rp_at_10",
+    }
+    
+    accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
+    
+    # Sort frontier points by cost for better display
+    frontier_points.sort(key=lambda x: x["cost"])
+    
+    print(f"\n🏆 Pareto Frontier Summary for {dataset.upper()} Dataset:")
+    print(f"{'='*60}")
+    print(f"{'Rank':<4} {'Cost ($)':<10} {accuracy_metric.upper():<15} {'File':<30}")
+    print(f"{'='*60}")
+    
+    for i, point in enumerate(frontier_points, 1):
+        cost = point.get("cost", 0.0)
+        accuracy = point.get(accuracy_metric, 0.0)
+        file_name = point.get("file", "unknown")
+        
+        print(f"{i:<4} ${cost:<9.4f} {accuracy:<15.4f} {file_name:<30}")
+    
+    print(f"{'='*60}")
+    print(f"Total frontier points: {len(frontier_points)}")
+    
+    # Calculate cost-effectiveness ratios
+    if len(frontier_points) > 1:
+        print(f"\n💰 Cost-Effectiveness Analysis:")
+        for i in range(len(frontier_points) - 1):
+            curr = frontier_points[i]
+            next_point = frontier_points[i + 1]
+            
+            cost_diff = next_point["cost"] - curr["cost"]
+            accuracy_diff = next_point[accuracy_metric] - curr[accuracy_metric]
+            
+            if cost_diff > 0 and accuracy_diff > 0:
+                cost_effectiveness = cost_diff / accuracy_diff
+                print(f"   {curr['file']} → {next_point['file']}: +${cost_diff:.4f} for +{accuracy_diff:.4f} {accuracy_metric} (${cost_effectiveness:.4f} per unit improvement)")
+
+def save_pareto_frontier_results(eval_results, dataset, output_path):
+    """
+    Save Pareto frontier results to a separate JSON file for analysis.
+    
+    Args:
+        eval_results (list): List of evaluation results with 'on_frontier' field
+        dataset (str): Dataset name
+        output_path (Path): Output directory path
+    """
+    frontier_points = [r for r in eval_results if r.get("on_frontier", False)]
+    
+    if not frontier_points:
+        return
+    
+    # Define the accuracy metric for each dataset
+    dataset_metrics = {
+        "cuad": "f1",
+        "blackvault": "avg_distinct_locations", 
+        "game_reviews": "combined_accuracy_score",
+        "medec": "combined_score",
+        "sustainability": "economic_activity_accuracy",
+        "biodex": "avg_rp_at_10",
+    }
+    
+    accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
+    
+    # Sort frontier points by cost
+    frontier_points.sort(key=lambda x: x["cost"])
+    
+    # Add rank and cost-effectiveness information
+    for i, point in enumerate(frontier_points):
+        point["rank"] = i + 1
+        point["accuracy_metric"] = accuracy_metric
+    
+    # Calculate cost-effectiveness ratios between consecutive points
+    cost_effectiveness_analysis = []
+    for i in range(len(frontier_points) - 1):
+        curr = frontier_points[i]
+        next_point = frontier_points[i + 1]
+        
+        cost_diff = next_point["cost"] - curr["cost"]
+        accuracy_diff = next_point[accuracy_metric] - curr[accuracy_metric]
+        
+        if cost_diff > 0 and accuracy_diff > 0:
+            cost_effectiveness = cost_diff / accuracy_diff
+            cost_effectiveness_analysis.append({
+                "from_file": curr["file"],
+                "to_file": next_point["file"],
+                "cost_increase": cost_diff,
+                "accuracy_increase": accuracy_diff,
+                "cost_per_unit_improvement": cost_effectiveness
+            })
+    
+    # Create frontier summary
+    frontier_summary = {
+        "dataset": dataset,
+        "accuracy_metric": accuracy_metric,
+        "total_frontier_points": len(frontier_points),
+        "frontier_points": frontier_points,
+        "cost_effectiveness_analysis": cost_effectiveness_analysis,
+        "timestamp": str(Path().cwd())
+    }
+    
+    # Save to file
+    frontier_file = output_path / f"pareto_frontier_{dataset}.json"
+    with open(frontier_file, "w") as f:
+        json.dump(frontier_summary, f, indent=2)
+    
+    print(f"💾 Pareto frontier results saved to: {frontier_file}")
+
 def get_evaluate_func(dataset):
     """
     Get the appropriate evaluation function for a dataset.
@@ -543,6 +739,17 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
         if eval_results:
             # Create plots and compute AUC
             pareto_auc = _create_biodex_plots_and_auc(eval_results, output_path, root_cost)
+    
+    # Identify Pareto frontier for all datasets
+    if eval_results:
+        print(f"\n🔍 Identifying Pareto frontier for {dataset} dataset...")
+        eval_results = identify_pareto_frontier(eval_results, dataset)
+        
+        # Print Pareto frontier summary
+        print_pareto_frontier_summary(eval_results, dataset)
+        
+        # Save Pareto frontier results to separate file
+        save_pareto_frontier_results(eval_results, dataset, output_path)
     
     # Save evaluation results
     if eval_results:

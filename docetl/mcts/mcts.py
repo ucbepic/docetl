@@ -262,7 +262,7 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            if self.iteration_count < 5: 
+            if self.iteration_count < 10: 
             # if self.iteration_count >= self.max_iterations - 5:
                 if self.mcts_cost_iteration():
                     self.iteration_count += 1

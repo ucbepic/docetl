@@ -420,3 +420,130 @@ def test_sample_outliers_all_same_embedding(
     # When all embeddings are identical, there are no outliers
     assert len(results) == 0
     assert cost > 0
+
+
+def test_sample_retrieve_vector(
+    sample_config, sample_data, runner, default_model, max_threads
+):
+    """Test retrieve_vector method."""
+    from unittest.mock import MagicMock, patch
+    
+    sample_config["method"] = "retrieve_vector"
+    sample_config["method_kwargs"] = {
+        "query": "machine learning concepts",
+        "embedding_keys": ["concept", "description"],
+        "num_chunks": 3,
+        "output_key": "similar_docs"
+    }
+    
+    # Mock LanceDB
+    with patch("docetl.operations.sample.lancedb") as mock_lancedb:
+        with patch("docetl.operations.sample.Path") as mock_path:
+            mock_path.return_value.mkdir.return_value = None
+            mock_db = MagicMock()
+            mock_table = MagicMock()
+            mock_lancedb.connect.return_value = mock_db
+            mock_db.table_names.return_value = []
+            mock_db.create_table.return_value = mock_table
+            
+            # Mock search results
+            mock_search_results = [
+                {"_index": 0, "_distance": 0.1},
+                {"_index": 2, "_distance": 0.2},
+                {"_index": 1, "_distance": 0.3}
+            ]
+            mock_table.search.return_value.limit.return_value.to_list.return_value = mock_search_results
+            
+            operation = SampleOperation(runner, sample_config, default_model, max_threads)
+            results, cost = operation.execute(sample_data)
+            
+            # Check results
+            assert len(results) == len(sample_data)
+            assert cost > 0
+            for result in results:
+                assert "similar_docs" in result
+                assert len(result["similar_docs"]) == 3
+                assert all("_distance" in doc for doc in result["similar_docs"])
+
+
+def test_sample_retrieve_fts(
+    sample_config, sample_data, runner, default_model, max_threads
+):
+    """Test retrieve_fts method."""
+    from unittest.mock import MagicMock, patch
+    
+    sample_config["method"] = "retrieve_fts"
+    sample_config["method_kwargs"] = {
+        "query": "clustering machine learning",
+        "embedding_keys": ["concept", "description"],
+        "num_chunks": 2,
+        "rerank": True
+    }
+    
+    # Mock LanceDB
+    with patch("docetl.operations.sample.lancedb") as mock_lancedb:
+        with patch("docetl.operations.sample.Path") as mock_path:
+            mock_path.return_value.mkdir.return_value = None
+            mock_db = MagicMock()
+            mock_table = MagicMock()
+            mock_lancedb.connect.return_value = mock_db
+            mock_db.table_names.return_value = []
+            mock_db.create_table.return_value = mock_table
+            
+            # Mock search results
+            mock_search_results = [
+                {"_index": 3, "_distance": 0.15},
+                {"_index": 1, "_distance": 0.25}
+            ]
+            mock_table.search.return_value.limit.return_value.to_list.return_value = mock_search_results
+            
+            operation = SampleOperation(runner, sample_config, default_model, max_threads)
+            results, cost = operation.execute(sample_data)
+            
+            # Check results
+            assert len(results) == len(sample_data)
+            assert cost > 0
+            for result in results:
+                assert "_retrieved" in result
+                assert len(result["_retrieved"]) <= 2
+
+
+def test_sample_stratify_compound_keys(
+    sample_config, runner, default_model, max_threads
+):
+    """Test stratified sampling with compound keys."""
+    # Create data with compound stratification
+    compound_data = []
+    for region in ["North", "South"]:
+        for category in ["A", "B", "C"]:
+            for i in range(10):
+                compound_data.append({
+                    "id": f"{region}_{category}_{i}",
+                    "region": region,
+                    "category": category
+                })
+    
+    sample_config["method"] = "stratify"
+    sample_config["samples"] = 3
+    sample_config["method_kwargs"] = {
+        "stratify_key": ["region", "category"],
+        "samples_per_group": True  # 3 samples from each region-category combination
+    }
+    sample_config["random_state"] = 42
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(compound_data)
+    
+    # Should have 3 samples from each of the 6 combinations (2 regions * 3 categories)
+    assert len(results) == 18  # 6 groups * 3 samples per group
+    assert cost == 0
+    
+    # Verify each group has exactly 3 samples
+    from collections import Counter
+    group_counts = Counter()
+    for item in results:
+        group_key = (item["region"], item["category"])
+        group_counts[group_key] += 1
+    
+    for count in group_counts.values():
+        assert count == 3

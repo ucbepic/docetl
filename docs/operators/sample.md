@@ -4,19 +4,21 @@ The Sample operation in DocETL selects a subset of items from the input data usi
 
 ## Overview
 
-The Sample operation supports five distinct sampling methods:
+The Sample operation supports seven distinct sampling methods:
 
 1. **Uniform**: Random sampling with equal probability for each item
 2. **Stratify**: Maintains proportional representation of groups
 3. **Outliers**: Identifies items based on embedding distance from a center
 4. **Custom**: Selects specific items by matching key values
 5. **First**: Takes the first N items (useful for debugging)
+6. **Retrieve Vector**: Vector-based similarity search using LanceDB
+7. **Retrieve FTS**: Full-text search with optional semantic reranking using LanceDB
 
 ## Required Parameters
 
 - `name`: A unique name for the operation
 - `type`: Must be set to "sample"
-- `method`: The sampling method to use (`uniform`, `stratify`, `outliers`, `custom`, or `first`)
+- `method`: The sampling method to use (`uniform`, `stratify`, `outliers`, `custom`, `first`, `retrieve_vector`, or `retrieve_fts`)
 - `samples`: The number or fraction of samples to select (format depends on method)
 
 ## Optional Parameters
@@ -57,9 +59,10 @@ Stratified sampling ensures proportional representation of different groups in y
 **Parameters**:
 - `samples`: Same as uniform sampling
 - `method_kwargs`:
-  - `stratify_key`: The key to group by (required)
+  - `stratify_key`: The key to group by (can be a string or list of strings for compound stratification)
+  - `samples_per_group`: If true, sample N items from each group instead of dividing total samples across groups
 
-**Example**:
+**Example - Single Key**:
 ```yaml
 - name: stratified_sample
   type: sample
@@ -70,7 +73,18 @@ Stratified sampling ensures proportional representation of different groups in y
   random_state: 42
 ```
 
-If your data has 70% "A" category and 30% "B" category, the sample will maintain this 70/30 ratio.
+**Example - Compound Keys**:
+```yaml
+- name: compound_stratified_sample
+  type: sample
+  method: stratify
+  samples: 100
+  method_kwargs:
+    stratify_key: [category, region]  # Stratify by combination of category AND region
+    samples_per_group: true  # Get 100 samples from each category-region combination
+```
+
+If your data has 70% "A" category and 30% "B" category, the sample will maintain this 70/30 ratio (unless using `samples_per_group`).
 
 ### Outlier Sampling
 
@@ -160,6 +174,89 @@ First sampling simply takes the first N items from the input. This is primarily 
   samples: 10  # Take first 10 items
 ```
 
+### Retrieve Vector
+
+Retrieve Vector performs vector-based similarity search using LanceDB. It embeds documents and retrieves the most similar items based on embedding distance.
+
+**How it works**:
+1. Embeds all input documents using specified fields
+2. Creates or updates a LanceDB vector index
+3. Embeds the query text
+4. Finds the top-k most similar documents
+5. Augments each input document with retrieved results
+
+**Parameters in method_kwargs**:
+- `query`: The query text to search for similar documents (required)
+- `embedding_keys`: List of document fields to embed and search (required)
+- `num_chunks`: Number of top similar documents to retrieve (default: 10)
+- `embedding_model`: The embedding model to use (default: "text-embedding-3-small")
+- `table_name`: Name of the LanceDB table (default: "docetl_vectors")
+- `db_path`: Path to the LanceDB database (default: "./.lancedb")
+- `persist`: Whether to persist the vector database between runs (default: false)
+- `output_key`: Key to store retrieved documents in the output (default: "_retrieved")
+
+**Example**:
+```yaml
+- name: find_similar_papers
+  type: sample
+  method: retrieve_vector
+  method_kwargs:
+    query: "machine learning applications in healthcare"
+    embedding_keys:
+      - title
+      - abstract
+    num_chunks: 5
+    output_key: "similar_papers"
+```
+
+### Retrieve FTS
+
+Retrieve FTS performs full-text search with optional semantic reranking using LanceDB. It can use either pure text search or combine it with embeddings for enhanced semantic search.
+
+**How it works**:
+1. Indexes documents based on specified fields
+2. Optionally generates embeddings for semantic reranking
+3. Performs text search or semantic search based on configuration
+4. Returns top matching documents with relevance scores
+
+**Parameters in method_kwargs**:
+- `query`: The search query text (required)
+- `embedding_keys`: List of document fields to index and search (required)
+- `num_chunks`: Number of top results to retrieve (default: 10)
+- `embedding_model`: The embedding model for semantic search (default: "text-embedding-3-small")
+- `table_name`: Name of the LanceDB table (default: "docetl_fts")
+- `db_path`: Path to the LanceDB database (default: "./.lancedb")
+- `persist`: Whether to persist the database between runs (default: false)
+- `rerank`: Whether to use embeddings for semantic reranking (default: true)
+- `output_key`: Key to store retrieved documents (default: "_retrieved")
+
+**Example - Semantic Search**:
+```yaml
+- name: semantic_search
+  type: sample
+  method: retrieve_fts
+  method_kwargs:
+    query: "What are the benefits of renewable energy?"
+    embedding_keys:
+      - title
+      - content
+    rerank: true  # Use embeddings for better relevance
+    num_chunks: 15
+```
+
+**Example - Pure Text Search**:
+```yaml
+- name: keyword_search
+  type: sample
+  method: retrieve_fts
+  method_kwargs:
+    query: "climate change impacts"
+    embedding_keys:
+      - title
+      - content
+    rerank: false  # Pure keyword-based search
+```
+
 ## Use Cases
 
 ### 1. Debugging and Development
@@ -183,7 +280,19 @@ First sampling simply takes the first N items from the input. This is primarily 
     stratify_key: document_type
 ```
 
-### 3. Anomaly Detection
+### 3. Compound Stratification
+```yaml
+# Sample from complex multi-dimensional groups
+- name: regional_category_sample
+  type: sample
+  method: stratify
+  samples: 50
+  method_kwargs:
+    stratify_key: [region, product_category]
+    samples_per_group: true  # 50 samples from each region-category pair
+```
+
+### 4. Anomaly Detection
 ```yaml
 # Find unusual customer feedback
 - name: find_anomalies
@@ -195,7 +304,7 @@ First sampling simply takes the first N items from the input. This is primarily 
     keep: true  # Keep the outliers
 ```
 
-### 4. Similarity Filtering
+### 5. Similarity Filtering
 ```yaml
 # Find documents similar to a query
 - name: similar_docs
@@ -210,7 +319,7 @@ First sampling simply takes the first N items from the input. This is primarily 
     keep: false  # Keep items close to center
 ```
 
-### 5. Specific Item Selection
+### 6. Specific Item Selection
 ```yaml
 # Select specific test cases
 - name: test_cases
@@ -220,6 +329,36 @@ First sampling simply takes the first N items from the input. This is primarily 
     - test_id: "TC001"
     - test_id: "TC005"
     - test_id: "TC010"
+```
+
+### 7. RAG Context Retrieval
+```yaml
+# Retrieve relevant context for RAG applications
+- name: retrieve_context
+  type: sample
+  method: retrieve_vector
+  method_kwargs:
+    query: "How does transformer architecture work?"
+    embedding_keys:
+      - content
+    num_chunks: 10
+    persist: true  # Keep index for future queries
+```
+
+### 8. Knowledge Base Search
+```yaml
+# Search through documentation
+- name: search_docs
+  type: sample
+  method: retrieve_fts
+  method_kwargs:
+    query: "troubleshooting network connectivity"
+    embedding_keys:
+      - question
+      - answer
+      - tags
+    rerank: true
+    output_key: "relevant_articles"
 ```
 
 ## Best Practices
@@ -232,9 +371,18 @@ First sampling simply takes the first N items from the input. This is primarily 
    - Use `outliers` for similarity-based filtering or anomaly detection
    - Use `custom` when you know exactly which items you want
    - Use `first` only for debugging
+   - Use `retrieve_vector` for semantic similarity search
+   - Use `retrieve_fts` for keyword or hybrid search
 
-3. **Consider computational costs**: The `outliers` method requires generating embeddings, which can be expensive for large datasets
+3. **Consider computational costs**: 
+   - The `outliers`, `retrieve_vector`, and `retrieve_fts` methods require generating embeddings, which can be expensive for large datasets
+   - Use `persist: true` for retrieval methods when querying the same dataset multiple times
 
 4. **Validate sample sizes**: Ensure your sample size is appropriate for your downstream operations
 
 5. **Combine with other operations**: Sample operations work well with filters and other transformations to create sophisticated data selection pipelines
+
+6. **Stratification best practices**:
+   - Use single keys for simple stratification
+   - Use compound keys when you need to maintain complex group distributions
+   - Use `samples_per_group` when you need a fixed number from each group regardless of group size

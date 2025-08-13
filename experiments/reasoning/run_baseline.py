@@ -32,23 +32,7 @@ from docetl.reasoning_optimizer.directives import DEFAULT_MODEL, DEFAULT_MAX_TPM
 # Modal integration (mirrors experiments/reasoning/run_mcts.py)
 import modal
 import yaml
-from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH
-
-image = (
-    modal.Image.debian_slim(python_version="3.10")
-    .add_local_file("pyproject.toml", "/pyproject.toml", copy=True)
-    .add_local_file("poetry.lock", "/poetry.lock", copy=True)
-    .add_local_file("README.md", "/README.md", copy=True)
-    .add_local_dir("docetl", remote_path="/docetl", copy=True)
-    .pip_install("poetry")
-    .run_commands([
-        "poetry config virtualenvs.create false",
-        "poetry install --all-extras --no-root && poetry install --all-extras",
-    ])
-    .pip_install("matplotlib", "Levenshtein", "nltk")
-    .add_local_python_source("experiments", ignore=["**/.venv/*"])
-    .add_local_python_source("docetl", ignore=["**/.venv/*"])
-)
+from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
 
 
 def _resolve_in_volume(path: str | None) -> str | None:

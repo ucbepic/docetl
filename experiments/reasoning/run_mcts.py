@@ -21,24 +21,7 @@ from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_e
 # Modal integration
 import modal
 import yaml
-from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH
-
-# Build image with project deps and local sources for experiments (docetl installed from pyproject)
-image = (
-    modal.Image.debian_slim(python_version="3.10")
-    # .pip_install("poetry")
-    # .poetry_install_from_file("pyproject.toml", ignore_lockfile=True)
-    .add_local_file("pyproject.toml", "/pyproject.toml", copy=True)
-    .add_local_file("poetry.lock", "/poetry.lock", copy=True)
-    .add_local_file("README.md", "/README.md", copy=True)
-    # .add_local_python_source("docetl", "server", copy=True)
-    .add_local_dir("docetl", remote_path="/docetl", copy=True)
-    .pip_install("poetry")
-    .run_commands(["poetry config virtualenvs.create false", "poetry install --all-extras --no-root && poetry install --all-extras"])
-    .pip_install("matplotlib", "Levenshtein", "nltk")
-    .add_local_python_source("experiments", ignore=["**/.venv/*"])
-    .add_local_python_source("docetl", ignore=["**/.venv/*"])
-)
+from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
 
 
 def _resolve_in_volume(path: str | None) -> str | None:

@@ -1,7 +1,7 @@
 # Load environment variables from .env file
 include .env
 
-.PHONY: tests tests-basic lint install mypy update install-ui run-ui-dev run-ui docker docker-clean test-aws help
+.PHONY: tests tests-basic lint install mypy update install-ui run-ui-dev run-ui docker docker-clean test-aws docs-serve help
 
 # Test commands
 tests:
@@ -77,6 +77,10 @@ docker:
 docker-clean:
 	docker volume rm docetl-data
 
+# Documentation commands
+docs-serve:
+	uv run mkdocs serve -a localhost:8001
+
 # Test AWS connectivity
 test-aws:
 	@if ! command -v aws > /dev/null; then \
@@ -128,5 +132,6 @@ help:
 	@echo "  make run-ui       : Run UI production server"
 	@echo "  make docker       : Build and run docetl in Docker"
 	@echo "  make docker-clean : Remove docetl Docker volume"
+	@echo "  make docs-serve   : Serve documentation locally on port 8001"
 	@echo "  make test-aws     : Test AWS credentials configuration"
 	@echo "  make help         : Show this help message"

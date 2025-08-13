@@ -421,7 +421,8 @@ class SemanticAccessor:
         *,
         # Reduction phase params (required)
         reduce_prompt: str,
-        output_schema: dict[str, Any],
+        output: dict[str, Any] | None = None,
+        output_schema: dict[str, Any] | None = None,
         # Resolution and reduce phase params (optional)
         fuzzy: bool = False,
         comparison_prompt: str | None = None,
@@ -451,7 +452,10 @@ class SemanticAccessor:
 
         Args:
             reduce_prompt: Prompt template for the reduction phase
-            output_schema: Schema for the final output
+            output: Output configuration with keys:
+                - "schema": Dictionary defining the expected output structure and types
+                - "mode": Optional output mode. Either "tools" (default) or "structured_output"
+            output_schema: DEPRECATED. Use 'output' parameter instead. Backward-compatible schema dict
             fuzzy: Whether to use fuzzy matching for resolution (default: False)
             comparison_prompt: Prompt template for comparing records during resolution
             resolution_prompt: Prompt template for resolving conflicts
@@ -475,19 +479,19 @@ class SemanticAccessor:
                 - max_retries_per_timeout: Max retries per timeout (default: 2)
 
         Returns:
-            pd.DataFrame: Aggregated DataFrame with columns matching output_schema
+            pd.DataFrame: Aggregated DataFrame with columns matching output['schema']
 
         Examples:
             >>> # Simple aggregation
             >>> df.semantic.agg(
             ...     reduce_prompt="Summarize these items: {{input.text}}",
-            ...     output_schema={"summary": "str"}
+            ...     output={"schema": {"summary": "str"}}
             ... )
 
             >>> # Fuzzy matching with automatic optimization
             >>> df.semantic.agg(
             ...     reduce_prompt="Combine these items: {{input.text}}",
-            ...     output_schema={"combined": "str"},
+            ...     output={"schema": {"combined": "str"}},
             ...     fuzzy=True,
             ...     comparison_prompt="Are these items similar: {{input1.text}} vs {{input2.text}}",
             ...     resolution_prompt="Resolve conflicts between: {{items}}",
@@ -497,7 +501,7 @@ class SemanticAccessor:
             >>> # Fuzzy matching with manual blocking parameters
             >>> df.semantic.agg(
             ...     reduce_prompt="Combine these items: {{input.text}}",
-            ...     output_schema={"combined": "str"},
+            ...     output={"schema": {"combined": "str"}},
             ...     fuzzy=False,
             ...     comparison_prompt="Compare items: {{input1.text}} vs {{input2.text}}",
             ...     resolve_kwargs={
@@ -506,7 +510,31 @@ class SemanticAccessor:
             ...     }
             ... )
         """
+        # Convert DataFrame to list of dicts
         input_data = self._df.to_dict("records")
+
+        # Handle backward compatibility: if output_schema is provided, convert it to output format
+        if output_schema is not None and output is None:
+            output = {"schema": output_schema}
+        elif output is None and output_schema is None:
+            raise ValueError("Either 'output' or 'output_schema' must be provided")
+        elif output is not None and output_schema is not None:
+            raise ValueError(
+                "Cannot provide both 'output' and 'output_schema' parameters"
+            )
+
+        # Validate output parameter
+        if not isinstance(output, dict):
+            raise ValueError("output must be a dictionary")
+        if "schema" not in output:
+            raise ValueError("output must contain a 'schema' key")
+
+        # Validate output mode if provided
+        output_mode = output.get("mode", "tools")
+        if output_mode not in ["tools", "structured_output"]:
+            raise ValueError(
+                f"output mode must be 'tools' or 'structured_output', got '{output_mode}'"
+            )
 
         # Change keys to list
         if isinstance(reduce_keys, str):
@@ -611,7 +639,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
             "name": f"semantic_reduce_{len(self._history)}",
             "reduce_key": reduce_keys,
             "prompt": reduce_prompt,
-            "output": {"schema": output_schema},
+            "output": output,
             **reduce_kwargs,
         }
 
@@ -629,7 +657,12 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         return self._record_operation(results, "reduce", reduce_config, reduce_cost)
 
     def filter(
-        self, prompt: str, *, output_schema: dict[str, Any] | None = None, **kwargs
+        self,
+        prompt: str,
+        *,
+        output: dict[str, Any] | None = None,
+        output_schema: dict[str, Any] | None = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Filter DataFrame rows based on semantic conditions.
@@ -638,8 +671,11 @@ Record 2: {record_template.replace('input0', 'input2')}"""
 
         Args:
             prompt: Jinja template string for generating prompts
-            output_schema: Optional custom output schema. If None, defaults to
-                          {"keep": "bool"}
+            output: Output configuration with keys:
+                - "schema": Dictionary defining the expected output structure and types
+                  For filtering, this must be a single boolean field (e.g., {"keep": "bool"})
+                - "mode": Optional output mode. Either "tools" (default) or "structured_output"
+            output_schema: DEPRECATED. Use 'output' parameter instead. Backward-compatible schema dict.
             **kwargs: Additional configuration options:
                 - model: LLM model to use
                 - validate: List of validation expressions
@@ -662,23 +698,35 @@ Record 2: {record_template.replace('input0', 'input2')}"""
             >>> # Custom output schema
             >>> df.semantic.filter(
             ...     prompt="Analyze if this is relevant: {{input.text}}",
-            ...     output_schema={
-            ...         "keep": "bool",
-            ...         "reason": "str"
-            ...     }
+            ...     output={"schema": {"keep": "bool", "reason": "str"}}
             ... )
         """
         # Convert DataFrame to list of dicts
         input_data = self._df.to_dict("records")
+
+        # Backward compatibility and defaults
+        if output is None and output_schema is not None:
+            output = {"schema": output_schema}
+        if output is None and output_schema is None:
+            output = {"schema": {"keep": "bool"}}
+
+        # Validate output
+        if not isinstance(output, dict):
+            raise ValueError("output must be a dictionary")
+        if "schema" not in output:
+            raise ValueError("output must contain a 'schema' key")
+        output_mode = output.get("mode", "tools")
+        if output_mode not in ["tools", "structured_output"]:
+            raise ValueError(
+                f"output mode must be 'tools' or 'structured_output', got '{output_mode}'"
+            )
 
         # Create map operation config for filtering
         filter_config = {
             "type": "map",
             "name": f"semantic_filter_{len(self._history)}",
             "prompt": prompt,
-            "output": (
-                {"schema": {"keep": "bool"}} if output_schema is None else output_schema
-            ),
+            "output": output,
             **kwargs,
         }
 

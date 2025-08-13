@@ -60,7 +60,7 @@ df.semantic.filter(
     prompt="Is this text about technology? {{input.text}}"
 )
 
-# Custom output schema with reasons
+# Custom output with reasons
 df.semantic.filter(
     prompt="Analyze if this is relevant: {{input.text}}",
     output={
@@ -110,17 +110,17 @@ Example usage:
 # Simple aggregation
 df.semantic.agg(
     reduce_prompt="Summarize these items: {{input.text}}",
-    output_schema={"summary": "str"}
+    output={"schema": {"summary": "str"}}
 )
 
 # Fuzzy matching with custom resolution
 df.semantic.agg(
     reduce_prompt="Combine these items: {{input.text}}",
-    output_schema={"combined": "str"},
+    output={"schema": {"combined": "str"}},
     fuzzy=True,
     comparison_prompt="Are these items similar: {{input1.text}} vs {{input2.text}}",
     resolution_prompt="Resolve conflicts between: {{items}}",
-    resolution_output_schema={"resolved": "str"}
+    resolution_output={"schema": {"resolved": "str"}}
 )
 ```
 

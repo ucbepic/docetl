@@ -18,6 +18,10 @@ class RetrieveVectorOperation(BaseOperation):
 
     class schema(BaseOperation.schema):
         type: str = "retrieve_vector"
+        query: str = Field(
+            ...,
+            description="The query text to search for similar documents"
+        )
         embedding_model: str = Field(
             default="text-embedding-3-small",
             description="The embedding model to use"
@@ -30,10 +34,6 @@ class RetrieveVectorOperation(BaseOperation):
             default=10,
             ge=1,
             description="Number of top similar chunks to retrieve (like top-k)"
-        )
-        query_key: Optional[str] = Field(
-            default=None,
-            description="Key containing the query text. If not provided, uses the entire document"
         )
         table_name: str = Field(
             default="docetl_vectors",
@@ -50,6 +50,10 @@ class RetrieveVectorOperation(BaseOperation):
         distance_metric: str = Field(
             default="cosine",
             description="Distance metric to use for similarity search"
+        )
+        output_key: str = Field(
+            default="_retrieved",
+            description="Key to store retrieved documents in the output"
         )
         
         @field_validator("embedding_keys")
@@ -99,7 +103,7 @@ class RetrieveVectorOperation(BaseOperation):
         Execute the vector retrieval operation.
         
         Args:
-            input_data: List of documents to index and/or query
+            input_data: List of documents to index and search
             is_build: Whether this is a build phase execution
             
         Returns:
@@ -186,71 +190,48 @@ class RetrieveVectorOperation(BaseOperation):
                 schema=DocumentVector
             )
         
-        # Now perform retrieval for each document
-        results = []
-        num_chunks = self.config["num_chunks"]
-        query_key = self.config.get("query_key")
+        # Get embedding for the query
+        query_text = self.config["query"]
+        query_embeddings, query_cost = get_embeddings_for_clustering(
+            [{"text": query_text}],
+            {"embedding_keys": ["text"], "embedding_model": self.config.get("embedding_model")},
+            self.runner.api
+        )
+        total_cost += query_cost
         
+        if not query_embeddings:
+            # Return empty results if query embedding fails
+            return [{**doc, self.config["output_key"]: []} for doc in input_data], total_cost
+            
+        query_vector = query_embeddings[0]
+        
+        # Search for similar documents
+        num_chunks = self.config["num_chunks"]
+        search_results = (
+            self._table.search(query_vector)
+            .limit(num_chunks)
+            .to_list()
+        )
+        
+        # Prepare retrieved documents
+        retrieved_docs = []
+        for result in search_results:
+            # Get the original document
+            original_idx = result["_index"]
+            if original_idx < len(input_data):
+                retrieved_doc = input_data[original_idx]
+                retrieved_docs.append({
+                    **retrieved_doc,
+                    "_distance": result.get("_distance", None)
+                })
+        
+        # Create output - each input document gets the same retrieved results
+        output_key = self.config["output_key"]
+        results = []
         for doc in input_data:
-            # Determine query text
-            if query_key and query_key in doc:
-                query_text = doc[query_key]
-            else:
-                query_text = self._prepare_text_for_embedding(doc)
-            
-            if not query_text:
-                # If no query text, return empty results for this doc
-                results.append({
-                    **doc,
-                    "_retrieved": []
-                })
-                continue
-            
-            # Get embedding for query
-            query_embeddings, query_cost = get_embeddings_for_clustering(
-                [{"text": query_text}],
-                {"embedding_keys": ["text"], "embedding_model": self.config.get("embedding_model")},
-                self.runner.api
-            )
-            total_cost += query_cost
-            
-            if not query_embeddings:
-                results.append({
-                    **doc,
-                    "_retrieved": []
-                })
-                continue
-                
-            query_vector = query_embeddings[0]
-            
-            # Search for similar documents
-            search_results = (
-                self._table.search(query_vector)
-                .limit(num_chunks + 1)  # +1 in case the query doc itself is in results
-                .to_list()
-            )
-            
-            # Filter out the query document itself and prepare results
-            retrieved_docs = []
-            for result in search_results:
-                # Get the original document
-                original_idx = result["_index"]
-                if original_idx < len(input_data):
-                    retrieved_doc = input_data[original_idx]
-                    # Don't include the query document itself
-                    if retrieved_doc != doc:
-                        retrieved_docs.append({
-                            **retrieved_doc,
-                            "_distance": result["_distance"] if hasattr(result, "_distance") else None
-                        })
-                
-                if len(retrieved_docs) >= num_chunks:
-                    break
-            
-            # Add retrieved documents to the result
             results.append({
                 **doc,
-                "_retrieved": retrieved_docs
+                output_key: retrieved_docs
             })
         
         return results, total_cost

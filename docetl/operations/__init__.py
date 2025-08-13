@@ -14,6 +14,8 @@ from docetl.operations.unnest import UnnestOperation
 from docetl.operations.scan import ScanOperation
 from docetl.operations.add_uuid import AddUuidOperation
 from docetl.operations.extract import ExtractOperation
+from docetl.operations.retrieve_vector import RetrieveVectorOperation
+from docetl.operations.retrieve_fts import RetrieveFTSOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -32,7 +34,9 @@ mapping = {
     "unnest": UnnestOperation,
     "scan": ScanOperation,
     "add_uuid": AddUuidOperation,
-    "extract": ExtractOperation
+    "extract": ExtractOperation,
+    "retrieve_vector": RetrieveVectorOperation,
+    "retrieve_fts": RetrieveFTSOperation
 }
 
 def get_operation(operation_type: str):

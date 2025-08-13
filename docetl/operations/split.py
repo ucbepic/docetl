@@ -1,7 +1,8 @@
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import tiktoken
+from pydantic import field_validator, model_validator
 
 from docetl.operations.base import BaseOperation
 
@@ -23,38 +24,33 @@ class SplitOperation(BaseOperation):
         type: str = "split"
         split_key: str
         method: str
-        method_kwargs: Dict[str, Any]
-        model: Optional[str] = None
+        method_kwargs: dict[str, Any]
+        model: str | None = None
+
+        @field_validator("method")
+        def validate_method(cls, v):
+            if v not in ["token_count", "delimiter"]:
+                raise ValueError(
+                    f"Invalid method '{v}'. Must be 'token_count' or 'delimiter'"
+                )
+            return v
+
+        @model_validator(mode="after")
+        def validate_method_kwargs(self):
+            if self.method == "token_count":
+                num_tokens = self.method_kwargs.get("num_tokens")
+                if num_tokens is None or num_tokens <= 0:
+                    raise ValueError("'num_tokens' must be a positive integer")
+            elif self.method == "delimiter":
+                if "delimiter" not in self.method_kwargs:
+                    raise ValueError("'delimiter' is required for delimiter method")
+            return self
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = self.config["name"]
 
-    def syntax_check(self) -> None:
-        required_keys = ["split_key", "method", "method_kwargs"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in SplitOperation configuration"
-                )
-
-        if not isinstance(self.config["split_key"], str):
-            raise TypeError("'split_key' must be a string")
-
-        if self.config["method"] not in ["token_count", "delimiter"]:
-            raise ValueError(f"Invalid method '{self.config['method']}'")
-
-        if self.config["method"] == "token_count":
-            if (
-                not isinstance(self.config["method_kwargs"]["num_tokens"], int)
-                or self.config["method_kwargs"]["num_tokens"] <= 0
-            ):
-                raise ValueError("'num_tokens' must be a positive integer")
-        elif self.config["method"] == "delimiter":
-            if not isinstance(self.config["method_kwargs"]["delimiter"], str):
-                raise ValueError("'delimiter' must be a string")
-
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         split_key = self.config["split_key"]
         method = self.config["method"]
         method_kwargs = self.config["method_kwargs"]

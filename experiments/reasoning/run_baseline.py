@@ -282,15 +282,17 @@ def run_baseline_experiment(
             # Load sample data for the dataset
             sample_data = []
             if dataset.lower() == "cuad":
-                sample_data_path = Path("experiments/reasoning/data/CUAD_random_sample.json")
+                sample_data_path = Path("experiments/reasoning/data/train/cuad.json")
             elif dataset.lower() == "blackvault":
-                sample_data_path = Path("experiments/reasoning/data/blackvault_random_sample.json")
-            elif dataset.lower() == "game_reviews":
-                sample_data_path = Path("experiments/reasoning/data/reviews.json")
+                sample_data_path = Path("experiments/reasoning/data/train/blackvault.json")
+            elif dataset.lower() == "game_reviews" or dataset.lower() == "reviews":
+                sample_data_path = Path("experiments/reasoning/data/train/game_reviews.json")
             elif dataset.lower() == "sustainability":
-                sample_data_path = Path("experiments/reasoning/data/company_reports_sample.json")
+                sample_data_path = Path("experiments/reasoning/data/train/sustainability.json")
             elif dataset.lower() == "biodex":
                 sample_data_path = Path("experiments/reasoning/data/train/biodex.json")
+            elif dataset.lower() == "medec":
+                sample_data_path = Path("experiments/reasoning/data/train/medec.json")
             else:
                 sample_data_path = None
             

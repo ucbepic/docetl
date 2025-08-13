@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 import shutil
-from typing import Any, Dict, List
+from typing import Any
 
 from diskcache import Cache
 from dotenv import load_dotenv
@@ -86,11 +86,11 @@ def clear_cache(console: Console = DOCETL_CONSOLE):
 def cache_key(
     model: str,
     op_type: str,
-    messages: List[Dict[str, str]],
-    output_schema: Dict[str, str],
-    scratchpad: str = None,
-    system_prompt: Dict[str, str] = None,
-    op_config: Dict[str, Any] = {},
+    messages: list[dict[str, str]],
+    output_schema: dict[str, str],
+    scratchpad: str | None = None,
+    system_prompt: dict[str, str] | None = None,
+    op_config: dict[str, Any] = {},
 ) -> str:
     """Generate a unique cache key based on function arguments."""
     key_dict = {

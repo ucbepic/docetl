@@ -1,6 +1,6 @@
 import json
 import random
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from litellm import model_cost
 from rich.console import Console
@@ -16,7 +16,7 @@ class PromptGenerator:
         runner,
         llm_client: LLMClient,
         console: Console,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         max_threads: int,
         is_filter: bool = False,
     ):
@@ -29,9 +29,9 @@ class PromptGenerator:
 
     def _generate_validator_prompt(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        output_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+        output_data: list[dict[str, Any]],
     ) -> str:
         system_prompt = "You are an AI assistant tasked with creating custom validation prompts for data processing operations. Your goal is to create a prompt that will assess how well the operation performed its intended task."
 
@@ -96,16 +96,16 @@ class PromptGenerator:
 
     def _get_header_extraction_prompt(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         split_key: str,
-    ) -> Tuple[str, Dict[str, Any]]:
+    ) -> tuple[str, dict[str, Any]]:
         """
         Generate a header extraction prompt for a split operation. This prompt will be used to extract the headers from the input data in each chunk.
 
         Args:
-            op_config (Dict[str, Any]): The operation configuration.
-            input_data (List[Dict[str, Any]]): A list of input data samples.
+            op_config (dict[str, Any]): The operation configuration.
+            input_data (list[dict[str, Any]]): A list of input data samples.
             split_key (str): The key used to split the data.
 
         Returns:
@@ -213,10 +213,10 @@ class PromptGenerator:
 
     def _get_improved_prompt(
         self,
-        op_config: Dict[str, Any],
-        assessment: Dict[str, Any],
-        input_data_sample: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        op_config: dict[str, Any],
+        assessment: dict[str, Any],
+        input_data_sample: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         system_prompt = "You are an AI assistant tasked with improving prompts for data processing operations."
 
         random_sample = random.choice(input_data_sample) if input_data_sample else {}
@@ -261,9 +261,9 @@ class PromptGenerator:
 
     def _get_combine_prompt(
         self,
-        op_config: Dict[str, Any],
-        sample_output: List[Dict[str, Any]],
-    ) -> Tuple[str, bool]:
+        op_config: dict[str, Any],
+        sample_output: list[dict[str, Any]],
+    ) -> tuple[str, bool]:
         """
         Generate a combine prompt for merging chunk results in a map-reduce operation.
 
@@ -273,14 +273,14 @@ class PromptGenerator:
         from various chunks.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the original operation,
+            op_config (dict[str, Any]): The configuration of the original operation,
                 including the original prompt and output schema.
-            sample_output (List[Dict[str, Any]]): A list of sample outputs from
+            sample_output (list[dict[str, Any]]): A list of sample outputs from
                 processing various chunks. Each item in the list represents the
                 output from a single chunk.
 
         Returns:
-            Tuple[str, bool]: A tuple containing:
+            tuple[str, bool]: A tuple containing:
                 - A Jinja2 template string that serves as the combine prompt.
                   This prompt will be used to merge the results from individual
                   chunks to produce the final output of the map-reduce operation.
@@ -460,8 +460,8 @@ class PromptGenerator:
     def _edit_subprompt_to_reflect_metadata(
         self,
         subprompt: str,
-        metadata_schema: Dict[str, Any],
-        sample_output: List[Dict[str, Any]],
+        metadata_schema: dict[str, Any],
+        sample_output: list[dict[str, Any]],
     ) -> str:
         # Select only metadata_schema keys from sample_output
         filtered_sample_output = []
@@ -505,10 +505,10 @@ class PromptGenerator:
 
     def _get_schema_transform_prompt(
         self,
-        op_config: Dict[str, Any],
-        parallel_output_schema: Dict[str, Any],
-        target_schema: Dict[str, Any],
-        sample_output: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        parallel_output_schema: dict[str, Any],
+        target_schema: dict[str, Any],
+        sample_output: list[dict[str, Any]],
     ) -> str:
         """
         Generate a prompt for transforming parallel map output into the target schema.
@@ -633,7 +633,7 @@ class PromptGenerator:
 
     def _get_missing_keys_prompt(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         missing_keys: set[str],
         existing_keys: set[str],
     ) -> str:

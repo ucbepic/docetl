@@ -4,7 +4,7 @@ This operation helps to identify and extract specific sections of text from docu
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal
 
 from jinja2 import Template
 from pydantic import Field, field_validator
@@ -17,23 +17,23 @@ class ExtractOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "extract"
         prompt: str
-        document_keys: List[str]
-        model: Optional[str] = None
+        document_keys: list[str] = Field(..., min_items=1)
+        model: str | None = None
         format_extraction: bool = True
-        extraction_key_suffix: Optional[str] = None
+        extraction_key_suffix: str | None = None
         extraction_method: Literal["line_number", "regex"] = "line_number"
-        timeout: Optional[int] = None
+        timeout: int | None = None
         skip_on_error: bool = False
-        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
 
-        @field_validator("document_keys")
-        def validate_document_keys(cls, v):
-            if not isinstance(v, list):
-                raise TypeError("document_keys must be a list")
-            if not all(isinstance(key, str) for key in v):
-                raise TypeError("All items in document_keys must be strings")
-            if len(v) == 0:
-                raise ValueError("document_keys list cannot be empty")
+        @field_validator("prompt")
+        def validate_prompt(cls, v):
+            try:
+                Template(v)
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid Jinja2 template in 'prompt': {str(e)}"
+                ) from e
             return v
 
     def __init__(
@@ -47,27 +47,6 @@ class ExtractOperation(BaseOperation):
             self.extraction_key_suffix = f"_extracted_{self.config['name']}"
         else:
             self.extraction_key_suffix = self.config["extraction_key_suffix"]
-
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the ExtractOperation for required keys and valid structure.
-
-        Raises:
-            ValueError: If required keys are missing or invalid in the configuration.
-            TypeError: If configuration values have incorrect types.
-        """
-        # The field_validator in the Pydantic schema handles basic type checks
-        config = self.schema(**self.config)
-
-        # Verify that prompt is a valid template
-        try:
-            Template(config.prompt)
-        except Exception as e:
-            raise ValueError(f"Invalid Jinja2 template in 'prompt': {str(e)}") from e
-
-        # Check if model is specified (optional) and is a string
-        if config.model and not isinstance(config.model, str):
-            raise TypeError("'model' in configuration must be a string")
 
     def _reformat_text_with_line_numbers(self, text: str, line_width: int = 80) -> str:
         """
@@ -123,17 +102,17 @@ class ExtractOperation(BaseOperation):
         return "\n".join(numbered_lines)
 
     def _execute_line_number_strategy(
-        self, item: Dict, doc_key: str
-    ) -> Tuple[List[Dict[str, Any]], float]:
+        self, item: dict, doc_key: str
+    ) -> tuple[list[dict[str, Any]], float]:
         """
         Executes the line number extraction strategy for a single document key.
 
         Args:
-            item (Dict): The input document.
+            item (dict): The input document.
             doc_key (str): The key of the document text to process.
 
         Returns:
-            Tuple[List[Dict[str, Any]], float]: A tuple containing the extraction results and the cost.
+            tuple[list[dict[str, Any]], float]: A tuple containing the extraction results and the cost.
         """
         # Get the text content from the document
         if doc_key not in item or not isinstance(item[doc_key], str):
@@ -263,17 +242,17 @@ Do not include explanatory text in your response, only the JSON object.
                 raise RuntimeError(f"Error parsing LLM response: {str(e)}") from e
 
     def _execute_regex_strategy(
-        self, item: Dict, doc_key: str
-    ) -> Tuple[List[str], float]:
+        self, item: dict, doc_key: str
+    ) -> tuple[list[str], float]:
         """
         Executes the regex extraction strategy for a single document key.
 
         Args:
-            item (Dict): The input document.
+            item (dict): The input document.
             doc_key (str): The key of the document text to process.
 
         Returns:
-            Tuple[List[str], float]: A tuple containing the extraction results and the cost.
+            tuple[list[str], float]: A tuple containing the extraction results and the cost.
         """
         import re
 
@@ -388,15 +367,15 @@ Return only the JSON object with your patterns, no explanatory text.
             else:
                 raise RuntimeError(f"Error parsing LLM response: {str(e)}") from e
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Execute the extraction operation on the input data.
 
         Args:
-            input_data (List[Dict]): List of input data items.
+            input_data (list[dict]): List of input data items.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed data and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the processed data and the total cost of the operation.
         """
         if not input_data:
             return [], 0.0

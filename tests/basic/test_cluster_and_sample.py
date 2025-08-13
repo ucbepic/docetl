@@ -187,8 +187,8 @@ def test_sample_operation_with_stratify(
     sample_config, sample_data, runner, default_model, max_threads
 ):
     sample_config["samples"] = 5
-    sample_config["method"] = "stratify"
-    sample_config["method_kwargs"] = {"stratify_key": "group"}
+    sample_config["method"] = "uniform"
+    sample_config["stratify_key"] = "group"
     operation = SampleOperation(runner, sample_config, default_model, max_threads)
     results, cost = operation.execute(sample_data)
 
@@ -246,3 +246,104 @@ def test_sample_operation_with_outliers_and_center(
     assert len(results) < len(sample_data)
     assert cost > 0
     assert all(item in sample_data for item in results)
+
+
+def test_sample_operation_with_multiple_stratify_keys(
+    sample_config, runner, default_model, max_threads
+):
+    # Create test data with multiple keys for stratification
+    test_data = [
+        {"id": 1, "type": "A", "size": "small", "value": 10},
+        {"id": 2, "type": "A", "size": "large", "value": 20},
+        {"id": 3, "type": "B", "size": "small", "value": 15},
+        {"id": 4, "type": "B", "size": "large", "value": 25},
+        {"id": 5, "type": "A", "size": "small", "value": 12},
+        {"id": 6, "type": "A", "size": "large", "value": 22},
+        {"id": 7, "type": "B", "size": "small", "value": 17},
+        {"id": 8, "type": "B", "size": "large", "value": 27},
+    ]
+    
+    sample_config["samples"] = 4
+    sample_config["method"] = "uniform"
+    sample_config["stratify_key"] = ["type", "size"]
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(test_data)
+    
+    assert len(results) == 4
+    assert cost == 0
+    
+    # Check that we have samples from different combinations
+    combinations = set()
+    for item in results:
+        combinations.add((item["type"], item["size"]))
+    
+    # Should have multiple combinations represented
+    assert len(combinations) > 1
+
+
+def test_sample_operation_with_samples_per_group(
+    sample_config, runner, default_model, max_threads
+):
+    # Create test data with groups
+    test_data = [
+        {"id": 1, "category": "A", "value": 10},
+        {"id": 2, "category": "A", "value": 20},
+        {"id": 3, "category": "A", "value": 30},
+        {"id": 4, "category": "B", "value": 15},
+        {"id": 5, "category": "B", "value": 25},
+        {"id": 6, "category": "B", "value": 35},
+        {"id": 7, "category": "C", "value": 17},
+        {"id": 8, "category": "C", "value": 27},
+    ]
+    
+    sample_config["samples"] = 2
+    sample_config["method"] = "uniform"
+    sample_config["stratify_key"] = "category"
+    sample_config["samples_per_group"] = True
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(test_data)
+    
+    # Should have 2 items from each of the 3 groups = 6 total
+    assert len(results) == 6
+    assert cost == 0
+    
+    # Check that each group has exactly 2 samples
+    from collections import Counter
+    category_counts = Counter(item["category"] for item in results)
+    assert category_counts["A"] == 2
+    assert category_counts["B"] == 2
+    assert category_counts["C"] == 2
+
+
+def test_sample_operation_with_samples_per_group_fraction(
+    sample_config, runner, default_model, max_threads
+):
+    # Create test data with groups of different sizes
+    test_data = [
+        {"id": 1, "category": "A", "value": 10},
+        {"id": 2, "category": "A", "value": 20},
+        {"id": 3, "category": "A", "value": 30},
+        {"id": 4, "category": "A", "value": 40},
+        {"id": 5, "category": "B", "value": 15},
+        {"id": 6, "category": "B", "value": 25},
+    ]
+    
+    sample_config["samples"] = 0.5  # 50% from each group
+    sample_config["method"] = "uniform"
+    sample_config["stratify_key"] = "category"
+    sample_config["samples_per_group"] = True
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(test_data)
+    
+    # Should have 50% from group A (2 items) and 50% from group B (1 item) = 3 total
+    assert len(results) == 3
+    assert cost == 0
+    
+    # Check the distribution
+    from collections import Counter
+    category_counts = Counter(item["category"] for item in results)
+    assert category_counts["A"] == 2  # 50% of 4
+    assert category_counts["B"] == 1  # 50% of 2

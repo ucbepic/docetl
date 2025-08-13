@@ -1,6 +1,6 @@
 import json
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import tiktoken
 from litellm import model_cost
@@ -23,9 +23,9 @@ class InvalidOutputError(Exception):
         self,
         message: str,
         output: str,
-        expected_schema: Dict[str, Any],
-        messages: List[Dict[str, str]],
-        tools: Optional[List[Dict[str, str]]] = None,
+        expected_schema: dict[str, Any],
+        messages: list[dict[str, str]],
+        tools: list[dict[str, str]] | None = None,
     ):
         self.message = message
         self.output = output
@@ -67,14 +67,14 @@ def timeout(seconds):
     return decorator
 
 
-def approx_count_tokens(messages: List[Dict[str, str]]) -> int:
+def approx_count_tokens(messages: list[dict[str, str]]) -> int:
     """Approximately 4 characters per token. So count the number of characters in the messages and divide by 4."""
     return int(sum(len(msg["content"]) for msg in messages) / 4)
 
 
 def truncate_messages(
-    messages: List[Dict[str, str]], model: str, from_agent: bool = False
-) -> List[Dict[str, str]]:
+    messages: list[dict[str, str]], model: str, from_agent: bool = False
+) -> list[dict[str, str]]:
     """Truncate messages to fit within model's context length."""
     # if there's a pdf, don't truncate
     for message in messages:

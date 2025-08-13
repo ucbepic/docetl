@@ -75,6 +75,49 @@ export default function DemosIndexPage() {
               </CardContent>
             </Card>
           </Link>
+
+          <Link
+            href="/showcase/lease-contract-red-flags"
+            className="block group"
+          >
+            <Card className="h-full hover:shadow-lg transition-shadow duration-200 hover:border-primary/50">
+              <CardHeader>
+                <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                  Lease Contract Red-Flag Analysis
+                </CardTitle>
+                <CardDescription>
+                  Rank lease agreements by severity of extracted red flags.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-end items-center text-sm text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  View Demo <ArrowRight className="ml-1 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link
+            href="/showcase/congressional-health-hearings"
+            className="block group"
+          >
+            <Card className="h-full hover:shadow-lg transition-shadow duration-200 hover:border-primary/50">
+              <CardHeader>
+                <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                  Congressional Health Hearings
+                </CardTitle>
+                <CardDescription>
+                  Analyze 243 health-related congressional hearings with memorable quotes, 
+                  speaker dynamics, and evasion detection.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-end items-center text-sm text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  View Demo <ArrowRight className="ml-1 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* Add Community Contribution Note */}

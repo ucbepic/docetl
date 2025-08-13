@@ -237,7 +237,7 @@ def get_evaluate_func(dataset):
     
     elif dataset.lower() == "sustainability":
         def sustainability_eval_func(method_name, results_file_path):
-            ground_truth_path = "experiments/reasoning/data/company_reports_sample.json"
+            ground_truth_path = "experiments/reasoning/data/company_reports_gt.json"
             return sustainability_evaluate(method_name, results_file_path, ground_truth_path)
         return sustainability_eval_func
     
@@ -617,7 +617,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
     
     elif dataset.lower() == "sustainability":
         if ground_truth_path is None:
-            default_gt = Path("experiments/reasoning/data/company_reports_sample.json")
+            default_gt = Path("experiments/reasoning/data/company_reports_gt.json")
             ground_truth_path = str(default_gt)
 
         print(f"\n🧪 Evaluating sustainability analysis results ...")

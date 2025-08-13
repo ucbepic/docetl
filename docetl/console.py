@@ -2,7 +2,6 @@ import os
 import threading
 import time
 from io import StringIO
-from typing import Tuple
 
 from rich.console import Console, RenderableType
 from rich.status import Status
@@ -59,7 +58,7 @@ class ThreadSafeConsole(Console):
     def post_optimizer_status(self, stage: StageType):
         self.optimizer_statuses.append((stage, time.time()))
 
-    def get_optimizer_progress(self) -> Tuple[str, float]:
+    def get_optimizer_progress(self) -> tuple[str, float]:
         if len(self.optimizer_statuses) == 0:
             return ("Optimization starting...", 0)
 

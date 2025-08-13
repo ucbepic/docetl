@@ -97,7 +97,7 @@ Run the MCTS optimization experiment:
 ```bash
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/game_reviews.yaml \
-  --dataset_path experiments/reasoning/data/reviews.json \
+  --dataset_path experiments/reasoning/data/train/game_reviews.json \
   --experiment_name game_reviews_mcts \
   --max_iterations 10 \
   --model gpt-4.1 \
@@ -214,7 +214,7 @@ Run the MCTS optimization experiment:
 ```bash
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/sustainability.yaml \
-  --dataset_path experiments/reasoning/data/company_reports_sample.json \
+  --dataset_path experiments/reasoning/data/company_reports_gt.json \
   --experiment_name sustainability_mcts \
   --max_iterations 10 \
   --model gpt-4.1 \
@@ -251,6 +251,68 @@ python experiments/reasoning/run_mcts.py \
   --model gpt-4.1 \
   --dataset biodex
 ```
+
+## Simple Baseline Agent
+
+The simple baseline agent is an extremely lightweight alternative to the full reasoning optimizer. It uses basic tool calling to generate and test pipeline configurations with minimal complexity.
+
+### What is the Simple Baseline?
+
+The simple baseline agent:
+
+1. **Loads operator documentation** - Reads available DocETL operators and their usage
+2. **Analyzes sample data** - Examines the structure of your dataset 
+3. **Uses tool calling** - Leverages LLM tool calling to generate pipeline configurations
+4. **Tests iteratively** - Runs a few iterations (baseline + 3 agent iterations) to find improvements
+5. **Returns best pipeline** - Outputs the best performing configuration found
+
+This is much simpler than the full MCTS approach, making it ideal for:
+- Quick experimentation
+- Understanding baseline performance
+- Simple optimization tasks
+- Testing new datasets
+
+### Running Simple Baseline
+
+#### Local execution:
+```bash
+python experiments/reasoning/run_simple_baseline.py \
+  --dataset medec \
+  --model gpt-4o-mini \
+  --experiment_name medec_simple_baseline
+```
+
+#### Modal execution (recommended):
+```bash
+modal run experiments/reasoning/run_simple_baseline.py --dataset=medec
+```
+
+Other supported datasets: `cuad`, `blackvault`, `reviews`, `sustainability`, `biodex`, `medec`
+
+### Simple Baseline Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--dataset` | Required | Dataset name (cuad, reviews, blackvault, etc.) |
+| `--model` | `o3` | LLM model to use for optimization |
+| `--experiment_name` | `simple_baseline_{dataset}` | Unique experiment identifier |
+| `--output_dir` | `outputs/simple_baseline` | Output directory |
+| `--ground_truth` | `None` | Path to ground truth file for evaluation |
+
+### Simple Baseline Output
+
+Results are saved to `outputs/simple_baseline_{dataset}/` containing:
+- `operators.json` - Final optimized operators
+- `results.json` - Experiment results and metrics
+- `evaluation_metrics.json` - Performance evaluation results
+- `cost_vs_{metric}.png` - Plot showing cost vs performance across iterations (0, 1, 2, 3, 4)
+- `final_pipeline.yaml` - Complete pipeline configuration
+- Pipeline outputs for each iteration
+
+The plot shows 5 data points representing:
+- **0**: Original baseline pipeline
+- **1-3**: Agent optimization iterations  
+- **4**: Final optimized pipeline
 
 ## Output
 

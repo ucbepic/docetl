@@ -3,7 +3,6 @@
 import pytest
 from docetl.operations.map import ParallelMapOperation
 from dotenv import load_dotenv
-from typing import Dict, Any, List, Tuple
 from tests.conftest import (
     parallel_map_config,
     default_model,

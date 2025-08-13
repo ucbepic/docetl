@@ -6,7 +6,7 @@ import os
 import re
 import time
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from litellm import (
     APIConnectionError,
@@ -69,7 +69,7 @@ class APIWrapper(object):
         )
 
     @freezeargs
-    def gen_embedding(self, model: str, input: List[str]) -> List[float]:
+    def gen_embedding(self, model: str, input: list[str]) -> list[float]:
         """
         A cached wrapper around litellm.embedding function.
 
@@ -79,10 +79,10 @@ class APIWrapper(object):
 
         Args:
             model (str): The name of the embedding model to use.
-            input (str): The input text to generate an embedding for.
+            input (list[str]): The input text to generate an embedding for.
 
         Returns:
-            List[float]: The embedding vector as a list of floats.
+            list[float]: The embedding vector as a list of floats.
 
         Note:
             The cache size is set to 1000. Adjust this value based on your memory
@@ -129,14 +129,14 @@ class APIWrapper(object):
         self,
         model: str,
         op_type: str,
-        messages: List[Dict[str, str]],
-        output_schema: Dict[str, str],
+        messages: list[dict[str, str]],
+        output_schema: dict[str, str],
         verbose: bool = False,
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
         bypass_cache: bool = False,
-        litellm_completion_kwargs: Dict[str, Any] = {},
-        op_config: Dict[str, Any] = {},
+        litellm_completion_kwargs: dict[str, Any] = {},
+        op_config: dict[str, Any] = {},
     ) -> LLMResult:
         # Turn the output schema into a list of schemas
         output_schema = convert_dict_schema_to_list_schema(output_schema)
@@ -160,17 +160,17 @@ class APIWrapper(object):
         cache_key: str,
         model: str,
         op_type: str,
-        messages: List[Dict[str, str]],
-        output_schema: Dict[str, str],
-        tools: Optional[str] = None,
-        scratchpad: Optional[str] = None,
-        validation_config: Optional[Dict[str, Any]] = None,
-        gleaning_config: Optional[Dict[str, Any]] = None,
+        messages: list[dict[str, str]],
+        output_schema: dict[str, str],
+        tools: str | None = None,
+        scratchpad: str | None = None,
+        validation_config: dict[str, Any] | None = None,
+        gleaning_config: dict[str, Any] | None = None,
         verbose: bool = False,
         bypass_cache: bool = False,
-        initial_result: Optional[Any] = None,
-        litellm_completion_kwargs: Dict[str, Any] = {},
-        op_config: Dict[str, Any] = {},
+        initial_result: Any | None = None,
+        litellm_completion_kwargs: dict[str, Any] = {},
+        op_config: dict[str, Any] = {},
     ) -> LLMResult:
         """
         Cached version of the call_llm function.
@@ -183,16 +183,16 @@ class APIWrapper(object):
             cache_key (str): A unique key for caching.
             model (str): The model name.
             op_type (str): The operation type.
-            messages (List[Dict[str, str]]): The messages to send to the LLM.
-            output_schema (Dict[str, str]): The output schema dictionary.
-            tools (Optional[str]): The tools to pass to the LLM.
-            scratchpad (Optional[str]): The scratchpad to use for the operation.
-            validation_config (Optional[Dict[str, Any]]): The validation configuration.
-            gleaning_config (Optional[Dict[str, Any]]): The gleaning configuration.
+            messages (list[dict[str, str]]): The messages to send to the LLM.
+            output_schema (dict[str, str]): The output schema dictionary.
+            tools (str | None): The tools to pass to the LLM.
+            scratchpad (str | None): The scratchpad to use for the operation.
+            validation_config (dict[str, Any] | None): The validation configuration.
+            gleaning_config (dict[str, Any] | None): The gleaning configuration.
             verbose (bool): Whether to print verbose output.
             bypass_cache (bool): Whether to bypass the cache.
-            initial_result (Optional[Any]): The initial result to use for the operation, if exists.
-            op_config (Dict[str, Any]): The operation configuration.
+            initial_result (Any | None): The initial result to use for the operation, if exists.
+            op_config (dict[str, Any]): The operation configuration.
         Returns:
             LLMResult: The response from _call_llm_with_cache.
         """
@@ -434,19 +434,19 @@ class APIWrapper(object):
         self,
         model: str,
         op_type: str,
-        messages: List[Dict[str, str]],
-        output_schema: Dict[str, str],
-        tools: Optional[List[Dict[str, str]]] = None,
-        scratchpad: Optional[str] = None,
+        messages: list[dict[str, str]],
+        output_schema: dict[str, str],
+        tools: list[dict[str, str]] | None = None,
+        scratchpad: str | None = None,
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
-        validation_config: Optional[Dict[str, Any]] = None,
-        gleaning_config: Optional[Dict[str, Any]] = None,
+        validation_config: dict[str, Any] | None = None,
+        gleaning_config: dict[str, Any] | None = None,
         verbose: bool = False,
         bypass_cache: bool = False,
-        initial_result: Optional[Any] = None,
-        litellm_completion_kwargs: Dict[str, Any] = {},
-        op_config: Dict[str, Any] = {},
+        initial_result: Any | None = None,
+        litellm_completion_kwargs: dict[str, Any] = {},
+        op_config: dict[str, Any] = {},
     ) -> LLMResult:
         """
         Wrapper function that uses caching for LLM calls.
@@ -457,15 +457,15 @@ class APIWrapper(object):
         Args:
             model (str): The model name.
             op_type (str): The operation type.
-            messages (List[Dict[str, str]]): The messages to send to the LLM.
-            output_schema (Dict[str, str]): The output schema dictionary.
-            tools (Optional[List[Dict[str, str]]]): The tools to pass to the LLM.
-            scratchpad (Optional[str]): The scratchpad to use for the operation.
+            messages (list[dict[str, str]]): The messages to send to the LLM.
+            output_schema (dict[str, str]): The output schema dictionary.
+            tools (list[dict[str, str]] | None): The tools to pass to the LLM.
+            scratchpad (str | None): The scratchpad to use for the operation.
             timeout_seconds (int): The timeout for the LLM call.
             max_retries_per_timeout (int): The maximum number of retries per timeout.
             bypass_cache (bool): Whether to bypass the cache.
-            initial_result (Optional[Any]): The initial result to use for the operation, if exists.
-            op_config (Dict[str, Any]): Operation configuration, may contain output.mode.
+            initial_result (Any | None): The initial result to use for the operation, if exists.
+            op_config (dict[str, Any]): Operation configuration, may contain output.mode.
         Returns:
             LLMResult: The result from the cached LLM call.
 
@@ -571,12 +571,12 @@ class APIWrapper(object):
         self,
         model: str,
         op_type: str,
-        messages: List[Dict[str, str]],
-        output_schema: Dict[str, str],
-        tools: Optional[str] = None,
-        scratchpad: Optional[str] = None,
-        litellm_completion_kwargs: Dict[str, Any] = {},
-        op_config: Dict[str, Any] = {},
+        messages: list[dict[str, str]],
+        output_schema: dict[str, str],
+        tools: str | None = None,
+        scratchpad: str | None = None,
+        litellm_completion_kwargs: dict[str, Any] = {},
+        op_config: dict[str, Any] = {},
         use_structured_output: bool = False,
     ) -> Any:
         """
@@ -588,10 +588,10 @@ class APIWrapper(object):
         Args:
             model (str): The model name.
             op_type (str): The operation type.
-            messages (List[Dict[str, str]]): The messages to send to the LLM.
-            output_schema (Dict[str, str]): The output schema dictionary.
-            tools (Optional[str]): The tools to pass to the LLM.
-            scratchpad (Optional[str]): The scratchpad to use for the operation.
+            messages (list[dict[str, str]]): The messages to send to the LLM.
+            output_schema (dict[str, str]): The output schema dictionary.
+            tools (str | None): The tools to pass to the LLM.
+            scratchpad (str | None): The scratchpad to use for the operation.
         Returns:
             str: The response from the LLM.
         """
@@ -798,7 +798,6 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
                     tool_choice=tool_choice,
                     **extra_litellm_kwargs,
                 )
-
             except Exception as e:
                 # Check that there's a prefix for the model name if it's not a basic model
                 if model not in BASIC_MODELS:
@@ -828,11 +827,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
     def parse_llm_response(
         self,
         response: Any,
-        schema: Dict[str, Any] = {},
-        tools: Optional[List[Dict[str, str]]] = None,
+        schema: dict[str, Any] = {},
+        tools: list[dict[str, str]] | None = None,
         manually_fix_errors: bool = False,
         use_structured_output: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse the response from a language model.
         This function extracts the tool calls from the LLM response and returns the arguments
@@ -869,11 +868,11 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
     def _parse_llm_response_helper(
         self,
         response: Any,
-        schema: Dict[str, Any] = {},
-        tools: Optional[List[Dict[str, str]]] = None,
+        schema: dict[str, Any] = {},
+        tools: list[dict[str, str]] | None = None,
         index: int = 0,
         use_structured_output: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse the response from a language model.
 
@@ -882,12 +881,12 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
 
         Args:
             response (Any): The response object from the language model.
-            schema (Optional[Dict[str, Any]]): The schema that was passed to the LLM.
-            tools (Optional[List[Dict[str, str]]]): The tools that were passed to the LLM.
+            schema (dict[str, Any] | None): The schema that was passed to the LLM.
+            tools (list[dict[str, str]] | None): The tools that were passed to the LLM.
             use_structured_output (bool): Whether structured output mode was used.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries containing the parsed output.
+            list[dict[str, Any]]: A list of dictionaries containing the parsed output.
 
         Raises:
             InvalidOutputError: If the response is not valid.
@@ -1112,13 +1111,13 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         # message = response.choices[0].message
         # return [json.loads(message.content)]
 
-    def validate_output(self, operation: Dict, output: Dict, console: Console) -> bool:
+    def validate_output(self, operation: dict, output: dict, console: Console) -> bool:
         """
         Validate the output against the specified validation rules in the operation.
 
         Args:
-            operation (Dict): The operation dictionary containing validation rules.
-            output (Dict): The output to be validated.
+            operation (dict): The operation dictionary containing validation rules.
+            output (dict): The output to be validated.
             console (Console): The console object for logging.
 
         Returns:
@@ -1139,7 +1138,7 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         return True
 
     def should_glean(
-        self, gleaning_config: Optional[Dict[str, Any]], output: Dict[str, Any]
+        self, gleaning_config: dict[str, Any] | None, output: dict[str, Any]
     ) -> bool:
         """Determine whether to execute a gleaning round based on an optional conditional expression.
 

@@ -32,7 +32,7 @@ Cost Tracking:
     >>> df.semantic.history     # Returns operation history
 """
 
-from typing import Any, Dict, List, NamedTuple, Optional, Union
+from typing import Any, NamedTuple
 
 import pandas as pd
 from rich.panel import Panel
@@ -54,8 +54,8 @@ class OpHistory(NamedTuple):
     """Record of an operation that was run."""
 
     op_type: str  # 'map', 'filter', 'merge', 'agg', 'split', 'gather', 'unnest'
-    config: Dict[str, Any]  # Full config used
-    output_columns: List[str]  # Columns created/modified
+    config: dict[str, Any]  # Full config used
+    output_columns: list[str]  # Columns created/modified
 
 
 @pd.api.extensions.register_dataframe_accessor("semantic")
@@ -100,7 +100,7 @@ class SemanticAccessor:
         self.runner.optimizer = builder
 
     def _record_operation(
-        self, data: List[Dict], op_type: str, config: Dict[str, Any], cost: float
+        self, data: list[dict], op_type: str, config: dict[str, Any], cost: float
     ) -> pd.DataFrame:
         """Record an operation and return the history entry."""
         # Find new columns by comparing with current DataFrame
@@ -141,11 +141,11 @@ class SemanticAccessor:
         else:
             return obj
 
-    def _get_column_history(self, column: str) -> List[OpHistory]:
+    def _get_column_history(self, column: str) -> list[OpHistory]:
         """Get history of operations that created/modified a column."""
         return [op for op in self._history if column in op.output_columns]
 
-    def _synthesize_comparison_context(self, keys: List[str]) -> str:
+    def _synthesize_comparison_context(self, keys: list[str]) -> str:
         """Generate context about how the keys were created, if they were."""
         context_parts = []
 
@@ -169,7 +169,14 @@ class SemanticAccessor:
             return "\n\nContext about these fields:\n" + "\n".join(context_parts)
         return ""
 
-    def map(self, prompt: str, output_schema: Dict[str, Any], **kwargs) -> pd.DataFrame:
+    def map(
+        self,
+        prompt: str,
+        output: dict[str, Any] = None,
+        *,
+        output_schema: dict[str, Any] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
         """
         Apply semantic mapping to each row using a language model.
 
@@ -178,8 +185,14 @@ class SemanticAccessor:
         Args:
             prompt: Jinja template string for generating prompts. Use {{input.column_name}}
                    to reference input columns.
-            output_schema: Dictionary defining the expected output structure and types.
-                          Example: {"entities": "list[str]", "sentiment": "str"}
+            output: Dictionary containing output configuration with keys:
+                   - "schema": Dictionary defining the expected output structure and types.
+                              Example: {"entities": "list[str]", "sentiment": "str"}
+                   - "mode": Optional output mode. Either "tools" (default) or "structured_output".
+                            "structured_output" uses native JSON schema mode for supported models.
+                   - "n": Optional number of outputs to generate for each input (synthetic data generation)
+            output_schema: DEPRECATED. Use 'output' parameter instead.
+                          Dictionary defining the expected output structure for backward compatibility.
             **kwargs: Additional configuration options:
                 - model: LLM model to use (default: from config)
                 - batch_prompt: Template for processing multiple documents in a single prompt
@@ -201,15 +214,17 @@ class SemanticAccessor:
 
         Returns:
             pd.DataFrame: A new DataFrame containing the transformed data with columns
-                         matching the output_schema.
+                         matching the output schema.
 
         Examples:
             >>> # Extract entities and sentiment
             >>> df.semantic.map(
             ...     prompt="Analyze this text: {{input.text}}",
-            ...     output_schema={
-            ...         "entities": "list[str]",
-            ...         "sentiment": "str"
+            ...     output={
+            ...         "schema": {
+            ...             "entities": "list[str]",
+            ...             "sentiment": "str"
+            ...         }
             ...     },
             ...     validate=["len(output['entities']) <= 5"],
             ...     num_retries_on_validate_failure=2
@@ -218,23 +233,53 @@ class SemanticAccessor:
             >>> # Generate synthetic data with multiple variations per input
             >>> df.semantic.map(
             ...     prompt="Create a headline for: {{input.topic}}",
-            ...     output_schema={"headline": "str"},
-            ...     n=5  # Generate 5 variations for each input
+            ...     output={"schema": {"headline": "str"}, "n": 5}
+            ... )
+
+            >>> # Use structured output mode for better JSON schema support
+            >>> df.semantic.map(
+            ...     prompt="Extract structured data: {{input.text}}",
+            ...     output={
+            ...         "schema": {"name": "str", "age": "int", "tags": "list[str]"},
+            ...         "mode": "structured_output"
+            ...     }
             ... )
         """
         # Convert DataFrame to list of dicts for DocETL
         input_data = self._df.to_dict("records")
 
-        output_dict = {"schema": output_schema}
-        if "n" in kwargs:
-            output_dict["n"] = kwargs["n"]
+        # Handle backward compatibility: if output_schema is provided, convert it to output format
+        if output_schema is not None and output is None:
+            output = {"schema": output_schema}
+            if "n" in kwargs:
+                output["n"] = kwargs.pop("n")
+        elif output is None and output_schema is None:
+            raise ValueError("Either 'output' or 'output_schema' must be provided")
+        elif output is not None and output_schema is not None:
+            raise ValueError(
+                "Cannot provide both 'output' and 'output_schema' parameters"
+            )
+
+        # Validate output parameter
+        if not isinstance(output, dict):
+            raise ValueError("output must be a dictionary")
+
+        if "schema" not in output:
+            raise ValueError("output must contain a 'schema' key")
+
+        # Validate output mode if provided
+        output_mode = output.get("mode", "tools")
+        if output_mode not in ["tools", "structured_output"]:
+            raise ValueError(
+                f"output mode must be 'tools' or 'structured_output', got '{output_mode}'"
+            )
 
         # Create map operation config
         map_config = {
             "type": "map",
             "name": f"semantic_map_{len(self._history)}",
             "prompt": prompt,
-            "output": output_dict,
+            "output": output,
             **kwargs,
         }
 
@@ -376,15 +421,17 @@ class SemanticAccessor:
         *,
         # Reduction phase params (required)
         reduce_prompt: str,
-        output_schema: Dict[str, Any],
+        output: dict[str, Any] | None = None,
+        output_schema: dict[str, Any] | None = None,
         # Resolution and reduce phase params (optional)
         fuzzy: bool = False,
-        comparison_prompt: Optional[str] = None,
-        resolution_prompt: Optional[str] = None,
-        resolution_output_schema: Optional[Dict[str, Any]] = None,
-        reduce_keys: Optional[Union[str, List[str]]] = ["_all"],
-        resolve_kwargs: Dict[str, Any] = {},
-        reduce_kwargs: Dict[str, Any] = {},
+        comparison_prompt: str | None = None,
+        resolution_prompt: str | None = None,
+        resolution_output: dict[str, Any] | None = None,
+        resolution_output_schema: dict[str, Any] | None = None,
+        reduce_keys: str | list[str] = ["_all"],
+        resolve_kwargs: dict[str, Any] = {},
+        reduce_kwargs: dict[str, Any] = {},
     ) -> pd.DataFrame:
         """
         Semantically aggregate data with optional fuzzy matching.
@@ -406,11 +453,15 @@ class SemanticAccessor:
 
         Args:
             reduce_prompt: Prompt template for the reduction phase
-            output_schema: Schema for the final output
+            output: Output configuration with keys:
+                - "schema": Dictionary defining the expected output structure and types
+                - "mode": Optional output mode. Either "tools" (default) or "structured_output"
+            output_schema: DEPRECATED. Use 'output' parameter instead. Backward-compatible schema dict
             fuzzy: Whether to use fuzzy matching for resolution (default: False)
             comparison_prompt: Prompt template for comparing records during resolution
             resolution_prompt: Prompt template for resolving conflicts
-            resolution_output_schema: Schema for resolution output
+            resolution_output: Output configuration for resolution (new API with schema key)
+            resolution_output_schema: Schema for resolution output (deprecated, use resolution_output)
             reduce_keys: Keys to group by for reduction (default: ["_all"])
             resolve_kwargs: Additional kwargs for resolve operation:
                 - model: LLM model to use
@@ -430,29 +481,29 @@ class SemanticAccessor:
                 - max_retries_per_timeout: Max retries per timeout (default: 2)
 
         Returns:
-            pd.DataFrame: Aggregated DataFrame with columns matching output_schema
+            pd.DataFrame: Aggregated DataFrame with columns matching output['schema']
 
         Examples:
             >>> # Simple aggregation
             >>> df.semantic.agg(
             ...     reduce_prompt="Summarize these items: {{input.text}}",
-            ...     output_schema={"summary": "str"}
+            ...     output={"schema": {"summary": "str"}}
             ... )
 
             >>> # Fuzzy matching with automatic optimization
             >>> df.semantic.agg(
             ...     reduce_prompt="Combine these items: {{input.text}}",
-            ...     output_schema={"combined": "str"},
+            ...     output={"schema": {"combined": "str"}},
             ...     fuzzy=True,
             ...     comparison_prompt="Are these items similar: {{input1.text}} vs {{input2.text}}",
             ...     resolution_prompt="Resolve conflicts between: {{items}}",
-            ...     resolution_output_schema={"resolved": "str"}
+            ...     resolution_output={"schema": {"resolved": "str"}}
             ... )
 
             >>> # Fuzzy matching with manual blocking parameters
             >>> df.semantic.agg(
             ...     reduce_prompt="Combine these items: {{input.text}}",
-            ...     output_schema={"combined": "str"},
+            ...     output={"schema": {"combined": "str"}},
             ...     fuzzy=False,
             ...     comparison_prompt="Compare items: {{input1.text}} vs {{input2.text}}",
             ...     resolve_kwargs={
@@ -461,7 +512,39 @@ class SemanticAccessor:
             ...     }
             ... )
         """
+        # Convert DataFrame to list of dicts
         input_data = self._df.to_dict("records")
+
+        # Handle backward compatibility: if output_schema is provided, convert it to output format
+        if output_schema is not None and output is None:
+            output = {"schema": output_schema}
+        elif output is None and output_schema is None:
+            raise ValueError("Either 'output' or 'output_schema' must be provided")
+        elif output is not None and output_schema is not None:
+            raise ValueError(
+                "Cannot provide both 'output' and 'output_schema' parameters"
+            )
+
+        # Validate output parameter
+        if not isinstance(output, dict):
+            raise ValueError("output must be a dictionary")
+        if "schema" not in output:
+            raise ValueError("output must contain a 'schema' key")
+
+        # Handle backward compatibility for resolution_output_schema
+        if resolution_output_schema is not None and resolution_output is None:
+            resolution_output = {"schema": resolution_output_schema}
+        elif resolution_output is not None and resolution_output_schema is not None:
+            raise ValueError(
+                "Cannot provide both 'resolution_output' and 'resolution_output_schema' parameters"
+            )
+
+        # Validate output mode if provided
+        output_mode = output.get("mode", "tools")
+        if output_mode not in ["tools", "structured_output"]:
+            raise ValueError(
+                f"output mode must be 'tools' or 'structured_output', got '{output_mode}'"
+            )
 
         # Change keys to list
         if isinstance(reduce_keys, str):
@@ -497,10 +580,17 @@ Record 2: {record_template.replace('input0', 'input2')}"""
             # Add resolution prompt and schema if provided
             if resolution_prompt:
                 resolve_config["resolution_prompt"] = resolution_prompt
-                resolve_config["output"] = {
-                    "schema": resolution_output_schema,
-                    "keys": list(resolution_output_schema.keys()),
-                }
+                if resolution_output:
+                    # Use the new resolution_output format
+                    resolve_config["output"] = resolution_output
+                    if "keys" not in resolve_config["output"]:
+                        # Add keys from schema if not explicitly provided
+                        resolve_config["output"]["keys"] = list(
+                            resolution_output["schema"].keys()
+                        )
+                else:
+                    # No resolution output provided, use reduce_keys
+                    resolve_config["output"] = {"keys": reduce_keys}
             else:
                 resolve_config["output"] = {"keys": reduce_keys}
 
@@ -566,7 +656,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
             "name": f"semantic_reduce_{len(self._history)}",
             "reduce_key": reduce_keys,
             "prompt": reduce_prompt,
-            "output": {"schema": output_schema},
+            "output": output,
             **reduce_kwargs,
         }
 
@@ -584,7 +674,12 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         return self._record_operation(results, "reduce", reduce_config, reduce_cost)
 
     def filter(
-        self, prompt: str, *, output_schema: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        prompt: str,
+        *,
+        output: dict[str, Any] | None = None,
+        output_schema: dict[str, Any] | None = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Filter DataFrame rows based on semantic conditions.
@@ -593,8 +688,11 @@ Record 2: {record_template.replace('input0', 'input2')}"""
 
         Args:
             prompt: Jinja template string for generating prompts
-            output_schema: Optional custom output schema. If None, defaults to
-                          {"keep": "bool"}
+            output: Output configuration with keys:
+                - "schema": Dictionary defining the expected output structure and types
+                  For filtering, this must be a single boolean field (e.g., {"keep": "bool"})
+                - "mode": Optional output mode. Either "tools" (default) or "structured_output"
+            output_schema: DEPRECATED. Use 'output' parameter instead. Backward-compatible schema dict.
             **kwargs: Additional configuration options:
                 - model: LLM model to use
                 - validate: List of validation expressions
@@ -617,23 +715,35 @@ Record 2: {record_template.replace('input0', 'input2')}"""
             >>> # Custom output schema
             >>> df.semantic.filter(
             ...     prompt="Analyze if this is relevant: {{input.text}}",
-            ...     output_schema={
-            ...         "keep": "bool",
-            ...         "reason": "str"
-            ...     }
+            ...     output={"schema": {"keep": "bool", "reason": "str"}}
             ... )
         """
         # Convert DataFrame to list of dicts
         input_data = self._df.to_dict("records")
+
+        # Backward compatibility and defaults
+        if output is None and output_schema is not None:
+            output = {"schema": output_schema}
+        if output is None and output_schema is None:
+            output = {"schema": {"keep": "bool"}}
+
+        # Validate output
+        if not isinstance(output, dict):
+            raise ValueError("output must be a dictionary")
+        if "schema" not in output:
+            raise ValueError("output must contain a 'schema' key")
+        output_mode = output.get("mode", "tools")
+        if output_mode not in ["tools", "structured_output"]:
+            raise ValueError(
+                f"output mode must be 'tools' or 'structured_output', got '{output_mode}'"
+            )
 
         # Create map operation config for filtering
         filter_config = {
             "type": "map",
             "name": f"semantic_filter_{len(self._history)}",
             "prompt": prompt,
-            "output": (
-                {"schema": {"keep": "bool"}} if output_schema is None else output_schema
-            ),
+            "output": output,
             **kwargs,
         }
 
@@ -651,11 +761,7 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         return self._record_operation(results, "filter", filter_config, cost)
 
     def split(
-        self,
-        split_key: str,
-        method: str,
-        method_kwargs: Dict[str, Any],
-        **kwargs
+        self, split_key: str, method: str, method_kwargs: dict[str, Any], **kwargs
     ) -> pd.DataFrame:
         """
         Split DataFrame rows into multiple chunks based on content.
@@ -723,8 +829,8 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         content_key: str,
         doc_id_key: str,
         order_key: str,
-        peripheral_chunks: Optional[Dict[str, Any]] = None,
-        **kwargs
+        peripheral_chunks: dict[str, Any] | None = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Gather contextual information from surrounding chunks to enhance each chunk.
@@ -800,10 +906,10 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         self,
         unnest_key: str,
         keep_empty: bool = False,
-        expand_fields: Optional[List[str]] = None,
+        expand_fields: list[str] | None = None,
         recursive: bool = False,
-        depth: Optional[int] = None,
-        **kwargs
+        depth: int | None = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Unnest list-like or dictionary values into multiple rows.
@@ -889,12 +995,12 @@ Record 2: {record_template.replace('input0', 'input2')}"""
         return self._costs
 
     @property
-    def history(self) -> List[OpHistory]:
+    def history(self) -> list[OpHistory]:
         """
         Return the operation history.
 
         Returns:
-            List[OpHistory]: List of operations performed on this DataFrame,
+            list[OpHistory]: List of operations performed on this DataFrame,
                             including their configurations and affected columns
         """
         return self._history.copy()

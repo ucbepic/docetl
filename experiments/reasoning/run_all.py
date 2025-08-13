@@ -30,6 +30,7 @@ import modal
 # Import the existing Modal functions and shared volume/mount from the experiment runners
 from experiments.reasoning import run_mcts as mcts_mod
 from experiments.reasoning import run_baseline as baseline_mod
+from experiments.reasoning import run_simple_baseline as simple_baseline_mod
 from experiments.reasoning.utils import app  # use the same App as the runners
 
 # Known defaults for dataset YAMLs and sample dataset inputs
@@ -56,8 +57,11 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "cuad",
-            "mcts": {"max_iterations": 30}
+            "dataset": "CUAD",
+            "baseline": {"iterations": 10},
+            "mcts": {"max_iterations": 30},
+            "simple_baseline": {"model": "o3"}
+
         }
     ]
 }
@@ -119,6 +123,24 @@ def _spawn_mcts(
         exploration_weight=exploration_weight if exploration_weight is not None else 1.414,
         model=model or mcts_mod.DEFAULT_MODEL,
         dataset=dataset,
+        ground_truth_path=ground_truth,
+    )
+
+
+def _spawn_simple_baseline(
+    dataset: str,
+    *,
+    experiment_name: str,
+    model: Optional[str],
+    output_dir: Optional[str],
+    ground_truth: Optional[str],
+):
+    # Uses simple_baseline_mod.run_simple_baseline_remote which is bound to the shared named volume
+    return simple_baseline_mod.run_simple_baseline_remote.spawn(
+        dataset=dataset,
+        output_dir=output_dir,
+        model=model or "o3",  # Default to o3 model
+        experiment_name=experiment_name,
         ground_truth_path=ground_truth,
     )
 
@@ -185,6 +207,22 @@ def run_from_config(config: Dict[str, Any]) -> int:
             )
             results.append((dataset, f"mcts:{mc_name}", call))
             print(f"Spawned MCTS for {dataset} as {mc_name}")
+
+        # Simple baseline block
+        simple_baseline_cfg: Optional[Dict[str, Any]] = exp.get("simple_baseline")
+        if simple_baseline_cfg:
+            sb_name: str = f"{dataset}_simple_baseline"
+            sb_model: Optional[str] = simple_baseline_cfg.get("model", "o3")
+
+            call = _spawn_simple_baseline(
+                dataset=dataset,
+                experiment_name=sb_name,
+                model=sb_model,
+                output_dir=output_dir,
+                ground_truth=ground_truth,
+            )
+            results.append((dataset, f"simple_baseline:{sb_name}", call))
+            print(f"Spawned simple baseline for {dataset} as {sb_name}")
 
     # Wait for all
     print(f"Waiting for {len(results)} jobs to complete...")

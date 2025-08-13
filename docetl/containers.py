@@ -7,7 +7,7 @@ only when their outputs are needed by parent nodes.
 import json
 import math
 import os
-from typing import TYPE_CHECKING, Dict, List, Tuple
+from typing import TYPE_CHECKING
 
 from rich.panel import Panel
 
@@ -40,7 +40,7 @@ class OpContainer:
     nodes (typically scan operations that load initial datasets).
     """
 
-    def __init__(self, name: str, runner: "DSLRunner", config: Dict, **kwargs):
+    def __init__(self, name: str, runner: "DSLRunner", config: dict, **kwargs):
         self.name = name
         self.config = config
         self.children = []
@@ -423,7 +423,7 @@ class OpContainer:
 
     def next(
         self, is_build: bool = False, sample_size_needed: int = None
-    ) -> Tuple[List[Dict], float, str]:
+    ) -> tuple[list[dict], float, str]:
         """
         Execute this operation and return its results. This is the core method implementing
         the pull-based execution model.
@@ -436,7 +436,7 @@ class OpContainer:
         5. Cache results if checkpointing is enabled
 
         Returns:
-            Tuple[List[Dict], float, str]: A tuple containing:
+            tuple[list[dict], float, str]: A tuple containing:
                 - The operation's output data
                 - Total cost of this operation and its children
                 - Execution logs as a formatted string
@@ -591,7 +591,7 @@ class OpContainer:
 class StepBoundary(OpContainer):
     def next(
         self, is_build: bool = False, sample_size_needed: int = None
-    ) -> Tuple[List[Dict], float, str]:
+    ) -> tuple[list[dict], float, str]:
 
         output_data, step_cost, step_logs = self.children[0].next(
             is_build, sample_size_needed

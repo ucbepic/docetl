@@ -17,11 +17,11 @@ jobs:
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - uses: actions/checkout@v4
     - name: Remove .env copy from Dockerfile
-      run: sed -i '/COPY .env/d' Dockerfile
+      run: sed -i '/COPY \.env/d' Dockerfile
       
     - name: Build Docker image
       run: |
-        if ! docker build -t docetl .; then
+        if ! docker build --build-arg BUILDKIT_INLINE_CACHE=1 -t docetl .; then
           echo "Docker build failed"
           exit 1
         fi

@@ -32,10 +32,12 @@ result = df.semantic.map(
     3. Overall sentiment
     
     Review: {{input.review}}""",
-    output_schema={
-        "features": "list[str]",
-        "feature_sentiments": "dict[str, str]",
-        "overall_sentiment": "str"
+    output={
+        "schema": {
+            "features": "list[str]",
+            "feature_sentiments": "dict[str, str]",
+            "overall_sentiment": "str"
+        }
     }
 )
 
@@ -96,7 +98,7 @@ df = pd.DataFrame({
 # First, use a semantic map to extract the topic from each article
 df = df.semantic.map(
     prompt="Extract the topic from this article: {{input.content}}",
-    output_schema={"topic": "str"}
+    output={"schema": {"topic": "str"}}
 )
 
 # Group similar articles and generate summaries
@@ -120,9 +122,11 @@ summaries = df.semantic.agg(
     Articles:
     {{inputs}}""",
     
-    output_schema={
-        "summary": "str",
-        "key_points": "list[str]"
+    output={
+        "schema": {
+            "summary": "str",
+            "key_points": "list[str]"
+        }
     }
 )
 
@@ -151,10 +155,12 @@ analyzed = posts.semantic.map(
     3. Issues/Praise points
     
     Post: {{input.text}}""",
-    output_schema={
-        "product": "str",
-        "sentiment": "str",
-        "points": "list[str]"
+    output={
+        "schema": {
+            "product": "str",
+            "sentiment": "str",
+            "points": "list[str]"
+        }
     }
 )
 
@@ -170,10 +176,12 @@ summaries = relevant.semantic.agg(
     reduce_keys=["product"],
     comparison_prompt="Do these posts discuss the same product?",
     reduce_prompt="Summarize the feedback about this product",
-    output_schema={
-        "summary": "str",
-        "frequency": "int",
-        "severity": "str"
+    output={
+        "schema": {
+            "summary": "str",
+            "frequency": "int",
+            "severity": "str"
+        }
     }
 )
 
@@ -200,10 +208,12 @@ df = pd.DataFrame({
 try:
     result = df.semantic.map(
         prompt="Extract product specifications from: {{input.description}}. There should be at least one feature.",
-        output_schema={
-            "category": "str",
-            "features": "list[str]",
-            "price_range": "enum[budget, mid-range, premium, luxury]"
+        output={
+            "schema": {
+                "category": "str",
+                "features": "list[str]",
+                "price_range": "enum[budget, mid-range, premium, luxury]"
+            }
         },
         # Validation rules
         validate=[
@@ -229,12 +239,14 @@ Suppose you have a column in your pandas dataframe with PDF paths (1 path per ro
 
 ```python
 df = pd.DataFrame({
-    "PdfPath": ["https://docetl.blob.core.windows.net/ntsb-reports/Report_N617GC.pdf", "https://docetl.blob.core.windows.net/ntsb-reports/Report_CEN25LA075.pdf"]
+    "PdfPath": ["https://docetlcloudbank.blob.core.windows.net/ntsb-reports/Report_N617GC.pdf", "https://docetlcloudbank.blob.core.windows.net/ntsb-reports/Report_CEN25LA075.pdf"]
 })
 
 result_df = df.semantic.map(
     prompt="Summarize the air crash report and determine any contributing factors",
-    output_schema={"summary": "str", "contributing_factors": "list[str]"},
+    output={
+        "schema": {"summary": "str", "contributing_factors": "list[str]"}
+    },
     pdf_url_key="PdfPath", # This is the column with the PDF paths
 )
 
@@ -265,8 +277,7 @@ variations = df.semantic.map(
     - Highlight the key benefit of the product
     - Be between 5-10 words
     """,
-    output_schema={"headline": "str"},
-    n=5  # Generate 5 variations for each input row
+    output={"schema": {"headline": "str"}, "n": 5}  # Generate 5 variations for each input row
 )
 
 print(f"Original dataframe rows: {len(df)}")
@@ -338,10 +349,12 @@ analyzed_chunks = enhanced_chunks.semantic.map(
     
     Document chunk with context:
     {{input.content_chunk_rendered}}""",
-    output_schema={
-        "section_topic": "str",
-        "key_concepts": "list[str]",
-        "action_items": "list[str]"
+    output={
+        "schema": {
+            "section_topic": "str",
+            "key_concepts": "list[str]",
+            "action_items": "list[str]"
+        }
     }
 )
 
@@ -357,10 +370,12 @@ document_summaries = analyzed_chunks.semantic.agg(
     Action items: {{chunk.action_items | join(', ')}}
     ---
     {% endfor %}""",
-    output_schema={
-        "document_summary": "str",
-        "all_key_concepts": "list[str]",
-        "all_action_items": "list[str]"
+    output={
+        "schema": {
+            "document_summary": "str",
+            "all_key_concepts": "list[str]",
+            "all_action_items": "list[str]"
+        }
     }
 )
 
@@ -423,10 +438,12 @@ interest_analysis = with_ratings.semantic.map(
     Product ratings: Quality={{input.product_quality}}, Service={{input.customer_service}}, Value={{input.value}}
     
     Provide insights about how this interest might relate to their demographics and satisfaction.""",
-    output_schema={
-        "demographic_insight": "str",
-        "interest_category": "str",
-        "satisfaction_correlation": "str"
+    output={
+        "schema": {
+            "demographic_insight": "str",
+            "interest_category": "str",
+            "satisfaction_correlation": "str"
+        }
     }
 )
 
@@ -438,10 +455,12 @@ category_insights = interest_analysis.semantic.agg(
     {% for person in inputs %}
     - {{person.age}} year old {{person.education}} from {{person.location}}: {{person.demographic_insight}}
     {% endfor %}""",
-    output_schema={
-        "category_summary": "str",
-        "typical_demographics": "str",
-        "satisfaction_patterns": "str"
+    output={
+        "schema": {
+            "category_summary": "str",
+            "typical_demographics": "str",
+            "satisfaction_patterns": "str"
+        }
     }
 )
 ```
@@ -505,11 +524,13 @@ Extract:
 2. Key findings or claims
 3. Technical concepts mentioned
 4. Research gaps or future work mentioned""",
-    output_schema={
-        "section_type": "str",
-        "key_findings": "list[str]",
-        "technical_concepts": "list[str]",
-        "future_work": "list[str]"
+    output={
+        "schema": {
+            "section_type": "str",
+            "key_findings": "list[str]",
+            "technical_concepts": "list[str]",
+            "future_work": "list[str]"
+        }
     }
 )
 
@@ -527,11 +548,13 @@ Technical concepts: {{section.technical_concepts | join(', ')}}
 {% endfor %}
 
 Provide a structured summary.""",
-    output_schema={
-        "comprehensive_summary": "str",
-        "main_contributions": "list[str]",
-        "methodology_type": "str",
-        "research_field": "str"
+    output={
+        "schema": {
+            "comprehensive_summary": "str",
+            "main_contributions": "list[str]",
+            "methodology_type": "str",
+            "research_field": "str"
+        }
     }
 )
 
@@ -547,10 +570,12 @@ Summary: {{paper.comprehensive_summary}}
 Contributions: {{paper.main_contributions | join(', ')}}
 ---
 {% endfor %}""",
-    output_schema={
-        "field_trends": "str",
-        "common_methodologies": "list[str]",
-        "emerging_themes": "list[str]"
+    output={
+        "schema": {
+            "field_trends": "str",
+            "common_methodologies": "list[str]",
+            "emerging_themes": "list[str]"
+        }
     }
 )
 

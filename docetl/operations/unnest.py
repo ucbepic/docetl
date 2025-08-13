@@ -1,5 +1,4 @@
 import copy
-from typing import Dict, List, Optional, Tuple
 
 from docetl.operations.base import BaseOperation
 
@@ -59,35 +58,20 @@ class UnnestOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "unnest"
         unnest_key: str
-        keep_empty: Optional[bool] = None
-        expand_fields: Optional[List[str]] = None
-        recursive: Optional[bool] = None
-        depth: Optional[int] = None
+        keep_empty: bool | None = None
+        expand_fields: list[str] | None = None
+        recursive: bool | None = None
+        depth: int | None = None
 
-    def syntax_check(self) -> None:
-        """
-        Checks if the required configuration key is present in the operation's config.
-
-        Raises:
-            ValueError: If the required 'unnest_key' is missing from the configuration.
-        """
-
-        required_keys = ["unnest_key"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in UnnestOperation configuration"
-                )
-
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the unnest operation on the input data.
 
         Args:
-            input_data (List[Dict]): A list of dictionaries to process.
+            input_data (list[dict]): A list of dictionaries to process.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed list of dictionaries
+            tuple[list[dict], float]: A tuple containing the processed list of dictionaries
             and a float value (always 0 in this implementation).
 
         Raises:

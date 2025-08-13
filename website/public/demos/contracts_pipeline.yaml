@@ -1,0 +1,70 @@
+datasets:
+  rental_contracts:
+    type: file
+    path: contracts-red-flags/dataset.json 
+
+# Default language model for all operations unless overridden
+default_model: gpt-4.1-mini
+
+operations:
+  # -------------------------------------------------------------------------
+  # 1) Extract red-flag clauses from each contract (map)
+  # -------------------------------------------------------------------------
+  - name: extract_red_flags
+    type: map
+    prompt: |
+      You are a senior real-estate attorney advocating for commercial tenants.
+      Extract (verbatim) every clause or sentence in the lease contract below
+      that constitutes a RED FLAG for the lessee/tenant. Ignore provisions
+      that only affect guarantors or third parties.
+
+      Red-flag examples include—but are not limited to—onerous break clauses,
+      automatic renewals, large penalties, expansive maintenance obligations,
+      burdensome default remedies, restrictive use rules, or excessive service
+      charges that the TENANT must bear.
+
+      Example red-flag clauses:
+        • [deposit_large] Lessee shall deposit $1,265,000 with Lessor as security.
+        • [early_termination_penalty] Tenant must pay six months’ rent if it leaves early.
+        • [utilities_tenant_pays] Lessee pays all utilities; share decided by Landlord when not metered.
+        • [assignment_restrictive] Lessee may not assign or sublet without Landlord’s written consent.
+
+      Extract the red-flag clauses from the contract text below.
+
+      {{ input.contents }}
+    output:
+      schema:
+        extracted_red_flags: "list[str]"
+
+  # -------------------------------------------------------------------------
+  # 2) Rank entire contracts by severity of their red flags
+  # -------------------------------------------------------------------------
+  - name: rank_contracts
+    type: rank
+    prompt: |
+      Order these lease contracts from most dangerous to least dangerous for
+      the tenant.
+
+      Heavily weight:
+        • The number of red-flag clauses
+        • The apparent severity implied by the red-flag summaries
+        • Any extreme or one-sided terms visible in the contract excerpt
+
+      Use the `extracted_red_flags` list as the primary evidence;
+      examine
+      `contents` only if needed to break ties.
+    input_keys: ["extracted_red_flags", "contents"]
+    direction: desc
+
+pipeline:
+  steps:
+    - name: analyze_contracts
+      input: rental_contracts
+      operations:
+        - extract_red_flags
+        - rank_contracts
+
+  output:
+    type: file
+    path: contracts-red-flags/red_flag_analysis.json
+    intermediate_dir: contracts-red-flags/intermediate 

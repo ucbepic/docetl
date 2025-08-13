@@ -1,5 +1,3 @@
-from typing import Dict, List, Tuple
-
 from docetl.operations.base import BaseOperation
 
 
@@ -7,11 +5,7 @@ class ScanOperation(BaseOperation):
     class schema(BaseOperation.schema):
         dataset_name: str
 
-    def syntax_check(self) -> None:
-        """Validate the scan operation configuration."""
-        super().syntax_check()
-
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Execute the scan operation to load data from the configured source.
 
@@ -19,7 +13,7 @@ class ScanOperation(BaseOperation):
             input_data: Not used in scan operation
 
         Returns:
-            Tuple[List[Dict], float]: Loaded data and cost (0 for scan)
+            tuple[list[dict], float]: Loaded data and cost (0 for scan)
         """
 
         # Look in the runner.datasets objects

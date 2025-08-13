@@ -1,6 +1,8 @@
 """The `FilterOperation` class is a subclass of `BaseOperation` that implements a filtering operation on input data using a language model."""
 
-from typing import Dict, List, Tuple
+from typing import Any
+
+from pydantic import model_validator
 
 from docetl.operations.map import MapOperation
 
@@ -8,63 +10,41 @@ from docetl.operations.map import MapOperation
 class FilterOperation(MapOperation):
     class schema(MapOperation.schema):
         type: str = "filter"
+        prompt: str
+        output: dict[str, Any]
 
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the FilterOperation for required keys and valid structure.
+        @model_validator(mode="after")
+        def validate_filter_output_schema(self):
+            # Check that schema exists and has the right structure for filtering
+            schema_dict = self.output["schema"]
 
-        Raises:
-            ValueError: If required keys are missing or if the output schema structure is invalid.
-            TypeError: If the schema in the output configuration is not a dictionary or if the schema value is not of type bool.
-
-        This method checks for the following:
-        - Presence of required keys: 'prompt' and 'output'
-        - Presence of 'schema' in the 'output' configuration
-        - The 'schema' is a non-empty dictionary with exactly one key-value pair
-        - The value in the schema is of type bool
-        """
-        required_keys = ["prompt", "output"]
-        for key in required_keys:
-            if key not in self.config:
+            # Filter out _short_explanation for validation
+            schema = {k: v for k, v in schema_dict.items() if k != "_short_explanation"}
+            if len(schema) != 1:
                 raise ValueError(
-                    f"Missing required key '{key}' in FilterOperation configuration"
+                    "The 'schema' in 'output' configuration must have exactly one key-value pair that maps to a boolean value"
                 )
 
-        if "schema" not in self.config["output"]:
-            raise ValueError("Missing 'schema' in 'output' configuration")
+            key, value = next(iter(schema.items()))
+            if value not in ["bool", "boolean"]:
+                raise TypeError(
+                    f"The value in the 'schema' must be of type bool, got {value}"
+                )
 
-        if not isinstance(self.config["output"]["schema"], dict):
-            raise TypeError("'schema' in 'output' configuration must be a dictionary")
-
-        if not self.config["output"]["schema"]:
-            raise ValueError("'schema' in 'output' configuration cannot be empty")
-
-        schema = self.config["output"]["schema"]
-        if "_short_explanation" in schema:
-            schema = {k: v for k, v in schema.items() if k != "_short_explanation"}
-        if len(schema) != 1:
-            raise ValueError(
-                "The 'schema' in 'output' configuration must have exactly one key-value pair that maps to a boolean value"
-            )
-
-        key, value = next(iter(schema.items()))
-        if value not in ["bool", "boolean"]:
-            raise TypeError(
-                f"The value in the 'schema' must be of type bool, got {value}"
-            )
+            return self
 
     def execute(
-        self, input_data: List[Dict], is_build: bool = False
-    ) -> Tuple[List[Dict], float]:
+        self, input_data: list[dict], is_build: bool = False
+    ) -> tuple[list[dict], float]:
         """
         Executes the filter operation on the input data.
 
         Args:
-            input_data (List[Dict]): A list of dictionaries to process.
+            input_data (list[dict]): A list of dictionaries to process.
             is_build (bool): Whether the operation is being executed in the build phase. Defaults to False.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the filtered list of dictionaries
+            tuple[list[dict], float]: A tuple containing the filtered list of dictionaries
             and the total cost of the operation.
 
         This method performs the following steps:

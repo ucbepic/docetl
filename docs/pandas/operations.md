@@ -2,7 +2,7 @@
 
 The pandas integration provides several semantic operations through the `.semantic` accessor. Each operation is designed to handle specific types of transformations and analyses using LLMs.
 
-All semantic operations return a new DataFrame that preserves the original columns and adds new columns based on the `output_schema`. For example, if your original DataFrame has a column `text` and you use `map` with an `output_schema={"sentiment": "str", "keywords": "list[str]"}`, the resulting DataFrame will have three columns: `text`, `sentiment`, and `keywords`. This makes it easy to chain operations and maintain data lineage.
+All semantic operations return a new DataFrame that preserves the original columns and adds new columns based on the output schema. For example, if your original DataFrame has a column `text` and you use `map` with an `output={"schema": {"sentiment": "str", "keywords": "list[str]"}}`, the resulting DataFrame will have three columns: `text`, `sentiment`, and `keywords`. This makes it easy to chain operations and maintain data lineage.
 
 ## Map Operation
 
@@ -13,14 +13,36 @@ All semantic operations return a new DataFrame that preserves the original colum
 
 Example usage:
 ```python
+# Basic map operation
 df.semantic.map(
     prompt="Extract sentiment and key points from: {{input.text}}",
-    output_schema={
-        "sentiment": "str",
-        "key_points": "list[str]"
+    output={
+        "schema": {
+            "sentiment": "str",
+            "key_points": "list[str]"
+        }
     },
     validate=["len(output['key_points']) <= 5"],
     num_retries_on_validate_failure=2
+)
+
+# Using structured output mode for better JSON schema support
+df.semantic.map(
+    prompt="Extract detailed information from: {{input.text}}",
+    output={
+        "schema": {
+            "company": "str",
+            "product": "str",
+            "features": "list[str]"
+        },
+        "mode": "structured_output"
+    }
+)
+
+# Backward compatible syntax (still supported)
+df.semantic.map(
+    prompt="Extract sentiment from: {{input.text}}",
+    output_schema={"sentiment": "str"}
 )
 ```
 
@@ -38,12 +60,14 @@ df.semantic.filter(
     prompt="Is this text about technology? {{input.text}}"
 )
 
-# Custom output schema with reasons
+# Custom output with reasons
 df.semantic.filter(
     prompt="Analyze if this is relevant: {{input.text}}",
-    output_schema={
-        "keep": "bool",
-        "reason": "str"
+    output={
+        "schema": {
+            "keep": "bool",
+            "reason": "str"
+        }
     }
 )
 ```
@@ -86,17 +110,17 @@ Example usage:
 # Simple aggregation
 df.semantic.agg(
     reduce_prompt="Summarize these items: {{input.text}}",
-    output_schema={"summary": "str"}
+    output={"schema": {"summary": "str"}}
 )
 
 # Fuzzy matching with custom resolution
 df.semantic.agg(
     reduce_prompt="Combine these items: {{input.text}}",
-    output_schema={"combined": "str"},
+    output={"schema": {"combined": "str"}},
     fuzzy=True,
     comparison_prompt="Are these items similar: {{input1.text}} vs {{input2.text}}",
     resolution_prompt="Resolve conflicts between: {{items}}",
-    resolution_output_schema={"resolved": "str"}
+    resolution_output={"schema": {"resolved": "str"}}
 )
 ```
 

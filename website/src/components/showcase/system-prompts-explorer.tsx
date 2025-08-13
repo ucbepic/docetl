@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -22,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { showcaseStyles } from "@/lib/showcase-styles";
 
 interface SystemExample {
   system: string;
@@ -48,21 +48,35 @@ export default function SystemPromptsExplorer() {
   useEffect(() => {
     async function fetchStrategies() {
       try {
-        const response = await fetch(
-          "https://docetl.blob.core.windows.net/demos/analyzed_strategies.json"
-        );
+        const response = await fetch("/api/showcase/prompts/analyzed");
         if (!response.ok) {
           throw new Error("Failed to fetch data");
         }
-        const data: StrategyData[] = await response.json();
+        const raw = await response.json();
+        const data: StrategyData[] = Array.isArray(raw)
+          ? raw.map((item) => ({
+              strategy: typeof item?.strategy === "string" ? item.strategy : "",
+              summary: typeof item?.summary === "string" ? item.summary : "",
+              systems_and_examples: Array.isArray(item?.systems_and_examples)
+                ? item.systems_and_examples
+                : [],
+              _counts_prereduce_summarize_strategies:
+                typeof item?._counts_prereduce_summarize_strategies === "number"
+                  ? item._counts_prereduce_summarize_strategies
+                  : 0,
+            }))
+          : [];
+
         setStrategies(data);
 
-        // Extract unique systems
         const systems = new Set<string>();
         data.forEach((strategy) => {
-          strategy.systems_and_examples.forEach((example) => {
-            systems.add(example.system);
-          });
+          if (Array.isArray(strategy.systems_and_examples)) {
+            strategy.systems_and_examples.forEach((example) => {
+              if (typeof example?.system === "string")
+                systems.add(example.system);
+            });
+          }
         });
         setSystemsList(Array.from(systems).sort());
 
@@ -102,11 +116,10 @@ export default function SystemPromptsExplorer() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Only handle arrow keys when a strategy is already selected
       if (!selectedStrategy) return;
 
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault(); // Prevent default scrolling
+        e.preventDefault();
 
         const currentIndex = sortedStrategies.findIndex(
           (s) => s.strategy === selectedStrategy.strategy
@@ -116,18 +129,14 @@ export default function SystemPromptsExplorer() {
           let newIndex;
 
           if (e.key === "ArrowDown") {
-            // Move to next strategy (if not at end)
             newIndex = Math.min(currentIndex + 1, sortedStrategies.length - 1);
           } else {
-            // Move to previous strategy (if not at beginning)
             newIndex = Math.max(currentIndex - 1, 0);
           }
 
-          // Only update if index actually changed
           if (newIndex !== currentIndex) {
             setSelectedStrategy(sortedStrategies[newIndex]);
 
-            // Find and scroll the item into view
             const element = document.getElementById(
               `strategy-item-${newIndex}`
             );
@@ -139,18 +148,15 @@ export default function SystemPromptsExplorer() {
       }
     }
 
-    // Add event listener
     window.addEventListener("keydown", handleKeyDown);
-
-    // Clean up
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedStrategy, sortedStrategies]); // Dependencies
+  }, [selectedStrategy, sortedStrategies]);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-12">
+      <div className="flex items-center justify-center p-12 text-gray-600">
         <Loader2 className="h-8 w-8 animate-spin mr-2" />
         <span>Loading strategies data...</span>
       </div>
@@ -161,21 +167,22 @@ export default function SystemPromptsExplorer() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex-1">
-          <Label htmlFor="search-strategies">Search Strategies</Label>
+          <Label htmlFor="search-strategies" className="text-gray-800">Search Strategies</Label>
           <Input
             id="search-strategies"
             placeholder="Search by strategy name or description..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400"
           />
         </div>
         <div className="w-full sm:w-64">
-          <Label htmlFor="filter-system">Filter by System</Label>
+          <Label htmlFor="filter-system" className="text-gray-800">Filter by System</Label>
           <Select value={selectedSystem} onValueChange={setSelectedSystem}>
-            <SelectTrigger id="filter-system">
+            <SelectTrigger id="filter-system" className="bg-white border-gray-200 text-gray-900">
               <SelectValue placeholder="All Systems" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white">
               <SelectItem value="all">All Systems</SelectItem>
               {systemsList.map((system) => (
                 <SelectItem key={system} value={system}>
@@ -189,10 +196,10 @@ export default function SystemPromptsExplorer() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
-          <Card className="h-[650px] flex flex-col">
+          <Card className="h-[650px] flex flex-col bg-white border-gray-200">
             <CardHeader>
-              <CardTitle className="text-lg">Strategies</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-lg text-gray-900">Strategies</CardTitle>
+              <CardDescription className="text-gray-600">
                 {sortedStrategies.length} strategies found
               </CardDescription>
             </CardHeader>
@@ -201,29 +208,29 @@ export default function SystemPromptsExplorer() {
                 {sortedStrategies.map((strategy, index) => (
                   <div
                     id={`strategy-item-${index}`}
-                    key={strategy.strategy}
-                    className={`p-3 rounded-md cursor-pointer hover:bg-muted transition-colors ${
+                    key={strategy.strategy || index}
+                    className={`p-3 rounded-md cursor-pointer hover:bg-gray-50 transition-colors ${
                       selectedStrategy?.strategy === strategy.strategy
-                        ? "bg-primary/10 font-medium"
+                        ? "bg-blue-50 font-medium border-l-4 border-l-blue-500"
                         : ""
                     }`}
                     onClick={() => setSelectedStrategy(strategy)}
                   >
                     <div className="flex justify-between items-start">
-                      <h3 className="font-medium text-sm">
-                        {strategy.strategy}
+                      <h3 className="font-medium text-sm text-gray-900">
+                        {strategy.strategy || "Unnamed strategy"}
                       </h3>
-                      <Badge variant="secondary" className="ml-2">
+                      <Badge variant="secondary" className="ml-2 bg-gray-100 text-gray-700">
                         {strategy.systems_and_examples.length}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {strategy.summary.substring(0, 100)}...
+                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                      {(strategy.summary || "").substring(0, 100)}...
                     </p>
                   </div>
                 ))}
                 {sortedStrategies.length === 0 && (
-                  <div className="p-4 text-center text-muted-foreground">
+                  <div className="p-4 text-center text-gray-500">
                     No strategies found matching your filters
                   </div>
                 )}
@@ -234,19 +241,19 @@ export default function SystemPromptsExplorer() {
 
         <div className="md:col-span-2">
           {selectedStrategy ? (
-            <Card className="h-[650px] overflow-hidden flex flex-col">
+            <Card className="h-[650px] overflow-hidden flex flex-col bg-white border-gray-200">
               <div className="px-6 pt-6 pb-2">
-                <h2 className="text-xl font-semibold">
-                  {selectedStrategy.strategy}
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {selectedStrategy.strategy || "Unnamed strategy"}
                 </h2>
                 {Array.isArray(selectedStrategy.systems_and_examples) &&
                 selectedStrategy.systems_and_examples.length > 0 ? (
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-sm text-gray-600 mt-1">
                     Implemented in{" "}
                     {selectedStrategy.systems_and_examples.length} system(s)
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-sm text-gray-600 mt-1">
                     No implementation examples found
                   </p>
                 )}
@@ -254,7 +261,7 @@ export default function SystemPromptsExplorer() {
 
               <div className="flex-1 overflow-hidden px-6">
                 <Tabs defaultValue="summary" className="h-full flex flex-col">
-                  <TabsList className="mb-4">
+                  <TabsList className="mb-4 bg-gray-100">
                     <TabsTrigger value="summary">Summary</TabsTrigger>
                     {Array.isArray(selectedStrategy.systems_and_examples) &&
                       selectedStrategy.systems_and_examples.length > 0 && (
@@ -272,39 +279,39 @@ export default function SystemPromptsExplorer() {
                     <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base">
                       <ReactMarkdown
                         components={{
-                          h1: ({ node, ...props }) => (
+                          h1: ({ node: _node, ...props }) => (
                             <h1
                               className="text-xl font-bold mt-6 mb-4"
                               {...props}
                             />
                           ),
-                          h2: ({ node, ...props }) => (
+                          h2: ({ node: _node, ...props }) => (
                             <h2
                               className="text-lg font-bold mt-5 mb-3"
                               {...props}
                             />
                           ),
-                          h3: ({ node, ...props }) => (
+                          h3: ({ node: _node, ...props }) => (
                             <h3
                               className="text-base font-semibold mt-4 mb-2"
                               {...props}
                             />
                           ),
-                          ul: ({ node, ...props }) => (
+                          ul: ({ node: _node, ...props }) => (
                             <ul className="list-disc pl-5 my-3" {...props} />
                           ),
-                          ol: ({ node, ...props }) => (
+                          ol: ({ node: _node, ...props }) => (
                             <ol className="list-decimal pl-5 my-3" {...props} />
                           ),
-                          li: ({ node, ...props }) => (
+                          li: ({ node: _node, ...props }) => (
                             <li className="mb-1" {...props} />
                           ),
-                          p: ({ node, ...props }) => (
+                          p: ({ node: _node, ...props }) => (
                             <p className="mb-4" {...props} />
                           ),
                         }}
                       >
-                        {selectedStrategy.summary}
+                        {selectedStrategy.summary || ""}
                       </ReactMarkdown>
                     </div>
                   </TabsContent>
@@ -323,11 +330,11 @@ export default function SystemPromptsExplorer() {
                                 className="border rounded-lg p-4"
                               >
                                 <div className="flex items-center mb-2">
-                                  <Badge variant="outline" className="mr-2">
+                                  <Badge variant="outline" className="mr-2 border-gray-300 text-gray-700">
                                     {example.system}
                                   </Badge>
                                 </div>
-                                <div className="bg-muted p-3 rounded text-sm font-mono whitespace-pre-wrap">
+                                <div className="bg-gray-50 p-3 rounded text-sm font-mono whitespace-pre-wrap text-gray-800">
                                   {example.example}
                                 </div>
                               </div>
@@ -340,8 +347,8 @@ export default function SystemPromptsExplorer() {
               </div>
             </Card>
           ) : (
-            <Card className="h-[650px] flex items-center justify-center">
-              <p className="text-muted-foreground">
+            <Card className="h-[650px] flex items-center justify-center bg-white border-gray-200">
+              <p className="text-gray-500">
                 Select a strategy to view details
               </p>
             </Card>

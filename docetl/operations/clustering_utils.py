@@ -4,15 +4,13 @@ This module contains utilities for clustering based on different methods.
 We use these in map and reduce operations.
 """
 
-from typing import Dict, List, Tuple
-
 from docetl.operations.utils import APIWrapper
 from docetl.utils import completion_cost
 
 
 def get_embeddings_for_clustering(
-    items: List[Dict], sampling_config: Dict, api_wrapper: APIWrapper
-) -> Tuple[List[List[float]], float]:
+    items: list[dict], sampling_config: dict, api_wrapper: APIWrapper
+) -> tuple[list[list[float]], float]:
     embedding_model = sampling_config.get("embedding_model", "text-embedding-3-small")
     embedding_keys = sampling_config.get("embedding_keys")
     if not embedding_keys:
@@ -39,8 +37,8 @@ def get_embeddings_for_clustering(
 
 
 def get_embeddings_for_clustering_with_st(
-    items: List[Dict], embedding_keys: List[str]
-) -> Tuple[List[List[float]], float]:
+    items: list[dict], embedding_keys: list[str]
+) -> tuple[list[list[float]], float]:
     import torch
     from sentence_transformers import SentenceTransformer
 
@@ -61,21 +59,21 @@ def get_embeddings_for_clustering_with_st(
 
 
 def cluster_documents(
-    documents: List[Dict],
-    sampling_config: Dict,
+    documents: list[dict],
+    sampling_config: dict,
     sample_size: int,
     api_wrapper: APIWrapper,
-) -> Tuple[Dict[int, List[Dict]], float]:
+) -> tuple[dict[int, list[dict]], float]:
     """
     Cluster documents using KMeans clustering algorithm.
 
     Args:
-        documents (List[Dict]): The list of documents to cluster.
-        sampling_config (Dict): The sampling configuration. Must contain embedding_model. If embedding_keys is not specified, it will use all keys in the document. If embedding_model is not specified, it will use text-embedding-3-small. If embedding_model is sentence-transformer, it will use all-MiniLM-L6-v2.
+        documents (list[dict]): The list of documents to cluster.
+        sampling_config (dict): The sampling configuration. Must contain embedding_model. If embedding_keys is not specified, it will use all keys in the document. If embedding_model is not specified, it will use text-embedding-3-small. If embedding_model is sentence-transformer, it will use all-MiniLM-L6-v2.
         sample_size (int): The number of clusters to create.
         api_wrapper (APIWrapper): The API wrapper to use for embedding.
     Returns:
-        Dict[int, List[Dict]]: A dictionary of clusters, where each cluster is a list of documents.
+        dict[int, list[dict]]: A dictionary of clusters, where each cluster is a list of documents.
     """
     embeddings, cost = get_embeddings_for_clustering(
         documents, sampling_config, api_wrapper

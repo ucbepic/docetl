@@ -246,3 +246,177 @@ def test_sample_operation_with_outliers_and_center(
     assert len(results) < len(sample_data)
     assert cost > 0
     assert all(item in sample_data for item in results)
+
+
+def test_sample_first_method(
+    sample_config, sample_data, runner, default_model, max_threads
+):
+    """Test the 'first' sampling method."""
+    sample_config["method"] = "first"
+    sample_config["samples"] = 3
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+
+    assert len(results) == 3
+    assert cost == 0
+    assert results == sample_data[:3]  # Should be the first 3 items
+
+
+def test_sample_stratify_maintains_proportions(
+    sample_config, runner, default_model, max_threads
+):
+    """Test that stratified sampling maintains group proportions."""
+    # Create data with known proportions
+    stratified_data = []
+    for i in range(70):
+        stratified_data.append({"id": i, "category": "A"})
+    for i in range(30):
+        stratified_data.append({"id": i + 70, "category": "B"})
+    
+    sample_config["method"] = "stratify"
+    sample_config["samples"] = 0.2  # Sample 20%
+    sample_config["method_kwargs"] = {"stratify_key": "category"}
+    sample_config["random_state"] = 42
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(stratified_data)
+    
+    # Count categories in results
+    category_counts = {"A": 0, "B": 0}
+    for item in results:
+        category_counts[item["category"]] += 1
+    
+    # Check proportions (should be roughly 70/30)
+    total = len(results)
+    assert abs(category_counts["A"] / total - 0.7) < 0.1  # Allow 10% tolerance
+    assert abs(category_counts["B"] / total - 0.3) < 0.1
+
+
+def test_sample_outliers_with_samples_param(
+    sample_config, sample_data, runner, default_model, max_threads
+):
+    """Test outlier sampling using samples parameter instead of std."""
+    sample_config["method"] = "outliers"
+    sample_config["method_kwargs"] = {
+        "samples": 3,  # Keep 3 closest items
+        "embedding_keys": ["concept", "description"],
+        "keep": False,  # Keep inliers (closest to center)
+    }
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+    
+    assert len(results) == 3
+    assert cost > 0
+    assert all(item in sample_data for item in results)
+
+
+def test_sample_custom_with_multiple_keys(
+    sample_config, runner, default_model, max_threads
+):
+    """Test custom sampling with multiple matching keys."""
+    # Create data with multiple keys
+    multi_key_data = [
+        {"id": 1, "type": "A", "status": "active"},
+        {"id": 2, "type": "B", "status": "inactive"},
+        {"id": 3, "type": "A", "status": "active"},
+        {"id": 4, "type": "A", "status": "inactive"},
+        {"id": 5, "type": "B", "status": "active"},
+    ]
+    
+    sample_config["method"] = "custom"
+    sample_config["samples"] = [
+        {"type": "A", "status": "active"},  # Should match items 1 and 3
+        {"id": 5},  # Should match item 5
+    ]
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(multi_key_data)
+    
+    assert len(results) == 3
+    assert cost == 0
+    # Check that we got the right items
+    result_ids = [r["id"] for r in results]
+    assert set(result_ids) == {1, 3, 5}
+
+
+def test_sample_random_state_reproducibility(
+    sample_config, sample_data, runner, default_model, max_threads
+):
+    """Test that random_state produces reproducible results."""
+    sample_config["method"] = "uniform"
+    sample_config["samples"] = 5
+    sample_config["random_state"] = 12345
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results1, _ = operation.execute(sample_data)
+    results2, _ = operation.execute(sample_data)
+    
+    # Should get the same results with the same random state
+    assert results1 == results2
+    
+    # Now without random state, results should differ (most of the time)
+    sample_config.pop("random_state")
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results3, _ = operation.execute(sample_data)
+    results4, _ = operation.execute(sample_data)
+    # This might occasionally fail due to random chance, but very unlikely
+    assert results3 != results4 or len(sample_data) <= 5
+
+
+def test_sample_fraction_edge_cases(
+    sample_config, sample_data, runner, default_model, max_threads
+):
+    """Test edge cases for fractional sampling."""
+    # Test very small fraction
+    sample_config["method"] = "uniform"
+    sample_config["samples"] = 0.01  # 1%
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, _ = operation.execute(sample_data)
+    assert len(results) >= 1  # Should have at least 1 item
+    
+    # Test fraction close to 1
+    sample_config["samples"] = 0.99
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, _ = operation.execute(sample_data)
+    assert len(results) < len(sample_data)  # Should not include everything
+
+
+def test_sample_custom_no_matches(
+    sample_config, sample_data, runner, default_model, max_threads
+):
+    """Test custom sampling when no items match."""
+    sample_config["method"] = "custom"
+    sample_config["samples"] = [
+        {"id": 999},  # Non-existent ID
+        {"id": 1000},
+    ]
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(sample_data)
+    
+    assert len(results) == 0
+    assert cost == 0
+
+
+def test_sample_outliers_all_same_embedding(
+    sample_config, runner, default_model, max_threads
+):
+    """Test outlier sampling when all items have identical embeddings."""
+    # Create data where all items have the same text
+    identical_data = [
+        {"id": i, "text": "identical text"} for i in range(10)
+    ]
+    
+    sample_config["method"] = "outliers"
+    sample_config["method_kwargs"] = {
+        "std": 1,
+        "embedding_keys": ["text"],
+        "keep": True,  # Keep outliers
+    }
+    
+    operation = SampleOperation(runner, sample_config, default_model, max_threads)
+    results, cost = operation.execute(identical_data)
+    
+    # When all embeddings are identical, there are no outliers
+    assert len(results) == 0
+    assert cost > 0

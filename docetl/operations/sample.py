@@ -9,13 +9,14 @@ from docetl.operations.clustering_utils import get_embeddings_for_clustering
 
 class SampleOperation(BaseOperation):
     """
-    Params:
-    - method: "uniform", "stratify", "outliers", "custom", "first"
-    - samples: int, float, or list
-    - method_kwargs: dict, optional
-        - embedding_model: str, optional
-        - embedding_keys: list, optional
-        - center: dict, optional
+    A sampling operation that can select a subset of items from input data.
+    
+    This operation supports multiple sampling methods:
+    - uniform: Random uniform sampling
+    - stratify: Stratified sampling based on a key
+    - outliers: Sample based on embedding distance from center
+    - custom: Sample specific items by matching keys
+    - first: Take the first N items
     """
 
     class schema(BaseOperation.schema):
@@ -125,73 +126,114 @@ class SampleOperation(BaseOperation):
         if not input_data:
             return [], cost
 
-        if self.config["method"] == "first":
-            return input_data[: self.config["samples"]], cost
-
-        if self.config["method"] == "outliers":
-            # Outlier functionality
-            outliers_config = self.config.get("method_kwargs", {})
-            embeddings, embedding_cost = get_embeddings_for_clustering(
-                input_data, outliers_config, self.runner.api
-            )
-            cost += embedding_cost
-            embeddings = np.array(embeddings)
-
-            if "center" in outliers_config:
-                center_embeddings, cost2 = get_embeddings_for_clustering(
-                    [outliers_config["center"]], outliers_config, self.runner.api
-                )
-                cost += cost2
-                center = np.array(center_embeddings[0])
-
-            else:
-                center = embeddings.mean(axis=0)
-
-            distances = np.sqrt(((embeddings - center) ** 2).sum(axis=1))
-
-            if "std" in outliers_config:
-                cutoff = (
-                    np.sqrt((embeddings.std(axis=0) ** 2).sum())
-                    * outliers_config["std"]
-                )
-            else:  # "samples" in config
-                distance_distribution = np.sort(distances)
-                samples = self.config["samples"]
-                if isinstance(samples, float):
-                    samples = int(samples * (len(distance_distribution) - 1))
-                cutoff = distance_distribution[samples]
-
-            keep = outliers_config.get("keep", False)
-            include = distances > cutoff if keep else distances <= cutoff
-
-            output_data = [item for idx, item in enumerate(input_data) if include[idx]]
+        method = self.config["method"]
+        
+        if method == "first":
+            return self._sample_first(input_data), cost
+        elif method == "outliers":
+            return self._sample_outliers(input_data)
+        elif method == "custom":
+            return self._sample_custom(input_data), cost
+        elif method == "uniform":
+            return self._sample_uniform(input_data), cost
+        elif method == "stratify":
+            return self._sample_stratified(input_data), cost
         else:
-            samples = self.config["samples"]
-            if self.config["method"] == "custom":
-                keys = list(samples[0].keys())
-                key_to_doc = {
-                    tuple([doc[key] for key in keys]): doc for doc in input_data
-                }
+            raise ValueError(f"Unknown sampling method: {method}")
 
-                output_data = [
-                    key_to_doc[tuple([sample[key] for key in keys])]
-                    for sample in samples
-                ]
-            else:
-                stratify = None
-                if self.config["method"] == "stratify":
-                    stratify = [
-                        data[self.config.get("method_kwargs", {})["stratify_key"]]
-                        for data in input_data
-                    ]
+    def _sample_first(self, input_data: list[dict]) -> list[dict]:
+        """Take the first N items from the input data."""
+        return input_data[: self.config["samples"]]
 
-                import sklearn.model_selection
+    def _sample_uniform(self, input_data: list[dict]) -> list[dict]:
+        """Perform uniform random sampling."""
+        import sklearn.model_selection
+        
+        output_data, _ = sklearn.model_selection.train_test_split(
+            input_data,
+            train_size=self.config["samples"],
+            random_state=self.config.get("random_state", None),
+            stratify=None,
+        )
+        return output_data
 
-                output_data, _ = sklearn.model_selection.train_test_split(
-                    input_data,
-                    train_size=samples,
-                    random_state=self.config.get("random_state", None),
-                    stratify=stratify,
-                )
+    def _sample_stratified(self, input_data: list[dict]) -> list[dict]:
+        """Perform stratified sampling based on a key."""
+        import sklearn.model_selection
+        
+        stratify_key = self.config.get("method_kwargs", {})["stratify_key"]
+        stratify = [data[stratify_key] for data in input_data]
+        
+        output_data, _ = sklearn.model_selection.train_test_split(
+            input_data,
+            train_size=self.config["samples"],
+            random_state=self.config.get("random_state", None),
+            stratify=stratify,
+        )
+        return output_data
 
-        return output_data, cost
+    def _sample_custom(self, input_data: list[dict]) -> list[dict]:
+        """Sample specific items based on matching keys."""
+        samples = self.config["samples"]
+        keys = list(samples[0].keys())
+        
+        # Create a mapping from key tuples to documents
+        key_to_doc = {
+            tuple([doc[key] for key in keys]): doc for doc in input_data
+        }
+        
+        # Find matching documents
+        output_data = []
+        for sample in samples:
+            key_tuple = tuple([sample[key] for key in keys])
+            if key_tuple in key_to_doc:
+                output_data.append(key_to_doc[key_tuple])
+        
+        return output_data
+
+    def _sample_outliers(self, input_data: list[dict]) -> tuple[list[dict], float]:
+        """Sample based on embedding distance from a center point."""
+        outliers_config = self.config.get("method_kwargs", {})
+        
+        # Get embeddings for all input data
+        embeddings, embedding_cost = get_embeddings_for_clustering(
+            input_data, outliers_config, self.runner.api
+        )
+        embeddings = np.array(embeddings)
+        
+        # Determine the center point
+        if "center" in outliers_config:
+            center_embeddings, center_cost = get_embeddings_for_clustering(
+                [outliers_config["center"]], outliers_config, self.runner.api
+            )
+            center = np.array(center_embeddings[0])
+            total_cost = embedding_cost + center_cost
+        else:
+            center = embeddings.mean(axis=0)
+            total_cost = embedding_cost
+        
+        # Calculate distances from center
+        distances = np.sqrt(((embeddings - center) ** 2).sum(axis=1))
+        
+        # Determine cutoff threshold
+        if "std" in outliers_config:
+            # Use standard deviation based cutoff
+            cutoff = (
+                np.sqrt((embeddings.std(axis=0) ** 2).sum())
+                * outliers_config["std"]
+            )
+        else:  # "samples" in config
+            # Use percentile based cutoff
+            distance_distribution = np.sort(distances)
+            samples = outliers_config["samples"]
+            if isinstance(samples, float):
+                samples = int(samples * (len(distance_distribution) - 1))
+            cutoff = distance_distribution[samples]
+        
+        # Determine which items to include
+        keep = outliers_config.get("keep", False)
+        include = distances > cutoff if keep else distances <= cutoff
+        
+        output_data = [item for idx, item in enumerate(input_data) if include[idx]]
+        
+        return output_data, total_cost

@@ -205,13 +205,11 @@ class MapReduceFusionDirective(Directive):
                     new_reduce_prompt=parsed_res["new_reduce_prompt"]
                 )
 
-                print("HERE")
-                print(schema)
                 # Validate the schema
                 MapReduceFusionInstantiateSchema.validate_reduce_prompt_references_new_key(
                     schema.new_reduce_prompt, schema.new_key, expected_document_key
                 )
-                print("PASS")
+                
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )

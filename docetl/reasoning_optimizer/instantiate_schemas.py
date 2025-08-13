@@ -5,6 +5,32 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+def extract_for_variable(template_content):
+    """
+    Extract variable name from for loop in template content
+    Example: {% for item in inputs %} returns "item"
+    """
+    for_pattern = r"\{\%\s*for\s+(\w+)\s+in\s+\w+\s*\%\}"
+    match = re.search(for_pattern, template_content)
+    if match:
+        return match.group(1)
+    return None
+
+def create_dynamic_pattern(new_key, template_content):
+    """
+    Create dynamic pattern based on for loop variable in template content
+    """
+    # Extract for loop variable
+    loop_variable = extract_for_variable(template_content)
+    
+    if loop_variable:
+        # Use loop variable instead of fixed "input"
+        new_key_pattern = r"\{\{\s*" + re.escape(loop_variable) + r"\." + re.escape(new_key) + r"\s*\}\}"
+    else:
+        # If no for loop found, match new_key directly (without prefix)
+        new_key_pattern = r"\{\{\s*" + re.escape(new_key) + r"\s*\}\}"
+    
+    return new_key_pattern, loop_variable
 
 class MapOpConfig(BaseModel):
     """
@@ -120,6 +146,35 @@ class GleaningInstantiateSchema(BaseModel):
         ..., description="The maximum number of refinement iterations."
     )
     model: str = Field(default="gpt-4o-mini", description="The LLM model to use.")
+
+    @field_validator("validation_prompt")
+    @classmethod
+    def check_no_jinja_variables(cls, v: str) -> str:
+        """
+        Validates that the validation_prompt contains no Jinja template variables.
+        
+        Args:
+            v (str): The validation prompt string.
+            
+        Returns:
+            str: The validated prompt string.
+            
+        Raises:
+            ValueError: If Jinja template variables are found in the prompt.
+        """
+        # Check for Jinja variable patterns: {{ variable }}, {{ input.key }}, etc.
+        jinja_patterns = [
+            r"\{\{\s*[^}]*\}\}",  # {{ variable }}
+            r"\{\%\s*[^%]*%\}",   # {% control_statement %}
+        ]
+        
+        for pattern in jinja_patterns:
+            if re.search(pattern, v):
+                raise ValueError(
+                    "The validation_prompt must not contain Jinja template variables. "
+                    "Found pattern matching: " + pattern
+                )
+        return v
 
 
 class ChangeModelInstantiateSchema(BaseModel):
@@ -759,12 +814,10 @@ class ReduceChainingInstantiateSchema(BaseModel):
         and doesn't reference the original document key.
         """
         # Check that it references the new key
-        new_key_pattern = r"\{\{\s*input\." + re.escape(new_key) + r"\s*\}\}"
+        new_key_pattern, loop_variable = create_dynamic_pattern(new_key, modified_reduce_prompt)
         if not re.search(new_key_pattern, modified_reduce_prompt):
             raise ValueError(
-                "Modified reduce prompt must reference the new key as '{{ input."
-                + new_key
-                + " }}'"
+                "Modified reduce prompt must reference the new key"
             )
 
         # Check that it doesn't reference the original document key
@@ -892,12 +945,10 @@ class MapReduceFusionInstantiateSchema(BaseModel):
         and doesn't reference the original document key.
         """
         # Check that it references the new key
-        new_key_pattern = r"\{\{\s*input\." + re.escape(new_key) + r"\s*\}\}"
+        new_key_pattern, loop_variable = create_dynamic_pattern(new_key, new_reduce_prompt)
         if not re.search(new_key_pattern, new_reduce_prompt):
             raise ValueError(
-                "Modified reduce prompt must reference the new key as '{{ input."
-                + new_key
-                + " }}'"
+                "Modified reduce prompt must reference the new key"
             )
 
         # Check that it doesn't reference the original document key

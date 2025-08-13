@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from litellm import completion, model_cost
@@ -160,6 +161,31 @@ class AgenticDirectiveRunner:
 
         return model_cost_info.get("max_input_tokens", 32768)
 
+    def _truncate_doc_to_tokens(self, doc: Dict, max_tokens: int) -> str:
+        """
+        Truncate document content to fit within the specified token limit.
+        
+        Args:
+            doc: The document dictionary to truncate
+            max_tokens: Maximum number of tokens to allow
+            
+        Returns:
+            Truncated document string
+        """
+        doc_str = json.dumps(doc, indent=2)
+        doc_tokens = estimate_token_count(doc_str, self.agent_llm)
+        
+        if doc_tokens <= max_tokens:
+            return doc_str
+        
+        # If document is too long, truncate it
+        # Estimate characters per token (rough approximation)
+        chars_per_token = len(doc_str) / doc_tokens
+        target_chars = int(max_tokens * chars_per_token) 
+        
+        truncated = doc_str[:target_chars]
+        return truncated + "... [truncated]"
+
     def run_agentic_loop(
         self, system_prompt: str, initial_user_message: str, response_schema: BaseModel
     ) -> Tuple[Any, List[Dict]]:
@@ -267,7 +293,7 @@ Focus on quality over quantity - a few diverse, informative examples are better 
                     )
                     docs_content = "\n".join(
                         [
-                            f"Sample {self.doc_reader.current_index - len(next_docs) + i + 1}:\n{json.dumps(doc, indent=2)}"
+                            f"Sample {self.doc_reader.current_index - len(next_docs) + i + 1}:\n{self._truncate_doc_to_tokens(doc, 1000)}"
                             for i, doc in enumerate(next_docs)
                         ]
                     )

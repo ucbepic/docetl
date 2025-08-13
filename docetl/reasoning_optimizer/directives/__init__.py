@@ -54,6 +54,7 @@ ALL_COST_DIRECTIVES = [
     OperatorFusionDirective(),
     TakeHeadTailDirective(),
     MapReduceFusionDirective(),
+    ChangeModelDirective(),
 ]
 
 # Create a mapping from directive names to directive instances

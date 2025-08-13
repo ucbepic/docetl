@@ -46,7 +46,7 @@ DEFAULT_YAML_PATHS: Dict[str, str] = {
 DEFAULT_DATASET_PATHS: Dict[str, str] = {
     "cuad": "experiments/reasoning/data/train/cuad.json",
     "blackvault": "experiments/reasoning/data/train/blackvault.json",
-    "game_reviews": "experiments/reasoning/data/train/game_reviews.json",
+    "game_reviews": "experiments/reasoning/data/train/reviews.json",
     "sustainability": "experiments/reasoning/data/train/sustainability.json",
     "biodex": "experiments/reasoning/data/train/biodex.json",
     "medec": "experiments/reasoning/data/train/medec.json",
@@ -56,13 +56,11 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "CUAD",
-            "baseline": {"iterations": 10},
+            "dataset": "cuad",
             "mcts": {"max_iterations": 30}
         }
     ]
 }
-
 
 def _get_with_default(mapping: Dict[str, str], key: str, override: Optional[str]) -> str:
     if override:

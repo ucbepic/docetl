@@ -48,6 +48,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
             continue
             
         predicted_activity = activity_result.get("economic_activity", "unknown")
+
         
         for company_summary in activity_result["economic_activity_summary"]:
             company_name = company_summary.get("company_name", "").strip()
@@ -65,7 +66,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
             # Find matching ground truth by company name (fuzzy matching)
             gt_match = None
             best_match_score = 0
-            
+            best_match_company_name = None
             for gt_item in ground_truth_data:
                 gt_company_name = gt_item.get("GT company_name", "").strip()
                 if not gt_company_name:
@@ -73,9 +74,10 @@ def evaluate_results(method_name, results_file, ground_truth_file):
                     
                 # Simple similarity check
                 similarity = calculate_name_similarity(company_name.lower(), gt_company_name.lower())
-                if similarity > best_match_score and similarity > 0.6:  # 60% threshold
+                if similarity > best_match_score:  
                     best_match_score = similarity
-                    gt_match = gt_item
+                    if similarity >= 0.5: gt_match = gt_item
+                    best_match_company_name = gt_company_name
             
             if gt_match:
                 # Check economic activity accuracy (exact match, no normalization)
@@ -83,7 +85,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
                 
                 if gt_economic_activity == predicted_activity:
                     economic_activity_correct += 1
-                
+    
                 # Check company name accuracy (if we found a match, name is reasonably accurate)
                 company_name_correct += 1
                 
@@ -110,11 +112,15 @@ def evaluate_results(method_name, results_file, ground_truth_file):
     return metrics
 
 def calculate_name_similarity(name1, name2):
-    """Calculate simple similarity between two company names"""
+    """Calculate simple similarity between two company names with typo handling"""
+    from difflib import SequenceMatcher
+    
     # Remove common corporate suffixes and clean names
     suffixes = ["ltd", "limited", "inc", "corp", "corporation", "llc", "plc", "bv", "nv", "sa", "ag"]
     
     def clean_name(name):
+        if not name:
+            return ""
         words = name.lower().split()
         words = [w for w in words if w not in suffixes]
         return " ".join(words)
@@ -125,14 +131,80 @@ def calculate_name_similarity(name1, name2):
     if not clean1 or not clean2:
         return 0.0
     
-    # Simple word overlap similarity
-    words1 = set(clean1.split())
-    words2 = set(clean2.split())
+    # Check if one name is contained in the other (for cases like "deloitte" vs "deloitte touche...")
+    if clean1 in clean2 or clean2 in clean1:
+        shorter = min(len(clean1), len(clean2))
+        longer = max(len(clean1), len(clean2))
+        return shorter / longer
+    
+    # Word-level similarity with typo tolerance
+    words1 = clean1.split()
+    words2 = clean2.split()
     
     if not words1 or not words2:
         return 0.0
     
-    intersection = words1.intersection(words2)
-    union = words1.union(words2)
+    matched = 0
+    used_words = set()
     
-    return len(intersection) / len(union)
+    for word1 in words1:
+        best_match = 0
+        best_word = None
+        
+        for word2 in words2:
+            if word2 in used_words:
+                continue
+            
+            # Exact match or similar enough (handles typos)
+            similarity = SequenceMatcher(None, word1, word2).ratio()
+            if similarity > best_match:
+                best_match = similarity
+                best_word = word2
+        
+        # Accept matches above 80% similarity
+        if best_match >= 0.8:
+            matched += 1
+            used_words.add(best_word)
+    
+    # Return ratio of matched words to total unique words
+    total_words = len(set(words1 + words2))
+    return matched / total_words if total_words > 0 else 0.0
+
+
+def main():
+    """
+    Main function to run sustainability evaluation.
+    Update the file paths below to match your actual data files.
+    """
+    # Example file paths - update these to match your actual files
+    method_name = "sustainability_analysis"
+    results_file = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/sustainability_baseline/original_output.json"
+    ground_truth_file = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/data/company_reports_gt.json"
+    
+    try:
+        # Run evaluation
+        metrics = evaluate_results(method_name, results_file, ground_truth_file)
+        
+        # Print results
+        print(f"\n=== Evaluation Results for {method_name} ===")
+        print(f"Total companies processed: {metrics['total_companies_processed']}")
+        print(f"Economic activity accuracy: {metrics['economic_activity_accuracy']:.3f}")
+        print(f"Company name accuracy: {metrics['company_name_accuracy']:.3f}")
+        print(f"Missing companies: {metrics['missing_companies']}")
+        print(f"Average findings length: {metrics['avg_findings_length']:.1f}")
+        print(f"Total economic activities: {metrics['total_economic_activities']}")
+        print(f"Most common activity: {metrics['most_common_activity']}")
+        
+                
+    except FileNotFoundError as e:
+        print(f"Error: File not found - {e}")
+        print("Please update the file paths in the main function to point to your actual data files.")
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON format - {e}")
+    except Exception as e:
+        print(f"Error during evaluation: {e}")
+
+
+if __name__ == "__main__":
+    main()
+

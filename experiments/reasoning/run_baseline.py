@@ -359,6 +359,8 @@ def run_baseline_experiment(
                 "success": False,
                 "cost": 0.0
             })
+            print(f"🛑 Stopping optimization loop due to iteration failure. Proceeding to evaluation...")
+            break
     
     # ------------------------------------------------------------------
     # Evaluation (similar to MCTS)
@@ -481,6 +483,10 @@ Examples:
             dataset=args.dataset,
             ground_truth_path=args.ground_truth
         )
+
+        evaluation_file = result["evaluation_file"]
+        with open(evaluation_file, 'r') as f:
+            evaluation_results = json.load(f)
         
         print("\n🎉 Baseline experiment completed successfully!")
         return 0

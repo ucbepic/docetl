@@ -97,7 +97,7 @@ Run the MCTS optimization experiment:
 ```bash
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/game_reviews.yaml \
-  --dataset_path experiments/reasoning/data/reviews.json \
+  --dataset_path experiments/reasoning/data/train/game_reviews.json \
   --experiment_name game_reviews_mcts \
   --max_iterations 10 \
   --model gpt-4.1 \
@@ -214,7 +214,7 @@ Run the MCTS optimization experiment:
 ```bash
 python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/sustainability.yaml \
-  --dataset_path experiments/reasoning/data/company_reports_sample.json \
+  --dataset_path experiments/reasoning/data/company_reports_gt.json \
   --experiment_name sustainability_mcts \
   --max_iterations 10 \
   --model gpt-4.1 \

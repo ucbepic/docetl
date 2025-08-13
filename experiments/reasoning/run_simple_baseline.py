@@ -371,7 +371,7 @@ Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_acc
     def run_agent_loop(self, dataset: str, experiment_dir: Path, ground_truth_path: str = None,
                       baseline_cost: float = None, baseline_accuracy: float = None, 
                       baseline_operators: List[Dict] = None, max_iterations: int = 3,
-                      all_iteration_results: Optional[List[Dict]] = None, iteration_counter: int = 1) -> List[Dict]:
+                      all_iteration_results: Optional[List[Dict]] = None, iteration_counter: int = 1) -> tuple[List[Dict], int]:
         """Run the agent optimization loop."""
         
         sample_data = DataAnalyzer.load_sample_data(dataset)
@@ -441,9 +441,9 @@ Start by trying the original pipeline."""}
                     "Provide the final operators for the pipeline you want to return. Return JSON in format: {\"operators\": [...]}"
                 )
                 
-                return final_operators or best_pipeline
+                return final_operators or best_pipeline, iteration_counter
         
-        return best_pipeline or (self.original_config.get('operations', []) if self.original_config else [])
+        return best_pipeline or (self.original_config.get('operations', []) if self.original_config else []), iteration_counter
     
     def _test_pipeline(self, operators: List[Dict], dataset: str, executor: PipelineExecutor, 
                       iteration_id: int, ground_truth_path: str, experiment_dir: Path,
@@ -454,35 +454,10 @@ Start by trying the original pipeline."""}
         
         test_result = executor.execute(operators, dataset, f"iteration_{iteration_id}")
         
-        # Evaluate accuracy if successful
+        # Add to iteration results (evaluation will be done in batch later)
         accuracy_msg = "N/A"
         accuracy_val = None
         
-        if test_result["success"] and test_result.get("output_path") and ground_truth_path:
-            try:
-                files_for_eval = [{
-                    "file_path": test_result["output_path"],
-                    "cost": test_result["cost"],
-                    "node_id": str(iteration_id)
-                }]
-                eval_results, _ = run_dataset_evaluation(
-                    dataset=dataset,
-                    nodes_or_files=files_for_eval,
-                    output_path=experiment_dir,
-                    ground_truth_path=ground_truth_path,
-                    method_name="simple_baseline_iter"
-                )
-                
-                # Extract accuracy metric
-                for key in ["overall_accuracy", "accuracy", "f1_macro", "f1"]:
-                    if key in eval_results:
-                        accuracy_msg = f"{key}: {eval_results[key]:.4f}"
-                        accuracy_val = float(eval_results[key])
-                        break
-            except Exception as e:
-                print(f"⚠️  Evaluation failed: {e}")
-        
-        # Add to iteration results
         if (test_result["success"] and test_result.get("output_path") and 
             all_iteration_results is not None):
             all_iteration_results.append({
@@ -545,7 +520,7 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
         print(f"🏁 Baseline executed: cost ${baseline_result['cost']:.4f}")
     
     # Agent optimization loop
-    operators = agent.run_agent_loop(
+    operators, iteration_counter = agent.run_agent_loop(
         dataset=dataset,
         experiment_dir=exp_dir,
         ground_truth_path=ground_truth_path,

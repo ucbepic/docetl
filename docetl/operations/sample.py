@@ -345,7 +345,6 @@ class SampleOperation(BaseOperation):
         """Perform vector-based similarity search using LanceDB."""
         try:
             import lancedb
-            from lancedb.pydantic import LanceModel, Vector
         except ImportError:
             raise ImportError(
                 "LanceDB is required for retrieve_vector method. "
@@ -389,26 +388,27 @@ class SampleOperation(BaseOperation):
         all_results = [None] * len(input_data)
         
         for stratum_key, stratum_docs in strata_groups.items():
-            # Prepare documents for embedding within this stratum
-            docs_to_embed = []
+            # Prepare documents for this stratum
+            stratum_data = []
+            index_map = {}  # Map from position in stratum_data to original index
+            
             for idx, doc in stratum_docs:
                 text = self._prepare_text_for_embedding(doc, embedding_keys)
                 if text:
-                    docs_to_embed.append({
-                        "_original_index": idx,
-                        "_stratum_index": len(docs_to_embed),
+                    index_map[len(stratum_data)] = idx
+                    stratum_data.append({
                         "text": text,
-                        "document": doc
+                        **doc  # Include all original fields
                     })
             
-            if not docs_to_embed:
+            if not stratum_data:
                 # No valid documents in this stratum
                 for idx, doc in stratum_docs:
                     all_results[idx] = {**doc, output_key: []}
                 continue
             
             # Get embeddings for documents in this stratum
-            texts = [d["text"] for d in docs_to_embed]
+            texts = [d["text"] for d in stratum_data]
             embeddings, embedding_cost = get_embeddings_for_clustering(
                 [{"text": t} for t in texts],
                 {"embedding_keys": ["text"], "embedding_model": embedding_model},
@@ -416,26 +416,9 @@ class SampleOperation(BaseOperation):
             )
             total_cost += embedding_cost
             
-            # Prepare data for LanceDB
-            vector_dim = len(embeddings[0]) if embeddings else 0
-            
-            # Create dynamic model for LanceDB
-            class DocumentVector(LanceModel):
-                text: str
-                vector: Vector(vector_dim)
-                _stratum_index: int
-                _original_index: int
-                
-            # Add document data to records
-            records = []
-            for i, (doc_info, embedding) in enumerate(zip(docs_to_embed, embeddings)):
-                record = {
-                    "text": doc_info["text"],
-                    "vector": embedding,
-                    "_stratum_index": doc_info["_stratum_index"],
-                    "_original_index": doc_info["_original_index"]
-                }
-                records.append(record)
+            # Add embeddings to data
+            for i, embedding in enumerate(embeddings):
+                stratum_data[i]["vector"] = embedding
             
             # Create table name specific to this stratum
             if stratify_key:
@@ -444,24 +427,16 @@ class SampleOperation(BaseOperation):
             else:
                 stratum_table_name = table_name
             
-            # Create or overwrite table for this stratum
+            # Create or update table for this stratum
             if stratum_table_name in self._db.table_names():
                 if not persist:
                     self._db.drop_table(stratum_table_name)
-                    stratum_table = self._db.create_table(
-                        stratum_table_name, 
-                        data=records,
-                        schema=DocumentVector
-                    )
+                    stratum_table = self._db.create_table(stratum_table_name, data=stratum_data)
                 else:
                     stratum_table = self._db.open_table(stratum_table_name)
-                    stratum_table.add(records)
+                    stratum_table.add(stratum_data)
             else:
-                stratum_table = self._db.create_table(
-                    stratum_table_name,
-                    data=records,
-                    schema=DocumentVector
-                )
+                stratum_table = self._db.create_table(stratum_table_name, data=stratum_data)
             
             # Get embedding for the query
             query_embeddings, query_cost = get_embeddings_for_clustering(
@@ -483,21 +458,20 @@ class SampleOperation(BaseOperation):
             search_results = (
                 stratum_table.search(query_vector)
                 .limit(num_chunks)
-                .to_list()
+                .to_pandas()
             )
             
             # Prepare retrieved documents for this stratum
             retrieved_docs = []
-            for result in search_results:
-                # Get the original document from the stratum
-                stratum_idx = result["_stratum_index"]
-                if stratum_idx < len(docs_to_embed):
-                    original_idx = docs_to_embed[stratum_idx]["_original_index"]
-                    retrieved_doc = input_data[original_idx]
-                    retrieved_docs.append({
-                        **retrieved_doc,
-                        "_distance": result.get("_distance", None)
-                    })
+            for _, row in search_results.iterrows():
+                # Remove internal fields
+                doc_dict = row.to_dict()
+                doc_dict.pop("vector", None)
+                doc_dict.pop("text", None)
+                retrieved_docs.append({
+                    **doc_dict,
+                    "_distance": row.get("_distance", None)
+                })
             
             # Assign retrieved docs to all documents in this stratum
             for idx, doc in stratum_docs:
@@ -509,10 +483,9 @@ class SampleOperation(BaseOperation):
         return all_results, total_cost
 
     def _retrieve_fts(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
-        """Perform full-text search with optional semantic reranking using LanceDB."""
+        """Perform full-text search with optional hybrid search using LanceDB."""
         try:
             import lancedb
-            from lancedb.pydantic import LanceModel, Vector
         except ImportError:
             raise ImportError(
                 "LanceDB is required for retrieve_fts method. "
@@ -528,133 +501,152 @@ class SampleOperation(BaseOperation):
         embedding_model = method_kwargs.get("embedding_model", "text-embedding-3-small")
         table_name = method_kwargs.get("table_name", "docetl_fts")
         persist = method_kwargs.get("persist", False)
-        rerank = method_kwargs.get("rerank", True)
         output_key = method_kwargs.get("output_key", "_retrieved")
+        stratify_key = method_kwargs.get("stratify_key", None)
+        query_type = method_kwargs.get("query_type", "hybrid")  # "fts", "vector", or "hybrid"
         
         total_cost = 0.0
         
-        # Prepare documents for indexing
-        docs_to_index = []
-        for i, doc in enumerate(input_data):
-            text = self._prepare_text_for_embedding(doc, embedding_keys)
-            if text:
-                docs_to_index.append({
-                    "_index": i,
-                    "text": text,
-                    "document": doc
-                })
+        # Helper function to get stratify value(s) for an item
+        def get_stratify_value(item):
+            if stratify_key is None:
+                return None
+            elif isinstance(stratify_key, str):
+                return item.get(stratify_key)
+            else:  # list of keys
+                return tuple(item.get(key) for key in stratify_key)
         
-        if not docs_to_index:
-            return [], 0.0
-        
-        # Get embeddings if reranking is enabled
-        embeddings = None
-        if rerank:
-            texts = [d["text"] for d in docs_to_index]
-            embeddings, embedding_cost = get_embeddings_for_clustering(
-                [{"text": t} for t in texts],
-                {"embedding_keys": ["text"], "embedding_model": embedding_model},
-                self.runner.api
-            )
-            total_cost += embedding_cost
-        
-        # Prepare data for LanceDB
-        if embeddings:
-            vector_dim = len(embeddings[0])
-            
-            class DocumentWithVector(LanceModel):
-                text: str
-                vector: Vector(vector_dim)
-                _index: int
-                
-            records = []
-            for i, (doc_info, embedding) in enumerate(zip(docs_to_index, embeddings)):
-                record = {
-                    "text": doc_info["text"],
-                    "vector": embedding,
-                    "_index": doc_info["_index"]
-                }
-                records.append(record)
-            
-            schema = DocumentWithVector
+        # Group data by stratify key if specified
+        if stratify_key:
+            from collections import defaultdict
+            strata_groups = defaultdict(list)
+            for i, doc in enumerate(input_data):
+                strata_groups[get_stratify_value(doc)].append((i, doc))
         else:
-            class DocumentText(LanceModel):
-                text: str
-                _index: int
-                
-            records = []
-            for doc_info in docs_to_index:
-                record = {
-                    "text": doc_info["text"],
-                    "_index": doc_info["_index"]
-                }
-                records.append(record)
-            
-            schema = DocumentText
+            # No stratification - treat all data as one group
+            strata_groups = {None: [(i, doc) for i, doc in enumerate(input_data)]}
         
-        # Create or overwrite table
-        if table_name in self._db.table_names():
-            if not persist:
-                self._db.drop_table(table_name)
-                self._table = self._db.create_table(
-                    table_name, 
-                    data=records,
-                    schema=schema
+        # Process each stratum separately
+        all_results = [None] * len(input_data)
+        
+        for stratum_key, stratum_docs in strata_groups.items():
+            # Prepare documents for this stratum
+            stratum_data = []
+            
+            for idx, doc in stratum_docs:
+                text = self._prepare_text_for_embedding(doc, embedding_keys)
+                if text:
+                    stratum_data.append({
+                        "text": text,
+                        **doc  # Include all original fields
+                    })
+            
+            if not stratum_data:
+                # No valid documents in this stratum
+                for idx, doc in stratum_docs:
+                    all_results[idx] = {**doc, output_key: []}
+                continue
+            
+            # Get embeddings if needed for vector or hybrid search
+            if query_type in ["vector", "hybrid"]:
+                texts = [d["text"] for d in stratum_data]
+                embeddings, embedding_cost = get_embeddings_for_clustering(
+                    [{"text": t} for t in texts],
+                    {"embedding_keys": ["text"], "embedding_model": embedding_model},
+                    self.runner.api
                 )
-            else:
-                self._table = self._db.open_table(table_name)
-                self._table.add(records)
-        else:
-            self._table = self._db.create_table(
-                table_name,
-                data=records,
-                schema=schema
-            )
-        
-        # Perform search
-        if rerank and embeddings:
-            # Get embedding for the query
-            query_embeddings, query_cost = get_embeddings_for_clustering(
-                [{"text": query}],
-                {"embedding_keys": ["text"], "embedding_model": embedding_model},
-                self.runner.api
-            )
-            total_cost += query_cost
+                total_cost += embedding_cost
+                
+                # Add embeddings to data
+                for i, embedding in enumerate(embeddings):
+                    stratum_data[i]["vector"] = embedding
             
-            if query_embeddings:
+            # Create table name specific to this stratum
+            if stratify_key:
+                stratum_suffix = str(hash(str(stratum_key)))[-8:]
+                stratum_table_name = f"{table_name}_stratum_{stratum_suffix}"
+            else:
+                stratum_table_name = table_name
+            
+            # Create or update table for this stratum
+            if stratum_table_name in self._db.table_names():
+                if not persist:
+                    self._db.drop_table(stratum_table_name)
+                    stratum_table = self._db.create_table(stratum_table_name, data=stratum_data)
+                else:
+                    stratum_table = self._db.open_table(stratum_table_name)
+                    stratum_table.add(stratum_data)
+            else:
+                stratum_table = self._db.create_table(stratum_table_name, data=stratum_data)
+            
+            # Prepare search based on query type
+            if query_type == "fts":
+                # Pure full-text search
+                search_results = (
+                    stratum_table.search(query, query_type="fts")
+                    .limit(num_chunks)
+                    .to_pandas()
+                )
+            elif query_type == "vector":
+                # Get query embedding for vector search
+                query_embeddings, query_cost = get_embeddings_for_clustering(
+                    [{"text": query}],
+                    {"embedding_keys": ["text"], "embedding_model": embedding_model},
+                    self.runner.api
+                )
+                total_cost += query_cost
+                
+                if not query_embeddings:
+                    for idx, doc in stratum_docs:
+                        all_results[idx] = {**doc, output_key: []}
+                    continue
+                
                 query_vector = query_embeddings[0]
                 search_results = (
-                    self._table.search(query_vector)
+                    stratum_table.search(query_vector)
                     .limit(num_chunks)
-                    .to_list()
+                    .to_pandas()
                 )
-            else:
-                search_results = self._perform_text_search(query, num_chunks)
-        else:
-            # Pure text search without embeddings
-            search_results = self._perform_text_search(query, num_chunks)
+            else:  # hybrid
+                # LanceDB hybrid search combines FTS and vector search
+                search_results = (
+                    stratum_table.search(query, query_type="hybrid")
+                    .limit(num_chunks)
+                    .to_pandas()
+                )
+                # Note: For hybrid search, LanceDB will handle getting the query embedding internally
+                # if the table has vector columns
+            
+            # Prepare retrieved documents for this stratum
+            retrieved_docs = []
+            for _, row in search_results.iterrows():
+                # Remove internal fields
+                doc_dict = row.to_dict()
+                doc_dict.pop("vector", None)
+                doc_dict.pop("text", None)
+                
+                # Add score/distance field
+                if "_distance" in doc_dict:
+                    score_field = "_distance"
+                elif "_score" in doc_dict:
+                    score_field = "_score"
+                else:
+                    score_field = None
+                
+                if score_field:
+                    score_value = doc_dict.pop(score_field, None)
+                    doc_dict[score_field] = score_value
+                    
+                retrieved_docs.append(doc_dict)
+            
+            # Assign retrieved docs to all documents in this stratum
+            for idx, doc in stratum_docs:
+                all_results[idx] = {
+                    **doc,
+                    output_key: retrieved_docs
+                }
         
-        # Prepare retrieved documents
-        retrieved_docs = []
-        for result in search_results:
-            original_idx = result["_index"]
-            if original_idx < len(input_data):
-                retrieved_doc = input_data[original_idx]
-                score_field = "_distance" if "_distance" in result else "_score"
-                retrieved_docs.append({
-                    **retrieved_doc,
-                    score_field: result.get(score_field, None)
-                })
-        
-        # Create output
-        results = []
-        for doc in input_data:
-            results.append({
-                **doc,
-                output_key: retrieved_docs
-            })
-        
-        return results, total_cost
+        return all_results, total_cost
     
     def _perform_text_search(self, query: str, limit: int) -> List[dict]:
         """Perform text-based search on the table."""

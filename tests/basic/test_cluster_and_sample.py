@@ -547,3 +547,76 @@ def test_sample_stratify_compound_keys(
     
     for count in group_counts.values():
         assert count == 3
+
+
+def test_sample_retrieve_vector_stratified(
+    sample_config, runner, default_model, max_threads
+):
+    """Test retrieve_vector method with stratification."""
+    from unittest.mock import MagicMock, patch
+    
+    # Create stratified data
+    stratified_data = [
+        {"id": 1, "category": "A", "content": "Machine learning basics"},
+        {"id": 2, "category": "A", "content": "Deep learning introduction"},
+        {"id": 3, "category": "B", "content": "Natural language processing"},
+        {"id": 4, "category": "B", "content": "Computer vision applications"},
+    ]
+    
+    sample_config["method"] = "retrieve_vector"
+    sample_config["method_kwargs"] = {
+        "query": "neural networks",
+        "embedding_keys": ["content"],
+        "num_chunks": 2,
+        "stratify_key": "category"
+    }
+    
+    # Mock LanceDB
+    with patch("docetl.operations.sample.lancedb") as mock_lancedb:
+        with patch("docetl.operations.sample.Path") as mock_path:
+            mock_path.return_value.mkdir.return_value = None
+            mock_db = MagicMock()
+            mock_lancedb.connect.return_value = mock_db
+            mock_db.table_names.return_value = []
+            
+            # Mock two different tables for two strata
+            mock_table_a = MagicMock()
+            mock_table_b = MagicMock()
+            
+            def create_table_side_effect(name, data=None):
+                if "stratum" in name and name.endswith(str(hash("A"))[-8:]):
+                    return mock_table_a
+                else:
+                    return mock_table_b
+            
+            mock_db.create_table.side_effect = create_table_side_effect
+            
+            # Mock search results for each stratum
+            import pandas as pd
+            results_a = pd.DataFrame([
+                {"id": 1, "category": "A", "content": "Machine learning basics", "_distance": 0.1},
+                {"id": 2, "category": "A", "content": "Deep learning introduction", "_distance": 0.2}
+            ])
+            results_b = pd.DataFrame([
+                {"id": 3, "category": "B", "content": "Natural language processing", "_distance": 0.15},
+                {"id": 4, "category": "B", "content": "Computer vision applications", "_distance": 0.25}
+            ])
+            
+            mock_table_a.search.return_value.limit.return_value.to_pandas.return_value = results_a
+            mock_table_b.search.return_value.limit.return_value.to_pandas.return_value = results_b
+            
+            operation = SampleOperation(runner, sample_config, default_model, max_threads)
+            results, cost = operation.execute(stratified_data)
+            
+            # Check results
+            assert len(results) == 4
+            assert cost > 0
+            
+            # Documents in category A should only see results from category A
+            for result in results:
+                if result["category"] == "A":
+                    retrieved = result["_retrieved"]
+                    assert all(doc["category"] == "A" for doc in retrieved)
+                elif result["category"] == "B":
+                    retrieved = result["_retrieved"]
+                    assert all(doc["category"] == "B" for doc in retrieved)

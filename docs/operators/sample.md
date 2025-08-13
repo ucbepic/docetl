@@ -181,11 +181,12 @@ Retrieve Vector performs vector-based similarity search using LanceDB. It embeds
 **Note**: This method requires LanceDB. If not already installed, run: `uv add lancedb` or `pip install lancedb`
 
 **How it works**:
-1. Embeds all input documents using specified fields
-2. Creates or updates a LanceDB vector index
-3. Embeds the query text
-4. Finds the top-k most similar documents
-5. Augments each input document with retrieved results
+1. If `stratify_key` is specified, searches are performed within each stratum separately
+2. Embeds all documents in each stratum using specified fields
+3. Creates or updates a LanceDB vector index for each stratum
+4. Embeds the query text
+5. Finds the top-k most similar documents within each stratum
+6. Each document receives the retrieved results from its own stratum
 
 **Parameters in method_kwargs**:
 - `query`: The query text to search for similar documents (required)
@@ -196,8 +197,9 @@ Retrieve Vector performs vector-based similarity search using LanceDB. It embeds
 - `db_path`: Path to the LanceDB database (default: `~/.cache/docetl/lancedb/{operation_name}`)
 - `persist`: Whether to persist the vector database between runs (default: false)
 - `output_key`: Key to store retrieved documents in the output (default: "_retrieved")
+- `stratify_key`: Optional key(s) to stratify searches by (can be string or list of strings)
 
-**Example**:
+**Example - Basic Vector Search**:
 ```yaml
 - name: find_similar_papers
   type: sample
@@ -211,46 +213,61 @@ Retrieve Vector performs vector-based similarity search using LanceDB. It embeds
     output_key: "similar_papers"
 ```
 
+**Example - Stratified Vector Search**:
+```yaml
+- name: find_similar_by_category
+  type: sample
+  method: retrieve_vector
+  method_kwargs:
+    query: "deep learning techniques"
+    embedding_keys:
+      - content
+    stratify_key: category  # Search within each category separately
+    num_chunks: 3
+```
+
 ### Retrieve FTS
 
-Retrieve FTS performs full-text search with optional semantic reranking using LanceDB. It can use either pure text search or combine it with embeddings for enhanced semantic search.
+Retrieve FTS performs full-text search with support for pure text, vector, or hybrid search using LanceDB.
 
 **Note**: This method requires LanceDB. If not already installed, run: `uv add lancedb` or `pip install lancedb`
 
 **How it works**:
-1. Indexes documents based on specified fields
-2. Optionally generates embeddings for semantic reranking
-3. Performs text search or semantic search based on configuration
-4. Returns top matching documents with relevance scores
+1. If `stratify_key` is specified, searches are performed within each stratum separately
+2. Indexes documents based on specified fields
+3. For vector or hybrid search, generates embeddings
+4. Performs the specified type of search (FTS, vector, or hybrid)
+5. Returns top matching documents with relevance scores
 
 **Parameters in method_kwargs**:
 - `query`: The search query text (required)
 - `embedding_keys`: List of document fields to index and search (required)
 - `num_chunks`: Number of top results to retrieve (default: 10)
-- `embedding_model`: The embedding model for semantic search (default: "text-embedding-3-small")
+- `embedding_model`: The embedding model for vector/hybrid search (default: "text-embedding-3-small")
 - `table_name`: Name of the LanceDB table (default: "docetl_fts")
 - `db_path`: Path to the LanceDB database (default: `~/.cache/docetl/lancedb/{operation_name}`)
 - `persist`: Whether to persist the database between runs (default: false)
-- `rerank`: Whether to use embeddings for semantic reranking (default: true)
+- `query_type`: Type of search - "fts", "vector", or "hybrid" (default: "hybrid")
 - `output_key`: Key to store retrieved documents (default: "_retrieved")
+- `stratify_key`: Optional key(s) to stratify searches by (can be string or list of strings)
 
-**Example - Semantic Search**:
+**Example - Hybrid Search**:
 ```yaml
-- name: semantic_search
+- name: hybrid_search
   type: sample
   method: retrieve_fts
   method_kwargs:
-    query: "What are the benefits of renewable energy?"
+    query: "renewable energy benefits"
     embedding_keys:
       - title
       - content
-    rerank: true  # Use embeddings for better relevance
+    query_type: "hybrid"  # Combines FTS and vector search
     num_chunks: 15
 ```
 
-**Example - Pure Text Search**:
+**Example - Pure Text Search with Stratification**:
 ```yaml
-- name: keyword_search
+- name: keyword_search_by_region
   type: sample
   method: retrieve_fts
   method_kwargs:
@@ -258,7 +275,22 @@ Retrieve FTS performs full-text search with optional semantic reranking using La
     embedding_keys:
       - title
       - content
-    rerank: false  # Pure keyword-based search
+    query_type: "fts"  # Pure keyword-based search
+    stratify_key: [region, year]  # Search within each region-year combination
+    num_chunks: 10
+```
+
+**Example - Vector Search**:
+```yaml
+- name: semantic_search
+  type: sample
+  method: retrieve_fts
+  method_kwargs:
+    query: "What are the effects of deforestation?"
+    embedding_keys:
+      - abstract
+    query_type: "vector"  # Pure semantic search
+    num_chunks: 20
 ```
 
 ## Use Cases

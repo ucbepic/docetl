@@ -1,7 +1,7 @@
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable
 
 from litellm import model_cost
 from rich.console import Console
@@ -17,7 +17,7 @@ class Evaluator:
         llm_client: LLMClient,
         console: Console,
         run_operation: Callable[
-            [Dict[str, Any], List[Dict[str, Any]]], List[Dict[str, Any]]
+            [dict[str, Any], list[dict[str, Any]]], list[dict[str, Any]]
         ],
         timeout: int = 60,
         num_plans_to_evaluate_in_parallel: int = 10,
@@ -32,11 +32,11 @@ class Evaluator:
 
     def _pairwise_compare_plans(
         self,
-        filtered_results: Dict[str, Tuple[float, float, List[Dict[str, Any]]]],
+        filtered_results: dict[str, tuple[float, float, list[dict[str, Any]]]],
         validator_prompt: str,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-    ) -> Dict[str, int]:
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+    ) -> dict[str, int]:
         plan_names = list(filtered_results.keys())
         rankings = {plan: 0 for plan in plan_names}
         overall_prompt = op_config["prompt"]
@@ -80,13 +80,13 @@ class Evaluator:
         self,
         overall_prompt: str,
         plan1_name: str,
-        plan1_output: List[Dict[str, Any]],
+        plan1_output: list[dict[str, Any]],
         plan2_name: str,
-        plan2_output: List[Dict[str, Any]],
+        plan2_output: list[dict[str, Any]],
         validator_prompt: str,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-    ) -> Optional[str]:
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+    ) -> str | None:
         system_prompt = "You are an AI assistant tasked with comparing the outputs of two ways to complete a task."
 
         comparisons = []
@@ -197,11 +197,11 @@ class Evaluator:
     def _evaluate_plan(
         self,
         plan_name: str,
-        op_config: Dict[str, Any],
-        plan: Union[Dict[str, Any], List[Dict[str, Any]]],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        plan: dict[str, Any] | list[dict[str, Any]],
+        input_data: list[dict[str, Any]],
         validator_prompt: str,
-    ) -> Tuple[float, float, List[Dict[str, Any]]]:
+    ) -> tuple[float, float, list[dict[str, Any]]]:
         """
         Evaluate a single optimization plan.
 
@@ -210,17 +210,17 @@ class Evaluator:
 
         Args:
             plan_name (str): The name of the plan being evaluated.
-            op_config (Dict[str, Any]): The original operation configuration.
-            plan (Union[Dict[str, Any], List[Dict[str, Any]]]): The plan to be evaluated,
+            op_config (dict[str, Any]): The original operation configuration.
+            plan (dict[str, Any] | list[dict[str, Any]]): The plan to be evaluated,
                 which can be a single operation or a list of operations.
-            input_data (List[Dict[str, Any]]): The input data to run the plan on.
+            input_data (list[dict[str, Any]]): The input data to run the plan on.
             validator_prompt (str): The prompt used to assess the quality of the output.
 
         Returns:
-            Tuple[float, float, List[Dict[str, Any]]]: A tuple containing:
+            tuple[float, float, list[dict[str, Any]]]: A tuple containing:
                 - The average quality score of the plan's output (float)
                 - The runtime of the plan (float)
-                - The output data produced by the plan (List[Dict[str, Any]])
+                - The output data produced by the plan (list[dict[str, Any]])
 
         Note:
             The quality score is calculated based on the assessment of each output
@@ -272,11 +272,11 @@ class Evaluator:
 
     def _assess_operation(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        output_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+        output_data: list[dict[str, Any]],
         validator_prompt: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         system_prompt = "You are an AI assistant tasked with assessing the performance of data processing operations. Use the provided validator prompt to evaluate the operation's output."
 
         # Extract input variables from the prompt
@@ -403,9 +403,9 @@ class Evaluator:
 
     def _assess_output_quality(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        output_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+        output_data: list[dict[str, Any]],
         element_idx: int,
         validator_prompt: str,
     ) -> str:
@@ -417,9 +417,9 @@ class Evaluator:
         guideline for assessment.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the operation being assessed.
-            input_data (List[Dict[str, Any]]): The list of input data elements.
-            output_data (List[Dict[str, Any]]): The list of output data elements.
+            op_config (dict[str, Any]): The configuration of the operation being assessed.
+            input_data (list[dict[str, Any]]): The list of input data elements.
+            output_data (list[dict[str, Any]]): The list of output data elements.
             element_idx (int): The index of the specific input/output pair to assess.
             validator_prompt (str): The prompt used to guide the quality assessment.
 

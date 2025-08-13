@@ -1,4 +1,3 @@
-from typing import Dict, List
 import pytest
 import json
 import os
@@ -63,6 +62,9 @@ with open("tests/basic/sample_texts/one.txt", "r") as f:
 with open("tests/basic/sample_texts/two.md", "r") as f:
     SAMPLE_TEXT_CONTENT_TWO = f.read()
 
+def custom_exploder(doc: dict) -> list[dict]:
+    text = doc["text"]
+    return [{"text": t} for t in text]
 
 @pytest.fixture
 def config_file():
@@ -129,10 +131,6 @@ def test_pipeline_with_parsing(config_file):
     # Clean up the sample data file
     os.remove(sample_data_file.name)
 
-
-def custom_exploder(doc: Dict) -> List[Dict]:
-    text = doc["text"]
-    return [{"text": t} for t in text]
 
 
 def test_pipeline_with_custom_parsing():

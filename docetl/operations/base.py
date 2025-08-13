@@ -3,23 +3,37 @@ The BaseOperation class is an abstract base class for all operations in the doce
 """
 
 from abc import ABC, ABCMeta, abstractmethod
-from typing import Dict, List, Optional, Tuple
+from typing import Any
 
-import jsonschema
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
 from rich.status import Status
 
 from docetl.console import DOCETL_CONSOLE
 
 
-# FIXME: This should probably live in some utils module?
-class classproperty(object):
-    def __init__(self, f):
-        self.f = f
+class GleaningConfig(BaseModel):
+    """Configuration for gleaning (iterative improvement) in operations."""
 
-    def __get__(self, obj, owner):
-        return self.f(owner)
+    num_rounds: int = Field(
+        ..., gt=0, description="Number of gleaning rounds to perform"
+    )
+    validation_prompt: str = Field(
+        ..., min_length=1, description="Prompt used to validate and improve outputs"
+    )
+    if_condition: str | None = Field(
+        None,
+        alias="if",
+        description="Optional condition to determine when to perform gleaning",
+    )
+
+    @field_validator("validation_prompt")
+    @classmethod
+    def validate_validation_prompt(cls, v: str) -> str:
+        """Ensure validation_prompt is not just whitespace."""
+        if not v.strip():
+            raise ValueError("'validation_prompt' cannot be empty or only whitespace")
+        return v
 
 
 class BaseOperationMeta(ABCMeta):
@@ -33,11 +47,11 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
     def __init__(
         self,
         runner,
-        config: Dict,
+        config: dict,
         default_model: str,
         max_threads: int,
-        console: Optional[Console] = None,
-        status: Optional[Status] = None,
+        console: Console | None = None,
+        status: Status | None = None,
         is_build: bool = False,
         **kwargs,
     ):
@@ -45,11 +59,11 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         Initialize the BaseOperation.
 
         Args:
-            config (Dict): Configuration dictionary for the operation.
+            config (dict): Configuration dictionary for the operation.
             default_model (str): Default language model to use.
             max_threads (int): Maximum number of threads for parallel processing.
-            console (Optional[Console]): Rich console for outputting logs. Defaults to None.
-            status (Optional[Status]): Rich status for displaying progress. Defaults to None.
+            console (Console | None): Rich console for outputting logs. Defaults to None.
+            status (Status | None): Rich status for displaying progress. Defaults to None.
         """
         assert "name" in config, "Operation must have a name"
         assert "type" in config, "Operation must have a type"
@@ -72,19 +86,10 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         name: str
         type: str
         skip_on_error: bool = False
-
-    @classproperty
-    def json_schema(cls):
-        assert hasattr(
-            cls.schema, "model_json_schema"
-        ), "Programming error: %s.schema must be a pydantic object but is a %s" % (
-            cls,
-            type(cls.schema),
-        )
-        return cls.schema.model_json_schema()
+        gleaning: GleaningConfig | None = None
 
     @abstractmethod
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Execute the operation on the input data.
 
@@ -92,58 +97,15 @@ class BaseOperation(ABC, metaclass=BaseOperationMeta):
         actual operation on the input data.
 
         Args:
-            input_data (List[Dict]): List of input data items.
+            input_data (list[dict]): List of input data items.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed data
+            tuple[list[dict], float]: A tuple containing the processed data
             and the total cost of the operation.
         """
         pass
 
-    @abstractmethod
-    def syntax_check(self) -> None:
-        """
-        Perform syntax checks on the operation configuration.
-
-        This method should be implemented by subclasses to validate the
-        configuration specific to each operation type.
-
-        Raises:
-            ValueError: If the configuration is invalid.
-        """
-        jsonschema.validate(instance=self.config, schema=self.json_schema)
-
-    def gleaning_check(self) -> None:
-        """
-        Perform checks on the gleaning configuration.
-
-        This method validates the gleaning configuration if it's present
-        in the operation config.
-
-        Raises:
-            ValueError: If the gleaning configuration is invalid.
-            TypeError: If the gleaning configuration has incorrect types.
-        """
-        if "gleaning" not in self.config:
-            return
-        if "num_rounds" not in self.config["gleaning"]:
-            raise ValueError("Missing 'num_rounds' in 'gleaning' configuration")
-        if not isinstance(self.config["gleaning"]["num_rounds"], int):
-            raise TypeError(
-                "'num_rounds' in 'gleaning' configuration must be an integer"
-            )
-        if self.config["gleaning"]["num_rounds"] < 1:
-            raise ValueError(
-                "'num_rounds' in 'gleaning' configuration must be at least 1"
-            )
-
-        if "validation_prompt" not in self.config["gleaning"]:
-            raise ValueError("Missing 'validation_prompt' in 'gleaning' configuration")
-        if not isinstance(self.config["gleaning"]["validation_prompt"], str):
-            raise TypeError(
-                "'validation_prompt' in 'gleaning' configuration must be a string"
-            )
-        if not self.config["gleaning"]["validation_prompt"].strip():
-            raise ValueError(
-                "'validation_prompt' in 'gleaning' configuration cannot be empty"
-            )
+    def syntax_check(self, context: dict[str, Any] | None = None) -> None:
+        """Perform syntax checks on the operation configuration."""
+        # Validate the configuration using Pydantic
+        self.schema.model_validate(self.config, context=context)

@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 from jinja2 import Template
@@ -75,19 +75,19 @@ class ClusterOperation(BaseOperation):
                     raise TypeError("Each validation rule must be a string")
 
     def execute(
-        self, input_data: List[Dict], is_build: bool = False
-    ) -> Tuple[List[Dict], float]:
+        self, input_data: list[dict], is_build: bool = False
+    ) -> tuple[list[dict], float]:
         """
         Executes the cluster operation on the input data. Modifies the
         input data and returns it in place.
 
         Args:
-            input_data (List[Dict]): A list of dictionaries to process.
+            input_data (list[dict]): A list of dictionaries to process.
             is_build (bool): Whether the operation is being executed
               in the build phase. Defaults to False.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the clustered
+            tuple[list[dict], float]: A tuple containing the clustered
               list of dictionaries and the total cost of the operation.
         """
         if not input_data:
@@ -208,7 +208,7 @@ class ClusterOperation(BaseOperation):
 
             prompt = strict_render(self.prompt_template, {"inputs": t["children"]})
 
-            def validation_fn(response: Dict[str, Any]):
+            def validation_fn(response: dict[str, Any]):
                 output = self.runner.api.parse_llm_response(
                     response,
                     schema=self.config["summary_schema"],

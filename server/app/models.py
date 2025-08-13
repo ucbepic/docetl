@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import Any
 from datetime import datetime
 from enum import Enum
 
@@ -24,13 +24,13 @@ class TaskStatus(str, Enum):
 class OptimizeResult(BaseModel):
     task_id: str
     status: TaskStatus
-    should_optimize: Optional[str] = None
-    input_data: Optional[List[Dict[str, Any]]] = None
-    output_data: Optional[List[Dict[str, Any]]] = None
-    cost: Optional[float] = None
-    error: Optional[str] = None
+    should_optimize: str | None = None
+    input_data: list[dict[str, Any]] | None = None
+    output_data: list[dict[str, Any]] | None = None
+    cost: float | None = None
+    error: str | None = None
     created_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
 class OptimizeRequest(BaseModel):
     yaml_config: str

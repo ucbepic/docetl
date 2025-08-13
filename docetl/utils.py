@@ -2,11 +2,12 @@ import json
 import math
 import re
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any, Callable
 
 import tiktoken
 import yaml
 from jinja2 import Environment, meta
+from litellm import ModelResponse
 from litellm import completion_cost as lcc
 from lzstring import LZString
 
@@ -17,23 +18,18 @@ class Decryptor:
         self.lz = LZString()
 
     def decrypt(self, encrypted_data: str) -> str:
-        try:
-            # First decompress the data
-            compressed = self.lz.decompressFromBase64(encrypted_data)
-            if not compressed:
-                raise ValueError("Invalid compressed data")
+        # First decompress the data
+        compressed = self.lz.decompressFromBase64(encrypted_data)
+        if not compressed:
+            raise ValueError("Invalid compressed data")
 
-            # Then decode using the key
-            result = ""
-            for i in range(len(compressed)):
-                char_code = ord(compressed[i]) - ord(self.key[i % len(self.key)])
-                result += chr(char_code)
+        # Then decode using the key
+        result = ""
+        for i in range(len(compressed)):
+            char_code = ord(compressed[i]) - ord(self.key[i % len(self.key)])
+            result += chr(char_code)
 
-            return result
-
-        except Exception as e:
-            print(f"Decryption failed: {str(e)}")
-            return None
+        return result
 
 
 def decrypt(encrypted_data: str, secret_key: str) -> str:
@@ -65,14 +61,14 @@ def get_stage_description(stage_type: StageType) -> str:
 
 
 class CapturedOutput:
-    def __init__(self):
-        self.optimizer_output = {}
-        self.step = None
+    def __init__(self) -> None:
+        self.optimizer_output: dict[str, dict[StageType, Any]] = {}
+        self.step: str | None = None
 
-    def set_step(self, step: str):
+    def set_step(self, step: str) -> None:
         self.step = step
 
-    def save_optimizer_output(self, stage_type: StageType, output: Any):
+    def save_optimizer_output(self, stage_type: StageType, output: Any) -> None:
         if self.step is None:
             raise ValueError("Step must be set before saving optimizer output")
 
@@ -83,7 +79,7 @@ class CapturedOutput:
         self.optimizer_output[self.step][stage_type] = output
 
 
-def extract_jinja_variables(template_string: str) -> List[str]:
+def extract_jinja_variables(template_string: str) -> list[str]:
     """
     Extract variables from a Jinja2 template string.
 
@@ -94,7 +90,7 @@ def extract_jinja_variables(template_string: str) -> List[str]:
         template_string (str): The Jinja2 template string to analyze.
 
     Returns:
-        List[str]: A list of unique variable names found in the template.
+        list[str]: A list of unique variable names found in the template.
     """
     # Create a Jinja2 environment
     env = Environment(autoescape=True)
@@ -118,7 +114,7 @@ def extract_jinja_variables(template_string: str) -> List[str]:
     return list(all_variables)
 
 
-def completion_cost(response) -> float:
+def completion_cost(response: ModelResponse) -> float:
     try:
         return (
             response._completion_cost
@@ -129,7 +125,7 @@ def completion_cost(response) -> float:
         return 0.0
 
 
-def load_config(config_path: str) -> Dict[str, Any]:
+def load_config(config_path: str) -> dict[str, Any]:
     """
     Load and parse a YAML configuration file.
 
@@ -137,7 +133,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
         config_path (str): Path to the YAML configuration file.
 
     Returns:
-        Dict[str, Any]: Parsed configuration as a dictionary.
+        dict[str, Any]: Parsed configuration as a dictionary.
 
     Raises:
         FileNotFoundError: If the configuration file is not found.
@@ -145,7 +141,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
     """
     try:
         with open(config_path, "r") as config_file:
-            config = yaml.safe_load(config_file)
+            config: dict[str, Any] = yaml.safe_load(config_file)
         return config
     except FileNotFoundError:
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -168,19 +164,22 @@ def count_tokens(text: str, model: str) -> int:
 
 
 def truncate_sample_data(
-    data: Dict[str, Any], available_tokens: int, key_lists: List[List[str]], model: str
-) -> Dict[str, Any]:
+    data: dict[str, Any],
+    available_tokens: int,
+    key_lists: list[list[str]],
+    model: str,
+) -> dict[str, Any]:
     """
     Truncate sample data to fit within available tokens.
 
     Args:
-        data (Dict[str, Any]): The original data dictionary to truncate.
+        data (dict[str, Any]): The original data dictionary to truncate.
         available_tokens (int): The maximum number of tokens allowed.
-        key_lists (List[List[str]]): Lists of keys to prioritize in the truncation process.
+        key_lists (list[list[str]]): Lists of keys to prioritize in the truncation process.
         model (str): The name of the model to use for token counting.
 
     Returns:
-        Dict[str, Any]: A new dictionary containing truncated data that fits within the token limit.
+        dict[str, Any]: A new dictionary containing truncated data that fits within the token limit.
     """
     truncated_data = {}
     current_tokens = 0
@@ -234,8 +233,8 @@ def truncate_sample_data(
 
 
 def smart_sample(
-    input_data: List[Dict], sample_size_needed: int, max_unique_values: int = 5
-) -> List[Dict]:
+    input_data: list[dict], sample_size_needed: int, max_unique_values: int = 5
+) -> list[dict]:
     """
     Smart sampling strategy that:
     1. Identifies categorical fields by checking for low cardinality (few unique values)
@@ -243,12 +242,12 @@ def smart_sample(
     3. Takes largest documents per stratum
 
     Args:
-        input_data (List[Dict]): List of input documents
+        input_data (list[dict]): List of input documents
         sample_size_needed (int): Number of samples needed
         max_unique_values (int): Maximum number of unique values for a field to be considered categorical
 
     Returns:
-        List[Dict]: Sampled documents
+        list[dict]: Sampled documents
     """
     if not input_data or sample_size_needed >= len(input_data):
         return input_data
@@ -271,7 +270,7 @@ def smart_sample(
         ]
 
     # Group data by categorical fields
-    groups = {}
+    groups: dict[tuple[str, ...], list[dict]] = {}
     for doc in input_data:
         key = tuple(str(doc.get(field, "")) for field in categorical_fields)
         if key not in groups:
@@ -294,81 +293,9 @@ def smart_sample(
     ]
 
 
-class classproperty(object):
-    def __init__(self, f):
+class classproperty:
+    def __init__(self, f: Callable[[Any], Any]) -> None:
         self.f = f
 
-    def __get__(self, obj, owner):
+    def __get__(self, obj: Any | None, owner: type) -> Any:
         return self.f(owner)
-
-
-def extract_output_from_json(yaml_file_path, json_output_path=None):
-    """
-    Extract output fields from JSON file based on the output schema defined in the YAML file.
-    
-    Args:
-        yaml_file_path (str): Path to the YAML configuration file
-        json_output_path (str): Path to the JSON output file to extract from
-    
-    Returns:
-        List[Dict]: Extracted data containing only the fields specified in the output schema
-    """
-    # Load YAML configuration
-    with open(yaml_file_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-
-    if json_output_path is None:
-        json_output_path = config.get('pipeline', {}).get('output', {}).get('path')
-        if json_output_path is None:
-            raise ValueError("No output path found in YAML file")
-
-    # Load JSON output data
-    with open(json_output_path, 'r') as f:
-        output_data = json.load(f)
-    
-    # Find the last operation in the pipeline
-    pipeline = config.get('pipeline', {})
-    steps = pipeline.get('steps', [])
-    if not steps:
-        raise ValueError("No pipeline steps found in YAML file")
-    
-    # Get the last step and its operations
-    last_step = steps[-1]
-    last_step_operations = last_step.get('operations', [])
-    if not last_step_operations:
-        raise ValueError("No operations found in the last pipeline step")
-    
-    # Get the name of the last operation in the last step
-    last_operation_name = last_step_operations[-1]
-    
-    # Find this operation in the operations list
-    operations = config.get('operations', [])
-    last_operation = None
-    for op in operations:
-        if op.get('name') == last_operation_name:
-            last_operation = op
-            break
-    
-    if not last_operation:
-        raise ValueError(f"Operation '{last_operation_name}' not found in operations list")
-    
-    output_schema = last_operation.get('output', {}).get('schema', {})
-    if not output_schema:
-        raise ValueError(f"No output schema found in operation '{last_operation_name}'")
-    
-    # Extract the field names from the schema
-    schema_fields = list(output_schema.keys())
-    
-    # Extract only the specified fields from each item in the output data
-    extracted_data = []
-    for item in output_data:
-        extracted_item = {}
-        for field in schema_fields:
-            if field in item:
-                extracted_item[field] = item[field]
-        extracted_data.append(extracted_item)
-    
-
-    return extracted_data
-    

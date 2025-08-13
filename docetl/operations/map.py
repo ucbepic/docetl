@@ -5,12 +5,12 @@ The `MapOperation` and `ParallelMapOperation` classes are subclasses of `BaseOpe
 import asyncio
 import base64
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import requests
 from jinja2 import Template
 from litellm.utils import ModelResponse
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from tqdm import tqdm
 
 from docetl.base_schemas import Tool, ToolFunction
@@ -22,36 +22,91 @@ from docetl.operations.utils.api import OutputMode
 class MapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "map"
-        output: Optional[Dict[str, Any]] = None
-        prompt: Optional[str] = None
-        model: Optional[str] = None
-        optimize: Optional[bool] = None
-        recursively_optimize: Optional[bool] = None
-        sample_size: Optional[int] = None
-        tools: Optional[List[Dict[str, Any]]] = (
+        output: dict[str, Any] | None = None
+        prompt: str | None = None
+        model: str | None = None
+        optimize: bool | None = None
+        recursively_optimize: bool | None = None
+        sample_size: int | None = None
+        tools: list[dict[str, Any]] | None = (
             None  # FIXME: Why isn't this using the Tool data class so validation works automatically?
         )
-        validation_rules: Optional[List[str]] = Field(None, alias="validate")
-        num_retries_on_validate_failure: Optional[int] = None
-        gleaning: Optional[Dict[str, Any]] = None
-        drop_keys: Optional[List[str]] = None
-        timeout: Optional[int] = None
+        validation_rules: list[str] | None = Field(None, alias="validate")
+        num_retries_on_validate_failure: int | None = None
+        drop_keys: list[str] | None = None
+        timeout: int | None = None
         enable_observability: bool = False
-        batch_size: Optional[int] = None
-        clustering_method: Optional[str] = None
-        batch_prompt: Optional[str] = None
-        litellm_completion_kwargs: Dict[str, Any] = {}
-        pdf_url_key: Optional[str] = None
+        batch_size: int | None = None
+        clustering_method: str | None = None
+        batch_prompt: str | None = None
+        litellm_completion_kwargs: dict[str, Any] = {}
+        pdf_url_key: str | None = None
         flush_partial_result: bool = False
         # Calibration parameters
         calibrate: bool = False
-        num_calibration_docs: int = 10
+        num_calibration_docs: int = Field(10, gt=0)
 
-        @field_validator("drop_keys")
-        def validate_drop_keys(cls, v):
-            if isinstance(v, str):
-                return [v]
+        @field_validator("batch_prompt")
+        def validate_batch_prompt(cls, v):
+            if v is not None:
+                try:
+                    template = Template(v)
+                    # Test render with a minimal inputs list to validate template
+                    template.render(inputs=[{}])
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'batch_prompt' or missing required 'inputs' variable: {str(e)}"
+                    ) from e
             return v
+
+        @field_validator("prompt")
+        def validate_prompt(cls, v):
+            if v is not None:
+                try:
+                    Template(v)
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'prompt': {str(e)}"
+                    ) from e
+            return v
+
+        @field_validator("tools")
+        def validate_tools(cls, v):
+            if v is not None:
+                for tool in v:
+                    try:
+                        tool_obj = Tool(**tool)
+                    except Exception:
+                        raise TypeError("Tool must be a dictionary")
+
+                    if not (tool_obj.code and tool_obj.function):
+                        raise ValueError(
+                            "Tool is missing required 'code' or 'function' key"
+                        )
+
+                    if not isinstance(tool_obj.function, ToolFunction):
+                        raise TypeError("'function' in tool must be a dictionary")
+
+                    for key in ["name", "description", "parameters"]:
+                        if not getattr(tool_obj.function, key):
+                            raise ValueError(
+                                f"Tool is missing required '{key}' in 'function'"
+                            )
+            return v
+
+        @model_validator(mode="after")
+        def validate_prompt_and_output_requirements(self):
+            # If drop_keys is not specified, both prompt and output must be present
+            if not self.drop_keys:
+                if not self.prompt or not self.output:
+                    raise ValueError(
+                        "If 'drop_keys' is not specified, both 'prompt' and 'output' must be present in the configuration"
+                    )
+
+                if self.output and not self.output.get("schema"):
+                    raise ValueError("Missing 'schema' in 'output' configuration")
+
+            return self
 
     def __init__(
         self,
@@ -64,7 +119,7 @@ class MapOperation(BaseOperation):
         )
         self.clustering_method = "random"
 
-    def _generate_calibration_context(self, input_data: List[Dict]) -> str:
+    def _generate_calibration_context(self, input_data: list[dict]) -> str:
         """
         Generate calibration context by running the operation on a sample of documents
         and using an LLM to suggest prompt improvements for consistency.
@@ -129,8 +184,12 @@ Reference anchors:"""
 
             # Call LLM to get calibration suggestions
             messages = [{"role": "user", "content": calibration_prompt}]
-            completion_kwargs = self.config.get("litellm_completion_kwargs", {})
-            completion_kwargs["temperature"] = 0.0
+            # Use a copy of the user-provided completion kwargs so we don't mutate the original
+            # and avoid hard-coding temperature to a value that may not be supported by certain models.
+            completion_kwargs = dict(self.config.get("litellm_completion_kwargs", {}))
+            # If the user did not explicitly specify a temperature, let the model default handle it
+            # to prevent incompatibility errors with providers that don't support 0.0.
+            # If a temperature is already provided, respect the user's choice.
 
             llm_result = self.runner.api.call_llm(
                 self.config.get("model", self.default_model),
@@ -160,99 +219,15 @@ Reference anchors:"""
             # Restore original calibration setting
             self.config["calibrate"] = original_calibrate
 
-    def syntax_check(self) -> None:
-        """
-            Checks the configuration of the MapOperation for required keys and valid structure.
-
-        Raises:
-            ValueError: If required keys are missing or invalid in the configuration.
-            TypeError: If configuration values have incorrect types.
-        """
-        config = self.schema(**self.config)
-
-        if config.drop_keys:
-            if any(not isinstance(key, str) for key in config.drop_keys):
-                raise TypeError("All items in 'drop_keys' must be strings")
-        elif not (config.prompt and config.output):
-            raise ValueError(
-                "If 'drop_keys' is not specified, both 'prompt' and 'output' must be present in the configuration"
-            )
-
-        # Validate calibration parameters
-        if config.calibrate and not isinstance(config.calibrate, bool):
-            raise TypeError("'calibrate' must be a boolean")
-
-        if config.num_calibration_docs and not isinstance(
-            config.num_calibration_docs, int
-        ):
-            raise TypeError("'num_calibration_docs' must be an integer")
-
-        if config.num_calibration_docs and config.num_calibration_docs <= 0:
-            raise ValueError("'num_calibration_docs' must be a positive integer")
-
-        if config.batch_prompt:
-            try:
-                template = Template(config.batch_prompt)
-                # Test render with a minimal inputs list to validate template
-                template.render(inputs=[{}])
-            except Exception as e:
-                raise ValueError(
-                    f"Invalid Jinja2 template in 'batch_prompt' or missing required 'inputs' variable: {str(e)}"
-                ) from e
-
-        if config.prompt or config.output:
-            for key in ["prompt", "output"]:
-                if not getattr(config, key):
-                    raise ValueError(
-                        f"Missing required key '{key}' in MapOperation configuration"
-                    )
-
-            if config.output and not config.output["schema"]:
-                raise ValueError("Missing 'schema' in 'output' configuration")
-
-            if config.prompt:
-                try:
-                    Template(config.prompt)
-                except Exception as e:
-                    raise ValueError(
-                        f"Invalid Jinja2 template in 'prompt': {str(e)}"
-                    ) from e
-
-            if config.model and not isinstance(config.model, str):
-                raise TypeError("'model' in configuration must be a string")
-
-            if config.tools:
-                for tool in config.tools:
-                    try:
-                        tool_obj = Tool(**tool)
-                    except Exception:
-                        raise TypeError("Tool must be a dictionary")
-
-                    if not (tool_obj.code and tool_obj.function):
-                        raise ValueError(
-                            "Tool is missing required 'code' or 'function' key"
-                        )
-
-                    if not isinstance(tool_obj.function, ToolFunction):
-                        raise TypeError("'function' in tool must be a dictionary")
-
-                    for key in ["name", "description", "parameters"]:
-                        if not getattr(tool_obj.function, key):
-                            raise ValueError(
-                                f"Tool is missing required '{key}' in 'function'"
-                            )
-
-            self.gleaning_check()
-
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the map operation on the provided input data.
 
         Args:
-            input_data (List[Dict]): The input data to process.
+            input_data (list[dict]): The input data to process.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the processed results and the total cost of the operation.
 
         This method performs the following steps:
         1. If calibration is enabled, runs calibration to improve prompt consistency
@@ -298,8 +273,8 @@ Reference anchors:"""
             self.status.stop()
 
         def _process_map_item(
-            item: Dict, initial_result: Optional[Dict] = None
-        ) -> Tuple[Optional[List[Dict]], float]:
+            item: dict, initial_result: dict | None = None
+        ) -> tuple[dict | None, float]:
 
             prompt = strict_render(self.config["prompt"], {"input": item})
             messages = [{"role": "user", "content": prompt}]
@@ -326,7 +301,7 @@ Reference anchors:"""
                     {"type": "text", "text": prompt},
                 ]
 
-            def validation_fn(response: Union[Dict[str, Any], ModelResponse]):
+            def validation_fn(response: dict[str, Any] | ModelResponse):
                 structured_mode = (
                     self.config.get("output", {}).get("mode")
                     == OutputMode.STRUCTURED_OUTPUT.value
@@ -403,7 +378,6 @@ Reference anchors:"""
 
                 # Augment the output with the original item
                 outputs = [{**item, **output} for output in outputs]
-
                 if self.config.get("enable_observability", False):
                     for output in outputs:
                         output[f"_observability_{self.config['name']}"] = {
@@ -414,7 +388,7 @@ Reference anchors:"""
             return None, llm_result.total_cost
 
         # If there's a batch prompt, let's use that
-        def _process_map_batch(items: List[Dict]) -> Tuple[List[Dict], float]:
+        def _process_map_batch(items: list[dict]) -> tuple[list[dict], float]:
             total_cost = 0
             if len(items) > 1 and self.config.get("batch_prompt", None):
                 # Raise error if pdf_url_key is set
@@ -548,10 +522,66 @@ Reference anchors:"""
 class ParallelMapOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "parallel_map"
-        prompts: List[Dict[str, Any]]
-        output: Dict[str, Any]
+        prompts: list[dict[str, Any]] | None = None
+        output: dict[str, Any] | None = None
+        drop_keys: list[str] | None = None
         enable_observability: bool = False
-        pdf_url_key: Optional[str] = None
+        pdf_url_key: str | None = None
+
+        @field_validator("prompts")
+        def validate_prompts(cls, v):
+            if v is not None:
+                if not v:
+                    raise ValueError("The 'prompts' list cannot be empty")
+
+                for i, prompt_config in enumerate(v):
+                    # Validate required keys exist
+                    if "prompt" not in prompt_config:
+                        raise ValueError(
+                            f"Missing required key 'prompt' in prompt configuration {i}"
+                        )
+                    if "output_keys" not in prompt_config:
+                        raise ValueError(
+                            f"Missing required key 'output_keys' in prompt configuration {i}"
+                        )
+
+                    # Validate output_keys is not empty
+                    if not prompt_config["output_keys"]:
+                        raise ValueError(
+                            f"'output_keys' list in prompt configuration {i} cannot be empty"
+                        )
+
+                    # Check if the prompt is a valid Jinja2 template
+                    try:
+                        Template(prompt_config["prompt"])
+                    except Exception as e:
+                        raise ValueError(
+                            f"Invalid Jinja2 template in prompt configuration {i}: {str(e)}"
+                        ) from e
+            return v
+
+        @model_validator(mode="after")
+        def validate_prompt_requirements(self):
+            # If drop_keys is not specified, prompts must be present
+            if not self.drop_keys and not self.prompts:
+                raise ValueError(
+                    "If 'drop_keys' is not specified, 'prompts' must be present in the configuration"
+                )
+
+            # Check if all output schema keys are covered by the prompts
+            if self.prompts and self.output and "schema" in self.output:
+                output_schema = self.output["schema"]
+                output_keys_covered = set()
+                for prompt_config in self.prompts:
+                    output_keys_covered.update(prompt_config["output_keys"])
+
+                missing_keys = set(output_schema.keys()) - output_keys_covered
+                if missing_keys:
+                    raise ValueError(
+                        f"The following output schema keys are not covered by any prompt: {missing_keys}"
+                    )
+
+            return self
 
     def __init__(
         self,
@@ -560,98 +590,15 @@ class ParallelMapOperation(BaseOperation):
     ):
         super().__init__(*args, **kwargs)
 
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the ParallelMapOperation for required keys and valid structure.
-
-        Raises:
-            ValueError: If required keys are missing or if the configuration structure is invalid.
-            TypeError: If the configuration values have incorrect types.
-        """
-        if "drop_keys" in self.config:
-            if not isinstance(self.config["drop_keys"], list):
-                raise TypeError(
-                    "'drop_keys' in configuration must be a list of strings"
-                )
-            for key in self.config["drop_keys"]:
-                if not isinstance(key, str):
-                    raise TypeError("All items in 'drop_keys' must be strings")
-        elif "prompts" not in self.config:
-            raise ValueError(
-                "If 'drop_keys' is not specified, 'prompts' must be present in the configuration"
-            )
-
-        if "prompts" in self.config:
-            if not isinstance(self.config["prompts"], list):
-                raise ValueError(
-                    "ParallelMapOperation requires a 'prompts' list in the configuration"
-                )
-
-            if not self.config["prompts"]:
-                raise ValueError("The 'prompts' list cannot be empty")
-
-            for i, prompt_config in enumerate(self.config["prompts"]):
-                if not isinstance(prompt_config, dict):
-                    raise TypeError(f"Prompt configuration {i} must be a dictionary")
-
-                required_keys = ["prompt", "output_keys"]
-                for key in required_keys:
-                    if key not in prompt_config:
-                        raise ValueError(
-                            f"Missing required key '{key}' in prompt configuration {i}"
-                        )
-                if not isinstance(prompt_config["prompt"], str):
-                    raise TypeError(
-                        f"'prompt' in prompt configuration {i} must be a string"
-                    )
-
-                if not isinstance(prompt_config["output_keys"], list):
-                    raise TypeError(
-                        f"'output_keys' in prompt configuration {i} must be a list"
-                    )
-
-                if not prompt_config["output_keys"]:
-                    raise ValueError(
-                        f"'output_keys' list in prompt configuration {i} cannot be empty"
-                    )
-
-                # Check if the prompt is a valid Jinja2 template
-                try:
-                    Template(prompt_config["prompt"])
-                except Exception as e:
-                    raise ValueError(
-                        f"Invalid Jinja2 template in prompt configuration {i}: {str(e)}"
-                    ) from e
-
-                # Check if the model is specified (optional)
-                if "model" in prompt_config and not isinstance(
-                    prompt_config["model"], str
-                ):
-                    raise TypeError(
-                        f"'model' in prompt configuration {i} must be a string"
-                    )
-
-            # Check if all output schema keys are covered by the prompts
-            output_schema = self.config["output"]["schema"]
-            output_keys_covered = set()
-            for prompt_config in self.config["prompts"]:
-                output_keys_covered.update(prompt_config["output_keys"])
-
-            missing_keys = set(output_schema.keys()) - output_keys_covered
-            if missing_keys:
-                raise ValueError(
-                    f"The following output schema keys are not covered by any prompt: {missing_keys}"
-                )
-
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the parallel map operation on the provided input data.
 
         Args:
-            input_data (List[Dict]): The input data to process.
+            input_data (list[dict]): The input data to process.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the processed results and the total cost of the operation.
 
         This method performs the following steps:
         1. If prompts are specified, it processes each input item using multiple prompts in parallel

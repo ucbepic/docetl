@@ -51,7 +51,7 @@ Usage:
 
 import inspect
 import os
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable
 
 import yaml
 from rich import print
@@ -83,19 +83,19 @@ class Pipeline:
 
     Attributes:
         name (str): The name of the pipeline.
-        datasets (Dict[str, Dataset]): A dictionary of datasets used in the pipeline,
+        datasets (dict[str, Dataset]): A dictionary of datasets used in the pipeline,
                                        where keys are dataset names and values are Dataset objects.
-        operations (List[OpType]): A list of operations to be performed in the pipeline.
-        steps (List[PipelineStep]): A list of steps that make up the pipeline.
+        operations (list[OpType]): A list of operations to be performed in the pipeline.
+        steps (list[PipelineStep]): A list of steps that make up the pipeline.
         output (PipelineOutput): The output configuration for the pipeline.
-        parsing_tools (List[ParsingTool]): A list of parsing tools used in the pipeline.
+        parsing_tools (list[ParsingTool]): A list of parsing tools used in the pipeline.
                                            Defaults to an empty list.
-        default_model (Optional[str]): The default language model to use for operations
+        default_model (str | None): The default language model to use for operations
                                        that require one. Defaults to None.
 
     Example:
         ```python
-        def custom_parser(text: str) -> List[str]:
+        def custom_parser(text: str) -> list[str]:
             # this will convert the text in the column to uppercase
             # You should return a list of strings, where each string is a separate document
             return [text.upper()]
@@ -137,14 +137,14 @@ class Pipeline:
     def __init__(
         self,
         name: str,
-        datasets: Dict[str, Dataset],
-        operations: List[OpType],
-        steps: List[PipelineStep],
+        datasets: dict[str, Dataset],
+        operations: list[OpType],
+        steps: list[PipelineStep],
         output: PipelineOutput,
-        parsing_tools: List[Union[ParsingTool, Callable]] = [],
-        default_model: Optional[str] = None,
-        rate_limits: Optional[Dict[str, int]] = None,
-        optimizer_config: Dict[str, Any] = {},
+        parsing_tools: list[ParsingTool | Callable] = [],
+        default_model: str | None = None,
+        rate_limits: dict[str, int] | None = None,
+        optimizer_config: dict[str, Any] = {},
         **kwargs,
     ):
         self.name = name
@@ -186,15 +186,15 @@ class Pipeline:
 
     def optimize(
         self,
-        max_threads: Optional[int] = None,
+        max_threads: int | None = None,
         resume: bool = False,
-        save_path: Optional[str] = None,
+        save_path: str | None = None,
     ) -> "Pipeline":
         """
         Optimize the pipeline using the Optimizer.
 
         Args:
-            max_threads (Optional[int]): Maximum number of threads to use for optimization.
+            max_threads (int | None): Maximum number of threads to use for optimization.
             model (str): The model to use for optimization. Defaults to "gpt-4o".
             resume (bool): Whether to resume optimization from a previous state. Defaults to False.
             timeout (int): Timeout for optimization in seconds. Defaults to 60.
@@ -228,12 +228,12 @@ class Pipeline:
         updated_pipeline._update_from_dict(optimized_config)
         return updated_pipeline
 
-    def run(self, max_threads: Optional[int] = None) -> float:
+    def run(self, max_threads: int | None = None) -> float:
         """
         Run the pipeline using the DSLRunner.
 
         Args:
-            max_threads (Optional[int]): Maximum number of threads to use for execution.
+            max_threads (int | None): Maximum number of threads to use for execution.
 
         Returns:
             float: The total cost of running the pipeline.
@@ -264,12 +264,12 @@ class Pipeline:
 
         print(f"[green]Pipeline saved to {path}[/green]")
 
-    def _to_dict(self) -> Dict[str, Any]:
+    def _to_dict(self) -> dict[str, Any]:
         """
         Convert the Pipeline object to a dictionary representation.
 
         Returns:
-            Dict[str, Any]: Dictionary representation of the Pipeline.
+            dict[str, Any]: Dictionary representation of the Pipeline.
         """
         d = {
             "datasets": {
@@ -299,12 +299,12 @@ class Pipeline:
             d["rate_limits"] = self.rate_limits
         return d
 
-    def _update_from_dict(self, config: Dict[str, Any]):
+    def _update_from_dict(self, config: dict[str, Any]):
         """
         Update the Pipeline object from a dictionary representation.
 
         Args:
-            config (Dict[str, Any]): Dictionary representation of the Pipeline.
+            config (dict[str, Any]): Dictionary representation of the Pipeline.
         """
         self.datasets = {
             name: Dataset(

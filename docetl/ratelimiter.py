@@ -1,12 +1,12 @@
 import math
 from inspect import isawaitable
-from typing import Any, Dict
+from typing import Any
 
 import pyrate_limiter
 
 
 class BucketCollection(pyrate_limiter.BucketFactory):
-    def __init__(self, **buckets):
+    def __init__(self, **buckets: dict[str, pyrate_limiter.InMemoryBucket]) -> None:
         self.clock = pyrate_limiter.TimeClock()
         self.buckets = buckets
 
@@ -27,7 +27,7 @@ class BucketCollection(pyrate_limiter.BucketFactory):
         return self.buckets[item.name]
 
 
-def create_bucket_factory(rate_limits: Dict[str, Any]) -> BucketCollection:
+def create_bucket_factory(rate_limits: dict[str, Any]) -> BucketCollection:
     """
     Create a BucketCollection from rate limits configuration.
 

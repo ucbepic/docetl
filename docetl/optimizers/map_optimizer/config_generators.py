@@ -1,7 +1,7 @@
 import copy
 import json
 import random
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from rich.console import Console
 
@@ -15,7 +15,7 @@ class ConfigGenerator:
         self,
         llm_client: LLMClient,
         console: Console,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         max_threads: int,
     ):
         self.llm_client = llm_client
@@ -27,9 +27,9 @@ class ConfigGenerator:
 
     def _get_split_config(
         self,
-        op_config: Dict[str, Any],
-        input_data_sample: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        op_config: dict[str, Any],
+        input_data_sample: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """
         Generate a configuration for splitting the input data and processing chunks.
 
@@ -39,11 +39,11 @@ class ConfigGenerator:
         operation's requirements and the structure of the input data.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the operation.
-            input_data_sample (List[Dict[str, Any]]): A sample of the input data.
+            op_config (dict[str, Any]): The configuration of the operation.
+            input_data_sample (list[dict[str, Any]]): A sample of the input data.
 
         Returns:
-            Dict[str, Any]: A dictionary containing the split configuration, including:
+            dict[str, Any]: A dictionary containing the split configuration, including:
                 - split_key (str): The key in the input data to be used for splitting.
                 - subprompt (str): A Jinja template prompt to be applied to each chunk.
 
@@ -165,12 +165,12 @@ class ConfigGenerator:
 
     def _determine_metadata_needs(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         subprompt: str,
         chunk_size: int,
         split_key: str,
-        input_data_sample: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        input_data_sample: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         needs_metadata = self._check_metadata_necessity(
             op_config, subprompt, chunk_size, split_key, input_data_sample
         )
@@ -184,12 +184,12 @@ class ConfigGenerator:
 
     def _check_metadata_necessity(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         subprompt: str,
         chunk_size: int,
         split_key: str,
-        input_data_sample: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        input_data_sample: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """
         Determine if metadata is necessary for processing document chunks.
 
@@ -198,14 +198,14 @@ class ConfigGenerator:
         is required for accurate processing of document chunks.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the original operation.
+            op_config (dict[str, Any]): The configuration of the original operation.
             subprompt (str): The prompt to be used for processing individual chunks.
             chunk_size (int): The size of each chunk in words.
             split_key (str): The key used to split the input data into chunks.
-            input_data_sample (List[Dict[str, Any]]): A sample of the input data.
+            input_data_sample (list[dict[str, Any]]): A sample of the input data.
 
         Returns:
-            Dict[str, Any]: A dictionary containing:
+            dict[str, Any]: A dictionary containing:
                 - 'needs_metadata' (bool): True if metadata is needed, False otherwise.
                 - 'reason' (str): An explanation for why metadata is or isn't needed.
 
@@ -279,12 +279,12 @@ class ConfigGenerator:
 
     def _get_metadata_config(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         subprompt: str,
         chunk_size: int,
         split_key: str,
-        input_data_sample: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        input_data_sample: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         system_prompt = "You are an AI assistant tasked with creating metadata extraction prompts for document processing."
 
         random_sample = random.choice(input_data_sample)[split_key]
@@ -332,12 +332,12 @@ class ConfigGenerator:
 
     def _determine_context_needs(
         self,
-        op_config: Dict[str, Any],
+        op_config: dict[str, Any],
         subprompt: str,
         chunk_size: int,
         split_key: str,
-        input_data_sample: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        input_data_sample: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         system_prompt = "You are an AI assistant tasked with determining context needs for document chunk processing."
 
         # Select a random element from input_data_sample
@@ -412,10 +412,10 @@ class ConfigGenerator:
     def _generate_chunk_sizes(
         self,
         split_key: str,
-        input_data_sample: List[Dict[str, Any]],
+        input_data_sample: list[dict[str, Any]],
         token_limit: int,
         num_chunks: int = 8,
-    ) -> List[int]:
+    ) -> list[int]:
         # Get the average document length
         avg_doc_length = sum(
             len(doc[split_key].split()) for doc in input_data_sample
@@ -456,7 +456,7 @@ class ConfigGenerator:
 
     def _generate_peripheral_configs(
         self, summary_key: str, chunk_size: int, avg_doc_size: int
-    ) -> List[Tuple[Dict[str, Any], bool]]:
+    ) -> list[tuple[dict[str, Any], bool]]:
         """
         Generate a list of peripheral chunk configurations, considering:
         * Adaptive scaling: this scales the config based on the ratio of document to chunk size

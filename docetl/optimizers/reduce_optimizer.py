@@ -1,10 +1,10 @@
 import copy
 import json
 import random
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from statistics import mean
-from typing import Any, Callable, Dict, List, Tuple, Union
-import uuid
+from typing import Any, Callable
 
 from jinja2 import Template
 from litellm import model_cost
@@ -24,7 +24,7 @@ class ReduceOptimizer:
     multiple reduce plans, and selects the best plan for optimizing the operation's performance.
 
     Attributes:
-        config (Dict[str, Any]): Configuration dictionary for the optimizer.
+        config (dict[str, Any]): Configuration dictionary for the optimizer.
         console (Console): Rich console object for pretty printing.
         llm_client (LLMClient): Client for interacting with a language model.
         _run_operation (Callable): Function to run an operation.
@@ -44,7 +44,7 @@ class ReduceOptimizer:
         Initialize the ReduceOptimizer.
 
         Args:
-            config (Dict[str, Any]): Configuration dictionary for the optimizer.
+            config (dict[str, Any]): Configuration dictionary for the optimizer.
             console (Console): Rich console object for pretty printing.
             llm_client (LLMClient): Client for interacting with a language model.
             max_threads (int): Maximum number of threads to use for parallel processing.
@@ -63,7 +63,7 @@ class ReduceOptimizer:
         self.status = self.runner.status
 
     def should_optimize_helper(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
     ) -> str:
         # Check if we're running out of token limits for the reduce prompt
         model = op_config.get("model", self.config.get("default_model", "gpt-4o-mini"))
@@ -125,8 +125,8 @@ class ReduceOptimizer:
         )
 
     def should_optimize(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[str, List[Dict[str, Any]], List[Dict[str, Any]]]:
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
+    ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
         (
             validation_results,
             prompt_tokens,
@@ -158,10 +158,10 @@ class ReduceOptimizer:
 
     def optimize(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         level: int = 1,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float]:
         """
         Optimize the reduce operation based on the given configuration and input data.
 
@@ -176,11 +176,11 @@ class ReduceOptimizer:
         5. Run the optimized operation(s)
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            input_data (list[dict[str, Any]]): Input data for the reduce operation.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
+            tuple[list[dict[str, Any]], list[dict[str, Any]], float]: A tuple containing the list of optimized configurations
             and the list of outputs from the optimized operation(s), and the cost of the operation due to synthesizing any resolve operations.
         """
         (
@@ -265,8 +265,8 @@ class ReduceOptimizer:
             return [op_config], original_output, 0.0
 
     def _should_use_map(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Tuple[bool, str]:
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
+    ) -> tuple[bool, str]:
         """
         Determine if a map operation should be used based on the input data.
         """
@@ -337,10 +337,10 @@ class ReduceOptimizer:
 
     def _optimize_single_reduce(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         validator_prompt: str,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float]:
         """
         Optimize a single reduce operation.
 
@@ -351,12 +351,12 @@ class ReduceOptimizer:
         4. Run the best reduce plan
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            input_data (list[dict[str, Any]]): Input data for the reduce operation.
             validator_prompt (str): The validator prompt for evaluating reduce plans.
 
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing a single-item list with the optimized configuration
+            tuple[list[dict[str, Any]], list[dict[str, Any]], float]: A tuple containing a single-item list with the optimized configuration
             and a single-item list with the output from the optimized operation, and the cost of the operation due to synthesizing any resolve operations.
         """
         # Step 1: Determine and configure value sampling (TODO: re-enable this when the agent is more reliable)
@@ -392,9 +392,9 @@ class ReduceOptimizer:
 
     def _generate_gleaning_plans(
         self,
-        plans: List[Dict[str, Any]],
+        plans: list[dict[str, Any]],
         validation_prompt: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Generate plans that use gleaning for the given operation.
 
@@ -403,11 +403,11 @@ class ReduceOptimizer:
         numbers of gleaning rounds.
 
         Args:
-            plans (List[Dict[str, Any]]): The list of plans to use for gleaning.
+            plans (list[dict[str, Any]]): The list of plans to use for gleaning.
             validation_prompt (str): The prompt used for validating the operation's output.
 
         Returns:
-            Dict[str, List[Dict[str, Any]]]: A dictionary of gleaning plans, where each key
+            dict[str, list[dict[str, Any]]]: A dictionary of gleaning plans, where each key
             is a plan name and each value is a list containing a single operation configuration
             with gleaning parameters.
 
@@ -432,11 +432,11 @@ class ReduceOptimizer:
 
     def _optimize_decomposed_reduce(
         self,
-        decomposition_result: Dict[str, Any],
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        decomposition_result: dict[str, Any],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         level: int,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float]:
         """
         Optimize a decomposed reduce operation.
 
@@ -448,12 +448,12 @@ class ReduceOptimizer:
         5. Run the optimized second reduce operation.
 
         Args:
-            decomposition_result (Dict[str, Any]): The result of the decomposition evaluation.
-            op_config (Dict[str, Any]): The original reduce operation configuration.
-            input_data (List[Dict[str, Any]]): The input data for the reduce operation.
+            decomposition_result (dict[str, Any]): The result of the decomposition evaluation.
+            op_config (dict[str, Any]): The original reduce operation configuration.
+            input_data (list[dict[str, Any]]): The input data for the reduce operation.
             level (int): The current level of decomposition.
         Returns:
-            Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float]: A tuple containing the list of optimized configurations
+            tuple[list[dict[str, Any]], list[dict[str, Any]], float]: A tuple containing the list of optimized configurations
             for both reduce operations and the final output of the second reduce operation, and the cost of the operation due to synthesizing any resolve operations.
         """
         sub_group_key = decomposition_result["sub_group_key"]
@@ -530,10 +530,10 @@ class ReduceOptimizer:
 
     def _evaluate_decomposition(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         level: int = 1,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Evaluate whether decomposing the reduce operation would be beneficial.
 
@@ -541,12 +541,12 @@ class ReduceOptimizer:
         it then determines the sub-group key and prompts for the decomposed operations.
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            input_data (list[dict[str, Any]]): Input data for the reduce operation.
             level (int): The current level of decomposition.
 
         Returns:
-            Dict[str, Any]: A dictionary containing the decomposition decision and details.
+            dict[str, Any]: A dictionary containing the decomposition decision and details.
         """
         should_decompose = self._should_decompose(op_config, input_data, level)
 
@@ -605,20 +605,20 @@ class ReduceOptimizer:
 
     def _should_decompose(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         level: int = 1,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Determine if decomposing the reduce operation would be beneficial.
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            input_data (list[dict[str, Any]]): Input data for the reduce operation.
             level (int): The current level of decomposition.
 
         Returns:
-            Dict[str, Any]: A dictionary containing the decomposition decision and explanation.
+            dict[str, Any]: A dictionary containing the decomposition decision and explanation.
         """
         # TODO: we have not enabled recursive decomposition yet
         if level > 1 and not op_config.get("recursively_optimize", False):
@@ -698,18 +698,18 @@ class ReduceOptimizer:
 
     def _get_decomposition_details(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """
         Determine the sub-group key and prompts for decomposed reduce operations.
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            input_data (list[dict[str, Any]]): Input data for the reduce operation.
 
         Returns:
-            Dict[str, Any]: A dictionary containing the sub-group key and prompts for decomposed operations.
+            dict[str, Any]: A dictionary containing the sub-group key and prompts for decomposed operations.
         """
         system_prompt = (
             "You are an AI assistant tasked with optimizing data processing pipelines."
@@ -767,8 +767,8 @@ class ReduceOptimizer:
         return json.loads(response.choices[0].message.content)
 
     def _determine_value_sampling(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         Determine whether value sampling should be enabled and configure its parameters.
         """
@@ -953,7 +953,7 @@ class ReduceOptimizer:
         return value_sampling_config
 
     def _is_associative(
-        self, op_config: Dict[str, Any], input_data: List[Dict[str, Any]]
+        self, op_config: dict[str, Any], input_data: list[dict[str, Any]]
     ) -> bool:
         """
         Determine if the reduce operation is associative.
@@ -963,8 +963,8 @@ class ReduceOptimizer:
         doesn't affect the final result).
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            input_data (list[dict[str, Any]]): Input data for the reduce operation.
 
         Returns:
             bool: True if the operation is determined to be associative, False otherwise.
@@ -1021,9 +1021,9 @@ class ReduceOptimizer:
 
     def _generate_validator_prompt(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
-        original_output: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
+        original_output: list[dict[str, Any]],
     ) -> str:
         """
         Generate a custom validator prompt for assessing the quality of the reduce operation output.
@@ -1032,9 +1032,9 @@ class ReduceOptimizer:
         It includes specific questions about the quality and completeness of the output.
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
-            original_output (List[Dict[str, Any]]): Original output of the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            input_data (list[dict[str, Any]]): Input data for the reduce operation.
+            original_output (list[dict[str, Any]]): Original output of the reduce operation.
 
         Returns:
             str: A custom validator prompt as a string.
@@ -1122,11 +1122,11 @@ class ReduceOptimizer:
 
     def _validate_reduce_output(
         self,
-        op_config: Dict[str, Any],
-        validation_inputs: Dict[Any, List[Dict[str, Any]]],
-        output_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        validation_inputs: dict[Any, list[dict[str, Any]]],
+        output_data: list[dict[str, Any]],
         validator_prompt: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Validate the output of the reduce operation using the generated validator prompt.
 
@@ -1134,13 +1134,13 @@ class ReduceOptimizer:
         to multiple samples of the input and output data.
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            validation_inputs (Dict[Any, List[Dict[str, Any]]]): Validation inputs for the reduce operation.
-            output_data (List[Dict[str, Any]]): Output data from the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            validation_inputs (dict[Any, list[dict[str, Any]]]): Validation inputs for the reduce operation.
+            output_data (list[dict[str, Any]]): Output data from the reduce operation.
             validator_prompt (str): The validator prompt generated earlier.
 
         Returns:
-            Dict[str, Any]: A dictionary containing validation results and a flag indicating if improvement is needed.
+            dict[str, Any]: A dictionary containing validation results and a flag indicating if improvement is needed.
         """
         system_prompt = "You are an AI assistant tasked with validating the output of reduce operations in data processing pipelines."
 
@@ -1239,8 +1239,8 @@ class ReduceOptimizer:
         }
 
     def _create_validation_inputs(
-        self, input_data: List[Dict[str, Any]], reduce_key: Union[str, List[str]]
-    ) -> Dict[Any, List[Dict[str, Any]]]:
+        self, input_data: list[dict[str, Any]], reduce_key: str | list[str]
+    ) -> dict[Any, list[dict[str, Any]]]:
         # Group input data by reduce_key
         grouped_data = {}
         if reduce_key == ["_all"]:
@@ -1270,10 +1270,10 @@ class ReduceOptimizer:
 
     def _create_reduce_plans(
         self,
-        op_config: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        input_data: list[dict[str, Any]],
         is_associative: bool,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Create multiple reduce plans based on the input data and operation configuration.
 
@@ -1281,12 +1281,12 @@ class ReduceOptimizer:
         It takes into account the LLM's context window size to determine appropriate batch sizes.
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            input_data (List[Dict[str, Any]]): Input data for the reduce operation.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            input_data (list[dict[str, Any]]): Input data for the reduce operation.
             is_associative (bool): Flag indicating whether the reduce operation is associative.
 
         Returns:
-            List[Dict[str, Any]]: A list of reduce plans, each with different batch sizes and fold prompts.
+            list[dict[str, Any]]: A list of reduce plans, each with different batch sizes and fold prompts.
         """
         model = op_config.get("model", "gpt-4o-mini")
         model_input_context_length = model_cost.get(model, {}).get(
@@ -1374,9 +1374,9 @@ class ReduceOptimizer:
 
     def _calculate_compression_ratio(
         self,
-        op_config: Dict[str, Any],
-        sample_input: List[Dict[str, Any]],
-        sample_output: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        sample_input: list[dict[str, Any]],
+        sample_output: list[dict[str, Any]],
     ) -> float:
         """
         Calculate the compression ratio of the reduce operation.
@@ -1385,9 +1385,9 @@ class ReduceOptimizer:
         to determine how much the data is being compressed by the reduce operation.
 
         Args:
-            op_config (Dict[str, Any]): Configuration for the reduce operation.
-            sample_input (List[Dict[str, Any]]): Sample input data.
-            sample_output (List[Dict[str, Any]]): Sample output data.
+            op_config (dict[str, Any]): Configuration for the reduce operation.
+            sample_input (list[dict[str, Any]]): Sample input data.
+            sample_output (list[dict[str, Any]]): Sample output data.
 
         Returns:
             float: The calculated compression ratio.
@@ -1480,11 +1480,11 @@ class ReduceOptimizer:
 
     def _synthesize_fold_prompts(
         self,
-        op_config: Dict[str, Any],
-        sample_input: List[Dict[str, Any]],
-        sample_output: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        sample_input: list[dict[str, Any]],
+        sample_output: list[dict[str, Any]],
         num_prompts: int = 2,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Synthesize fold prompts for the reduce operation. We generate multiple
         fold prompts in case one is bad.
@@ -1499,13 +1499,13 @@ class ReduceOptimizer:
         that are variations of the original reduce prompt, adapted for folding operations.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the reduce operation.
-            sample_input (List[Dict[str, Any]]): A sample of the input data.
-            sample_output (List[Dict[str, Any]]): A sample of the output data.
+            op_config (dict[str, Any]): The configuration of the reduce operation.
+            sample_input (list[dict[str, Any]]): A sample of the input data.
+            sample_output (list[dict[str, Any]]): A sample of the output data.
             num_prompts (int, optional): The number of fold prompts to generate. Defaults to 2.
 
         Returns:
-            List[str]: A list of synthesized fold prompts.
+            list[str]: A list of synthesized fold prompts.
 
         The method performs the following steps:
         1. Sets up the system prompt and parameters for the language model.
@@ -1646,11 +1646,11 @@ Remember, you must fold the new data into the existing output, do not start fres
 
     def _evaluate_reduce_plans(
         self,
-        op_config: Dict[str, Any],
-        plans: List[Dict[str, Any]],
-        input_data: List[Dict[str, Any]],
+        op_config: dict[str, Any],
+        plans: list[dict[str, Any]],
+        input_data: list[dict[str, Any]],
         validator_prompt: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Evaluate multiple reduce plans and select the best one.
 
@@ -1665,13 +1665,13 @@ Remember, you must fold the new data into the existing output, do not start fres
         together. We default to a merge batch size of 2, but one can increase this.
 
         Args:
-            op_config (Dict[str, Any]): The configuration of the reduce operation.
-            plans (List[Dict[str, Any]]): A list of reduce plans to evaluate.
-            input_data (List[Dict[str, Any]]): The input data to use for evaluation.
+            op_config (dict[str, Any]): The configuration of the reduce operation.
+            plans (list[dict[str, Any]]): A list of reduce plans to evaluate.
+            input_data (list[dict[str, Any]]): The input data to use for evaluation.
             validator_prompt (str): The prompt to use for validating the output of each plan.
 
         Returns:
-            Dict[str, Any]: The best reduce plan, either the top-performing original plan
+            dict[str, Any]: The best reduce plan, either the top-performing original plan
                             or a merged plan if it performs well enough.
 
         The method performs the following steps:
@@ -1783,15 +1783,15 @@ Remember, you must fold the new data into the existing output, do not start fres
 
     def _evaluate_single_plan(
         self,
-        plan: Dict[str, Any],
-        input_data: List[Dict[str, Any]],
+        plan: dict[str, Any],
+        input_data: list[dict[str, Any]],
         validator_prompt: str,
-        validation_inputs: List[Dict[str, Any]],
+        validation_inputs: list[dict[str, Any]],
         return_instance: bool = False,
-    ) -> Union[
-        Tuple[Dict[str, Any], float, List[Dict[str, Any]]],
-        Tuple[Dict[str, Any], float, List[Dict[str, Any]], BaseOperation],
-    ]:
+    ) -> (
+        tuple[dict[str, Any], float, list[dict[str, Any]]]
+        | tuple[dict[str, Any], float, list[dict[str, Any]], BaseOperation]
+    ):
         """
         Evaluate a single reduce plan using the provided input data and validator prompt.
 
@@ -1804,15 +1804,15 @@ Remember, you must fold the new data into the existing output, do not start fres
         TODO: We should come up with a better scoring method here, maybe pairwise comparisons.
 
         Args:
-            plan (Dict[str, Any]): The reduce plan to evaluate.
-            input_data (List[Dict[str, Any]]): The input data to use for evaluation.
+            plan (dict[str, Any]): The reduce plan to evaluate.
+            input_data (list[dict[str, Any]]): The input data to use for evaluation.
             validator_prompt (str): The prompt to use for validating the output.
             return_instance (bool, optional): Whether to return the operation instance. Defaults to False.
 
         Returns:
-            Union[
-                Tuple[Dict[str, Any], float, List[Dict[str, Any]]],
-                Tuple[Dict[str, Any], float, List[Dict[str, Any]], BaseOperation],
+            tuple[
+                tuple[dict[str, Any], float, list[dict[str, Any]]],
+                tuple[dict[str, Any], float, list[dict[str, Any]], BaseOperation],
             ]: A tuple containing the plan, its score, the output data, and optionally the operation instance.
 
         The method performs the following steps:
@@ -1843,7 +1843,7 @@ Remember, you must fold the new data into the existing output, do not start fres
             return plan, score, output
 
     def _synthesize_merge_prompt(
-        self, plan: Dict[str, Any], sample_outputs: List[Dict[str, Any]]
+        self, plan: dict[str, Any], sample_outputs: list[dict[str, Any]]
     ) -> str:
         """
         Synthesize a merge prompt for combining multiple folded outputs in a reduce operation.
@@ -1854,8 +1854,8 @@ Remember, you must fold the new data into the existing output, do not start fres
         requirements of merging multiple outputs.
 
         Args:
-            plan (Dict[str, Any]): The reduce plan containing the original prompt and fold prompt.
-            sample_outputs (List[Dict[str, Any]]): Sample outputs from the fold operation to use as examples.
+            plan (dict[str, Any]): The reduce plan containing the original prompt and fold prompt.
+            sample_outputs (list[dict[str, Any]]): Sample outputs from the fold operation to use as examples.
 
         Returns:
             str: The synthesized merge prompt as a string.

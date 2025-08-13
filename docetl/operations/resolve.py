@@ -4,11 +4,12 @@ The `ResolveOperation` class is a subclass of `BaseOperation` that performs a re
 
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import jinja2
 from jinja2 import Template
-from pydantic import Field
+from litellm import model_cost
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from rich.prompt import Confirm
 
 from docetl.operations.base import BaseOperation
@@ -27,44 +28,122 @@ class ResolveOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "resolve"
         comparison_prompt: str
-        resolution_prompt: Optional[str] = None
-        output: Optional[Dict[str, Any]] = None
-        embedding_model: Optional[str] = None
-        resolution_model: Optional[str] = None
-        comparison_model: Optional[str] = None
-        blocking_keys: Optional[List[str]] = None
-        blocking_threshold: Optional[float] = None
-        blocking_conditions: Optional[List[str]] = None
-        input: Optional[Dict[str, Any]] = None
-        embedding_batch_size: Optional[int] = None
-        compare_batch_size: Optional[int] = None
-        limit_comparisons: Optional[int] = None
-        optimize: Optional[bool] = None
-        timeout: Optional[int] = None
-        litellm_completion_kwargs: Dict[str, Any] = Field(default_factory=dict)
+        resolution_prompt: str | None = None
+        output: dict[str, Any] | None = None
+        embedding_model: str | None = None
+        resolution_model: str | None = None
+        comparison_model: str | None = None
+        blocking_keys: list[str] | None = None
+        blocking_threshold: float | None = Field(None, ge=0, le=1)
+        blocking_conditions: list[str] | None = None
+        input: dict[str, Any] | None = None
+        embedding_batch_size: int | None = Field(None, gt=0)
+        compare_batch_size: int | None = Field(None, gt=0)
+        limit_comparisons: int | None = Field(None, gt=0)
+        optimize: bool | None = None
+        timeout: int | None = Field(None, gt=0)
+        litellm_completion_kwargs: dict[str, Any] = Field(default_factory=dict)
         enable_observability: bool = False
+
+        @field_validator("comparison_prompt")
+        def validate_comparison_prompt(cls, v):
+            if v is not None:
+                try:
+                    comparison_template = Template(v)
+                    comparison_vars = comparison_template.environment.parse(v).find_all(
+                        jinja2.nodes.Name
+                    )
+                    comparison_var_names = {var.name for var in comparison_vars}
+                    if (
+                        "input1" not in comparison_var_names
+                        or "input2" not in comparison_var_names
+                    ):
+                        raise ValueError(
+                            f"'comparison_prompt' must contain both 'input1' and 'input2' variables. {v}"
+                        )
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'comparison_prompt': {str(e)}"
+                    )
+            return v
+
+        @field_validator("resolution_prompt")
+        def validate_resolution_prompt(cls, v):
+            if v is not None:
+                try:
+                    reduction_template = Template(v)
+                    reduction_vars = reduction_template.environment.parse(v).find_all(
+                        jinja2.nodes.Name
+                    )
+                    reduction_var_names = {var.name for var in reduction_vars}
+                    if "inputs" not in reduction_var_names:
+                        raise ValueError(
+                            "'resolution_prompt' must contain 'inputs' variable"
+                        )
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Jinja2 template in 'resolution_prompt': {str(e)}"
+                    )
+            return v
+
+        @field_validator("input")
+        def validate_input_schema(cls, v):
+            if v is not None:
+                if "schema" not in v:
+                    raise ValueError("Missing 'schema' in 'input' configuration")
+                if not isinstance(v["schema"], dict):
+                    raise TypeError(
+                        "'schema' in 'input' configuration must be a dictionary"
+                    )
+            return v
+
+        @model_validator(mode="after")
+        def validate_output_schema(self, info: ValidationInfo):
+            # Skip validation if we're using from dataframe accessors
+            if isinstance(info.context, dict) and info.context.get(
+                "_from_df_accessors"
+            ):
+                return self
+
+            if self.output is None:
+                raise ValueError(
+                    "Missing required key 'output' in ResolveOperation configuration"
+                )
+
+            if "schema" not in self.output:
+                raise ValueError("Missing 'schema' in 'output' configuration")
+
+            if not isinstance(self.output["schema"], dict):
+                raise TypeError(
+                    "'schema' in 'output' configuration must be a dictionary"
+                )
+
+            if not self.output["schema"]:
+                raise ValueError("'schema' in 'output' configuration cannot be empty")
+
+            return self
 
     def compare_pair(
         self,
         comparison_prompt: str,
         model: str,
-        item1: Dict,
-        item2: Dict,
-        blocking_keys: List[str] = [],
+        item1: dict,
+        item2: dict,
+        blocking_keys: list[str] = [],
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
-    ) -> Tuple[bool, float, str]:
+    ) -> tuple[bool, float, str]:
         """
         Compares two items using an LLM model to determine if they match.
 
         Args:
             comparison_prompt (str): The prompt template for comparison.
             model (str): The LLM model to use for comparison.
-            item1 (Dict): The first item to compare.
-            item2 (Dict): The second item to compare.
+            item1 (dict): The first item to compare.
+            item2 (dict): The second item to compare.
 
         Returns:
-            Tuple[bool, float, str]: A tuple containing a boolean indicating whether the items match, the cost of the comparison, and the prompt.
+            tuple[bool, float, str]: A tuple containing a boolean indicating whether the items match, the cost of the comparison, and the prompt.
         """
         if blocking_keys:
             if all(
@@ -95,114 +174,10 @@ class ResolveOperation(BaseOperation):
         return output["is_match"], response.total_cost, prompt
 
     def syntax_check(self) -> None:
-        """
-        Checks the configuration of the ResolveOperation for required keys and valid structure.
+        context = {"_from_df_accessors": self.runner._from_df_accessors}
+        super().syntax_check(context)
 
-        This method performs the following checks:
-        1. Verifies the presence of required keys: 'comparison_prompt' and 'output'.
-        2. Ensures 'output' contains a 'schema' key.
-        3. Validates that 'schema' in 'output' is a non-empty dictionary.
-        4. Checks if 'comparison_prompt' is a valid Jinja2 template with 'input1' and 'input2' variables.
-        5. If 'resolution_prompt' is present, verifies it as a valid Jinja2 template with 'inputs' variable.
-        6. Optionally checks if 'model' is a string (if present).
-        7. Optionally checks 'blocking_keys' (if present, further checks are performed).
-
-        Raises:
-            ValueError: If required keys are missing, if templates are invalid or missing required variables,
-                        or if any other configuration aspect is incorrect or inconsistent.
-            TypeError: If the types of configuration values are incorrect, such as 'schema' not being a dict
-                       or 'model' not being a string.
-        """
-        required_keys = ["comparison_prompt", "output"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in ResolveOperation configuration"
-                )
-
-        if "schema" not in self.config["output"] and not self.runner._from_df_accessors:
-            raise ValueError("Missing 'schema' in 'output' configuration")
-        elif not self.runner._from_df_accessors:
-            if not isinstance(self.config["output"]["schema"], dict):
-                raise TypeError(
-                    "'schema' in 'output' configuration must be a dictionary"
-                )
-
-            if not self.config["output"]["schema"]:
-                raise ValueError("'schema' in 'output' configuration cannot be empty")
-
-        # Check if the comparison_prompt is a valid Jinja2 template
-        try:
-            comparison_template = Template(self.config["comparison_prompt"])
-            comparison_vars = comparison_template.environment.parse(
-                self.config["comparison_prompt"]
-            ).find_all(jinja2.nodes.Name)
-            comparison_var_names = {var.name for var in comparison_vars}
-            if (
-                "input1" not in comparison_var_names
-                or "input2" not in comparison_var_names
-            ):
-                raise ValueError(
-                    f"'comparison_prompt' must contain both 'input1' and 'input2' variables. {self.config['comparison_prompt']}"
-                )
-
-            if "resolution_prompt" in self.config:
-                reduction_template = Template(self.config["resolution_prompt"])
-                reduction_vars = reduction_template.environment.parse(
-                    self.config["resolution_prompt"]
-                ).find_all(jinja2.nodes.Name)
-                reduction_var_names = {var.name for var in reduction_vars}
-                if "inputs" not in reduction_var_names:
-                    raise ValueError(
-                        "'resolution_prompt' must contain 'inputs' variable"
-                    )
-        except Exception as e:
-            raise ValueError(f"Invalid Jinja2 template: {str(e)}")
-
-        # Check if the model is specified (optional)
-        if "model" in self.config and not isinstance(self.config["model"], str):
-            raise TypeError("'model' in configuration must be a string")
-
-        # Check blocking_keys (optional)
-        if "blocking_keys" in self.config:
-            if not isinstance(self.config["blocking_keys"], list):
-                raise TypeError("'blocking_keys' must be a list")
-            if not all(isinstance(key, str) for key in self.config["blocking_keys"]):
-                raise TypeError("All items in 'blocking_keys' must be strings")
-
-        # Check blocking_threshold (optional)
-        if "blocking_threshold" in self.config:
-            if not isinstance(self.config["blocking_threshold"], (int, float)):
-                raise TypeError("'blocking_threshold' must be a number")
-            if not 0 <= self.config["blocking_threshold"] <= 1:
-                raise ValueError("'blocking_threshold' must be between 0 and 1")
-
-        # Check blocking_conditions (optional)
-        if "blocking_conditions" in self.config:
-            if not isinstance(self.config["blocking_conditions"], list):
-                raise TypeError("'blocking_conditions' must be a list")
-            if not all(
-                isinstance(cond, str) for cond in self.config["blocking_conditions"]
-            ):
-                raise TypeError("All items in 'blocking_conditions' must be strings")
-
-        # Check if input schema is provided and valid (optional)
-        if "input" in self.config:
-            if "schema" not in self.config["input"]:
-                raise ValueError("Missing 'schema' in 'input' configuration")
-            if not isinstance(self.config["input"]["schema"], dict):
-                raise TypeError(
-                    "'schema' in 'input' configuration must be a dictionary"
-                )
-
-        # Check limit_comparisons (optional)
-        if "limit_comparisons" in self.config:
-            if not isinstance(self.config["limit_comparisons"], int):
-                raise TypeError("'limit_comparisons' must be an integer")
-            if self.config["limit_comparisons"] <= 0:
-                raise ValueError("'limit_comparisons' must be a positive integer")
-
-    def validation_fn(self, response: Dict[str, Any]):
+    def validation_fn(self, response: dict[str, Any]):
         output = self.runner.api.parse_llm_response(
             response,
             schema=self.config["output"]["schema"],
@@ -211,15 +186,15 @@ class ResolveOperation(BaseOperation):
             return output, True
         return output, False
 
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Executes the resolve operation on the provided dataset.
 
         Args:
-            input_data (List[Dict]): The dataset to resolve.
+            input_data (list[dict]): The dataset to resolve.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the resolved results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the resolved results and the total cost of the operation.
 
         This method performs the following steps:
         1. Initial blocking based on specified conditions and/or embedding similarity
@@ -267,7 +242,7 @@ class ResolveOperation(BaseOperation):
         limit_comparisons = self.config.get("limit_comparisons")
         total_cost = 0
 
-        def is_match(item1: Dict[str, Any], item2: Dict[str, Any]) -> bool:
+        def is_match(item1: dict[str, Any], item2: dict[str, Any]) -> bool:
             return any(
                 eval(condition, {"input1": item1, "input2": item2})
                 for condition in blocking_conditions
@@ -276,17 +251,24 @@ class ResolveOperation(BaseOperation):
         # Calculate embeddings if blocking_threshold is set
         embeddings = None
         if blocking_threshold is not None:
-            embedding_model = self.config.get(
-                "embedding_model", "text-embedding-3-small"
-            )
 
             def get_embeddings_batch(
-                items: List[Dict[str, Any]]
-            ) -> List[Tuple[List[float], float]]:
+                items: list[dict[str, Any]]
+            ) -> list[tuple[list[float], float]]:
+                embedding_model = self.config.get(
+                    "embedding_model", "text-embedding-3-small"
+                )
+                model_input_context_length = model_cost.get(embedding_model, {}).get(
+                    "max_input_tokens", 8192
+                )
+
                 texts = [
-                    " ".join(str(item[key]) for key in blocking_keys if key in item)
+                    " ".join(str(item[key]) for key in blocking_keys if key in item)[
+                        : model_input_context_length * 3
+                    ]
                     for item in items
                 ]
+
                 response = self.runner.api.gen_embedding(
                     model=embedding_model, input=texts
                 )
@@ -314,10 +296,10 @@ class ResolveOperation(BaseOperation):
 
         # Generate all pairs to compare, ensuring no duplicate comparisons
         def get_unique_comparison_pairs() -> (
-            Tuple[List[Tuple[int, int]], Dict[Tuple[str, ...], List[int]]]
+            tuple[list[tuple[int, int]], dict[tuple[str, ...], list[int]]]
         ):
             # Create a mapping of values to their indices
-            value_to_indices: Dict[Tuple[str, ...], List[int]] = {}
+            value_to_indices: dict[tuple[str, ...], list[int]] = {}
             for i, item in enumerate(input_data):
                 # Create a hashable key from the blocking keys
                 key = tuple(str(item.get(k, "")) for k in blocking_keys)
@@ -343,7 +325,7 @@ class ResolveOperation(BaseOperation):
         comparison_pairs, value_to_indices = get_unique_comparison_pairs()
 
         # Filter pairs based on blocking conditions
-        def meets_blocking_conditions(pair: Tuple[int, int]) -> bool:
+        def meets_blocking_conditions(pair: tuple[int, int]) -> bool:
             i, j = pair
             return (
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False

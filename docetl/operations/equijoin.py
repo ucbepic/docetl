@@ -7,10 +7,11 @@ import random
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, cpu_count
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from litellm import model_cost
+from pydantic import field_validator
 from rich.console import Console
 from rich.prompt import Confirm
 
@@ -30,7 +31,7 @@ def init_worker(right_data, blocking_conditions):
     _blocking_conditions = blocking_conditions
 
 
-def is_match(left_item: Dict[str, Any], right_item: Dict[str, Any]) -> bool:
+def is_match(left_item: dict[str, Any], right_item: dict[str, Any]) -> bool:
     return any(
         eval(condition, {"left": left_item, "right": right_item})
         for condition in _blocking_conditions
@@ -38,13 +39,13 @@ def is_match(left_item: Dict[str, Any], right_item: Dict[str, Any]) -> bool:
 
 
 # LLM-based comparison for blocked pairs
-def get_hashable_key(item: Dict) -> str:
+def get_hashable_key(item: dict) -> str:
     return json.dumps(item, sort_keys=True)
 
 
 def process_left_item(
-    left_item: Dict[str, Any]
-) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+    left_item: dict[str, Any]
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     return [
         (left_item, right_item)
         for right_item in _right_data
@@ -55,45 +56,61 @@ def process_left_item(
 class EquijoinOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "equijoin"
-        left: str
-        right: str
         comparison_prompt: str
-        output: Optional[Dict[str, Any]] = None
-        blocking_threshold: Optional[float] = None
-        blocking_conditions: Optional[Dict[str, List[str]]] = None
-        limits: Optional[Dict[str, int]] = None
-        comparison_model: Optional[str] = None
-        optimize: Optional[bool] = None
-        embedding_model: Optional[str] = None
-        embedding_batch_size: Optional[int] = None
-        compare_batch_size: Optional[int] = None
-        limit_comparisons: Optional[int] = None
-        blocking_keys: Optional[Dict[str, List[str]]] = None
-        timeout: Optional[int] = None
-        litellm_completion_kwargs: Dict[str, Any] = {}
+        output: dict[str, Any] | None = None
+        blocking_threshold: float | None = None
+        blocking_conditions: list[str] | None = None
+        limits: dict[str, int] | None = None
+        comparison_model: str | None = None
+        optimize: bool | None = None
+        embedding_model: str | None = None
+        embedding_batch_size: int | None = None
+        compare_batch_size: int | None = None
+        limit_comparisons: int | None = None
+        blocking_keys: dict[str, list[str]] | None = None
+        timeout: int | None = None
+        litellm_completion_kwargs: dict[str, Any] = {}
+
+        @field_validator("blocking_keys")
+        def validate_blocking_keys(cls, v):
+            if v is not None:
+                if "left" not in v or "right" not in v:
+                    raise ValueError(
+                        "Both 'left' and 'right' must be specified in 'blocking_keys'"
+                    )
+            return v
+
+        @field_validator("limits")
+        def validate_limits(cls, v):
+            if v is not None:
+                if "left" not in v or "right" not in v:
+                    raise ValueError(
+                        "Both 'left' and 'right' must be specified in 'limits'"
+                    )
+            return v
 
     def compare_pair(
         self,
         comparison_prompt: str,
         model: str,
-        item1: Dict,
-        item2: Dict,
+        item1: dict,
+        item2: dict,
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
         """
         Compares two items using an LLM model to determine if they match.
 
         Args:
             comparison_prompt (str): The prompt template for comparison.
             model (str): The LLM model to use for comparison.
-            item1 (Dict): The first item to compare.
-            item2 (Dict): The second item to compare.
+            item1 (dict): The first item to compare.
+            item2 (dict): The second item to compare.
             timeout_seconds (int): The timeout for the LLM call in seconds.
             max_retries_per_timeout (int): The maximum number of retries per timeout.
 
         Returns:
-            Tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
+            tuple[bool, float]: A tuple containing a boolean indicating whether the items match and the cost of the comparison.
         """
 
         try:
@@ -123,56 +140,18 @@ class EquijoinOperation(BaseOperation):
             return False, cost
         return output["is_match"], cost
 
-    def syntax_check(self) -> None:
-        """
-        Checks the configuration of the EquijoinOperation for required keys and valid structure.
-
-        Raises:
-            ValueError: If required keys are missing or if the blocking_keys structure is invalid.
-            Specifically:
-            - Raises if 'comparison_prompt' is missing from the config.
-            - Raises if 'left' or 'right' are missing from the 'blocking_keys' structure (if present).
-            - Raises if 'left' or 'right' are missing from the 'limits' structure (if present).
-        """
-        if "comparison_prompt" not in self.config:
-            raise ValueError(
-                "Missing required key 'comparison_prompt' in EquijoinOperation configuration"
-            )
-
-        if "blocking_keys" in self.config:
-            if (
-                "left" not in self.config["blocking_keys"]
-                or "right" not in self.config["blocking_keys"]
-            ):
-                raise ValueError(
-                    "Both 'left' and 'right' must be specified in 'blocking_keys'"
-                )
-
-        if "limits" in self.config:
-            if (
-                "left" not in self.config["limits"]
-                or "right" not in self.config["limits"]
-            ):
-                raise ValueError(
-                    "Both 'left' and 'right' must be specified in 'limits'"
-                )
-
-        if "limit_comparisons" in self.config:
-            if not isinstance(self.config["limit_comparisons"], int):
-                raise ValueError("limit_comparisons must be an integer")
-
     def execute(
-        self, left_data: List[Dict], right_data: List[Dict]
-    ) -> Tuple[List[Dict], float]:
+        self, left_data: list[dict], right_data: list[dict]
+    ) -> tuple[list[dict], float]:
         """
         Executes the equijoin operation on the provided datasets.
 
         Args:
-            left_data (List[Dict]): The left dataset to join.
-            right_data (List[Dict]): The right dataset to join.
+            left_data (list[dict]): The left dataset to join.
+            right_data (list[dict]): The right dataset to join.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the joined results and the total cost of the operation.
+            tuple[list[dict], float]: A tuple containing the joined results and the total cost of the operation.
 
         Usage:
         ```python
@@ -286,8 +265,8 @@ class EquijoinOperation(BaseOperation):
             )
 
             def get_embeddings(
-                input_data: List[Dict[str, Any]], keys: List[str], name: str
-            ) -> Tuple[List[List[float]], float]:
+                input_data: list[dict[str, Any]], keys: list[str], name: str
+            ) -> tuple[list[list[float]], float]:
                 texts = [
                     " ".join(str(item[key]) for key in keys if key in item)[
                         : model_input_context_length * 4
@@ -491,7 +470,7 @@ class EquijoinOperation(BaseOperation):
         return results, total_cost
 
 
-def estimate_length(items: List[Dict], sample_size: int = 1000) -> float:
+def estimate_length(items: list[dict], sample_size: int = 1000) -> float:
     """
     Estimates average document length in the relation.
     Returns a normalized score (0-1) representing relative document size.
@@ -509,7 +488,7 @@ def estimate_length(items: List[Dict], sample_size: int = 1000) -> float:
     sample_size = min(len(items), sample_size)
     sample = random.sample(items, sample_size)
 
-    def get_doc_length(doc: Dict) -> int:
+    def get_doc_length(doc: dict) -> int:
         """Calculate total length of all string values in document"""
         total_len = 0
         for value in doc.values():
@@ -529,11 +508,11 @@ def estimate_length(items: List[Dict], sample_size: int = 1000) -> float:
 
 
 def stratified_length_sample(
-    blocked_pairs: List[Tuple[Dict, Dict]],
+    blocked_pairs: list[tuple[dict, dict]],
     limit_comparisons: int,
     sample_size: int = 1000,
     console: Console = None,
-) -> List[Tuple[Dict, Dict]]:
+) -> list[tuple[dict, dict]]:
     """
     Samples pairs stratified by the smaller cardinality relation,
     prioritizing longer matches within each stratum.

@@ -1,4 +1,6 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from pydantic import field_validator
 
 from docetl.operations.base import BaseOperation
 
@@ -20,8 +22,24 @@ class GatherOperation(BaseOperation):
         content_key: str
         doc_id_key: str
         order_key: str
-        peripheral_chunks: Dict[str, Any]
-        doc_header_key: Optional[str] = None
+        peripheral_chunks: dict[str, Any] | None = None
+        doc_header_key: str | None = None
+        main_chunk_start: str | None = None
+        main_chunk_end: str | None = None
+
+        @field_validator("peripheral_chunks")
+        def validate_peripheral_chunks(cls, v):
+            for direction in ["previous", "next"]:
+                if direction not in v:
+                    continue
+                for section in ["head", "middle", "tail"]:
+                    if section in v[direction]:
+                        section_config = v[direction][section]
+                        if section != "middle" and "count" not in section_config:
+                            raise ValueError(
+                                f"Missing 'count' in {direction}.{section} configuration"
+                            )
+            return v
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -34,50 +52,19 @@ class GatherOperation(BaseOperation):
         super().__init__(*args, **kwargs)
 
     def syntax_check(self) -> None:
-        """
-        Perform a syntax check on the operation configuration.
+        """Perform a syntax check on the operation configuration."""
+        # Validate the schema using Pydantic
+        self.schema(**self.config)
 
-        Raises:
-            ValueError: If required keys are missing or if there are configuration errors.
-            TypeError: If main_chunk_start or main_chunk_end are not strings.
-        """
-        required_keys = ["content_key", "doc_id_key", "order_key"]
-        for key in required_keys:
-            if key not in self.config:
-                raise ValueError(
-                    f"Missing required key '{key}' in GatherOperation configuration"
-                )
-
-        peripheral_config = self.config.get("peripheral_chunks", {})
-        for direction in ["previous", "next"]:
-            if direction not in peripheral_config:
-                continue
-            for section in ["head", "middle", "tail"]:
-                if section in peripheral_config[direction]:
-                    section_config = peripheral_config[direction][section]
-                    if section != "middle" and "count" not in section_config:
-                        raise ValueError(
-                            f"Missing 'count' in {direction}.{section} configuration"
-                        )
-
-        if "main_chunk_start" in self.config and not isinstance(
-            self.config["main_chunk_start"], str
-        ):
-            raise TypeError("'main_chunk_start' must be a string")
-        if "main_chunk_end" in self.config and not isinstance(
-            self.config["main_chunk_end"], str
-        ):
-            raise TypeError("'main_chunk_end' must be a string")
-
-    def execute(self, input_data: List[Dict]) -> Tuple[List[Dict], float]:
+    def execute(self, input_data: list[dict]) -> tuple[list[dict], float]:
         """
         Execute the gather operation on the input data.
 
         Args:
-            input_data (List[Dict]): The input data to process.
+            input_data (list[dict]): The input data to process.
 
         Returns:
-            Tuple[List[Dict], float]: A tuple containing the processed results and the cost of the operation.
+            tuple[list[dict], float]: A tuple containing the processed results and the cost of the operation.
         """
         content_key = self.config["content_key"]
         doc_id_key = self.config["doc_id_key"]
@@ -125,9 +112,9 @@ class GatherOperation(BaseOperation):
 
     def render_chunk_with_context(
         self,
-        chunks: List[Dict],
+        chunks: list[dict],
         current_index: int,
-        peripheral_config: Dict,
+        peripheral_config: dict,
         content_key: str,
         order_key: str,
         main_chunk_start: str,
@@ -138,9 +125,9 @@ class GatherOperation(BaseOperation):
         Render a chunk with its peripheral context and headers.
 
         Args:
-            chunks (List[Dict]): List of all chunks in the document.
+            chunks (list[dict]): List of all chunks in the document.
             current_index (int): Index of the current chunk being processed.
-            peripheral_config (Dict): Configuration for peripheral chunks.
+            peripheral_config (dict): Configuration for peripheral chunks.
             content_key (str): Key for the content in each chunk.
             order_key (str): Key for the order of each chunk.
             main_chunk_start (str): String to mark the start of the main chunk.
@@ -195,24 +182,24 @@ class GatherOperation(BaseOperation):
 
     def process_peripheral_chunks(
         self,
-        chunks: List[Dict],
-        config: Dict,
+        chunks: list[dict],
+        config: dict,
         content_key: str,
         order_key: str,
         reverse: bool = False,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Process peripheral chunks according to the configuration.
 
         Args:
-            chunks (List[Dict]): List of chunks to process.
-            config (Dict): Configuration for processing peripheral chunks.
+            chunks (list[dict]): List of chunks to process.
+            config (dict): Configuration for processing peripheral chunks.
             content_key (str): Key for the content in each chunk.
             order_key (str): Key for the order of each chunk.
             reverse (bool, optional): Whether to process chunks in reverse order. Defaults to False.
 
         Returns:
-            List[str]: List of processed chunk strings.
+            list[str]: List of processed chunk strings.
         """
         if reverse:
             chunks = list(reversed(chunks))
@@ -274,16 +261,16 @@ class GatherOperation(BaseOperation):
 
     def render_hierarchy_headers(
         self,
-        current_chunk: Dict,
-        chunks: List[Dict],
+        current_chunk: dict,
+        chunks: list[dict],
         doc_header_key: str,
     ) -> str:
         """
         Render headers for the current chunk's hierarchy.
 
         Args:
-            current_chunk (Dict): The current chunk being processed.
-            chunks (List[Dict]): List of chunks up to and including the current chunk.
+            current_chunk (dict): The current chunk being processed.
+            chunks (list[dict]): List of chunks up to and including the current chunk.
             doc_header_key (str): The key for the headers in the current chunk.
         Returns:
             str: Renderted headers in the current chunk's hierarchy.

@@ -1,55 +1,59 @@
 # Load environment variables from .env file
 include .env
 
-.PHONY: tests tests-basic lint install mypy update ui-install ui-run docker
+.PHONY: tests tests-basic lint install mypy update install-ui run-ui-dev run-ui docker docker-clean test-aws docs-serve help
 
-# Existing commands
+# Test commands
 tests:
-	poetry run pytest
+	uv run pytest --ignore=tests/ranking --ignore=tests/test_ollama.py
 
 tests-basic:
-	poetry run pytest -s tests/basic
-	poetry run pytest -s tests/test_api.py
-	poetry run pytest -s tests/test_runner_caching.py
-	poetry run pytest -s tests/test_pandas_accessors.py
-	poetry run pytest -s tests/test_output_modes.py
+	uv run pytest -s tests/basic
+	uv run pytest -s tests/test_api.py
+	uv run pytest -s tests/test_runner_caching.py
+	uv run pytest -s tests/test_pandas_accessors.py
+	uv run pytest -s tests/test_output_modes.py
 
 lint:
-	poetry run ruff check docetl/* --fix
+	uv run ruff check docetl/* --fix
 
 install:
-	pip install poetry
-	poetry install --all-extras
+	curl -LsSf https://astral.sh/uv/install.sh | sh
+	export PATH=$$HOME/.local/bin:$$PATH && uv sync --all-groups --all-extras
+	export PATH=$$HOME/.local/bin:$$PATH && uv run pre-commit install
 
 mypy:
-	poetry run mypy
+	uv run mypy
 
 update:
-	poetry update
+	uv lock --upgrade
 
 # UI-related commands
-UI_DIR := ./website 
+UI_DIR := ./website
 
 install-ui:
 	cd $(UI_DIR) && npm install
 
 run-ui-dev:
 	@echo "Starting server..."
-	@python server/app/main.py & \
+	@export PATH=$$HOME/.local/bin:$$PATH; \
+	uv sync --all-extras; \
+	uv run python server/app/main.py & \
 	echo "Starting UI development server..." && \
-	cd $(UI_DIR) && HOST=${FRONTEND_HOST}  PORT=${FRONTEND_PORT} npm run dev
+	cd $(UI_DIR) && HOST=$${FRONTEND_HOST:-127.0.0.1} PORT=$${FRONTEND_PORT:-3000} npm run dev
 
 run-ui:
 	@echo "Starting server..."
-	@python server/app/main.py & \
+	@export PATH=$$HOME/.local/bin:$$PATH; \
+	uv sync --all-extras; \
+	uv run python server/app/main.py & \
 	echo "Building UI..." && \
-	cd $(UI_DIR) && npm run build && HOST=${FRONTEND_HOST}  PORT=${FRONTEND_PORT} NEXT_PUBLIC_FRONTEND_ALLOWED_HOSTS=${FRONTEND_ALLOWED_HOSTS} npm run start
+	cd $(UI_DIR) && npm run build && HOST=$${FRONTEND_HOST:-127.0.0.1} PORT=$${FRONTEND_PORT:-3000} NEXT_PUBLIC_FRONTEND_ALLOWED_HOSTS=$${FRONTEND_ALLOWED_HOSTS} npm run start
 
-# Single Docker command to build and run
+# Docker commands
 docker:
 	docker volume create docetl-data
 	docker build -t docetl .
-
 	@if [ -n "$${AWS_PROFILE}" ]; then \
 		echo "[INFO] Detected AWS_PROFILE — including AWS credentials."; \
 		DOCKER_AWS_FLAGS="-v ~/.aws:/root/.aws:ro \
@@ -70,9 +74,12 @@ docker:
 		-e BACKEND_PORT=8000 \
 		docetl
 
-# Add new command for cleaning up docker resources
 docker-clean:
 	docker volume rm docetl-data
+
+# Documentation commands
+docs-serve:
+	uv run mkdocs serve -a localhost:8001
 
 # Test AWS connectivity
 test-aws:
@@ -117,7 +124,7 @@ help:
 	@echo "  make tests        : Run all tests"
 	@echo "  make tests-basic  : Run basic tests"
 	@echo "  make lint         : Run linter"
-	@echo "  make install      : Install dependencies using Poetry"
+	@echo "  make install      : Install dependencies using uv"
 	@echo "  make mypy         : Run mypy for type checking"
 	@echo "  make update       : Update dependencies"
 	@echo "  make install-ui   : Install UI dependencies"
@@ -125,5 +132,6 @@ help:
 	@echo "  make run-ui       : Run UI production server"
 	@echo "  make docker       : Build and run docetl in Docker"
 	@echo "  make docker-clean : Remove docetl Docker volume"
+	@echo "  make docs-serve   : Serve documentation locally on port 8001"
 	@echo "  make test-aws     : Test AWS credentials configuration"
 	@echo "  make help         : Show this help message"

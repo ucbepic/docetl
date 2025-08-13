@@ -2,7 +2,7 @@ import importlib
 import io
 import os
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 def with_input_output_key(fn):
@@ -25,7 +25,7 @@ def with_input_output_key(fn):
 
 def llama_index_simple_directory_reader(
     item: dict[str, Any], input_key: str = "path"
-) -> List[dict[str, Any]]:
+) -> list[dict[str, Any]]:
     from llama_index.core import SimpleDirectoryReader
 
     documents = SimpleDirectoryReader(item[input_key]).load_data()
@@ -34,7 +34,7 @@ def llama_index_simple_directory_reader(
 
 def llama_index_wikipedia_reader(
     item: dict[str, Any], input_key: str = "pages"
-) -> List[dict[str, Any]]:
+) -> list[dict[str, Any]]:
     from llama_index.readers.wikipedia import WikipediaReader
 
     loader = WikipediaReader()
@@ -50,7 +50,7 @@ def llama_index_wikipedia_reader(
 
 
 @with_input_output_key
-def whisper_speech_to_text(filename: str) -> List[str]:
+def whisper_speech_to_text(filename: str) -> list[str]:
     """
     Transcribe speech from an audio file to text using Whisper model via litellm.
     If the file is larger than 25 MB, it's split into 10-minute chunks with 30-second overlap.
@@ -59,7 +59,7 @@ def whisper_speech_to_text(filename: str) -> List[str]:
         filename (str): Path to the mp3 or mp4 file.
 
     Returns:
-        List[str]: Transcribed text.
+        list[str]: Transcribed text.
     """
 
     from litellm import transcription
@@ -100,20 +100,20 @@ def whisper_speech_to_text(filename: str) -> List[str]:
 def xlsx_to_string(
     filename: str,
     orientation: str = "col",
-    col_order: Optional[List[str]] = None,
+    col_order: list[str] | None = None,
     doc_per_sheet: bool = False,
-) -> List[str]:
+) -> list[str]:
     """
     Convert an Excel file to a string representation or a list of string representations.
 
     Args:
         filename (str): Path to the xlsx file.
         orientation (str): Either "row" or "col" for cell arrangement.
-        col_order (Optional[List[str]]): List of column names to specify the order.
+        col_order (list[str] | None): List of column names to specify the order.
         doc_per_sheet (bool): If True, return a list of strings, one per sheet.
 
     Returns:
-        List[str]: String representation(s) of the Excel file content.
+        list[str]: String representation(s) of the Excel file content.
     """
     import openpyxl
 
@@ -154,7 +154,7 @@ def xlsx_to_string(
 
 
 @with_input_output_key
-def txt_to_string(filename: str) -> List[str]:
+def txt_to_string(filename: str) -> list[str]:
     """
     Read the content of a text file and return it as a list of strings (only one element).
 
@@ -162,14 +162,14 @@ def txt_to_string(filename: str) -> List[str]:
         filename (str): Path to the txt or md file.
 
     Returns:
-        List[str]: Content of the file as a list of strings.
+        list[str]: Content of the file as a list of strings.
     """
     with open(filename, "r", encoding="utf-8") as file:
         return [file.read()]
 
 
 @with_input_output_key
-def docx_to_string(filename: str) -> List[str]:
+def docx_to_string(filename: str) -> list[str]:
     """
     Extract text from a Word document.
 
@@ -177,7 +177,7 @@ def docx_to_string(filename: str) -> List[str]:
         filename (str): Path to the docx file.
 
     Returns:
-        List[str]: Extracted text from the document.
+        list[str]: Extracted text from the document.
     """
     from docx import Document
 
@@ -186,7 +186,7 @@ def docx_to_string(filename: str) -> List[str]:
 
 
 @with_input_output_key
-def pptx_to_string(filename: str, doc_per_slide: bool = False) -> List[str]:
+def pptx_to_string(filename: str, doc_per_slide: bool = False) -> list[str]:
     """
     Extract text from a PowerPoint presentation.
 
@@ -196,7 +196,7 @@ def pptx_to_string(filename: str, doc_per_slide: bool = False) -> List[str]:
             document. If False, return the entire presentation as one document.
 
     Returns:
-        List[str]: Extracted text from the presentation. If doc_per_slide
+        list[str]: Extracted text from the presentation. If doc_per_slide
             is True, each string in the list represents a single slide.
             Otherwise, the list contains a single string with all slides'
             content.
@@ -232,7 +232,7 @@ def azure_di_read(
     include_font_styles: bool = False,
     include_selection_marks: bool = False,
     doc_per_page: bool = False,
-) -> List[str]:
+) -> list[str]:
     """
     > Note to developers: We used [this documentation](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/use-sdk-rest-api?view=doc-intel-4.0.0&tabs=windows&pivots=programming-language-python) as a reference.
 
@@ -268,7 +268,7 @@ def azure_di_read(
         doc_per_page (bool, optional): If True, return each page as a separate document. Defaults to False.
 
     Returns:
-        List[str]: Extracted text from the document. If doc_per_page is True, each string in the list represents
+        list[str]: Extracted text from the document. If doc_per_page is True, each string in the list represents
                    a single page. Otherwise, the list contains a single string with all pages' content.
 
     Raises:
@@ -368,7 +368,7 @@ def paddleocr_pdf_to_string(
     doc_per_page: bool = False,
     ocr_enabled: bool = True,
     lang: str = "en",
-) -> List[str]:
+) -> list[str]:
     """
     Extract text and image information from a PDF file using PaddleOCR for image-based PDFs.
 
@@ -382,7 +382,7 @@ def paddleocr_pdf_to_string(
         lang (str): Language of the PDF file.
 
     Returns:
-        List[str]: Extracted content as a list of formatted strings.
+        list[str]: Extracted content as a list of formatted strings.
     """
     import fitz
     import numpy as np
@@ -435,7 +435,7 @@ def gptpdf_to_string(
     api_key: str,
     base_url: str,
     verbose: bool = False,
-    custom_prompt: Optional[Dict[str, str]] = None,
+    custom_prompt: dict[str, str] | None = None,
 ) -> str:
     """
     Parse PDF using GPT to convert the content of a PDF to a markdown format and write it to an output file.
@@ -448,10 +448,10 @@ def gptpdf_to_string(
         api_key (str): API key for GPT service.
         base_url (str): Base URL for the GPT service.
         verbose (bool): If True, will print additional information during parsing.
-        custom_prompt (Optional[Dict[str, str]]): Custom prompt for the GPT model. See https://github.com/CosmosShadow/gptpdf for more information.
+        custom_prompt (dict[str, str] | None): Custom prompt for the GPT model. See https://github.com/CosmosShadow/gptpdf for more information.
 
     Returns:
-        str: Extracted content as a string.
+        list[str]: Extracted content as a list of strings.
     """
     import tempfile
 

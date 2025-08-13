@@ -1,18 +1,10 @@
-"use client";
-
-import React, { Suspense, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
+import React, { Suspense } from "react";
+import type { Metadata } from "next";
 import dynamic from "next/dynamic";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Info, Download, FileJson, Loader2, ArrowLeft, Scroll } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Loader2, Scroll, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 // Dynamic import for the prompts explorer component
 const SystemPromptsExplorer = dynamic(
@@ -20,7 +12,7 @@ const SystemPromptsExplorer = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex items-center justify-center p-8 text-muted-foreground">
+      <div className="flex items-center justify-center p-8 text-gray-600">
         <Loader2 className="h-6 w-6 animate-spin mr-2" />
         Loading Prompts Explorer...
       </div>
@@ -28,192 +20,155 @@ const SystemPromptsExplorer = dynamic(
   }
 );
 
-export default function AiSystemPromptsAnalysisPage() {
-  const handleDownloadPipeline = () => {
-    const link = document.createElement("a");
-    link.href = "/demos/prompts_pipeline.yaml";
-    link.download = "prompts_pipeline.yaml";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+export const metadata: Metadata = {
+  title: "AI System Prompt Engineering Patterns | DocETL",
+  description:
+    "Demo of DocETL analyzing leaked system prompts from popular AI assistants to uncover common prompt-engineering strategies.",
+  keywords: [
+    "AI prompt engineering",
+    "system prompts analysis",
+    "LLM data analysis",
+    "prompt strategy",
+  ],
+  openGraph: {
+    title: "AI System Prompt Engineering Patterns | DocETL",
+    description:
+      "Interactive demo exploring common strategies in system prompts across ChatGPT, Claude and more using DocETL.",
+    url: "https://www.docetl.org/showcase/ai-system-prompts-analysis",
+    type: "website",
+    images: [{ url: "/docetl-favicon-color.png" }],
+  },
+};
 
+export default function AiSystemPromptsAnalysisPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
-      <div className="max-w-6xl w-full">
-        {/* Header */}
-        <div className="text-center mb-8 sm:mb-12">
-          <Link href="/" className="inline-block">
-            <div className="flex items-center justify-center mb-2">
-              <Scroll
-                className="w-10 h-10 sm:w-12 sm:h-12 mr-2 text-primary"
-                strokeWidth={1.5}
-              />
-              <span className="logo-text text-2xl sm:text-3xl">DocETL</span>
-            </div>
+    <main className="container mx-auto px-4 py-8 max-w-7xl">
+      {/* Header with Logo */}
+      <div className="text-center mb-8">
+        <Link href="/" className="inline-block">
+          <div className="flex items-center justify-center mb-2">
+            <Scroll
+              className="w-10 h-10 sm:w-12 sm:h-12 mr-2 text-primary"
+              strokeWidth={1.5}
+            />
+            <span className="logo-text text-2xl sm:text-3xl">DocETL</span>
+          </div>
+        </Link>
+      </div>
+
+      {/* Navigation */}
+      <div className="mb-6 flex items-center gap-3">
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/showcase">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Showcase
           </Link>
-        </div>
-        {/* Back Link */}
-        <div className="mb-6">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/showcase">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Showcase
-            </Link>
-          </Button>
-        </div>
-        {/* Demo Content */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-xl">
-              Prompt Engineering Strategies from Popular AI Assistants
-            </CardTitle>
-            <CardDescription>
-              <em>
-                Analyzing system prompts from popular AI assistants to extract
-                common prompt engineering strategies.
-              </em>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+        </Button>
+        <Button size="sm" asChild>
+          <Link
+            href="https://github.com/ucbepic/docetl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ⭐ Star on GitHub
+          </Link>
+        </Button>
+      </div>
+
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2 text-gray-900">
+          Prompt Engineering Strategies from Popular AI Assistants
+        </h1>
+        <p className="text-gray-600">
+          Analyzing system prompts from ChatGPT, Claude, and other AI systems to extract common strategies
+        </p>
+      </div>
+
+      <Alert className="mb-6 bg-blue-50 border-blue-200">
+        <Info className="h-4 w-4 text-blue-600" />
+        <AlertTitle className="text-blue-900">About This Analysis</AlertTitle>
+        <AlertDescription className="text-blue-800">
+          <div className="space-y-3 mt-2">
+            <p>
               Using the{" "}
-              <Link
+              <a
                 href="https://github.com/dontriskit/awesome-ai-system-prompts"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
+                className="text-blue-700 underline hover:text-blue-900"
               >
                 awesome-ai-system-prompts
-              </Link>{" "}
-              repository as source data, which contains leaked system prompts
-              from major AI systems like ChatGPT, Claude, Manus, and others,
-              we&apos;ve used DocETL to analyze and extract structured
-              information about strategies employed across these different AI
-              assistants.
+              </a>{" "}
+              repository as source data, DocETL analyzed leaked system prompts from major AI systems 
+              to identify recurring patterns and approaches used across different assistants.
             </p>
-            <p className="text-sm text-muted-foreground">
-              Our pipeline identifies:
+            
+            <p>
+              The pipeline extracts <strong>common strategies</strong> (recurring patterns across systems), 
+              <strong>implementation examples</strong> (how specific AI systems apply these strategies), and 
+              <strong>strategy summaries</strong> (concise explanations and considerations). This analysis helps 
+              prompt engineers and AI developers identify best practices for designing effective system prompts.
             </p>
-            <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
-              <li>
-                <span className="font-medium">Common strategies</span>:
-                Recurring patterns and approaches used across different AI
-                systems
-              </li>
-              <li>
-                <span className="font-medium">
-                  Strategy implementation examples
-                </span>
-                : How specific AI systems implement these strategies
-              </li>
-              <li>
-                <span className="font-medium">Strategy summaries</span>: Concise
-                explanations of each strategy and its implementation
-                considerations
-              </li>
-            </ul>
-            <p className="text-sm text-muted-foreground mb-4">
-              This analysis can help prompt engineers and AI developers identify
-              best practices and effective approaches when designing system
-              prompts for their own applications.
+
+            <p className="text-sm">
+              <strong>Processing details:</strong> 19 AI systems analyzed • gpt-4o-mini • $0.18 total cost
             </p>
-            <p className="text-sm text-muted-foreground mb-4 italic">
-              The entire pipeline processing cost just $0.18 to run for all 19
-              systems.
-            </p>
-            <div className="p-4 border border-yellow-300 bg-yellow-50 rounded-md mb-4">
+
+            <div className="p-3 border border-yellow-300 bg-yellow-50 rounded-md mt-3">
               <p className="text-sm font-medium text-yellow-800">
-                <strong>Note:</strong> The strategies identified are extracted
-                through automated analysis and may not capture all nuances or
-                context. Use these insights as a starting point for your own
-                prompt engineering work.
+                <strong>Note:</strong> Strategies are extracted through automated analysis and may not capture 
+                all nuances. Use these insights as a starting point for your prompt engineering work.
               </p>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-              <Link
-                href="https://github.com/dontriskit/awesome-ai-system-prompts"
+            
+            <div className="flex flex-wrap gap-3 mt-4">
+              <a
+                href="https://docetlcloudbank.blob.core.windows.net/demos/prompts.json"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center text-blue-600 hover:underline"
               >
-                View Source Repository <ExternalLink className="ml-1 h-4 w-4" />
-              </Link>
-              <span className="text-muted-foreground hidden sm:inline">|</span>
-              <Link
-                href="https://docetl.blob.core.windows.net/showcase/prompts.json"
+                <Button variant="outline" size="sm" className="bg-white">
+                  <FileJson className="h-4 w-4 mr-2" />
+                  Download Pipeline Input
+                </Button>
+              </a>
+              <a
+                href="https://docetlcloudbank.blob.core.windows.net/demos/analyzed_strategies.json"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center text-blue-600 hover:underline"
               >
-                Download DocETL Dataset{" "}
-                <ExternalLink className="ml-1 h-4 w-4" />
-              </Link>
-              <span className="text-muted-foreground hidden sm:inline">|</span>
-              <Link
-                href="https://docetl.blob.core.windows.net/demos/analyzed_strategies.json"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-blue-600 hover:underline"
+                <Button variant="outline" size="sm" className="bg-white">
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Pipeline Output
+                </Button>
+              </a>
+              <a
+                href="/demos/prompts_pipeline.yaml"
+                download
               >
-                Download DocETL Outputs{" "}
-                <ExternalLink className="ml-1 h-4 w-4" />
-              </Link>
-              <span className="text-muted-foreground hidden sm:inline">|</span>
-              <button
-                onClick={handleDownloadPipeline}
-                className="inline-flex items-center text-blue-600 hover:underline"
-              >
-                Download DocETL Pipeline YAML{" "}
-                <ExternalLink className="ml-1 h-4 w-4" />
-              </button>
+                <Button variant="outline" size="sm" className="bg-white">
+                  <FileJson className="h-4 w-4 mr-2" />
+                  Download Pipeline YAML
+                </Button>
+              </a>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold mb-2 mt-4">
-                Explore System Prompt Strategies:
-              </h3>
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center p-8 text-muted-foreground">
-                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    Loading Prompts Explorer...
-                  </div>
-                }
-              >
-                <SystemPromptsExplorer />
-              </Suspense>
+          </div>
+        </AlertDescription>
+      </Alert>
+
+      <div className="mt-6">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900">
+          Explore System Prompt Strategies
+        </h3>
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center p-8 text-gray-600">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              Loading Prompts Explorer...
             </div>
-          </CardContent>
-        </Card>
-        {/* Footer Logos */}
-        <div className="mt-auto pt-8 flex justify-center items-center space-x-4 border-t">
-          <a
-            href="https://eecs.berkeley.edu"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              src="/berkeley.png"
-              alt="UC Berkeley Logo"
-              width={40}
-              height={40}
-              className="sm:w-[50px] sm:h-[50px]"
-            />
-          </a>
-          <a
-            href="https://epic.berkeley.edu"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              src="/epiclogo.png"
-              alt="EPIC Lab Logo"
-              width={120}
-              height={40}
-              className="sm:w-[150px] sm:h-[50px]"
-            />
-          </a>
-        </div>
+          }
+        >
+          <SystemPromptsExplorer />
+        </Suspense>
       </div>
     </main>
   );

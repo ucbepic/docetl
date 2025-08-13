@@ -37,16 +37,22 @@ git clone https://github.com/ucbepic/docetl.git
 cd docetl
 ```
 
-2. Install Poetry (if not already installed):
+2. Install uv (if not already installed):
 
 ```bash
-pip install poetry
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 3. Install the project dependencies and DocETL:
 
 ```bash
-poetry install
+uv sync --all-extras
+```
+
+If you want to use only the parsing extra:
+
+```bash
+uv sync --extra parsing
 ```
 
 If you want to use the parsing tools, you need to install the `parsing` extra:

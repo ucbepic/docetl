@@ -7,7 +7,7 @@ import pytest
 import tempfile
 import os
 import json
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from docetl.runner import DSLRunner
 
@@ -80,7 +80,7 @@ def temp_dataset_file():
             os.unlink(tmp.name)
 
 
-def count_extracted_items(results: List[Dict[str, Any]], operation_type: str) -> int:
+def count_extracted_items(results: list[dict[str, Any]], operation_type: str) -> int:
     """Count the number of items extracted from results."""
     total_items = 0
     
@@ -95,7 +95,7 @@ def count_extracted_items(results: List[Dict[str, Any]], operation_type: str) ->
     return total_items
 
 
-def assess_accuracy(results: List[Dict[str, Any]], operation_type: str) -> Dict[str, Any]:
+def assess_accuracy(results: list[dict[str, Any]], operation_type: str) -> dict[str, Any]:
     """Assess the accuracy of the results."""
     if operation_type == "map":
         # For map: count unique fruits found and check if veggies are reasonable

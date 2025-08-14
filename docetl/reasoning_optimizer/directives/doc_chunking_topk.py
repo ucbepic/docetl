@@ -55,7 +55,7 @@ class DocumentChunkingTopKDirective(Directive):
             {
               "chunk_size": 5000,
               "split_key": "review_text",
-              "reduce_prompt": "Analyze this customer review to determine if it mentions competitor products more positively than our product.\\n\\nOur Product: {{ inputs[0].our_product }}\\nReview: the top {{ inputs|length }} most relevant chunks from the document:\\n{% for input in inputs %}\\nChunk #{{ loop.index }} (Rank {{ input._topk_filter_competitor_mentions_chunks_rank }}, Score {{ input._topk_filter_competitor_mentions_chunks_score }}):\\n{{ input.review_text_chunk }}\\n{% endfor %}\\nReview ID: {{ inputs[0].review_id }}\\n\\nReturn true if the review speaks more favorably about competitor products than ours.\\nConsider: feature comparisons, performance mentions, value assessments, recommendations.",
+              "reduce_prompt": "Analyze this customer review to determine if it mentions competitor products more positively than our product.\\n\\nOur Product: {{ inputs[0].our_product }}\\nReview: the top {{ inputs|length }} most relevant chunks from the document (ordered by relevance):\\n{% for input in inputs|sort(attribute='_topk_filter_competitor_mentions_chunks_rank') %}\\nChunk (Rank {{ input._topk_filter_competitor_mentions_chunks_rank }}, Score {{ input._topk_filter_competitor_mentions_chunks_score }}):\\n{{ input.review_text_chunk }}\\n{% endfor %}\\nReview ID: {{ inputs[0].review_id }}\\n\\nReturn true if the review speaks more favorably about competitor products than ours.\\nConsider: feature comparisons, performance mentions, value assessments, recommendations.",
               "topk_config": {
                 "method": "embedding",
                 "k": 10,
@@ -90,7 +90,7 @@ class DocumentChunkingTopKDirective(Directive):
             {
               "chunk_size": 7000,
               "split_key": "paper_content",
-              "reduce_prompt": "Extract detailed methodology from this research paper:\\n\\nPaper: the top {{ inputs|length }} most relevant chunks from the document:\\n{% for input in inputs %}\\nChunk #{{ loop.index }} (Rank {{ input._topk_extract_methodology_from_paper_chunks_rank }}, Score {{ input._topk_extract_methodology_from_paper_chunks_score }}):\\n{{ input.paper_content_chunk }}\\n{% endfor %}\\nTitle: {{ inputs[0].title }}\\n\\nExtract: study design, sample size, data collection methods, statistical analyses, and validation approaches.",
+              "reduce_prompt": "Extract detailed methodology from this research paper:\\n\\nPaper: the top {{ inputs|length }} most relevant chunks from the document (ordered by relevance):\\n{% for input in inputs|sort(attribute='_topk_extract_methodology_from_paper_chunks_rank') %}\\nChunk (Rank {{ input._topk_extract_methodology_from_paper_chunks_rank }}, Score {{ input._topk_extract_methodology_from_paper_chunks_score }}):\\n{{ input.paper_content_chunk }}\\n{% endfor %}\\nTitle: {{ inputs[0].title }}\\n\\nExtract: study design, sample size, data collection methods, statistical analyses, and validation approaches.",
               "topk_config": {
                 "method": "embedding",
                 "k": 8,
@@ -122,7 +122,7 @@ class DocumentChunkingTopKDirective(Directive):
             {
               "chunk_size": 6000,
               "split_key": "contract_text",
-              "reduce_prompt": "Determine if this contract contains liability cap provisions that limit damages to less than $1 million.\\n\\nContract: the top {{ inputs|length }} most relevant chunks from the document:\\n{% for input in inputs %}\\nSection #{{ loop.index }} (Rank {{ input._topk_filter_contracts_with_liability_caps_chunks_rank }}, Score {{ input._topk_filter_contracts_with_liability_caps_chunks_score }}):\\n{{ input.contract_text_chunk }}\\n{% endfor %}\\nContract ID: {{ inputs[0].contract_id }}\\nParty: {{ inputs[0].counterparty }}\\n\\nReturn true if contract caps liability below $1M, false otherwise.",
+              "reduce_prompt": "Determine if this contract contains liability cap provisions that limit damages to less than $1 million.\\n\\nContract: the top {{ inputs|length }} most relevant chunks from the document (ordered by relevance):\\n{% for input in inputs|sort(attribute='_topk_filter_contracts_with_liability_caps_chunks_rank') %}\\nSection (Rank {{ input._topk_filter_contracts_with_liability_caps_chunks_rank }}, Score {{ input._topk_filter_contracts_with_liability_caps_chunks_score }}):\\n{{ input.contract_text_chunk }}\\n{% endfor %}\\nContract ID: {{ inputs[0].contract_id }}\\nParty: {{ inputs[0].counterparty }}\\n\\nReturn true if contract caps liability below $1M, false otherwise.",
               "topk_config": {
                 "method": "fts",
                 "k": 10,
@@ -382,7 +382,7 @@ class DocumentChunkingTopKDirective(Directive):
             f"2. split_key: Identify the document field to split from the original operation's prompt (the longest text field)\n"
             f"3. reduce_prompt: Use the EXACT SAME prompt as the original, with ONE change:\n"
             f"   - Where the original references '{{{{ input.<split_key> }}}}', replace it with:\n"
-            f"     'the top {{{{ inputs|length }}}} most relevant chunks from the document:\\n{{% for input in inputs %}}\\nChunk #{{{{ loop.index }}}} (Rank {{{{ input._<topk_name>_rank }}}}, Score {{{{ input._<topk_name>_score }}}}):\\n{{{{ input.<split_key>_chunk }}}}\\n{{% endfor %}}'\n"
+            f"     'the top {{{{ inputs|length }}}} most relevant chunks from the document (ordered by relevance):\\n{{% for input in inputs|sort(attribute='_<topk_name>_rank') %}}\\nChunk (Rank {{{{ input._<topk_name>_rank }}}}, Score {{{{ input._<topk_name>_score }}}}):\\n{{{{ input.<split_key>_chunk }}}}\\n{{% endfor %}}'\n"
             f"   - Keep EVERYTHING else identical - same instructions, same output requirements\n"
             f"   - For other context fields (non-document fields), use {{{{ inputs[0].field_name }}}} instead of {{{{ input.field_name }}}}\n"
             f"4. topk_config: REQUIRED - Configure intelligent chunk selection:\n"

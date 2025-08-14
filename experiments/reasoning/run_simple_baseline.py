@@ -18,7 +18,7 @@ from typing import Dict, List, Any, Optional, Literal
 from pydantic import BaseModel, Field
 from litellm import completion
 from docetl.runner import DSLRunner
-from experiments.reasoning.evaluation.utils import run_dataset_evaluation
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func
 import modal
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
 
@@ -305,8 +305,78 @@ class SimpleBaselineAgent:
                 self.original_yaml = f.read()
                 self.original_config = yaml.safe_load(self.original_yaml)
     
+    def _run_individual_evaluation(self, dataset: str, output_path: str, iteration_id: int) -> Dict[str, Any]:
+        """Run evaluation for a single pipeline output and return formatted metrics."""
+        try:
+            evaluate_func = get_evaluate_func(dataset)
+            if not evaluate_func:
+                return {"accuracy_msg": "No evaluation function available", "accuracy_val": None, "eval_metrics": {}}
+            
+            # Resolve output path for Modal environment if needed
+            resolved_output_path = output_path
+            if not Path(output_path).exists() and Path(VOLUME_MOUNT_PATH).exists():
+                # Try to find the file in the volume mount
+                potential_path = Path(VOLUME_MOUNT_PATH) / Path(output_path).name
+                if potential_path.exists():
+                    resolved_output_path = str(potential_path)
+            
+            # Call the evaluation function with proper parameters
+            eval_metrics = evaluate_func(f"simple_baseline_iter_{iteration_id}", resolved_output_path)
+            
+            # Extract the main accuracy metric for this dataset
+            dataset_accuracy_metrics = {
+                "cuad": ("f1", "avg_f1"),
+                "blackvault": ("avg_distinct_locations", "avg_distinct_locations"), 
+                "game_reviews": ("combined_accuracy_score", "combined_accuracy_score"),
+                "medec": ("combined_score", "combined_score"),
+                "sustainability": ("economic_activity_accuracy", "economic_activity_accuracy"),
+                "biodex": ("avg_rp_at_10", "avg_rp_at_10")
+            }
+            
+            accuracy_key, metric_key = dataset_accuracy_metrics.get(dataset.lower(), ("accuracy", "accuracy"))
+            accuracy_val = eval_metrics.get(metric_key, 0.0)
+            
+            # Format accuracy message based on dataset
+            if dataset.lower() == "cuad":
+                accuracy_msg = f"F1: {accuracy_val:.4f}, Precision: {eval_metrics.get('avg_precision', 0):.4f}, Recall: {eval_metrics.get('avg_recall', 0):.4f}"
+            elif dataset.lower() == "blackvault":
+                accuracy_msg = f"Avg Distinct Locations: {accuracy_val:.4f}, Total Docs: {eval_metrics.get('total_documents', 0)}"
+            elif dataset.lower() == "biodex":
+                accuracy_msg = f"Avg RP@10: {accuracy_val:.4f}, Avg RP@5: {eval_metrics.get('avg_rp_at_5', 0):.4f}, Term Recall: {eval_metrics.get('avg_term_recall', 0):.4f}"
+            elif dataset.lower() == "sustainability":
+                accuracy_msg = f"Economic Activity Acc: {accuracy_val:.4f}, Company Name Acc: {eval_metrics.get('company_name_accuracy', 0):.4f}"
+            else:
+                accuracy_msg = f"Accuracy: {accuracy_val:.4f}"
+            
+            return {
+                "accuracy_msg": accuracy_msg,
+                "accuracy_val": accuracy_val,
+                "eval_metrics": eval_metrics
+            }
+            
+        except Exception as e:
+            print(f"❌ Evaluation error: {e}")
+            return {
+                "accuracy_msg": f"Evaluation failed: {str(e)}",
+                "accuracy_val": None,
+                "eval_metrics": {}
+            }
+
     def create_system_prompt(self, dataset: str, baseline_cost: float = None, baseline_accuracy: float = None) -> str:
         """Create system prompt for the agent."""
+        
+        # Define evaluation metrics explanation for each dataset
+        dataset_metrics_info = {
+            "cuad": "F1 score, Precision, and Recall for legal clause extraction",
+            "blackvault": "Average distinct locations per document for UFO sighting analysis",
+            "biodex": "Rank Precision at 5/10 and Term Recall for biochemical reaction prediction",
+            "sustainability": "Economic activity accuracy and company name accuracy for sustainability analysis",
+            "game_reviews": "Combined accuracy score for game review sentiment analysis",
+            "medec": "Combined score for medical entity classification"
+        }
+        
+        metrics_info = dataset_metrics_info.get(dataset.lower(), "Accuracy metrics specific to the dataset")
+        
         return f"""You are a pipeline optimization agent that improves DocETL data processing pipelines.
 
 You must always respond with valid JSON. You have access to the following actions:
@@ -331,6 +401,10 @@ BASELINE RESULTS:
  - Cost: ${baseline_cost if baseline_cost is not None else 'N/A'}
  - Accuracy: {baseline_accuracy if baseline_accuracy is not None else 'N/A'}
 
+EVALUATION METRICS:
+Your pipeline results will be evaluated using: {metrics_info}
+Each pipeline test will provide detailed evaluation metrics to help you optimize.
+
 YOUR TASK: Improve the pipeline's accuracy by optimizing operators, prompts, models, or adding new operations.
 
 OPTIMIZATION STRATEGIES:
@@ -341,12 +415,8 @@ OPTIMIZATION STRATEGIES:
 
 AVAILABLE MODELS (use with 'azure/' prefix):
 - azure/gpt-4o-mini
-- azure/gpt-4o
-- azure/gpt-4.1-nano
 - azure/gpt-4.1-mini
-- azure/gpt-4.1
 - azure/gpt-5-nano
-- azure/gpt-5-mini
 - azure/gpt-5
 
 Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_accuracy is not None else 'N/A'}."""
@@ -416,7 +486,13 @@ Start by trying the original pipeline."""}
                         best_pipeline = operators
                 
                 # Add result to conversation
-                messages.append({"role": "user", "content": self._format_test_result(result)})
+                formatted_result = self._format_test_result(result)
+                messages.append({"role": "user", "content": formatted_result})
+                
+                # Print iteration results
+                print(f"\n📋 Iteration {iteration + 1} Results:")
+                formatted_result = self._format_test_result(result)
+                print(formatted_result)
                 
             elif decision.action == "return_pipeline":
                 final_operators = self.communicator.get_operators(
@@ -437,34 +513,86 @@ Start by trying the original pipeline."""}
         
         test_result = executor.execute(operators, dataset, f"iteration_{iteration_id}")
         
-        # Add to iteration results (evaluation will be done in batch later)
+        # Initialize evaluation results
         accuracy_msg = "N/A"
         accuracy_val = None
+        eval_metrics = {}
         
-        if (test_result["success"] and test_result.get("output_path") and 
-            all_iteration_results is not None):
-            all_iteration_results.append({
-                "file_path": test_result["output_path"],
-                "cost": test_result["cost"],
-                "node_id": str(iteration_id)
-            })
+        # Run evaluation immediately after pipeline execution
+        if test_result["success"] and test_result.get("output_path"):
+            eval_result = self._run_individual_evaluation(dataset, test_result["output_path"], iteration_id)
+            accuracy_msg = eval_result["accuracy_msg"]
+            accuracy_val = eval_result["accuracy_val"]
+            eval_metrics = eval_result["eval_metrics"]
+            
+            # Add to iteration results for batch evaluation later
+            if all_iteration_results is not None:
+                all_iteration_results.append({
+                    "file_path": test_result["output_path"],
+                    "cost": test_result["cost"],
+                    "node_id": str(iteration_id)
+                })
         
         return {
             **test_result,
             "accuracy_msg": accuracy_msg,
-            "accuracy_val": accuracy_val
+            "accuracy_val": accuracy_val,
+            "eval_metrics": eval_metrics
         }
     
     def _format_test_result(self, result: Dict) -> str:
         """Format test result for agent feedback."""
-        return f"""Pipeline test results:
-- Success: {result['success']}
-- Cost: ${result['cost']:.4f}
-- Accuracy: {result['accuracy_msg']}
-- Error: {result.get('error', 'None')}
-- Sample outputs: {len(result.get('sample_outputs', []))} items generated
-
-Based on these results, you can either try another pipeline configuration or return the best one you've found."""
+        eval_metrics = result.get('eval_metrics', {})
+        sample_outputs = result.get('sample_outputs', [])
+        
+        # Base message
+        message_parts = [
+            f"Pipeline test results:",
+            f"- Success: {result['success']}",
+            f"- Cost: ${result['cost']:.4f}",
+            f"- Accuracy: {result['accuracy_msg']}",
+            f"- Error: {result.get('error', 'None')}"
+        ]
+        
+        # Add sample outputs with actual content
+        if sample_outputs:
+            message_parts.append(f"- Sample outputs ({len(sample_outputs)} items):")
+            for i, output in enumerate(sample_outputs[:3]):  # Show up to 3 samples
+                if isinstance(output, dict):
+                    # Truncate the output for readability
+                    output_str = json.dumps(output, indent=2)
+                    if len(output_str) > 800:
+                        output_str = output_str[:800] + "\n... (truncated)"
+                    message_parts.append(f"  Sample {i+1}:")
+                    # Indent each line of the output
+                    for line in output_str.split('\n'):
+                        message_parts.append(f"    {line}")
+                else:
+                    # Handle non-dict outputs
+                    output_str = str(output)
+                    if len(output_str) > 400:
+                        output_str = output_str[:400] + "... (truncated)"
+                    message_parts.append(f"  Sample {i+1}: {output_str}")
+        else:
+            message_parts.append("- Sample outputs: No outputs generated")
+        
+        # Add detailed evaluation metrics if available
+        if eval_metrics:
+            message_parts.append("\nDetailed Evaluation Metrics:")
+            for key, value in eval_metrics.items():
+                if isinstance(value, (int, float)):
+                    if key.startswith('avg_') or 'accuracy' in key.lower() or 'precision' in key.lower() or 'recall' in key.lower():
+                        message_parts.append(f"- {key}: {value:.4f}")
+                    else:
+                        message_parts.append(f"- {key}: {value}")
+                elif isinstance(value, list) and len(value) <= 5:  # Show short lists
+                    message_parts.append(f"- {key}: {value}")
+                elif not isinstance(value, (list, dict)):  # Show simple values
+                    message_parts.append(f"- {key}: {value}")
+        
+        message_parts.append("\nBased on these results, you can either try another pipeline configuration or return the best one you've found.")
+        
+        return "\n".join(message_parts)
 
 def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
                                  experiment_name: str = None, ground_truth_path: str = None) -> Dict[str, Any]:
@@ -493,22 +621,42 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
     
     all_iteration_results = []
     iteration_counter = 0
+    baseline_accuracy = None
+    
     if baseline_result["success"] and baseline_result.get("output_path"):
+        # Run evaluation on baseline
+        baseline_eval = agent._run_individual_evaluation(dataset, baseline_result["output_path"], 0)
+        baseline_accuracy = baseline_eval["accuracy_val"]
+        
+        # Update baseline result with evaluation metrics for consistent formatting
+        baseline_result_with_eval = {
+            **baseline_result,
+            "accuracy_msg": baseline_eval["accuracy_msg"],
+            "accuracy_val": baseline_eval["accuracy_val"],
+            "eval_metrics": baseline_eval["eval_metrics"]
+        }
+        
+        # Format and display baseline results
+        baseline_formatted = agent._format_test_result(baseline_result_with_eval)
+        print(f"🏁 Baseline execution results:")
+        print(baseline_formatted)
+        
         all_iteration_results.append({
             "file_path": baseline_result["output_path"],
             "cost": baseline_result["cost"],
             "node_id": str(iteration_counter)
         })
         iteration_counter += 1
-        print(f"🏁 Baseline executed: cost ${baseline_result['cost']:.4f}")
-    
+    else:
+        print(f"❌ Baseline execution failed: {baseline_result.get('error', 'Unknown error')}")
+
     # Agent optimization loop
     operators, iteration_counter = agent.run_agent_loop(
         dataset=dataset,
         experiment_dir=exp_dir,
         ground_truth_path=ground_truth_path,
         baseline_cost=baseline_result.get("cost"),
-        baseline_accuracy=None,
+        baseline_accuracy=baseline_accuracy,
         baseline_operators=baseline_ops,
         all_iteration_results=all_iteration_results,
         iteration_counter=iteration_counter

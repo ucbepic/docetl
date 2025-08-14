@@ -49,15 +49,15 @@ ALL_DIRECTIVES = [
 ]
 
 ALL_COST_DIRECTIVES = [
-    ReduceChainingDirective(),
-    DocSummarizationDirective(),
-    DocCompressionDirective(),
-    DeterministicDocCompressionDirective(),
+    # ReduceChainingDirective(),
+    # DocSummarizationDirective(),
+    # DocCompressionDirective(),
+    # DeterministicDocCompressionDirective(),
     DocumentChunkingTopKDirective(),
-    OperatorFusionDirective(),
-    TakeHeadTailDirective(),
-    MapReduceFusionDirective(),
-    ChangeModelDirective(),
+    # OperatorFusionDirective(),
+    # TakeHeadTailDirective(),
+    # MapReduceFusionDirective(),
+    # ChangeModelDirective(),
 ]
 
 # Create a mapping from directive names to directive instances

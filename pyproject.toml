@@ -29,6 +29,12 @@ dependencies = [
   "python-multipart>=0.0.20",
   "litellm>=1.75.4",
   "rank-bm25>=0.2.2",
+  "matplotlib>=3.7.0",
+  "python-Levenshtein>=0.21.0",
+  "nltk>=3.8.0",
+  "scipy>=1.10.0",
+  "numpy>=1.24.0",
+  "modal>=0.64.0",
 ]
 
 # Optional extras mapped from Poetry extras and optional deps

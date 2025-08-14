@@ -20,6 +20,7 @@ from .reduce_gleaning import ReduceGleaningDirective
 from .reduce_chaining import ReduceChainingDirective
 from .operator_fusion import OperatorFusionDirective
 from .doc_chunking import DocumentChunkingDirective
+from .doc_chunking_topk import DocumentChunkingTopKDirective
 from .chunk_header_summary import ChunkHeaderSummaryDirective
 from .take_head_tail import TakeHeadTailDirective
 from .clarify_instructions import ClarifyInstructionsDirective
@@ -39,6 +40,7 @@ ALL_DIRECTIVES = [
     DeterministicDocCompressionDirective(),
     OperatorFusionDirective(),
     DocumentChunkingDirective(),
+    DocumentChunkingTopKDirective(),
     ChunkHeaderSummaryDirective(),
     TakeHeadTailDirective(),
     ClarifyInstructionsDirective(),
@@ -51,6 +53,7 @@ ALL_COST_DIRECTIVES = [
     DocSummarizationDirective(),
     DocCompressionDirective(),
     DeterministicDocCompressionDirective(),
+    DocumentChunkingTopKDirective(),
     OperatorFusionDirective(),
     TakeHeadTailDirective(),
     MapReduceFusionDirective(),
@@ -137,6 +140,7 @@ __all__ = [
     "DeterministicDocCompressionDirective",
     "OperatorFusionDirective",
     "DocumentChunkingDirective",
+    "DocumentChunkingTopKDirective",
     "ChunkHeaderSummaryDirective",
     "TakeHeadTailDirective",
     "ClarifyInstructionsDirective",

@@ -773,6 +773,10 @@ Your main result must be sent via send_output. The updated_scratchpad is only fo
         if self.default_lm_api_base:
             extra_litellm_kwargs["api_base"] = self.default_lm_api_base
 
+        # Pop off temperature if it's gpt-5 in the model name
+        if "gpt-5" in model:
+            extra_litellm_kwargs.pop("temperature", None)
+
         if use_structured_output:
             try:
                 response = completion(

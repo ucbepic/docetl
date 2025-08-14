@@ -325,15 +325,15 @@ class SimpleBaselineAgent:
             
             # Extract the main accuracy metric for this dataset
             dataset_accuracy_metrics = {
-                "cuad": ("f1", "avg_f1"),
-                "blackvault": ("avg_distinct_locations", "avg_distinct_locations"), 
-                "game_reviews": ("combined_accuracy_score", "combined_accuracy_score"),
-                "medec": ("combined_score", "combined_score"),
-                "sustainability": ("economic_activity_accuracy", "economic_activity_accuracy"),
-                "biodex": ("avg_rp_at_10", "avg_rp_at_10")
+                "cuad": "avg_f1",
+                "blackvault": "avg_distinct_locations", 
+                "game_reviews": "combined_accuracy_score",
+                "medec": "combined_score",
+                "sustainability": "economic_activity_accuracy",
+                "biodex": "avg_rp_at_10"
             }
             
-            accuracy_key, metric_key = dataset_accuracy_metrics.get(dataset.lower(), ("accuracy", "accuracy"))
+            metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
             accuracy_val = eval_metrics.get(metric_key, 0.0)
             
             # Format accuracy message based on dataset
@@ -415,7 +415,6 @@ OPTIMIZATION STRATEGIES:
 
 AVAILABLE MODELS (use with 'azure/' prefix):
 - azure/gpt-4o-mini
-- azure/gpt-4.1-mini
 - azure/gpt-5-nano
 - azure/gpt-5
 

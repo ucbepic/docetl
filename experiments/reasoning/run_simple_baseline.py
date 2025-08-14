@@ -415,7 +415,6 @@ OPTIMIZATION STRATEGIES:
 
 AVAILABLE MODELS (use with 'azure/' prefix):
 - azure/gpt-4o-mini
-- azure/gpt-4.1-mini
 - azure/gpt-5-nano
 - azure/gpt-5
 

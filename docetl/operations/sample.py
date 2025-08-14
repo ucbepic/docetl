@@ -502,7 +502,15 @@ class SampleOperation(BaseOperation):
         # Get top N indices
         top_indices = np.argsort(similarities)[-n_samples:][::-1]
 
-        output_data = [input_data[idx] for idx in top_indices]
+        # Add rank information if this is called from a topk operation
+        op_name = self.config.get("name", "sample")
+        output_data = []
+        for rank, idx in enumerate(top_indices, 1):
+            item = input_data[idx].copy()
+            # Add rank field with operation name prefix
+            item[f"_{op_name}_rank"] = rank
+            item[f"_{op_name}_score"] = float(similarities[idx])
+            output_data.append(item)
         return output_data, cost
 
     def _sample_top_fts(self, input_data: list[dict]) -> tuple[list[dict], float]:
@@ -620,7 +628,15 @@ class SampleOperation(BaseOperation):
                 if idx not in top_indices and len(top_indices) < n_samples:
                     top_indices.append(idx)
 
-        output_data = [input_data[idx] for idx in top_indices[:n_samples]]
+        # Add rank information
+        op_name = self.config.get("name", "sample")
+        output_data = []
+        for rank, idx in enumerate(top_indices[:n_samples], 1):
+            item = input_data[idx].copy()
+            # Add rank field with operation name prefix
+            item[f"_{op_name}_rank"] = rank
+            item[f"_{op_name}_score"] = float(scores[idx])
+            output_data.append(item)
         return output_data, 0.0
 
     def _sample_stratified_top_embedding(

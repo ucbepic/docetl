@@ -17,6 +17,7 @@ from docetl.reasoning_optimizer.directives import (
     DocCompressionDirective,
     DeterministicDocCompressionDirective,
     DocumentChunkingDirective,
+    DocumentChunkingTopKDirective,
     ChunkHeaderSummaryDirective,
     TakeHeadTailDirective,
     ClarifyInstructionsDirective,
@@ -481,6 +482,162 @@ def test_doc_chunking_apply():
     assert result_with_sample[2]["samples"] == 5
 
 
+def test_doc_chunking_topk_apply():
+    """Test that doc chunking with topk apply doesn't crash"""
+    directive = DocumentChunkingTopKDirective()
+    
+    ops_list = [
+        {
+            "name": "extract_clinical_findings",
+            "type": "map",
+            "prompt": """Analyze this clinical trial document and extract safety findings:
+                Protocol: {{ input.protocol_id }}
+                Document: {{ input.trial_document }}
+                
+                Extract all adverse events, serious adverse events, and laboratory abnormalities.""",
+            "model": "gpt-4o",
+            "output": {
+                "schema": {
+                    "adverse_events": "list[dict]",
+                    "serious_adverse_events": "list[dict]",
+                    "lab_abnormalities": "list[dict]"
+                }
+            }
+        }
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import (
+        DocumentChunkingTopKInstantiateSchema,
+        TopKConfig
+    )
+    
+    # Test with embedding-based topk
+    rewrite_embedding = DocumentChunkingTopKInstantiateSchema(
+        chunk_size=6000,
+        split_key="trial_document",
+        reduce_prompt="Analyzing clinical trial chunks for protocol {{ inputs[0].protocol_id }}. Extract adverse events, SAEs, and lab abnormalities from each chunk:\n{% for input in inputs %}\nChunk {{ loop.index }}:\n{{ input.trial_document_chunk }}\n{% endfor %}\nCombine all safety findings into structured output.",
+        topk_config=TopKConfig(
+            method="embedding",
+            k=12,
+            query="adverse event serious AE SAE laboratory abnormality toxicity safety signal CTCAE grade hospitalization death",
+            keys=["trial_document_chunk"],
+            embedding_model="text-embedding-3-small"
+        ),
+        model="gpt-4o"
+    )
+    
+    result = directive.apply("gpt-4o", ops_list, "extract_clinical_findings", rewrite_embedding)
+    assert isinstance(result, list)
+    assert len(result) == 3  # Should be split -> topk -> reduce
+    assert result[1]["type"] == "topk"
+    assert result[1]["method"] == "embedding"
+    assert result[1]["k"] == 12
+    assert "adverse event" in result[1]["query"]
+    
+    # Test with FTS-based topk
+    rewrite_fts = DocumentChunkingTopKInstantiateSchema(
+        chunk_size=8000,
+        split_key="trial_document",
+        reduce_prompt="Extract safety data from clinical trial chunks:\n{% for input in inputs %}\n{{ input.trial_document_chunk }}\n{% endfor %}\nMerge all adverse events, SAEs, and lab abnormalities.",
+        topk_config=TopKConfig(
+            method="fts",
+            k=15,
+            query="CTCAE grade 3 grade 4 grade 5 death hospitalization discontinuation dose reduction SAE",
+            keys=["trial_document_chunk"]
+        ),
+        model="gpt-4o-mini"
+    )
+    
+    result_fts = directive.apply("gpt-4o-mini", ops_list, "extract_clinical_findings", rewrite_fts)
+    assert isinstance(result_fts, list)
+    assert len(result_fts) == 3  # Should be split -> topk -> reduce
+    assert result_fts[1]["type"] == "topk"
+    assert result_fts[1]["method"] == "fts"
+    assert result_fts[1]["k"] == 15
+    
+    # Test with dynamic Jinja query
+    ops_list_dynamic = [
+        {
+            "name": "extract_condition_history",
+            "type": "map",
+            "prompt": """Extract medical history for condition: {{ input.target_condition }}
+                Patient: {{ input.patient_id }}
+                Records: {{ input.medical_records }}""",
+            "model": "gpt-4o",
+            "output": {"schema": {"condition_history": "list[dict]"}}
+        }
+    ]
+    
+    rewrite_dynamic = DocumentChunkingTopKInstantiateSchema(
+        chunk_size=5000,
+        split_key="medical_records",
+        reduce_prompt="Extracting {{ inputs[0].target_condition }} history for patient {{ inputs[0].patient_id }} from chunks:\n{% for input in inputs %}\n{{ input.medical_records_chunk }}\n{% endfor %}\nCompile complete condition history.",
+        topk_config=TopKConfig(
+            method="embedding",
+            k=10,
+            query="{{ input.target_condition }} diagnosis treatment medication {{ input.target_condition | lower }}",
+            keys=["medical_records_chunk"]
+        ),
+        model="gpt-4o"
+    )
+    
+    result_dynamic = directive.apply("gpt-4o", ops_list_dynamic, "extract_condition_history", rewrite_dynamic)
+    assert isinstance(result_dynamic, list)
+    assert "{{ input.target_condition }}" in result_dynamic[1]["query"]
+
+
+def test_doc_chunking_topk_filter_apply():
+    """Test that doc chunking with topk works for filter operations"""
+    directive = DocumentChunkingTopKDirective()
+    
+    # Test filter operation
+    ops_list_filter = [
+        {
+            "name": "filter_competitor_mentions",
+            "type": "filter",
+            "prompt": """Determine if this lengthy review mentions competitors more positively than our product.
+                Our Product: {{ input.our_product }}
+                Review: {{ input.review_text }}
+                Return true if competitors are mentioned more favorably.""",
+            "model": "gpt-4o",
+            "output": {
+                "schema": {
+                    "mentions_competitors_favorably": "bool"
+                }
+            }
+        }
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import (
+        DocumentChunkingTopKInstantiateSchema,
+        TopKConfig
+    )
+    
+    rewrite_filter = DocumentChunkingTopKInstantiateSchema(
+        chunk_size=5000,
+        split_key="review_text",
+        reduce_prompt="Analyzing review for product {{ inputs[0].our_product }}. Review chunks:\n{% for input in inputs %}\n{{ input.review_text_chunk }}\n{% endfor %}\nDetermine if competitors are mentioned more positively than our product. Output true if yes, false if no.",
+        topk_config=TopKConfig(
+            method="embedding",
+            k=10,
+            query="competitor comparison versus alternative better superior inferior worse recommendation",
+            keys=["review_text_chunk"]
+        ),
+        model="gpt-4o"
+    )
+    
+    result_filter = directive.apply("gpt-4o", ops_list_filter, "filter_competitor_mentions", rewrite_filter)
+    assert isinstance(result_filter, list)
+    assert len(result_filter) == 4  # Should be split -> topk -> reduce -> code_filter
+    assert result_filter[0]["type"] == "split"
+    assert result_filter[1]["type"] == "topk"
+    assert result_filter[2]["type"] == "reduce"
+    assert result_filter[3]["type"] == "filter"
+    assert "code_filter" in result_filter[3]["name"]
+    assert "def transform" in result_filter[3]["function"]
+    assert "mentions_competitors_favorably" in result_filter[3]["function"]
+
+
 def test_chunk_header_summary_apply():
     """Test that chunk header summary apply doesn't crash"""
     directive = ChunkHeaderSummaryDirective()
@@ -740,6 +897,9 @@ if __name__ == "__main__":
     
     test_doc_chunking_apply()
     print("✅ Doc chunking apply test passed")
+    
+    test_doc_chunking_topk_apply()
+    print("✅ Doc chunking topk apply test passed")
     
     test_chunk_header_summary_apply()
     print("✅ Chunk header summary apply test passed")

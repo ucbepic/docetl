@@ -671,6 +671,7 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
 
 
 def main():
+    
     evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/medec_baseline/evaluation_metrics.json"
     evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/medec_mcts/evaluation_metrics.json"
     evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/medec_simple_baseline/evaluation_metrics.json"

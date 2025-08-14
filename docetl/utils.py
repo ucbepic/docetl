@@ -299,3 +299,75 @@ class classproperty:
 
     def __get__(self, obj: Any | None, owner: type) -> Any:
         return self.f(owner)
+
+
+def extract_output_from_json(yaml_file_path, json_output_path=None):
+    """
+    Extract output fields from JSON file based on the output schema defined in the YAML file.
+    
+    Args:
+        yaml_file_path (str): Path to the YAML configuration file
+        json_output_path (str): Path to the JSON output file to extract from
+    
+    Returns:
+        List[Dict]: Extracted data containing only the fields specified in the output schema
+    """
+    # Load YAML configuration
+    with open(yaml_file_path, 'r') as f:
+        config = yaml.safe_load(f)
+    
+
+    if json_output_path is None:
+        json_output_path = config.get('pipeline', {}).get('output', {}).get('path')
+        if json_output_path is None:
+            raise ValueError("No output path found in YAML file")
+
+    # Load JSON output data
+    with open(json_output_path, 'r') as f:
+        output_data = json.load(f)
+    
+    # Find the last operation in the pipeline
+    pipeline = config.get('pipeline', {})
+    steps = pipeline.get('steps', [])
+    if not steps:
+        raise ValueError("No pipeline steps found in YAML file")
+    
+    # Get the last step and its operations
+    last_step = steps[-1]
+    last_step_operations = last_step.get('operations', [])
+    if not last_step_operations:
+        raise ValueError("No operations found in the last pipeline step")
+    
+    # Get the name of the last operation in the last step
+    last_operation_name = last_step_operations[-1]
+    
+    # Find this operation in the operations list
+    operations = config.get('operations', [])
+    last_operation = None
+    for op in operations:
+        if op.get('name') == last_operation_name:
+            last_operation = op
+            break
+    
+    if not last_operation:
+        raise ValueError(f"Operation '{last_operation_name}' not found in operations list")
+    
+    output_schema = last_operation.get('output', {}).get('schema', {})
+    if not output_schema:
+        raise ValueError(f"No output schema found in operation '{last_operation_name}'")
+    
+    # Extract the field names from the schema
+    schema_fields = list(output_schema.keys())
+    
+    # Extract only the specified fields from each item in the output data
+    extracted_data = []
+    for item in output_data:
+        extracted_item = {}
+        for field in schema_fields:
+            if field in item:
+                extracted_item[field] = item[field]
+        extracted_data.append(extracted_item)
+    
+
+    return extracted_data
+    

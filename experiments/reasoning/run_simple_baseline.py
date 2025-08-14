@@ -16,12 +16,14 @@ import argparse
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Literal
 from pydantic import BaseModel, Field
+import litellm
 from litellm import completion
 from docetl.runner import DSLRunner
 from experiments.reasoning.evaluation.utils import run_dataset_evaluation
 import modal
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
 
+# litellm._turn_on_debug()
 DEFAULT_MODEL = "o3"
 DEFAULT_OUTPUT_DIR = "outputs/simple_baseline"
 
@@ -32,6 +34,12 @@ class AgentAction(BaseModel):
     )
     reasoning: str = Field(
         ..., description="Explanation of why this action was chosen"
+    )
+
+class OperatorResponse(BaseModel):
+    """Schema for operator list responses."""
+    operators: List[Dict[str, Any]] = Field(
+        ..., description="List of operator dictionaries"
     )
 
 class PathResolver:
@@ -247,25 +255,23 @@ class AgentCommunicator:
     def __init__(self, model: str):
         self.model = model
     
-    def safe_json_parse(self, response_content: str, fallback: Dict = None) -> Dict:
-        """Safely parse JSON response with fallback."""
-        try:
-            return json.loads(response_content)
-        except Exception:
-            return fallback or {}
-    
-    def get_action_decision(self, messages: List[Dict]) -> Optional[AgentAction]:
+    def get_action_decision(self, messages: List[Dict]):
         """Get agent action decision."""
         try:
             response = completion(
                 model=self.model,
                 messages=messages,
-                response_format={"type": "json_object"}
+                api_key=os.environ.get("AZURE_API_KEY"),
+                api_base=os.environ.get("AZURE_API_BASE"),
+                api_version=os.environ.get("AZURE_API_VERSION"),
+                azure=True,
+                response_format=AgentAction
             )
-            
-            decision_json = self.safe_json_parse(response.choices[0].message.content)
-            return AgentAction(**decision_json)
-        except Exception:
+            print(f"Response: {response.choices[0].message.content}")
+            decision_json = json.loads(response.choices[0].message.content)
+            return decision_json
+        except Exception as e:
+            print(f"Error parsing JSON: {e}")
             return None
     
     def get_operators(self, messages: List[Dict], request_msg: str) -> List[Dict]:
@@ -274,12 +280,16 @@ class AgentCommunicator:
             response = completion(
                 model=self.model,
                 messages=messages + [{"role": "user", "content": request_msg}],
+                api_key=os.environ.get("AZURE_API_KEY"),
+                api_base=os.environ.get("AZURE_API_BASE"),
+                api_version=os.environ.get("AZURE_API_VERSION"),
+                azure=True,
                 response_format={"type": "json_object"}
             )
-            
-            result = self.safe_json_parse(response.choices[0].message.content)
+            result = json.loads(response.choices[0].message.content)
             return result.get("operators", [])
-        except Exception:
+        except Exception as e:
+            print(f"Error: {e}")
             return []
 
 class SimpleBaselineAgent:
@@ -309,47 +319,42 @@ class SimpleBaselineAgent:
         """Create system prompt for the agent."""
         return f"""You are a pipeline optimization agent that improves DocETL data processing pipelines.
 
-You must always respond with valid JSON. You have access to the following actions:
-1. try_pipeline: Test a pipeline configuration and see the results (cost, accuracy, and sample outputs)
-2. return_pipeline: Return the final optimized pipeline configuration
+        You must always respond with valid JSON. You have access to the following actions:
+        1. try_pipeline: Test a pipeline configuration and see the results (cost, accuracy, and sample outputs)
+        2. return_pipeline: Return the final optimized pipeline configuration
 
-Always respond in JSON format with:
-{{"action": "try_pipeline", "reasoning": "explanation of why you want to test this pipeline"}}
-OR
-{{"action": "return_pipeline", "reasoning": "explanation of why this is the final pipeline"}}
+        Always respond in JSON format with:
+        {{"action": "try_pipeline", "reasoning": "explanation of why you want to test this pipeline"}}
+        OR
+        {{"action": "return_pipeline", "reasoning": "explanation of why this is the final pipeline"}}
 
-When asked for operators, respond with:
-{{"operators": [list of operator dictionaries]}}
+        When asked for operators, respond with:
+        {{"operators": [list of operator dictionaries]}}
 
-AVAILABLE OPERATORS DOCUMENTATION:
-{self.documentation}
+        AVAILABLE OPERATORS DOCUMENTATION:
+        {self.documentation}
 
-CURRENT PIPELINE (baseline to improve upon):
-{self.original_yaml}
+        CURRENT PIPELINE (baseline to improve upon):
+        {self.original_yaml}
 
-BASELINE RESULTS:
- - Cost: ${baseline_cost if baseline_cost is not None else 'N/A'}
- - Accuracy: {baseline_accuracy if baseline_accuracy is not None else 'N/A'}
+        BASELINE RESULTS:
+        - Cost: ${baseline_cost if baseline_cost is not None else 'N/A'}
+        - Accuracy: {baseline_accuracy if baseline_accuracy is not None else 'N/A'}
 
-YOUR TASK: Improve the pipeline's accuracy by optimizing operators, prompts, models, or adding new operations.
+        YOUR TASK: Improve the pipeline's accuracy by optimizing operators, prompts, models, or adding new operations.
 
-OPTIMIZATION STRATEGIES:
-1. **Prompt Engineering**: Refine operator prompts for better extraction/classification
-2. **Model Selection**: Try different models from the available list for better performance
-3. **Operator Addition**: Add preprocessing, filtering, or post-processing operators
-4. **Jinja Templating**: Use flexible templating to read more/less context from documents
+        OPTIMIZATION STRATEGIES:
+        1. **Prompt Engineering**: Refine operator prompts for better extraction/classification
+        2. **Model Selection**: Try different models from the available list for better performance
+        3. **Operator Addition**: Add preprocessing, filtering, or post-processing operators
+        4. **Jinja Templating**: Use flexible templating to read more/less context from documents
 
-AVAILABLE MODELS (use with 'azure/' prefix):
-- azure/gpt-4o-mini
-- azure/gpt-4o
-- azure/gpt-4.1-nano
-- azure/gpt-4.1-mini
-- azure/gpt-4.1
-- azure/gpt-5-nano
-- azure/gpt-5-mini
-- azure/gpt-5
+        AVAILABLE MODELS (use with 'azure/' prefix):
+        - azure/gpt-4o-mini
+        - azure/gpt-5-nano
+        - azure/gpt-5
 
-Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_accuracy is not None else 'N/A'}."""
+        Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_accuracy is not None else 'N/A'}."""
 
     def run_agent_loop(self, dataset: str, experiment_dir: Path, ground_truth_path: str = None,
                       baseline_cost: float = None, baseline_accuracy: float = None, 
@@ -366,17 +371,17 @@ Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_acc
             {"role": "system", "content": self.create_system_prompt(dataset, baseline_cost, baseline_accuracy)},
             {"role": "user", "content": f"""Dataset: {dataset}
 
-DATA ANALYSIS:
-{data_analysis}
+            DATA ANALYSIS:
+            {data_analysis}
 
-Task: Generate a pipeline to process this {dataset} data. You can see the original pipeline YAML above as a baseline. 
+            Task: Generate a pipeline to process this {dataset} data. You can see the original pipeline YAML above as a baseline. 
 
-You should:
-1. First try the original pipeline configuration to establish a baseline
-2. Then try to improve it if possible
-3. Return your best pipeline configuration
+            You should:
+            1. First try the original pipeline configuration to establish a baseline
+            2. Then try to improve it if possible
+            3. Return your best pipeline configuration
 
-Start by trying the original pipeline."""}
+            Start by trying the original pipeline."""}
         ]
         
         # Track best results
@@ -391,18 +396,20 @@ Start by trying the original pipeline."""}
             decision = self.communicator.get_action_decision(messages)
             if not decision:
                 continue
+
+            print(f"Decision: {decision.get('action')}")
                 
-            messages.append({"role": "assistant", "content": json.dumps(decision.dict())})
-            
-            if decision.action == "try_pipeline":
+            messages.append({"role": "assistant", "content": json.dumps(decision)}) 
+            if decision.get('action') == "try_pipeline":
                 operators = self.communicator.get_operators(
                     messages, 
-                    "Provide the operators for the pipeline you want to try. Return JSON in format: {\"operators\": [...]}"
+                    "Provide the operators for the pipeline you want to try. You can change the operators, prompts, models, or add new operations to the original pipeline toimprove the pipeline. Return JSON in format: {\"operators\": [...]}"
                 )
-                
+                print(f"Operators: {operators}")
                 if not operators and self.original_config:
                     operators = self.original_config.get('operations', [])
                 
+                print("HERE")
                 # Execute and evaluate
                 result = self._test_pipeline(operators, dataset, executor, iteration_counter, 
                                            ground_truth_path, experiment_dir, all_iteration_results)
@@ -416,9 +423,10 @@ Start by trying the original pipeline."""}
                         best_pipeline = operators
                 
                 # Add result to conversation
+                print(f"Result: {result}")
                 messages.append({"role": "user", "content": self._format_test_result(result)})
                 
-            elif decision.action == "return_pipeline":
+            elif decision.get('action') == "return_pipeline":
                 final_operators = self.communicator.get_operators(
                     messages,
                     "Provide the final operators for the pipeline you want to return. Return JSON in format: {\"operators\": [...]}"
@@ -458,13 +466,13 @@ Start by trying the original pipeline."""}
     def _format_test_result(self, result: Dict) -> str:
         """Format test result for agent feedback."""
         return f"""Pipeline test results:
-- Success: {result['success']}
-- Cost: ${result['cost']:.4f}
-- Accuracy: {result['accuracy_msg']}
-- Error: {result.get('error', 'None')}
-- Sample outputs: {len(result.get('sample_outputs', []))} items generated
+        - Success: {result['success']}
+        - Cost: ${result['cost']:.4f}
+        - Accuracy: {result['accuracy_msg']}
+        - Error: {result.get('error', 'None')}
+        - Sample outputs: {len(result.get('sample_outputs', []))} items generated
 
-Based on these results, you can either try another pipeline configuration or return the best one you've found."""
+        Based on these results, you can either try another pipeline configuration or return the best one you've found."""
 
 def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
                                  experiment_name: str = None, ground_truth_path: str = None) -> Dict[str, Any]:

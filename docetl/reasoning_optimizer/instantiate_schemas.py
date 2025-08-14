@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+
 def extract_for_variable(template_content):
     """
     Extract variable name from for loop in template content
@@ -16,21 +17,29 @@ def extract_for_variable(template_content):
         return match.group(1)
     return None
 
+
 def create_dynamic_pattern(new_key, template_content):
     """
     Create dynamic pattern based on for loop variable in template content
     """
     # Extract for loop variable
     loop_variable = extract_for_variable(template_content)
-    
+
     if loop_variable:
         # Use loop variable instead of fixed "input"
-        new_key_pattern = r"\{\{\s*" + re.escape(loop_variable) + r"\." + re.escape(new_key) + r"\s*\}\}"
+        new_key_pattern = (
+            r"\{\{\s*"
+            + re.escape(loop_variable)
+            + r"\."
+            + re.escape(new_key)
+            + r"\s*\}\}"
+        )
     else:
         # If no for loop found, match new_key directly (without prefix)
         new_key_pattern = r"\{\{\s*" + re.escape(new_key) + r"\s*\}\}"
-    
+
     return new_key_pattern, loop_variable
+
 
 class MapOpConfig(BaseModel):
     """
@@ -152,22 +161,22 @@ class GleaningInstantiateSchema(BaseModel):
     def check_no_jinja_variables(cls, v: str) -> str:
         """
         Validates that the validation_prompt contains no Jinja template variables.
-        
+
         Args:
             v (str): The validation prompt string.
-            
+
         Returns:
             str: The validated prompt string.
-            
+
         Raises:
             ValueError: If Jinja template variables are found in the prompt.
         """
         # Check for Jinja variable patterns: {{ variable }}, {{ input.key }}, etc.
         jinja_patterns = [
             r"\{\{\s*[^}]*\}\}",  # {{ variable }}
-            r"\{\%\s*[^%]*%\}",   # {% control_statement %}
+            r"\{\%\s*[^%]*%\}",  # {% control_statement %}
         ]
-        
+
         for pattern in jinja_patterns:
             if re.search(pattern, v):
                 raise ValueError(
@@ -738,6 +747,129 @@ class DocumentChunkingInstantiateSchema(BaseModel):
             )
 
 
+class TopKConfig(BaseModel):
+    """Configuration for topk operation in document chunking."""
+
+    method: str = Field(
+        ...,
+        description="Method for topk selection: 'embedding' for semantic similarity or 'fts' for full-text search",
+    )
+    k: int = Field(
+        ..., description="Number of chunks to retrieve (e.g., 10 for ten chunks)"
+    )
+    query: str = Field(
+        ...,
+        description="Query string for finding relevant chunks. For embedding: descriptive phrases. For fts: specific keywords.",
+    )
+    keys: List[str] = Field(
+        ...,
+        description="Keys to use for similarity matching, typically ['<split_key>_chunk']",
+    )
+    embedding_model: Optional[str] = Field(
+        "text-embedding-3-small",
+        description="Embedding model to use (only for embedding method)",
+    )
+    stratify_key: Optional[str] = Field(
+        None, description="Optional key for stratified topk retrieval"
+    )
+
+    @field_validator("method")
+    @classmethod
+    def validate_method(cls, v: str) -> str:
+        if v not in ["embedding", "fts"]:
+            raise ValueError("method must be either 'embedding' or 'fts'")
+        return v
+
+    @field_validator("k")
+    @classmethod
+    def validate_k(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("k must be a positive integer")
+        return v
+
+    @field_validator("keys")
+    @classmethod
+    def validate_keys(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("keys cannot be empty")
+        return v
+
+
+class DocumentChunkingTopKInstantiateSchema(BaseModel):
+    """
+    Schema for document chunking with topk operations in a data processing pipeline.
+    Transforms Map => Split -> TopK -> Reduce pattern.
+    Uses topk to intelligently select relevant chunks based on a query.
+    """
+
+    chunk_size: int = Field(
+        ..., description="Number of tokens per chunk for the split operation"
+    )
+    split_key: str = Field(
+        ..., description="The key in the input document that contains the text to split"
+    )
+    reduce_prompt: str = Field(
+        ...,
+        description="Jinja prompt template for the reduce operation that processes selected chunks. Must use {% for input in inputs %} to iterate over chunks and extract/synthesize information to produce the same output as the original map operation.",
+    )
+    topk_config: TopKConfig = Field(
+        ...,
+        description="Configuration for the topk operation to select relevant chunks",
+    )
+    model: str = Field(
+        default="gpt-4o-mini", description="The model to use for the new operations"
+    )
+
+    def validate_split_key_exists_in_input(self, input_file_path: str) -> None:
+        """
+        Validates that the split_key exists in the input JSON file items.
+
+        Args:
+            input_file_path (str): Path to the input JSON file
+
+        Raises:
+            ValueError: If split_key is not found in any input items
+        """
+
+        if not os.path.exists(input_file_path):
+            raise ValueError(f"Input file not found: {input_file_path}")
+
+        try:
+            with open(input_file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in input file: {e}")
+
+        if not isinstance(data, list) or not data:
+            raise ValueError("Input file must contain a non-empty list of items")
+
+        # Check if split_key exists in any of the input items
+        available_keys = set()
+        split_key_found = False
+
+        for item in data:
+            if isinstance(item, dict):
+                available_keys.update(item.keys())
+                if self.split_key in item:
+                    split_key_found = True
+
+        if not split_key_found:
+            raise ValueError(
+                f"split_key '{self.split_key}' not found in any input items. "
+                f"Available keys: {sorted(available_keys)}"
+            )
+
+    @field_validator("reduce_prompt")
+    @classmethod
+    def check_reduce_prompt_has_iteration(cls, v: str) -> str:
+        # Check that it contains iteration pattern for reduce
+        if "for input in inputs" not in v and "for item in inputs" not in v:
+            raise ValueError(
+                "The reduce_prompt must iterate over inputs using '{% for input in inputs %}' or '{% for item in inputs %}'"
+            )
+        return v
+
+
 class TakeHeadTailInstantiateSchema(BaseModel):
     """
     Schema for head/tail truncation operations in a data processing pipeline.
@@ -814,11 +946,11 @@ class ReduceChainingInstantiateSchema(BaseModel):
         and doesn't reference the original document key.
         """
         # Check that it references the new key
-        new_key_pattern, loop_variable = create_dynamic_pattern(new_key, modified_reduce_prompt)
+        new_key_pattern, loop_variable = create_dynamic_pattern(
+            new_key, modified_reduce_prompt
+        )
         if not re.search(new_key_pattern, modified_reduce_prompt):
-            raise ValueError(
-                "Modified reduce prompt must reference the new key"
-            )
+            raise ValueError("Modified reduce prompt must reference the new key")
 
         # Check that it doesn't reference the original document key
         old_key_pattern = (
@@ -925,14 +1057,19 @@ class MapReduceFusionInstantiateSchema(BaseModel):
     Transforms a Map -> Reduce pattern by having the Map pre-extract information
     that the Reduce operation needs, making the Reduce step more efficient.
     """
+
     new_map_name: str = Field(..., description="The name of the modified Map operator")
-    new_map_prompt: str = Field(..., description="Jinja template for the modified Map operator prompt")
+    new_map_prompt: str = Field(
+        ..., description="Jinja template for the modified Map operator prompt"
+    )
     new_key: str = Field(
         ...,
         description="The new key name that the Map operation will output, which the Reduce operation will reference instead of the original document key.",
     )
-    new_reduce_prompt: str = Field(..., description="Jinja template for the Reduce operator prompt")
-    
+    new_reduce_prompt: str = Field(
+        ..., description="Jinja template for the Reduce operator prompt"
+    )
+
     @classmethod
     def validate_reduce_prompt_references_new_key(
         cls,
@@ -945,11 +1082,11 @@ class MapReduceFusionInstantiateSchema(BaseModel):
         and doesn't reference the original document key.
         """
         # Check that it references the new key
-        new_key_pattern, loop_variable = create_dynamic_pattern(new_key, new_reduce_prompt)
+        new_key_pattern, loop_variable = create_dynamic_pattern(
+            new_key, new_reduce_prompt
+        )
         if not re.search(new_key_pattern, new_reduce_prompt):
-            raise ValueError(
-                "Modified reduce prompt must reference the new key"
-            )
+            raise ValueError("Modified reduce prompt must reference the new key")
 
         # Check that it doesn't reference the original document key
         old_key_pattern = (

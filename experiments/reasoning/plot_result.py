@@ -202,8 +202,8 @@ def calculate_hypervolume(pareto_points, reference_point, accuracy_metric):
         next_cost = next_point[2]  # cost
         next_accuracy = next_point[1]  # accuracy
         
-        if (curr_cost < ref_cost and curr_accuracy > ref_accuracy and
-            next_cost < ref_cost and next_accuracy > ref_accuracy):
+        if (curr_cost <= ref_cost and curr_accuracy > ref_accuracy and
+            next_cost <= ref_cost and next_accuracy > ref_accuracy):
             
             # Scale costs from [0, ref_cost] to [0, 1] for hypervolume calculation
             scaled_curr_cost = curr_cost / ref_cost
@@ -383,8 +383,8 @@ def plot_hypervolume_trapezoids_and_rectangle(plt, pareto_points, reference_poin
     # Create continuous shaded area following the Pareto frontier and extending to reference point
     if len(sorted_points) >= 1:
         # Extract costs and accuracies for points within reference bounds
-        costs = [point[2] for point in sorted_points if point[2] < ref_cost and point[1] > ref_accuracy]
-        accuracies = [point[1] for point in sorted_points if point[2] < ref_cost and point[1] > ref_accuracy]
+        costs = [point[2] for point in sorted_points if point[2] <= ref_cost and point[1] > ref_accuracy]
+        accuracies = [point[1] for point in sorted_points if point[2] <= ref_cost and point[1] > ref_accuracy]
         
         print(f"  {label_suffix}: {len(costs)} points within bounds")
         
@@ -672,10 +672,10 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
 
 def main():
     
-    evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/medec_baseline/evaluation_metrics.json"
-    evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/medec_mcts/evaluation_metrics.json"
-    evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/medec_simple_baseline/evaluation_metrics.json"
-    exp_name = "medec"
+    evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/outputs/sustainability_baseline/evaluation_metrics.json"
+    evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/outputs/sustainability_mcts/evaluation_metrics.json"
+    evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/outputs/sustainability_simple_baseline/evaluation_metrics.json"
+    exp_name = "sustainability"
     
     # Find Pareto frontier for all three approaches
     pareto_points_baseline = find_pareto_frontier(evaluation_file_baseline, exp_name)

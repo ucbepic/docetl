@@ -38,6 +38,10 @@ from experiments.reasoning import run_baseline as baseline_mod
 from experiments.reasoning import run_simple_baseline as simple_baseline_mod
 from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics
 from experiments.reasoning.utils import app, create_original_query_result, volume, VOLUME_MOUNT_PATH, image  # use the same App as the runners
+from experiments.reasoning.plot_result import (
+    find_pareto_frontier, calculate_hypervolume_comparison, 
+    plot_pareto_frontier_comparison, dataset_metrics
+)
 
 # Known defaults for dataset YAMLs and sample dataset inputs
 DEFAULT_YAML_PATHS: Dict[str, str] = {
@@ -65,8 +69,8 @@ CONFIG: Dict[str, Any] = {
         {
             "dataset": "sustainability",
             "baseline": {"iterations": 2},
-            "mcts": {"max_iterations": 3},
-            "simple_baseline": {"model": "o3"}
+            "mcts": {"max_iterations": 2},
+            "simple_baseline": {"model": "gpt-5"}
         }
     ]
 }
@@ -249,6 +253,222 @@ def run_original_query(yaml_path: str, dataset: str, experiment_name: str,
     return run_original_query_remote.remote(yaml_path, dataset, experiment_name, data_dir, output_dir)
 
 
+@app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 30)
+def generate_comparison_plots_remote(dataset: str, output_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Generate Pareto frontier comparison plots for all three methods in Modal."""
+    import os
+    import matplotlib
+    matplotlib.use('Agg')  # Use non-interactive backend for Modal
+    import matplotlib.pyplot as plt
+    from pathlib import Path
+    
+    try:
+        print(f"\n📊 Generating comparison plots for {dataset} in Modal...")
+        
+        # Set up Modal environment
+        os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+        
+        # Set up paths to evaluation files in Modal volume
+        base_output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+        
+        evaluation_file_baseline = f"{base_output_dir}/{dataset}_baseline/evaluation_metrics.json"
+        evaluation_file_mcts = f"{base_output_dir}/{dataset}_mcts/evaluation_metrics.json"  
+        evaluation_file_simple = f"{base_output_dir}/{dataset}_simple_baseline/evaluation_metrics.json"
+        
+        # Import plot functions locally to avoid import issues
+        from experiments.reasoning.plot_result import (
+            find_pareto_frontier, calculate_hypervolume_comparison, 
+            plot_pareto_frontier_comparison, dataset_metrics
+        )
+        
+        # Check if dataset is supported
+        if dataset not in dataset_metrics:
+            return {
+                "success": False,
+                "error": f"Dataset '{dataset}' not supported for plotting. Supported datasets: {list(dataset_metrics.keys())}"
+            }
+            
+        print(f"Looking for evaluation files:")
+        print(f"  Baseline: {evaluation_file_baseline}")
+        print(f"  MCTS: {evaluation_file_mcts}")
+        print(f"  Simple Baseline: {evaluation_file_simple}")
+        
+        # Check if files exist
+        files_exist = []
+        for file_path in [evaluation_file_baseline, evaluation_file_mcts, evaluation_file_simple]:
+            if Path(file_path).exists():
+                files_exist.append(file_path)
+            else:
+                print(f"⚠️ File not found: {file_path}")
+        
+        if len(files_exist) < 2:
+            return {
+                "success": False,
+                "error": f"Need at least 2 evaluation files to generate comparison plots. Found {len(files_exist)} files."
+            }
+            
+        # Find Pareto frontiers for available methods
+        pareto_points_baseline = []
+        pareto_points_mcts = []
+        pareto_points_simple = []
+        
+        if Path(evaluation_file_baseline).exists():
+            pareto_points_baseline = find_pareto_frontier(evaluation_file_baseline, dataset)
+            print(f"✅ Found {len(pareto_points_baseline)} baseline Pareto points")
+            
+        if Path(evaluation_file_mcts).exists():
+            pareto_points_mcts = find_pareto_frontier(evaluation_file_mcts, dataset)
+            print(f"✅ Found {len(pareto_points_mcts)} MCTS Pareto points")
+            
+        if Path(evaluation_file_simple).exists():
+            pareto_points_simple = find_pareto_frontier(evaluation_file_simple, dataset)
+            print(f"✅ Found {len(pareto_points_simple)} simple baseline Pareto points")
+        
+        # Calculate hypervolumes if we have enough data
+        plot_path = None
+        if len(files_exist) >= 2:
+            print(f"\n📐 Calculating hypervolumes...")
+            
+            # Use available files for hypervolume calculation
+            baseline_file = evaluation_file_baseline if Path(evaluation_file_baseline).exists() else files_exist[0]
+            mcts_file = evaluation_file_mcts if Path(evaluation_file_mcts).exists() else files_exist[0] 
+            simple_file = evaluation_file_simple if Path(evaluation_file_simple).exists() else files_exist[0]
+            
+            baseline_hv, mcts_hv, simple_hv, reference_point = calculate_hypervolume_comparison(
+                baseline_file, mcts_file, simple_file, dataset,
+                pareto_points_baseline, pareto_points_mcts, pareto_points_simple
+            )
+            
+            print(f"📊 Hypervolume Results:")
+            print(f"   Baseline: {baseline_hv:.4f}")
+            print(f"   MCTS: {mcts_hv:.4f}")
+            print(f"   Simple Baseline: {simple_hv:.4f}")
+            
+            # Save plots to the original output directory (same location as original query results)
+            plot_output_dir = Path(base_output_dir) / f"{dataset}_original"
+            plot_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            print(f"\n🎨 Generating comparison plot...")
+            plot_pareto_frontier_comparison(
+                baseline_file, mcts_file, simple_file, dataset,
+                pareto_points_baseline, pareto_points_mcts, pareto_points_simple,
+                output_path=str(plot_output_dir), reference_point=reference_point
+            )
+            
+            plot_path = str(plot_output_dir / f"pareto_frontier_comparison_{dataset}.png")
+            print(f"📈 Comparison plot saved to: {plot_path}")
+            
+            # Save hypervolume results to text file
+            hypervolume_summary_path = plot_output_dir / f"hypervolume_summary_{dataset}.txt"
+            with open(hypervolume_summary_path, 'w') as f:
+                f.write(f"Hypervolume Comparison Results - {dataset.upper()} Dataset\n")
+                f.write("=" * 60 + "\n\n")
+                
+                f.write(f"Dataset: {dataset}\n")
+                f.write(f"Accuracy Metric: {dataset_metrics[dataset]}\n")
+                f.write(f"Reference Point: accuracy={reference_point['accuracy']:.4f}, cost=${reference_point['cost']:.6f}\n\n")
+                
+                f.write("HYPERVOLUME RESULTS:\n")
+                f.write("-" * 20 + "\n")
+                f.write(f"Baseline Hypervolume:       {baseline_hv:.6f}\n")
+                f.write(f"MCTS Hypervolume:           {mcts_hv:.6f}\n")
+                f.write(f"Simple Baseline Hypervolume: {simple_hv:.6f}\n\n")
+                
+                f.write("PARETO FRONTIER POINTS:\n")
+                f.write("-" * 25 + "\n")
+                
+                f.write(f"\nBaseline ({len(pareto_points_baseline)} points):\n")
+                for i, (iteration, accuracy, cost) in enumerate(pareto_points_baseline):
+                    f.write(f"  {i+1:2d}. Iteration {iteration}: {dataset_metrics[dataset]}={accuracy:.4f}, cost=${cost:.6f}\n")
+                
+                f.write(f"\nMCTS ({len(pareto_points_mcts)} points):\n")
+                for i, (iteration, accuracy, cost) in enumerate(pareto_points_mcts):
+                    f.write(f"  {i+1:2d}. Iteration {iteration}: {dataset_metrics[dataset]}={accuracy:.4f}, cost=${cost:.6f}\n")
+                
+                f.write(f"\nSimple Baseline ({len(pareto_points_simple)} points):\n")
+                for i, (iteration, accuracy, cost) in enumerate(pareto_points_simple):
+                    f.write(f"  {i+1:2d}. Iteration {iteration}: {dataset_metrics[dataset]}={accuracy:.4f}, cost=${cost:.6f}\n")
+                
+                f.write("\nFILES PROCESSED:\n")
+                f.write("-" * 16 + "\n")
+                if Path(evaluation_file_baseline).exists():
+                    f.write(f"✓ Baseline: {evaluation_file_baseline}\n")
+                else:
+                    f.write(f"✗ Baseline: {evaluation_file_baseline} (not found)\n")
+                    
+                if Path(evaluation_file_mcts).exists():
+                    f.write(f"✓ MCTS: {evaluation_file_mcts}\n")
+                else:
+                    f.write(f"✗ MCTS: {evaluation_file_mcts} (not found)\n")
+                    
+                if Path(evaluation_file_simple).exists():
+                    f.write(f"✓ Simple Baseline: {evaluation_file_simple}\n")
+                else:
+                    f.write(f"✗ Simple Baseline: {evaluation_file_simple} (not found)\n")
+                
+                # Add timestamp
+                from datetime import datetime
+                f.write(f"\nGenerated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+            
+            print(f"📄 Hypervolume summary saved to: {hypervolume_summary_path}")
+            
+            # Close any open plots to free memory
+            plt.close('all')
+            
+            # Commit changes to Modal volume
+            volume.commit()
+            
+            return {
+                "success": True,
+                "plot_path": plot_path,
+                "summary_path": str(hypervolume_summary_path),
+                "hypervolumes": {
+                    "baseline": baseline_hv,
+                    "mcts": mcts_hv,
+                    "simple_baseline": simple_hv
+                },
+                "files_processed": len(files_exist)
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Not enough valid evaluation files to generate plots"
+            }
+            
+    except Exception as e:
+        print(f"❌ Error generating comparison plots: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def generate_comparison_plots(dataset: str, output_dir: Optional[str] = None) -> None:
+    """Generate Pareto frontier comparison plots for all three methods."""
+    try:
+        print(f"\n📊 Generating comparison plots for {dataset}...")
+        result = generate_comparison_plots_remote.remote(dataset, output_dir)
+        
+        if result["success"]:
+            print(f"✅ Comparison plots generated successfully!")
+            print(f"📈 Plot saved to: {result['plot_path']}")
+            print(f"📄 Summary saved to: {result['summary_path']}")
+            print(f"📊 Hypervolume Results:")
+            hv = result["hypervolumes"]
+            print(f"   Baseline: {hv['baseline']:.4f}")
+            print(f"   MCTS: {hv['mcts']:.4f}")
+            print(f"   Simple Baseline: {hv['simple_baseline']:.4f}")
+        else:
+            print(f"❌ Plot generation failed: {result['error']}")
+            
+    except Exception as e:
+        print(f"❌ Error generating comparison plots: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def run_from_config(config: Dict[str, Any]) -> int:
     experiments: List[Dict[str, Any]] = config.get("experiments", [])
     if not experiments:
@@ -360,10 +580,24 @@ def run_from_config(config: Dict[str, Any]) -> int:
 
     if failures:
         print(f"Completed with {failures} failure(s)")
-        return 2
-
+        # Still try to generate plots for successful experiments
+        
     print("All experiments completed successfully")
-    return 0
+    
+    # Generate comparison plots for each dataset
+    print(f"\n{'='*60}")
+    print("GENERATING COMPARISON PLOTS")
+    print(f"{'='*60}")
+    
+    datasets_processed = set()
+    for exp in experiments:
+        dataset = exp["dataset"].lower()
+        if dataset not in datasets_processed:
+            datasets_processed.add(dataset)
+            output_dir = exp.get("output_dir")
+            generate_comparison_plots(dataset, output_dir)
+    
+    return 2 if failures else 0
 
 
 @app.local_entrypoint()

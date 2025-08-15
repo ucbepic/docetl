@@ -53,12 +53,12 @@ class DocumentChunkingTopKDirective(Directive):
 
             InstantiateSchema (filter with embedding search):
             {
-              "chunk_size": 5000,
+              "chunk_size": 1000,
               "split_key": "review_text",
               "reduce_prompt": "Analyze this customer review to determine if it mentions competitor products more positively than our product.\\n\\nOur Product: {{ inputs[0].our_product }}\\nReview: the top {{ inputs|length }} most relevant chunks from the document (ordered by relevance):\\n{% for input in inputs|sort(attribute='_topk_filter_competitor_mentions_chunks_rank') %}\\nChunk (Rank {{ input._topk_filter_competitor_mentions_chunks_rank }}, Score {{ input._topk_filter_competitor_mentions_chunks_score }}):\\n{{ input.review_text_chunk }}\\n{% endfor %}\\nReview ID: {{ inputs[0].review_id }}\\n\\nReturn true if the review speaks more favorably about competitor products than ours.\\nConsider: feature comparisons, performance mentions, value assessments, recommendations.",
               "topk_config": {
                 "method": "embedding",
-                "k": 10,
+                "k": 5,
                 "query": "competitor comparison versus alternative better than superior inferior worse features performance value recommendation prefer instead",
                 "keys": ["review_text_chunk"],
                 "embedding_model": "text-embedding-3-small"
@@ -378,7 +378,7 @@ class DocumentChunkingTopKDirective(Directive):
             f"into a Split -> TopK -> Reduce pipeline for processing very long documents with intelligent chunk selection.\n"
             f"{'For Filter operations, a final code_filter step will be automatically added to return boolean results.' if op_type == 'filter' else ''}\n\n"
             f"Key requirements:\n"
-            f"1. chunk_size: Choose an appropriate token count (typically 5000-10000) for cost-effective processing of long documents\n"
+            f"1. chunk_size: Choose an appropriate token count (typically 1000) for cost-effective processing of long documents\n"
             f"2. split_key: Identify the document field to split from the original operation's prompt (the longest text field)\n"
             f"3. reduce_prompt: Use the EXACT SAME prompt as the original, with ONE change:\n"
             f"   - Where the original references '{{{{ input.<split_key> }}}}', replace it with:\n"
@@ -389,10 +389,9 @@ class DocumentChunkingTopKDirective(Directive):
             f"   - method: Choose 'embedding' for semantic similarity or 'fts' for keyword matching\n"
             f"     * Use 'embedding' when: looking for conceptual comparisons, themes, or abstract relationships\n"
             f"     * Use 'fts' when: searching for specific terms, legal clauses, technical codes, or exact phrases\n"
-            f"   - k: Number of chunks to retrieve (typically 8-20 for comprehensive coverage)\n"
-            f"     * For complex filters needing broad context: k=12-20\n"
-            f"     * For targeted extraction from specific sections: k=8-12\n"
-            f"     * Consider document length: 100-page doc might need k=15-20\n"
+            f"   - k: Number of chunks to retrieve (typically 5-10 for comprehensive coverage)\n"
+            f"     * For complex tasks needing most of the document as context: k=10\n"
+            f"     * For targeted extraction from specific sections: k=5\n"
             f"   - query: Craft carefully to find chunks relevant to the {'filter decision' if op_type == 'filter' else 'extraction task'}\n"
             f"     * For embedding: use terms related to the comparison/decision criteria\n"
             f"     * For fts: use specific keywords that appear in relevant sections\n"
@@ -510,11 +509,14 @@ class DocumentChunkingTopKDirective(Directive):
             "k": rewrite.topk_config.k,
             "keys": rewrite.topk_config.keys,
             "query": rewrite.topk_config.query,
+            "stratify_key": [f"{split_name}_id"],
         }
 
         # Add stratify_key if specified
         if rewrite.topk_config.stratify_key:
-            topk_op["stratify_key"] = rewrite.topk_config.stratify_key
+            topk_op["stratify_key"] = topk_op["stratify_key"] + [
+                rewrite.topk_config.stratify_key
+            ]
 
         # Add embedding_model for embedding method
         if (

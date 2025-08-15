@@ -870,6 +870,49 @@ class DocumentChunkingTopKInstantiateSchema(BaseModel):
         return v
 
 
+class HierarchicalReduceInstantiateSchema(BaseModel):
+    """
+    Schema for hierarchical reduce operations in a data processing pipeline.
+    Transforms Reduce => Reduce -> Reduce pattern where the first Reduce operation
+    aggregates data at a finer granularity (reduce_key + additional_key), then
+    the second Reduce combines these to the target granularity (reduce_key).
+    Optionally includes a Map operation before the first Reduce to create synthetic keys.
+    """
+
+    map_config: Optional[MapOpConfig] = Field(
+        None,
+        description="Optional: Configuration for a Map operator to create synthetic keys for finer-grained aggregation",
+    )
+    additional_key: str = Field(
+        ...,
+        description="The additional key to use alongside the original reduce_key for finer granularity in the first reduce. Can be an existing key or the synthetic key created by the optional Map (use map_config.output_keys[0]).",
+    )
+    reduce_1_name: str = Field(
+        ..., description="The name of the first Reduce operator (finer granularity)"
+    )
+    reduce_1_prompt: str = Field(
+        ...,
+        description="Jinja prompt template for the first Reduce that aggregates at finer granularity (reduce_key + additional_key). Should be adapted from the original reduce prompt.",
+    )
+    reduce_2_prompt: str = Field(
+        ...,
+        description="Jinja prompt template for the second Reduce that combines the outputs of the first reduce to the target granularity (reduce_key only). Should reference the output from the first reduce.",
+    )
+    model: str = Field(
+        default="gpt-4o-mini", description="The model to use for the reduce operations."
+    )
+
+    @field_validator("reduce_1_prompt", "reduce_2_prompt")
+    @classmethod
+    def check_reduce_prompts(cls, v: str) -> str:
+        # Check that it contains iteration pattern for reduce
+        if "for input in inputs" not in v and "for item in inputs" not in v:
+            raise ValueError(
+                "The reduce prompts must iterate over inputs using '{% for input in inputs %}' or '{% for item in inputs %}'"
+            )
+        return v
+
+
 class TakeHeadTailInstantiateSchema(BaseModel):
     """
     Schema for head/tail truncation operations in a data processing pipeline.

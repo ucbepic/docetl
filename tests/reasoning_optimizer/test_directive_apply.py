@@ -21,7 +21,8 @@ from docetl.reasoning_optimizer.directives import (
     ChunkHeaderSummaryDirective,
     TakeHeadTailDirective,
     ClarifyInstructionsDirective,
-    SwapWithCodeDirective
+    SwapWithCodeDirective,
+    HierarchicalReduceDirective
 )
 
 
@@ -854,6 +855,74 @@ def test_swap_with_code_apply():
     assert "output" in result_with_map[1]
 
 
+def test_hierarchical_reduce_apply():
+    """Test that hierarchical reduce apply doesn't crash"""
+    directive = HierarchicalReduceDirective()
+    
+    # Test with Map for synthetic key
+    ops_list = [
+        {
+            "name": "summarize_by_state",
+            "type": "reduce",
+            "reduce_key": "state",
+            "prompt": "Summarize posts: {% for input in inputs %}{{ input.content }}{% endfor %}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"summary": "string"}}
+        }
+    ]
+    
+    from docetl.reasoning_optimizer.instantiate_schemas import HierarchicalReduceInstantiateSchema, MapOpConfig
+    
+    # Test with Map for synthetic key
+    rewrite_with_map = HierarchicalReduceInstantiateSchema(
+        map_config=MapOpConfig(
+            name="extract_city",
+            prompt="Extract city from: {{ input.content }}",
+            output_keys=["city"],
+            model="gpt-4o-mini"
+        ),
+        additional_key="city",
+        reduce_1_name="summarize_by_state_city",
+        reduce_1_prompt="Goal: Summarize social media posts.\n\nSummarize posts for this state and city: {% for input in inputs %}{{ input.content }}{% endfor %}",
+        reduce_2_prompt="Goal: Summarize social media posts.\n\nWe have already summarized posts at the city level. Your task is to combine these city-level summaries into a state summary: {% for input in inputs %}City: {{ input.city }}, Summary: {{ input.summary }}{% endfor %}",
+        model="gpt-4o-mini"
+    )
+    
+    result_with_map = directive.apply("azure/gpt-4o-mini", ops_list, "summarize_by_state", rewrite_with_map)
+    assert isinstance(result_with_map, list)
+    assert len(result_with_map) == 3  # Map + 2 Reduces
+    assert result_with_map[0]["type"] == "map"
+    assert result_with_map[1]["type"] == "reduce"
+    assert result_with_map[2]["type"] == "reduce"
+    
+    # Test without Map (using existing key)
+    ops_list_existing_key = [
+        {
+            "name": "aggregate_sales",
+            "type": "reduce",
+            "reduce_key": "region",
+            "prompt": "Aggregate sales: {% for input in inputs %}{{ input.sales_data }}{% endfor %}",
+            "model": "gpt-4o-mini",
+            "output": {"schema": {"total": "number"}}
+        }
+    ]
+    
+    rewrite_no_map = HierarchicalReduceInstantiateSchema(
+        map_config=None,
+        additional_key="store_id",  # Assume this exists in data
+        reduce_1_name="aggregate_by_region_store",
+        reduce_1_prompt="Goal: Aggregate sales data.\n\nAggregate sales by region and store: {% for input in inputs %}{{ input.sales_data }}{% endfor %}",
+        reduce_2_prompt="Goal: Aggregate sales data.\n\nWe have already aggregated sales at the store level. Your task is to combine these store-level totals into a regional summary: {% for input in inputs %}Store: {{ input.store_id }}, Total: {{ input.total }}{% endfor %}",
+        model="gpt-4o-mini"
+    )
+    
+    result_no_map = directive.apply("azure/gpt-4o-mini", ops_list_existing_key, "aggregate_sales", rewrite_no_map)
+    assert isinstance(result_no_map, list)
+    assert len(result_no_map) == 2  # 2 Reduces only
+    assert result_no_map[0]["type"] == "reduce"
+    assert result_no_map[1]["type"] == "reduce"
+
+
 if __name__ == "__main__":
     # Run all tests
     test_chaining_apply()
@@ -913,5 +982,8 @@ if __name__ == "__main__":
 
     test_swap_with_code_apply()
     print("✅ Swap with code apply test passed")
+
+    test_hierarchical_reduce_apply()
+    print("✅ Hierarchical reduce apply test passed")
 
     print("\n🎉 All directive apply tests passed!")

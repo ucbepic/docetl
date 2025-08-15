@@ -13,10 +13,11 @@ import json
 import argparse
 import glob
 from pathlib import Path
+from typing import Dict, Any
 from docetl.utils import extract_output_from_json
 import matplotlib.pyplot as plt
 from docetl.runner import DSLRunner
-import yaml as _yaml
+import yaml
 import shutil
 import re
 from experiments.reasoning.evaluation.utils import run_dataset_evaluation
@@ -31,8 +32,8 @@ from docetl.reasoning_optimizer.directives import DEFAULT_MODEL, DEFAULT_MAX_TPM
 
 # Modal integration (mirrors experiments/reasoning/run_mcts.py)
 import modal
-import yaml
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
+
 
 
 def _resolve_in_volume(path: str | None) -> str | None:
@@ -84,6 +85,7 @@ def run_baseline_remote(
     experiment_name: str = "baseline_experiment",
     dataset: str = "cuad",
     ground_truth_path: str | None = None,
+    original_query_result: Dict[str, Any] | None = None,
 ):
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     resolved_output_dir = _resolve_in_volume(output_dir) if output_dir else None
@@ -102,6 +104,7 @@ def run_baseline_remote(
         experiment_name=experiment_name,
         dataset=dataset,
         ground_truth_path=ground_truth_path,
+        original_query_result=original_query_result,
     )
     volume.commit()
     return results
@@ -118,6 +121,7 @@ def modal_main_baseline(
     iterations: int = 1,
     dataset: str = "cuad",
     ground_truth: str | None = None,
+    original_query_result: Dict[str, Any] | None = None,
 ):
     run_baseline_remote.remote(
         yaml_path=yaml_path,
@@ -129,6 +133,7 @@ def modal_main_baseline(
         experiment_name=experiment_name,
         dataset=dataset,
         ground_truth_path=ground_truth,
+        original_query_result=original_query_result,
     )
 
 
@@ -142,6 +147,7 @@ def run_baseline_experiment(
     experiment_name: str = "baseline_experiment",
     dataset: str = "cuad",
     ground_truth_path: str | None = None,
+    original_query_result: Dict[str, Any] | None = None,
 ):
     """
     Run baseline agent experiment with specified parameters.
@@ -187,54 +193,24 @@ def run_baseline_experiment(
     message_history = load_message_history(str(message_history_file))
 
     # ------------------------------------------------------------------
-    # Baseline run (iteration 0)
+    # Baseline run (iteration 0) - use original query result if available
     # ------------------------------------------------------------------
-
-    def run_baseline_pipeline(yaml_path: str, out_dir: Path):
-        """Execute original YAML once, save JSON and return (sample_dict, cost)."""
+    
+    if original_query_result and original_query_result["success"]:
+        print("✅ Using pre-executed original query result")
+        # Use the pre-executed original query result
+        orig_output_sample = original_query_result["sample_output"]
+        baseline_cost = original_query_result["cost"]
         
-
-        # Load original YAML
-        with open(yaml_path, 'r') as f:
-            config = _yaml.safe_load(f)
-
-        # Redirect output path to experiment folder
-        baseline_json_path = out_dir / "original_output.json"
-        try:
-            config['pipeline']['output']['path'] = str(baseline_json_path)
-        except Exception:
-            # Fallback if structure is different
-            config.setdefault('pipeline', {}).setdefault('output', {})['path'] = str(baseline_json_path)
-
-        # Force fresh run
-        config['bypass_cache'] = True
-
-        # Save modified YAML for provenance
-        baseline_yaml_path = out_dir / "baseline_config.yaml"
-        with open(baseline_yaml_path, 'w') as f:
-            _yaml.dump(config, f, sort_keys=False)
-
-        # Run pipeline
-        runner = DSLRunner.from_yaml(str(baseline_yaml_path))
-        runner.load()
-        if runner.last_op_container:
-            data, _, _ = runner.last_op_container.next()
-            runner.save(data)
-        total_cost = runner.total_cost
-        runner.reset_env()
-
-        # Load sample output (truncate if huge)
-        try:
-            orig_output_sample = extract_output_from_json(baseline_yaml_path, baseline_json_path)[:1]
-        except Exception as e:
-            print(f"⚠️  Could not load baseline output JSON: {e}")
-
-        return orig_output_sample, total_cost
-
-
-    print("▶️  Running baseline (iteration 0)")
-    try:
-        orig_output_sample, baseline_cost = run_baseline_pipeline(yaml_path, output_path)
+        # Copy the original output file to our experiment directory for consistency
+        if original_query_result["output_file_path"]:
+            import shutil
+            baseline_json_path = output_path / "original_output.json"
+            try:
+                shutil.copy2(original_query_result["output_file_path"], baseline_json_path)
+            except Exception as e:
+                print(f"⚠️  Could not copy original output file: {e}")
+        
         results = [{
             "iteration": 0,
             "output_file": str(output_path / "original_output.json"),
@@ -242,17 +218,70 @@ def run_baseline_experiment(
             "cost": baseline_cost,
         }]
         prev_cost = baseline_cost
-        print(f"✅ Baseline executed successfully, cost: ${baseline_cost:.4f}")
-    except Exception as e:
-        print(f"❌ Baseline run failed: {e}")
-        orig_output_sample = ""
-        prev_cost = 0.0
-        results = [{
-            "iteration": 0,
-            "success": False,
-            "error": str(e),
-            "cost": 0.0,
-        }]
+        print(f"✅ Baseline cost: ${baseline_cost:.4f}")
+    else:
+        print("▶️  Running baseline (iteration 0) - original query result not available")
+        
+        def run_baseline_pipeline(yaml_path: str, out_dir: Path):
+            """Execute original YAML once, save JSON and return (sample_dict, cost)."""
+            # Load original YAML
+            with open(yaml_path, 'r') as f:
+                config = yaml.safe_load(f)
+
+            # Redirect output path to experiment folder
+            baseline_json_path = out_dir / "original_output.json"
+            try:
+                config['pipeline']['output']['path'] = str(baseline_json_path)
+            except Exception:
+                # Fallback if structure is different
+                config.setdefault('pipeline', {}).setdefault('output', {})['path'] = str(baseline_json_path)
+
+            # Force fresh run
+            config['bypass_cache'] = True
+
+            # Save modified YAML for provenance
+            baseline_yaml_path = out_dir / "baseline_config.yaml"
+            with open(baseline_yaml_path, 'w') as f:
+                yaml.dump(config, f, sort_keys=False)
+
+            # Run pipeline
+            runner = DSLRunner.from_yaml(str(baseline_yaml_path))
+            runner.load()
+            if runner.last_op_container:
+                data, _, _ = runner.last_op_container.next()
+                runner.save(data)
+            total_cost = runner.total_cost
+            runner.reset_env()
+
+            # Load sample output (truncate if huge)
+            try:
+                orig_output_sample = extract_output_from_json(str(baseline_yaml_path), str(baseline_json_path))[:1]
+            except Exception as e:
+                print(f"⚠️  Could not load baseline output JSON: {e}")
+                orig_output_sample = []
+
+            return orig_output_sample, total_cost
+
+        try:
+            orig_output_sample, baseline_cost = run_baseline_pipeline(yaml_path, output_path)
+            results = [{
+                "iteration": 0,
+                "output_file": str(output_path / "original_output.json"),
+                "success": True,
+                "cost": baseline_cost,
+            }]
+            prev_cost = baseline_cost
+            print(f"✅ Baseline executed successfully, cost: ${baseline_cost:.4f}")
+        except Exception as e:
+            print(f"❌ Baseline run failed: {e}")
+            orig_output_sample = []
+            prev_cost = 0.0
+            results = [{
+                "iteration": 0,
+                "success": False,
+                "error": str(e),
+                "cost": 0.0,
+            }]
  
     # ------------------------------------------------------------------
     # Optimisation iterations
@@ -385,12 +414,16 @@ def run_baseline_experiment(
             "node_id": Path(jf).stem,  # Use filename as node_id
         })
 
+    # Use original query result cost if available, otherwise use baseline cost from first result
+    root_cost = original_query_result["cost"] if (original_query_result and original_query_result["success"]) else (results[0].get("cost", 0.0) if results else 0.0)
+    
     eval_results, pareto_auc = run_dataset_evaluation(
         dataset=dataset,
         nodes_or_files=files_for_evaluation,
         output_path=output_path,
         ground_truth_path=ground_truth_path,
-        method_name="docetl_baseline"
+        method_name="docetl_baseline",
+        root_cost=root_cost
     )
 
     # Save experiment summary
@@ -405,7 +438,9 @@ def run_baseline_experiment(
         "results": results,
         "dataset": dataset,
         "ground_truth": ground_truth_path,
-        "success_rate": sum(1 for r in results if r["success"]) / len(results)
+        "success_rate": sum(1 for r in results if r["success"]) / len(results),
+        "original_query_cost": original_query_result["cost"] if original_query_result and original_query_result["success"] else None,
+        "original_query_success": original_query_result["success"] if original_query_result else None,
     }
     if eval_results:
         experiment_summary["evaluation_file"] = str(output_path / "evaluation_metrics.json")

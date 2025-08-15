@@ -8,6 +8,14 @@ from .medec import evaluate_results as medec_evaluate
 from .sustainability import evaluate_results as sustainability_evaluate
 from .biodex import evaluate_results as biodex_evaluate
 
+dataset_accuracy_metrics = {
+    "cuad": "avg_f1",
+    "blackvault": "avg_distinct_locations", 
+    "game_reviews": "combined_accuracy_score",
+    "medec": "combined_score",
+    "sustainability": "economic_activity_accuracy",
+    "biodex": "avg_rp_at_10"
+}
 def identify_pareto_frontier(eval_results, dataset):
     """
     Identify the Pareto frontier for a given dataset based on accuracy vs cost.

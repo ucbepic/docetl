@@ -22,16 +22,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import modal
+import yaml
+from docetl.runner import DSLRunner
+from docetl.utils import extract_output_from_json
+
 
 # Import the existing Modal functions and shared volume/mount from the experiment runners
 from experiments.reasoning import run_mcts as mcts_mod
 from experiments.reasoning import run_baseline as baseline_mod
 from experiments.reasoning import run_simple_baseline as simple_baseline_mod
-from experiments.reasoning.utils import app  # use the same App as the runners
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics
+from experiments.reasoning.utils import app, create_original_query_result, volume, VOLUME_MOUNT_PATH, image  # use the same App as the runners
 
 # Known defaults for dataset YAMLs and sample dataset inputs
 DEFAULT_YAML_PATHS: Dict[str, str] = {
@@ -57,11 +63,10 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "CUAD",
-            "baseline": {"iterations": 10},
-            "mcts": {"max_iterations": 30},
+            "dataset": "sustainability",
+            "baseline": {"iterations": 2},
+            "mcts": {"max_iterations": 3},
             "simple_baseline": {"model": "o3"}
-
         }
     ]
 }
@@ -84,6 +89,7 @@ def _spawn_baseline(
     data_dir: Optional[str],
     output_dir: Optional[str],
     ground_truth: Optional[str],
+    original_query_result: Dict[str, Any],
 ):
     # Uses baseline_mod.run_baseline_remote which is bound to the shared named volume
     return baseline_mod.run_baseline_remote.spawn(
@@ -96,6 +102,7 @@ def _spawn_baseline(
         experiment_name=experiment_name,
         dataset=dataset,
         ground_truth_path=ground_truth,
+        original_query_result=original_query_result,
     )
 
 
@@ -111,6 +118,7 @@ def _spawn_mcts(
     data_dir: Optional[str],
     output_dir: Optional[str],
     ground_truth: Optional[str],
+    original_query_result: Dict[str, Any],
 ):
     # Uses mcts_mod.run_mcts_remote which is bound to the shared named volume
     return mcts_mod.run_mcts_remote.spawn(
@@ -124,6 +132,7 @@ def _spawn_mcts(
         model=model or mcts_mod.DEFAULT_MODEL,
         dataset=dataset,
         ground_truth_path=ground_truth,
+        original_query_result=original_query_result,
     )
 
 
@@ -134,6 +143,7 @@ def _spawn_simple_baseline(
     model: Optional[str],
     output_dir: Optional[str],
     ground_truth: Optional[str],
+    original_query_result: Dict[str, Any],
 ):
     # Uses simple_baseline_mod.run_simple_baseline_remote which is bound to the shared named volume
     return simple_baseline_mod.run_simple_baseline_remote.spawn(
@@ -142,7 +152,101 @@ def _spawn_simple_baseline(
         model=model or "o3",  # Default to o3 model
         experiment_name=experiment_name,
         ground_truth_path=ground_truth,
+        original_query_result=original_query_result,
     )
+
+
+@app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 60)
+def run_original_query_remote(yaml_path: str, dataset: str, experiment_name: str, 
+                             data_dir: Optional[str] = None, output_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Execute the original query plan once in Modal and return results."""
+    import os
+    import yaml
+    from pathlib import Path
+    from docetl.runner import DSLRunner
+    from docetl.utils import extract_output_from_json
+    from experiments.reasoning.utils import create_original_query_result
+    
+    try:
+        # Set up Modal environment
+        os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+        
+        # Set up output directory in Modal volume
+        if output_dir is None:
+            output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+        else:
+            # Ensure output_dir is within the Modal volume
+            if not output_dir.startswith(VOLUME_MOUNT_PATH):
+                output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+        
+        output_path = Path(output_dir) / experiment_name
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Load original YAML
+        with open(yaml_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Redirect output path to experiment folder in Modal volume
+        baseline_json_path = output_path / "original_output.json"
+        print("baseline_json_path (Modal):", baseline_json_path)
+        try:
+            config['pipeline']['output']['path'] = str(baseline_json_path)
+        except Exception:
+            # Fallback if structure is different
+            config.setdefault('pipeline', {}).setdefault('output', {})['path'] = str(baseline_json_path)
+
+        # Set data directory if provided
+        if data_dir:
+            os.environ['EXPERIMENT_DATA_DIR'] = data_dir
+
+        # Force fresh run
+        config['bypass_cache'] = True
+
+        # Save modified YAML for provenance in Modal volume
+        baseline_yaml_path = output_path / "baseline_config.yaml"
+        with open(baseline_yaml_path, 'w') as f:
+            yaml.dump(config, f, sort_keys=False)
+
+        # Run pipeline
+        runner = DSLRunner.from_yaml(str(baseline_yaml_path))
+        runner.load()
+        if runner.last_op_container:
+            data, _, _ = runner.last_op_container.next()
+            runner.save(data)
+        total_cost = runner.total_cost
+        runner.reset_env()
+
+        # Load sample output (truncate if huge)
+        sample_output = []
+        try:
+            sample_output = extract_output_from_json(str(baseline_yaml_path), str(baseline_json_path))[:1]
+        except Exception as e:
+            print(f"⚠️  Could not load baseline output JSON: {e}")
+
+        # Commit changes to Modal volume
+        volume.commit()
+        
+        return create_original_query_result(
+            success=True,
+            cost=total_cost,
+            output_file_path=str(baseline_json_path),
+            sample_output=sample_output
+        )
+    except Exception as e:
+        print(f"❌ Original query execution failed: {e}")
+        return create_original_query_result(
+            success=False,
+            cost=0.0,
+            output_file_path=None,
+            sample_output=[],
+            error=str(e)
+        )
+
+
+def run_original_query(yaml_path: str, dataset: str, experiment_name: str, 
+                      data_dir: Optional[str] = None, output_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Execute the original query plan once using Modal and return results."""
+    return run_original_query_remote.remote(yaml_path, dataset, experiment_name, data_dir, output_dir)
 
 
 def run_from_config(config: Dict[str, Any]) -> int:
@@ -163,6 +267,22 @@ def run_from_config(config: Dict[str, Any]) -> int:
         data_dir: Optional[str] = exp.get("data_dir")
         output_dir: Optional[str] = exp.get("output_dir")
         ground_truth: Optional[str] = exp.get("ground_truth")
+        
+        # Execute original query plan once
+        print(f"🔄 Executing original query plan for {dataset}...")
+        print("output_dir", output_dir)
+        original_result = run_original_query(
+            yaml_path=yaml_path,
+            dataset=dataset,
+            experiment_name=f"{dataset}_original",
+            data_dir=data_dir,
+            output_dir=output_dir
+        )
+        
+        if original_result["success"]:
+            print(f"✅ Original query executed successfully, cost: ${original_result['cost']:.4f}")
+        else:
+            print(f"❌ Original query failed: {original_result['error']}")
 
         # Baseline block
         baseline_cfg: Optional[Dict[str, Any]] = exp.get("baseline")
@@ -180,6 +300,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
                 data_dir=data_dir,
                 output_dir=output_dir,
                 ground_truth=ground_truth,
+                original_query_result=original_result,
             )
             results.append((dataset, f"baseline:{bl_name}", call))
             print(f"Spawned baseline for {dataset} as {bl_name}")
@@ -204,6 +325,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
                 data_dir=data_dir,
                 output_dir=output_dir,
                 ground_truth=ground_truth,
+                original_query_result=original_result,
             )
             results.append((dataset, f"mcts:{mc_name}", call))
             print(f"Spawned MCTS for {dataset} as {mc_name}")
@@ -220,6 +342,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
                 model=sb_model,
                 output_dir=output_dir,
                 ground_truth=ground_truth,
+                original_query_result=original_result,
             )
             results.append((dataset, f"simple_baseline:{sb_name}", call))
             print(f"Spawned simple baseline for {dataset} as {sb_name}")

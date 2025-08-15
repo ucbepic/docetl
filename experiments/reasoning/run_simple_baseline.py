@@ -18,9 +18,11 @@ from typing import Dict, List, Any, Optional, Literal
 from pydantic import BaseModel, Field
 from litellm import completion
 from docetl.runner import DSLRunner
-from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func
+from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics
 import modal
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
+
+
 
 DEFAULT_MODEL = "o3"
 DEFAULT_OUTPUT_DIR = "outputs/simple_baseline"
@@ -260,6 +262,10 @@ class AgentCommunicator:
             response = completion(
                 model=self.model,
                 messages=messages,
+                azure=True,
+                api_key=os.environ.get("AZURE_API_KEY"),
+                api_base=os.environ.get("AZURE_API_BASE"),
+                api_version=os.environ.get("AZURE_API_VERSION"),
                 response_format={"type": "json_object"}
             )
             
@@ -274,6 +280,10 @@ class AgentCommunicator:
             response = completion(
                 model=self.model,
                 messages=messages + [{"role": "user", "content": request_msg}],
+                azure=True,
+                api_key=os.environ.get("AZURE_API_KEY"),
+                api_base=os.environ.get("AZURE_API_BASE"),
+                api_version=os.environ.get("AZURE_API_VERSION"),
                 response_format={"type": "json_object"}
             )
             
@@ -323,16 +333,6 @@ class SimpleBaselineAgent:
             # Call the evaluation function with proper parameters
             eval_metrics = evaluate_func(f"simple_baseline_iter_{iteration_id}", resolved_output_path)
             
-            # Extract the main accuracy metric for this dataset
-            dataset_accuracy_metrics = {
-                "cuad": "avg_f1",
-                "blackvault": "avg_distinct_locations", 
-                "game_reviews": "combined_accuracy_score",
-                "medec": "combined_score",
-                "sustainability": "economic_activity_accuracy",
-                "biodex": "avg_rp_at_10"
-            }
-            
             metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
             accuracy_val = eval_metrics.get(metric_key, 0.0)
             
@@ -379,46 +379,46 @@ class SimpleBaselineAgent:
         
         return f"""You are a pipeline optimization agent that improves DocETL data processing pipelines.
 
-You must always respond with valid JSON. You have access to the following actions:
-1. try_pipeline: Test a pipeline configuration and see the results (cost, accuracy, and sample outputs)
-2. return_pipeline: Return the final optimized pipeline configuration
+        You must always respond with valid JSON. You have access to the following actions:
+        1. try_pipeline: Test a pipeline configuration and see the results (cost, accuracy, and sample outputs)
+        2. return_pipeline: Return the final optimized pipeline configuration
 
-Always respond in JSON format with:
-{{"action": "try_pipeline", "reasoning": "explanation of why you want to test this pipeline"}}
-OR
-{{"action": "return_pipeline", "reasoning": "explanation of why this is the final pipeline"}}
+        Always respond in JSON format with:
+        {{"action": "try_pipeline", "reasoning": "explanation of why you want to test this pipeline"}}
+        OR
+        {{"action": "return_pipeline", "reasoning": "explanation of why this is the final pipeline"}}
 
-When asked for operators, respond with:
-{{"operators": [list of operator dictionaries]}}
+        When asked for operators, respond with:
+        {{"operators": [list of operator dictionaries]}}
 
-AVAILABLE OPERATORS DOCUMENTATION:
-{self.documentation}
+        AVAILABLE OPERATORS DOCUMENTATION:
+        {self.documentation}
 
-CURRENT PIPELINE (baseline to improve upon):
-{self.original_yaml}
+        CURRENT PIPELINE (baseline to improve upon):
+        {self.original_yaml}
 
-BASELINE RESULTS:
- - Cost: ${baseline_cost if baseline_cost is not None else 'N/A'}
- - Accuracy: {baseline_accuracy if baseline_accuracy is not None else 'N/A'}
+        BASELINE RESULTS:
+        - Cost: ${baseline_cost if baseline_cost is not None else 'N/A'}
+        - Accuracy: {baseline_accuracy if baseline_accuracy is not None else 'N/A'}
 
-EVALUATION METRICS:
-Your pipeline results will be evaluated using: {metrics_info}
-Each pipeline test will provide detailed evaluation metrics to help you optimize.
+        EVALUATION METRICS:
+        Your pipeline results will be evaluated using: {metrics_info}
+        Each pipeline test will provide detailed evaluation metrics to help you optimize.
 
-YOUR TASK: Improve the pipeline's accuracy by optimizing operators, prompts, models, or adding new operations.
+        YOUR TASK: Improve the pipeline's accuracy by optimizing operators, prompts, models, or adding new operations.
 
-OPTIMIZATION STRATEGIES:
-1. **Prompt Engineering**: Refine operator prompts for better extraction/classification
-2. **Model Selection**: Try different models from the available list for better performance
-3. **Operator Addition**: Add preprocessing, filtering, or post-processing operators
-4. **Jinja Templating**: Use flexible templating to read more/less context from documents
+        OPTIMIZATION STRATEGIES:
+        1. **Prompt Engineering**: Refine operator prompts for better extraction/classification
+        2. **Model Selection**: Try different models from the available list for better performance
+        3. **Operator Addition**: Add preprocessing, filtering, or post-processing operators
+        4. **Jinja Templating**: Use flexible templating to read more/less context from documents
 
-AVAILABLE MODELS (use with 'azure/' prefix):
-- azure/gpt-4o-mini
-- azure/gpt-5-nano
-- azure/gpt-5
+        AVAILABLE MODELS (use with 'azure/' prefix):
+        - azure/gpt-4o-mini
+        - azure/gpt-5-nano
+        - azure/gpt-5
 
-Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_accuracy is not None else 'N/A'}."""
+        Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_accuracy is not None else 'N/A'}."""
 
     def run_agent_loop(self, dataset: str, experiment_dir: Path, ground_truth_path: str = None,
                       baseline_cost: float = None, baseline_accuracy: float = None, 
@@ -435,18 +435,18 @@ Your goal is to beat the baseline accuracy of {baseline_accuracy if baseline_acc
             {"role": "system", "content": self.create_system_prompt(dataset, baseline_cost, baseline_accuracy)},
             {"role": "user", "content": f"""Dataset: {dataset}
 
-DATA ANALYSIS:
-{data_analysis}
+            DATA ANALYSIS:
+            {data_analysis}
 
-Task: Generate a pipeline to process this {dataset} data. You can see the original pipeline YAML above as a baseline. 
+            Task: Generate a pipeline to process this {dataset} data. You can see the original pipeline YAML above as a baseline. 
 
-You should:
-1. First try the original pipeline configuration to establish a baseline
-2. Then try to improve it if possible
-3. Return your best pipeline configuration
+            You should:
+            1. First try the original pipeline configuration to establish a baseline
+            2. Then try to improve it if possible
+            3. Return your best pipeline configuration
 
-Start by trying the original pipeline."""}
-        ]
+            Start by trying the original pipeline."""}
+            ]
         
         # Track best results
         best_pipeline = baseline_operators or []
@@ -460,8 +460,12 @@ Start by trying the original pipeline."""}
             decision = self.communicator.get_action_decision(messages)
             if not decision:
                 continue
+            
+            # Print agent's decision and reasoning
+            print(f"🤖 Agent Decision: {decision.action}")
+            print(f"💭 Reasoning: {decision.reasoning}")
                 
-            messages.append({"role": "assistant", "content": json.dumps(decision.dict())})
+            messages.append({"role": "assistant", "content": json.dumps(decision.model_dump())})
             
             if decision.action == "try_pipeline":
                 operators = self.communicator.get_operators(
@@ -594,7 +598,8 @@ Start by trying the original pipeline."""}
         return "\n".join(message_parts)
 
 def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
-                                 experiment_name: str = None, ground_truth_path: str = None) -> Dict[str, Any]:
+                                 experiment_name: str = None, ground_truth_path: str = None,
+                                 original_query_result: Dict[str, Any] | None = None) -> Dict[str, Any]:
     """Run the simple baseline experiment for a dataset."""
     
     # Setup
@@ -614,47 +619,99 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
     agent.load_resources(dataset)
     executor = PipelineExecutor(exp_dir)
     
-    # Run baseline
-    baseline_ops = agent.original_config.get('operations', []) if agent.original_config else []
-    baseline_result = executor.execute(baseline_ops, dataset, "baseline")
-    
+    # Use original query result if available, otherwise run baseline
     all_iteration_results = []
     iteration_counter = 0
     baseline_accuracy = None
     
-    if baseline_result["success"] and baseline_result.get("output_path"):
-        # Run evaluation on baseline
-        baseline_eval = agent._run_individual_evaluation(dataset, baseline_result["output_path"], 0)
-        baseline_accuracy = baseline_eval["accuracy_val"]
+    # Get baseline operations for agent loop
+    baseline_ops = agent.original_config.get('operations', []) if agent.original_config else []
+    
+    if original_query_result and original_query_result["success"]:
+        print("✅ Using pre-executed original query result")
+        # Use the pre-executed original query result
+        baseline_cost = original_query_result["cost"]
         
-        # Update baseline result with evaluation metrics for consistent formatting
-        baseline_result_with_eval = {
-            **baseline_result,
-            "accuracy_msg": baseline_eval["accuracy_msg"],
-            "accuracy_val": baseline_eval["accuracy_val"],
-            "eval_metrics": baseline_eval["eval_metrics"]
-        }
-        
-        # Format and display baseline results
-        baseline_formatted = agent._format_test_result(baseline_result_with_eval)
-        print(f"🏁 Baseline execution results:")
-        print(baseline_formatted)
-        
-        all_iteration_results.append({
-            "file_path": baseline_result["output_path"],
-            "cost": baseline_result["cost"],
-            "node_id": str(iteration_counter)
-        })
-        iteration_counter += 1
+        # Copy the original output file to our experiment directory for consistency
+        baseline_json_path = exp_dir / "baseline_output.json"
+        if original_query_result["output_file_path"]:
+            import shutil
+            try:
+                shutil.copy2(original_query_result["output_file_path"], baseline_json_path)
+                
+                # Run evaluation on the copied baseline
+                baseline_eval = agent._run_individual_evaluation(dataset, str(baseline_json_path), 0)
+                baseline_accuracy = baseline_eval["accuracy_val"]
+                
+                # Create baseline result for consistency
+                baseline_result_with_eval = {
+                    "success": True,
+                    "cost": baseline_cost,
+                    "output_path": str(baseline_json_path),
+                    "accuracy_msg": baseline_eval["accuracy_msg"],
+                    "accuracy_val": baseline_eval["accuracy_val"],
+                    "eval_metrics": baseline_eval["eval_metrics"]
+                }
+                
+                # Format and display baseline results
+                baseline_formatted = agent._format_test_result(baseline_result_with_eval)
+                print(f"🏁 Baseline execution results:")
+                print(baseline_formatted)
+                
+                all_iteration_results.append({
+                    "file_path": str(baseline_json_path),
+                    "cost": baseline_cost,
+                    "node_id": str(iteration_counter)
+                })
+                iteration_counter += 1
+                
+            except Exception as e:
+                print(f"⚠️  Could not copy/evaluate original output file: {e}")
+                baseline_accuracy = None
+                baseline_cost = original_query_result["cost"]
+        else:
+            baseline_cost = original_query_result["cost"]
+            print(f"✅ Baseline cost: ${baseline_cost:.4f}")
     else:
-        print(f"❌ Baseline execution failed: {baseline_result.get('error', 'Unknown error')}")
+        print("▶️  Running baseline - original query result not available")
+        # Run baseline as before
+        baseline_result = executor.execute(baseline_ops, dataset, "baseline")
+        
+        if baseline_result["success"] and baseline_result.get("output_path"):
+            # Run evaluation on baseline
+            baseline_eval = agent._run_individual_evaluation(dataset, baseline_result["output_path"], 0)
+            baseline_accuracy = baseline_eval["accuracy_val"]
+            
+            # Update baseline result with evaluation metrics for consistent formatting
+            baseline_result_with_eval = {
+                **baseline_result,
+                "accuracy_msg": baseline_eval["accuracy_msg"],
+                "accuracy_val": baseline_eval["accuracy_val"],
+                "eval_metrics": baseline_eval["eval_metrics"]
+            }
+            
+            # Format and display baseline results
+            baseline_formatted = agent._format_test_result(baseline_result_with_eval)
+            print(f"🏁 Baseline execution results:")
+            print(baseline_formatted)
+            
+            all_iteration_results.append({
+                "file_path": baseline_result["output_path"],
+                "cost": baseline_result["cost"],
+                "node_id": str(iteration_counter)
+            })
+            iteration_counter += 1
+            baseline_cost = baseline_result["cost"]
+        else:
+            print(f"❌ Baseline execution failed: {baseline_result.get('error', 'Unknown error')}")
+            baseline_cost = 0.0
 
     # Agent optimization loop
     operators, iteration_counter = agent.run_agent_loop(
         dataset=dataset,
         experiment_dir=exp_dir,
         ground_truth_path=ground_truth_path,
-        baseline_cost=baseline_result.get("cost"),
+        baseline_cost=baseline_cost,
         baseline_accuracy=baseline_accuracy,
         baseline_operators=baseline_ops,
         all_iteration_results=all_iteration_results,
@@ -728,7 +785,8 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
     timeout=60 * 60 * 2
 )
 def run_simple_baseline_remote(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
-                              experiment_name: str = None, ground_truth_path: str = None):
+                              experiment_name: str = None, ground_truth_path: str = None,
+                              original_query_result: Dict[str, Any] | None = None):
     """Modal remote function for running simple baseline."""
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     
@@ -741,7 +799,8 @@ def run_simple_baseline_remote(dataset: str, output_dir: str = None, model: str 
         output_dir=resolved_output_dir,
         model=model,
         experiment_name=experiment_name,
-        ground_truth_path=ground_truth_path
+        ground_truth_path=ground_truth_path,
+        original_query_result=original_query_result
     )
     
     volume.commit()
@@ -750,14 +809,16 @@ def run_simple_baseline_remote(dataset: str, output_dir: str = None, model: str 
 @app.local_entrypoint()
 def modal_main_simple_baseline(dataset: str, experiment_name: str | None = None,
                               output_dir: str | None = None, model: str = DEFAULT_MODEL,
-                              ground_truth: str | None = None):
+                              ground_truth: str | None = None,
+                              original_query_result: Dict[str, Any] | None = None):
     """Modal entrypoint for simple baseline."""
     run_simple_baseline_remote.remote(
         dataset=dataset,
         output_dir=output_dir,
         model=model,
         experiment_name=experiment_name,
-        ground_truth_path=ground_truth
+        ground_truth_path=ground_truth,
+        original_query_result=original_query_result
     )
 
 def main():

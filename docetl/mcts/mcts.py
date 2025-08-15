@@ -149,6 +149,7 @@ class MCTS:
         expansion_count: int = 6,
         model="gpt-4.1",
         output_dir: Optional[str] = None,
+        original_query_result: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the MCTS algorithm with Pareto frontier integration.
@@ -162,6 +163,7 @@ class MCTS:
             max_time: Maximum time to run MCTS in seconds (None for no limit)
             sample_input: sample input data
             output_dir: Directory to save new pipeline files (None means same dir as original)
+            original_query_result: Pre-executed original query result to avoid re-execution
         """
         self.root = Node(root_yaml_path, c=exploration_constant)
         self.available_actions = available_actions
@@ -207,9 +209,30 @@ class MCTS:
         # Identify main content key once during initialization
         self.main_content_key = self._identify_main_content_key()
 
-        # execute root node and add it to the pareto frontier
-        _ = self.simulate(self.root)
-        self.root.visits = 1
+        # Use original query result if provided, otherwise execute root node
+        if original_query_result and original_query_result.get("success"):
+            print("🔄 Using pre-executed original query result for MCTS root node")
+            # Set root node properties from original query result
+            self.root.cost = original_query_result["cost"]
+            self.root.sample_result = original_query_result.get("sample_output", [])
+            
+            # Update the root node's YAML to point to the original query result file
+            if original_query_result.get("output_file_path"):
+                print(f"📁 Setting root node output path to: {original_query_result['output_file_path']}")
+                try:
+                    self.root.parsed_yaml["pipeline"]["output"]["path"] = original_query_result["output_file_path"]
+                    self.root.result_path = original_query_result["output_file_path"]
+                except Exception as e:
+                    print(f"⚠️ Could not update root node output path: {e}")
+            
+            # Add root to pareto frontier without re-execution
+            affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(self.root)
+            self.root.visits = 1
+        else:
+            print("▶️ Executing root node for MCTS (original query result not available)")
+            # execute root node and add it to the pareto frontier
+            _ = self.simulate(self.root)
+            self.root.visits = 1
 
     def _identify_main_content_key(self) -> str:
         """

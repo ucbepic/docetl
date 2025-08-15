@@ -12,6 +12,7 @@ import argparse
 import glob
 from pathlib import Path
 from datetime import datetime
+from typing import Dict, Any
 
 from docetl.mcts import MCTS, Node, ParetoFrontier, AccuracyComparator
 from docetl.reasoning_optimizer.directives import (
@@ -22,6 +23,7 @@ from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_e
 import modal
 import yaml
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
+
 
 
 def _resolve_in_volume(path: str | None) -> str | None:
@@ -80,6 +82,7 @@ def run_mcts_remote(
     model: str = DEFAULT_MODEL,
     dataset: str = "cuad",
     ground_truth_path: str | None = None,
+    original_query_result: Dict[str, Any] | None = None,
 ):
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     resolved_output_dir = _resolve_in_volume(output_dir) if output_dir else None
@@ -102,6 +105,7 @@ def run_mcts_remote(
         model=model,
         dataset=dataset,
         ground_truth_path=ground_truth_path,
+        original_query_result=original_query_result,
     )
     volume.commit()
     return results
@@ -119,6 +123,7 @@ def modal_main_mcts(
     model: str = DEFAULT_MODEL,
     dataset: str = "cuad",
     ground_truth: str | None = None,
+    original_query_result: Dict[str, Any] | None = None,
 ):
     run_mcts_remote.remote(
         yaml_path=yaml_path,
@@ -131,6 +136,7 @@ def modal_main_mcts(
         model=model,
         dataset=dataset,
         ground_truth_path=ground_truth,
+        original_query_result=original_query_result,
     )
 
 
@@ -145,6 +151,7 @@ def run_mcts_experiment(
     model: str = DEFAULT_MODEL,
     dataset: str = "cuad",
     ground_truth_path: str | None = None,
+    original_query_result: Dict[str, Any] | None = None,
 ):
     """
     Run MCTS optimization experiment with specified parameters.
@@ -213,6 +220,7 @@ def run_mcts_experiment(
         max_iterations=max_iterations,
         model=model,
         output_dir=str(output_path),
+        original_query_result=original_query_result,
     )
     print(f"✅ MCTS initialized with root node: {yaml_path}")
     # Run MCTS optimization
@@ -232,13 +240,16 @@ def run_mcts_experiment(
         n.mcts_accuracy = mcts.pareto_frontier.plans_accuracy.get(n)
         n.on_frontier = n in mcts.pareto_frontier.frontier_plans
         nodes_for_evaluation.append(n)
+    # Use original query result cost if available, otherwise use MCTS root cost
+    root_cost = original_query_result["cost"] if original_query_result and original_query_result["success"] else mcts.root.cost
+    
     eval_results, pareto_auc = run_dataset_evaluation(
         dataset=dataset,
         nodes_or_files=nodes_for_evaluation,
         output_path=output_path,
         ground_truth_path=ground_truth_path,
         method_name="docetl_mcts",
-        root_cost=mcts.root.cost
+        root_cost=root_cost
     )
     # Save results
     results = {
@@ -256,6 +267,8 @@ def run_mcts_experiment(
         "duration_seconds": duration,
         "num_best_nodes": len(best_nodes) if best_nodes else 0,
         "total_nodes_explored": len(mcts.all_nodes) if hasattr(mcts, 'all_nodes') else 0,
+        "original_query_cost": original_query_result["cost"] if original_query_result and original_query_result["success"] else None,
+        "original_query_success": original_query_result["success"] if original_query_result else None,
     }
     # Add Pareto AUC if it was computed
     if pareto_auc is not None:

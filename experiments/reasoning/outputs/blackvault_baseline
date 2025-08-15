@@ -1,0 +1,102 @@
+[
+  {
+    "file": "iteration_10_results.json",
+    "avg_distinct_locations": 6.894736842105263,
+    "total_documents": 19,
+    "total_distinct_locations": 131,
+    "node_id": "iteration_10_results",
+    "cost": 0.2913995700000001,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "iteration_1_results.json",
+    "avg_distinct_locations": 3.064516129032258,
+    "total_documents": 31,
+    "total_distinct_locations": 95,
+    "node_id": "iteration_1_results",
+    "cost": 0.16957281,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "iteration_2_results.json",
+    "avg_distinct_locations": 2.7586206896551726,
+    "total_documents": 29,
+    "total_distinct_locations": 80,
+    "node_id": "iteration_2_results",
+    "cost": 2.230973825000001,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "iteration_3_results.json",
+    "avg_distinct_locations": 7.774193548387097,
+    "total_documents": 31,
+    "total_distinct_locations": 241,
+    "node_id": "iteration_3_results",
+    "cost": 0.35269212000000066,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "iteration_4_results.json",
+    "avg_distinct_locations": 7.935483870967742,
+    "total_documents": 31,
+    "total_distinct_locations": 246,
+    "node_id": "iteration_4_results",
+    "cost": 0.3754977600000006,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "iteration_5_results.json",
+    "avg_distinct_locations": 8.741935483870968,
+    "total_documents": 31,
+    "total_distinct_locations": 271,
+    "node_id": "iteration_5_results",
+    "cost": 0.42290496000000055,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "iteration_6_results.json",
+    "avg_distinct_locations": 8.21875,
+    "total_documents": 32,
+    "total_distinct_locations": 263,
+    "node_id": "iteration_6_results",
+    "cost": 0.4283723400000007,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "iteration_7_results.json",
+    "avg_distinct_locations": 13.548387096774194,
+    "total_documents": 31,
+    "total_distinct_locations": 420,
+    "node_id": "iteration_7_results",
+    "cost": 1.4216551650000002,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "iteration_9_results.json",
+    "avg_distinct_locations": 5.275862068965517,
+    "total_documents": 29,
+    "total_distinct_locations": 153,
+    "node_id": "iteration_9_results",
+    "cost": 0.27168106500000005,
+    "visits": 0,
+    "value": 0
+  },
+  {
+    "file": "original_output.json",
+    "avg_distinct_locations": 5.3125,
+    "total_documents": 32,
+    "total_distinct_locations": 170,
+    "node_id": "original_output",
+    "cost": 0.16364299499999999,
+    "visits": 0,
+    "value": 0
+  }
+]

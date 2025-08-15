@@ -132,6 +132,7 @@ class ParetoFrontier:
         # Scaled cost will be calculated in update_pareto_frontier_HV
 
         result_file_path = node.parsed_yaml["pipeline"]["output"]["path"]
+        print("result_file_path", result_file_path)
 
         results = self.evaluate_func("docetl_preprint", result_file_path)
 

@@ -553,3 +553,45 @@ op_code_filter = Operator(
             return score >= 0.8 and text_length >= 100
     """,
 )
+
+op_topk = Operator(
+    name="TopK",
+    type_llm_or_not="LLM-powered or not LLM-powered",
+    description="Retrieves the most relevant items from your dataset using semantic similarity, full-text search, or LLM-based comparison. Provides a specialized interface for retrieval tasks where you need to find and rank the best matching documents based on specific criteria.",
+    when_to_use="Use when you need to find the most relevant documents for a query, filter large datasets to the most important items, implement retrieval-augmented generation (RAG) pipelines, or build recommendation systems. Choose this over general sampling when you specifically need the 'best' matches according to some criteria.",
+    required_parameters="""
+    name: Unique name for the operation
+    type: Must be "topk"
+    method: Retrieval method to use ("embedding" for semantic similarity, "fts" for full-text search, or "llm_compare" for LLM-based ranking)
+    k: Number of items to retrieve (integer) or percentage (float between 0 and 1)
+    keys: List of document fields to use for matching/comparison
+    query: Query or ranking criteria (Jinja templates supported for embedding and fts methods only)
+    """,
+    optional_parameters="""
+    embedding_model: Model for embeddings (default: "text-embedding-3-small"). Used for embedding and llm_compare methods.
+
+    model: LLM model for comparisons (required for llm_compare method)
+
+    batch_size: Batch size for LLM ranking (default: 10, only for llm_compare method)
+
+    stratify_key: Key(s) for stratified retrieval - ensures you retrieve top items from each group (string or list of strings). Not supported with llm_compare method.
+
+    Method-specific notes:
+    - embedding: Uses semantic similarity via embeddings. Supports Jinja templates in query.
+    - fts: Uses BM25 full-text search algorithm. No API costs. Supports Jinja templates in query.
+    - llm_compare: Uses LLM for complex ranking based on multiple criteria. Most expensive but most flexible. Does NOT support Jinja templates in query (ranking criteria must be consistent across all documents).
+    """,
+    returns="Top k documents based on the specified method and query, with the same schema as the original input",
+    minimal_example_configuration="""
+    name: find_relevant_tickets
+    type: topk
+    method: embedding
+    k: 5
+    keys:
+        - subject
+        - description
+        - customer_feedback
+    query: "payment processing errors with international transactions"
+    embedding_model: text-embedding-3-small
+    """,
+)

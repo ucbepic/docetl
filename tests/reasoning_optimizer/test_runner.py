@@ -26,6 +26,7 @@ from docetl.reasoning_optimizer.directives import (
     TakeHeadTailDirective,
     ClarifyInstructionsDirective,
     SwapWithCodeDirective,
+    HierarchicalReduceDirective,
     TestResult
 )
 
@@ -64,6 +65,7 @@ def run_all_directive_tests(agent_llm: str = "gpt-4.1") -> Dict[str, List[TestRe
         TakeHeadTailDirective(),
         ClarifyInstructionsDirective(),
         SwapWithCodeDirective(),
+        HierarchicalReduceDirective(),
     ]
     
     all_results = {}

@@ -26,6 +26,7 @@ from .take_head_tail import TakeHeadTailDirective
 from .clarify_instructions import ClarifyInstructionsDirective
 from .swap_with_code import SwapWithCodeDirective
 from .map_reduce_fusion import MapReduceFusionDirective
+from .hierarchical_reduce import HierarchicalReduceDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
@@ -46,6 +47,7 @@ ALL_DIRECTIVES = [
     ClarifyInstructionsDirective(),
     SwapWithCodeDirective(),
     MapReduceFusionDirective(),
+    HierarchicalReduceDirective(),
 ]
 
 ALL_COST_DIRECTIVES = [
@@ -146,6 +148,7 @@ __all__ = [
     "ClarifyInstructionsDirective",
     "SwapWithCodeDirective",
     "MapReduceFusionDirective",
+    "HierarchicalReduceDirective",
     "ALL_DIRECTIVES",
     "DIRECTIVE_REGISTRY", 
     "get_all_directive_strings",

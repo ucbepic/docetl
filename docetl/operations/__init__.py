@@ -4,16 +4,44 @@ from docetl.operations.code_operations import CodeFilterOperation, CodeMapOperat
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.filter import FilterOperation
 from docetl.operations.gather import GatherOperation
-from docetl.operations.map import MapOperation
+from docetl.operations.link_resolve import LinkResolveOperation
+from docetl.operations.map import MapOperation, ParallelMapOperation
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
 from docetl.operations.rank import RankOperation
 from docetl.operations.split import SplitOperation
 from docetl.operations.sample import SampleOperation
+from docetl.operations.topk import TopKOperation
 from docetl.operations.unnest import UnnestOperation
 from docetl.operations.scan import ScanOperation
 from docetl.operations.add_uuid import AddUuidOperation
 from docetl.operations.extract import ExtractOperation
+
+__all__ = [
+    "ClusterOperation",
+    "CodeFilterOperation",
+    "CodeMapOperation",
+    "CodeReduceOperation",
+    "EquijoinOperation",
+    "FilterOperation",
+    "GatherOperation",
+    "LinkResolveOperation",
+    "MapOperation",
+    "ParallelMapOperation",
+    "ReduceOperation",
+    "ResolveOperation",
+    "RankOperation",
+    "SplitOperation",
+    "SampleOperation",
+    "TopKOperation",
+    "UnnestOperation",
+    "ScanOperation",
+    "AddUuidOperation",
+    "ExtractOperation",
+    "get_operation",
+    "get_operations",
+    "mapping"
+]
 
 mapping = {
     "cluster": ClusterOperation,
@@ -23,12 +51,15 @@ mapping = {
     "equijoin": EquijoinOperation,
     "filter": FilterOperation,
     "gather": GatherOperation,
+    "link_resolve": LinkResolveOperation,
     "map": MapOperation,
+    "parallel_map": ParallelMapOperation,
     "reduce": ReduceOperation,
     "resolve": ResolveOperation,
     "rank":  RankOperation,
     "split": SplitOperation,
     "sample": SampleOperation,
+    "topk": TopKOperation,
     "unnest": UnnestOperation,
     "scan": ScanOperation,
     "add_uuid": AddUuidOperation,

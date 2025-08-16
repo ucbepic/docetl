@@ -1237,7 +1237,7 @@ class ArbitraryRewriteInstantiateSchema(BaseModel):
         ...,
         description="List of search/replace edits to apply to the pipeline JSON string. Applied in order, each operating on the result of the previous edit.",
     )
-    overall_strategy: str = Field(
-        ...,
-        description="High-level explanation of the optimization strategy and expected improvements",
-    )
+    # overall_strategy: str = Field(
+    #     ...,
+    #     description="High-level explanation of the optimization strategy and expected improvements",
+    # )

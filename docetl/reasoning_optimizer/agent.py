@@ -539,11 +539,13 @@ def run_single_iteration(
             print(f"✅ Pipeline executed successfully, cost: ${total_cost:.4f}")
         else:
             print(f"⚠️  No results from pipeline execution")
+            raise Exception("No results from pipeline execution")
 
         runner.reset_env()
 
     except Exception as e:
         print(f"❌ Pipeline execution failed: {e}")
+        raise e
 
     return output_file_path, message_history, total_cost
 

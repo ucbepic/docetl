@@ -27,10 +27,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import modal
+import traceback
+from datetime import datetime
+import os
+import matplotlib
 import yaml
+import matplotlib.pyplot as plt
 from docetl.runner import DSLRunner
 from docetl.utils import extract_output_from_json
-
+from experiments.reasoning.utils import create_original_query_result
 
 # Import the existing Modal functions and shared volume/mount from the experiment runners
 from experiments.reasoning import run_mcts as mcts_mod
@@ -67,10 +72,10 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "sustainability",
-            "baseline": {"iterations": 2},
-            "mcts": {"max_iterations": 2},
-            "simple_baseline": {"model": "gpt-5"}
+            "dataset": "cuad",
+            "baseline": {"iterations": 10},
+            # "mcts": {"max_iterations": 30},
+            # "simple_baseline": {"model": "o3"}
         }
     ]
 }
@@ -164,12 +169,6 @@ def _spawn_simple_baseline(
 def run_original_query_remote(yaml_path: str, dataset: str, experiment_name: str, 
                              data_dir: Optional[str] = None, output_dir: Optional[str] = None) -> Dict[str, Any]:
     """Execute the original query plan once in Modal and return results."""
-    import os
-    import yaml
-    from pathlib import Path
-    from docetl.runner import DSLRunner
-    from docetl.utils import extract_output_from_json
-    from experiments.reasoning.utils import create_original_query_result
     
     try:
         # Set up Modal environment
@@ -256,11 +255,8 @@ def run_original_query(yaml_path: str, dataset: str, experiment_name: str,
 @app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 30)
 def generate_comparison_plots_remote(dataset: str, output_dir: Optional[str] = None) -> Dict[str, Any]:
     """Generate Pareto frontier comparison plots for all three methods in Modal."""
-    import os
-    import matplotlib
+    
     matplotlib.use('Agg')  # Use non-interactive backend for Modal
-    import matplotlib.pyplot as plt
-    from pathlib import Path
     
     try:
         print(f"\n📊 Generating comparison plots for {dataset} in Modal...")
@@ -407,7 +403,6 @@ def generate_comparison_plots_remote(dataset: str, output_dir: Optional[str] = N
                     f.write(f"✗ Simple Baseline: {evaluation_file_simple} (not found)\n")
                 
                 # Add timestamp
-                from datetime import datetime
                 f.write(f"\nGenerated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
             
             print(f"📄 Hypervolume summary saved to: {hypervolume_summary_path}")
@@ -437,7 +432,6 @@ def generate_comparison_plots_remote(dataset: str, output_dir: Optional[str] = N
             
     except Exception as e:
         print(f"❌ Error generating comparison plots: {e}")
-        import traceback
         traceback.print_exc()
         return {
             "success": False,
@@ -465,7 +459,6 @@ def generate_comparison_plots(dataset: str, output_dir: Optional[str] = None) ->
             
     except Exception as e:
         print(f"❌ Error generating comparison plots: {e}")
-        import traceback
         traceback.print_exc()
 
 

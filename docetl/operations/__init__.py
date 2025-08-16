@@ -4,7 +4,7 @@ from docetl.operations.code_operations import CodeFilterOperation, CodeMapOperat
 from docetl.operations.equijoin import EquijoinOperation
 from docetl.operations.filter import FilterOperation
 from docetl.operations.gather import GatherOperation
-from docetl.operations.map import MapOperation
+from docetl.operations.map import MapOperation, ParallelMapOperation
 from docetl.operations.reduce import ReduceOperation
 from docetl.operations.resolve import ResolveOperation
 from docetl.operations.rank import RankOperation
@@ -14,6 +14,8 @@ from docetl.operations.unnest import UnnestOperation
 from docetl.operations.scan import ScanOperation
 from docetl.operations.add_uuid import AddUuidOperation
 from docetl.operations.extract import ExtractOperation
+from docetl.operations.topk import TopKOperation
+from docetl.operations.link_resolve import LinkResolveOperation
 
 mapping = {
     "cluster": ClusterOperation,
@@ -24,6 +26,7 @@ mapping = {
     "filter": FilterOperation,
     "gather": GatherOperation,
     "map": MapOperation,
+    "parallel_map": ParallelMapOperation,
     "reduce": ReduceOperation,
     "resolve": ResolveOperation,
     "rank":  RankOperation,
@@ -32,7 +35,9 @@ mapping = {
     "unnest": UnnestOperation,
     "scan": ScanOperation,
     "add_uuid": AddUuidOperation,
-    "extract": ExtractOperation
+    "extract": ExtractOperation,
+    "topk": TopKOperation,
+    "link_resolve": LinkResolveOperation
 }
 
 def get_operation(operation_type: str):

@@ -35,7 +35,6 @@ import modal
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
 
 
-
 def _resolve_in_volume(path: str | None) -> str | None:
     if path is None:
         return None
@@ -287,6 +286,10 @@ def run_baseline_experiment(
     # Optimisation iterations
     # ------------------------------------------------------------------
     curr_yaml_path = yaml_path
+    last_successful_yaml_path = yaml_path  # Track last successful plan for fallback
+    last_successful_output_sample = orig_output_sample
+    last_successful_cost = prev_cost
+    
     for i in range(1, iterations + 1):
         try:
             print(f"\n🔄 Running Iteration {i}/{iterations}")
@@ -331,17 +334,21 @@ def run_baseline_experiment(
             )
 
             if not output_file:
-                print(f"❌ Iteration {i} failed: No output yaml file")
-                results.append({
-                    "iteration": i,
-                    "error": "No output file",
-                    "success": False,
-                    "cost": 0.0
-                })
+                # Fall back to last successful plan for next iteration
+                print(f"🔄 Falling back to last successful plan: {last_successful_yaml_path}")
+                curr_yaml_path = last_successful_yaml_path
+                orig_output_sample = last_successful_output_sample
+                prev_cost = last_successful_cost
+                
+                # Continue with next iteration instead of breaking
                 continue
 
             curr_yaml_path = output_file
             print("output_file: ", output_file)
+            
+            # Update last successful plan tracking
+            last_successful_yaml_path = output_file
+            last_successful_cost = iteration_cost
             
             # Update message history
             message_history = updated_history
@@ -361,10 +368,11 @@ def run_baseline_experiment(
                 result_json_path = output_path / f"iteration_{i}_results.json"
                 if result_json_path.exists():
                     orig_output_sample = extract_output_from_json(output_file, result_json_path)[:1]
+                    last_successful_output_sample = orig_output_sample
                 else:
-                    orig_output_sample = ""
+                    orig_output_sample = last_successful_output_sample
             except Exception:
-                orig_output_sample = ""
+                orig_output_sample = last_successful_output_sample
 
         except Exception as e:
             print(f"❌ Iteration {i} failed: {e}")
@@ -374,8 +382,15 @@ def run_baseline_experiment(
                 "success": False,
                 "cost": 0.0
             })
-            print(f"🛑 Stopping optimization loop due to iteration failure. Proceeding to evaluation...")
-            break
+            
+            # Fall back to last successful plan for next iteration
+            print(f"🔄 Falling back to last successful plan: {last_successful_yaml_path}")
+            curr_yaml_path = last_successful_yaml_path
+            orig_output_sample = last_successful_output_sample
+            prev_cost = last_successful_cost
+            
+            # Continue with next iteration instead of breaking
+            continue
     
     # ------------------------------------------------------------------
     # Evaluation (similar to MCTS)

@@ -126,6 +126,7 @@ class Node:
              
         except Exception as e:
             self.cost = -1  # Indicate failure
+            self.value = -float('inf')
             raise Exception(f"Failed to execute plan {self.yaml_file_path}: {str(e)}")
 
 
@@ -155,8 +156,8 @@ class Node:
         """
             
         def ucb(child: Node) -> float:
-            if child.visits == 0:
-                return float('inf')  # Prioritize unvisited children
+            if child.cost == -1:
+                return float('-inf')
             exploitation = child.value / child.visits
             exploration = self.c * math.sqrt(math.log(self.visits) / child.visits)
             return exploitation + exploration

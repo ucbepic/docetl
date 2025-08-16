@@ -422,7 +422,7 @@ class SimpleBaselineAgent:
 
     def run_agent_loop(self, dataset: str, experiment_dir: Path, ground_truth_path: str = None,
                       baseline_cost: float = None, baseline_accuracy: float = None, 
-                      baseline_operators: List[Dict] = None, max_iterations: int = 3,
+                      baseline_operators: List[Dict] = None, max_iterations: int = 10,
                       all_iteration_results: Optional[List[Dict]] = None, iteration_counter: int = 1) -> tuple[List[Dict], int]:
         """Run the agent optimization loop."""
         

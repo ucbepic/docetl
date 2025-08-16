@@ -1094,6 +1094,65 @@ class SwapWithCodeInstantiateSchema(BaseModel):
         return v
 
 
+class CodePreFilter(BaseModel):
+    """Configuration for a code-based pre-filter."""
+
+    name: str = Field(..., description="Name for this filter operation")
+    code: str = Field(
+        ...,
+        description="Python function def transform(input_doc): that returns True to keep, False to filter out",
+    )
+    reasoning: str = Field(
+        ..., description="Explanation of what this filter checks and why it's effective"
+    )
+
+
+class LLMPreFilter(BaseModel):
+    """Configuration for an LLM-based pre-filter."""
+
+    name: str = Field(..., description="Name for this filter operation")
+    prompt: str = Field(
+        ...,
+        description="Jinja2 prompt template that elicits a binary keep/drop decision. Must reference input fields using {{ input.fieldname }} syntax",
+    )
+    reasoning: str = Field(
+        ..., description="Explanation of what this filter checks and why it's effective"
+    )
+
+
+class CascadeFilteringInstantiateSchema(BaseModel):
+    """Schema for cascade filtering instantiation."""
+
+    code_pre_filters: List[CodePreFilter] = Field(
+        default_factory=list,
+        description="List of code-based pre-filters to apply first (cheapest)",
+    )
+
+    llm_pre_filters: List[LLMPreFilter] = Field(
+        default_factory=list,
+        description="List of LLM-based pre-filters using gpt-5-nano (ordered by prompt length, shortest first)",
+    )
+
+    analysis_summary: str = Field(
+        ...,
+        description="Summary of patterns found in the data that informed the filter design",
+    )
+
+    @field_validator("llm_pre_filters")
+    @classmethod
+    def validate_llm_prompts(cls, v):
+        """Validate that LLM prompts use proper Jinja2 syntax."""
+        import re
+
+        for filter_config in v:
+            # Check for {{ input.something }} pattern
+            if not re.search(r"\{\{\s*input\.\w+\s*\}\}", filter_config.prompt):
+                raise ValueError(
+                    f"LLM filter '{filter_config.name}' prompt must reference at least one input field using {{{{ input.fieldname }}}} syntax"
+                )
+        return v
+
+
 class MapReduceFusionInstantiateSchema(BaseModel):
     """
     Schema for map-reduce fusion operations in a data processing pipeline.

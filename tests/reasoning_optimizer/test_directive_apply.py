@@ -633,10 +633,10 @@ def test_doc_chunking_topk_filter_apply():
     assert result_filter[0]["type"] == "split"
     assert result_filter[1]["type"] == "topk"
     assert result_filter[2]["type"] == "reduce"
-    assert result_filter[3]["type"] == "filter"
+    assert result_filter[3]["type"] == "code_filter"
     assert "code_filter" in result_filter[3]["name"]
-    assert "def transform" in result_filter[3]["function"]
-    assert "mentions_competitors_favorably" in result_filter[3]["function"]
+    assert "def transform" in result_filter[3]["code"]
+    assert "mentions_competitors_favorably" in result_filter[3]["code"]
 
 
 def test_chunk_header_summary_apply():
@@ -923,6 +923,95 @@ def test_hierarchical_reduce_apply():
     assert result_no_map[1]["type"] == "reduce"
 
 
+def test_cascade_filtering_apply():
+    """Test that cascade filtering apply correctly creates filter cascade"""
+    from docetl.reasoning_optimizer.directives import CascadeFilteringDirective
+    from docetl.reasoning_optimizer.instantiate_schemas import (
+        CascadeFilteringInstantiateSchema,
+        CodePreFilter,
+        LLMPreFilter,
+    )
+    
+    directive = CascadeFilteringDirective()
+    
+    ops_list = [
+        {
+            "name": "other_op",
+            "type": "map",
+            "prompt": "Do something",
+            "output": {"schema": {"result": "string"}}
+        },
+        {
+            "name": "filter_quality",
+            "type": "filter",
+            "model": "gpt-4o",
+            "prompt": "Is this a high-quality research paper? Paper: {{ input.paper_text }}",
+            "output": {"schema": {"is_quality": "boolean"}}
+        }
+    ]
+    
+    # Create test rewrite with both code and LLM pre-filters
+    rewrite = CascadeFilteringInstantiateSchema(
+        code_pre_filters=[
+            CodePreFilter(
+                name="filter_min_length",
+                code="def transform(input_doc):\n    text = input_doc.get('paper_text', '')\n    return len(text.split()) >= 500",
+                reasoning="Papers under 500 words are rarely high quality"
+            ),
+            CodePreFilter(
+                name="filter_references",
+                code="def transform(input_doc):\n    text = input_doc.get('paper_text', '').lower()\n    return 'references' in text or 'bibliography' in text",
+                reasoning="Quality papers have references section"
+            ),
+        ],
+        llm_pre_filters=[
+            LLMPreFilter(
+                name="quick_research_check",
+                prompt="Is this research? {{ input.paper_text }} Answer yes/no.",
+                reasoning="Non-research papers are filtered out"
+            ),
+            LLMPreFilter(
+                name="academic_check",
+                prompt="Does this paper have academic structure (abstract, methods, results)? {{ input.paper_text }} Answer yes or no.",
+                reasoning="Papers without academic structure are not high quality"
+            ),
+        ],
+        analysis_summary="Identified patterns to filter 70% of documents with cheap methods"
+    )
+    
+    result = directive.apply("gpt-4o", ops_list, ["filter_quality"], rewrite)
+    
+    # Check structure: other_op, 2 code filters, 2 LLM filters (sorted by prompt length), original filter
+    assert len(result) == 6
+    
+    # First op should be unchanged
+    assert result[0]["name"] == "other_op"
+    assert result[0]["type"] == "map"
+    
+    # Next should be code filters
+    assert result[1]["type"] == "code_filter"
+    assert result[1]["name"] == "filter_min_length_filter_quality"
+    assert "def transform" in result[1]["code"]
+    
+    assert result[2]["type"] == "code_filter"
+    assert result[2]["name"] == "filter_references_filter_quality"
+    
+    # Then LLM filters (sorted by prompt length)
+    assert result[3]["type"] == "filter"
+    assert result[3]["model"] == "gpt-5-nano"
+    # Shorter prompt should come first
+    assert "research?" in result[3]["prompt"] or "academic structure" in result[3]["prompt"]
+    
+    assert result[4]["type"] == "filter"
+    assert result[4]["model"] == "gpt-5-nano"
+    
+    # Finally the original filter
+    assert result[5]["name"] == "filter_quality"
+    assert result[5]["type"] == "filter"
+    assert result[5]["model"] == "gpt-4o"
+    assert "high-quality research paper" in result[5]["prompt"]
+
+
 if __name__ == "__main__":
     # Run all tests
     test_chaining_apply()
@@ -985,5 +1074,8 @@ if __name__ == "__main__":
 
     test_hierarchical_reduce_apply()
     print("✅ Hierarchical reduce apply test passed")
+    
+    test_cascade_filtering_apply()
+    print("✅ Cascade filtering apply test passed")
 
     print("\n🎉 All directive apply tests passed!")

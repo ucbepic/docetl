@@ -28,6 +28,7 @@ from .swap_with_code import SwapWithCodeDirective
 from .map_reduce_fusion import MapReduceFusionDirective
 from .hierarchical_reduce import HierarchicalReduceDirective
 from .cascade_filtering import CascadeFilteringDirective
+from .arbitrary_rewrite import ArbitraryRewriteDirective
 
 # Registry of all available directives
 ALL_DIRECTIVES = [
@@ -50,6 +51,7 @@ ALL_DIRECTIVES = [
     MapReduceFusionDirective(),
     HierarchicalReduceDirective(),
     CascadeFilteringDirective(),
+    ArbitraryRewriteDirective(),
 ]
 
 ALL_COST_DIRECTIVES = [
@@ -63,6 +65,7 @@ ALL_COST_DIRECTIVES = [
     MapReduceFusionDirective(),
     ChangeModelDirective(),
     CascadeFilteringDirective(),
+    ArbitraryRewriteDirective(),
 ]
 
 # Create a mapping from directive names to directive instances
@@ -153,6 +156,7 @@ __all__ = [
     "MapReduceFusionDirective",
     "HierarchicalReduceDirective",
     "CascadeFilteringDirective",
+    "ArbitraryRewriteDirective",
     "ALL_DIRECTIVES",
     "DIRECTIVE_REGISTRY", 
     "get_all_directive_strings",

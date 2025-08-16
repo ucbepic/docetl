@@ -1202,3 +1202,42 @@ class MapReduceFusionInstantiateSchema(BaseModel):
                 + new_key
                 + " }}' instead."
             )
+
+
+class SearchReplaceEdit(BaseModel):
+    """
+    Represents a single search/replace edit to the pipeline operations JSON string.
+    Works like a text editor's find-and-replace on the JSON representation.
+    """
+
+    search: str = Field(
+        ...,
+        description="The exact string to search for in the JSON representation of the pipeline. Must match exactly including whitespace.",
+    )
+    replace: str = Field(
+        ...,
+        description="The string to replace the search string with. Can be empty string to delete content.",
+    )
+    reasoning: str = Field(
+        ...,
+        description="Explanation of why this edit improves the pipeline (cost, accuracy, or both)",
+    )
+
+
+class ArbitraryRewriteInstantiateSchema(BaseModel):
+    """
+    Schema for arbitrary pipeline rewrites using search/replace edits.
+
+    This directive allows the agent to make free-form edits to the pipeline
+    by performing string search/replace operations on the JSON representation.
+    The pipeline is converted to a JSON string, edits are applied, then parsed back.
+    """
+
+    search_replace_edits: List[SearchReplaceEdit] = Field(
+        ...,
+        description="List of search/replace edits to apply to the pipeline JSON string. Applied in order, each operating on the result of the previous edit.",
+    )
+    overall_strategy: str = Field(
+        ...,
+        description="High-level explanation of the optimization strategy and expected improvements",
+    )

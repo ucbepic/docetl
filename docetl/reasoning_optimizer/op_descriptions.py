@@ -519,9 +519,9 @@ op_code_map = Operator(
             import re
             text = input_doc.get('content', '')
             # Extract words that are all caps (potential keywords)
-            keywords = re.findall(r'\b[A-Z]{2,}\b', text)
+            keywords = re.findall(r'\\b[A-Z]{2,}\\b', text)
             # Extract email addresses
-            emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
+            emails = re.findall(r'\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b', text)
             return {
                 'keywords': list(set(keywords)),
                 'email_count': len(emails),
@@ -595,3 +595,41 @@ op_topk = Operator(
     embedding_model: text-embedding-3-small
     """,
 )
+
+
+# List of all operators
+ALL_OPERATORS = [
+    op_map,
+    op_extract,
+    op_parallel_map,
+    op_filter,
+    op_reduce,
+    op_split,
+    op_gather,
+    op_unnest,
+    op_sample,
+    op_resolve,
+    op_code_map,
+    op_code_filter,
+    op_topk,
+]
+
+
+def get_all_operator_descriptions() -> str:
+    """
+    Generate a comprehensive string containing all operator descriptions.
+    This is useful for providing context about available operators in prompts.
+
+    Returns:
+        str: Formatted string containing all operator descriptions
+    """
+    descriptions = []
+    descriptions.append("# Available DocETL Operators\n")
+    descriptions.append(
+        "Below are all the operators available in the DocETL pipeline:\n"
+    )
+
+    for op in ALL_OPERATORS:
+        descriptions.append(op.to_string())
+
+    return "\n".join(descriptions)

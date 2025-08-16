@@ -17,32 +17,6 @@ from docetl.operations.scan import ScanOperation
 from docetl.operations.add_uuid import AddUuidOperation
 from docetl.operations.extract import ExtractOperation
 
-__all__ = [
-    "ClusterOperation",
-    "CodeFilterOperation",
-    "CodeMapOperation",
-    "CodeReduceOperation",
-    "EquijoinOperation",
-    "FilterOperation",
-    "GatherOperation",
-    "LinkResolveOperation",
-    "MapOperation",
-    "ParallelMapOperation",
-    "ReduceOperation",
-    "ResolveOperation",
-    "RankOperation",
-    "SplitOperation",
-    "SampleOperation",
-    "TopKOperation",
-    "UnnestOperation",
-    "ScanOperation",
-    "AddUuidOperation",
-    "ExtractOperation",
-    "get_operation",
-    "get_operations",
-    "mapping"
-]
-
 mapping = {
     "cluster": ClusterOperation,
     "code_filter": CodeFilterOperation,

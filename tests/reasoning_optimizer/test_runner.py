@@ -27,6 +27,7 @@ from docetl.reasoning_optimizer.directives import (
     ClarifyInstructionsDirective,
     SwapWithCodeDirective,
     HierarchicalReduceDirective,
+    CascadeFilteringDirective,
     TestResult
 )
 
@@ -66,6 +67,7 @@ def run_all_directive_tests(agent_llm: str = "gpt-4.1") -> Dict[str, List[TestRe
         ClarifyInstructionsDirective(),
         SwapWithCodeDirective(),
         HierarchicalReduceDirective(),
+        CascadeFilteringDirective(),
     ]
     
     all_results = {}
@@ -172,7 +174,8 @@ def run_specific_directive_test(directive_name: str, agent_llm: str = "gpt-4o-mi
         "take_head_tail": TakeHeadTailDirective(),
         "reduce_chaining": ReduceChainingDirective(),
         "clarify_instructions": ClarifyInstructionsDirective(),
-        "swap_with_code": SwapWithCodeDirective()
+        "swap_with_code": SwapWithCodeDirective(),
+        "cascade_filtering": CascadeFilteringDirective(),
     }
     
     if directive_name.lower() not in directive_map:

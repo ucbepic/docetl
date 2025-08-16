@@ -1094,6 +1094,65 @@ class SwapWithCodeInstantiateSchema(BaseModel):
         return v
 
 
+class CodePreFilter(BaseModel):
+    """Configuration for a code-based pre-filter."""
+
+    name: str = Field(..., description="Name for this filter operation")
+    code: str = Field(
+        ...,
+        description="Python function def transform(input_doc): that returns True to keep, False to filter out",
+    )
+    reasoning: str = Field(
+        ..., description="Explanation of what this filter checks and why it's effective"
+    )
+
+
+class LLMPreFilter(BaseModel):
+    """Configuration for an LLM-based pre-filter."""
+
+    name: str = Field(..., description="Name for this filter operation")
+    prompt: str = Field(
+        ...,
+        description="Jinja2 prompt template that elicits a binary keep/drop decision. Must reference input fields using {{ input.fieldname }} syntax",
+    )
+    reasoning: str = Field(
+        ..., description="Explanation of what this filter checks and why it's effective"
+    )
+
+
+class CascadeFilteringInstantiateSchema(BaseModel):
+    """Schema for cascade filtering instantiation."""
+
+    code_pre_filters: List[CodePreFilter] = Field(
+        default_factory=list,
+        description="List of code-based pre-filters to apply first (cheapest)",
+    )
+
+    llm_pre_filters: List[LLMPreFilter] = Field(
+        default_factory=list,
+        description="List of LLM-based pre-filters using gpt-5-nano (ordered by prompt length, shortest first)",
+    )
+
+    analysis_summary: str = Field(
+        ...,
+        description="Summary of patterns found in the data that informed the filter design",
+    )
+
+    @field_validator("llm_pre_filters")
+    @classmethod
+    def validate_llm_prompts(cls, v):
+        """Validate that LLM prompts use proper Jinja2 syntax."""
+        import re
+
+        for filter_config in v:
+            # Check for {{ input.something }} pattern
+            if not re.search(r"\{\{\s*input\.\w+\s*\}\}", filter_config.prompt):
+                raise ValueError(
+                    f"LLM filter '{filter_config.name}' prompt must reference at least one input field using {{{{ input.fieldname }}}} syntax"
+                )
+        return v
+
+
 class MapReduceFusionInstantiateSchema(BaseModel):
     """
     Schema for map-reduce fusion operations in a data processing pipeline.
@@ -1143,3 +1202,42 @@ class MapReduceFusionInstantiateSchema(BaseModel):
                 + new_key
                 + " }}' instead."
             )
+
+
+class SearchReplaceEdit(BaseModel):
+    """
+    Represents a single search/replace edit to the pipeline operations JSON string.
+    Works like a text editor's find-and-replace on the JSON representation.
+    """
+
+    search: str = Field(
+        ...,
+        description="The exact string to search for in the JSON representation of the pipeline. Must match exactly including whitespace.",
+    )
+    replace: str = Field(
+        ...,
+        description="The string to replace the search string with. Can be empty string to delete content.",
+    )
+    # reasoning: str = Field(
+    #     ...,
+    #     description="Explanation of why this edit improves the pipeline (cost, accuracy, or both)",
+    # )
+
+
+class ArbitraryRewriteInstantiateSchema(BaseModel):
+    """
+    Schema for arbitrary pipeline rewrites using search/replace edits.
+
+    This directive allows the agent to make free-form edits to the pipeline
+    by performing string search/replace operations on the JSON representation.
+    The pipeline is converted to a JSON string, edits are applied, then parsed back.
+    """
+
+    search_replace_edits: List[SearchReplaceEdit] = Field(
+        ...,
+        description="List of search/replace edits to apply to the pipeline JSON string. Applied in order, each operating on the result of the previous edit.",
+    )
+    overall_strategy: str = Field(
+        ...,
+        description="High-level explanation of the optimization strategy and expected improvements",
+    )

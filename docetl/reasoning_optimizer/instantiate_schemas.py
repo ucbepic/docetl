@@ -1218,10 +1218,10 @@ class SearchReplaceEdit(BaseModel):
         ...,
         description="The string to replace the search string with. Can be empty string to delete content.",
     )
-    reasoning: str = Field(
-        ...,
-        description="Explanation of why this edit improves the pipeline (cost, accuracy, or both)",
-    )
+    # reasoning: str = Field(
+    #     ...,
+    #     description="Explanation of why this edit improves the pipeline (cost, accuracy, or both)",
+    # )
 
 
 class ArbitraryRewriteInstantiateSchema(BaseModel):

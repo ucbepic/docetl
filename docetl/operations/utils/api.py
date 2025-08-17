@@ -208,6 +208,10 @@ class APIWrapper(object):
         ):
             model = "azure/" + model
 
+        # Pop off temperature if it's gpt-5 in the model name
+        if "gpt-5" in model:
+            litellm_completion_kwargs.pop("temperature", None)
+
         total_cost = 0.0
         validated = False
         with cache as c:
@@ -299,8 +303,13 @@ class APIWrapper(object):
                                 "tool_choice",
                             ]
 
+                        # Pop off temperature if it's gpt-5 in the model name
+                        gleaning_model = gleaning_config.get("model", model)
+                        if "gpt-5" in gleaning_model:
+                            litellm_completion_kwargs.pop("temperature", None)
+
                         validator_response = completion(
-                            model=gleaning_config.get("model", model),
+                            model=gleaning_model,
                             messages=truncate_messages(
                                 validator_messages
                                 + [{"role": "user", "content": validator_prompt}],

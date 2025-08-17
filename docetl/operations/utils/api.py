@@ -319,6 +319,7 @@ class APIWrapper(object):
                                 }
                             ],
                             tool_choice="required",
+                            temperature=gleaning_config.get("temperature", 0.1),
                             **litellm_completion_kwargs,
                             **extra_kwargs,
                         )
@@ -348,7 +349,11 @@ class APIWrapper(object):
                         Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""
                         messages.append({"role": "user", "content": improvement_prompt})
 
-                        # Call LLM again
+                        # Call LLM again with gleaning temperature
+                        gleaning_completion_kwargs = litellm_completion_kwargs.copy()
+                        if "temperature" in gleaning_config:
+                            gleaning_completion_kwargs["temperature"] = gleaning_config["temperature"]
+                        
                         response = self._call_llm_with_cache(
                             model,
                             op_type,
@@ -356,7 +361,7 @@ class APIWrapper(object):
                             output_schema,
                             tools,
                             scratchpad,
-                            litellm_completion_kwargs,
+                            gleaning_completion_kwargs,
                             op_config=op_config,
                             use_structured_output=use_structured_output,
                         )

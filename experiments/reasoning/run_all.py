@@ -72,7 +72,7 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "sustainability",
+            "dataset": "cuad",
             "baseline": {"iterations": 10},
             "mcts": {"max_iterations": 30},
             "simple_baseline": {"model": "o3"}

@@ -502,7 +502,7 @@ class MCTS:
 
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-4.1-nano, gpt-4o-mini, gpt-4o, gpt-4.1 \n
+        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5 \n
         - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
         - Datasets: The input data sources for your pipeline. \n
         - Operators: The processing steps that transform your data. \n
@@ -597,7 +597,7 @@ class MCTS:
 
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-4.1-nano, gpt-4o-mini, gpt-4o, gpt-4.1 \n
+        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5\n
         - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
         - Datasets: The input data sources for your pipeline. \n
         - Operators: The processing steps that transform your data. \n

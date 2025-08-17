@@ -72,7 +72,7 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "cuad",
+            "dataset": "medec",
             "baseline": {"iterations": 10},
             "mcts": {"max_iterations": 30},
             "simple_baseline": {"model": "o3"}
@@ -185,12 +185,46 @@ def run_original_query_remote(yaml_path: str, dataset: str, experiment_name: str
         output_path = Path(output_dir) / experiment_name
         output_path.mkdir(parents=True, exist_ok=True)
         
+        # Check if original query results already exist
+        baseline_json_path = output_path / "original_output.json"
+        baseline_yaml_path = output_path / "baseline_config.yaml"
+        
+        if baseline_json_path.exists() and baseline_yaml_path.exists():
+            print(f"✅ Found existing original query results for {experiment_name}")
+            print(f"   Original output: {baseline_json_path}")
+            print(f"   Baseline config: {baseline_yaml_path}")
+            
+            # Load existing results
+            try:
+                sample_output = extract_output_from_json(str(baseline_yaml_path), str(baseline_json_path))[:1]
+            except Exception as e:
+                print(f"⚠️  Could not load existing baseline output JSON: {e}")
+                sample_output = []
+            
+            # Try to extract cost from existing config or set to 0 if not available
+            total_cost = 0.0
+            try:
+                with open(baseline_yaml_path, 'r') as f:
+                    existing_config = yaml.safe_load(f)
+                    # Cost might be stored in the config or we can set it to a default
+                    total_cost = existing_config.get('total_cost', 0.0)
+            except Exception:
+                total_cost = 0.0
+            
+            return create_original_query_result(
+                success=True,
+                cost=total_cost,
+                output_file_path=str(baseline_json_path),
+                sample_output=sample_output
+            )
+        
+        print(f"🔄 No existing results found, executing original query for {experiment_name}")
+        
         # Load original YAML
         with open(yaml_path, 'r') as f:
             config = yaml.safe_load(f)
         
         # Redirect output path to experiment folder in Modal volume
-        baseline_json_path = output_path / "original_output.json"
         print("baseline_json_path (Modal):", baseline_json_path)
         try:
             config['pipeline']['output']['path'] = str(baseline_json_path)

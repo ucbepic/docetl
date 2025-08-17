@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import os
 
 dataset_metrics = {
-    "cuad": "avg_f1",
+    "cuad": "f1",
     "blackvault": "avg_distinct_locations",
     "game_reviews": "weighted_score",
     "medec": "combined_score",
@@ -185,7 +185,19 @@ def calculate_hypervolume(pareto_points, reference_point, accuracy_metric):
     ref_accuracy = reference_point["accuracy"]
     ref_cost = reference_point["cost"]
     
+    # Find max accuracy across all points to scale accuracy to [0,1]
+    all_accuracies = [point[1] for point in pareto_points]
+    max_accuracy = max(all_accuracies)
+    min_accuracy = min(min(all_accuracies), ref_accuracy)
+    
+    # Avoid division by zero
+    accuracy_range = max_accuracy - min_accuracy
+    if accuracy_range == 0:
+        print("All accuracy values are the same, returning 0.0")
+        return 0.0
+    
     print(f"Using reference point: accuracy={ref_accuracy:.4f}, cost={ref_cost:.6f}")
+    print(f"Accuracy range: [{min_accuracy:.4f}, {max_accuracy:.4f}], scaling to [0,1]")
     
     # Sort frontier points by cost (ascending)
     sorted_points = sorted(pareto_points, key=lambda x: x[2])  # x[2] is cost
@@ -202,8 +214,13 @@ def calculate_hypervolume(pareto_points, reference_point, accuracy_metric):
         next_cost = next_point[2]  # cost
         next_accuracy = next_point[1]  # accuracy
         
-        if (curr_cost <= ref_cost and curr_accuracy > ref_accuracy and
-            next_cost <= ref_cost and next_accuracy > ref_accuracy):
+        # Scale accuracies to [0,1]
+        scaled_curr_accuracy = (curr_accuracy - min_accuracy) / accuracy_range
+        scaled_next_accuracy = (next_accuracy - min_accuracy) / accuracy_range
+        scaled_ref_accuracy = (ref_accuracy - min_accuracy) / accuracy_range
+        
+        if (curr_cost <= ref_cost and scaled_curr_accuracy > scaled_ref_accuracy and
+            next_cost <= ref_cost and scaled_next_accuracy > scaled_ref_accuracy):
             
             # Scale costs from [0, ref_cost] to [0, 1] for hypervolume calculation
             scaled_curr_cost = curr_cost / ref_cost
@@ -211,8 +228,8 @@ def calculate_hypervolume(pareto_points, reference_point, accuracy_metric):
             
             # Trapezoid area: (height1 + height2) * width / 2
             width = scaled_next_cost - scaled_curr_cost
-            height1 = curr_accuracy - ref_accuracy
-            height2 = next_accuracy - ref_accuracy
+            height1 = scaled_curr_accuracy - scaled_ref_accuracy
+            height2 = scaled_next_accuracy - scaled_ref_accuracy
             
             if width > 0 and height1 > 0 and height2 > 0:
                 trapezoid_area = (height1 + height2) * width / 2
@@ -224,11 +241,104 @@ def calculate_hypervolume(pareto_points, reference_point, accuracy_metric):
         last_cost = last_point[2]  # cost
         last_accuracy = last_point[1]  # accuracy
         
-        if last_cost < ref_cost and last_accuracy > ref_accuracy:
+        # Scale accuracy to [0,1]
+        scaled_last_accuracy = (last_accuracy - min_accuracy) / accuracy_range
+        scaled_ref_accuracy = (ref_accuracy - min_accuracy) / accuracy_range
+        
+        if last_cost < ref_cost and scaled_last_accuracy > scaled_ref_accuracy:
             # Scale cost for hypervolume calculation
             scaled_last_cost = last_cost / ref_cost
             final_width = 1.0 - scaled_last_cost  # Scaled reference cost is 1.0
-            final_height = last_accuracy - ref_accuracy
+            final_height = scaled_last_accuracy - scaled_ref_accuracy
+            if final_width > 0 and final_height > 0:
+                final_rectangle = final_width * final_height
+                hypervolume += final_rectangle
+    
+    return hypervolume
+
+
+def calculate_hypervolume_with_global_scaling(pareto_points, reference_point, accuracy_metric):
+    """
+    Calculate hypervolume for Pareto frontier points using global accuracy scaling.
+    
+    Args:
+        pareto_points: List of Pareto frontier points (iteration, accuracy, cost)
+        reference_point: Reference point data with accuracy, cost, and global scaling info
+        accuracy_metric: Name of the accuracy metric to use
+    
+    Returns:
+        float: Hypervolume value
+    """
+    if not pareto_points:
+        print("No Pareto frontier points provided, returning 0.0")
+        return 0.0
+    
+    # Use provided reference point and global scaling
+    ref_accuracy = reference_point["accuracy"]
+    ref_cost = reference_point["cost"]
+    global_min_accuracy = reference_point["global_min_accuracy"]
+    global_max_accuracy = reference_point["global_max_accuracy"]
+    
+    # Avoid division by zero
+    accuracy_range = global_max_accuracy - global_min_accuracy
+    if accuracy_range == 0:
+        print("All accuracy values are the same, returning 0.0")
+        return 0.0
+    
+    print(f"Using reference point: accuracy={ref_accuracy:.4f}, cost={ref_cost:.6f}")
+    print(f"Global accuracy range: [{global_min_accuracy:.4f}, {global_max_accuracy:.4f}], scaling to [0,1]")
+    
+    # Sort frontier points by cost (ascending)
+    sorted_points = sorted(pareto_points, key=lambda x: x[2])  # x[2] is cost
+    
+    hypervolume = 0.0
+    
+    # Calculate trapezoid areas between consecutive frontier points
+    for i in range(len(sorted_points) - 1):
+        curr_point = sorted_points[i]
+        next_point = sorted_points[i + 1]
+        
+        curr_cost = curr_point[2]  # cost
+        curr_accuracy = curr_point[1]  # accuracy
+        next_cost = next_point[2]  # cost
+        next_accuracy = next_point[1]  # accuracy
+        
+        # Scale accuracies to [0,1] using global range
+        scaled_curr_accuracy = (curr_accuracy - global_min_accuracy) / accuracy_range
+        scaled_next_accuracy = (next_accuracy - global_min_accuracy) / accuracy_range
+        scaled_ref_accuracy = (ref_accuracy - global_min_accuracy) / accuracy_range
+        
+        if (curr_cost <= ref_cost and scaled_curr_accuracy > scaled_ref_accuracy and
+            next_cost <= ref_cost and scaled_next_accuracy > scaled_ref_accuracy):
+            
+            # Scale costs from [0, ref_cost] to [0, 1] for hypervolume calculation
+            scaled_curr_cost = curr_cost / ref_cost
+            scaled_next_cost = next_cost / ref_cost
+            
+            # Trapezoid area: (height1 + height2) * width / 2
+            width = scaled_next_cost - scaled_curr_cost
+            height1 = scaled_curr_accuracy - scaled_ref_accuracy
+            height2 = scaled_next_accuracy - scaled_ref_accuracy
+            
+            if width > 0 and height1 > 0 and height2 > 0:
+                trapezoid_area = (height1 + height2) * width / 2
+                hypervolume += trapezoid_area
+    
+    # Add final rectangle from last point to reference cost
+    if sorted_points:
+        last_point = sorted_points[-1]
+        last_cost = last_point[2]  # cost
+        last_accuracy = last_point[1]  # accuracy
+        
+        # Scale accuracy to [0,1] using global range
+        scaled_last_accuracy = (last_accuracy - global_min_accuracy) / accuracy_range
+        scaled_ref_accuracy = (ref_accuracy - global_min_accuracy) / accuracy_range
+        
+        if last_cost < ref_cost and scaled_last_accuracy > scaled_ref_accuracy:
+            # Scale cost for hypervolume calculation
+            scaled_last_cost = last_cost / ref_cost
+            final_width = 1.0 - scaled_last_cost  # Scaled reference cost is 1.0
+            final_height = scaled_last_accuracy - scaled_ref_accuracy
             if final_width > 0 and final_height > 0:
                 final_rectangle = final_width * final_height
                 hypervolume += final_rectangle
@@ -334,22 +444,39 @@ def calculate_hypervolume_comparison(file_baseline, file_mcts, file_simple, exp_
     # Find highest cost across all files and use it for reference point
     highest_cost = find_highest_cost_across_all_files(file_baseline, file_mcts, file_simple, accuracy_metric)
     
+    # Collect all accuracy values across all methods to determine global scaling range
+    all_accuracies = []
+    for points in [pareto_points_baseline, pareto_points_mcts, pareto_points_simple]:
+        if points:
+            all_accuracies.extend([point[1] for point in points])
+    
+    # Find global min/max accuracy for consistent scaling across all methods
+    global_min_accuracy = min(all_accuracies) if all_accuracies else 0.0
+    global_max_accuracy = max(all_accuracies) if all_accuracies else 1.0
+    
+    # Make sure reference point accuracy is included in the range
+    global_min_accuracy = min(global_min_accuracy, 0.0)  # Reference point accuracy is 0.0
+    
+    print(f"Global accuracy range for scaling: [{global_min_accuracy:.4f}, {global_max_accuracy:.4f}]")
+    
     # Create reference point: accuracy = 0, cost = highest cost found
     reference_point = {
         "accuracy": 0.0,
-        "cost": highest_cost
+        "cost": highest_cost,
+        "global_min_accuracy": global_min_accuracy,
+        "global_max_accuracy": global_max_accuracy
     }
     
     print(f"Reference point set to: accuracy={reference_point['accuracy']:.4f}, cost={reference_point['cost']:.6f}")
     
     # Calculate hypervolume for baseline
-    baseline_hypervolume = calculate_hypervolume(pareto_points_baseline, reference_point, accuracy_metric)
+    baseline_hypervolume = calculate_hypervolume_with_global_scaling(pareto_points_baseline, reference_point, accuracy_metric)
 
     # Calculate hypervolume for MCTS
-    mcts_hypervolume = calculate_hypervolume(pareto_points_mcts, reference_point, accuracy_metric)
+    mcts_hypervolume = calculate_hypervolume_with_global_scaling(pareto_points_mcts, reference_point, accuracy_metric)
     
     # Calculate hypervolume for simple baseline
-    simple_hypervolume = calculate_hypervolume(pareto_points_simple, reference_point, accuracy_metric)
+    simple_hypervolume = calculate_hypervolume_with_global_scaling(pareto_points_simple, reference_point, accuracy_metric)
     
     
     return baseline_hypervolume, mcts_hypervolume, simple_hypervolume, reference_point
@@ -672,10 +799,10 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
 
 def main():
     
-    evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/outputs/sustainability_baseline/evaluation_metrics.json"
-    evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/outputs/sustainability_mcts/evaluation_metrics.json"
-    evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/outputs/sustainability_simple_baseline/evaluation_metrics.json"
-    exp_name = "sustainability"
+    evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/modal_outputs/cuad_baseline/evaluation_metrics.json"
+    evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/modal_outputs/cuad_mcts/evaluation_metrics.json"
+    evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/modal_outputs/cuad_simple_baseline/evaluation_metrics.json"
+    exp_name = "cuad"
     
     # Find Pareto frontier for all three approaches
     pareto_points_baseline = find_pareto_frontier(evaluation_file_baseline, exp_name)

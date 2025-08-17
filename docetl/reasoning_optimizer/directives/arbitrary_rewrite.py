@@ -311,6 +311,9 @@ class ArbitraryRewriteDirective(Directive):
             new_ops_list = json.loads(pipeline_json)
             if not isinstance(new_ops_list, list):
                 raise ValueError("Pipeline must be a list of operations")
+
+            # Get rid of any empty operations in new_ops_list
+            new_ops_list = [op for op in new_ops_list if op]
             return new_ops_list
         except json.JSONDecodeError as e:
             raise ValueError(

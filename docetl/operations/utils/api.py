@@ -299,8 +299,14 @@ class APIWrapper(object):
                                 "tool_choice",
                             ]
 
+                        # Remove temperature if gleaning model contains 'gpt-5'
+                        gleaning_model = gleaning_config.get("model", model)
+                        validator_kwargs = litellm_completion_kwargs.copy()
+                        if "gpt-5" in gleaning_model and "temperature" in validator_kwargs:
+                            validator_kwargs.pop("temperature")
+                        
                         validator_response = completion(
-                            model=gleaning_config.get("model", model),
+                            model=gleaning_model,
                             messages=truncate_messages(
                                 validator_messages
                                 + [{"role": "user", "content": validator_prompt}],
@@ -319,8 +325,7 @@ class APIWrapper(object):
                                 }
                             ],
                             tool_choice="required",
-                            temperature=gleaning_config.get("temperature", 0.1),
-                            **litellm_completion_kwargs,
+                            **validator_kwargs,
                             **extra_kwargs,
                         )
                         total_cost += completion_cost(validator_response)
@@ -349,13 +354,14 @@ class APIWrapper(object):
                         Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""
                         messages.append({"role": "user", "content": improvement_prompt})
 
-                        # Call LLM again with gleaning temperature
+                        # Call LLM again, removing temperature if gleaning model contains 'gpt-5'
                         gleaning_completion_kwargs = litellm_completion_kwargs.copy()
-                        if "temperature" in gleaning_config:
-                            gleaning_completion_kwargs["temperature"] = gleaning_config["temperature"]
+                        gleaning_model = gleaning_config.get("model", model)
+                        if "gpt-5" in gleaning_model and "temperature" in gleaning_completion_kwargs:
+                            gleaning_completion_kwargs.pop("temperature")
                         
                         response = self._call_llm_with_cache(
-                            model,
+                            gleaning_model,
                             op_type,
                             messages,
                             output_schema,

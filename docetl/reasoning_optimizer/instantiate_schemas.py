@@ -572,29 +572,36 @@ class ChunkHeaderSummaryInstantiateSchema(BaseModel):
         return v
 
 
-class SamplingMethodKwargs(BaseModel):
-    """Configuration for sampling method parameters."""
-
-    stratify_key: str = Field(
-        default="",
-        description="Key for stratified sampling (required when method='stratify', empty otherwise). MUST be a valid key.",
-    )
-    samples_per_group: bool = Field(
-        default=True,
-        description="Whether to sample N items from each stratify group instead of dividing total samples across groups",
-    )
-
 
 class SamplingConfig(BaseModel):
     """Configuration for optional sampling in document chunking."""
 
+    method: str = Field(
+        default="uniform",
+        description="Sampling method to use (default: uniform for stratified sampling)",
+    )
     samples: int = Field(
         ...,
         description="Number of chunks to sample (e.g., 1 for one chunk, 5 for five chunks)",
     )
-    method_kwargs: Optional[SamplingMethodKwargs] = Field(
+    stratify_key: Optional[str] = Field(
         default=None,
-        description="Additional parameters for the sampling method (e.g., stratify_key for stratified sampling)",
+        description="Optional key to stratify sampling by (in addition to split document ID)",
+    )
+
+    samples_per_group: Optional[bool] = Field(
+        default=False,
+        description="Whether to sample N items from each stratify group instead of dividing total samples across groups",
+    )
+
+    random_state: Optional[int] = Field(
+        default=None,
+        description="An integer to seed the random generator with",
+    )
+
+    method_kwargs: Optional[str] = Field(
+        default=None,
+        description="Additional parameters for the sampling method. Must be a valid JSON string.",
     )
 
     @field_validator("samples")
@@ -724,10 +731,10 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         Args:
             pipeline_operations: List of operation configurations from the pipeline
         """
-        if not self.sampling_config or not self.sampling_config.method_kwargs:
+        if not self.sampling_config:
             return
 
-        stratify_key = self.sampling_config.method_kwargs.stratify_key
+        stratify_key = self.sampling_config.stratify_key
         if not stratify_key:
             return
 

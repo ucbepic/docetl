@@ -406,26 +406,30 @@ op_sample = Operator(
     name="Sample",
     type_llm_or_not="Not LLM-powered",
     description="Selects a subset of documents from the input according to the specified sampling method. Used to generate a representative sample for further analysis or processing.",
-    when_to_use="Use when you want to work with a smaller subset of your data for debugging, rapid prototyping, or to reduce compute cost. Also useful for sampling before downstream processing.",
+    when_to_use="Use when you want to work with a smaller subset of your data for debugging, rapid prototyping, or to reduce compute cost. Also useful for sampling before downstream processing. Stratification can be applied to uniform, first, outliers, top_embedding, and top_fts methods. It ensures that the sample maintains the distribution of specified key(s) in the data or retrieves top items from each stratum.",
     required_parameters="""
     name: Unique name for the operation
     type: Must be "sample"
-    method: The sampling method to use ("uniform", "stratify", "outliers", or "custom")
-    samples: Number, fraction, or list specifying how many or which documents to sample
+    method: The sampling method to use ("uniform", "outliers", "custom", "first", "top_embedding", or "top_fts")
+    samples: Either a list of key-value pairs representing document ids and values, an integer count of samples, or a float fraction of samples.
     """,
     optional_parameters="""
     method: The sampling method to use. Options:
-    - uniform: Randomly select the specified number or fraction of documents.
-    - stratify: Perform stratified sampling to ensure proportional representation by a given field. Requires method_kwargs.stratify_key.
-    - outliers: Select or remove documents considered outliers based on embedding distance. Requires method_kwargs.embedding_keys (fields to embed), std (standard deviation cutoff) or samples (number/fraction of outlier samples), and keep (true to keep, false to remove outliers; default false). Optionally, method_kwargs.center can specify the center point.
-    - custom: Provide a specific list of documents to sample, using the samples parameter.
-
+    - uniform: Randomly select the specified number or fraction of documents. When combined with stratification, maintains the distribution of the stratified groups.
+    - first: Select the first N documents from the dataset. When combined with stratification, takes proportionally from each group.
+    - top_embedding: Select top documents based on embedding similarity to a query. Requires the following in method_kwargs: keys: A list of keys to use for creating embeddings, query: The query string to match against (supports Jinja templates), embedding_model: (Optional) The embedding model to use. Defaults to "text-embedding-3-small".
+    - top_fts: Retrieves the top N items using full-text search with BM25 algorithm. Requires the following in method_kwargs: keys: A list of keys to search within, query: The query string for keyword matching (supports Jinja templates).
+    - outliers: Select or remove documents considered outliers based on embedding distance. Requiresthe following in method_kwargs: embedding_keys (fields to embed), std (standard deviation cutoff) or samples (number/fraction of outlier samples), and keep (true to keep, false to remove outliers; default false). Optionally, method_kwargs.center can specify the center point.
+    - custom: Samples specific items by matching key-value pairs. Stratification is not supported with custom sampling.
+    
     samples: The number of samples to select (integer), fraction of documents to sample (float), or explicit list of document IDs (for custom).
 
     random_state: Integer to seed the random generator for reproducible results (default: random each run).
 
+    stratify_key: Field or list of fields to stratify by (for uniform method stratified sampling)
+    samples_per_group: When stratifying, sample N items per group vs. dividing total (for uniform method)
+    
     method_kwargs: Additional parameters required by the chosen sampling method, such as:
-    - stratify_key: Field to stratify by (for stratify)
     - embedding_keys: List of fields to embed (for outliers)
     - std: Number of standard deviations for outlier cutoff (for outliers)
     - keep: true to keep or false to remove outliers (for outliers; default false)
@@ -435,10 +439,9 @@ op_sample = Operator(
     minimal_example_configuration="""
     name: stratified_sample
     type: sample
-    method: stratify
+    method: uniform
     samples: 0.2
-    method_kwargs:
-        stratify_key: category
+    stratify_key: category
     """,
 )
 

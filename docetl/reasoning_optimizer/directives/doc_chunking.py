@@ -207,10 +207,10 @@ class DocumentChunkingDirective(Directive):
             f"5. sampling_config: IMPORTANT - Include sampling by default UNLESS the task requires ALL chunks:\n"
             f"   - ALWAYS use sampling for: categorization, theme identification, sentiment analysis, document type classification\n"
             f"   - NEVER use sampling for: comprehensive extraction ('extract ALL instances'), complete analysis requiring every chunk\n"
-            f"   - Default sampling: method='stratify', samples=5-10 chunks\n"
+            f"   - Default sampling: method='uniform' with stratify_key, samples=5-10 chunks\n"
             f"   - For simple tasks (categorization): samples=1-3 chunks\n"
             f"   - For complex analysis: samples=5-15 chunks\n"
-            f"   - For stratified sampling: specify method='stratify' and optionally a stratify_key (note: split document ID is automatically included)\n"
+            f"   - For stratified sampling: specify method='uniform' and stratify_key (note: split document ID is automatically included)\n"
             f"   - Set sampling_config=null only if you need to process every single chunk\n"
             f"6. gather_config: Configure context from surrounding chunks. Structure:\n"
             f"   gather_config:\n"
@@ -390,7 +390,7 @@ class DocumentChunkingDirective(Directive):
             sample_op = {
                 "name": sample_name,
                 "type": "sample",
-                "method": "stratify",
+                "method": rewrite.sampling_config.method,
                 "samples": rewrite.sampling_config.samples,
             }
 
@@ -398,16 +398,23 @@ class DocumentChunkingDirective(Directive):
             stratify_keys = [f"{split_name}_id"]
 
             # Add agent-specified stratify key if provided
-            if (
-                rewrite.sampling_config.method_kwargs
-                and rewrite.sampling_config.method_kwargs.stratify_key
-            ):
-                stratify_keys.append(rewrite.sampling_config.method_kwargs.stratify_key)
+            if rewrite.sampling_config.stratify_key:
+                stratify_keys.append(rewrite.sampling_config.stratify_key)
+            sample_op["stratify_key"] = stratify_keys
 
-            sample_op["method_kwargs"] = {
-                "stratify_key": stratify_keys,
-                "samples_per_group": True,
-            }
+            if rewrite.sampling_config.samples_per_group:
+                sample_op["samples_per_group"] = rewrite.sampling_config.samples_per_group
+            
+            
+            # Add optional fields if provided
+            if rewrite.sampling_config.random_state is not None:
+                sample_op["random_state"] = rewrite.sampling_config.random_state
+            
+            if rewrite.sampling_config.method_kwargs is not None:
+                try:
+                    sample_op["method_kwargs"] = json.loads(rewrite.sampling_config.method_kwargs)
+                except Exception as e:
+                    raise ValueError(f"Invalid method_kwargs: {e}")
 
             ops_sequence.append(sample_op)
 

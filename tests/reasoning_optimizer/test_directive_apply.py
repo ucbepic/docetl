@@ -470,7 +470,7 @@ def test_doc_chunking_apply():
         sub_prompt="Analyze this document chunk: {{ input.document_chunk_rendered }}",
         reduce_prompt="Combine the analysis results: {% for input in inputs %}{{ input.analysis }}{% endfor %}",
         sampling_config=SamplingConfig(
-            method="stratify",
+            method="uniform",
             samples=5
         )
     )
@@ -479,7 +479,7 @@ def test_doc_chunking_apply():
     assert isinstance(result_with_sample, list)
     assert len(result_with_sample) == 5  # Should be split -> gather -> sample -> map -> reduce
     assert result_with_sample[2]["type"] == "sample"
-    assert result_with_sample[2]["method"] == "stratify"
+    assert result_with_sample[2]["method"] == "uniform"
     assert result_with_sample[2]["samples"] == 5
 
 

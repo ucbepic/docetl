@@ -192,7 +192,7 @@ class ArbitraryRewriteDirective(Directive):
             f"You have access to:\n"
             f"1. Sample input data through read_next_docs() - to understand data patterns and flow\n"
             f"2. Operator documentation through read_operator_doc(operator_name) - to learn about available operators\n\n"
-            f"IMPORTANT: Read documentation for no more than 2 operators before analyzing sample data to get a sense for how best to rewrite the pipeline to improve cost or accuracy (ideally both).\n\n"
+            f"IMPORTANT: Read documentation for no more than 2 operators before analyzing sample data to get a sense for how best to rewrite the pipeline.\n\n"
             f"Use these tools to:\n"
             f"1. Understand the data flow through the pipeline\n"
             f"2. Identify inefficiencies or redundancies\n"

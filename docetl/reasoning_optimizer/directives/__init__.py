@@ -12,6 +12,8 @@ from .base import (
 from .chaining import ChainingDirective
 from .gleaning import GleaningDirective
 from .change_model import ChangeModelDirective
+from .change_model_acc import ChangeModelAccDirective
+from .change_model_cost import ChangeModelCostDirective
 from .doc_summarization import DocSummarizationDirective
 from .isolating_subtasks import IsolatingSubtasksDirective
 from .doc_compression import DocCompressionDirective
@@ -36,7 +38,8 @@ ALL_DIRECTIVES = [
     GleaningDirective(), 
     ReduceGleaningDirective(),
     ReduceChainingDirective(),
-    ChangeModelDirective(),
+    ChangeModelAccDirective(),
+    ChangeModelCostDirective(),
     DocSummarizationDirective(),
     IsolatingSubtasksDirective(),
     DocCompressionDirective(),
@@ -63,7 +66,7 @@ ALL_COST_DIRECTIVES = [
     OperatorFusionDirective(),
     TakeHeadTailDirective(),
     MapReduceFusionDirective(),
-    ChangeModelDirective(),
+    ChangeModelCostDirective(),
     CascadeFilteringDirective(),
     ArbitraryRewriteDirective(),
 ]

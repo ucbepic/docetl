@@ -285,7 +285,7 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            if self.iteration_count < 10: 
+            if self.iteration_count < 1: 
             # if self.iteration_count >= self.max_iterations - 5:
                 if self.mcts_cost_iteration():
                     self.iteration_count += 1
@@ -597,7 +597,7 @@ class MCTS:
 
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5\n
+        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5, gpt-4.1 \n
         - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
         - Datasets: The input data sources for your pipeline. \n
         - Operators: The processing steps that transform your data. \n

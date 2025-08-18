@@ -62,7 +62,7 @@ DEFAULT_YAML_PATHS: Dict[str, str] = {
 DEFAULT_DATASET_PATHS: Dict[str, str] = {
     "cuad": "experiments/reasoning/data/train/cuad.json",
     "blackvault": "experiments/reasoning/data/train/blackvault.json",
-    "game_reviews": "experiments/reasoning/data/train/reviews.json",
+    "game_reviews": "experiments/reasoning/data/train/game_reviews.json",
     "sustainability": "experiments/reasoning/data/train/sustainability.json",
     "biodex": "experiments/reasoning/data/train/biodex.json",
     "medec": "experiments/reasoning/data/train/medec.json",
@@ -72,8 +72,8 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "biodex",
-            "original_cost": 1.0542691500000003,  # Cost of the original query execution
+            "dataset": "game_reviews",
+            "original_cost": 0.60220281,  # Cost of the original query execution
             "mcts": {"max_iterations": 30}
         }
     ]

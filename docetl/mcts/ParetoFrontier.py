@@ -57,7 +57,7 @@ class ParetoFrontier:
             "game_reviews": "weighted_score",
             "medec": "combined_score",
             "sustainability": "economic_activity_accuracy",
-            "biodex": "avg_rp_at_10",  # Optimize for RP@10 as specified
+            "biodex": "avg_rp_at_5",  # Optimize for RP@5 as specified
         }
 
         # Internal state

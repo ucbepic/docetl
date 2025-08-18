@@ -9,7 +9,7 @@ dataset_metrics = {
     "game_reviews": "weighted_score",
     "medec": "combined_score",
     "sustainability": "economic_activity_accuracy",
-    "biodex": "avg_rp_at_10",  
+    "biodex": "avg_rp_at_5",  
 }
 
 
@@ -58,27 +58,27 @@ def find_pareto_frontier(file, exp_name):
     pareto_points = []
     best_accuracy = float('-inf')
 
-    if "on_frontier" in sorted_data[0]:
-        for item in sorted_data:
-            if item["on_frontier"]:
-                pareto_points.append((item["node_id"], item[accuracy_metric], item["cost"]))
-    else:
-        for item in sorted_data:
-            current_accuracy = item[accuracy_metric]
-            current_cost = item["cost"]
+    # if "on_frontier" in sorted_data[0]:
+    #     for item in sorted_data:
+    #         if item["on_frontier"]:
+    #             pareto_points.append((item["node_id"], item[accuracy_metric], item["cost"]))
+    # else:
+    for item in sorted_data:
+        current_accuracy = item[accuracy_metric]
+        current_cost = item["cost"]
+        
+        # Check if this point dominates previous points
+        if current_accuracy > best_accuracy:
+            best_accuracy = current_accuracy
             
-            # Check if this point dominates previous points
-            if current_accuracy > best_accuracy:
-                best_accuracy = current_accuracy
-                
-                # Extract iteration number from filename
-                iteration = item.get("node_id", "")
-                if iteration.endswith("_results"):
-                    iteration = iteration[:-8]
-                if iteration.startswith("iteration_"):
-                    iteration = iteration[10:]
-                
-                pareto_points.append((iteration, current_accuracy, current_cost))
+            # Extract iteration number from filename
+            iteration = item.get("node_id", "")
+            # if iteration.endswith("_results"):
+            #     iteration = iteration[:-8]
+            # if iteration.startswith("iteration_"):
+            #     iteration = iteration[10:]
+            
+            pareto_points.append((iteration, current_accuracy, current_cost))
         
     return pareto_points
 
@@ -799,10 +799,10 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
 
 def main():
     
-    evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/modal_outputs/cuad_baseline/evaluation_metrics.json"
-    evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/modal_outputs/cuad_mcts/evaluation_metrics.json"
-    evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/modal_outputs/cuad_simple_baseline/evaluation_metrics.json"
-    exp_name = "cuad"
+    evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/baseline/evaluation_metrics.json"
+    evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/mcts/evaluation_metrics.json"
+    evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/simple_baseline/evaluation_metrics.json"
+    exp_name = "biodex"
     
     # Find Pareto frontier for all three approaches
     pareto_points_baseline = find_pareto_frontier(evaluation_file_baseline, exp_name)

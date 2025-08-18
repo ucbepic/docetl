@@ -14,7 +14,7 @@ dataset_accuracy_metrics = {
     "game_reviews": "combined_accuracy_score",
     "medec": "combined_score",
     "sustainability": "economic_activity_accuracy",
-    "biodex": "avg_rp_at_10"
+    "biodex": "avg_rp_at_5"
 }
 def identify_pareto_frontier(eval_results, dataset):
     """
@@ -37,7 +37,7 @@ def identify_pareto_frontier(eval_results, dataset):
         "game_reviews": "combined_accuracy_score",
         "medec": "combined_score",
         "sustainability": "economic_activity_accuracy",
-        "biodex": "avg_rp_at_10",
+        "biodex": "avg_rp_at_5",
     }
     
     accuracy_metric = dataset_metrics.get(dataset.lower())
@@ -105,7 +105,7 @@ def print_pareto_frontier_summary(eval_results, dataset):
         "game_reviews": "combined_accuracy_score",
         "medec": "combined_score",
         "sustainability": "economic_activity_accuracy",
-        "biodex": "avg_rp_at_10",
+        "biodex": "avg_rp_at_5",
     }
     
     accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
@@ -163,7 +163,7 @@ def save_pareto_frontier_results(eval_results, dataset, output_path):
         "game_reviews": "combined_accuracy_score",
         "medec": "combined_score",
         "sustainability": "economic_activity_accuracy",
-        "biodex": "avg_rp_at_10",
+        "biodex": "avg_rp_at_5",
     }
     
     accuracy_metric = dataset_metrics.get(dataset.lower(), "accuracy")
@@ -1216,24 +1216,24 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
     # Plot RP@10 vs Cost scatter (since we're optimizing for RP@10)
     try:
         costs = [row["cost"] for row in eval_results]
-        rp_at_10_scores = [row["avg_rp_at_10"] for row in eval_results]
+        rp_at_5_scores = [row["avg_rp_at_5"] for row in eval_results]
         colors = ["blue" if row.get("on_frontier", False) else "grey" for row in eval_results]
 
         plt.figure(figsize=(8,6))
-        plt.scatter(costs, rp_at_10_scores, c=colors)
+        plt.scatter(costs, rp_at_5_scores, c=colors)
         for row in eval_results:
             mcts_accuracy = row.get("mcts_accuracy")
             if mcts_accuracy is not None:
                 label = f"{row['node_id']} ({mcts_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
-            plt.annotate(label, (row["cost"], row["avg_rp_at_10"]), textcoords="offset points", xytext=(4,4), fontsize=8)
+            plt.annotate(label, (row["cost"], row["avg_rp_at_5"]), textcoords="offset points", xytext=(4,4), fontsize=8)
 
         plt.xlabel("Cost ($)")
-        plt.ylabel("Rank Precision @ 10")
-        plt.title("Cost vs RP@10 for all plans")
+        plt.ylabel("Rank Precision @ 5")
+        plt.title("Cost vs RP@5 for all plans")
         plt.grid(True, linestyle="--", alpha=0.5)
-        plot_path = output_path / "cost_vs_rp_at_10.png"
+        plot_path = output_path / "cost_vs_rp_at_5.png"
         plt.savefig(plot_path, dpi=150, bbox_inches="tight")
         plt.close()
         print(f"📈 Scatter plot saved to: {plot_path}")
@@ -1264,13 +1264,13 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
                 curr_point = frontier_points[i]
                 next_point = frontier_points[i + 1]
                 
-                if (curr_point["cost"] < ref_cost and curr_point["avg_rp_at_10"] > ref_accuracy and
-                    next_point["cost"] < ref_cost and next_point["avg_rp_at_10"] > ref_accuracy):
+                if (curr_point["cost"] < ref_cost and curr_point["avg_rp_at_5"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["avg_rp_at_5"] > ref_accuracy):
                     
                     # Trapezoid area: (height1 + height2) * width / 2
                     width = next_point["cost"] - curr_point["cost"]
-                    height1 = curr_point["avg_rp_at_10"] - ref_accuracy
-                    height2 = next_point["avg_rp_at_10"] - ref_accuracy
+                    height1 = curr_point["avg_rp_at_5"] - ref_accuracy
+                    height2 = next_point["avg_rp_at_5"] - ref_accuracy
                     
                     if width > 0 and height1 > 0 and height2 > 0:
                         trapezoid_area = (height1 + height2) * width / 2
@@ -1279,9 +1279,9 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
             # Add final rectangle from last point to reference cost
             if frontier_points:
                 last_point = frontier_points[-1]
-                if last_point["cost"] < ref_cost and last_point["avg_rp_at_10"] > ref_accuracy:
+                if last_point["cost"] < ref_cost and last_point["avg_rp_at_5"] > ref_accuracy:
                     final_width = ref_cost - last_point["cost"]
-                    final_height = last_point["avg_rp_at_10"] - ref_accuracy
+                    final_height = last_point["avg_rp_at_5"] - ref_accuracy
                     if final_width > 0 and final_height > 0:
                         final_rectangle = final_width * final_height
                         hypervolume += final_rectangle

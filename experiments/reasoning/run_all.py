@@ -72,10 +72,9 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "medec",
-            "baseline": {"iterations": 10},
-            "mcts": {"max_iterations": 30},
-            "simple_baseline": {"model": "o3"}
+            "dataset": "biodex",
+            "original_cost": 1.0542691500000003,  # Cost of the original query execution
+            "mcts": {"max_iterations": 30}
         }
     ]
 }
@@ -167,7 +166,8 @@ def _spawn_simple_baseline(
 
 @app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 60)
 def run_original_query_remote(yaml_path: str, dataset: str, experiment_name: str, 
-                             data_dir: Optional[str] = None, output_dir: Optional[str] = None) -> Dict[str, Any]:
+                             data_dir: Optional[str] = None, output_dir: Optional[str] = None,
+                             original_cost: Optional[float] = None) -> Dict[str, Any]:
     """Execute the original query plan once in Modal and return results."""
     
     try:
@@ -201,15 +201,24 @@ def run_original_query_remote(yaml_path: str, dataset: str, experiment_name: str
                 print(f"⚠️  Could not load existing baseline output JSON: {e}")
                 sample_output = []
             
-            # Try to extract cost from existing config or set to 0 if not available
-            total_cost = 0.0
-            try:
-                with open(baseline_yaml_path, 'r') as f:
-                    existing_config = yaml.safe_load(f)
-                    # Cost might be stored in the config or we can set it to a default
-                    total_cost = existing_config.get('total_cost', 0.0)
-            except Exception:
+            # Use provided original_cost if available, otherwise try to extract from config
+            if original_cost is not None:
+                total_cost = original_cost
+                print(f"   ✅ Using provided original cost: ${total_cost:.6f}")
+            else:
                 total_cost = 0.0
+                try:
+                    with open(baseline_yaml_path, 'r') as f:
+                        existing_config = yaml.safe_load(f)
+                        # Cost might be stored in the config or we can set it to a default
+                        total_cost = existing_config.get('total_cost', 0.0)
+                    if total_cost > 0:
+                        print(f"   ✅ Found cost in config: ${total_cost:.6f}")
+                    else:
+                        print(f"   ⚠️  No cost found in config, using 0.0")
+                except Exception:
+                    print(f"   ⚠️  Could not read config, using cost 0.0")
+                    total_cost = 0.0
             
             return create_original_query_result(
                 success=True,
@@ -281,9 +290,10 @@ def run_original_query_remote(yaml_path: str, dataset: str, experiment_name: str
 
 
 def run_original_query(yaml_path: str, dataset: str, experiment_name: str, 
-                      data_dir: Optional[str] = None, output_dir: Optional[str] = None) -> Dict[str, Any]:
+                      data_dir: Optional[str] = None, output_dir: Optional[str] = None, 
+                      original_cost: Optional[float] = None) -> Dict[str, Any]:
     """Execute the original query plan once using Modal and return results."""
-    return run_original_query_remote.remote(yaml_path, dataset, experiment_name, data_dir, output_dir)
+    return run_original_query_remote.remote(yaml_path, dataset, experiment_name, data_dir, output_dir, original_cost)
 
 
 @app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 30)
@@ -514,6 +524,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         data_dir: Optional[str] = exp.get("data_dir")
         output_dir: Optional[str] = exp.get("output_dir")
         ground_truth: Optional[str] = exp.get("ground_truth")
+        original_cost: Optional[float] = exp.get("original_cost")
         
         # Execute original query plan once
         print(f"🔄 Executing original query plan for {dataset}...")
@@ -523,7 +534,8 @@ def run_from_config(config: Dict[str, Any]) -> int:
             dataset=dataset,
             experiment_name=f"{dataset}_original",
             data_dir=data_dir,
-            output_dir=output_dir
+            output_dir=output_dir,
+            original_cost=original_cost
         )
         
         if original_result["success"]:

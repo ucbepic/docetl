@@ -346,14 +346,15 @@ def calculate_hypervolume_with_global_scaling(pareto_points, reference_point, ac
     return hypervolume
 
 
-def find_highest_cost_across_all_files(file_baseline, file_mcts, file_simple, accuracy_metric):
+def find_highest_cost_across_all_files(file_baseline, file_mcts, file_simple, file_abacus, accuracy_metric):
     """
-    Find the highest cost across all data points in the three JSON files.
+    Find the highest cost across all data points in the JSON files.
     
     Args:
         file_baseline: Path to the baseline evaluation file
         file_mcts: Path to the MCTS evaluation file
         file_simple: Path to the simple baseline evaluation file
+        file_abacus: Path to the Abacus evaluation file (optional, can be None)
         accuracy_metric: Name of the accuracy metric to use
     
     Returns:
@@ -391,30 +392,43 @@ def find_highest_cost_across_all_files(file_baseline, file_mcts, file_simple, ac
     except (FileNotFoundError, json.JSONDecodeError):
         print(f"Warning: Could not read simple baseline file {file_simple}")
     
+    # Check Abacus file (optional)
+    if file_abacus:
+        try:
+            with open(file_abacus, 'r') as f:
+                data_abacus = json.load(f)
+            for item in data_abacus:
+                if accuracy_metric in item and "cost" in item:
+                    highest_cost = max(highest_cost, item["cost"])
+        except (FileNotFoundError, json.JSONDecodeError):
+            print(f"Warning: Could not read Abacus file {file_abacus}")
+    
     print(f"Highest cost found across all files: {highest_cost:.6f}")
     return highest_cost
 
 
-def calculate_hypervolume_comparison(file_baseline, file_mcts, file_simple, exp_name, pareto_points_baseline, pareto_points_mcts, pareto_points_simple):
+def calculate_hypervolume_comparison(file_baseline, file_mcts, file_simple, file_abacus, exp_name, pareto_points_baseline, pareto_points_mcts, pareto_points_simple, pareto_points_abacus=None):
     """
-    Calculate hypervolume for baseline, MCTS, and simple baseline Pareto frontiers.
+    Calculate hypervolume for baseline, MCTS, simple baseline, and optionally Abacus Pareto frontiers.
     
     Args:
         file_baseline: Path to the baseline evaluation file
         file_mcts: Path to the MCTS evaluation file
         file_simple: Path to the simple baseline evaluation file
+        file_abacus: Path to the Abacus evaluation file (optional, can be None)
         exp_name: Name of the experiment
         pareto_points_baseline: List of baseline Pareto frontier points
         pareto_points_mcts: List of MCTS Pareto frontier points
         pareto_points_simple: List of simple baseline Pareto frontier points
+        pareto_points_abacus: List of Abacus Pareto frontier points (optional, can be None)
     
     Returns:
-        tuple: (baseline_hypervolume, mcts_hypervolume, simple_hypervolume, reference_point)
+        tuple: (baseline_hypervolume, mcts_hypervolume, simple_hypervolume, abacus_hypervolume, reference_point)
     """
     # Get the metric for this experiment
     if exp_name not in dataset_metrics:
         print(f"Unknown experiment: {exp_name}")
-        return 0.0, 0.0, 0.0, None
+        return 0.0, 0.0, 0.0, 0.0, None
     
     accuracy_metric = dataset_metrics[exp_name]
     
@@ -424,10 +438,10 @@ def calculate_hypervolume_comparison(file_baseline, file_mcts, file_simple, exp_
             data_baseline = json.load(f)
     except FileNotFoundError:
         print(f"Baseline file not found: {file_baseline}")
-        return 0.0, 0.0, 0.0, None
+        return 0.0, 0.0, 0.0, 0.0, None
     except json.JSONDecodeError:
         print(f"Invalid JSON in baseline file: {file_baseline}")
-        return 0.0, 0.0, 0.0, None
+        return 0.0, 0.0, 0.0, 0.0, None
     
     # Find original point in baseline data
     original_point = None
@@ -442,13 +456,17 @@ def calculate_hypervolume_comparison(file_baseline, file_mcts, file_simple, exp_
     print(f"Original point: {accuracy_metric}={original_point[accuracy_metric]:.4f}, cost={original_point['cost']:.6f}")
     
     # Find highest cost across all files and use it for reference point
-    highest_cost = find_highest_cost_across_all_files(file_baseline, file_mcts, file_simple, accuracy_metric)
+    highest_cost = find_highest_cost_across_all_files(file_baseline, file_mcts, file_simple, file_abacus, accuracy_metric)
     
     # Collect all accuracy values across all methods to determine global scaling range
     all_accuracies = []
     for points in [pareto_points_baseline, pareto_points_mcts, pareto_points_simple]:
         if points:
             all_accuracies.extend([point[1] for point in points])
+    
+    # Include Abacus points if provided
+    if pareto_points_abacus:
+        all_accuracies.extend([point[1] for point in pareto_points_abacus])
     
     # Find global min/max accuracy for consistent scaling across all methods
     global_min_accuracy = min(all_accuracies) if all_accuracies else 0.0
@@ -478,8 +496,13 @@ def calculate_hypervolume_comparison(file_baseline, file_mcts, file_simple, exp_
     # Calculate hypervolume for simple baseline
     simple_hypervolume = calculate_hypervolume_with_global_scaling(pareto_points_simple, reference_point, accuracy_metric)
     
+    # Calculate hypervolume for Abacus if provided
+    if pareto_points_abacus:
+        abacus_hypervolume = calculate_hypervolume_with_global_scaling(pareto_points_abacus, reference_point, accuracy_metric)
+    else:
+        abacus_hypervolume = 0.0
     
-    return baseline_hypervolume, mcts_hypervolume, simple_hypervolume, reference_point
+    return baseline_hypervolume, mcts_hypervolume, simple_hypervolume, abacus_hypervolume, reference_point
 
 
 def plot_hypervolume_trapezoids_and_rectangle(plt, pareto_points, reference_point, color, alpha=0.3, label_suffix=""):
@@ -554,18 +577,20 @@ def plot_hypervolume_trapezoids_and_rectangle(plt, pareto_points, reference_poin
         print(f"  {label_suffix}: Not enough sorted points ({len(sorted_points)})")
 
 
-def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_name, pareto_points_baseline, pareto_points_mcts, pareto_points_simple, output_path=None, reference_point=None):
+def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, file_abacus, exp_name, pareto_points_baseline, pareto_points_mcts, pareto_points_simple, pareto_points_abacus=None, output_path=None, reference_point=None):
     """
-    Plot Pareto frontier points from baseline, MCTS, and simple baseline on a single graph.
+    Plot Pareto frontier points from baseline, MCTS, simple baseline, and optionally Abacus on a single graph.
     
     Args:
         file_baseline: Path to the baseline evaluation file
         file_mcts: Path to the MCTS evaluation file
         file_simple: Path to the simple baseline evaluation file
+        file_abacus: Path to the Abacus evaluation file (optional, can be None)
         exp_name: Name of the experiment
         pareto_points_baseline: List of baseline Pareto frontier points
         pareto_points_mcts: List of MCTS Pareto frontier points
         pareto_points_simple: List of simple baseline Pareto frontier points
+        pareto_points_abacus: List of Abacus Pareto frontier points (optional, can be None)
         output_path: Directory to save the plot (optional)
     
     Returns:
@@ -614,10 +639,25 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
         print(f"Invalid JSON in simple baseline file: {file_simple}")
         return
     
+    # Load Abacus data (optional)
+    data_abacus = []
+    if file_abacus:
+        try:
+            with open(file_abacus, 'r') as f:
+                data_abacus = json.load(f)
+            print(f"Loaded {len(data_abacus)} Abacus data points")
+        except FileNotFoundError:
+            print(f"Abacus file not found: {file_abacus}")
+            data_abacus = []
+        except json.JSONDecodeError:
+            print(f"Invalid JSON in Abacus file: {file_abacus}")
+            data_abacus = []
+    
     # Filter data for required metrics
     valid_baseline = [item for item in data_baseline if accuracy_metric in item and "cost" in item]
     valid_mcts = [item for item in data_mcts if accuracy_metric in item and "cost" in item]
     valid_simple = [item for item in data_simple if accuracy_metric in item and "cost" in item]
+    valid_abacus = [item for item in data_abacus if accuracy_metric in item and "cost" in item]
     
     if not valid_baseline or not valid_mcts or not valid_simple:
         print("No valid data found in baseline, MCTS, or simple baseline files.")
@@ -637,6 +677,7 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
     print(f"Plotting Baseline: {len(pareto_points_baseline) if pareto_points_baseline else 0} Pareto frontier points")
     print(f"Plotting MCTS: {len(pareto_points_mcts) if pareto_points_mcts else 0} Pareto frontier points")
     print(f"Plotting Simple Baseline: {len(pareto_points_simple) if pareto_points_simple else 0} Pareto frontier points")
+    print(f"Plotting Abacus: {len(pareto_points_abacus) if pareto_points_abacus else 0} Pareto frontier points")
     
     # Plot simple baseline Pareto frontier points (green) if available
     if pareto_points_simple:
@@ -661,6 +702,14 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
         plt.scatter(mcts_costs, mcts_accuracies, c="blue", s=100, alpha=0.8, label="MCTS (with iteration #)")
     else:
         print("Note: No MCTS Pareto frontier points to plot")
+    
+    # Plot Abacus pareto frontier points (purple rectangles) if available
+    if pareto_points_abacus:
+        abacus_costs = [point[2] for point in pareto_points_abacus]
+        abacus_accuracies = [point[1] for point in pareto_points_abacus]
+        plt.scatter(abacus_costs, abacus_accuracies, c="purple", s=100, alpha=0.8, label="Abacus", marker="s")
+    else:
+        print("Note: No Abacus Pareto frontier points to plot")
     
     # Plot all non-frontier nodes with lighter colors
     # Simple baseline non-frontier nodes
@@ -702,6 +751,19 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
             non_frontier_accuracies = [item[accuracy_metric] for item in non_frontier_mcts]
             plt.scatter(non_frontier_costs, non_frontier_accuracies, c="blue", s=50, alpha=0.3, label="MCTS (Non-Frontier)")
     
+    # Abacus non-frontier nodes
+    if valid_abacus:
+        abacus_frontier_costs = set(point[2] for point in pareto_points_abacus) if pareto_points_abacus else set()
+        abacus_frontier_accuracies = set(point[1] for point in pareto_points_abacus) if pareto_points_abacus else set()
+        
+        non_frontier_abacus = [item for item in valid_abacus 
+                             if not (item["cost"] in abacus_frontier_costs and item[accuracy_metric] in abacus_frontier_accuracies)]
+        
+        if non_frontier_abacus:
+            non_frontier_costs = [item["cost"] for item in non_frontier_abacus]
+            non_frontier_accuracies = [item[accuracy_metric] for item in non_frontier_abacus]
+            plt.scatter(non_frontier_costs, non_frontier_accuracies, c="purple", s=50, alpha=0.3, label="Abacus (Non-Frontier)")
+    
     # Plot original point in red
     if original_point:
         plt.scatter(original_point["cost"], original_point[accuracy_metric], 
@@ -719,11 +781,13 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
         print(f"  Baseline: {len(pareto_points_baseline) if pareto_points_baseline else 0} points")
         print(f"  MCTS: {len(pareto_points_mcts) if pareto_points_mcts else 0} points")
         print(f"  Simple Baseline: {len(pareto_points_simple) if pareto_points_simple else 0} points")
+        print(f"  Abacus: {len(pareto_points_abacus) if pareto_points_abacus else 0} points")
         
         # Plot hypervolume areas using the provided reference point
         plot_hypervolume_trapezoids_and_rectangle(plt, pareto_points_simple, reference_point, "green", 0.1, "Simple Baseline")
         plot_hypervolume_trapezoids_and_rectangle(plt, pareto_points_baseline, reference_point, "black", 0.1, "Baseline")
         plot_hypervolume_trapezoids_and_rectangle(plt, pareto_points_mcts, reference_point, "blue", 0.1, "MCTS")
+        plot_hypervolume_trapezoids_and_rectangle(plt, pareto_points_abacus, reference_point, "purple", 0.1, "Abacus")
         
         # Plot reference point as a large marker
         plt.scatter(reference_point["cost"], reference_point["accuracy"], 
@@ -747,11 +811,13 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
     
     # Add annotations for baseline Pareto frontier points
     if pareto_points_baseline:
+        counter = 1
         for i, (iteration, accuracy, cost) in enumerate(pareto_points_baseline):
             if iteration == "original_output":
                 continue
             else:
-                label = str(iteration)  # Use the actual iteration value
+                label = str(counter)  # Use sequential numbers 1, 2, 3...
+                counter += 1
             plt.annotate(label, (cost, accuracy), 
                         textcoords="offset points", xytext=(5, 5), 
                         fontsize=10, fontweight="bold", color="black")
@@ -766,6 +832,14 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
             plt.annotate(label, (cost, accuracy), 
                         textcoords="offset points", xytext=(5, 5), 
                         fontsize=10, fontweight="bold", color="blue")
+    
+    # Add annotations for Abacus Pareto frontier points
+    if pareto_points_abacus:
+        for i, (iteration, accuracy, cost) in enumerate(pareto_points_abacus):
+            label = str(iteration)  # Use the actual iteration value
+            plt.annotate(label, (cost, accuracy), 
+                        textcoords="offset points", xytext=(5, 5), 
+                        fontsize=10, fontweight="bold", color="purple")
     
     # Add labels and title
     plt.xlabel("Cost ($)", fontsize=12)
@@ -784,7 +858,7 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
     
     # Add grid and legend
     plt.grid(True, linestyle="--", alpha=0.3)
-    plt.legend(loc='lower left')
+    plt.legend(loc='center right', bbox_to_anchor=(1.0, 0.3))
     
     # Save the plot if output path is provided
     if output_path:
@@ -799,15 +873,34 @@ def plot_pareto_frontier_comparison(file_baseline, file_mcts, file_simple, exp_n
 
 def main():
     
-    evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/baseline/evaluation_metrics.json"
-    evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/mcts/evaluation_metrics.json"
-    evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/simple_baseline/evaluation_metrics.json"
-    exp_name = "biodex"
+    # evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/baseline/evaluation_metrics.json"
+    # evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/mcts/evaluation_metrics.json"
+    # evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/biodex/simple_baseline/evaluation_metrics.json"
+    # exp_name = "biodex"
+
+
+    # evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/cuad/baseline/evaluation_metrics.json"
+    # evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/cuad/mcts/evaluation_metrics.json"
+    # evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/cuad/simple_baseline/evaluation_metrics.json"
+    # evaluation_file_abacus = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/cuad/abacus/evaluation_metrics.json"
+    # exp_name = "cuad"
+
+    evaluation_file_baseline = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/game_reviews/baseline/evaluation_metrics.json"
+    evaluation_file_mcts = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/game_reviews/mcts/evaluation_metrics.json"
+    evaluation_file_simple = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/game_reviews/simple_baseline/evaluation_metrics.json"
+    evaluation_file_abacus = None  # Set to None when not using Abacus
+    exp_name = "game_reviews"
+
     
-    # Find Pareto frontier for all three approaches
+    # Find Pareto frontier for all approaches
     pareto_points_baseline = find_pareto_frontier(evaluation_file_baseline, exp_name)
     pareto_points_mcts = find_pareto_frontier(evaluation_file_mcts, exp_name)
     pareto_points_simple = find_pareto_frontier(evaluation_file_simple, exp_name)
+    
+    # Load Abacus data if file is provided
+    pareto_points_abacus = None
+    if evaluation_file_abacus:
+        pareto_points_abacus = find_pareto_frontier(evaluation_file_abacus, exp_name)
     
     # Check if we have at least baseline and MCTS (required for comparison)
     if pareto_points_baseline and pareto_points_mcts:
@@ -815,21 +908,26 @@ def main():
         print("=" * 60)
         print("HYPERVOLUME CALCULATION")
         print("=" * 60)
-        baseline_hv, mcts_hv, simple_hv, reference_point = calculate_hypervolume_comparison(
-            evaluation_file_baseline, evaluation_file_mcts, evaluation_file_simple, exp_name, 
-            pareto_points_baseline, pareto_points_mcts, pareto_points_simple
+        baseline_hv, mcts_hv, simple_hv, abacus_hv, reference_point = calculate_hypervolume_comparison(
+            evaluation_file_baseline, evaluation_file_mcts, evaluation_file_simple, evaluation_file_abacus, exp_name, 
+            pareto_points_baseline, pareto_points_mcts, pareto_points_simple, pareto_points_abacus
         )
         print(f"Baseline hypervolume: {baseline_hv:.4f}")
         print(f"MCTS hypervolume: {mcts_hv:.4f}")
         print(f"Simple Baseline hypervolume: {simple_hv:.4f}")
+        if pareto_points_abacus:
+            print(f"Abacus hypervolume: {abacus_hv:.4f}")
         print(f"Reference point: accuracy={reference_point['accuracy']:.4f}, cost={reference_point['cost']:.6f}")
         
-        # Plot all three approaches together
+        # Plot all approaches together
         print("\n" + "=" * 60)
-        print("PLOTTING ALL THREE APPROACHES TOGETHER")
+        if pareto_points_abacus:
+            print("PLOTTING ALL FOUR APPROACHES TOGETHER")
+        else:
+            print("PLOTTING ALL THREE APPROACHES TOGETHER")
         print("=" * 60)
         output_dir = os.path.dirname(evaluation_file_baseline)
-        plot_pareto_frontier_comparison(evaluation_file_baseline, evaluation_file_mcts, evaluation_file_simple, exp_name, pareto_points_baseline, pareto_points_mcts, pareto_points_simple, output_dir, reference_point)
+        plot_pareto_frontier_comparison(evaluation_file_baseline, evaluation_file_mcts, evaluation_file_simple, evaluation_file_abacus, exp_name, pareto_points_baseline, pareto_points_mcts, pareto_points_simple, pareto_points_abacus, output_dir, reference_point)
     else:
         print("No Pareto frontier points found for baseline or MCTS approaches.")
     

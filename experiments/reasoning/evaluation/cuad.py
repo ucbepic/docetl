@@ -245,3 +245,59 @@ def evaluate_results(method_name, results_file, ground_truth_file):
         "avg_clause_length": avg_clause_length,
         "per_metric": docetl_metrics
     }
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+    import os
+    from docetl.utils import extract_output_from_json
+    
+    parser = argparse.ArgumentParser(description="Evaluate CUAD results from a single JSON file")
+    parser.add_argument("results_file", help="Path to the results JSON file to evaluate")
+    parser.add_argument("--ground_truth", "-gt", default="/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/data/CUAD-master_clauses.csv", 
+                       help="Path to the ground truth CSV file (default: experiments/reasoning/data/train/cuad_train.csv)")
+    parser.add_argument("--method_name", "-m", default="evaluation", 
+                       help="Name of the method being evaluated (default: evaluation)")
+    
+    args = parser.parse_args()
+    
+    # yaml_file_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/docetl/test_pipeline.yaml"
+    # result = extract_output_from_json(yaml_file_path, args.results_file)
+    # print(result)
+    # exit()
+
+    # Check if results file exists
+    if not os.path.exists(args.results_file):
+        print(f"Error: Results file '{args.results_file}' not found.")
+        sys.exit(1)
+    
+    # Check if ground truth file exists
+    if not os.path.exists(args.ground_truth):
+        print(f"Error: Ground truth file '{args.ground_truth}' not found.")
+        print("Please provide the correct path using --ground_truth or -gt")
+        sys.exit(1)
+    
+    try:
+        print(f"Evaluating results from: {args.results_file}")
+        print(f"Using ground truth from: {args.ground_truth}")
+        print(f"Method name: {args.method_name}")
+        print("-" * 50)
+        
+        # Evaluate the results
+        results = evaluate_results(args.method_name, args.results_file, args.ground_truth)
+        
+        # Print results in a formatted way
+        print(f"Evaluation Results for {args.method_name}:")
+        print(f"Average Precision: {results['avg_precision']:.4f}")
+        print(f"Average Recall: {results['avg_recall']:.4f}")
+        print(f"Average F1 Score: {results['avg_f1']:.4f}")
+        print(f"NaN Fraction: {results['nan_fraction']:.4f}")
+        print(f"Average Clause Length: {results['avg_clause_length']:.1f} characters")
+        
+    except Exception as e:
+        print(f"Error during evaluation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+

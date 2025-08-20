@@ -367,7 +367,6 @@ def extract_output_from_json(yaml_file_path, json_output_path=None):
             if field in item:
                 extracted_item[field] = item[field]
         extracted_data.append(extracted_item)
-    
-
+        
     return extracted_data
     

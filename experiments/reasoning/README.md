@@ -42,7 +42,7 @@ python experiments/reasoning/run_mcts.py \
   --yaml_path experiments/reasoning/pipelines/cuad.yaml \
   --dataset_path experiments/reasoning/data/CUAD_input_data.json \
   --experiment_name cuad_mcts \
-  --max_iterations 10 \
+  --max_iterations 5 \
   --model gpt-4.1
 ```
 

@@ -285,7 +285,7 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            if self.iteration_count < 1: 
+            if self.iteration_count < 10: 
             # if self.iteration_count >= self.max_iterations - 5:
                 if self.mcts_cost_iteration():
                     self.iteration_count += 1
@@ -472,6 +472,10 @@ class MCTS:
 
     def expansion_prompt_acc(self, node, action_options, input_query) -> tuple[str, str]:
 
+        ### DEBUG 
+        print("memo: ")
+        print(node.get_memo_for_llm(self.root))
+
         availabel_actions_str = ""
         for item in action_options:
             op_name = item[0]
@@ -540,8 +544,10 @@ class MCTS:
         - High average reward indicates good historical performance
         - Consider both immediate improvement and learning about the action space
 
+        {node.get_memo_for_llm(self.root)}
+
         Make sure you read every rewrite directive carefully.
-        Make sure you only choose from the valid choices above and avoid already used combinations.
+        Make sure you only choose from the valid choices above and avoid already used combinations or approaches too similar to what has already been tried in the current optimization path.
 
         Input document schema with token statistics: {input_schema} \n
         Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
@@ -565,7 +571,12 @@ class MCTS:
         return user_message, condensed_user_message
 
 
-    def expansion_prompt_cost(self, node, action_options, input_query, num_of_passes=0) -> tuple[str, str]:
+    def expansion_prompt_cost(self, node, action_options, input_query) -> tuple[str, str]:
+
+        ### DEBUG 
+        print("memo: ")
+        print(node.get_memo_for_llm(self.root))
+        print("***"*50)
 
         availabel_actions_str = ""
         for item in action_options:
@@ -635,7 +646,9 @@ class MCTS:
         - High average reward indicates good historical performance
         - Consider both immediate improvement and learning about the action space
 
-        Make sure you only choose from the valid choices above and avoid already used combinations.
+        {node.get_memo_for_llm(self.root)}
+
+        Make sure you only choose from the valid choices above and avoid already used combinations or approaches too similar to what has already been tried in the current optimization path.
 
         Input document schema with token statistics: {input_schema} \n
         Input data sample: {json.dumps(self.sample_input, indent=2)[:5000]} \n
@@ -675,8 +688,6 @@ class MCTS:
 
         max_retries = 3
         retry_count = 0
-
-        num_of_passes = count_num_pass(self, node)
 
         # Build action options and initial prompt once
         op_list = list(node.op_dict.keys())
@@ -722,7 +733,7 @@ class MCTS:
                     "No applicable action found for expansion. Action space may be exhausted or all actions are inapplicable."
                 )
             user_message, condensed_user_message = self.expansion_prompt_cost(
-                node, action_options=action_options, input_query=node.parsed_yaml, num_of_passes=num_of_passes
+                node, action_options=action_options, input_query=node.parsed_yaml
             )
 
         # Initialize messages with accumulated message history from the path to this node
@@ -938,7 +949,13 @@ class MCTS:
         elif node == self.root:
             action_info = ", Action: ROOT"
         
-        output = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}{action_info}"
+        # Include memo information
+        memo_info = ""
+        if hasattr(node, 'memo') and node.memo:
+            memo_str = ", ".join([f"({directive}, {target_op})" for directive, target_op in node.memo])
+            memo_info = f", Memo: [{memo_str}]"
+        
+        output = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}{action_info}{memo_info}"
         
         if file_handle:
             file_handle.write(output + "\n")
@@ -1029,7 +1046,14 @@ class MCTS:
         child = Node(yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed)
         action = self.directive_name_to_obj.get(directive_name)
         child.latest_action = action
+        
+        # Copy parent's memo and add new entries for this action
+        child.memo = node.memo.copy()
+        for target_op in target_op_list:
+            child.add_memo_entry(directive_name, target_op)
+        
         print("last action: ", child.latest_action.name, child.id)
+        print("memo: ", child.memo)
         if directive_name == "gleaning":
             chaining = self.directive_name_to_obj.get("chaining")
             assert chaining

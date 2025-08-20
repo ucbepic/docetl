@@ -25,7 +25,7 @@ class ChangeModelAccDirective(Directive):
         default="Rewrites an operator to use a more powerful LLM model to optimize accuracy. Prioritizes model performance and quality over cost considerations, typically suggesting more capable models like gpt-5 for complex reasoning tasks."
     )
     when_to_use: str = Field(
-        default="When accuracy and quality are the primary concerns, and cost is secondary. Suitable for complex reasoning tasks, critical analysis, or when maximum model performance is needed."
+        default="When accuracy and quality are the primary concerns, and cost is secondary. Suitable for complex reasoning tasks, critical analysis, or when maximum model performance is needed. Usually changing to a more expensive model will improve accuracy, so you should try this directive if it has not been used in the past iterations."
     )
     instantiate_schema_type: Type[BaseModel] = ChangeModelInstantiateSchema
 

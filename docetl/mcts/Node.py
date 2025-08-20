@@ -65,6 +65,9 @@ class Node:
         # Message history from root to this node (accumulated LLM conversations)
         self.message_history = message_history
         
+        # Memo list to track (directive, target_operator) pairs from root to this node
+        self.memo = []
+        
         # Assign a unique ID to this node
         self.id = Node._id_counter
         Node._id_counter += 1
@@ -246,5 +249,111 @@ class Node:
             int: The unique ID of the node
         """
         return self.id
+    
+    def add_memo_entry(self, directive_name: str, target_operator: str):
+        """
+        Add a (directive, target_operator) pair to the memo list.
+        
+        Args:
+            directive_name: Name of the directive that was applied
+            target_operator: Name of the target operator the directive was applied to
+        """
+        self.memo.append((directive_name, target_operator))
+    
+    def get_optimization_path(self) -> str:
+        """
+        Get a formatted string showing the optimization path from root to this node.
+        
+        Returns:
+            Formatted path string like "ROOT → chaining(extract_clause) → gleaning(extract_entity)"
+        """
+        if not self.memo:
+            return "ROOT"
+        
+        path_parts = ["ROOT"]
+        for directive, target_op in self.memo:
+            path_parts.append(f"{directive}({target_op})")
+        
+        return " → ".join(path_parts)
+    
+    def get_exploration_tree_summary(self, root: Node) -> str:
+        """
+        Generate a comprehensive but concise summary of the entire exploration tree.
+        This gives the LLM agent complete context about what has been tried.
+        
+        Returns:
+            Formatted tree summary optimized for LLM consumption
+        """
+        
+        # Collect all exploration paths and their outcomes
+        successful_paths = []
+        failed_paths = []
+        
+        def traverse_tree(node, current_path="ROOT"):
+            # Add this node's path if it's not the root
+            if node != root:
+                if hasattr(node, 'cost') and node.cost != -1:
+                    successful_paths.append(f"{current_path} (cost: ${node.cost:.2f})")
+                else:
+                    failed_paths.append(f"{current_path} (failed)")
+            
+            # Traverse children
+            for child in node.children:
+                if child.memo:
+                    # Get the most recent directive-operator pair for this child
+                    latest_directive, latest_target = child.memo[-1]
+                    child_path = f"{current_path} → {latest_directive}({latest_target})"
+                else:
+                    child_path = f"{current_path} → {child.latest_action.name if child.latest_action else 'unknown'}"
+                traverse_tree(child, child_path)
+        
+        traverse_tree(root)
+        
+        # Group paths by directive patterns for better insights
+        directive_patterns = {}
+        for path in successful_paths + failed_paths:
+            # Extract directive sequence
+            directives = []
+            parts = path.split(" → ")
+            for part in parts[1:]:  # Skip ROOT
+                if "(" in part:
+                    directive = part.split("(")[0]
+                    directives.append(directive)
+            
+            if directives:
+                pattern_key = " → ".join(directives)
+                if pattern_key not in directive_patterns:
+                    directive_patterns[pattern_key] = {"successful": [], "failed": []}
+                
+                if "(failed)" in path:
+                    directive_patterns[pattern_key]["failed"].append(path)
+                else:
+                    directive_patterns[pattern_key]["successful"].append(path)
+        
+        # Build summary
+        summary_parts = []
+        
+        # Current position
+        current_path = self.get_optimization_path()
+        summary_parts.append(f"CURRENT POSITION: {current_path}")
+        
+        # Successful explorations
+        if successful_paths:
+            summary_parts.append(f"\nSUCCESSFUL EXPLORATIONS ({len(successful_paths)} total):")
+            # Show best performers first
+            sorted_successful = sorted(successful_paths, key=lambda x: float(x.split("cost: $")[1].split(")")[0]) if "cost: $" in x else float('inf'))
+            for i, path in enumerate(sorted_successful):  
+                summary_parts.append(f"  {i+1}. {path}")
+                
+        return "\n".join(summary_parts)
+    
+    def get_memo_for_llm(self, root_node: Node) -> str:
+        """
+        Get a comprehensive exploration summary formatted for LLM prompts.
+        
+        Returns:
+            Complete exploration context to guide decision making
+        """
+        return self.get_exploration_tree_summary(root_node)
     
     

@@ -80,7 +80,7 @@ def compute_bootstrap_confidence_interval(
         "blackvault": "avg_distinct_locations", 
         "game_reviews": "weighted_score",
         "medec": "combined_score",
-        "sustainability": "economic_activity_accuracy",
+        "sustainability": "combined_score",
     }
     
     primary_metric = dataset_metrics.get(dataset_name.lower())

@@ -8,8 +8,8 @@ dataset_metrics = {
     "blackvault": "avg_distinct_locations",
     "game_reviews": "weighted_score",
     "medec": "combined_score",
-    "sustainability": "economic_activity_accuracy",
-    "biodex": "avg_rp_at_5",  
+    "sustainability": "combined_score",
+    "biodex": "avg_rp_at_5",
 }
 
 

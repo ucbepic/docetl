@@ -1,22 +1,22 @@
 import json
 import math
 import os
+import re
 import time
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 import litellm
 import yaml
-import re
 
 from docetl.reasoning_optimizer.directives import (
-    ALL_DIRECTIVES,
     ALL_COST_DIRECTIVES,
+    ALL_DIRECTIVES,
     DIRECTIVE_GROUPS,
     MULTI_INSTANCE_DIRECTIVES,
     Directive,
-    get_all_directive_strings,
     get_all_cost_directive_strings,
+    get_all_directive_strings,
 )
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
@@ -37,6 +37,7 @@ except ImportError:
         os.path.join(os.path.dirname(__file__), "../../experiments/reasoning")
     )
     from evaluation.utils import get_evaluate_func
+
 
 
 
@@ -111,20 +112,19 @@ class MCTS:
             "sustainability": "economic_activity_accuracy",
             "biodex": "avg_rp_at_5",
         }
-        
         # Set up log file path
         if self.output_dir:
             self.log_path = os.path.join(self.output_dir, "mcts_tree_log.txt")
         else:
             self.log_path = "mcts_tree_log.txt"
-            
+
         # Initialize log file (clear it)
         with open(self.log_path, "w", encoding="utf-8") as f:
             f.write(f"MCTS Tree Visits and Values Log\n")
             f.write(f"Root YAML: {root_yaml_path}\n")
             f.write(f"Max iterations: {max_iterations}\n")
             f.write(f"{'='*50}\n")
-            
+
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(
             accuracy_comparator, self.action_rewards, dataset_name
@@ -142,22 +142,28 @@ class MCTS:
             # Set root node properties from original query result
             self.root.cost = original_query_result["cost"]
             self.root.sample_result = original_query_result.get("sample_output", [])
-            
+
             # Update the root node's YAML to point to the original query result file
             if original_query_result.get("output_file_path"):
-                print(f"📁 Setting root node output path to: {original_query_result['output_file_path']}")
+                print(
+                    f"📁 Setting root node output path to: {original_query_result['output_file_path']}"
+                )
                 try:
-                    self.root.parsed_yaml["pipeline"]["output"]["path"] = original_query_result["output_file_path"]
+                    self.root.parsed_yaml["pipeline"]["output"]["path"] = (
+                        original_query_result["output_file_path"]
+                    )
                     self.root.result_path = original_query_result["output_file_path"]
                 except Exception as e:
                     print(f"⚠️ Could not update root node output path: {e}")
-            
+                    
             # Evaluate root node accuracy and add to pareto frontier
             root_accuracy = self.evaluate_node(self.root)
             affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(self.root, root_accuracy)
             self.root.visits = 1
         else:
-            print("▶️ Executing root node for MCTS (original query result not available)")
+            print(
+                "▶️ Executing root node for MCTS (original query result not available)"
+            )
             # execute root node and add it to the pareto frontier
             cost, accuracy = self.simulate(self.root)
             affected_nodes, is_frontier_updated = self.add_to_frontier(self.root, accuracy)
@@ -211,9 +217,10 @@ class MCTS:
         while self.should_continue():
             if self.iteration_count < 2: 
             # if self.iteration_count >= self.max_iterations - 5:
+
                 if self.mcts_cost_iteration():
                     self.iteration_count += 1
-            else: 
+            else:
                 if self.mcts_iteration():
                     self.iteration_count += 1
 
@@ -336,7 +343,7 @@ class MCTS:
         return current
 
     # Dummy implementation for now
-    
+
     def is_fully_explored(self, node: Node) -> bool:
         """Check if a node has been fully explored based on visit count."""
         return is_fully_explored(node)
@@ -348,6 +355,7 @@ class MCTS:
             self.root, node.yaml_file_path
         )
 
+        return user_message, condensed_user_message
 
     def expansion_prompt_cost(self, node, action_options, input_query) -> tuple[str, str]:
         return create_expansion_prompt_cost(
@@ -356,6 +364,7 @@ class MCTS:
             self.root, node.yaml_file_path
         )
 
+        return user_message, condensed_user_message
 
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
         """
@@ -449,23 +458,27 @@ class MCTS:
         # Initialize messages with accumulated message history from the path to this node
         messages = node.message_history.copy()
         message_condensed = node.message_history.copy()
-        
+
         # Add the current system message and user message for this expansion
         if not messages or messages[0]["role"] != "system":
-            messages.insert(0, {
-                "role": "system", 
-                "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
-            })
-        
-        messages.append({"role": "user", "content": user_message})
-        if len(message_condensed) == 0 or message_condensed[0]["role"] != "system":
-            message_condensed.append({
+            messages.insert(
+                0,
+                {
                     "role": "system",
                     "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
-                })
+                },
+            )
+
+        messages.append({"role": "user", "content": user_message})
+        if len(message_condensed) == 0 or message_condensed[0]["role"] != "system":
+            message_condensed.append(
+                {
+                    "role": "system",
+                    "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
+                }
+            )
         message_condensed.append({"role": "user", "content": condensed_user_message})
 
-        
         # Trim the history to prevent context window overflow before sending to the model
         messages = trim_history(messages)
         message_condensed = trim_history(message_condensed)
@@ -509,7 +522,6 @@ class MCTS:
                 if directive in node.used_actions[target_op]:
                     already_used = True
                     break
-            
 
             if already_used:
                 retry_count += 1
@@ -532,7 +544,7 @@ class MCTS:
             )
 
         orig_default_model = node.parsed_yaml.get("default_model")
-        
+
         datasets = node.parsed_yaml.get("datasets", {})
         input_file_path = None
         if isinstance(datasets, dict) and datasets:
@@ -570,11 +582,16 @@ class MCTS:
             raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
 
         message_condensed.extend(message_history[message_length:])
-        
+
         children = []
         for new_ops in rewrites:
             child = self.instantiate_node(
-                node, new_ops, directive_name, target_op_list, optimize_goal, message_condensed
+                node,
+                new_ops,
+                directive_name,
+                target_op_list,
+                optimize_goal,
+                message_condensed,
             )
             children.append(child)
         return children
@@ -651,7 +668,6 @@ class MCTS:
             )
             return False
 
-
         return True
 
     def get_frontier_summary(self) -> List[Dict[str, Any]]:
@@ -669,27 +685,29 @@ class MCTS:
         if node is None:
             node = self.root
         indent = "  " * depth
-        
+
         # Include action information if available
         action_info = ""
-        if hasattr(node, 'latest_action') and node.latest_action is not None:
+        if hasattr(node, "latest_action") and node.latest_action is not None:
             action_info = f", Action: {node.latest_action.name}"
         elif node == self.root:
             action_info = ", Action: ROOT"
-        
+
         # Include memo information
         memo_info = ""
-        if hasattr(node, 'memo') and node.memo:
-            memo_str = ", ".join([f"({directive}, {target_op})" for directive, target_op in node.memo])
+        if hasattr(node, "memo") and node.memo:
+            memo_str = ", ".join(
+                [f"({directive}, {target_op})" for directive, target_op in node.memo]
+            )
             memo_info = f", Memo: [{memo_str}]"
-        
+
         output = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}{action_info}{memo_info}"
-        
+
         if file_handle:
             file_handle.write(output + "\n")
         else:
             print(output)
-            
+
         for child in node.children:
             self.print_tree_visits_and_values(child, depth + 1, file_handle)
 
@@ -703,7 +721,7 @@ class MCTS:
             f.write(f"\n{'='*50}\n")
             f.write(f"ITERATION {iteration_num}\n")
             f.write(f"{'='*50}\n")
-            
+
             # Add action reward statistics
             f.write(f"Action Performance Statistics:\n")
             for action in self.available_actions:
@@ -712,14 +730,20 @@ class MCTS:
                 avg_reward = reward / count if count > 0 else "Unknown (never tried)"
                 f.write(f"- {action.name}: {count} uses, avg reward: {avg_reward}\n")
             f.write(f"\n")
-            
+
             # Add tree structure
             f.write(f"Tree Structure:\n")
             self.print_tree_visits_and_values(file_handle=f)
             f.write(f"\n")
 
     def instantiate_node(
-        self, node, new_ops_list, directive_name, target_op_list, optimize_goal, message_condensed
+        self,
+        node,
+        new_ops_list,
+        directive_name,
+        target_op_list,
+        optimize_goal,
+        message_condensed,
     ):
         """
         Instantiate a new child node by applying the directive to the given node and target operations.
@@ -771,15 +795,17 @@ class MCTS:
         print("NEW YAML FILE: ", new_yaml_path)
 
         # generate the child node
-        child = Node(yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed)
+        child = Node(
+            yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed
+        )
         action = self.directive_name_to_obj.get(directive_name)
         child.latest_action = action
-        
+
         # Copy parent's memo and add new entries for this action
         child.memo = node.memo.copy()
         for target_op in target_op_list:
             child.add_memo_entry(directive_name, target_op)
-        
+            
         print("last action: ", child.latest_action.name, "child.id: ", child.id)
         
         if directive_name == "gleaning":
@@ -813,7 +839,7 @@ class MCTS:
             for op in child.parsed_yaml["operations"]:
                 op_name = op["name"]
                 child.mark_action_used(op_name, d_comp)
-        
+
         elif directive_name == "reduce_chaining":
             reduce_chain = self.directive_name_to_obj.get("reduce_chaining")
             assert reduce_chain

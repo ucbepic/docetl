@@ -309,6 +309,8 @@ def run_baseline_experiment(
                 sample_data_path = Path("experiments/reasoning/data/train/biodex.json")
             elif dataset.lower() == "medec":
                 sample_data_path = Path("experiments/reasoning/data/train/medec.json")
+            elif dataset.lower() == "facility":
+                sample_data_path = Path("experiments/reasoning/data/train/facility.json")
             else:
                 sample_data_path = None
             

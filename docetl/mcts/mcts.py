@@ -1,20 +1,20 @@
 import json
 import math
 import os
+import re
 import time
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 import litellm
 import yaml
-import re
 
 from docetl.reasoning_optimizer.directives import (
-    ALL_DIRECTIVES,
     ALL_COST_DIRECTIVES,
+    ALL_DIRECTIVES,
     Directive,
-    get_all_directive_strings,
     get_all_cost_directive_strings,
+    get_all_directive_strings,
 )
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
@@ -22,7 +22,6 @@ from docetl.reasoning_optimizer.op_descriptions import *
 from .acc_comparator import AccuracyComparator
 from .Node import Node
 from .ParetoFrontier import ParetoFrontier
-
 
 # Maximum number of tokens we will allow in the prompt we send to the model.
 # The Azure GPT-5 family allows 272,000 tokens.
@@ -42,9 +41,9 @@ def _trim_history(history: list, keep_system_first: bool = True) -> list:
     """Trim the conversation history in-place so its estimated token count
     (via ``count_tokens``) does not exceed ``MAX_CONTEXT_TOKENS``.
 
-    We always keep the very first system message and the first user message so the 
-    assistant retains the global instructions and the initial query context. After 
-    that we drop the oldest messages until the budget is satisfied. Returns the 
+    We always keep the very first system message and the first user message so the
+    assistant retains the global instructions and the initial query context. After
+    that we drop the oldest messages until the budget is satisfied. Returns the
     trimmed history list.
     """
 
@@ -75,29 +74,29 @@ def _trim_history(history: list, keep_system_first: bool = True) -> list:
 
 def count_num_pass(mcts_instance, node: Node) -> int:
     """
-    Count the number of times the main content key is mentioned in prompts of 
+    Count the number of times the main content key is mentioned in prompts of
     map/filter/extract/reduce operators.
-    
+
     Args:
         mcts_instance: The MCTS instance containing the main_content_key
         node: The node containing the parsed_yaml to analyze
-        
+
     Returns:
         Total count of main content key mentions across all relevant operators
     """
     relevant_ops = ["map", "filter", "extract", "reduce"]
     total_count = 0
-    
+
     # Use the pre-identified main content key from MCTS instance
     main_content_key = mcts_instance.main_content_key
-    
+
     if not main_content_key:
         print("No main content key available")
         return 0
-    
-    print("--"*50)
+
+    print("--" * 50)
     print(f"Using main content key: {main_content_key}")
-    
+
     # Count mentions in relevant operators
     operations = node.parsed_yaml.get("operations", [])
     for op in operations:
@@ -110,10 +109,12 @@ def count_num_pass(mcts_instance, node: Node) -> int:
                 matches = re.findall(pattern, prompt)
                 count_in_op = len(matches)
                 total_count += count_in_op
-                print(f"Operator {op.get('name', 'unnamed')} ({op_type}): {count_in_op} mentions of {main_content_key}")
-    
+                print(
+                    f"Operator {op.get('name', 'unnamed')} ({op_type}): {count_in_op} mentions of {main_content_key}"
+                )
+
     print(f"Total mentions of main content key '{main_content_key}': {total_count}")
-    print("--"*50)
+    print("--" * 50)
     return total_count
 
 
@@ -181,20 +182,20 @@ class MCTS:
         self.sample_input = sample_input
         self.dataset_stats = dataset_stats
         self.output_dir = output_dir
-        
+
         # Set up log file path
         if self.output_dir:
             self.log_path = os.path.join(self.output_dir, "mcts_tree_log.txt")
         else:
             self.log_path = "mcts_tree_log.txt"
-            
+
         # Initialize log file (clear it)
         with open(self.log_path, "w", encoding="utf-8") as f:
             f.write(f"MCTS Tree Visits and Values Log\n")
             f.write(f"Root YAML: {root_yaml_path}\n")
             f.write(f"Max iterations: {max_iterations}\n")
             f.write(f"{'='*50}\n")
-            
+
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(
             accuracy_comparator, self.action_rewards, dataset_name
@@ -215,21 +216,29 @@ class MCTS:
             # Set root node properties from original query result
             self.root.cost = original_query_result["cost"]
             self.root.sample_result = original_query_result.get("sample_output", [])
-            
+
             # Update the root node's YAML to point to the original query result file
             if original_query_result.get("output_file_path"):
-                print(f"📁 Setting root node output path to: {original_query_result['output_file_path']}")
+                print(
+                    f"📁 Setting root node output path to: {original_query_result['output_file_path']}"
+                )
                 try:
-                    self.root.parsed_yaml["pipeline"]["output"]["path"] = original_query_result["output_file_path"]
+                    self.root.parsed_yaml["pipeline"]["output"]["path"] = (
+                        original_query_result["output_file_path"]
+                    )
                     self.root.result_path = original_query_result["output_file_path"]
                 except Exception as e:
                     print(f"⚠️ Could not update root node output path: {e}")
-            
+
             # Add root to pareto frontier without re-execution
-            affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(self.root)
+            affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(
+                self.root
+            )
             self.root.visits = 1
         else:
-            print("▶️ Executing root node for MCTS (original query result not available)")
+            print(
+                "▶️ Executing root node for MCTS (original query result not available)"
+            )
             # execute root node and add it to the pareto frontier
             _ = self.simulate(self.root)
             self.root.visits = 1
@@ -237,7 +246,7 @@ class MCTS:
     def _identify_main_content_key(self) -> str:
         """
         Identify the main content key (key with longest value) from the input dataset.
-        
+
         Returns:
             The key name with the longest average value, or None if not found
         """
@@ -249,7 +258,7 @@ class MCTS:
                     if isinstance(dataset_config, dict) and "path" in dataset_config:
                         input_file_path = dataset_config["path"]
                         # Load a sample to find the key with longest value
-                        with open(input_file_path, 'r') as f:
+                        with open(input_file_path, "r") as f:
                             data = json.load(f)
                             if data and isinstance(data, list) and data[0]:
                                 sample_item = data[0]
@@ -262,12 +271,14 @@ class MCTS:
                                             if len(value) > max_avg_length:
                                                 max_avg_length = len(value)
                                                 main_content_key = key
-                                    print(f"Main content key identified: {main_content_key}")
+                                    print(
+                                        f"Main content key identified: {main_content_key}"
+                                    )
                                     return main_content_key
                         break
         except Exception as e:
             print(f"Could not determine main content key: {e}")
-        
+
         print("No main content key found")
         return None
 
@@ -285,11 +296,11 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            if self.iteration_count < 10: 
-            # if self.iteration_count >= self.max_iterations - 5:
+            if self.iteration_count < 10:
+                # if self.iteration_count >= self.max_iterations - 5:
                 if self.mcts_cost_iteration():
                     self.iteration_count += 1
-            else: 
+            else:
                 if self.mcts_iteration():
                     self.iteration_count += 1
 
@@ -444,8 +455,14 @@ class MCTS:
             if isinstance(obj, dict):
                 for key, value in obj.items():
                     if key == "model" and isinstance(value, str):
-                        if not value.startswith("azure"):
-                            obj[key] = f"azure/{value}"
+                        # Check if the model is a GPT model
+                        if "gpt" in value:
+                            if not value.startswith("azure"):
+                                obj[key] = f"azure/{value}"
+                        # Check if the model is a Gemini model
+                        elif "gemini" in value:
+                            if not value.startswith("gemini"):
+                                obj[key] = f"gemini/{value}"
                     else:
                         traverse(value)
             elif isinstance(obj, list):
@@ -470,9 +487,11 @@ class MCTS:
                 return False
         return True
 
-    def expansion_prompt_acc(self, node, action_options, input_query) -> tuple[str, str]:
+    def expansion_prompt_acc(
+        self, node, action_options, input_query
+    ) -> tuple[str, str]:
 
-        ### DEBUG 
+        ### DEBUG
         print("memo: ")
         print(node.get_memo_for_llm(self.root))
 
@@ -506,7 +525,7 @@ class MCTS:
 
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5 \n
+        - Default Model: The language model to use for the pipeline. Limit your choice of default model to gpt-5-nano, gpt-4o-mini, gpt-5 \n
         - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
         - Datasets: The input data sources for your pipeline. \n
         - Operators: The processing steps that transform your data. \n
@@ -540,7 +559,7 @@ class MCTS:
         Selection Strategy:
         Consider the current query pipeline, which directive can best improve the accuracy.
         Prioritize exploration of untested actions while balancing with exploitation of proven performers:
-        - Actions with 0 uses have unknown potential, so you should explore them if applicable. Try change model directive if it has not been used in the past iterations. 
+        - Actions with 0 uses have unknown potential, so you should explore them if applicable. Try change model directive if it has not been used in the past iterations.
         - High average reward indicates good historical performance
         - Consider both immediate improvement and learning about the action space
 
@@ -554,29 +573,30 @@ class MCTS:
         The original query in YAML format using our operations: {input_query} \n
         The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
         """
-        
+
         # Create a condensed version for message history (without full operator/directive descriptions)
         condensed_user_message = f"""
         Recommend one specific rewrite directive for accuracy optimization.
-        
+
         Valid choices:
         {availabel_actions_str}
-        
+
         Action Performance History:
         {action_stats_str}
-        
-        Current pipeline: {input_query} 
+
+        Current pipeline: {input_query}
         """
-        
+
         return user_message, condensed_user_message
 
+    def expansion_prompt_cost(
+        self, node, action_options, input_query
+    ) -> tuple[str, str]:
 
-    def expansion_prompt_cost(self, node, action_options, input_query) -> tuple[str, str]:
-
-        ### DEBUG 
+        ### DEBUG
         print("memo: ")
         print(node.get_memo_for_llm(self.root))
-        print("***"*50)
+        print("***" * 50)
 
         availabel_actions_str = ""
         for item in action_options:
@@ -608,7 +628,7 @@ class MCTS:
 
         Pipeline:
         Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-        - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5, gpt-4.1 \n
+        - Default Model: The language model to use for the pipeline. Limit your choice of default model to gpt-5-nano, gpt-4o-mini, gpt-5, gpt-4.1 \n
         - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
         - Datasets: The input data sources for your pipeline. \n
         - Operators: The processing steps that transform your data. \n
@@ -640,7 +660,7 @@ class MCTS:
         Note: These statistics come from applying actions to various other query pipelines, not the current one. Use this as general guidance about action effectiveness, but consider that performance may vary significantly for your specific pipeline structure and data.
 
         Selection Strategy:
-        Consider the current query pipeline, which directive can best improve cost effectiveness. 
+        Consider the current query pipeline, which directive can best improve cost effectiveness.
         Prioritize exploration of untested actions while balancing with exploitation of proven performers:
         - Actions with 0 uses have unknown potential, so you should explore them if applicable.
         - High average reward indicates good historical performance
@@ -655,22 +675,21 @@ class MCTS:
         The original query in YAML format using our operations: {input_query} \n
         The original query result: {json.dumps(node.sample_result, indent=2)[:3000]} \n
         """
-        
+
         # Create a condensed version for message history (without full operator/directive descriptions)
         condensed_user_message = f"""
         Recommend one specific rewrite directive for cost optimization.
-        
+
         Valid choices:
         {availabel_actions_str}
-        
+
         Action Performance History:
         {action_stats_str}
-        
+
         Current pipeline: {input_query}
         """
-        
-        return user_message, condensed_user_message
 
+        return user_message, condensed_user_message
 
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
         """
@@ -739,23 +758,27 @@ class MCTS:
         # Initialize messages with accumulated message history from the path to this node
         messages = node.message_history.copy()
         message_condensed = node.message_history.copy()
-        
+
         # Add the current system message and user message for this expansion
         if not messages or messages[0]["role"] != "system":
-            messages.insert(0, {
-                "role": "system", 
-                "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
-            })
-        
-        messages.append({"role": "user", "content": user_message})
-        if len(message_condensed) == 0 or message_condensed[0]["role"] != "system":
-            message_condensed.append({
+            messages.insert(
+                0,
+                {
                     "role": "system",
                     "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
-                })
+                },
+            )
+
+        messages.append({"role": "user", "content": user_message})
+        if len(message_condensed) == 0 or message_condensed[0]["role"] != "system":
+            message_condensed.append(
+                {
+                    "role": "system",
+                    "content": "You are an expert query optimization agent for document processing pipelines. Your role is to analyze user queries and apply rewrite directives to create more accurate and cost effective execution plans. Your output must follow the structured output format.",
+                }
+            )
         message_condensed.append({"role": "user", "content": condensed_user_message})
 
-        
         # Trim the history to prevent context window overflow before sending to the model
         messages = _trim_history(messages)
         message_condensed = _trim_history(message_condensed)
@@ -798,7 +821,6 @@ class MCTS:
                 if directive in node.used_actions[target_op]:
                     already_used = True
                     break
-            
 
             if already_used:
                 retry_count += 1
@@ -821,7 +843,7 @@ class MCTS:
             )
 
         orig_default_model = node.parsed_yaml.get("default_model")
-        
+
         datasets = node.parsed_yaml.get("datasets", {})
         input_file_path = None
         if isinstance(datasets, dict) and datasets:
@@ -859,11 +881,16 @@ class MCTS:
             raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
 
         message_condensed.extend(message_history[message_length:])
-        
+
         children = []
         for new_ops in rewrites:
             child = self.instantiate_node(
-                node, new_ops, directive_name, target_op_list, optimize_goal, message_condensed
+                node,
+                new_ops,
+                directive_name,
+                target_op_list,
+                optimize_goal,
+                message_condensed,
             )
             children.append(child)
         return children
@@ -888,7 +915,7 @@ class MCTS:
             return {}, False
 
         # Only increment action count after successful execution
-        if hasattr(node, 'latest_action') and node.latest_action is not None:
+        if hasattr(node, "latest_action") and node.latest_action is not None:
             self.action_counts[node.latest_action] += 1
 
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node)
@@ -923,7 +950,6 @@ class MCTS:
             )
             return False
 
-
         return True
 
     def get_frontier_summary(self) -> List[Dict[str, Any]]:
@@ -941,27 +967,29 @@ class MCTS:
         if node is None:
             node = self.root
         indent = "  " * depth
-        
+
         # Include action information if available
         action_info = ""
-        if hasattr(node, 'latest_action') and node.latest_action is not None:
+        if hasattr(node, "latest_action") and node.latest_action is not None:
             action_info = f", Action: {node.latest_action.name}"
         elif node == self.root:
             action_info = ", Action: ROOT"
-        
+
         # Include memo information
         memo_info = ""
-        if hasattr(node, 'memo') and node.memo:
-            memo_str = ", ".join([f"({directive}, {target_op})" for directive, target_op in node.memo])
+        if hasattr(node, "memo") and node.memo:
+            memo_str = ", ".join(
+                [f"({directive}, {target_op})" for directive, target_op in node.memo]
+            )
             memo_info = f", Memo: [{memo_str}]"
-        
+
         output = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}{action_info}{memo_info}"
-        
+
         if file_handle:
             file_handle.write(output + "\n")
         else:
             print(output)
-            
+
         for child in node.children:
             self.print_tree_visits_and_values(child, depth + 1, file_handle)
 
@@ -975,7 +1003,7 @@ class MCTS:
             f.write(f"\n{'='*50}\n")
             f.write(f"ITERATION {iteration_num}\n")
             f.write(f"{'='*50}\n")
-            
+
             # Add action reward statistics
             f.write(f"Action Performance Statistics:\n")
             for action in self.available_actions:
@@ -984,14 +1012,20 @@ class MCTS:
                 avg_reward = reward / count if count > 0 else "Unknown (never tried)"
                 f.write(f"- {action.name}: {count} uses, avg reward: {avg_reward}\n")
             f.write(f"\n")
-            
+
             # Add tree structure
             f.write(f"Tree Structure:\n")
             self.print_tree_visits_and_values(file_handle=f)
             f.write(f"\n")
 
     def instantiate_node(
-        self, node, new_ops_list, directive_name, target_op_list, optimize_goal, message_condensed
+        self,
+        node,
+        new_ops_list,
+        directive_name,
+        target_op_list,
+        optimize_goal,
+        message_condensed,
     ):
         """
         Instantiate a new child node by applying the directive to the given node and target operations.
@@ -1043,15 +1077,17 @@ class MCTS:
         print("NEW YAML FILE: ", new_yaml_path)
 
         # generate the child node
-        child = Node(yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed)
+        child = Node(
+            yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed
+        )
         action = self.directive_name_to_obj.get(directive_name)
         child.latest_action = action
-        
+
         # Copy parent's memo and add new entries for this action
         child.memo = node.memo.copy()
         for target_op in target_op_list:
             child.add_memo_entry(directive_name, target_op)
-        
+
         print("last action: ", child.latest_action.name, child.id)
         print("memo: ", child.memo)
         if directive_name == "gleaning":
@@ -1085,7 +1121,7 @@ class MCTS:
             for op in child.parsed_yaml["operations"]:
                 op_name = op["name"]
                 child.mark_action_used(op_name, d_comp)
-        
+
         elif directive_name == "reduce_chaining":
             reduce_chain = self.directive_name_to_obj.get("reduce_chaining")
             assert reduce_chain

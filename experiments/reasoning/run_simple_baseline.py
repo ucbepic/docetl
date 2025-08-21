@@ -81,10 +81,13 @@ class PipelineExecutor:
         dataset_file = f"experiments/reasoning/data/train/{dataset.lower()}.json"
         output_json = self.experiment_dir / f"{prefix}_output.json"
         
-        # Add azure/ prefix to models
+        # Add azure/ or gemini/ prefix to models
         for op in operators:
-            if "model" in op and "azure/" not in op["model"]:
-                op["model"] = "azure/" + op["model"]
+            if "model" in op and "gpt" in str(op["model"]) and not str(op["model"]).startswith("azure/"):
+                op["model"] = "azure/" + str(op["model"])
+            if "model" in op and "gemini" in str(op["model"]) and not str(op["model"]).startswith("gemini/"):
+                op["model"] = "gemini/" + str(op["model"])
+
         
         config = {
             "bypass_cache": True,

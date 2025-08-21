@@ -75,9 +75,9 @@ def _trim_history(history: list, keep_system_first: bool = True) -> list:
     """Trim the conversation history in-place so its estimated token count
     (via ``count_tokens``) does not exceed ``MAX_CONTEXT_TOKENS``.
 
-    We always keep the very first system message and the first user message so the 
-    assistant retains the global instructions and the initial query context. After 
-    that we drop the oldest messages until the budget is satisfied. Returns the 
+    We always keep the very first system message and the first user message so the
+    assistant retains the global instructions and the initial query context. After
+    that we drop the oldest messages until the budget is satisfied. Returns the
     trimmed history list.
     """
 
@@ -183,7 +183,7 @@ def get_openai_response(
                 {"role": "user", "content": user_message},
             ]
         )
-    else: 
+    else:
         message_history.append({"role": "user", "content": user_message})
 
     # Trim the history to prevent context window overflow before sending to the model
@@ -281,10 +281,11 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
 def fix_models_azure(parsed_yaml):
     """
     Recursively traverse the parsed YAML and ensure all model references start with 'azure/'.
-    
+
     Args:
         parsed_yaml: The parsed YAML configuration to fix
     """
+
     def traverse(obj):
         if isinstance(obj, dict):
             for key, value in obj.items():
@@ -433,13 +434,13 @@ def run_single_iteration(
         directive = parsed.get("directive")
         target_ops = parsed.get("operators")
         print(f"Directive: {directive}, Target ops: {target_ops}")
-        
+
         # Log directive and target ops to baseline_log.txt in the same directory as output YAML
         log_file_path = os.path.join(save_dir, "baseline_log.txt")
         log_message = f"Iteration {iteration_num}: Directive: {directive}, Target ops: {target_ops}\n"
         with open(log_file_path, "a") as log_file:
             log_file.write(log_message)
-            
+
     except Exception as e:
         print(f"Failed to parse agent response: {e}")
         return None, message_history
@@ -472,16 +473,25 @@ def run_single_iteration(
         print(f"Failed to instantiate directive '{directive}': {e}")
         return None, message_history
 
-    
     output_file_path = os.path.join(
         save_dir,
         f"iteration_{iteration_num}.yaml",
     )
 
-    # Ensure every operator's model starts with 'azure/'
+    # Ensure every operator's model starts with 'azure/' or 'gemini/'
     for op in orig_config.get("operations", []):
-        if "model" in op and not str(op["model"]).startswith("azure/"):
+        if (
+            "model" in op
+            and "gpt" in str(op["model"])
+            and not str(op["model"]).startswith("azure/")
+        ):
             op["model"] = "azure/" + str(op["model"])
+        if (
+            "model" in op
+            and "gemini" in str(op["model"])
+            and not str(op["model"]).startswith("gemini/")
+        ):
+            op["model"] = "gemini/" + str(op["model"])
 
     # Add bypass_cache: true at the top level
     orig_config["bypass_cache"] = True
@@ -548,5 +558,6 @@ def run_single_iteration(
         raise e
 
     return output_file_path, message_history, total_cost
+
 
 # Use experiments/reasoning/run_baseline.py to run experiments

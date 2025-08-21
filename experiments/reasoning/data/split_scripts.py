@@ -47,8 +47,8 @@ def _ensure_dirs() -> None:
         d.mkdir(parents=True, exist_ok=True)
 
 
-def _rank_and_sample(records: list[dict[str, Any]], length_fn: Callable[[dict[str, Any]], int]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    scored = [(length_fn(r), idx) for idx, r in enumerate(records)]
+def _rank_and_sample(records: list[dict[str, Any]], length_fn: Callable[[dict[str, Any]], int], ignore_keywords: list[str] = []) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    scored = [(length_fn(r), idx) for idx, r in enumerate(records) if not any(keyword in str(r).lower() for keyword in ignore_keywords)]
     scored.sort(key=lambda t: t[0], reverse=True)
     cut = int(len(scored) * SAMPLE_FRAC)
     top_idxs = [idx for _, idx in scored[:cut]]
@@ -75,7 +75,7 @@ def _split_blackvault() -> None:
     with src.open("r", encoding="utf-8") as f:
         records: list[dict[str, Any]] = json.load(f)
     length_fn = lambda r: len(str(r.get("article_text") or r.get("text") or ""))
-    train, test = _rank_and_sample(records, length_fn)
+    train, test = _rank_and_sample(records, length_fn, ignore_keywords=["penis"])
     _write_json(TRAIN_DIR / "blackvault.json", train)
     _write_json(TEST_DIR / "blackvault.json", test)
 
@@ -157,13 +157,13 @@ def _split_biodex() -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    _ensure_dirs()
+    # _ensure_dirs()
     _split_blackvault()
-    _split_reviews()
-    _split_sustainability()
-    _split_medec()
-    _split_cuad()
-    _split_biodex()
+    # _split_reviews()
+    # _split_sustainability()
+    # _split_medec()
+    # _split_cuad()
+    # _split_biodex()
     print(f"Done. Splits written to {TRAIN_DIR} and {TEST_DIR}.")
 
 

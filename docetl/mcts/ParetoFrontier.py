@@ -56,8 +56,9 @@ class ParetoFrontier:
             "blackvault": "avg_distinct_locations",
             "game_reviews": "weighted_score",
             "medec": "combined_score",
-            "sustainability": "economic_activity_accuracy",
+            "sustainability": "combined_score",
             "biodex": "avg_rp_at_5",  # Optimize for RP@5 as specified
+            "facility": "combined_score",
         }
 
         # Internal state
@@ -416,7 +417,9 @@ class ParetoFrontier:
                 self.node_distances[node] = weighted_distance_to_old
                 # Update action rewards
                 self._update_action_rewards(node, weighted_distance_to_old)
-            elif (node not in new_frontier_set and node in old_frontier_set) or (node.id == new_node.id):
+            elif (node not in new_frontier_set and node in old_frontier_set) or (
+                node.id == new_node.id
+            ):
                 # Newly off frontier - give negative reward based on distance to NEW frontier
                 node.on_frontier = False
                 projected_point = self.project_to_frontier(
@@ -431,7 +434,8 @@ class ParetoFrontier:
                 # Update node distances - negative for off frontier
                 self.node_distances[node] = -weighted_distance
                 # Update action rewards
-                if node.id == new_node.id: self._update_action_rewards(node, -weighted_distance)
+                if node.id == new_node.id:
+                    self._update_action_rewards(node, -weighted_distance)
             elif node not in new_frontier_set:
                 # stay off frontier nodes - update the reward to be negative distance to the NEW frontier
                 node.on_frontier = False
@@ -443,12 +447,11 @@ class ParetoFrontier:
                     (2 * (node_acc - projected_point[0])) ** 2
                     + (node_scaled_cost - projected_point[1]) ** 2
                 ) ** 0.5
-                distance_diff =  -weighted_distance - self.node_distances[node]
+                distance_diff = -weighted_distance - self.node_distances[node]
                 affected_nodes[node] = distance_diff
                 # Update node distances - negative for off frontier
                 self.node_distances[node] = -weighted_distance
-            
-            
+
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
         if new_node.id > 0:

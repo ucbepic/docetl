@@ -7,6 +7,7 @@ from .game_reviews import evaluate_results as game_reviews_evaluate
 from .medec import evaluate_results as medec_evaluate
 from .sustainability import evaluate_results as sustainability_evaluate
 from .biodex import evaluate_results as biodex_evaluate
+from .facility import evaluate_results as facility_evaluate
 
 dataset_accuracy_metrics = {
     "cuad": "avg_f1",
@@ -36,7 +37,7 @@ def identify_pareto_frontier(eval_results, dataset):
         "blackvault": "avg_distinct_locations", 
         "game_reviews": "combined_accuracy_score",
         "medec": "combined_score",
-        "sustainability": "economic_activity_accuracy",
+        "sustainability": "combined_score",
         "biodex": "avg_rp_at_5",
     }
     
@@ -104,7 +105,7 @@ def print_pareto_frontier_summary(eval_results, dataset):
         "blackvault": "avg_distinct_locations", 
         "game_reviews": "combined_accuracy_score",
         "medec": "combined_score",
-        "sustainability": "economic_activity_accuracy",
+        "sustainability": "combined_score",
         "biodex": "avg_rp_at_5",
     }
     
@@ -162,7 +163,7 @@ def save_pareto_frontier_results(eval_results, dataset, output_path):
         "blackvault": "avg_distinct_locations", 
         "game_reviews": "combined_accuracy_score",
         "medec": "combined_score",
-        "sustainability": "economic_activity_accuracy",
+        "sustainability": "combined_score",
         "biodex": "avg_rp_at_5",
     }
     
@@ -253,6 +254,11 @@ def get_evaluate_func(dataset):
         def biodex_eval_func(method_name, results_file_path):
             return biodex_evaluate(method_name, results_file_path)
         return biodex_eval_func
+    
+    elif dataset.lower() == "facility":
+        def facility_eval_func(method_name, results_file_path):
+            return facility_evaluate(method_name, results_file_path)
+        return facility_eval_func
     
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
@@ -665,7 +671,7 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
 
                 result = {
                     "file": display_path,
-                    "economic_activity_accuracy": metrics["economic_activity_accuracy"],
+                    "combined_score": metrics["combined_score"],
                     "company_name_accuracy": metrics["company_name_accuracy"],
                     "total_companies_processed": metrics["total_companies_processed"],
                     "avg_findings_length": metrics["avg_findings_length"],
@@ -1129,7 +1135,7 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
     # Plot Economic Activity Accuracy vs Cost scatter
     try:
         costs = [row["cost"] for row in eval_results]
-        accuracies = [row["economic_activity_accuracy"] for row in eval_results]
+        accuracies = [row["combined_score"] for row in eval_results]
         colors = ["blue" if row.get("on_frontier", False) else "grey" for row in eval_results]
 
         plt.figure(figsize=(8,6))
@@ -1140,13 +1146,13 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
                 label = f"{row['node_id']} ({mcts_accuracy:.2f})"
             else:
                 label = row.get("node_id", row.get("file", ""))
-            plt.annotate(label, (row["cost"], row["economic_activity_accuracy"]), textcoords="offset points", xytext=(4,4), fontsize=8)
+            plt.annotate(label, (row["cost"], row["combined_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
 
         plt.xlabel("Cost ($)")
-        plt.ylabel("Economic Activity Accuracy")
-        plt.title("Cost vs Economic Activity Accuracy for all plans")
+        plt.ylabel("Combined Score (Avg of Economic Activity Accuracy and Company Name Accuracy)")
+        plt.title("Cost vs Combined Score for all plans")
         plt.grid(True, linestyle="--", alpha=0.5)
-        plot_path = output_path / "cost_vs_economic_activity_accuracy.png"
+        plot_path = output_path / "cost_vs_combined_score.png"
         plt.savefig(plot_path, dpi=150, bbox_inches="tight")
         plt.close()
         print(f"📈 Scatter plot saved to: {plot_path}")
@@ -1177,13 +1183,13 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
                 curr_point = frontier_points[i]
                 next_point = frontier_points[i + 1]
                 
-                if (curr_point["cost"] < ref_cost and curr_point["economic_activity_accuracy"] > ref_accuracy and
-                    next_point["cost"] < ref_cost and next_point["economic_activity_accuracy"] > ref_accuracy):
+                if (curr_point["cost"] < ref_cost and curr_point["combined_score"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["combined_score"] > ref_accuracy):
                     
                     # Trapezoid area: (height1 + height2) * width / 2
                     width = next_point["cost"] - curr_point["cost"]
-                    height1 = curr_point["economic_activity_accuracy"] - ref_accuracy
-                    height2 = next_point["economic_activity_accuracy"] - ref_accuracy
+                    height1 = curr_point["combined_score"] - ref_accuracy
+                    height2 = next_point["combined_score"] - ref_accuracy
                     
                     if width > 0 and height1 > 0 and height2 > 0:
                         trapezoid_area = (height1 + height2) * width / 2
@@ -1192,9 +1198,96 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
             # Add final rectangle from last point to reference cost
             if frontier_points:
                 last_point = frontier_points[-1]
-                if last_point["cost"] < ref_cost and last_point["economic_activity_accuracy"] > ref_accuracy:
+                if last_point["cost"] < ref_cost and last_point["combined_score"] > ref_accuracy:
                     final_width = ref_cost - last_point["cost"]
-                    final_height = last_point["economic_activity_accuracy"] - ref_accuracy
+                    final_height = last_point["combined_score"] - ref_accuracy
+                    if final_width > 0 and final_height > 0:
+                        final_rectangle = final_width * final_height
+                        hypervolume += final_rectangle
+            
+            pareto_auc = hypervolume
+            print(f"📐 Hypervolume (ref_point=[{ref_accuracy}, {ref_cost:.2f}]): {hypervolume:.4f}")
+        else:
+            pareto_auc = 0.0
+    except Exception as e:
+        print(f"⚠️  Failed to compute Hypervolume: {e}")
+        pareto_auc = None
+    
+    return pareto_auc
+
+def _create_facility_plots_and_auc(eval_results, output_path, root_cost=None):
+    """Create plots and compute AUC for Facility dataset"""
+    pareto_auc = None
+    
+    # Plot Combined Score vs Cost scatter
+    try:
+        costs = [row["cost"] for row in eval_results]
+        scores = [row["combined_score"] for row in eval_results]
+        colors = ["blue" if row.get("on_frontier", False) else "grey" for row in eval_results]
+
+        plt.figure(figsize=(8,6))
+        plt.scatter(costs, scores, c=colors)
+        for row in eval_results:
+            mcts_accuracy = row.get("mcts_accuracy")
+            if mcts_accuracy is not None:
+                label = f"{row['node_id']} ({mcts_accuracy:.2f})"
+            else:
+                label = row.get("node_id", row.get("file", ""))
+            plt.annotate(label, (row["cost"], row["combined_score"]), textcoords="offset points", xytext=(4,4), fontsize=8)
+
+        plt.xlabel("Cost ($)")
+        plt.ylabel("Combined Score")
+        plt.title("Cost vs Combined Score (Urgency + Sentiment + Categories) for all plans")
+        plt.grid(True, linestyle="--", alpha=0.5)
+        plot_path = output_path / "cost_vs_combined_score.png"
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"📈 Scatter plot saved to: {plot_path}")
+    except Exception as e:
+        print(f"⚠️  Failed to create scatter plot: {e}")
+    
+    # Compute Hypervolume with reference point (accuracy=0, cost=baseline_cost*10)
+    try:
+        frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
+        if frontier_points:
+            # Use root cost if provided, otherwise fall back to minimum cost
+            if root_cost is not None:
+                ref_cost = root_cost * 10
+                print(f"Using root cost reference: {root_cost} -> ref_cost: {ref_cost}")
+            else:
+                baseline_cost = min(row["cost"] for row in eval_results)
+                ref_cost = baseline_cost * 10
+                print(f"Using baseline cost reference: {baseline_cost} -> ref_cost: {ref_cost}")
+            ref_accuracy = 0.0
+            
+            # Sort frontier points by cost (ascending)
+            frontier_points.sort(key=lambda r: r["cost"])
+            
+            hypervolume = 0.0
+            
+            # Calculate trapezoid areas between consecutive frontier points
+            for i in range(len(frontier_points) - 1):
+                curr_point = frontier_points[i]
+                next_point = frontier_points[i + 1]
+                
+                if (curr_point["cost"] < ref_cost and curr_point["combined_score"] > ref_accuracy and
+                    next_point["cost"] < ref_cost and next_point["combined_score"] > ref_accuracy):
+                    
+                    # Trapezoid area: (height1 + height2) * width / 2
+                    width = next_point["cost"] - curr_point["cost"]
+                    height1 = curr_point["combined_score"] - ref_accuracy
+                    height2 = next_point["combined_score"] - ref_accuracy
+                    
+                    if width > 0 and height1 > 0 and height2 > 0:
+                        trapezoid_area = (height1 + height2) * width / 2
+                        hypervolume += trapezoid_area
+            
+            # Add final rectangle from last point to reference cost
+            if frontier_points:
+                last_point = frontier_points[-1]
+                if last_point["cost"] < ref_cost and last_point["combined_score"] > ref_accuracy:
+                    final_width = ref_cost - last_point["cost"]
+                    final_height = last_point["combined_score"] - ref_accuracy
                     if final_width > 0 and final_height > 0:
                         final_rectangle = final_width * final_height
                         hypervolume += final_rectangle

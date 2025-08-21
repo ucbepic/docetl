@@ -58,7 +58,8 @@ class PathResolver:
             "reviews": "experiments/reasoning/data/train/game_reviews.json",
             "sustainability": "experiments/reasoning/data/train/sustainability.json",
             "biodex": "experiments/reasoning/data/train/biodex.json",
-            "medec": "experiments/reasoning/data/train/medec.json"
+            "medec": "experiments/reasoning/data/train/medec.json",
+            "facility": "experiments/reasoning/data/train/facility.json"
         }
         
         data_path = Path(path_map.get(dataset.lower(), f"experiments/reasoning/data/train/{dataset.lower()}.json"))
@@ -333,6 +334,17 @@ class SimpleBaselineAgent:
             # Call the evaluation function with proper parameters
             eval_metrics = evaluate_func(f"simple_baseline_iter_{iteration_id}", resolved_output_path)
             
+            # Extract the main accuracy metric for this dataset
+            dataset_accuracy_metrics = {
+                "cuad": "avg_f1",
+                "blackvault": "avg_distinct_locations", 
+                "game_reviews": "combined_accuracy_score",
+                "medec": "combined_score",
+                "sustainability": "combined_score",
+                "biodex": "avg_rp_at_5",
+                "facility": "combined_score"
+            }
+            
             metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
             accuracy_val = eval_metrics.get(metric_key, 0.0)
             
@@ -345,6 +357,8 @@ class SimpleBaselineAgent:
                 accuracy_msg = f"Avg RP@10: {accuracy_val:.4f}, Avg RP@5: {eval_metrics.get('avg_rp_at_5', 0):.4f}, Term Recall: {eval_metrics.get('avg_term_recall', 0):.4f}"
             elif dataset.lower() == "sustainability":
                 accuracy_msg = f"Economic Activity Acc: {accuracy_val:.4f}, Company Name Acc: {eval_metrics.get('company_name_accuracy', 0):.4f}"
+            elif dataset.lower() == "facility":
+                accuracy_msg = f"Combined Score: {accuracy_val:.4f}, Urgency: {eval_metrics.get('urgency_accuracy', 0):.4f}, Sentiment: {eval_metrics.get('sentiment_accuracy', 0):.4f}, Categories: {eval_metrics.get('categories_accuracy', 0):.4f}"
             else:
                 accuracy_msg = f"Accuracy: {accuracy_val:.4f}"
             
@@ -372,7 +386,8 @@ class SimpleBaselineAgent:
             "biodex": "Rank Precision at 5/10 and Term Recall for biochemical reaction prediction",
             "sustainability": "Economic activity accuracy and company name accuracy for sustainability analysis",
             "game_reviews": "Combined accuracy score for game review sentiment analysis",
-            "medec": "Combined score for medical entity classification"
+            "medec": "Combined score for medical entity classification",
+            "facility": "Combined score (urgency, sentiment, and categories accuracy) for facility support message classification"
         }
         
         metrics_info = dataset_metrics_info.get(dataset.lower(), "Accuracy metrics specific to the dataset")
@@ -825,7 +840,7 @@ def main():
     """Local main function."""
     parser = argparse.ArgumentParser(description="Run simple baseline agent")
     parser.add_argument("--dataset", type=str, required=True,
-                       choices=["cuad", "reviews", "blackvault", "sustainability", "biodex", "medec"])
+                       choices=["cuad", "reviews", "blackvault", "sustainability", "biodex", "medec", "facility"])
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL)
     parser.add_argument("--output_dir", type=str)
     parser.add_argument("--experiment_name", type=str)

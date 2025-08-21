@@ -34,7 +34,8 @@ def evaluate_results(method_name, results_file, ground_truth_file):
         "total_companies_processed": 0,
         "economic_activity_distribution": defaultdict(int),
         "missing_companies": 0,
-        "avg_findings_length": 0.0
+        "avg_findings_length": 0.0,
+        "combined_score": 0.0
     }
     
     total_processed = 0
@@ -85,6 +86,9 @@ def evaluate_results(method_name, results_file, ground_truth_file):
                 
                 if gt_economic_activity == predicted_activity:
                     economic_activity_correct += 1
+                    
+                # else:
+                #     print(f"Economic activity mismatch: GT {gt_economic_activity} != {predicted_activity}")
     
                 # Check company name accuracy (if we found a match, name is reasonably accurate)
                 company_name_correct += 1
@@ -108,6 +112,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
     metrics["total_economic_activities"] = len(metrics["economic_activity_distribution"])
     metrics["most_common_activity"] = max(metrics["economic_activity_distribution"].items(), 
                                         key=lambda x: x[1])[0] if metrics["economic_activity_distribution"] else None
+    metrics["combined_score"] = (economic_activity_correct + company_name_correct) / (total_processed * 2)
     
     return metrics
 
@@ -194,7 +199,7 @@ def main():
         print(f"Average findings length: {metrics['avg_findings_length']:.1f}")
         print(f"Total economic activities: {metrics['total_economic_activities']}")
         print(f"Most common activity: {metrics['most_common_activity']}")
-        
+        print(f"Combined score: {metrics['combined_score']:.3f}")
                 
     except FileNotFoundError as e:
         print(f"Error: File not found - {e}")

@@ -71,3 +71,8 @@ tests/data/get_freshstack.py
 graph.py
 graph_baseline.py
 kendalltau.py
+
+slides/*
+node_modules/*
+
+reaction_index/*

@@ -315,12 +315,6 @@ def generate_comparison_plots_remote(dataset: str, output_dir: Optional[str] = N
         evaluation_file_mcts = f"{base_output_dir}/{dataset}_mcts/evaluation_metrics.json"  
         evaluation_file_simple = f"{base_output_dir}/{dataset}_simple_baseline/evaluation_metrics.json"
         
-        # Import plot functions locally to avoid import issues
-        from experiments.reasoning.plot_result import (
-            find_pareto_frontier, calculate_hypervolume_comparison, 
-            plot_pareto_frontier_comparison, dataset_metrics
-        )
-        
         # Check if dataset is supported
         if dataset not in dataset_metrics:
             return {

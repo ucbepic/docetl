@@ -155,7 +155,6 @@ class ChangeModelCostDirective(Directive):
             f"• Prioritize cost savings while maintaining adequate performance for the task\n"
             f"• For simple tasks (extraction, basic classification, straightforward summarization), strongly prefer cheaper models like gpt-4o-mini or gpt-5-nano\n"
             f"• For high-volume processing where cost accumulates quickly, favor the most economical option\n"
-            f"• Only use expensive models like gpt-5 if the task absolutely requires the additional capability\n"
             f"• Consider the trade-off between model performance and cost efficiency\n"
             f"• Remember that cheaper models can often handle simpler tasks adequately\n\n"
             f"You have a list of allowed models to choose from: {str(self.allowed_model_list)}.\n\n"

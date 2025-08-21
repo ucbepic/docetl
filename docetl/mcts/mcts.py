@@ -209,7 +209,7 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            if self.iteration_count < 2: 
+            if self.iteration_count < 5: 
             # if self.iteration_count >= self.max_iterations - 5:
                 if self.mcts_cost_iteration():
                     self.iteration_count += 1
@@ -260,11 +260,48 @@ class MCTS:
         is_frontier_updated = False
         if has_leaf_cost:
             print("HAS LEAF COST SIMULATION")
-            for leaf_cost in cost_children:
-                cost, accuracy = self.simulate(leaf_cost)
-                affected_nodes, is_frontier_updated = self.add_to_frontier(leaf_cost, accuracy)
-                # Check if any node was added to the frontier (value = 1)
-                self.backpropagate(affected_nodes, leaf_cost)
+            
+            if len(cost_children) > 1:
+                print(f"Handling {len(cost_children)} multi-instance candidates")
+                candidate_results = []
+                
+                # Simulate all candidates
+                for num, candidate in enumerate(cost_children):
+                    cost, accuracy = self.simulate(candidate)
+                    print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
+                    if cost != -1 and accuracy != float("-inf"):  # Valid plan
+                        candidate_results.append((candidate, accuracy, cost))
+                    else:
+                        print(f"Multi-instance candidate {num} failed during simulation")
+                
+                if candidate_results:
+                    # Select the best candidate based on accuracy
+                    best_candidate, best_accuracy, best_cost = max(candidate_results, key=lambda x: x[1])
+                    print(f"Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}")
+                    
+                    # Change the best candidate's ID back to a proper counter ID
+                    old_id = best_candidate.get_id()
+                    new_id = best_candidate.set_id_to_counter()
+                    print(f"Updated best candidate ID from {old_id} to {new_id}")
+                    
+                    # Delete non-selected candidates (move to backup_plans folder)
+                    for candidate, _, _ in candidate_results:
+                        if candidate != best_candidate:
+                            candidate.delete(selected_node_final_id=new_id)
+                    
+                    # Process only the best candidate
+                    affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
+                    self.backpropagate(affected_nodes, best_candidate)
+                    
+            else:
+                # Original logic for single instantiation
+                for leaf_cost in cost_children:
+                    cost, accuracy = self.simulate(leaf_cost)
+                    affected_nodes, temp_updated = self.add_to_frontier(leaf_cost, accuracy)
+                    if temp_updated:
+                        is_frontier_updated = True
+                    # Check if any node was added to the frontier (value = 1)
+                    self.backpropagate(affected_nodes, leaf_cost)
 
             # Update counter for early stopping
             if is_frontier_updated:
@@ -302,12 +339,48 @@ class MCTS:
         is_frontier_updated = False
         if has_leaf_acc:
             print("HAS LEAF ACC SIMULATION")
-            for leaf_acc in acc_children:
-                cost, accuracy = self.simulate(leaf_acc)
-                affected_nodes, is_frontier_updated = self.add_to_frontier(leaf_acc, accuracy)
-
-                # Check if any node was added to the frontier (value = 1)
-                self.backpropagate(affected_nodes, leaf_acc)
+            
+            if len(acc_children) > 1:
+                print(f"Handling {len(acc_children)} multi-instance candidates")
+                candidate_results = []
+                
+                # Simulate all candidates
+                for num, candidate in enumerate(acc_children):
+                    cost, accuracy = self.simulate(candidate)
+                    print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
+                    if cost != -1 and accuracy != float("-inf"):  # Valid plan
+                        candidate_results.append((candidate, accuracy, cost))
+                    else:
+                        print(f"Multi-instance candidate {num} failed during simulation")
+                
+                if candidate_results:
+                    # Select the best candidate based on accuracy
+                    best_candidate, best_accuracy, best_cost = max(candidate_results, key=lambda x: x[1])
+                    print(f"Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}")
+                    
+                    # Change the best candidate's ID back to a proper counter ID
+                    old_id = best_candidate.get_id()
+                    new_id = best_candidate.set_id_to_counter()
+                    print(f"Updated best candidate ID from {old_id} to {new_id}")
+                    
+                    # Delete non-selected candidates (move to backup_plans folder)
+                    for candidate, _, _ in candidate_results:
+                        if candidate != best_candidate:
+                            candidate.delete(selected_node_final_id=new_id)
+                    
+                    # Process only the best candidate
+                    affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
+                    self.backpropagate(affected_nodes, best_candidate)
+                    
+            else:
+                # Original logic for single instantiations
+                for leaf_acc in acc_children:
+                    cost, accuracy = self.simulate(leaf_acc)
+                    affected_nodes, temp_updated = self.add_to_frontier(leaf_acc, accuracy)
+                    if temp_updated:
+                        is_frontier_updated = True
+                    # Check if any node was added to the frontier (value = 1)
+                    self.backpropagate(affected_nodes, leaf_acc)
 
             # Update counter for early stopping
             if is_frontier_updated:
@@ -547,36 +620,77 @@ class MCTS:
             node.mark_action_used(target_op, directive)
 
         message_length = len(messages)
-        try:
-            new_ops_list, message_history = directive.instantiate(
-                operators=node.parsed_yaml["operations"],
-                target_ops=target_op_list,
-                agent_llm=self.model,
-                optimize_goal=optimize_goal,
-                global_default_model=orig_default_model,
-                message_history=messages,
-                input_file_path=input_file_path,
-                pipeline_code=node.parsed_yaml,
-            )
-            if new_ops_list is None:
-                raise RuntimeError(
-                    "Failed to instantiate directive: no new ops list returned after retries."
-                )
-
-            rewrites.append(new_ops_list)
-
-        except Exception as e:
-            print(e)
-            raise RuntimeError(f"Failed to instantiate directive: {str(e)}")
-
-        message_condensed.extend(message_history[message_length:])
+        
+        # Check if this directive supports multiple instantiations
+        is_multi_instance = directive in MULTI_INSTANCE_DIRECTIVES
+        num_instantiations = 3 if is_multi_instance else 1
+        
+        print(f"Creating {num_instantiations} instantiation(s) for directive '{directive_name}'")
         
         children = []
-        for new_ops in rewrites:
-            child = self.instantiate_node(
-                node, new_ops, directive_name, target_op_list, optimize_goal, message_condensed
-            )
-            children.append(child)
+        instantiation_messages = messages.copy()
+        for i in range(num_instantiations):
+            try:
+                print(f"Creating instantiation {i+1}/{num_instantiations}")
+                
+                # For multi-instance directives, add variation to each instantiation
+                if is_multi_instance:
+                    # Use accumulated message history (includes previous instantiations)
+                    
+                    # Add instantiation-specific context to encourage variation
+                    if i == 0:
+                        variation_prompt = f"This is instantiation {i+1} of {num_instantiations} for the '{directive_name}' directive. Focus on creating a distinct approach by exploring different parameter combinations or implementation strategies. For example, you can try different models, different parameter settings (chunk size, top k, etc.), or different implementation strategies."
+                    else:
+                        variation_prompt = f"This is instantiation {i+1} of {num_instantiations} for the '{directive_name}' directive. Based on the previous {i} instantiation(s) shown above, create a DIFFERENT approach that explores alternative parameters, strategies, or implementations. AVOID repeating the exact same configs asthe previous instantiations."
+                    
+                    
+                    # Insert variation context before the last user message
+                    variation_msg = {
+                        "role": "system",
+                        "content": variation_prompt
+                    }
+                    instantiation_messages.append(variation_msg)
+
+                with open("instantiation_messages_debug.txt", "w", encoding="utf-8") as f:
+                    f.write(f"i: {i}\n")
+                    f.write("instantiation_messages: \n")
+                    f.write(str(instantiation_messages))
+                    f.write("\n\n")
+                
+                new_ops_list, updated_message_history = directive.instantiate(
+                    operators=node.parsed_yaml["operations"],
+                    target_ops=target_op_list,
+                    agent_llm=self.model,
+                    optimize_goal=optimize_goal,
+                    global_default_model=orig_default_model,
+                    message_history=instantiation_messages,
+                    input_file_path=input_file_path,
+                    pipeline_code=node.parsed_yaml,
+                )
+                if new_ops_list is None:
+                    print(f"Instantiation {i+1} failed: no ops list returned")
+                    continue
+
+                instantiation_messages = updated_message_history
+
+                # Create child node for this instantiation
+                # For multi-instance directives, use parent_id-instantiation_num format
+                custom_id = f"{node.get_id()}-{i+1}" if is_multi_instance else None
+                child = self.instantiate_node(
+                    node, new_ops_list, directive_name, target_op_list, optimize_goal, 
+                    message_condensed + updated_message_history[message_length:], custom_id
+                )
+                
+                children.append(child)
+                print(f"Instantiation {i+1} created successfully")
+
+            except Exception as e:
+                print(f"Instantiation {i+1} failed with error: {str(e)}")
+                continue
+
+        if not children:
+            raise RuntimeError(f"All {num_instantiations} instantiation(s) failed for directive '{directive_name}'")
+        
         return children
 
     def simulate(self, node: Node):
@@ -719,7 +833,7 @@ class MCTS:
             f.write(f"\n")
 
     def instantiate_node(
-        self, node, new_ops_list, directive_name, target_op_list, optimize_goal, message_condensed
+        self, node, new_ops_list, directive_name, target_op_list, optimize_goal, message_condensed, custom_id=None
     ):
         """
         Instantiate a new child node by applying the directive to the given node and target operations.
@@ -742,22 +856,37 @@ class MCTS:
 
         fix_models_azure(new_parsed_yaml)
 
+        # Determine the node ID to use for filename
+        if custom_id is not None:
+            node_id_for_file = custom_id
+        else:
+            node_id_for_file = Node.get_next_id()
+        
         # Determine where to save the new pipeline file
         if self.output_dir:
-            # Use output directory with original filename as base
-            original_filename = os.path.basename(node.yaml_file_path).removesuffix(
-                ".yaml"
-            )
-            base_path = os.path.join(self.output_dir, original_filename)
+            # Use output directory with original filename as base (strip existing node IDs)
+            original_filename = os.path.basename(node.yaml_file_path).removesuffix(".yaml")
+            # Remove any existing node ID suffix 
+            if "_" in original_filename:
+                # Split and take only the first part before any underscores with numbers
+                parts = original_filename.split("_")
+                base_name = parts[0]
+                # Check if subsequent parts are node IDs (numbers or multi-instance format)
+                for part in parts[1:]:
+                    if not (part.isdigit() or "-" in part):
+                        base_name += "_" + part
+            else:
+                base_name = original_filename
+            base_path = os.path.join(self.output_dir, base_name)
             os.makedirs(self.output_dir, exist_ok=True)
         else:
             # Use same directory as original pipeline
             base_path = node.yaml_file_path.removesuffix(".yaml")
 
-        new_yaml_path = f"{base_path}_{len(node.children)+1}.yaml"
+        new_yaml_path = f"{base_path}_{node_id_for_file}.yaml"
         new_parsed_yaml["pipeline"]["output"][
             "path"
-        ] = f"{base_path}_{len(node.children)+1}.json"
+        ] = f"{base_path}_{node_id_for_file}.json"
 
         with open(new_yaml_path, "w") as file:
             yaml.dump(
@@ -771,7 +900,7 @@ class MCTS:
         print("NEW YAML FILE: ", new_yaml_path)
 
         # generate the child node
-        child = Node(yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed)
+        child = Node(yaml_file_path=new_yaml_path, parent=node, message_history=message_condensed, id=custom_id)
         action = self.directive_name_to_obj.get(directive_name)
         child.latest_action = action
         

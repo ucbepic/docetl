@@ -803,14 +803,9 @@ def _create_cuad_plots_and_auc(eval_results, output_path, root_cost=None):
     try:
         frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
         if frontier_points:
-            # Use root cost if provided, otherwise fall back to minimum cost
-            if root_cost is not None:
-                ref_cost = root_cost * 10
-                print(f"Using root cost reference: {root_cost} -> ref_cost: {ref_cost}")
-            else:
-                baseline_cost = min(row["cost"] for row in eval_results)
-                ref_cost = baseline_cost * 10
-                print(f"Using baseline cost reference: {baseline_cost} -> ref_cost: {ref_cost}")
+            # Use highest cost across all points as reference
+            ref_cost = max(row["cost"] for row in eval_results)
+            print(f"Using highest cost across all points as reference: {ref_cost:.2f}")
             ref_accuracy = 0.0
             
             # Sort frontier points by cost (ascending)
@@ -890,14 +885,9 @@ def _create_game_reviews_plots_and_auc(eval_results, output_path, root_cost=None
     try:
         frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
         if frontier_points:
-            # Use root cost if provided, otherwise fall back to minimum cost
-            if root_cost is not None:
-                ref_cost = root_cost * 10
-                print(f"Using root cost reference: {root_cost} -> ref_cost: {ref_cost}")
-            else:
-                baseline_cost = min(row["cost"] for row in eval_results)
-                ref_cost = baseline_cost * 10
-                print(f"Using baseline cost reference: {baseline_cost} -> ref_cost: {ref_cost}")
+            # Use highest cost across all points as reference
+            ref_cost = max(row["cost"] for row in eval_results)
+            print(f"Using highest cost across all points as reference: {ref_cost:.2f}")
             ref_accuracy = 0.0
             
             # Sort frontier points by cost (ascending)
@@ -979,14 +969,9 @@ def _create_blackvault_plots_and_auc(eval_results, output_path, root_cost=None):
     try:
         frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
         if frontier_points:
-            # Use root cost if provided, otherwise fall back to minimum cost
-            if root_cost is not None:
-                ref_cost = root_cost * 10
-                print(f"Using root cost reference: {root_cost} -> ref_cost: {ref_cost}")
-            else:
-                baseline_cost = min(row["cost"] for row in eval_results)
-                ref_cost = baseline_cost * 10
-                print(f"Using baseline cost reference: {baseline_cost} -> ref_cost: {ref_cost}")
+            # Use highest cost across all points as reference
+            ref_cost = max(row["cost"] for row in eval_results)
+            print(f"Using highest cost across all points as reference: {ref_cost:.2f}")
             ref_accuracy = 0.0
             
             # Sort frontier points by cost (ascending)
@@ -1068,14 +1053,9 @@ def _create_medec_plots_and_auc(eval_results, output_path, root_cost=None):
     try:
         frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
         if frontier_points:
-            # Use root cost if provided, otherwise fall back to minimum cost
-            if root_cost is not None:
-                ref_cost = root_cost * 10
-                print(f"Using root cost reference: {root_cost} -> ref_cost: {ref_cost}")
-            else:
-                baseline_cost = min(row["cost"] for row in eval_results)
-                ref_cost = baseline_cost * 10
-                print(f"Using baseline cost reference: {baseline_cost} -> ref_cost: {ref_cost}")
+            # Use highest cost across all points as reference
+            ref_cost = max(row["cost"] for row in eval_results)
+            print(f"Using highest cost across all points as reference: {ref_cost:.2f}")
             ref_accuracy = 0.0
             
             # Sort frontier points by cost (ascending)
@@ -1157,14 +1137,9 @@ def _create_sustainability_plots_and_auc(eval_results, output_path, root_cost=No
     try:
         frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
         if frontier_points:
-            # Use root cost if provided, otherwise fall back to minimum cost
-            if root_cost is not None:
-                ref_cost = root_cost * 10
-                print(f"Using root cost reference: {root_cost} -> ref_cost: {ref_cost}")
-            else:
-                baseline_cost = min(row["cost"] for row in eval_results)
-                ref_cost = baseline_cost * 10
-                print(f"Using baseline cost reference: {baseline_cost} -> ref_cost: {ref_cost}")
+            # Use highest cost across all points as reference
+            ref_cost = max(row["cost"] for row in eval_results)
+            print(f"Using highest cost across all points as reference: {ref_cost:.2f}")
             ref_accuracy = 0.0
             
             # Sort frontier points by cost (ascending)
@@ -1244,14 +1219,9 @@ def _create_biodex_plots_and_auc(eval_results, output_path, root_cost=None):
     try:
         frontier_points = [row for row in eval_results if row.get("on_frontier", False)]
         if frontier_points:
-            # Use root cost if provided, otherwise fall back to minimum cost
-            if root_cost is not None:
-                ref_cost = root_cost * 10
-                print(f"Using root cost reference: {root_cost} -> ref_cost: {ref_cost}")
-            else:
-                baseline_cost = min(row["cost"] for row in eval_results)
-                ref_cost = baseline_cost * 10
-                print(f"Using baseline cost reference: {baseline_cost} -> ref_cost: {ref_cost}")
+            # Use highest cost across all points as reference
+            ref_cost = max(row["cost"] for row in eval_results)
+            print(f"Using highest cost across all points as reference: {ref_cost:.2f}")
             ref_accuracy = 0.0
             
             # Sort frontier points by cost (ascending)

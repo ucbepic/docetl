@@ -24,7 +24,29 @@ class Node:
     # A class-level counter for unique IDs
     _id_counter = 0
 
-    def __init__(self, yaml_file_path: str, parent: Optional[Node] = None, c: float = 1.414, message_history = []):
+    @classmethod
+    def get_next_id(cls) -> int:
+        """
+        Get the next available ID from the counter without incrementing it.
+        
+        Returns:
+            int: The next ID that would be assigned
+        """
+        return cls._id_counter
+
+    @classmethod
+    def increment_id_counter(cls) -> int:
+        """
+        Increment the ID counter and return the new ID.
+        
+        Returns:
+            int: The newly assigned ID
+        """
+        new_id = cls._id_counter
+        cls._id_counter += 1
+        return new_id
+
+    def __init__(self, yaml_file_path: str, parent: Optional[Node] = None, c: float = 1.414, message_history = [], id: Optional[int] = None):
         """
         Initialize a Node with YAML file information.
         
@@ -69,8 +91,10 @@ class Node:
         self.memo = []
         
         # Assign a unique ID to this node
-        self.id = Node._id_counter
-        Node._id_counter += 1
+        if id: self.id = id
+        else: 
+            self.id = Node._id_counter
+            Node._id_counter += 1
 
 
     def execute_plan(self, max_threads: Optional[int] = None) -> tuple[float, list]:
@@ -250,6 +274,61 @@ class Node:
         """
         return self.id
     
+    def set_id_to_counter(self):
+        """
+        Change this node's ID to the next available counter ID.
+        This is used after selecting the best multi-instance candidate.
+        Also renames the associated files to match the new ID.
+        
+        Returns:
+            int: The new ID assigned to this node
+        """
+        old_id = self.id
+        new_id = self.increment_id_counter()
+        
+        # Rename files to match the new ID
+        self._rename_files_for_new_id(old_id, new_id)
+        
+        self.id = new_id
+        return self.id
+    
+    def _rename_files_for_new_id(self, old_id, new_id):
+        """
+        Rename the YAML and output files to match the new node ID.
+        
+        Args:
+            old_id: The old node ID (e.g., "7-2")
+            new_id: The new node ID (e.g., 8)
+        """
+        try:
+            # Rename YAML file
+            if os.path.exists(self.yaml_file_path):
+                old_yaml_path = self.yaml_file_path
+                new_yaml_path = old_yaml_path.replace(f"_{old_id}.yaml", f"_{new_id}.yaml")
+                os.rename(old_yaml_path, new_yaml_path)
+                self.yaml_file_path = new_yaml_path
+                print(f"Renamed YAML file: {old_yaml_path} → {new_yaml_path}")
+        except Exception as e:
+            print(f"Warning: Could not rename YAML file from {old_id} to {new_id}: {e}")
+        
+        try:
+            # Rename output JSON file
+            if self.result_path and os.path.exists(self.result_path):
+                old_result_path = self.result_path
+                new_result_path = old_result_path.replace(f"_{old_id}.json", f"_{new_id}.json")
+                os.rename(old_result_path, new_result_path)
+                self.result_path = new_result_path
+                print(f"Renamed result file: {old_result_path} → {new_result_path}")
+                
+                # Also update the YAML to point to the new output file
+                if hasattr(self, 'parsed_yaml') and self.parsed_yaml:
+                    self.parsed_yaml["pipeline"]["output"]["path"] = new_result_path
+                    # Rewrite the YAML file with the updated output path
+                    with open(self.yaml_file_path, 'w') as f:
+                        yaml.dump(self.parsed_yaml, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        except Exception as e:
+            print(f"Warning: Could not rename result file from {old_id} to {new_id}: {e}")
+    
     def add_memo_entry(self, directive_name: str, target_operator: str):
         """
         Add a (directive, target_operator) pair to the memo list.
@@ -344,7 +423,7 @@ class Node:
             sorted_successful = sorted(successful_paths, key=lambda x: float(x.split("cost: $")[1].split(")")[0]) if "cost: $" in x else float('inf'))
             for i, path in enumerate(sorted_successful):  
                 summary_parts.append(f"  {i+1}. {path}")
-                
+
         return "\n".join(summary_parts)
     
     def get_memo_for_llm(self, root_node: Node) -> str:
@@ -355,5 +434,113 @@ class Node:
             Complete exploration context to guide decision making
         """
         return self.get_exploration_tree_summary(root_node)
+    
+    def delete(self, selected_node_final_id=None):
+        """
+        Delete this node and clean up its resources.
+        For multi-instance candidates, moves files to backup_plans folder instead of deleting.
+        
+        Args:
+            selected_node_final_id: The final ID of the selected node (for backup naming)
+        
+        This method:
+        1. Removes the node from its parent's children list
+        2. Moves multi-instance files to backup or deletes regular files
+        3. Clears references to prevent memory leaks
+        
+        Note: The global node ID counter is maintained (not decremented) to ensure
+        unique IDs across the lifetime of the program.
+        """
+        # Remove from parent's children list
+        if self.parent and self in self.parent.children:
+            self.parent.children.remove(self)
+        
+        # Check if this is a multi-instance candidate (has parent_id-num format)
+        is_multi_instance_candidate = isinstance(self.id, str) and "-" in str(self.id)
+        
+        if is_multi_instance_candidate and selected_node_final_id is not None:
+            # Move files to backup_plans folder with renamed IDs
+            self._backup_multi_instance_files(selected_node_final_id)
+        else:
+            # Regular deletion for non-multi-instance nodes
+            self._delete_files_permanently()
+        
+        # Clear references to help with garbage collection
+        self.parent = None
+        self.children = []
+        self.parsed_yaml = {}
+        self.message_history = []
+        self.memo = []
+        self.sample_result = []
+        
+        print(f"Node {self.id} deleted and cleaned up")
+    
+    def _backup_multi_instance_files(self, selected_node_final_id):
+        """
+        Move multi-instance files to backup_plans folder with new naming scheme.
+        
+        Args:
+            selected_node_final_id: The final ID of the selected node
+        """
+        try:
+            # Extract the instantiation number from current ID (e.g., "7-2" -> "2")
+            current_id_str = str(self.id)
+            if "-" in current_id_str:
+                instantiation_num = current_id_str.split("-")[1]
+                new_backup_id = f"{selected_node_final_id}-{instantiation_num}"
+            else:
+                new_backup_id = f"{selected_node_final_id}-backup"
+            
+            # Create backup_plans directory
+            if os.path.exists(self.yaml_file_path):
+                yaml_dir = os.path.dirname(self.yaml_file_path)
+                backup_dir = os.path.join(yaml_dir, "backup_plans")
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                # Move YAML file
+                yaml_filename = os.path.basename(self.yaml_file_path)
+                # Replace old ID with new backup ID in filename
+                new_yaml_filename = yaml_filename.replace(f"_{current_id_str}.yaml", f"_{new_backup_id}.yaml")
+                backup_yaml_path = os.path.join(backup_dir, new_yaml_filename)
+                
+                if os.path.exists(self.yaml_file_path):
+                    os.rename(self.yaml_file_path, backup_yaml_path)
+                    print(f"Moved YAML to backup: {self.yaml_file_path} → {backup_yaml_path}")
+                
+                # Move result JSON file
+                if self.result_path and os.path.exists(self.result_path):
+                    result_filename = os.path.basename(self.result_path)
+                    new_result_filename = result_filename.replace(f"_{current_id_str}.json", f"_{new_backup_id}.json")
+                    backup_result_path = os.path.join(backup_dir, new_result_filename)
+                    
+                    os.rename(self.result_path, backup_result_path)
+                    print(f"Moved result to backup: {self.result_path} → {backup_result_path}")
+                    
+        except Exception as e:
+            print(f"Warning: Could not backup files for multi-instance node {self.id}: {e}")
+            # Fall back to regular deletion if backup fails
+            self._delete_files_permanently()
+    
+    def _delete_files_permanently(self):
+        """
+        Permanently delete files (for non-multi-instance nodes).
+        """
+        try:
+            if os.path.exists(self.yaml_file_path) and self.yaml_file_path.endswith(('.yaml', '.yml')):
+                # Only delete if it looks like a generated file (contains numbers)
+                if any(char.isdigit() for char in os.path.basename(self.yaml_file_path)):
+                    os.remove(self.yaml_file_path)
+                    print(f"Deleted generated YAML file: {self.yaml_file_path}")
+        except Exception as e:
+            print(f"Warning: Could not delete YAML file {self.yaml_file_path}: {e}")
+        
+        try:
+            if self.result_path and os.path.exists(self.result_path):
+                # Only delete if it looks like a generated file (contains numbers)
+                if any(char.isdigit() for char in os.path.basename(self.result_path)):
+                    os.remove(self.result_path)
+                    print(f"Deleted generated result file: {self.result_path}")
+        except Exception as e:
+            print(f"Warning: Could not delete result file {self.result_path}: {e}")
     
     

@@ -71,6 +71,28 @@ ALL_COST_DIRECTIVES = [
     ArbitraryRewriteDirective(),
 ]
 
+DIRECTIVE_GROUPS = {
+    "compression": [
+        DocCompressionDirective(),
+        DocSummarizationDirective(),
+        DeterministicDocCompressionDirective(),
+    ],
+    "chunking": [
+        DocumentChunkingDirective(),
+        DocumentChunkingTopKDirective(),
+    ]
+}
+
+MULTI_INSTANCE_DIRECTIVES = [
+    DocumentChunkingDirective(),
+    DocumentChunkingTopKDirective(),
+    ChangeModelAccDirective(),
+    ChangeModelCostDirective(),
+    DeterministicDocCompressionDirective(),
+    TakeHeadTailDirective(),
+    CascadeFilteringDirective(),
+]   
+
 # Create a mapping from directive names to directive instances
 DIRECTIVE_REGISTRY = {directive.name: directive for directive in ALL_DIRECTIVES}
 

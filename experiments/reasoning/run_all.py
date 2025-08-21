@@ -56,6 +56,7 @@ DEFAULT_YAML_PATHS: Dict[str, str] = {
     "sustainability": "experiments/reasoning/pipelines/sustainability.yaml",
     "biodex": "experiments/reasoning/pipelines/biodex.yaml",
     "medec": "experiments/reasoning/pipelines/medec.yaml",
+    "facility": "experiments/reasoning/pipelines/facility.yaml",
 }
 
 # Always prefer train-split defaults for MCTS sample inputs
@@ -66,6 +67,7 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
     "sustainability": "experiments/reasoning/data/train/sustainability.json",
     "biodex": "experiments/reasoning/data/train/biodex.json",
     "medec": "experiments/reasoning/data/train/medec.json",
+    "facility": "experiments/reasoning/data/train/facility.json",
 }
 
 # Users can edit this CONFIG dict directly before running via Modal

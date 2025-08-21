@@ -17,7 +17,9 @@ from .base import (
 
 
 class ChangeModelAccDirective(Directive):
-    name: str = Field(default="change model acc", description="The name of the directive")
+    name: str = Field(
+        default="change model acc", description="The name of the directive"
+    )
     formal_description: str = Field(
         default="Op => Op* (same operation with a more accurate model choice)"
     )
@@ -58,27 +60,29 @@ class ChangeModelAccDirective(Directive):
         default=(
             """
             OpenAI-MRCR evaluates a model's ability to locate and disambiguate multiple well-hidden "needles" within a large context.
-            Below are the actual performance scores for the 8-needle retrieval task at various context lengths. Use these results to compare the retrieval capabilities of each model.
+            Below are the actual performance scores for the 2-needle retrieval task at various context lengths. Use these results to compare the retrieval capabilities of each model.
             The below results are the mean match ratio.
 
-            Input Tokens (1000s) | GPT-5   | GPT-5 nano   | GPT-4o mini
-            ---------------------|---------|--------------|-------------------|
-            8                    | 99%     | 69%          | 32%               | 
-            16                   | 100%    | 64%          | 30%               | 
-            32                   | 96%     | 55%          | 27%               |
-            64                   | 98%     | 45%          | 25%               | 
-            128                  | 97%     | 44%          | 25%               | 
-            256                  | 92%     | 40%          | -                 | 
-              
+            Context Length | gpt-5 | gpt-5-nano | gpt-4o-mini | gemini-2.5-pro | gemini-2.5-flash | gpt-4.1 | gpt-4.1-mini | gpt-4.1-nano | gemini-2.5-flash-lite
+            ---------------|-------|------------|-------------|----------------|------------------|---------|--------------|--------------|----------------------
+            128k           | 97%   | 44%        | 25%         | 83.6%          | 86.2%            | 61.3%   | 47.1%        | 36.7%        | 39.9%
+            1M             | -     | -          | -           | 62.8%          | 60.0%            | 45.9%   | 34.6%        | 14.2%        | 18.1%
 
             The context window and pricing details for each model are shown below (token prices are per 1 million tokens):
-            Model              | GPT-5-nano   | GPT-4o-mini | GPT-5     
-            -------------------|--------------|-------------|----------
-            Context Window     | 400,000      | 128,000     | 400,000    
-            Max Output Tokens  | 128,000      | 16,384      | 128,000   
-            Input Token Price  | $0.05        | $0.15       | $1.25    
-            Output Token Price | $0.40        | $0.60       | $10    
-        """
+            | Family         | Model                      | Input Price /1M                 | Output Price /1M                  | Context Window (API)       |
+            |----------------|----------------------------|---------------------------------|-----------------------------------|-----------------------------|
+            | **GPT-5**      | azure/gpt-5                | $1.25                           | $10.00                            | 400K (272K in + 128K out) |
+            |                | azure/gpt-5-mini           | $0.25                           | $2.00                             | 400K                       |
+            |                | azure/gpt-5-nano           | $0.05                           | $0.40                             | 400K                       |
+            | **GPT-4.1**    | azure/gpt-4.1              | $2.00                           | $8.00                             | 1M                         |
+            |                | azure/gpt-4.1-mini         | $0.40                           | $1.60                             | 1M                         |
+            |                | azure/gpt-4.1-nano         | $0.10                           | $0.40                             | 1M                         |
+            | **GPT-4o**     | azure/gpt-4o               | $2.50                           | $10.00                            | 128K                       |
+            |                | azure/gpt-4o-mini          | $0.15                           | $0.60                             | 128K (≈16K output cap)     |
+            | **Gemini 2.5** | gemini/gemini-2.5-pro      | $1.25 (≤200K) / $2.50 (>200K)  | $10.00 (≤200K) / $15.00 (>200K)  | 1M (2M soon)               |
+            |                | gemini/gemini-2.5-flash    | $0.30                           | $2.50                             | 1M                         |
+            |                | gemini/gemini-2.5-flash-lite | $0.10                         | $0.40                             | 1M                         |
+            """
         ),
     )
 
@@ -151,15 +155,24 @@ class ChangeModelAccDirective(Directive):
             f"{str(original_op)}\n\n"
             f"Directive: {self.name}\n"
             f"Your task is to instantiate this directive by suggesting the most accurate model for executing the original operation.\n\n"
-            f"ACCURACY OPTIMIZATION CONSIDERATIONS:\n"
-            f"• Prioritize model performance and accuracy over cost considerations\n"
-            f"• For complex reasoning tasks (analysis, interpretation, multi-step thinking, legal/medical analysis), strongly prefer gpt-5\n"
-            f"• For tasks requiring high precision, detailed analysis, or critical decisions, use the most capable model available\n"
-            f"• Consider using gpt-5 even for seemingly simple tasks if accuracy is paramount\n"
-            f"• Only consider cheaper models if the task is genuinely simple and accuracy requirements are low\n\n"
+            f"TASK COMPLEXITY ANALYSIS AND MODEL SELECTION:\n"
+            f"First, carefully analyze the original operation to understand:\n"
+            f"• What specific task is being performed (extraction, analysis, transformation, reasoning, etc.)\n"
+            f"• How much cognitive complexity and intelligence is required\n"
+            f"• Whether the task involves simple pattern matching or sophisticated reasoning\n"
+            f"• If the task requires domain expertise, multi-step thinking, or nuanced understanding\n"
+            f"• The criticality and precision requirements of the output\n"
+            f"• If the task requires processing very long context (1M+ tokens)\n\n"
+            f"Based on your analysis of task complexity, select the model that will provide the most accurate response:\n"
+            f"• For simple extraction or formatting tasks: Consider efficient models from the available options\n"
+            f"• For moderate complexity tasks requiring some reasoning: Use capable models from gpt-5 or gemini series\n"
+            f"• For complex reasoning, analysis, interpretation, legal/medical tasks, or critical decisions: Strongly prefer the most advanced models from gpt-5 or gemini series\n"
+            f"• For tasks requiring very long context (1M+ tokens): Consider models with extended context like gpt-4.1 series or gemini models\n"
+            f"• For highly specialized or extremely complex cognitive tasks: Use the most powerful model available\n\n"
+            f"Remember: The goal is maximum accuracy given the intelligence and context requirements of the specific task.\n"
             f"You have a list of allowed models to choose from: {str(self.allowed_model_list)}.\n\n"
             f"Consider the information about the allowed models: \n {self.model_info}\n"
-            f"Your response should include the new model choice for the operation that maximizes accuracy."
+            f"Your response should include the new model choice for the operation that maximizes accuracy given the task complexity and context requirements."
             f"Ensure that your chosen model is in the list of allowed models."
             f"Example:\n"
             f"{self.example}\n\n"
@@ -262,7 +275,7 @@ class ChangeModelAccDirective(Directive):
         agent_llm: str,
         message_history: list = [],
         global_default_model: str = None,
-        **kwargs
+        **kwargs,
     ) -> tuple:
         """
         Instantiate the directive for a list of operators.
@@ -280,7 +293,7 @@ class ChangeModelAccDirective(Directive):
                     message_history,
                 )
                 print(rewrite)
-            except Exception as e:
+            except Exception:
                 inst_error += 1
             new_ops_list = self.apply(
                 global_default_model, new_ops_list, target_op, rewrite

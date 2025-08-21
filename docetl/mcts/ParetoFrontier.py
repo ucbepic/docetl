@@ -112,12 +112,13 @@ class ParetoFrontier:
             affected_nodes[node] = 0
         return affected_nodes
 
-    def add_plan_f1(self, node: Node) -> Tuple[Dict[Node, int], bool]:
+    def add_plan_f1(self, node: Node, accuracy: float) -> Tuple[Dict[Node, int], bool]:
         """
-        Add a new plan (Node) to the frontier and estimate its accuracy.
+        Add a new plan (Node) to the frontier with pre-evaluated accuracy.
 
         Args:
             node: Node object representing the plan
+            accuracy: Pre-evaluated accuracy score for the node
 
         Returns:
             Dict containing affected nodes, bool indicating wether the frontier is updated
@@ -131,29 +132,15 @@ class ParetoFrontier:
         self.plans_cost[node] = node.cost  # Store real cost
         # Scaled cost will be calculated in update_pareto_frontier_HV
 
-        result_file_path = node.parsed_yaml["pipeline"]["output"]["path"]
-        print("result_file_path", result_file_path)
-
-        results = self.evaluate_func("docetl_preprint", result_file_path)
-
-        # Extract the appropriate metric based on dataset
-        primary_metric = self.dataset_metrics.get(self.dataset_name)
-        if primary_metric and primary_metric in results:
-            true_accuracy = results[primary_metric]
-        else:
-            # Fallback to first numerical value found if dataset unknown or metric missing
-            true_accuracy = next(
-                (v for v in results.values() if isinstance(v, (int, float))), 0.5
-            )
-
-        self.plans_accuracy[node] = true_accuracy
-
+        # Store the pre-evaluated accuracy
+        self.plans_accuracy[node] = accuracy
+        
         # Set root reference point if this is the first plan (root)
         if len(self.plans) == 1:
-            self.root_accuracy = true_accuracy
+            self.root_accuracy = accuracy
             self.root_cost = node.cost
             print(
-                f"Root reference point set: accuracy={true_accuracy}, cost={node.cost}"
+                f"Root reference point set: accuracy={accuracy}, cost={node.cost}"
             )
 
         # Update Pareto frontier

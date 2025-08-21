@@ -25,6 +25,7 @@ from docetl.reasoning_optimizer.directives import (
     get_all_directive_strings,
     get_all_cost_directive_strings,
 )
+from docetl.reasoning_optimizer.directives.base import AVAILABLE_MODELS
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
 
@@ -141,14 +142,28 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
     return orig_config
 
 
-def fix_models_azure(parsed_yaml):
-    """Fix model names for Azure deployment."""
+def fix_models(parsed_yaml):
+    """Fix model names based on model type (GPT -> Azure, Gemini -> Gemini provider)."""
+    
+    def get_model_type(model_name):
+        """Determine model type from model name."""
+        if model_name.startswith("gpt"):
+            return "azure"
+        elif model_name.startswith("gemini"):
+            return "gemini"
+        else:
+            return "unknown"
+    
     def traverse(obj):
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if key == "model" and isinstance(value, str):
-                    if not value.startswith("azure"):
+                    model_type = get_model_type(value)
+                    
+                    if model_type == "azure" and not value.startswith("azure"):
                         obj[key] = f"azure/{value}"
+                    elif model_type == "gemini" and not value.startswith("gemini/"):
+                        obj[key] = f"gemini/{value}"
                 else:
                     traverse(value)
         elif isinstance(obj, list):
@@ -255,7 +270,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
 
     Pipeline:
     Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-    - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5 \n
+    - Default Model: The language model to use for the pipeline. Limit your choice of model to {AVAILABLE_MODELS} \n
     - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
     - Datasets: The input data sources for your pipeline. \n
     - Operators: The processing steps that transform your data. \n
@@ -360,7 +375,7 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
 
     Pipeline:
     Pipelines in DocETL are the core structures that define the flow of data processing. A pipeline consists of five main components: \n
-    - Default Model: The language model to use for the pipeline. Limit your choice of model to gpt-5-nano, gpt-4o-mini, gpt-5, gpt-4.1 \n
+    - Default Model: The language model to use for the pipeline. Limit your choice of model to {AVAILABLE_MODELS} \n
     - System Prompts: A description of your dataset and the "persona" you'd like the LLM to adopt when analyzing your data. \n
     - Datasets: The input data sources for your pipeline. \n
     - Operators: The processing steps that transform your data. \n

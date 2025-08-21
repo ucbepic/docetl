@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS = 3
 DEFAULT_MODEL = "gpt-5"
 DEFAULT_MAX_TPM = 5000000
-AVAILABLE_MODELS = ["gpt-5", "gpt-4o-mini", "gpt-5-nano"]
+AVAILABLE_MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
 DEFAULT_OUTPUT_DIR = "./outputs"
 
 

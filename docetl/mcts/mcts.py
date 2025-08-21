@@ -867,7 +867,7 @@ class MCTS:
             new_parsed_yaml, new_ops_list, target_op_list
         )
 
-        fix_models_azure(new_parsed_yaml)
+        fix_models(new_parsed_yaml)
 
         # Determine the node ID to use for filename
         if custom_id is not None:

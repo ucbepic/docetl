@@ -278,20 +278,28 @@ def update_pipeline(orig_config, new_ops_list, target_ops):
     return orig_config
 
 
-def fix_models_azure(parsed_yaml):
-    """
-    Recursively traverse the parsed YAML and ensure all model references start with 'azure/'.
-
-    Args:
-        parsed_yaml: The parsed YAML configuration to fix
-    """
-
+def fix_models(parsed_yaml):
+    """Fix model names based on model type (GPT -> Azure, Gemini -> Gemini provider)."""
+    
+    def get_model_type(model_name):
+        """Determine model type from model name."""
+        if model_name.startswith("gpt"):
+            return "azure"
+        elif model_name.startswith("gemini"):
+            return "gemini"
+        else:
+            return "unknown"
+    
     def traverse(obj):
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if key == "model" and isinstance(value, str):
-                    if not value.startswith("azure"):
+                    model_type = get_model_type(value)
+                    
+                    if model_type == "azure" and not value.startswith("azure"):
                         obj[key] = f"azure/{value}"
+                    elif model_type == "gemini" and not value.startswith("gemini/"):
+                        obj[key] = f"gemini/{value}"
                 else:
                     traverse(value)
         elif isinstance(obj, list):
@@ -467,7 +475,7 @@ def run_single_iteration(
             orig_config["operations"] = new_ops_list
 
         # Ensure all model references start with 'azure/'
-        fix_models_azure(orig_config)
+        fix_models(orig_config)
 
     except ValueError as e:
         print(f"Failed to instantiate directive '{directive}': {e}")

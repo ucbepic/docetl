@@ -1,0 +1,20 @@
+[
+  {
+    "file": "experiments/reasoning/othersystems/game_reviews/lotus_train.json",
+    "sentiment_accuracy": 0.48336842105263167,
+    "kendall_tau_score": 0.5803418104083735,
+    "weighted_score": 0.5318551157305028,
+    "combined_accuracy_score": 0.5318551157305028,
+    "valid_games_processed": 50,
+    "cost": 0.35918950000000005
+  },
+  {
+    "file": "experiments/reasoning/othersystems/game_reviews/lotus_test.json",
+    "sentiment_accuracy": 0.47821929824561393,
+    "kendall_tau_score": 0.5105467301875971,
+    "weighted_score": 0.49438301421660563,
+    "combined_accuracy_score": 0.49438301421660563,
+    "valid_games_processed": 100,
+    "cost": 1.1058579
+  }
+]

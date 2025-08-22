@@ -13,7 +13,7 @@ image = (
     modal.Image.debian_slim(python_version="3.10")
     .uv_sync()
     .uv_pip_install("matplotlib", "Levenshtein", "nltk")
-    .add_local_python_source("experiments", ignore=["**/.venv/*"])
+    .add_local_python_source("experiments", ignore=["**/.venv/*", "**/othersystems/**"])
     .add_local_python_source("docetl", ignore=["**/.venv/*"])
 )
 

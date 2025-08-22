@@ -67,6 +67,8 @@ tests/data/get_freshstack.py
 *.yaml
 *.yml
 *.json
+!*lotus_evaluation.json
+!*pz_evaluation.json
 *.png
 graph.py
 graph_baseline.py
@@ -75,4 +77,4 @@ kendalltau.py
 slides/*
 node_modules/*
 
-reaction_index/*
+reaction_index/*experiments/reasoning/othersystems/biodex/.chroma-biodex/

@@ -73,9 +73,15 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 # Users can edit this CONFIG dict directly before running via Modal
 CONFIG: Dict[str, Any] = {
     "experiments": [
+        # {
+        #     "dataset": "game_reviews",
+        #     "original_cost": 0.60220281,  # Cost of the original query execution
+        #     "mcts": {"max_iterations": 30}
+        # }
         {
-            "dataset": "game_reviews",
-            "original_cost": 0.60220281,  # Cost of the original query execution
+            "dataset": "cuad",
+            "baseline": {"iterations": 10},
+            "simple_baseline": {"iterations": 10},
             "mcts": {"max_iterations": 30}
         }
     ]

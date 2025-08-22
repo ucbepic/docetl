@@ -1,0 +1,16 @@
+[
+  {
+    "file": "experiments/reasoning/othersystems/cuad/lotus_train.json",
+    "precision": 0.3429940470697176,
+    "recall": 0.5089850466788451,
+    "f1": 0.38740633200816876,
+    "cost": 0.125412825
+  },
+  {
+    "file": "experiments/reasoning/othersystems/cuad/lotus_test.json",
+    "precision": 0.41614197210102577,
+    "recall": 0.49856564240731627,
+    "f1": 0.40389623447430945,
+    "cost": 0.25135374000000005
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "method": "join_only",
+    "file": "experiments/reasoning/othersystems/biodex/lotus_join_train.json",
+    "avg_rp_at_5": 0.147,
+    "avg_rp_at_10": 0.22333333333333336,
+    "avg_term_recall": 0.457528120748709,
+    "total_documents": 50,
+    "cost": 11.452489245000308,
+    "processing_time": 888.3008530139923,
+    "join_stats": {
+      "join_resolved_by_helper_model": 1188829,
+      "join_helper_positive": 0,
+      "join_helper_negative": 1188829,
+      "join_resolved_by_large_model": 26821,
+      "optimized_join_cost": 248,
+      "total_LM_calls": 27069
+    }
+  },
+  {
+    "method": "join_and_rerank",
+    "file": "experiments/reasoning/othersystems/biodex/lotus_full_train.json",
+    "avg_rp_at_5": 0.2710000000000001,
+    "avg_rp_at_10": 0.2927142857142857,
+    "avg_term_recall": 0.37985982009511415,
+    "total_documents": 50,
+    "cost": 9.990255360000194,
+    "join_time": 337.7573528289795,
+    "rerank_time": 11.675513982772827,
+    "total_time": 349.4328668117523,
+    "join_stats": {
+      "join_resolved_by_helper_model": 1192717,
+      "join_helper_positive": 0,
+      "join_helper_negative": 1192717,
+      "join_resolved_by_large_model": 22933,
+      "optimized_join_cost": 248,
+      "total_LM_calls": 23181
+    }
+  },
+  {
+    "method": "simple_map",
+    "file": "experiments/reasoning/othersystems/biodex/lotus_simple_train.json",
+    "avg_rp_at_5": 0.2763333333333333,
+    "avg_rp_at_10": 0.2883809523809523,
+    "avg_term_recall": 0.3718332432891257,
+    "total_documents": 50,
+    "cost": 2.9417644,
+    "processing_time": 6.57541298866272
+  },
+  {
+    "method": "join_only",
+    "file": "experiments/reasoning/othersystems/biodex/lotus_join_test.json",
+    "avg_rp_at_5": 0.14982993197278913,
+    "avg_rp_at_10": 0.1797416585681892,
+    "avg_term_recall": 0.36188704797756993,
+    "total_documents": 98,
+    "cost": 6.424121714999896,
+    "processing_time": 281.92703199386597,
+    "join_stats": {
+      "join_resolved_by_helper_model": 2417293,
+      "join_helper_positive": 328,
+      "join_helper_negative": 2416965,
+      "join_resolved_by_large_model": 14007,
+      "optimized_join_cost": 498,
+      "total_LM_calls": 14505
+    }
+  },
+  {
+    "method": "join_and_rerank",
+    "file": "experiments/reasoning/othersystems/biodex/lotus_full_test.json",
+    "avg_rp_at_5": 0.20185185185185187,
+    "avg_rp_at_10": 0.20773609106942445,
+    "avg_term_recall": 0.29795723475603486,
+    "total_documents": 99,
+    "cost": 6.891112049999894,
+    "join_time": 302.16236090660095,
+    "rerank_time": 5.0116541385650635,
+    "total_time": 307.174015045166,
+    "join_stats": {
+      "join_resolved_by_helper_model": 2416060,
+      "join_helper_positive": 297,
+      "join_helper_negative": 2415763,
+      "join_resolved_by_large_model": 15240,
+      "optimized_join_cost": 498,
+      "total_LM_calls": 15738
+    }
+  },
+  {
+    "method": "simple_map",
+    "file": "experiments/reasoning/othersystems/biodex/lotus_simple_test.json",
+    "avg_rp_at_5": 0.2601666666666666,
+    "avg_rp_at_10": 0.29970238095238083,
+    "avg_term_recall": 0.39786075996145037,
+    "total_documents": 100,
+    "cost": 6.1576992,
+    "processing_time": 12.151449203491211
+  }
+]

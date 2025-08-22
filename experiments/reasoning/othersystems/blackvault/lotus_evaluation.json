@@ -1,0 +1,16 @@
+[
+  {
+    "file": "experiments/reasoning/othersystems/blackvault/lotus_train.json",
+    "avg_distinct_locations": 2.8846153846153846,
+    "total_documents": 26,
+    "total_distinct_locations": 75,
+    "cost": 0.0989788
+  },
+  {
+    "file": "experiments/reasoning/othersystems/blackvault/lotus_test.json",
+    "avg_distinct_locations": 4.6976744186046515,
+    "total_documents": 43,
+    "total_distinct_locations": 202,
+    "cost": 0.38868689999999995
+  }
+]

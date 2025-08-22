@@ -1,0 +1,24 @@
+[
+  {
+    "file": "experiments/reasoning/othersystems/medec/lotus_train.json",
+    "combined_score": 0.4662276660960871,
+    "error_flag_accuracy": 0.54,
+    "avg_error_sentence_jaccard": 0.5890801958983777,
+    "avg_corrected_sentence_jaccard": 0.19583046848597085,
+    "total_cases": 50,
+    "num_error_cases": 33,
+    "num_corrected_cases": 33,
+    "cost": 0.006649500000000001
+  },
+  {
+    "file": "experiments/reasoning/othersystems/medec/lotus_test.json",
+    "combined_score": 0.5357874299296694,
+    "error_flag_accuracy": 0.64,
+    "avg_error_sentence_jaccard": 0.6796472103747645,
+    "avg_corrected_sentence_jaccard": 0.18350250934391324,
+    "total_cases": 100,
+    "num_error_cases": 57,
+    "num_corrected_cases": 57,
+    "cost": 0.013532144999999999
+  }
+]

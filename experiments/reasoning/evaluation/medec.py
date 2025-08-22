@@ -27,7 +27,7 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
     Args:
         method_name: Name of the method being evaluated
         results_file: Path to the results JSON file
-        ground_truth_file: Not used - ground truth is in the original data
+        ground_truth_file: Not used - ground truth is in the results data itself
         
     Returns:
         Dictionary containing evaluation metrics
@@ -36,19 +36,24 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
     with open(results_file, 'r') as f:
         results = json.load(f)
     
-    # Load original data to get ground truth
-    ground_truth_file = "experiments/reasoning/data/medec_sample_50.json"
-    with open(ground_truth_file, 'r') as f:
-        ground_truth_data = json.load(f)
-    
-    # Create a mapping from Text ID to ground truth
+    # Ground truth is embedded in the results data itself
+    # Create a mapping from Text ID to ground truth from the results
     gt_mapping = {}
-    for item in ground_truth_data:
-        gt_mapping[item["Text ID"]] = {
-            "error_flag": item["GT Error Flag"],
-            "error_sentence": item["GT Error Sentence"] or "",
-            "corrected_sentence": item["GT Corrected Sentence"] or ""
-        }
+    for result in results:
+        if isinstance(result, dict) and "Text ID" in result:
+            text_id = result["Text ID"]
+            
+            # Extract ground truth from the result data
+            # Handle both string and numeric error flags
+            error_flag = result.get("Error Flag", 0)
+            if isinstance(error_flag, str):
+                error_flag = int(error_flag) if error_flag.isdigit() else 0
+            
+            gt_mapping[text_id] = {
+                "error_flag": bool(error_flag),
+                "error_sentence": result.get("Error Sentence", "") or "",
+                "corrected_sentence": result.get("Corrected Sentence", "") or ""
+            }
     
     # Evaluation metrics
     total_cases = 0
@@ -97,8 +102,6 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
     combined_score = (0.5 * error_flag_accuracy + 
                      0.25 * avg_error_sentence_jaccard + 
                      0.25 * avg_corrected_sentence_jaccard)
-    
-    print(f"Combined score: {combined_score}")
     
     return {
         "total_cases": total_cases,

@@ -291,14 +291,19 @@ class MCTS:
                     new_id = best_candidate.set_id_to_counter()
                     print(f"Updated best candidate ID from {old_id} to {new_id}")
                     
-                    # Delete non-selected candidates (move to backup_plans folder)
-                    for candidate, _, _ in candidate_results:
+                    # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
+                    for candidate in cost_children:
                         if candidate != best_candidate:
                             candidate.delete(selected_node_final_id=new_id)
                     
                     # Process only the best candidate
                     affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
                     self.backpropagate(affected_nodes, best_candidate)
+                else:
+                    # If no candidates were successful, delete all of them
+                    print("No successful candidates found, deleting all multi-instance candidates")
+                    for candidate in cost_children:
+                        candidate.delete(selected_node_final_id=None)
                     
             else:
                 # Original logic for single instantiation
@@ -370,14 +375,19 @@ class MCTS:
                     new_id = best_candidate.set_id_to_counter()
                     print(f"Updated best candidate ID from {old_id} to {new_id}")
                     
-                    # Delete non-selected candidates (move to backup_plans folder)
-                    for candidate, _, _ in candidate_results:
+                    # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
+                    for candidate in acc_children:
                         if candidate != best_candidate:
                             candidate.delete(selected_node_final_id=new_id)
                     
                     # Process only the best candidate
                     affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
                     self.backpropagate(affected_nodes, best_candidate)
+                else:
+                    # If no candidates were successful, delete all of them
+                    print("No successful candidates found, deleting all multi-instance candidates")
+                    for candidate in acc_children:
+                        candidate.delete(selected_node_final_id=None)
                     
             else:
                 # Original logic for single instantiations
@@ -802,15 +812,7 @@ class MCTS:
         elif node == self.root:
             action_info = ", Action: ROOT"
 
-        # Include memo information
-        memo_info = ""
-        if hasattr(node, "memo") and node.memo:
-            memo_str = ", ".join(
-                [f"({directive}, {target_op})" for directive, target_op in node.memo]
-            )
-            memo_info = f", Memo: [{memo_str}]"
-
-        output = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}{action_info}{memo_info}"
+        output = f"{indent}Node ID: {node.get_id()}, Visits: {node.visits}, Value: {node.value}{action_info}"
 
         if file_handle:
             file_handle.write(output + "\n")

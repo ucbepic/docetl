@@ -77,4 +77,5 @@ kendalltau.py
 slides/*
 node_modules/*
 
-reaction_index/*experiments/reasoning/othersystems/biodex/.chroma-biodex/
+reaction_index/
+*experiments/reasoning/othersystems/biodex/.chroma-biodex/

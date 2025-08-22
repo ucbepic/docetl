@@ -13,7 +13,20 @@ image = (
     modal.Image.debian_slim(python_version="3.10")
     .uv_sync()
     .uv_pip_install("matplotlib", "Levenshtein", "nltk")
-    .add_local_python_source("experiments", ignore=["**/.venv/*", "**/othersystems/**"])
+    .add_local_python_source("experiments", ignore=lambda p: (
+        # Exclude othersystems entirely
+        "othersystems" in str(p) or
+        # Exclude large files by size (>300MB)
+        (p.is_file() and p.stat().st_size > 300_000_000) or
+        # Exclude specific file types
+        p.suffix in {'.bin', '.sqlite3'} or
+        # Exclude specific directories
+        any(part in {'.venv', 'outputs', '__pycache__'} for part in p.parts) or
+        # Exclude files starting with dot
+        p.name.startswith('.') or
+        # Exclude chroma directories
+        '.chroma-' in str(p)
+    ))
     .add_local_python_source("docetl", ignore=["**/.venv/*"])
 )
 

@@ -614,7 +614,7 @@ def main():
             print(f"{label:<30} {r['total_execution_cost']:<12.4f} {r['avg_rp_at_5']:<12.4f} {r['avg_rp_at_10']:<12.4f} {r['avg_term_recall']:<12.4f}")
     
     # Save combined results
-    combined_output_path = "experiments/reasoning/othersystems/biodex/pz_combined_evaluation.json"
+    combined_output_path = "experiments/reasoning/othersystems/biodex/pz_evaluation.json"
     with open(combined_output_path, 'w') as f:
         json.dump(all_results, f, indent=2)
     print(f"\n📈 Combined results for both pipelines saved to: {combined_output_path}")

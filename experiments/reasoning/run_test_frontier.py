@@ -243,8 +243,7 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
             "success": True,
             "dataset": dataset,
             "method": method,
-            "results": test_results,
-            "output_file": str(test_logs_path)
+            "results": test_results
         }
         
     except Exception as e:

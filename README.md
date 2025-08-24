@@ -65,6 +65,10 @@ Create a `.env` file in your project directory:
 OPENAI_API_KEY=your_api_key_here  # Required for LLM operations (or the key for the LLM of your choice)
 ```
 
+> ⚠️ **Important: Two Different .env Files**
+> - **Root `.env`**: Used by the backend Python server that executes DocETL pipelines
+> - **`website/.env.local`**: Used by the frontend TypeScript code in DocWrangler (UI features like improve prompt and chatbot)
+
 To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.github.io/docetl/tutorial/).
 
 ### 2. 🎮 DocWrangler Setup
@@ -77,9 +81,9 @@ The easiest way to get the DocWrangler playground running:
 
 1. Create the required environment files:
 
-Create `.env` in the root directory:
+Create `.env` in the root directory (for the backend Python server that executes pipelines):
 ```bash
-OPENAI_API_KEY=your_api_key_here
+OPENAI_API_KEY=your_api_key_here  # Used by DocETL pipeline execution engine
 # BACKEND configuration
 BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 BACKEND_HOST=localhost
@@ -98,11 +102,11 @@ BACKEND_DOCKER_COMPOSE_PORT=8081
 TEXT_FILE_ENCODINGS=utf-8,latin1,cp1252,iso-8859-1
 ```
 
-Create `.env.local` in the `website` directory:
+Create `.env.local` in the `website` directory (for DocWrangler UI features like improve prompt and chatbot):
 ```bash
-OPENAI_API_KEY=sk-xxx
+OPENAI_API_KEY=sk-xxx  # Used by TypeScript features: improve prompt, chatbot, etc.
 OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini
+MODEL_NAME=gpt-4o-mini  # Model used by the UI assistant
 
 NEXT_PUBLIC_BACKEND_HOST=localhost
 NEXT_PUBLIC_BACKEND_PORT=8000
@@ -164,9 +168,9 @@ git clone https://github.com/ucbepic/docetl.git
 cd docetl
 ```
 
-2. Set up environment variables in `.env` in the root/top-level directory:
+2. Set up environment variables in `.env` in the root/top-level directory (for the backend Python server):
 ```bash
-OPENAI_API_KEY=your_api_key_here
+OPENAI_API_KEY=your_api_key_here  # Used by DocETL pipeline execution engine
 # BACKEND configuration
 BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 BACKEND_HOST=localhost
@@ -185,11 +189,11 @@ BACKEND_DOCKER_COMPOSE_PORT=8081
 TEXT_FILE_ENCODINGS=utf-8,latin1,cp1252,iso-8859-1
 ```
 
-And create an .env.local file in the `website` directory with the following:
+And create an .env.local file in the `website` directory (for DocWrangler UI features):
 ```bash
-OPENAI_API_KEY=sk-xxx
+OPENAI_API_KEY=sk-xxx  # Used by TypeScript features: improve prompt, chatbot, etc.
 OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini
+MODEL_NAME=gpt-4o-mini  # Model used by the UI assistant
 
 NEXT_PUBLIC_BACKEND_HOST=localhost
 NEXT_PUBLIC_BACKEND_PORT=8000
@@ -208,7 +212,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --all-groups --all-extras
 ```
 
-Note that the OpenAI API key, base, and model name are for the UI assistant only; not the DocETL pipeline execution engine.
+
 
 4. Start the development server:
 ```bash

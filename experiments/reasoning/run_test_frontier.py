@@ -295,7 +295,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
             "original": "#ffd700",           # Gold/Yellow
             "simple_baseline": "#2ecc71",    # Green
             "baseline": "#1f77b4",           # Blue (darker blue)
-            "mcts": "#d62728",               # Red (darker red)
+            "mcts": "#0f1b3c",               # Very dark navy blue
             "lotus": "#c27cf3",              # Light purple
             "pz": "#ff0b50"                  # Pink/magenta
         }

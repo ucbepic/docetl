@@ -38,7 +38,7 @@ ALL_DIRECTIVES = [
     GleaningDirective(), 
     ReduceGleaningDirective(),
     ReduceChainingDirective(),
-    ChangeModelAccDirective(),
+    # ChangeModelAccDirective(),
     ChangeModelCostDirective(),
     DocSummarizationDirective(),
     IsolatingSubtasksDirective(),
@@ -70,6 +70,22 @@ ALL_COST_DIRECTIVES = [
     CascadeFilteringDirective(),
     ArbitraryRewriteDirective(),
 ]
+
+MODEL_STATS = {
+    "cuad": {
+        "gpt-5": {"acc": 0.7200038754634324, "cost": 2.282243},
+        "gpt-5-mini": {"acc": 0.6835748934962984, "cost": 0.605154},
+        "gpt-5-nano": {"acc": 0.6463552293414165, "cost": 0.231796},
+        "gpt-4.1": {"acc": 0.7366652765882619, "cost": 2.026396},
+        "gpt-4.1-mini": {"acc": 0.6914865483894942, "cost": 0.380290},
+        "gpt-4.1-nano": {"acc": 0.36382364868308986, "cost": 0.080214},
+        "gpt-4o": {"acc": 0.6214280458632053, "cost": 2.210165},
+        "gpt-4o-mini": {"acc": 0.4311917773936343, "cost": 0.137882},
+        "gemini-2.5-pro": {"acc": 0.7174635945681389, "cost": 2.820552},
+        "gemini-2.5-flash": {"acc": 0.7170929338182611, "cost": 1.032156},
+        "gemini-2.5-flash-lite": {"acc": 0.6087973440184378, "cost": 0.097669},
+    }
+}
 
 DIRECTIVE_GROUPS = {
     "compression": [
@@ -117,6 +133,7 @@ def instantiate_directive(
     agent_llm: str,
     message_history: list,
     global_default_model: str = None,
+    dataset: str = None,
     **kwargs
 ) -> Tuple[List[Dict], list]:
     """
@@ -150,6 +167,7 @@ def instantiate_directive(
         agent_llm=agent_llm,
         message_history=message_history,
         global_default_model = global_default_model,
+        dataset=dataset,
         **kwargs
     )
 

@@ -688,6 +688,7 @@ class MCTS:
                     message_history=instantiation_messages,
                     input_file_path=input_file_path,
                     pipeline_code=node.parsed_yaml,
+                    dataset=self.dataset_name,
                 )
                 if new_ops_list is None:
                     print(f"Instantiation {i+1} failed: no ops list returned")

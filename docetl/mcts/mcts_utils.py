@@ -157,7 +157,7 @@ def fix_models(parsed_yaml):
     def traverse(obj):
         if isinstance(obj, dict):
             for key, value in obj.items():
-                if key == "model" and isinstance(value, str):
+                if (key == "model" or key == "default_model") and isinstance(value, str):
                     model_type = get_model_type(value)
                     
                     if model_type == "azure" and not value.startswith("azure"):

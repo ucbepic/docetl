@@ -21,6 +21,7 @@ from docetl.runner import DSLRunner
 from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics
 import modal
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
+from experiments.reasoning.evaluation.utils import dataset_accuracy_metrics
 
 
 
@@ -336,17 +337,6 @@ class SimpleBaselineAgent:
             
             # Call the evaluation function with proper parameters
             eval_metrics = evaluate_func(f"simple_baseline_iter_{iteration_id}", resolved_output_path)
-            
-            # Extract the main accuracy metric for this dataset
-            dataset_accuracy_metrics = {
-                "cuad": "avg_f1",
-                "blackvault": "avg_distinct_locations", 
-                "game_reviews": "combined_accuracy_score",
-                "medec": "combined_score",
-                "sustainability": "combined_score",
-                "biodex": "avg_rp_at_5",
-                "facility": "combined_score"
-            }
             
             metric_key = dataset_accuracy_metrics.get(dataset.lower(), "accuracy")
             accuracy_val = eval_metrics.get(metric_key, 0.0)

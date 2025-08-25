@@ -36,6 +36,8 @@ import matplotlib.pyplot as plt
 from docetl.runner import DSLRunner
 from docetl.utils import extract_output_from_json
 from experiments.reasoning.utils import create_original_query_result
+from docetl.reasoning_optimizer.directives import AVAILABLE_MODELS, OperatorFusionDirective
+from copy import deepcopy
 
 # Import the existing Modal functions and shared volume/mount from the experiment runners
 from experiments.reasoning import run_mcts as mcts_mod
@@ -47,6 +49,7 @@ from experiments.reasoning.plot_result import (
     find_pareto_frontier, calculate_hypervolume_comparison, 
     plot_pareto_frontier_comparison, dataset_metrics
 )
+from docetl.mcts.mcts_utils import fix_models
 
 # Known defaults for dataset YAMLs and sample dataset inputs
 DEFAULT_YAML_PATHS: Dict[str, str] = {
@@ -80,10 +83,10 @@ CONFIG: Dict[str, Any] = {
         # }
         {
             "dataset": "cuad",
-            "original_cost": 0.13,
-            "baseline": {"iterations": 10},
-            "simple_baseline": {"iterations": 10},
-            "mcts": {"max_iterations": 30}
+            "optimized_cost": 2.026396,
+            "baseline": {"iterations": 1},
+            "simple_baseline": {"iterations": 1},
+            "mcts": {"max_iterations": 1}
         }
     ]
 }
@@ -305,6 +308,309 @@ def run_original_query(yaml_path: str, dataset: str, experiment_name: str,
     return run_original_query_remote.remote(yaml_path, dataset, experiment_name, data_dir, output_dir, original_cost)
 
 
+def try_fusion_directives(yaml_path: str, dataset: str, experiment_name: str, 
+                         data_dir: Optional[str] = None, output_dir: Optional[str] = None) -> Optional[str]:
+    """Try applying operator fusion directives to the original plan and return the path to the optimized YAML if successful."""
+    try:
+        # Load original YAML
+        with open(yaml_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        operations = config.get('pipeline', {}).get('operations', [])
+        if len(operations) < 2:
+            print(f"⚠️  Not enough operations for fusion (found {len(operations)}), skipping fusion attempt")
+            return None
+        
+        # Try operator fusion (works on consecutive map, filter operations)
+        fusion_applied = False
+        
+        # Look for consecutive map-map, map-filter, filter-map, or filter-filter operations
+        for i in range(len(operations) - 1):
+            op1, op2 = operations[i], operations[i + 1]
+            op1_type = op1.get('type')
+            op2_type = op2.get('type')
+            
+            if ((op1_type in ['map', 'filter'] and op2_type in ['map', 'filter']) and 
+                (op1_type != 'reduce' and op2_type != 'reduce')):
+                
+                print(f"🔄 Attempting operator fusion: {op1['name']} ({op1_type}) + {op2['name']} ({op2_type})")
+                
+                try:
+                    fusion_directive = OperatorFusionDirective()
+                    new_operations, _ = fusion_directive.instantiate(
+                        operators=operations,
+                        target_ops=[op1['name'], op2['name']],
+                        agent_llm="gpt-4o-mini",  # Use a smaller model for fusion
+                        global_default_model=config.get('default_model', 'gpt-4o-mini')
+                    )
+                    operations = new_operations
+                    fusion_applied = True
+                    print(f"✅ Operator fusion applied successfully")
+                    break  # Apply one fusion at a time
+                except Exception as e:
+                    print(f"⚠️  Operator fusion failed: {e}")
+                    continue
+        
+        if not fusion_applied:
+            print(f"ℹ️  No fusion directives could be applied to the pipeline")
+            return None
+        
+        # Save the fused configuration
+        fused_config = deepcopy(config)
+        fused_config['pipeline']['operations'] = operations
+        
+        # Set up output directory
+        if output_dir is None:
+            output_dir = "./outputs"
+        
+        output_path = Path(output_dir) / f"{experiment_name}"
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        fused_yaml_path = output_path / "orig_fused_config.yaml"
+        with open(fused_yaml_path, 'w') as f:
+            yaml.dump(fused_config, f, sort_keys=False)
+        
+        print(f"💾 Fused configuration saved to: {fused_yaml_path}")
+        return str(fused_yaml_path)
+        
+    except Exception as e:
+        print(f"❌ Error applying fusion directives: {e}")
+        return None
+
+
+@app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 60)
+def test_single_model_remote(base_yaml_path: str, model: str, dataset: str, experiment_name: str,
+                            data_dir: Optional[str] = None, output_dir: Optional[str] = None,
+                            ground_truth: Optional[str] = None) -> Dict[str, Any]:
+    """Test a single model performance on the original planin Modal environment."""
+    try:
+        # Set up Modal environment
+        os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+        
+        # Read the base config from Modal volume
+        with open(base_yaml_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Set the default model for the entire pipeline
+        config['default_model'] = model
+        fix_models(config)
+        config['bypass_cache'] = True
+        
+        # Set up output directory in Modal volume
+        if output_dir is None:
+            output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+        else:
+            if not output_dir.startswith(VOLUME_MOUNT_PATH):
+                output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+        
+        # Create dataset test directory structure 
+        dataset_test_dir = Path(output_dir) / f"{dataset}_test"
+        dataset_test_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save the model-specific config in Modal volume with the desired naming
+        model_name_clean = model.replace('/', '_').replace('-', '_')
+        baseline_yaml_path = dataset_test_dir / f"{model_name_clean}_config.yaml"
+        baseline_json_path = dataset_test_dir / f"{model_name_clean}_output.json"
+        config['pipeline']['output']['path'] = str(baseline_json_path)
+
+        with open(baseline_yaml_path, 'w') as f:
+            yaml.dump(config, f, sort_keys=False)
+        
+        print(f"📝 Saved model config to Modal volume: {baseline_yaml_path}")
+    
+        # Run pipeline directly
+        try:
+            runner = DSLRunner.from_yaml(str(baseline_yaml_path))
+            runner.load()
+            if runner.last_op_container:
+                data, _, _ = runner.last_op_container.next()
+                runner.save(data)
+            total_cost = runner.total_cost
+            runner.reset_env()
+            
+            # Load sample output
+            sample_output = []
+            try:
+                sample_output = extract_output_from_json(str(baseline_yaml_path), str(baseline_json_path))[:1]
+            except Exception as e:
+                print(f"⚠️  Could not load output JSON: {e}")
+            
+            # Commit changes to Modal volume
+            volume.commit()
+            
+            model_result = create_original_query_result(
+                success=True,
+                cost=total_cost,
+                output_file_path=str(baseline_json_path),
+                sample_output=sample_output
+            )
+        except Exception as e:
+            print(f"❌ Pipeline execution failed for {model}: {e}")
+            model_result = create_original_query_result(
+                success=False,
+                cost=0.0,
+                output_file_path=None,
+                sample_output=[],
+                error=str(e)
+            )
+        
+        if model_result["success"]:
+            cost = model_result["cost"]
+            
+            # Calculate accuracy if ground truth is provided
+            accuracy = None
+            try:
+                # Use the dataset's evaluation function
+                evaluate_func = get_evaluate_func(dataset)
+                print(f"Evaluate function: {evaluate_func}")
+                if evaluate_func:
+                    accuracy = evaluate_func("test_single_model", model_result["output_file_path"])
+                    accuracy = accuracy.get(dataset_accuracy_metrics.get(dataset, 'accuracy'), None)
+                    print(f"Accuracy: {accuracy}")
+            except Exception as eval_e:
+                print(f"⚠️  Accuracy evaluation failed for {model}: {eval_e}")
+        
+            return {
+                "model": model,
+                "cost": cost,
+                "accuracy": accuracy,
+                "output_file": model_result["output_file_path"],
+                "success": True
+            }
+        else:
+            print("*****HERE2")
+            return {
+                "model": model,
+                "cost": 0.0,
+                "accuracy": None,
+                "error": model_result.get("error", "Unknown error"),
+                "success": False
+            }
+    except Exception as e:
+        print(f"❌ Model {model} failed with exception: {e}")
+        return {
+            "model": model,
+            "cost": 0.0,
+            "accuracy": None,
+            "error": str(e),
+            "success": False
+        }
+
+
+def test_model_performance(yaml_path: str, dataset: str, experiment_name: str, 
+                          data_dir: Optional[str] = None, output_dir: Optional[str] = None,
+                          ground_truth: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """Test all available models and return their cost and accuracy performance."""
+    results = {}
+    
+    # Test each model using Modal - run sequentially to avoid issues
+    for model in AVAILABLE_MODELS:
+        print(f"🧪 Testing model: {model}")
+        try:
+            result = test_single_model_remote.remote(
+                base_yaml_path=yaml_path,
+                model=model,
+                dataset=dataset,
+                experiment_name=experiment_name,
+                data_dir=data_dir,
+                output_dir=output_dir,
+                ground_truth=ground_truth
+            )
+            results[model] = result
+            if result["success"]:
+                print(f"✅ Model {model}: cost=${result['cost']:.6f}, accuracy={result['accuracy']}")
+            else:
+                print(f"❌ Model {model} failed: {result['error']}")
+        except Exception as e:
+            results[model] = {
+                "cost": 0.0,
+                "accuracy": None,
+                "error": str(e),
+                "success": False
+            }
+            print(f"❌ Model {model} failed with exception: {e}")
+    
+    return results
+
+
+@app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 10)
+def save_optimized_config_remote(original_yaml_path: str, best_model: str, dataset: str, 
+                                experiment_name: str, output_dir: Optional[str] = None) -> str:
+    """Save the optimized configuration with best model in Modal volume."""
+    
+    # Set up Modal environment
+    os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+    output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+    
+    # Read the base configuration
+    with open(original_yaml_path, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    # Apply the best model
+    config['default_model'] = best_model
+    for op in config.get('pipeline', {}).get('operations', []):
+        if 'model' not in op:
+            op['model'] = best_model
+    fix_models(config)
+    
+    # Save to Modal volume with the desired path structure
+    dataset_test_dir = Path(output_dir) / f"{dataset}_test"
+    dataset_test_dir.mkdir(parents=True, exist_ok=True)
+    
+    optimized_yaml_path = dataset_test_dir / "optimized_config.yaml"
+    with open(optimized_yaml_path, 'w') as f:
+        yaml.dump(config, f, sort_keys=False)
+    
+    # Commit changes to Modal volume
+    volume.commit()
+    
+    print(f"💾 Optimized configuration saved to Modal volume: {optimized_yaml_path}")
+    return str(optimized_yaml_path)
+
+
+def select_best_model_config(model_results: Dict[str, Dict[str, Any]], 
+                           original_yaml_path: str, 
+                           dataset: str,
+                           experiment_name: str,
+                           output_dir: Optional[str] = None) -> Tuple[str, str, float, Optional[float]]:
+    """Select the best performing model configuration and return the optimized YAML path."""
+    
+    # Filter successful models
+    successful_models = {model: result for model, result in model_results.items() if result["success"]}
+    
+    if not successful_models:
+        print("⚠️  No models succeeded, using original configuration")
+        return original_yaml_path, "original", 0.0, None
+    
+    # Find the model with best accuracy (if accuracy is available)
+    models_with_accuracy = {model: result for model, result in successful_models.items() 
+                          if result["accuracy"] is not None}
+    
+    if models_with_accuracy:
+        # Select model with highest accuracy
+        best_model = max(models_with_accuracy.keys(), 
+                        key=lambda m: models_with_accuracy[m]["accuracy"])
+        best_result = models_with_accuracy[best_model]
+        print(f"🏆 Best model by accuracy: {best_model} (accuracy={best_result['accuracy']:.4f}, cost=${best_result['cost']:.6f})")
+    else:
+        # Fallback to lowest cost model
+        best_model = min(successful_models.keys(), 
+                        key=lambda m: successful_models[m]["cost"])
+        best_result = successful_models[best_model]
+        print(f"🏆 Best model by cost: {best_model} (cost=${best_result['cost']:.6f})")
+    
+    # Save the optimized configuration in Modal volume
+    optimized_yaml_path = save_optimized_config_remote.remote(
+        original_yaml_path=original_yaml_path,
+        best_model=best_model,
+        dataset=dataset,
+        experiment_name=experiment_name,
+        output_dir=output_dir
+    )
+    
+    return optimized_yaml_path, best_model, best_result["cost"], best_result["accuracy"]
+
+
 @app.function(image=image, secrets=[modal.Secret.from_dotenv()], volumes={VOLUME_MOUNT_PATH: volume}, timeout=60 * 30)
 def generate_plots_for_experiments_remote(dataset: str, experiments: List[str], output_dir: Optional[str] = None) -> Dict[str, Any]:
     """Generate Pareto frontier comparison plots for specified experiments in Modal.
@@ -456,16 +762,6 @@ def generate_plots_for_experiments_remote(dataset: str, experiments: List[str], 
             "error": str(e)
         }
 
-
-
-
-
-
-
-
-
-
-
 def run_from_config(config: Dict[str, Any]) -> int:
     experiments: List[Dict[str, Any]] = config.get("experiments", [])
     if not experiments:
@@ -484,35 +780,110 @@ def run_from_config(config: Dict[str, Any]) -> int:
         data_dir: Optional[str] = exp.get("data_dir")
         output_dir: Optional[str] = exp.get("output_dir")
         ground_truth: Optional[str] = exp.get("ground_truth")
-        original_cost: Optional[float] = exp.get("original_cost")
+        optimized_cost: Optional[float] = exp.get("optimized_cost", 0.0)
         
-        # Execute original query plan once
-        print(f"🔄 Executing original query plan for {dataset}...")
-        print("output_dir", output_dir)
-        original_result = run_original_query(
-            yaml_path=yaml_path,
-            dataset=dataset,
-            experiment_name=f"{dataset}_original",
-            data_dir=data_dir,
-            output_dir=output_dir,
-            original_cost=original_cost
-        )
+        print(f"{'='*60}")
+        print(f"PROCESSING DATASET: {dataset.upper()}")
+        print(f"{'='*60}")
         
-        if original_result["success"]:
-            print(f"✅ Original query executed successfully, cost: ${original_result['cost']:.4f}")
+        # Check if optimized_config.yaml already exists
+        if output_dir is None:
+            output_dir = "./outputs"
+        
+        output_path = Path(output_dir) / f"{dataset}_test"
+        optimized_config_path = output_path / "optimized_config.yaml"
+        
+        if optimized_config_path.exists():
+            print(f"✅ Found existing optimized configuration: {optimized_config_path}")
+            print(f"🚀 Skipping optimization steps and jumping directly to Step 4...")
+            
+            # Load the existing optimized config to extract information
+            with open(optimized_config_path, 'r') as f:
+                optimized_config = yaml.safe_load(f)
+            
+            optimized_yaml_path = str(optimized_config_path)
+            best_model = optimized_config.get('default_model')
+            
+            # Create original_result using the provided optimized cost
+            original_result = create_original_query_result(
+                success=True,
+                cost=optimized_cost,
+                output_file_path=optimized_config['pipeline']['output']['path'],
+                sample_output=[]
+            )
+            
+            print(f"✅ Using existing optimized configuration:")
+            print(f"   Model: {best_model}")
+            print(f"   Cost: ${optimized_cost:.6f}")
+            print(f"   Config: {optimized_yaml_path}")
+            
         else:
-            print(f"❌ Original query failed: {original_result['error']}")
+            print(f"📋 No existing optimized configuration found, proceeding with optimization...")
+            
+            # Step 1: Try to apply fusion directives to the original plan
+            print(f"\n🔄 Step 1: Applying fusion directives to original plan...")
+            fused_yaml_path = try_fusion_directives(
+                yaml_path=yaml_path,
+                dataset=dataset,
+                experiment_name=f"{dataset}_test",
+                data_dir=data_dir,
+                output_dir=output_dir
+            )
+            
+            # Use fused config if available, otherwise use original
+            working_yaml_path = fused_yaml_path if fused_yaml_path else yaml_path
+            config_type = "fused" if fused_yaml_path else "original"
+            print(f"ℹ️  Using {config_type} configuration: {working_yaml_path}")
+            
+            # Step 2: Test all models on the working configuration
+            print(f"\n🧪 Step 2: Testing all available models...")
+            model_results = test_model_performance(
+                yaml_path=working_yaml_path,
+                dataset=dataset,
+                experiment_name=f"{dataset}_test",
+                data_dir=data_dir,
+                output_dir=output_dir,
+                ground_truth=ground_truth
+            )
+            
+            # Step 3: Select the best model and create optimized configuration
+            print(f"\n🏆 Step 3: Selecting best model configuration...")
+            optimized_yaml_path, best_model, best_cost, best_accuracy = select_best_model_config(
+                model_results=model_results,
+                original_yaml_path=working_yaml_path,
+                dataset=dataset,
+                experiment_name=f"{dataset}_test",
+                output_dir=output_dir
+            )
+            
+            # Use the results from the best model directly (already executed in Step 2)
+            best_model_result = model_results[best_model]
+            original_result = create_original_query_result(
+                success=best_model_result["success"],
+                cost=best_cost,
+                output_file_path=best_model_result.get("output_file"),
+                sample_output=[]  # We don't need sample output for search methods
+            )
+            
+            print(f"✅ Using best model results from Step 2:")
+            print(f"   Model: {best_model}")
+            print(f"   Cost: ${best_cost:.6f}")
+            if best_accuracy is not None:
+                print(f"   Accuracy: {best_accuracy:.4f}")
 
+        # Now proceed with the regular search methods using the optimized plan
+        print(f"\n🚀 Step 4: Starting search methods with optimized configuration...")
+        
         # Baseline block
         baseline_cfg: Optional[Dict[str, Any]] = exp.get("baseline")
         if baseline_cfg:
-            bl_name: str = f"{dataset}_baseline"
+            bl_name: str = f"{dataset}_test_baseline"
             bl_iters: int = int(baseline_cfg.get("iterations", 1))
             bl_model: Optional[str] = baseline_cfg.get("model")
 
             call = _spawn_baseline(
                 dataset=dataset,
-                yaml_path=yaml_path,
+                yaml_path=optimized_yaml_path, 
                 experiment_name=bl_name,
                 iterations=bl_iters,
                 model=bl_model,
@@ -527,15 +898,15 @@ def run_from_config(config: Dict[str, Any]) -> int:
         # MCTS block
         mcts_cfg: Optional[Dict[str, Any]] = exp.get("mcts")
         if mcts_cfg:
-            mc_name: str = f"{dataset}_mcts"
-            mc_max: int = int(mcts_cfg.get("max_iterations", 100))
+            mc_name: str = f"{dataset}_test_mcts"
+            mc_max: int = int(mcts_cfg.get("max_iterations", 10))
             mc_c: Optional[float] = mcts_cfg.get("exploration_weight")
             mc_model: Optional[str] = mcts_cfg.get("model")
             ds_path = _get_with_default(DEFAULT_DATASET_PATHS, dataset, exp.get("dataset_path"))
 
             call = _spawn_mcts(
                 dataset=dataset,
-                yaml_path=yaml_path,
+                yaml_path=optimized_yaml_path,  
                 dataset_path=ds_path,
                 experiment_name=mc_name,
                 max_iterations=mc_max,
@@ -552,7 +923,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         # Simple baseline block
         simple_baseline_cfg: Optional[Dict[str, Any]] = exp.get("simple_baseline")
         if simple_baseline_cfg:
-            sb_name: str = f"{dataset}_simple_baseline"
+            sb_name: str = f"{dataset}_test_simple_baseline"
             sb_model: Optional[str] = simple_baseline_cfg.get("model", "o3")
 
             call = _spawn_simple_baseline(
@@ -594,7 +965,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         if dataset not in datasets_processed:
             datasets_processed.add(dataset)
             output_dir = exp.get("output_dir")
-            result = generate_plots_for_experiments_remote.remote(dataset, ['baseline', 'mcts', 'simple_baseline'], output_dir)
+            result = generate_plots_for_experiments_remote.remote(dataset, ['test_baseline', 'test_mcts', 'test_simple_baseline'], output_dir)
             if result["success"]:
                 print(f"✅ Comparison plots generated for {dataset}!")
                 print(f"📈 Plot: {result['plot_path']}")

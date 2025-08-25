@@ -146,9 +146,6 @@ class Node:
             self.cost = total_cost
 
             self.sample_result = extract_output_from_json(self.yaml_file_path)[:1]
-            print("="*100)
-            print("SAMPLE RESULT: ", self.sample_result)
-            print("="*100)
             return total_cost
              
         except Exception as e:

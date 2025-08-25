@@ -86,11 +86,7 @@ def run_mcts_remote(
 ):
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     resolved_output_dir = _resolve_in_volume(output_dir) if output_dir else None
-    # resolved_yaml_path = _resolve_in_volume(yaml_path)
-    # resolved_dataset_path = _resolve_in_volume(dataset_path)
-    # resolved_data_dir = _resolve_in_volume(data_dir) if data_dir else None
-    # resolved_ground_truth = _resolve_in_volume(ground_truth_path) if ground_truth_path else None
-
+    
     # Write a temporary YAML with dataset/output paths rewritten into the mounted volume
     modal_yaml_path = _rewrite_pipeline_yaml_for_modal(yaml_path, experiment_name)
 

@@ -463,6 +463,7 @@ def run_single_iteration(
             global_default_model=global_default_model,
             input_file_path=input_file_path,
             pipeline_code=orig_config,
+            dataset=dataset,
         )
         orig_config["operations"] = new_ops_list
 

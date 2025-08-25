@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelInstantiateSchema
 
 from .base import (
+    MODEL_STATS,
     AVAILABLE_MODELS,
     MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS,
     Directive,
@@ -139,7 +140,7 @@ class ChangeModelCostDirective(Directive):
     def __hash__(self):
         return hash("ChangeModelCostDirective")
 
-    def to_string_for_instantiate(self, original_op: Dict) -> str:
+    def to_string_for_instantiate(self, original_op: Dict, dataset: str) -> str:
         """
         Generate a prompt for an agent to instantiate this directive for cost optimization.
 
@@ -165,6 +166,7 @@ class ChangeModelCostDirective(Directive):
             f"• Consider document length and context requirements when selecting models\n\n"
             f"You have a list of allowed models to choose from: {str(self.allowed_model_list)}.\n\n"
             f"Consider the information about the allowed models: \n {self.model_info}\n"
+            f"You have a list of model statistics on the task with the original query pipeline: \n {str(MODEL_STATS[dataset])}\n"
             f"Your response should include the cheapest model choice that meets the operation requirements."
             f"Ensure that your chosen model is in the list of allowed models."
             f"Example:\n"
@@ -177,6 +179,7 @@ class ChangeModelCostDirective(Directive):
         global_default_model: str,
         original_op: Dict,
         agent_llm: str,
+        dataset: str,
         message_history: list = [],
     ) -> tuple:
         """
@@ -199,7 +202,7 @@ class ChangeModelCostDirective(Directive):
                 },
                 {
                     "role": "user",
-                    "content": self.to_string_for_instantiate(original_op),
+                    "content": self.to_string_for_instantiate(original_op, dataset),
                 },
             ]
         )
@@ -268,6 +271,7 @@ class ChangeModelCostDirective(Directive):
         agent_llm: str,
         message_history: list = [],
         global_default_model: str = None,
+        dataset: str = None,
         **kwargs,
     ) -> tuple:
         """
@@ -283,6 +287,7 @@ class ChangeModelCostDirective(Directive):
                     global_default_model,
                     target_op_config,
                     agent_llm,
+                    dataset,
                     message_history,
                 )
                 print(rewrite)

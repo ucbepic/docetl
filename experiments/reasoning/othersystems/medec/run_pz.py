@@ -3,7 +3,6 @@ import json
 import os
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 import palimpzest as pz
 from palimpzest.constants import Model
@@ -11,10 +10,10 @@ from palimpzest.core.lib.fields import BooleanField, StringField
 from palimpzest.policy import MaxQuality, MaxQualityAtFixedCost
 
 from dotenv import load_dotenv
-load_dotenv()
-
-# Add the evaluation utils to the path
 from experiments.reasoning.evaluation.utils import get_evaluate_func
+from experiments.reasoning.evaluation.medec import jaccard_similarity
+
+load_dotenv()
 
 # Budget fractions to test
 FRACS = [0.75, 0.5, 0.25, 0.1]
@@ -51,36 +50,74 @@ class MEDECDataReader(pz.DataReader):
         
         self.dataset = data
 
+    def compute_label(self, entry: dict) -> dict:
+        """Compute the label for a MEDEC entry given its data."""
+        # Handle error flag
+        error_flag = entry.get("Error Flag", 0)
+        if isinstance(error_flag, str):
+            error_flag = int(error_flag) if error_flag.isdigit() else 0
+        
+        label_dict = {
+            "is_error": bool(error_flag),
+            "error_sentence": entry.get("Error Sentence", "") or "",
+            "corrected_sentence": entry.get("Corrected Sentence", "") or ""
+        }
+        return label_dict
+
+    @staticmethod
+    def error_flag_accuracy_score(pred_error: bool, target_error: bool) -> float:
+        """Score function for error flag prediction accuracy."""
+        return 1.0 if pred_error == target_error else 0.0
+
+    @staticmethod
+    def error_sentence_jaccard_score(pred_sentence: str, target_sentence: str) -> float:
+        """Score function for error sentence using Jaccard similarity."""
+        if not target_sentence:  # No error sentence to compare against
+            return 1.0 if not pred_sentence else 0.0
+        
+        if not isinstance(pred_sentence, str) or not isinstance(target_sentence, str):
+            # Not sure why we get here. Sometimes the pred_sentence is None or a float.
+            print(f"Predicted sentence: {pred_sentence}, Target sentence: {target_sentence}. Converting to strings.")
+            pred_sentence = str(pred_sentence)
+            target_sentence = str(target_sentence)
+        
+        return jaccard_similarity(pred_sentence, target_sentence)
+
+    @staticmethod
+    def corrected_sentence_jaccard_score(pred_sentence: str, target_sentence: str) -> float:
+        """Score function for corrected sentence using Jaccard similarity."""
+        if not target_sentence:  # No corrected sentence to compare against
+            return 1.0 if not pred_sentence else 0.0
+        
+        if not isinstance(pred_sentence, str) or not isinstance(target_sentence, str):
+            # Not sure why we get here. Sometimes the pred_sentence is None or a float.
+            print(f"Predicted sentence: {pred_sentence}, Target sentence: {target_sentence}. Converting to strings.")
+            pred_sentence = str(pred_sentence)
+            target_sentence = str(target_sentence)
+        
+        return jaccard_similarity(pred_sentence, target_sentence)
+
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, idx: int):
         item = self.dataset[idx]
-        return {
-            "text_id": item["Text ID"],
-            "text": item["Sentences"]
-        }
-    
-    def get_label_df(self):
-        """Get a dataframe with labels for evaluation."""
-        final_label_dataset = []
-        for entry in self.dataset:
-            # Use the correct column names from the source data
-            error_flag = entry.get("Error Flag", 0)
-            if isinstance(error_flag, str):
-                error_flag = int(error_flag) if error_flag.isdigit() else 0
-            
-            row = {
-                "text_id": entry["Text ID"],
-                "text": entry.get("Sentences", entry.get("Text", "")),
-                "is_error": bool(error_flag),
-                "error_sentence": entry.get("Error Sentence", "") or "",
-                "corrected_sentence": entry.get("Corrected Sentence", "") or ""
-            }
-            final_label_dataset.append(row)
         
-        return pd.DataFrame(final_label_dataset)
-
+        # Create the basic item structure
+        result_item = {"fields": {}, "labels": {}, "score_fn": {}}
+        result_item["fields"]["text_id"] = item["Text ID"]
+        result_item["fields"]["text"] = item["Sentences"]
+        
+        if self.split == "train":
+            # Add label info for training split
+            result_item["labels"] = self.compute_label(item)
+            
+            # Add scoring functions
+            result_item["score_fn"]["is_error"] = MEDECDataReader.error_flag_accuracy_score
+            result_item["score_fn"]["error_sentence"] = MEDECDataReader.error_sentence_jaccard_score
+            result_item["score_fn"]["corrected_sentence"] = MEDECDataReader.corrected_sentence_jaccard_score
+        
+        return result_item
 
 def build_medec_query(dataset):
     """Build the MEDEC query for medical error detection."""
@@ -273,7 +310,7 @@ def main():
     )
     parser.add_argument(
         "--k",
-        default=3,
+        default=6,
         type=int,
         help="Number of columns to sample in Random Sampling or MAB sentinel execution",
     )
@@ -317,11 +354,11 @@ def main():
         Model.GEMINI_25_PRO,
     ]
     
-    print(f"Loading MEDEC dataset...")
+    print("Loading MEDEC dataset...")
     
     # Create data readers: test set for main evaluation, train set for validation
     data_reader = MEDECDataReader(split="test", num_texts=args.num_texts, seed=args.seed)
-    val_data_reader = MEDECDataReader(split="train", num_texts=50, seed=args.seed)
+    val_data_reader = MEDECDataReader(split="train", seed=args.seed)
     
     print(f"Processing {len(data_reader)} test medical texts with Palimpzest...")
     print(f"Using {len(val_data_reader)} train medical texts for validation...")

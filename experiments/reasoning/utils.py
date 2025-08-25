@@ -14,8 +14,10 @@ image = (
     .uv_sync()
     .uv_pip_install("matplotlib", "Levenshtein", "nltk")
     .add_local_python_source("experiments", ignore=lambda p: (
-        # Exclude othersystems entirely
-        "othersystems" in str(p) or
+        # Include othersystems only if it contains lotus_evaluation or pz_evaluation files
+        ("othersystems" in str(p) and 
+         "lotus_evaluation" not in str(p) and 
+         "pz_evaluation" not in str(p)) or
         # Exclude large files by size (>300MB)
         (p.is_file() and p.stat().st_size > 300_000_000) or
         # Exclude specific file types

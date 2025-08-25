@@ -78,9 +78,16 @@ CONFIG: Dict[str, Any] = {
         #     "original_cost": 0.60220281,  # Cost of the original query execution
         #     "mcts": {"max_iterations": 30}
         # }
+        # {
+        #     "dataset": "cuad",
+        #     "original_cost": 0.13,
+        #     "baseline": {"iterations": 10},
+        #     "simple_baseline": {"iterations": 10},
+        #     "mcts": {"max_iterations": 30}
+        # }
         {
-            "dataset": "cuad",
-            "original_cost": 0.13,
+            "dataset": "medec",
+            "original_cost": 0.01,
             "baseline": {"iterations": 10},
             "simple_baseline": {"iterations": 10},
             "mcts": {"max_iterations": 30}

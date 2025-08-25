@@ -11,19 +11,16 @@ This script:
 """
 
 import json
-import os
-import sys
 import yaml
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 import modal
 from datetime import datetime
 import matplotlib
 import matplotlib.pyplot as plt
 
 from docetl.runner import DSLRunner
-from docetl.utils import extract_output_from_json
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
 from experiments.reasoning.evaluation.utils import dataset_accuracy_metrics, get_evaluate_func
 
@@ -91,7 +88,7 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
             # Extract file name from point
             point_file = point.get("file")
             if not point_file:
-                print(f"⚠️  No file field in frontier point, skipping")
+                print("⚠️  No file field in frontier point, skipping")
                 continue
             
             # Get the base name without .json extension
@@ -285,6 +282,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         
         # Collect all test frontier points from each method
         all_points = {
+            "original": [],
             "simple_baseline": [],
             "baseline": [],
             "mcts": [],
@@ -294,11 +292,12 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         
         # Method colors
         method_colors = {
-            "simple_baseline": "#2ecc71",  # Green
-            "baseline": "#3498db",          # Blue
-            "mcts": "#e74c3c",              # Red
-            "lotus": "#9b59b6",             # Purple
-            "pz": "#00bcd4"                 # Cyan
+            "original": "#ffd700",           # Gold/Yellow
+            "simple_baseline": "#2ecc71",    # Green
+            "baseline": "#1f77b4",           # Blue (darker blue)
+            "mcts": "#d62728",               # Red (darker red)
+            "lotus": "#c27cf3",              # Light purple
+            "pz": "#ff0b50"                  # Pink/magenta
         }
         
         # Load test_frontier_summary.json from dataset_original folder
@@ -310,6 +309,19 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
             
             # Extract results for each method
             if "results" in summary_data:
+                # Handle original baseline
+                if "original" in summary_data["results"] and summary_data["results"]["original"].get("success"):
+                    original_result = summary_data["results"]["original"]
+                    if "cost" in original_result and "accuracy" in original_result:
+                        all_points["original"].append({
+                            "cost": original_result["cost"],
+                            "accuracy": original_result["accuracy"]
+                        })
+                    print(f"  ✅ Loaded {len(all_points['original'])} test points from original")
+                else:
+                    print("  ⚠️  No successful results found for original")
+                
+                # Handle other methods
                 for method in METHODS:
                     if method in summary_data["results"] and summary_data["results"][method].get("success"):
                         method_results = summary_data["results"][method].get("results", [])
@@ -325,24 +337,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         else:
             print(f"  ⚠️  No test_frontier_summary.json found at {summary_file}")
         
-        # Debug: Check what's in the othersystems directory
-        othersystems_base = Path(VOLUME_MOUNT_PATH) / "experiments" / "reasoning" / "othersystems"
-        if othersystems_base.exists():
-            print(f"  📁 Contents of {othersystems_base}:")
-            for item in othersystems_base.iterdir():
-                print(f"     - {item.name}")
-            
-            dataset_dir = othersystems_base / dataset
-            if dataset_dir.exists():
-                print(f"  📁 Contents of {dataset_dir}:")
-                for item in dataset_dir.iterdir():
-                    print(f"     - {item.name}")
-            else:
-                print(f"  ⚠️  Dataset directory not found: {dataset_dir}")
-        else:
-            print(f"  ⚠️  Othersystems directory not found: {othersystems_base}")
-        
-        # Also check local othersystems directory
+        # check local othersystems directory
         local_othersystems = Path("experiments/reasoning/othersystems") / dataset
         if local_othersystems.exists():
             print(f"  📁 Local othersystems/{dataset} contents:")
@@ -438,10 +433,17 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                 costs = [p["cost"] for p in points]
                 accuracies = [p["accuracy"] for p in points]
                 
-                ax.scatter(costs, accuracies, 
-                          color=method_colors[method],
-                          label=method.replace("_", " ").title(),
-                          s=100, alpha=0.7, edgecolors='black', linewidth=1)
+                if method == "original":
+                    # Plot original as yellow stars
+                    ax.scatter(costs, accuracies, 
+                              color=method_colors[method],
+                              label="Original",
+                              s=150, marker='*', alpha=0.8, edgecolors='black', linewidth=1)
+                else:
+                    ax.scatter(costs, accuracies, 
+                              color=method_colors[method],
+                              label=method.replace("_", " ").title(),
+                              s=100, alpha=0.7, edgecolors='black', linewidth=1)
         
         # Set log scale for x-axis (cost)
         ax.set_xscale('log')
@@ -535,17 +537,122 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
     image=image,
     secrets=[modal.Secret.from_dotenv()],
     volumes={VOLUME_MOUNT_PATH: volume},
-    timeout=60 * 60 * 3  # 3 hours timeout for all methods
+    timeout=60 * 60
 )
-def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
+def run_original_baseline_test(dataset: str) -> Dict[str, Any]:
     """
-    Run test frontier evaluation for all methods (simple_baseline, baseline, mcts) for a dataset.
+    Run the original baseline pipeline on test data.
     
     Args:
         dataset: Dataset name
         
     Returns:
-        Combined results for all methods
+        Dictionary with test results
+    """
+    try:
+        print(f"\n{'='*60}")
+        print(f"Running original baseline test for {dataset}")
+        print(f"{'='*60}\n")
+        
+        # Load original pipeline YAML
+        pipeline_path = Path(f"experiments/reasoning/pipelines/{dataset}.yaml")
+        if not pipeline_path.exists():
+            return {
+                "success": False,
+                "dataset": dataset,
+                "error": f"Pipeline file not found: {pipeline_path}"
+            }
+        
+        with open(pipeline_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Change dataset path from train to test
+        if 'datasets' in config:
+            for dataset_name, dataset_config in config['datasets'].items():
+                original_path = dataset_config.get('path', '')
+                # Replace 'train' with 'test' in the path
+                test_path = original_path.replace('/train/', '/test/')
+                config['datasets'][dataset_name]['path'] = test_path
+                print(f"📂 Changed dataset path to: {test_path}")
+        
+        # Set output path to tests/original folder
+        base_output_dir = Path(VOLUME_MOUNT_PATH) / "outputs"
+        test_output = str(base_output_dir / f"{dataset}_original" / "tests" / "original" / f"{dataset}_baseline_test.json")
+        config['pipeline']['output']['path'] = test_output
+        print(f"📤 Output path: {test_output}")
+        
+        # Create output directory
+        Path(test_output).parent.mkdir(parents=True, exist_ok=True)
+        
+        # Save modified YAML to /tmp
+        test_yaml_path = Path("/tmp") / f"{dataset}_original_baseline_test.yaml"
+        with open(test_yaml_path, 'w') as f:
+            yaml.dump(config, f, sort_keys=False)
+        
+        # Run the pipeline
+        print("🚀 Running original baseline pipeline...")
+        runner = DSLRunner.from_yaml(str(test_yaml_path))
+        runner.load()
+        
+        if runner.last_op_container:
+            data, _, _ = runner.last_op_container.next()
+            runner.save(data)
+        
+        total_cost = runner.total_cost
+        runner.reset_env()
+        
+        print(f"✅ Pipeline completed. Cost: ${total_cost:.6f}")
+        
+        # Evaluate accuracy
+        eval_func = get_evaluate_func(dataset)
+        if eval_func:
+            # Evaluate results
+            accuracy_results = eval_func("baseline_test", test_output)
+            
+            # Get the appropriate accuracy metric
+            accuracy_metric = dataset_accuracy_metrics.get(dataset, "accuracy")
+            accuracy = accuracy_results.get(accuracy_metric, 0.0)
+            
+            print(f"📈 Accuracy ({accuracy_metric}): {accuracy:.4f}")
+        else:
+            print(f"⚠️  No evaluation function found for {dataset}")
+            accuracy = None
+            accuracy_metric = None
+        
+        return {
+            "success": True,
+            "dataset": dataset,
+            "cost": total_cost,
+            "accuracy": accuracy,
+            "accuracy_metric": accuracy_metric,
+            "output_path": test_output
+        }
+        
+    except Exception as e:
+        print(f"❌ Error running original baseline test: {e}")
+        traceback.print_exc()
+        return {
+            "success": False,
+            "dataset": dataset,
+            "error": str(e)
+        }
+
+
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_dotenv()],
+    volumes={VOLUME_MOUNT_PATH: volume},
+    timeout=60 * 60 * 3  # 3 hours timeout for all methods
+)
+def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
+    """
+    Run test frontier evaluation for all methods (original_baseline, simple_baseline, baseline, mcts) for a dataset.
+    
+    Args:
+        dataset: Dataset name
+        
+    Returns:
+        Combined results for all methods including original baseline
     """
     print(f"\n{'='*70}")
     print(f"RUNNING ALL TEST FRONTIERS FOR {dataset.upper()}")
@@ -553,6 +660,17 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
     
     all_results = {}
     
+    # First run the original baseline pipeline
+    print("\n📊 Processing original...")
+    original_result = run_original_baseline_test.local(dataset)
+    all_results["original"] = original_result
+    
+    if original_result["success"]:
+        print("✅ original completed successfully")
+    else:
+        print(f"❌ original failed: {original_result.get('error', 'Unknown error')}")
+    
+    # Then run frontier evaluations for all methods
     for method in METHODS:
         print(f"\n📊 Processing {method}...")
         result = run_test_frontier_remote.local(dataset, method)
@@ -586,7 +704,7 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
     print(f"   Results also integrated into pareto_frontier_{dataset}.json files")
     
     # Generate test frontier plot
-    print(f"\n📊 Generating test frontier plot...")
+    print("\n📊 Generating test frontier plot...")
     plot_result = generate_test_frontier_plot.local(dataset)
     if plot_result["success"]:
         print(f"✅ Plot saved to: {plot_result['plot_path']}")
@@ -655,9 +773,9 @@ def main(dataset: str = "cuad", method: str = "all", plot_only: bool = False):
             result = run_test_frontier_remote.remote(dataset_name, method)
             if result["success"]:
                 print(f"\n✅ Successfully processed {dataset_name} - {method}")
-                print(f"📄 Results saved to pareto frontier file")
+                print("📄 Results saved to pareto frontier file")
                 # Generate plot after single method run
-                print(f"\n📊 Generating test frontier plot...")
+                print("\n📊 Generating test frontier plot...")
                 plot_result = generate_test_frontier_plot.remote(dataset_name)
                 if plot_result["success"]:
                     print(f"📈 Plot saved to: {plot_result['plot_path']}")

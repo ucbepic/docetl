@@ -247,8 +247,13 @@ async def main():
     
     # Load reviews
     console.print("📊 Loading reviews data...")
-    reviews = load_reviews("data/amazon_reviews.json", limit=50)  # Limit for demo
-    console.print(f"✓ Loaded {len(reviews)} reviews\n")
+    # Try to load real reviews first, fallback to synthetic if not available
+    try:
+        reviews = load_reviews("data/real_reviews.json", limit=50)  # Limit for demo
+        console.print(f"✓ Loaded {len(reviews)} REAL reviews\n")
+    except FileNotFoundError:
+        reviews = load_reviews("data/amazon_reviews.json", limit=50)  # Fallback
+        console.print(f"✓ Loaded {len(reviews)} reviews\n")
     
     # Analyze reviews
     console.print("🤖 Analyzing reviews with AI...")

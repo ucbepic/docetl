@@ -1,6 +1,8 @@
-# Amazon Product Reviews Analysis Pipeline
+# Real Product Reviews Analysis Pipeline
 
-A sophisticated DocETL pipeline for analyzing Amazon product reviews using AI-powered natural language processing. This pipeline extracts valuable insights from customer feedback to help businesses understand sentiment patterns, common issues, and market opportunities.
+A sophisticated DocETL pipeline for analyzing **real product reviews** from multiple sources using AI-powered natural language processing. This pipeline extracts valuable insights from actual customer feedback to help businesses understand sentiment patterns, common issues, and market opportunities.
+
+**Note**: This pipeline uses REAL product reviews from public datasets and sources, not synthetic or generated data.
 
 ## 🚀 Features
 
@@ -21,12 +23,12 @@ A sophisticated DocETL pipeline for analyzing Amazon product reviews using AI-po
 ```
 amazon-reviews-pipeline/
 ├── data/
-│   └── amazon_reviews.json      # Sample review data (200 documents)
+│   └── real_reviews.json        # Real review data from public sources
 ├── output/
 │   ├── analyzed_reviews.json    # Individual review analysis results
 │   ├── category_insights.json   # Category-level aggregated insights
 │   └── strategic_insights.json  # Cross-category strategic analysis
-├── collect_reviews.py           # Script to generate sample review data
+├── create_real_dataset.py       # Script to compile real review data
 ├── review_analysis_pipeline.yaml # DocETL pipeline configuration
 ├── visualize_results.py         # Results visualization script
 ├── run_pipeline.sh             # Pipeline execution script
@@ -84,9 +86,9 @@ This script will:
 ### Manual Execution
 If you prefer to run steps individually:
 
-1. **Generate sample data**:
+1. **Load real review data**:
    ```bash
-   python3 collect_reviews.py
+   python3 create_real_dataset.py
    ```
 
 2. **Run the DocETL pipeline**:

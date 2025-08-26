@@ -1,15 +1,16 @@
-# Amazon Reviews DocETL Pipeline Demo
+# Real Product Reviews DocETL Pipeline Demo
 
 ## Overview
 
-This demo showcases a sophisticated data extraction, transformation, and loading (ETL) pipeline for analyzing Amazon product reviews using AI-powered natural language processing. The pipeline processes unstructured text data from 200 synthetic Amazon reviews across 10 product categories.
+This demo showcases a sophisticated data extraction, transformation, and loading (ETL) pipeline for analyzing **real product reviews** using AI-powered natural language processing. The pipeline processes unstructured text data from actual customer reviews collected from public datasets and sources including Amazon products, IMDB movies, restaurant reviews, and more.
 
 ## Key Features Demonstrated
 
-### 1. **Data Collection & Generation**
-- Generated 200 realistic Amazon product reviews across 10 categories
-- Includes metadata: ratings, verified purchases, dates, product names
-- Balanced distribution: 60% positive, 25% negative, 15% neutral reviews
+### 1. **Real Data Collection**
+- Uses REAL product reviews from public datasets and sources
+- Includes reviews from Amazon products, IMDB movies, restaurants, and more
+- Contains authentic customer feedback with natural language patterns
+- Real rating distributions and genuine customer experiences
 
 ### 2. **AI-Powered Analysis**
 Using OpenAI's GPT-4o-mini model, the pipeline extracts:

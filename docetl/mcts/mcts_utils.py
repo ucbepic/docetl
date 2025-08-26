@@ -26,6 +26,7 @@ from docetl.reasoning_optimizer.directives import (
     get_all_cost_directive_strings,
 )
 from docetl.reasoning_optimizer.directives.base import AVAILABLE_MODELS
+from docetl.reasoning_optimizer.directives.change_model_cost import MODEL_STATS
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
 
@@ -230,7 +231,7 @@ def log_tree_to_file(root_node, iteration_num, output_dir="./outputs"):
         print_tree_visits_and_values(root_node, file_handle=f)
 
 
-def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path) -> tuple[str, str]:
+def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path, dataset=None) -> tuple[str, str]:
     """Create expansion prompt for accuracy optimization."""
     
     ### DEBUG 
@@ -301,6 +302,10 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
 
     Note: These statistics come from applying actions to various other query pipelines, not the current one. Use this as general guidance about action effectiveness, but consider that performance may vary significantly for your specific pipeline structure and data.
 
+    Model Performance Reference:
+    If you are considering a model change directive, here are model statistics on this specific dataset: \n {str(MODEL_STATS.get(dataset, {}))}
+    These show the accuracy (acc) and cost for each model. Only reference this when evaluating model change options.
+
     Selection Strategy:
     Consider the current query pipeline, which directive can best improve the accuracy.
     Prioritize exploration of untested actions while balancing with exploitation of proven performers:
@@ -335,7 +340,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     return user_message, condensed_user_message
 
 
-def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path) -> tuple[str, str]:
+def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path, dataset=None) -> tuple[str, str]:
     """Create expansion prompt for cost optimization."""
 
     ### DEBUG 
@@ -405,6 +410,10 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     {action_stats_str}
 
     Note: These statistics come from applying actions to various other query pipelines, not the current one. Use this as general guidance about action effectiveness, but consider that performance may vary significantly for your specific pipeline structure and data.
+
+    Model Performance Reference:
+    If you are considering a model change directive, here are model statistics on this specific dataset: \n {str(MODEL_STATS.get(dataset, {}))}
+    These show the accuracy (acc) and cost for each model. Only reference this when evaluating model change options.
 
     Selection Strategy:
     Consider the current query pipeline, which directive can best improve cost effectiveness. 

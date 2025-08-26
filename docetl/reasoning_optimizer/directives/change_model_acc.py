@@ -185,7 +185,7 @@ class ChangeModelAccDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
-    ) -> tuple:
+    ):
         """
         Use LLM to instantiate this directive for accuracy optimization.
 
@@ -220,6 +220,7 @@ class ChangeModelAccDirective(Directive):
                 azure=True,
                 response_format=ChangeModelInstantiateSchema,
             )
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = ChangeModelInstantiateSchema(**parsed_res)
@@ -235,7 +236,7 @@ class ChangeModelAccDirective(Directive):
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -276,7 +277,7 @@ class ChangeModelAccDirective(Directive):
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Instantiate the directive for a list of operators.
         """
@@ -286,7 +287,7 @@ class ChangeModelAccDirective(Directive):
             target_op_config = [op for op in operators if op["name"] == target_op][0]
             # Instantiate the directive
             try:
-                rewrite, message_history = self.llm_instantiate(
+                rewrite, message_history, call_cost = self.llm_instantiate(
                     global_default_model,
                     target_op_config,
                     agent_llm,
@@ -302,4 +303,4 @@ class ChangeModelAccDirective(Directive):
         if inst_error == len(target_ops):
             print("CHANGE MODEL ACC ERROR")
             return None, message_history
-        return new_ops_list, message_history
+        return new_ops_list, message_history, call_cost

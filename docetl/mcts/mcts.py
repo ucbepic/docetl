@@ -7,6 +7,7 @@ from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 import litellm
+from litellm import completion_cost
 import yaml
 
 from docetl.reasoning_optimizer.directives import (
@@ -18,13 +19,24 @@ from docetl.reasoning_optimizer.directives import (
     get_all_cost_directive_strings,
     get_all_directive_strings,
 )
+from docetl.reasoning_optimizer.directives.change_model_cost import (
+    ChangeModelCostDirective,
+    get_model_specific_directives_for_operation,
+    create_model_specific_directives,
+    MODEL_COSTS,
+    MODEL_STATS,
+    first_layer_yaml_paths
+)
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
+from docetl.utils import extract_output_from_json
 
 from .acc_comparator import AccuracyComparator
 from .Node import Node
 from .ParetoFrontier import ParetoFrontier
 from .mcts_utils import *
+from pathlib import Path
+from experiments.reasoning.utils import VOLUME_MOUNT_PATH
 
 # Import evaluation function lookup
 import sys
@@ -37,7 +49,6 @@ except ImportError:
         os.path.join(os.path.dirname(__file__), "../../experiments/reasoning")
     )
     from evaluation.utils import get_evaluate_func
-
 
 
 
@@ -69,6 +80,7 @@ class MCTS:
         model="gpt-4.1",
         output_dir: Optional[str] = None,
         original_query_result: Optional[Dict[str, Any]] = None,
+        build_first_layer: Optional[bool] = False,
     ):
         """
         Initialize the MCTS algorithm with Pareto frontier integration.
@@ -84,12 +96,27 @@ class MCTS:
             output_dir: Directory to save new pipeline files (None means same dir as original)
             original_query_result: Pre-executed original query result to avoid re-execution
         """
+
         self.root = Node(root_yaml_path, c=exploration_constant)
-        self.available_actions = available_actions
-        self.action_rewards = {action: 0.0 for action in available_actions}
-        self.action_counts = {
-            action: 0.0 for action in available_actions
-        }  # number of times an action has been applied
+        
+        # Start with base available actions
+        self.available_actions = set(available_actions)
+
+        # Add all possible model-specific directives to available actions
+        all_models = list(MODEL_COSTS.get(dataset_name, {}).keys()) if dataset_name in MODEL_COSTS else []
+        for current_model in all_models:
+            model_specific_directives = create_model_specific_directives(current_model, dataset_name)
+            self.available_actions.update(model_specific_directives)
+        
+        # Initialize root node's action_used to include all change model directives
+        for op_name in self.root.op_dict.keys():
+            for directive in self.available_actions:
+                if isinstance(directive, ChangeModelCostDirective):
+                    self.root.mark_action_used(op_name, directive)
+        
+        # Initialize action tracking for all actions (base + model-specific)
+        self.action_rewards = {action: 0.0 for action in self.available_actions}
+        self.action_counts = {action: 0.0 for action in self.available_actions}
         self.exploration_constant = exploration_constant
         self.max_iterations = max_iterations
         self.max_time = max_time
@@ -129,13 +156,42 @@ class MCTS:
         self.pareto_frontier = ParetoFrontier(
             accuracy_comparator, self.action_rewards, dataset_name
         )
+
+        # Create comprehensive directive mapping 
         self.directive_name_to_obj = {
             action.name: action for action in self.available_actions
         }
 
         # Track iterations without new Pareto optimal plans for early stopping
         self.iterations_without_improvement = 0
+        
+        # Track total cost for all completion calls during search
+        self.total_search_cost = 0.0
 
+        if build_first_layer:
+            print("🔄 Building first layer of the pipeline manually...")
+            output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+            for model_yaml_path in first_layer_yaml_paths[dataset_name]:
+                model_yaml_path = Path(output_dir) / f"{dataset_name}_test" / model_yaml_path
+                child = Node(model_yaml_path)
+                child_model = child.parsed_yaml["default_model"]
+                child_model = child_model.replace("azure/", "").replace("gemini/", "")
+                child.cost = MODEL_COSTS[dataset_name][child_model]
+                child.value = 0
+                child.visits = 1
+                action_name = "change to " + child_model
+                action = self.directive_name_to_obj[action_name]
+                child.latest_action = action
+                child.sample_result = extract_output_from_json(model_yaml_path)
+                self.root.add_child(child)
+                accuracy = MODEL_STATS[dataset_name][child_model]["acc"]
+                self.pareto_frontier.add_plan_f1(child, accuracy)
+            
+            print(self.pareto_frontier.plans)
+            self.root.visits = len(first_layer_yaml_paths[dataset_name])
+            self.log_tree_to_file(0)
+            return
+        
         # Use original query result if provided, otherwise execute root node
         if original_query_result and original_query_result.get("success"):
             print("🔄 Using pre-executed original query result for MCTS root node")
@@ -166,6 +222,7 @@ class MCTS:
             )
             # execute root node and add it to the pareto frontier
             cost, accuracy = self.simulate(self.root)
+            self.total_search_cost += max(cost,0)
             affected_nodes, is_frontier_updated = self.add_to_frontier(self.root, accuracy)
             self.backpropagate(affected_nodes, self.root)
             self.root.visits = 1
@@ -187,17 +244,28 @@ class MCTS:
         result_file_path = node.parsed_yaml["pipeline"]["output"]["path"]
         print("result_file_path", result_file_path)
 
-        results = self.evaluate_func("docetl_preprint", result_file_path)
+        try:
+            results = self.evaluate_func("docetl_preprint", result_file_path)
 
-        # Extract the appropriate metric based on dataset
-        primary_metric = self.dataset_metrics.get(self.dataset_name)
-        if primary_metric and primary_metric in results:
-            true_accuracy = results[primary_metric]
-        else:
-            # Fallback to first numerical value found if dataset unknown or metric missing
-            true_accuracy = next(
-                (v for v in results.values() if isinstance(v, (int, float))), 0.5
-            )
+            # Extract the appropriate metric based on dataset
+            primary_metric = self.dataset_metrics.get(self.dataset_name)
+            if primary_metric and primary_metric in results:
+                true_accuracy = results[primary_metric]
+            else:
+                # Fallback to first numerical value found if dataset unknown or metric missing
+                true_accuracy = next(
+                    (v for v in results.values() if isinstance(v, (int, float))), 0.5
+                )
+                
+        except Exception as e:
+            print(f"⚠️ Evaluation failed for node {node.get_id()}: {e}")
+            # Return -inf when evaluation fails, same as unexecutable plans
+            return float("-inf")
+            
+        # Guard against NaN values
+        if true_accuracy is None or (isinstance(true_accuracy, float) and (true_accuracy != true_accuracy)):  # NaN check
+            print(f"⚠️ Evaluation returned NaN for node {node.get_id()}, setting to -inf")
+            return float("-inf")
             
         return true_accuracy
 
@@ -215,11 +283,12 @@ class MCTS:
         print(f"Root node cost: ${self.root.cost:.2f}")
 
         while self.should_continue():
-            if self.iteration_count < 5: 
-            # if self.iteration_count >= self.max_iterations - 5:
-
+            if self.iteration_count < 10: 
                 if self.mcts_cost_iteration():
                     self.iteration_count += 1
+            # elif self.iteration_count < 20:
+            #     if self.mcts_iteration():
+            #         self.iteration_count += 1
             else:
                 if self.mcts_iteration():
                     self.iteration_count += 1
@@ -241,11 +310,13 @@ class MCTS:
         ]
 
         return frontier_plans
+    
+    def mcts_iteration_model(self):
+        """Perform one complete MCTS iteration changing model."""
+        pass
 
     def mcts_cost_iteration(self):
         """Perform one complete MCTS iteration optimizing for cost."""
-        # Track if any new Pareto optimal plans are found in this iteration
-        found_new_pareto_plan = False
 
         # 1. Selection: Find the best leaf node
         print("SELECTION (COST)")
@@ -275,6 +346,7 @@ class MCTS:
                 # Simulate all candidates
                 for num, candidate in enumerate(cost_children):
                     cost, accuracy = self.simulate(candidate)
+                    self.total_search_cost += max(cost,0)
                     print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
                     if cost != -1 and accuracy != float("-inf"):  # Valid plan
                         candidate_results.append((candidate, accuracy, cost))
@@ -309,6 +381,7 @@ class MCTS:
                 # Original logic for single instantiation
                 for leaf_cost in cost_children:
                     cost, accuracy = self.simulate(leaf_cost)
+                    self.total_search_cost += max(cost,0)
                     affected_nodes, temp_updated = self.add_to_frontier(leaf_cost, accuracy)
                     if temp_updated:
                         is_frontier_updated = True
@@ -326,8 +399,6 @@ class MCTS:
 
     def mcts_iteration(self):
         """Perform one complete MCTS iteration."""
-        # Track if any new Pareto optimal plans are found in this iteration
-        found_new_pareto_plan = False
 
         # 1. Selection: Find the best leaf node
         print("SELECTION")
@@ -359,6 +430,7 @@ class MCTS:
                 # Simulate all candidates
                 for num, candidate in enumerate(acc_children):
                     cost, accuracy = self.simulate(candidate)
+                    self.total_search_cost += max(cost,0)
                     print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
                     if cost != -1 and accuracy != float("-inf"):  # Valid plan
                         candidate_results.append((candidate, accuracy, cost))
@@ -393,6 +465,7 @@ class MCTS:
                 # Original logic for single instantiations
                 for leaf_acc in acc_children:
                     cost, accuracy = self.simulate(leaf_acc)
+                    self.total_search_cost += max(cost,0)
                     affected_nodes, temp_updated = self.add_to_frontier(leaf_acc, accuracy)
                     if temp_updated:
                         is_frontier_updated = True
@@ -425,7 +498,6 @@ class MCTS:
 
         return current
 
-    # Dummy implementation for now
 
     def is_fully_explored(self, node: Node) -> bool:
         """Check if a node has been fully explored based on visit count."""
@@ -435,19 +507,15 @@ class MCTS:
         return create_expansion_prompt_acc(
             node, action_options, input_query, self.available_actions, 
             self.action_rewards, self.action_counts, self.sample_input, 
-            self.root, node.yaml_file_path
+            self.root, node.yaml_file_path, self.dataset_name
         )
-
-        return user_message, condensed_user_message
 
     def expansion_prompt_cost(self, node, action_options, input_query) -> tuple[str, str]:
         return create_expansion_prompt_cost(
             node, action_options, input_query, self.available_actions,
             self.action_rewards, self.action_counts, self.sample_input,
-            self.root, node.yaml_file_path
+            self.root, node.yaml_file_path, self.dataset_name
         )
-
-        return user_message, condensed_user_message
 
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
         """
@@ -494,8 +562,21 @@ class MCTS:
                 
                 if last_op is None or last_op != op_name:
                     banned_directives = set()
+                
+                # Filter actions to only include cheaper models for cost optimization
+                op_config = node.op_dict[op_name]
+                current_model = op_config.get("model", "gpt-5")
+                dynamic_actions = []
+                
+                for directive in self.available_actions:
+                    if isinstance(directive, ChangeModelCostDirective):
+                        continue
+                    else:
+                        # Keep other directives as-is
+                        dynamic_actions.append(directive)
+                
                 action_space = (
-                    set(self.available_actions) - banned_directives - used_actions - compression_exclusions
+                    set(dynamic_actions) - banned_directives - used_actions - compression_exclusions
                 )  # The actions that are not used on this operator and not excluded by group
                 for action in action_space:
                     action_options.append((op_name, action.name))
@@ -516,6 +597,8 @@ class MCTS:
                     used_actions = node.used_actions[op_name]
                 else:
                     used_actions = set()
+
+                print("used_actions: ", used_actions)
                 
                 # Get compression directives to exclude for code_map and extract operations
                 compression_exclusions = get_excluded_directives_for_operation(node, op_name)
@@ -523,8 +606,28 @@ class MCTS:
                 if last_op is None or last_op != op_name:
                     banned_directives = set()
 
+                # Filter cost directives to only include cheaper models
+                op_config = node.op_dict[op_name]
+                current_model = op_config.get("model", "gpt-5")
+                dynamic_cost_directives = []
+                
+                for directive in ALL_COST_DIRECTIVES:
+                    if isinstance(directive, ChangeModelCostDirective):
+                        continue
+                        # # Only include model changes to cheaper models
+                        # if self._is_cheaper_model(directive.target_model, current_model):
+                        #     dynamic_cost_directives.append(directive)
+                    else:
+                        dynamic_cost_directives.append(directive)
+                
+                # Add cheaper model-specific directives from available_actions
+                for directive in self.available_actions:
+                    if isinstance(directive, ChangeModelCostDirective) and directive.target_model:
+                        if self._is_cheaper_model(directive.target_model, current_model):
+                            dynamic_cost_directives.append(directive)
+                
                 action_space = (
-                    set(ALL_COST_DIRECTIVES) - banned_directives - used_actions - compression_exclusions
+                    set(dynamic_cost_directives) - banned_directives - used_actions - compression_exclusions
                 )  # The cost actions that are not used on this operator and not excluded by group
                 for action in action_space:
                     action_options.append((op_name, action.name))
@@ -577,6 +680,8 @@ class MCTS:
                 azure=True,
                 response_format=ExpandResponseFormat,
             )
+            call_cost = response._hidden_params["response_cost"]
+            self.total_search_cost += call_cost
             reply = response.choices[0].message.content
 
             try:
@@ -635,8 +740,6 @@ class MCTS:
             if isinstance(first_dataset, dict):
                 input_file_path = first_dataset.get("path")
 
-        rewrites = []
-
         # Mark action as used
         for target_op in target_op_list:
             node.mark_action_used(target_op, directive)
@@ -679,7 +782,7 @@ class MCTS:
                     f.write(str(instantiation_messages))
                     f.write("\n\n")
                 
-                new_ops_list, updated_message_history = directive.instantiate(
+                new_ops_list, updated_message_history, cost = directive.instantiate(
                     operators=node.parsed_yaml["operations"],
                     target_ops=target_op_list,
                     agent_llm=self.model,
@@ -690,6 +793,7 @@ class MCTS:
                     pipeline_code=node.parsed_yaml,
                     dataset=self.dataset_name,
                 )
+                self.total_search_cost += cost
                 if new_ops_list is None:
                     print(f"Instantiation {i+1} failed: no ops list returned")
                     continue
@@ -793,6 +897,31 @@ class MCTS:
     def get_frontier_summary(self) -> List[Dict[str, Any]]:
         """Get summary of all plans in the Pareto frontier."""
         return self.pareto_frontier.get_all_plans_summary()
+    
+    def _is_cheaper_model(self, target_model: str, current_model: str) -> bool:
+        """Check if target_model is cheaper than current_model for this dataset."""
+        if self.dataset_name not in MODEL_COSTS:
+            return False
+        
+        dataset_costs = MODEL_COSTS[self.dataset_name]
+        # Remove 'azure/' or 'gemini/' prefix from current_model if present
+        if current_model.startswith("azure/"):
+            current_model = current_model[len("azure/") :]
+        if current_model.startswith("gemini/"):
+            current_model = current_model[len("gemini/") :]
+        # Remove 'azure/' or 'gemini/' prefix from target_model if present
+        if target_model.startswith("azure/"):
+            target_model = target_model[len("azure/") :]
+        if target_model.startswith("gemini/"):
+            target_model = target_model[len("gemini/") :]
+            
+        current_cost = dataset_costs.get(current_model)
+        target_cost = dataset_costs.get(target_model)
+
+        if current_cost is None or target_cost is None:
+            return False
+            
+        return target_cost < current_cost
 
     def print_tree_visits_and_values(self, node=None, depth=0, file_handle=None):
         """
@@ -847,6 +976,7 @@ class MCTS:
             f.write(f"Tree Structure:\n")
             self.print_tree_visits_and_values(file_handle=f)
             f.write(f"\n")
+            f.write(f"Total search cost: ${self.total_search_cost:.2f}\n")
 
     def instantiate_node(
         self, node, new_ops_list, directive_name, target_op_list, optimize_goal, message_condensed, custom_id=None
@@ -881,7 +1011,7 @@ class MCTS:
         # Determine where to save the new pipeline file
         if self.output_dir:
             # Use output directory with original filename as base (strip existing node IDs)
-            original_filename = os.path.basename(node.yaml_file_path).removesuffix(".yaml")
+            original_filename = os.path.basename(str(node.yaml_file_path)).removesuffix(".yaml")
             # Remove any existing node ID suffix 
             if "_" in original_filename:
                 # Split and take only the first part before any underscores with numbers
@@ -897,7 +1027,7 @@ class MCTS:
             os.makedirs(self.output_dir, exist_ok=True)
         else:
             # Use same directory as original pipeline
-            base_path = node.yaml_file_path.removesuffix(".yaml")
+            base_path = str(node.yaml_file_path).removesuffix(".yaml")
 
         new_yaml_path = f"{base_path}_{node_id_for_file}.yaml"
         new_parsed_yaml["pipeline"]["output"][

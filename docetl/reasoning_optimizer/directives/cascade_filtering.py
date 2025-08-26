@@ -268,7 +268,7 @@ The target filter '{op['name']}' fits into this broader pipeline. Consider what 
         agent_llm: str,
         message_history: list = [],
         pipeline_code: Dict = None,
-    ) -> tuple:
+    ):
         """Use agentic approach to analyze data and generate cascade filters."""
         # Load sample input data
         try:
@@ -328,7 +328,7 @@ The target filter '{op['name']}' fits into this broader pipeline. Consider what 
 
         # Run the agentic loop
         try:
-            schema, updated_message_history = runner.run_agentic_loop(
+            schema, updated_message_history, call_cost = runner.run_agentic_loop(
                 system_prompt=system_prompt,
                 initial_user_message=initial_message,
                 response_schema=CascadeFilteringInstantiateSchema,
@@ -337,7 +337,7 @@ The target filter '{op['name']}' fits into this broader pipeline. Consider what 
             # Update message history
             message_history.extend(updated_message_history)
 
-            return schema, message_history
+            return schema, message_history, call_cost
 
         except Exception as e:
             raise Exception(
@@ -397,7 +397,7 @@ The target filter '{op['name']}' fits into this broader pipeline. Consider what 
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Main method that orchestrates directive instantiation:
         1. Use agentic approach to analyze data and generate cascade filters
@@ -427,7 +427,7 @@ The target filter '{op['name']}' fits into this broader pipeline. Consider what 
             )
 
         # Step 1: Agent analyzes data and generates cascade filters
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             target_ops_configs,
             input_file_path,
             agent_llm,
@@ -439,4 +439,5 @@ The target filter '{op['name']}' fits into this broader pipeline. Consider what 
         return (
             self.apply(global_default_model, operators, target_ops, rewrite),
             message_history,
+            call_cost,
         )

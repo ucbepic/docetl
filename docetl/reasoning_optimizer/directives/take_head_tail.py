@@ -224,7 +224,7 @@ class TakeHeadTailDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
-    ) -> tuple:
+    ):
         message_history.extend(
             [
                 {
@@ -235,6 +235,7 @@ class TakeHeadTailDirective(Directive):
         )
 
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
+            call_cost = 0
             resp = completion(
                 model=agent_llm,
                 messages=message_history,
@@ -244,14 +245,14 @@ class TakeHeadTailDirective(Directive):
                 azure=True,
                 response_format=TakeHeadTailInstantiateSchema,
             )
-
+            call_cost = resp.usage.total_tokens * resp.usage.completion_tokens
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = TakeHeadTailInstantiateSchema(**parsed_res)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -310,15 +311,15 @@ class TakeHeadTailDirective(Directive):
         agent_llm: str,
         message_history: list = [],
         **kwargs,
-    ) -> tuple:
+    ):
         assert (
             len(target_ops) == 1
         ), "TakeHeadTail directive requires exactly one target op"
 
         target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
 
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             target_op_config, agent_llm, message_history
         )
 
-        return self.apply(operators, target_ops[0], rewrite), message_history
+        return self.apply(operators, target_ops[0], rewrite), message_history, call_cost

@@ -182,14 +182,14 @@ class OperatorFusionDirective(Directive):
                 azure=True,
                 response_format=OperatorFusionInstantiateSchema,
             )
-
+            call_cost = resp.usage.total_tokens * resp.usage.completion_tokens
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = OperatorFusionInstantiateSchema(**parsed_res)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -302,7 +302,7 @@ def transform(input_doc):
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Main method that orchestrates directive instantiation.
         """
@@ -317,7 +317,7 @@ def transform(input_doc):
         target_op_configs.sort(key=lambda op: target_ops.index(op["name"]))
 
         # Step 1: Agent generates the instantiate schema
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             target_op_configs, agent_llm, message_history
         )
 
@@ -325,4 +325,5 @@ def transform(input_doc):
         return (
             self.apply(global_default_model, operators, target_ops, rewrite),
             message_history,
+            call_cost
         )

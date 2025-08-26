@@ -160,7 +160,7 @@ class MapReduceFusionDirective(Directive):
         expected_document_key,
         agent_llm: str,
         message_history: list = []
-    ) -> tuple:
+    ):
         """
         Use LLM to instantiate this directive by transforming the map and reduce operations.
 
@@ -180,7 +180,7 @@ class MapReduceFusionDirective(Directive):
         ])
 
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
-            
+
             resp = completion(
                 model=agent_llm,
                 messages=message_history,
@@ -190,7 +190,7 @@ class MapReduceFusionDirective(Directive):
                 azure=True,
                 response_format=MapReduceFusionInstantiateSchema
             )
-            
+            call_cost = resp.usage.total_tokens * resp.usage.completion_tokens
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 if "new_map_name" not in parsed_res or "new_map_prompt" not in parsed_res or "new_key" not in parsed_res or "new_reduce_prompt" not in parsed_res:
@@ -213,7 +213,7 @@ class MapReduceFusionDirective(Directive):
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost       
             except Exception as err:
                 error_message = f"Validation error: {err}\\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -290,7 +290,7 @@ class MapReduceFusionDirective(Directive):
         optimize_goal="acc", 
         global_default_model: str = None, 
         **kwargs
-    ) -> tuple:
+    ):
         """
         Instantiate the directive for a list of operators.
         """
@@ -346,8 +346,8 @@ class MapReduceFusionDirective(Directive):
         print(f"Detected document key: {expected_document_key}")
 
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(map_op, reduce_op, expected_document_key, agent_llm, message_history)
+        rewrite, message_history, call_cost = self.llm_instantiate(map_op, reduce_op, expected_document_key, agent_llm, message_history)
         
         # Apply the rewrite to the operators
         new_ops_plan = self.apply(global_default_model, operators, map_target, reduce_target, rewrite)
-        return new_ops_plan, message_history
+        return new_ops_plan, message_history, call_cost

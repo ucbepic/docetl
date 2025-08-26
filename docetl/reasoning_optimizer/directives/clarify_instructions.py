@@ -148,7 +148,7 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
         agent_llm: str,
         message_history: list = [],
         pipeline_code: Dict = None,
-    ) -> tuple:
+    ):
         """
         Use agentic approach to analyze sample data and generate improved prompt.
         """
@@ -197,7 +197,7 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
 
         # Run the agentic loop (validation is handled internally)
         try:
-            schema, updated_message_history = runner.run_agentic_loop(
+            schema, updated_message_history, call_cost = runner.run_agentic_loop(
                 system_prompt=system_prompt,
                 initial_user_message=initial_message,
                 response_schema=ClarifyInstructionsInstantiateSchema,
@@ -206,7 +206,7 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
             # Update message history
             message_history.extend(updated_message_history)
 
-            return schema, message_history
+            return schema, message_history, call_cost
 
         except Exception as e:
             raise Exception(
@@ -242,7 +242,7 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Main method that orchestrates directive instantiation:
         1. Use agentic approach to analyze data and generate improved prompt
@@ -266,7 +266,7 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
             raise ValueError(f"Target operation {target_ops[0]} not found in operators")
 
         # Step 1: Agent analyzes data and generates improved prompt
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             target_ops_configs,
             input_file_path,
             agent_llm,
@@ -278,4 +278,5 @@ The target operation '{op['name']}' fits into this broader pipeline. Consider:
         return (
             self.apply(global_default_model, operators, target_ops, rewrite),
             message_history,
+            call_cost,
         )

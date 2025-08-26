@@ -135,14 +135,6 @@ class ParetoFrontier:
 
         # Store the pre-evaluated accuracy
         self.plans_accuracy[node] = accuracy
-        
-        # Set root reference point if this is the first plan (root)
-        if len(self.plans) == 1:
-            self.root_accuracy = accuracy
-            self.root_cost = node.cost
-            print(
-                f"Root reference point set: accuracy={accuracy}, cost={node.cost}"
-            )
 
         # Update Pareto frontier
         affected_nodes, is_frontier_updated = self.update_pareto_frontier_HV(node)
@@ -442,10 +434,10 @@ class ParetoFrontier:
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
         if new_node.id > 0:
-            graph_dir = new_node.yaml_file_path.rsplit("/", 1)[0] + "/graph/"
+            graph_dir = str(new_node.yaml_file_path).rsplit("/", 1)[0] + "/graph/"
             os.makedirs(graph_dir, exist_ok=True)
             save_path = graph_dir + f"plan_{new_node.id}.png"
-            self.plot_plans(save_path, new_node.id, new_node.yaml_file_path)
+            self.plot_plans(save_path, new_node.id, str(new_node.yaml_file_path))
         return affected_nodes, frontier_updated
 
     def plot_plans(self, save_path=None, plan_num=None, yaml_file=None):

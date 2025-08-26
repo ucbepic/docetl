@@ -246,7 +246,7 @@ def transform(input_doc):
         target_ops_configs: List[Dict],
         agent_llm: str,
         message_history: list = [],
-    ) -> tuple:
+    ):
         """
         Call the LLM to generate the instantiate schema.
         The LLM will output structured data matching DeterministicDocCompressionInstantiateSchema.
@@ -271,7 +271,7 @@ def transform(input_doc):
                 azure=True,
                 response_format=DeterministicDocCompressionInstantiateSchema,
             )
-
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = DeterministicDocCompressionInstantiateSchema(**parsed_res)
@@ -282,7 +282,7 @@ def transform(input_doc):
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -329,7 +329,7 @@ def transform(input_doc):
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Main method that orchestrates directive instantiation:
         1. Get agent to generate instantiate schema for all target operations
@@ -341,7 +341,7 @@ def transform(input_doc):
         target_ops_configs = [op for op in operators if op["name"] in target_ops]
 
         # Step 1: Agent generates the instantiate schema considering all target ops
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             target_ops_configs, agent_llm, message_history
         )
 
@@ -349,4 +349,5 @@ def transform(input_doc):
         return (
             self.apply(global_default_model, operators, target_ops, rewrite),
             message_history,
+            call_cost,
         )

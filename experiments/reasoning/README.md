@@ -187,7 +187,7 @@ CONFIG = {
 2) Run all experiments on Modal (uses the same shared volume as above):
 
 ```bash
-modal run experiments/reasoning/run_all.py
+modal run --detach experiments/reasoning/run_all.py
 ```
 
 This will spawn the requested baseline and MCTS jobs concurrently per dataset and wait for completion. Outputs are saved under `/mnt/docetl-ro-experiments/outputs/{dataset}_{baseline|mcts}`.

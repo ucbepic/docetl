@@ -241,7 +241,7 @@ class AgenticDirectiveRunner:
 
     def run_agentic_loop(
         self, system_prompt: str, initial_user_message: str, response_schema: BaseModel
-    ) -> Tuple[Any, List[Dict]]:
+        ):
         """
         Run an agentic loop where the agent analyzes input data for directive instantiation.
 
@@ -253,6 +253,8 @@ class AgenticDirectiveRunner:
         Returns:
             Tuple of (parsed_response, message_history)
         """
+        call_cost = 0.0
+       
         # Initialize message history
         self.message_history = [
             {"role": "system", "content": system_prompt},
@@ -327,6 +329,7 @@ Focus on quality over quantity - a few diverse, informative examples are better 
                 api_version=os.environ.get("AZURE_API_VERSION"),
                 azure=True,
             )
+            call_cost += response._hidden_params["response_cost"]
 
             try:
                 decision_json = json.loads(response.choices[0].message.content)
@@ -417,6 +420,7 @@ Provide your response as a JSON object matching this schema: {response_schema.mo
                 api_version=os.environ.get("AZURE_API_VERSION"),
                 azure=True,
             )
+            call_cost += schema_response._hidden_params["response_cost"]
 
             try:
                 parsed_response = json.loads(schema_response.choices[0].message.content)
@@ -435,7 +439,7 @@ Provide your response as a JSON object matching this schema: {response_schema.mo
                         "content": schema_response.choices[0].message.content,
                     }
                 )
-                return schema_instance, self.message_history
+                return schema_instance, self.message_history, call_cost
 
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again with a corrected response."
@@ -460,3 +464,7 @@ Provide your response as a JSON object matching this schema: {response_schema.mo
         raise Exception(
             f"Failed to generate valid schema after {MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS} attempts. Error: {error_message}"
         )
+
+       
+
+   

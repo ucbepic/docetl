@@ -204,6 +204,7 @@ class Node:
         """
 
         self.children.append(child)
+        child.parent = self
     
     def is_leaf(self) -> bool:
         """
@@ -239,6 +240,11 @@ class Node:
         Args:
             value: The value to add to the current node value
         """
+        # Guard against NaN and -inf values to prevent corruption of node.value
+        # Don't backpropagate -inf (failed evaluations) or NaN to parent nodes
+        if value is None or (isinstance(value, float) and (value != value)) or value == float("-inf"):  # NaN or -inf check
+            print(f"⚠️ Skipping backpropagation of -inf / NaN value to node {self.get_id()}")
+            return
         self.value = self.value + value
     
     def update_visit(self):
@@ -523,9 +529,9 @@ class Node:
         Permanently delete files (for non-multi-instance nodes).
         """
         try:
-            if os.path.exists(self.yaml_file_path) and self.yaml_file_path.endswith(('.yaml', '.yml')):
+            if os.path.exists(self.yaml_file_path) and str(self.yaml_file_path).endswith(('.yaml', '.yml')):
                 # Only delete if it looks like a generated file (contains numbers)
-                if any(char.isdigit() for char in os.path.basename(self.yaml_file_path)):
+                if any(char.isdigit() for char in os.path.basename(str(self.yaml_file_path))):
                     os.remove(self.yaml_file_path)
                     print(f"Deleted generated YAML file: {self.yaml_file_path}")
         except Exception as e:

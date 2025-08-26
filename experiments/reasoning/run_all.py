@@ -45,6 +45,24 @@ from experiments.reasoning import run_baseline as baseline_mod
 from experiments.reasoning import run_simple_baseline as simple_baseline_mod
 from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_evaluate_func, dataset_accuracy_metrics
 from experiments.reasoning.utils import app, create_original_query_result, volume, VOLUME_MOUNT_PATH, image  # use the same App as the runners
+
+@app.function(image=image, volumes={VOLUME_MOUNT_PATH: volume}, timeout=60)
+def check_optimized_config_exists(dataset: str, output_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Check if optimized config exists in Modal volume and return config if it does."""
+    if output_dir is None:
+        output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+    else:
+        if not output_dir.startswith(VOLUME_MOUNT_PATH):
+            output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+    
+    optimized_config_path = Path(output_dir) / f"{dataset}_test" / "optimized_config.yaml"
+    
+    if optimized_config_path.exists():
+        with open(optimized_config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        return {"exists": True, "config": config, "path": str(optimized_config_path)}
+    else:
+        return {"exists": False, "config": None, "path": str(optimized_config_path)}
 from experiments.reasoning.plot_result import (
     find_pareto_frontier, calculate_hypervolume_comparison, 
     plot_pareto_frontier_comparison, dataset_metrics
@@ -76,23 +94,12 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 # Users can edit this CONFIG dict directly before running via Modal
 CONFIG: Dict[str, Any] = {
     "experiments": [
-        # {
-        #     "dataset": "game_reviews",
-        #     "original_cost": 0.60220281,  # Cost of the original query execution
-        #     "mcts": {"max_iterations": 30}
-        # }
-        # {
-        #     "dataset": "cuad",
-        #     "original_cost": 0.13,
-        #     "baseline": {"iterations": 10},
-        #     "simple_baseline": {"iterations": 10},
-        #     "mcts": {"max_iterations": 30}
-        # }
         {
             "dataset": "cuad",
+            "build_first_layer": True,
             "optimized_cost": 2.026396,
-            "baseline": {"iterations": 1},
-            "simple_baseline": {"iterations": 1},
+            # "baseline": {"iterations": 10},
+            # "simple_baseline": {"iterations": 10},
             "mcts": {"max_iterations": 1}
         }
     ]
@@ -146,6 +153,7 @@ def _spawn_mcts(
     output_dir: Optional[str],
     ground_truth: Optional[str],
     original_query_result: Dict[str, Any],
+    build_first_layer: Optional[bool] = False,
 ):
     # Uses mcts_mod.run_mcts_remote which is bound to the shared named volume
     return mcts_mod.run_mcts_remote.spawn(
@@ -160,6 +168,7 @@ def _spawn_mcts(
         dataset=dataset,
         ground_truth_path=ground_truth,
         original_query_result=original_query_result,
+        build_first_layer=build_first_layer,
     )
 
 
@@ -769,6 +778,7 @@ def generate_plots_for_experiments_remote(dataset: str, experiments: List[str], 
             "error": str(e)
         }
 
+
 def run_from_config(config: Dict[str, Any]) -> int:
     experiments: List[Dict[str, Any]] = config.get("experiments", [])
     if not experiments:
@@ -788,27 +798,42 @@ def run_from_config(config: Dict[str, Any]) -> int:
         output_dir: Optional[str] = exp.get("output_dir")
         ground_truth: Optional[str] = exp.get("ground_truth")
         optimized_cost: Optional[float] = exp.get("optimized_cost", 0.0)
+        build_first_layer: Optional[bool] = exp.get("build_first_layer", False)
         
         print(f"{'='*60}")
         print(f"PROCESSING DATASET: {dataset.upper()}")
         print(f"{'='*60}")
         
-        # Check if optimized_config.yaml already exists
+        # Check if optimized_config.yaml already exists (check both local and Modal)
         if output_dir is None:
             output_dir = "./outputs"
         
         output_path = Path(output_dir) / f"{dataset}_test"
         optimized_config_path = output_path / "optimized_config.yaml"
+        print(f"Optimized config path: {optimized_config_path}")
         
-        if optimized_config_path.exists():
-            print(f"✅ Found existing optimized configuration: {optimized_config_path}")
+        # Check locally first, then check Modal volume
+        local_exists = optimized_config_path.exists()
+        modal_result = check_optimized_config_exists.remote(dataset, output_dir)
+
+        if build_first_layer:
+            print(f"🚀 Building first layer of the pipeline manually...")
+            original_result = None
+            
+        
+        elif local_exists or modal_result["exists"]:
+            print(f"✅ Found existing optimized configuration")
             print(f"🚀 Skipping optimization steps and jumping directly to Step 4...")
             
-            # Load the existing optimized config to extract information
-            with open(optimized_config_path, 'r') as f:
-                optimized_config = yaml.safe_load(f)
+            # Use local config if it exists, otherwise use Modal config
+            if local_exists:
+                with open(optimized_config_path, 'r') as f:
+                    optimized_config = yaml.safe_load(f)
+                optimized_yaml_path = str(optimized_config_path)
+            else:
+                optimized_config = modal_result["config"]
+                optimized_yaml_path = modal_result["path"]
             
-            optimized_yaml_path = str(optimized_config_path)
             best_model = optimized_config.get('default_model')
             
             # Create original_result using the provided optimized cost
@@ -910,10 +935,10 @@ def run_from_config(config: Dict[str, Any]) -> int:
             mc_c: Optional[float] = mcts_cfg.get("exploration_weight")
             mc_model: Optional[str] = mcts_cfg.get("model")
             ds_path = _get_with_default(DEFAULT_DATASET_PATHS, dataset, exp.get("dataset_path"))
-
+            
             call = _spawn_mcts(
                 dataset=dataset,
-                yaml_path=optimized_yaml_path,  
+                yaml_path=yaml_path,  
                 dataset_path=ds_path,
                 experiment_name=mc_name,
                 max_iterations=mc_max,
@@ -923,6 +948,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
                 output_dir=output_dir,
                 ground_truth=ground_truth,
                 original_query_result=original_result,
+                build_first_layer=build_first_layer
             )
             results.append((dataset, f"mcts:{mc_name}", call))
             print(f"Spawned MCTS for {dataset} as {mc_name}")

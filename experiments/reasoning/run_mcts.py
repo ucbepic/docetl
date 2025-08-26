@@ -12,7 +12,7 @@ import argparse
 import glob
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from docetl.mcts import MCTS, Node, ParetoFrontier, AccuracyComparator
 from docetl.reasoning_optimizer.directives import (
@@ -83,6 +83,7 @@ def run_mcts_remote(
     dataset: str = "cuad",
     ground_truth_path: str | None = None,
     original_query_result: Dict[str, Any] | None = None,
+    build_first_layer: Optional[bool] = False,
 ):
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     resolved_output_dir = _resolve_in_volume(output_dir) if output_dir else None
@@ -102,6 +103,7 @@ def run_mcts_remote(
         dataset=dataset,
         ground_truth_path=ground_truth_path,
         original_query_result=original_query_result,
+        build_first_layer=build_first_layer,
     )
     volume.commit()
     return results
@@ -148,6 +150,7 @@ def run_mcts_experiment(
     dataset: str = "cuad",
     ground_truth_path: str | None = None,
     original_query_result: Dict[str, Any] | None = None,
+    build_first_layer: Optional[bool] = False,
 ):
     """
     Run MCTS optimization experiment with specified parameters.
@@ -217,6 +220,7 @@ def run_mcts_experiment(
         model=model,
         output_dir=str(output_path),
         original_query_result=original_query_result,
+        build_first_layer=build_first_layer,
     )
     print(f"✅ MCTS initialized with root node: {yaml_path}")
     # Run MCTS optimization

@@ -238,7 +238,7 @@ class DocSummarizationDirective(Directive):
         target_ops: List[str],
         agent_llm: str,
         message_history: list = [],
-    ) -> tuple:
+    ):
         """
         Use LLM to instantiate this directive by creating a summarization operation.
 
@@ -271,14 +271,14 @@ class DocSummarizationDirective(Directive):
                 azure=True,
                 response_format=DocSummarizationInstantiateSchema,
             )
-
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = DocSummarizationInstantiateSchema(**parsed_res)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -323,7 +323,7 @@ class DocSummarizationDirective(Directive):
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Instantiate the directive for a list of operators.
         """
@@ -336,7 +336,7 @@ class DocSummarizationDirective(Directive):
                 )
 
         # Instantiate the directive using full pipeline context
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             operators, target_ops, agent_llm, message_history
         )
 
@@ -344,4 +344,5 @@ class DocSummarizationDirective(Directive):
         return (
             self.apply(global_default_model, operators, target_ops[0], rewrite),
             message_history,
+            call_cost,
         )

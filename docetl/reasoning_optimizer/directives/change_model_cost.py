@@ -8,13 +8,94 @@ from pydantic import BaseModel, Field
 
 from docetl.reasoning_optimizer.instantiate_schemas import ChangeModelInstantiateSchema
 
+MODEL_STATS = {
+    "cuad": {
+        "gpt-5": {"acc": 0.7200038754634324, "cost": 2.282243},
+        "gpt-5-mini": {"acc": 0.6835748934962984, "cost": 0.605154},
+        "gpt-5-nano": {"acc": 0.6463552293414165, "cost": 0.231796},
+        "gpt-4.1": {"acc": 0.7366652765882619, "cost": 2.026396},
+        "gpt-4.1-mini": {"acc": 0.6914865483894942, "cost": 0.380290},
+        "gpt-4.1-nano": {"acc": 0.36382364868308986, "cost": 0.080214},
+        "gpt-4o": {"acc": 0.6214280458632053, "cost": 2.210165},
+        "gpt-4o-mini": {"acc": 0.4311917773936343, "cost": 0.137882},
+        "gemini-2.5-pro": {"acc": 0.7174635945681389, "cost": 2.820552},
+        "gemini-2.5-flash": {"acc": 0.7170929338182611, "cost": 1.032156},
+        "gemini-2.5-flash-lite": {"acc": 0.6087973440184378, "cost": 0.097669},
+    }
+}
+
+
+MODEL_COSTS = {
+    "cuad": {
+        "gpt-5": 2.282243,
+        "gpt-5-mini": 0.605154,
+        "gpt-5-nano": 0.231796,
+        "gpt-4.1": 2.026396,
+        "gpt-4.1-mini": 0.380290,
+        "gpt-4.1-nano": 0.080214,
+        "gpt-4o": 2.210165,
+        "gpt-4o-mini": 0.137882,
+        "gemini-2.5-pro": 2.820552,
+        "gemini-2.5-flash": 1.032156,
+        "gemini-2.5-flash-lite": 0.097669,
+    }
+}
+
+first_layer_yaml_paths = {
+    "cuad": [
+        "gemini_2.5_flash_lite_config.yaml",
+        "gpt_5_nano_config.yaml",
+        "gpt_4.1_mini_config.yaml",
+        "gemini_2.5_flash_config.yaml",
+        "gpt_4.1_config.yaml",
+    ]
+}
+
+def get_cheaper_models(current_model: str, dataset: str) -> List[str]:
+    """Get list of models that are cheaper than the current model for a given dataset."""
+    if dataset not in MODEL_COSTS:
+        return []
+    
+    current_cost = MODEL_COSTS[dataset].get(current_model)
+    if current_cost is None:
+        return []
+    
+    cheaper_models = []
+    for model, cost in MODEL_COSTS[dataset].items():
+        if cost < current_cost:
+            cheaper_models.append(model)
+    
+    # Sort by cost (cheapest first)
+    cheaper_models.sort(key=lambda x: MODEL_COSTS[dataset][x])
+    return cheaper_models
+
 from .base import (
-    MODEL_STATS,
     AVAILABLE_MODELS,
     MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS,
     Directive,
     DirectiveTestCase,
 )
+
+
+def get_model_specific_directives_for_operation(op_config: Dict, dataset: str) -> List['ChangeModelCostDirective']:
+    """Get model-specific directives for an operation based on its current model."""
+    current_model = op_config.get("model", "gpt-5")  # Default model
+    return create_model_specific_directives(current_model, dataset)
+
+
+def create_model_specific_directives(current_model: str, dataset: str) -> List['ChangeModelCostDirective']:
+    """Create model-specific directives for models cheaper than the current model."""
+    cheaper_models = get_cheaper_models(current_model, dataset)
+    directives = []
+    
+    for target_model in cheaper_models:
+        directive = ChangeModelCostDirective(target_model=target_model)
+        directive.name = f"change to {target_model}"
+        directive.nl_description = f"Rewrites an operator to use the {target_model} model to optimize expenses while maintaining adequate performance."
+        directive.allowed_model_list = [target_model]  # Only allow this specific model
+        directives.append(directive)
+    
+    return directives
 
 
 class ChangeModelCostDirective(Directive):
@@ -55,6 +136,11 @@ class ChangeModelCostDirective(Directive):
     allowed_model_list: List[str] = Field(
         default=AVAILABLE_MODELS,
         description="The allowed list of models to choose from",
+    )
+    
+    target_model: str = Field(
+        default="",
+        description="The specific target model for this directive instance",
     )
 
     model_info: str = Field(
@@ -135,10 +221,10 @@ class ChangeModelCostDirective(Directive):
     )
 
     def __eq__(self, other):
-        return isinstance(other, ChangeModelCostDirective)
+        return isinstance(other, ChangeModelCostDirective) and self.target_model == other.target_model
 
     def __hash__(self):
-        return hash("ChangeModelCostDirective")
+        return hash(f"ChangeModelCostDirective_{self.target_model}")
 
     def to_string_for_instantiate(self, original_op: Dict, dataset: str) -> str:
         """
@@ -166,7 +252,7 @@ class ChangeModelCostDirective(Directive):
             f"• Consider document length and context requirements when selecting models\n\n"
             f"You have a list of allowed models to choose from: {str(self.allowed_model_list)}.\n\n"
             f"Consider the information about the allowed models: \n {self.model_info}\n"
-            f"You have a list of model statistics on the task with the original query pipeline: \n {str(MODEL_STATS[dataset])}\n"
+            f"You have a list of model statistics on the task with the original query pipeline: \n {str(MODEL_STATS.get(dataset, {}))}\n"
             f"Your response should include the cheapest model choice that meets the operation requirements."
             f"Ensure that your chosen model is in the list of allowed models."
             f"Example:\n"
@@ -181,7 +267,7 @@ class ChangeModelCostDirective(Directive):
         agent_llm: str,
         dataset: str,
         message_history: list = [],
-    ) -> tuple:
+    ):
         """
         Use LLM to instantiate this directive for cost optimization.
 
@@ -194,6 +280,12 @@ class ChangeModelCostDirective(Directive):
             ChangeModelInstantiateSchema: The structured output from the LLM.
         """
 
+        # If target_model is specified, use it directly without LLM call
+        if self.target_model:
+            schema = ChangeModelInstantiateSchema(model=self.target_model)
+            return schema, message_history, 0.0
+        
+        # Otherwise, use LLM to choose the model
         message_history.extend(
             [
                 {
@@ -216,6 +308,7 @@ class ChangeModelCostDirective(Directive):
                 azure=True,
                 response_format=ChangeModelInstantiateSchema,
             )
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = ChangeModelInstantiateSchema(**parsed_res)
@@ -231,7 +324,7 @@ class ChangeModelCostDirective(Directive):
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -273,7 +366,7 @@ class ChangeModelCostDirective(Directive):
         global_default_model: str = None,
         dataset: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Instantiate the directive for a list of operators.
         """
@@ -283,7 +376,7 @@ class ChangeModelCostDirective(Directive):
             target_op_config = [op for op in operators if op["name"] == target_op][0]
             # Instantiate the directive
             try:
-                rewrite, message_history = self.llm_instantiate(
+                rewrite, message_history, call_cost = self.llm_instantiate(
                     global_default_model,
                     target_op_config,
                     agent_llm,
@@ -300,4 +393,4 @@ class ChangeModelCostDirective(Directive):
         if inst_error == len(target_ops):
             print("CHANGE MODEL COST ERROR")
             return None, message_history
-        return new_ops_list, message_history
+        return new_ops_list, message_history, call_cost

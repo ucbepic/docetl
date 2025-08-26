@@ -413,7 +413,7 @@ class DocumentChunkingTopKDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
-    ) -> tuple:
+    ):
         """
         Use LLM to instantiate this directive by creating chunking configuration with topk.
 
@@ -445,6 +445,7 @@ class DocumentChunkingTopKDirective(Directive):
                 azure=True,
                 response_format=DocumentChunkingTopKInstantiateSchema,
             )
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = DocumentChunkingTopKInstantiateSchema(**parsed_res)
@@ -452,7 +453,7 @@ class DocumentChunkingTopKDirective(Directive):
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -612,7 +613,7 @@ class DocumentChunkingTopKDirective(Directive):
             )
 
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             operators, input_file_path, target_op_config, agent_llm, message_history
         )
 
@@ -620,4 +621,5 @@ class DocumentChunkingTopKDirective(Directive):
         return (
             self.apply(global_default_model, operators, target_ops[0], rewrite),
             message_history,
+            call_cost,
         )

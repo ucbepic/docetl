@@ -233,7 +233,7 @@ class ReduceGleaningDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
-    ) -> tuple:
+    ):
         """
         Use LLM to instantiate this directive by decomposing the original operation.
 
@@ -265,14 +265,14 @@ class ReduceGleaningDirective(Directive):
                 azure=True,
                 response_format=GleaningInstantiateSchema,
             )
-
+            call_cost = resp.usage.total_tokens * resp.usage.completion_tokens
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = GleaningInstantiateSchema(**parsed_res)
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -317,7 +317,7 @@ class ReduceGleaningDirective(Directive):
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Instantiate the directive for a list of operators.
         """
@@ -334,12 +334,12 @@ class ReduceGleaningDirective(Directive):
             )
 
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             target_op_config, agent_llm, message_history
         )
 
         # Apply the rewrite to the operators
         return (
             self.apply(global_default_model, operators, target_ops[0], rewrite),
-            message_history,
+            message_history, call_cost
         )

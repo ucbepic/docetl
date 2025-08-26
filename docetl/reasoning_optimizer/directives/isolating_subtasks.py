@@ -242,7 +242,7 @@ class IsolatingSubtasksDirective(Directive):
         original_op: Dict,
         agent_llm: str,
         message_history: list = [],
-    ) -> tuple:
+    ):
         """
         Call the LLM to generate the instantiate schema with validation.
         """
@@ -269,7 +269,7 @@ class IsolatingSubtasksDirective(Directive):
                 azure=True,
                 response_format=IsolatingSubtasksInstantiateSchema,
             )
-     
+            call_cost = resp.usage.total_tokens * resp.usage.completion_tokens
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = IsolatingSubtasksInstantiateSchema(**parsed_res)
@@ -281,7 +281,7 @@ class IsolatingSubtasksDirective(Directive):
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
 
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease ensure all original output keys are covered by subtasks and try again."
@@ -403,7 +403,7 @@ class IsolatingSubtasksDirective(Directive):
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Main method that orchestrates directive instantiation.
         """
@@ -412,9 +412,9 @@ class IsolatingSubtasksDirective(Directive):
         target_op_config = [op for op in operators if op["name"] == target_ops[0]][0]
 
         # Step 1: Agent generates the instantiate schema
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             target_op_config, agent_llm, message_history
         )
 
         # Step 2: Apply transformation using the schema
-        return self.apply(global_default_model, operators, target_ops[0], rewrite), message_history
+        return self.apply(global_default_model, operators, target_ops[0], rewrite), message_history, call_cost

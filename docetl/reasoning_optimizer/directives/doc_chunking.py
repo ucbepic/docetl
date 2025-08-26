@@ -271,6 +271,7 @@ class DocumentChunkingDirective(Directive):
         )
 
         for _ in range(MAX_DIRECTIVE_INSTANTIATION_ATTEMPTS):
+            call_cost = 0.0
             resp = completion(
                 model=agent_llm,
                 messages=message_history,
@@ -280,6 +281,7 @@ class DocumentChunkingDirective(Directive):
                 azure=True,
                 response_format=DocumentChunkingInstantiateSchema,
             )
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = DocumentChunkingInstantiateSchema(**parsed_res)
@@ -288,7 +290,7 @@ class DocumentChunkingDirective(Directive):
                 message_history.append(
                     {"role": "assistant", "content": resp.choices[0].message.content}
                 )
-                return schema, message_history
+                return schema, message_history, call_cost
             except Exception as err:
                 error_message = f"Validation error: {err}\nPlease try again."
                 message_history.append({"role": "user", "content": error_message})
@@ -434,7 +436,7 @@ class DocumentChunkingDirective(Directive):
         message_history: list = [],
         global_default_model: str = None,
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Instantiate the directive for a list of operators.
         """
@@ -453,7 +455,7 @@ class DocumentChunkingDirective(Directive):
             )
 
         # Instantiate the directive
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             operators, input_file_path, target_op_config, agent_llm, message_history
         )
 
@@ -461,4 +463,5 @@ class DocumentChunkingDirective(Directive):
         return (
             self.apply(global_default_model, operators, target_ops[0], rewrite),
             message_history,
+            call_cost,
         )

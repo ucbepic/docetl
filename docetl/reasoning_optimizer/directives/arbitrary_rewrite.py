@@ -231,7 +231,7 @@ class ArbitraryRewriteDirective(Directive):
         agent_llm: str,
         message_history: list = [],
         pipeline_code: Dict = None,
-    ) -> tuple:
+    ):
         """Use agentic approach to analyze pipeline and generate edits."""
         # Load sample input data
         try:
@@ -269,7 +269,7 @@ class ArbitraryRewriteDirective(Directive):
 
         # Run the agentic loop
         try:
-            schema, updated_message_history = runner.run_agentic_loop(
+            schema, updated_message_history, call_cost = runner.run_agentic_loop(
                 system_prompt=system_prompt,
                 initial_user_message=initial_message,
                 response_schema=ArbitraryRewriteInstantiateSchema,
@@ -278,7 +278,7 @@ class ArbitraryRewriteDirective(Directive):
             # Update message history
             message_history.extend(updated_message_history)
 
-            return schema, message_history
+            return schema, message_history, call_cost
 
         except Exception as e:
             raise Exception(
@@ -328,7 +328,7 @@ class ArbitraryRewriteDirective(Directive):
         agent_llm: str = "gpt-4o-mini",
         message_history: list = [],
         **kwargs,
-    ) -> tuple:
+    ):
         """
         Main method that orchestrates directive instantiation.
         For ArbitraryRewrite, we analyze the entire pipeline rather than specific target ops.
@@ -345,7 +345,7 @@ class ArbitraryRewriteDirective(Directive):
         ordered_ops = self._order_ops_by_pipeline_steps(operators, pipeline_code)
 
         # Step 1: Agent analyzes pipeline and generates edits
-        rewrite, message_history = self.llm_instantiate(
+        rewrite, message_history, call_cost = self.llm_instantiate(
             ordered_ops,
             input_file_path,
             agent_llm,
@@ -357,4 +357,5 @@ class ArbitraryRewriteDirective(Directive):
         return (
             self.apply(ordered_ops, rewrite),
             message_history,
+            call_cost,
         )

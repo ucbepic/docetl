@@ -262,10 +262,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # yaml_file_path = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/docetl/test_pipeline.yaml"
-    # result = extract_output_from_json(yaml_file_path, args.results_file)
-    # print(result)
-    # exit()
 
     # Check if results file exists
     if not os.path.exists(args.results_file):

@@ -1,0 +1,207 @@
+# Amazon Product Reviews Analysis Pipeline
+# This pipeline analyzes customer reviews to extract insights about:
+# - Sentiment patterns across categories
+# - Common complaints and praise points
+# - Product feature mentions
+# - Customer satisfaction trends
+
+default_model: gpt-4o-mini
+output_path: "output/final_results.json"
+
+datasets:
+  amazon_reviews:
+    type: file
+    path: "data/amazon_reviews.json"
+    source: json
+
+operations:
+  - name: extract_sentiment_entities
+    type: map
+    prompt: |
+      Analyze this product review and extract the following information:
+      
+      Review: {{ input.review_text }}
+      Category: {{ input.category }}
+      Rating: {{ input.rating }} stars
+      
+      Extract:
+      1. Overall sentiment (very_positive, positive, neutral, negative, very_negative)
+      2. Key product features mentioned (list up to 5)
+      3. Specific complaints (if any)
+      4. Specific praise points (if any)
+      5. Purchase intent indicators (would buy again, recommend to others, etc.)
+      6. Price/value mentions
+      
+      Return as JSON with these exact keys:
+      - sentiment: string
+      - features_mentioned: list of strings
+      - complaints: list of strings
+      - praise_points: list of strings
+      - purchase_intent: string (high/medium/low/none)
+      - price_value_sentiment: string (good_value/fair_value/poor_value/not_mentioned)
+    output:
+      schema:
+        sentiment: string
+        features_mentioned: "list[str]"
+        complaints: "list[str]"
+        praise_points: "list[str]"
+        purchase_intent: string
+        price_value_sentiment: string
+
+  - name: categorize_issues
+    type: map
+    prompt: |
+      Based on the complaints extracted from this review, categorize them into standard issue types:
+      
+      Complaints: {{ output.complaints }}
+      Product Category: {{ input.category }}
+      
+      Categorize each complaint into one or more of these categories:
+      - quality_issues (poor materials, breaks easily, defective)
+      - shipping_problems (damaged arrival, late delivery, wrong item)
+      - misleading_description (not as advertised, size issues, color mismatch)
+      - performance_issues (doesn't work properly, battery problems, slow)
+      - customer_service (poor support, difficult returns)
+      - value_for_money (overpriced, better alternatives exist)
+      - usability (hard to use, confusing instructions, poor design)
+      
+      Return a list of applicable categories.
+    output:
+      schema:
+        issue_categories: "list[str]"
+
+  - name: extract_review_themes
+    type: reduce
+    reduce_key:
+      - category
+    prompt: |
+      Analyze all reviews for the {{ inputs[0].category }} category and identify:
+      
+      1. Top 5 most mentioned product features
+      2. Most common complaints (top 5)
+      3. Most common praise points (top 5)
+      4. Overall sentiment distribution
+      5. Key insights and recommendations for sellers
+      
+      Reviews data:
+      {% for review in inputs %}
+      Review {{ review.review_id }}:
+      - Rating: {{ review.rating }}
+      - Sentiment: {{ review.sentiment }}
+      - Features: {{ review.features_mentioned }}
+      - Complaints: {{ review.complaints }}
+      - Praise: {{ review.praise_points }}
+      {% endfor %}
+      
+      Provide a comprehensive analysis with actionable insights.
+    output:
+      schema:
+        category: string
+        top_features: "list[str]"
+        common_complaints: "list[str]"
+        common_praise: "list[str]"
+        sentiment_distribution: dict
+        key_insights: "list[str]"
+        seller_recommendations: "list[str]"
+
+  - name: generate_cross_category_insights
+    type: reduce
+    reduce_key: []  # Global reduce
+    prompt: |
+      Analyze patterns across all product categories to identify:
+      
+      1. Which categories have the highest customer satisfaction
+      2. Common issues that span multiple categories
+      3. Best practices from highly-rated products
+      4. Market opportunities based on customer complaints
+      5. Seasonal or temporal patterns in reviews
+      
+      Category summaries:
+      {% for item in inputs %}
+      {{ item.category }}:
+      - Common complaints: {{ item.common_complaints }}
+      - Common praise: {{ item.common_praise }}
+      - Key insights: {{ item.key_insights }}
+      {% endfor %}
+      
+      Generate strategic insights for e-commerce businesses.
+    output:
+      schema:
+        satisfaction_rankings: "list[dict]"
+        cross_category_issues: "list[str]"
+        best_practices: "list[str]"
+        market_opportunities: "list[str]"
+        strategic_recommendations: "list[str]"
+
+  - name: create_review_summary
+    type: map
+    prompt: |
+      Create a concise, informative summary of this review that captures the key points:
+      
+      Original review: {{ input.review_text }}
+      Extracted sentiment: {{ output.sentiment }}
+      Key features: {{ output.features_mentioned }}
+      
+      Write a 1-2 sentence summary that would be useful for other shoppers.
+    output:
+      schema:
+        review_summary: string
+
+  - name: identify_fake_review_indicators
+    type: map
+    prompt: |
+      Analyze this review for potential indicators of authenticity:
+      
+      Review text: {{ input.review_text }}
+      Verified purchase: {{ input.verified_purchase }}
+      Helpful votes: {{ input.helpful_votes }}
+      Total votes: {{ input.total_votes }}
+      Review date: {{ input.review_date }}
+      
+      Look for:
+      1. Generic language vs specific details
+      2. Extreme sentiment without substance
+      3. Marketing language or unnatural phrasing
+      4. Lack of personal experience indicators
+      
+      Rate authenticity from 1-10 (10 being most authentic) and explain.
+    output:
+      schema:
+        authenticity_score: float
+        authenticity_indicators: "list[str]"
+        suspicious_elements: "list[str]"
+
+pipeline:
+  steps:
+    - name: review_analysis
+      input: amazon_reviews
+      operations:
+        - extract_sentiment_entities
+        - categorize_issues
+        - create_review_summary
+        - identify_fake_review_indicators
+      output:
+        path: "output/analyzed_reviews.json"
+        
+    - name: category_insights
+      input: review_analysis
+      operations:
+        - extract_review_themes
+      output:
+        path: "output/category_insights.json"
+        
+    - name: strategic_analysis
+      input: category_insights
+      operations:
+        - generate_cross_category_insights
+      output:
+        path: "output/strategic_insights.json"
+
+# Optimization settings for cost-effective processing
+optimize_by:
+  - name: extract_sentiment_entities
+    method: batch
+    batch_size: 10
+  - name: create_review_summary
+    method: batch
+    batch_size: 15

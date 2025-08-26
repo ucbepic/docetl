@@ -1,0 +1,1077 @@
+[
+  {
+    "sentiment": "neutral",
+    "features_mentioned": [
+      "hiking",
+      "backpack"
+    ],
+    "complaints": [
+      "average quality",
+      "better options available"
+    ],
+    "praise_points": [],
+    "purchase_intent": "medium",
+    "authenticity_score": 7,
+    "key_insights": "The reviewer finds the hiking backpack to be average and functional but suggests that there are likely better alternatives available.",
+    "review_id": "R0001",
+    "product_name": "Hiking Backpack - Deluxe Edition",
+    "category": "Sports & Outdoors",
+    "rating": 3,
+    "verified_purchase": true,
+    "review_date": "2024-09-13"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "effectiveness",
+      "price",
+      "packaging"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "extremely satisfied",
+      "works exactly as described",
+      "great price",
+      "great packaging"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is extremely satisfied with the nail polish, highlighting its effectiveness and great price. They also appreciated the packaging.",
+    "review_id": "R0002",
+    "product_name": "Nail Polish - Pro Edition",
+    "category": "Beauty",
+    "rating": 5,
+    "verified_purchase": false,
+    "review_date": "2024-07-12"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "jacket",
+      "price",
+      "functionality"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "extremely satisfied",
+      "works exactly as described",
+      "great price"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer expresses high satisfaction with the jacket, highlighting its functionality and affordability.",
+    "review_id": "R0003",
+    "product_name": "Jacket - Standard Edition",
+    "category": "Clothing",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-05-22"
+  },
+  {
+    "sentiment": "neutral",
+    "features_mentioned": [
+      "sweater",
+      "functionality"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "does what it's supposed to"
+    ],
+    "purchase_intent": "medium",
+    "authenticity_score": 7,
+    "key_insights": "The reviewer finds the sweater to be adequate for its purpose but does not feel it stands out in any way.",
+    "review_id": "R0004",
+    "product_name": "Sweater - Standard Edition",
+    "category": "Clothing",
+    "rating": 4,
+    "verified_purchase": true,
+    "review_date": "2024-03-19"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "value",
+      "gift idea"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "exactly what I was looking for",
+      "unbeatable value",
+      "perfect gift idea"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer highly recommends the doll, emphasizing its great value and suitability as a gift. They express satisfaction with the product meeting their expectations.",
+    "review_id": "R0005",
+    "product_name": "Doll - Standard Edition",
+    "category": "Toys & Games",
+    "rating": 4,
+    "verified_purchase": true,
+    "review_date": "2024-05-27"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "hiking backpack",
+      "value",
+      "customer service"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value",
+      "helpful customer service"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is extremely satisfied with the hiking backpack, highlighting its great value and helpful customer service. They strongly recommend the product to others.",
+    "review_id": "R0006",
+    "product_name": "Hiking Backpack - Premium Edition",
+    "category": "Sports & Outdoors",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-07-16"
+  },
+  {
+    "sentiment": "neutral",
+    "features_mentioned": [
+      "basic face cream",
+      "easy to set up",
+      "easy to use"
+    ],
+    "complaints": [],
+    "praise_points": [],
+    "purchase_intent": "medium",
+    "authenticity_score": 7,
+    "key_insights": "The reviewer finds the face cream to be basic and functional but lacks strong positive feelings towards it. They appreciate its ease of use.",
+    "review_id": "R0007",
+    "product_name": "Face Cream - Standard Edition",
+    "category": "Health & Personal Care",
+    "rating": 3,
+    "verified_purchase": true,
+    "review_date": "2024-05-20"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "build quality",
+      "customer service"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "amazing smartphone",
+      "great build quality",
+      "excellent customer service"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is highly satisfied with the smartphone, highlighting its amazing build quality and the excellent customer service provided by the seller.",
+    "review_id": "R0008",
+    "product_name": "Smartphone - Basic Edition",
+    "category": "Electronics",
+    "rating": 5,
+    "verified_purchase": false,
+    "review_date": "2024-04-21"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "action figure",
+      "works as described",
+      "price"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "extremely satisfied",
+      "great price"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is very pleased with the action figure, noting that it functions as expected and is priced well.",
+    "review_id": "R0009",
+    "product_name": "Action Figure - Standard Edition",
+    "category": "Toys & Games",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-03-24"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [],
+    "complaints": [],
+    "praise_points": [
+      "Fantastic coffee maker",
+      "Using it for weeks",
+      "Couldn't be happier with purchase"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer expresses strong satisfaction with the coffee maker after weeks of use, indicating a high level of happiness with their purchase.",
+    "review_id": "R0010",
+    "product_name": "Coffee Maker - Standard Edition",
+    "category": "Home & Kitchen",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-07-24"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "quality",
+      "delivery speed"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "exceeded expectations",
+      "outstanding quality",
+      "arrived quickly"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is highly satisfied with the bird cage, noting its outstanding quality and quick delivery. They feel the product exceeded their expectations.",
+    "review_id": "R0011",
+    "product_name": "Bird Cage - Pro Edition",
+    "category": "Pet Supplies",
+    "rating": 4,
+    "verified_purchase": true,
+    "review_date": "2024-02-27"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "foundation",
+      "price"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "works exactly as described",
+      "great price"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is extremely satisfied with the foundation, noting that it performs as expected and is priced well.",
+    "review_id": "R0012",
+    "product_name": "Foundation - Deluxe Edition",
+    "category": "Beauty",
+    "rating": 5,
+    "verified_purchase": false,
+    "review_date": "2024-11-16"
+  },
+  {
+    "sentiment": "very_negative",
+    "features_mentioned": [
+      "materials",
+      "performance"
+    ],
+    "complaints": [
+      "Cheap materials",
+      "Terrible performance"
+    ],
+    "praise_points": [],
+    "purchase_intent": "none",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer strongly advises against purchasing the aquarium filter due to its poor quality and performance. They highlight the use of cheap materials as a significant issue.",
+    "review_id": "R0013",
+    "product_name": "Aquarium Filter - Basic Edition",
+    "category": "Pet Supplies",
+    "rating": 1,
+    "verified_purchase": true,
+    "review_date": "2024-11-16"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "tire inflator"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "fantastic tire inflator",
+      "very happy with purchase"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer expresses strong satisfaction with the tire inflator, indicating it has met their expectations over several weeks of use.",
+    "review_id": "R0014",
+    "product_name": "Tire Inflator - Deluxe Edition",
+    "category": "Automotive",
+    "rating": 4,
+    "verified_purchase": true,
+    "review_date": "2024-02-03"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "car phone mount"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "fantastic product",
+      "happy with purchase",
+      "perfect gift idea"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer expresses high satisfaction with the car phone mount after weeks of use and considers it a great gift idea.",
+    "review_id": "R0015",
+    "product_name": "Car Phone Mount - Premium Edition",
+    "category": "Automotive",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-12-08"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "eye shadow palette",
+      "value"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is very satisfied with the eye shadow palette, finding it to be exactly what they wanted and offering great value.",
+    "review_id": "R0016",
+    "product_name": "Eye Shadow Palette - Standard Edition",
+    "category": "Beauty",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-03-25"
+  },
+  {
+    "sentiment": "negative",
+    "features_mentioned": [],
+    "complaints": [
+      "broke after just a few days of use"
+    ],
+    "praise_points": [],
+    "purchase_intent": "low",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer expresses disappointment with the dash cam, highlighting that it malfunctioned shortly after purchase. This suggests concerns about the product's reliability.",
+    "review_id": "R0017",
+    "product_name": "Dash Cam - Basic Edition",
+    "category": "Automotive",
+    "rating": 2,
+    "verified_purchase": false,
+    "review_date": "2024-08-12"
+  },
+  {
+    "sentiment": "very_negative",
+    "features_mentioned": [
+      "packaging",
+      "functionality"
+    ],
+    "complaints": [
+      "arrived damaged",
+      "doesn't work properly"
+    ],
+    "praise_points": [
+      "great packaging"
+    ],
+    "purchase_intent": "low",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer had a frustrating experience with the LEGO set due to it arriving damaged and not functioning properly, although they did appreciate the great packaging.",
+    "review_id": "R0018",
+    "product_name": "Lego Set - Deluxe Edition",
+    "category": "Toys & Games",
+    "rating": 1,
+    "verified_purchase": false,
+    "review_date": "2024-08-25"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "dress",
+      "value"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is very satisfied with the dress, finding it to be exactly what they wanted and offering great value.",
+    "review_id": "R0019",
+    "product_name": "Dress - Pro Edition",
+    "category": "Clothing",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-09-24"
+  },
+  {
+    "sentiment": "very_negative",
+    "features_mentioned": [
+      "jeans",
+      "durability"
+    ],
+    "complaints": [
+      "arrived damaged",
+      "doesn't work properly",
+      "frustrating experience"
+    ],
+    "praise_points": [],
+    "purchase_intent": "low",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer had a very negative experience with the jeans, citing damage upon arrival and functionality issues. This has significantly lowered their intent to purchase again.",
+    "review_id": "R0020",
+    "product_name": "Jeans - Standard Edition",
+    "category": "Clothing",
+    "rating": 1,
+    "verified_purchase": true,
+    "review_date": "2024-01-12"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "doll",
+      "value"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is very satisfied with the doll, finding it to be exactly what they wanted and offering great value. They highly recommend it to others.",
+    "review_id": "R0021",
+    "product_name": "Doll - Deluxe Edition",
+    "category": "Toys & Games",
+    "rating": 4,
+    "verified_purchase": false,
+    "review_date": "2024-03-09"
+  },
+  {
+    "sentiment": "neutral",
+    "features_mentioned": [
+      "smart watch",
+      "value for money"
+    ],
+    "complaints": [],
+    "praise_points": [],
+    "purchase_intent": "medium",
+    "authenticity_score": 7,
+    "key_insights": "The smart watch meets expectations but does not exceed them, indicating a satisfactory experience. The reviewer considers it to be fairly priced.",
+    "review_id": "R0022",
+    "product_name": "Smart Watch - Premium Edition",
+    "category": "Electronics",
+    "rating": 3,
+    "verified_purchase": true,
+    "review_date": "2024-08-03"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "functionality",
+      "price"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "extremely satisfied",
+      "works exactly as described",
+      "great price"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is very pleased with the dash cam's performance and value for money. They feel it meets their expectations perfectly.",
+    "review_id": "R0023",
+    "product_name": "Dash Cam - Standard Edition",
+    "category": "Automotive",
+    "rating": 4,
+    "verified_purchase": true,
+    "review_date": "2024-09-23"
+  },
+  {
+    "sentiment": "very_negative",
+    "features_mentioned": [
+      "smart watch",
+      "return process"
+    ],
+    "complaints": [
+      "stopped working within a week",
+      "difficult return process"
+    ],
+    "praise_points": [],
+    "purchase_intent": "low",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer expresses strong dissatisfaction with the smart watch, highlighting its failure to function properly within a week and the challenges faced during the return process.",
+    "review_id": "R0024",
+    "product_name": "Smart Watch - Pro Edition",
+    "category": "Electronics",
+    "rating": 1,
+    "verified_purchase": true,
+    "review_date": "2024-12-18"
+  },
+  {
+    "sentiment": "negative",
+    "features_mentioned": [
+      "quality",
+      "price"
+    ],
+    "complaints": [
+      "didn't match the description",
+      "poor quality",
+      "overpriced"
+    ],
+    "praise_points": [],
+    "purchase_intent": "low",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer found the perfume to be of poor quality and felt it was overpriced, indicating a significant mismatch with the product description.",
+    "review_id": "R0025",
+    "product_name": "Perfume - Premium Edition",
+    "category": "Beauty",
+    "rating": 2,
+    "verified_purchase": false,
+    "review_date": "2024-05-09"
+  },
+  {
+    "sentiment": "neutral",
+    "features_mentioned": [
+      "value for money",
+      "expectations"
+    ],
+    "complaints": [],
+    "praise_points": [],
+    "purchase_intent": "medium",
+    "authenticity_score": 7,
+    "key_insights": "The textbook meets expectations but does not exceed them, indicating a satisfactory experience. It is considered fair value for money.",
+    "review_id": "R0026",
+    "product_name": "Textbook - Premium Edition",
+    "category": "Books",
+    "rating": 3,
+    "verified_purchase": true,
+    "review_date": "2024-09-11"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "seat covers",
+      "value",
+      "packaging"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value",
+      "great packaging"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is very satisfied with the seat covers, highlighting their excellent value and quality packaging. They express a strong recommendation for potential buyers.",
+    "review_id": "R0027",
+    "product_name": "Seat Covers - Deluxe Edition",
+    "category": "Automotive",
+    "rating": 4,
+    "verified_purchase": false,
+    "review_date": "2024-09-02"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "quality",
+      "delivery speed"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "exceeded expectations",
+      "outstanding quality",
+      "arrived quickly"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is highly satisfied with the lipstick, noting its outstanding quality and quick delivery. This positive experience suggests a strong likelihood of recommending or repurchasing the product.",
+    "review_id": "R0028",
+    "product_name": "Lipstick - Deluxe Edition",
+    "category": "Beauty",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-07-28"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "build quality",
+      "customer service",
+      "shipping speed"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "amazing dumbbells",
+      "great build quality",
+      "excellent customer service",
+      "fast shipping"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is highly satisfied with the dumbbells, highlighting their excellent build quality and the seller's customer service. Additionally, they appreciated the fast shipping.",
+    "review_id": "R0029",
+    "product_name": "Dumbbells - Basic Edition",
+    "category": "Sports & Outdoors",
+    "rating": 5,
+    "verified_purchase": false,
+    "review_date": "2024-02-09"
+  },
+  {
+    "sentiment": "negative",
+    "features_mentioned": [],
+    "complaints": [
+      "Did not match the description",
+      "Poor quality",
+      "Overpriced"
+    ],
+    "praise_points": [],
+    "purchase_intent": "low",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer found the novel to be of poor quality and felt it was overpriced, indicating dissatisfaction with the product's description and value.",
+    "review_id": "R0030",
+    "product_name": "Novel - Deluxe Edition",
+    "category": "Books",
+    "rating": 2,
+    "verified_purchase": true,
+    "review_date": "2024-07-03"
+  },
+  {
+    "sentiment": "neutral",
+    "features_mentioned": [
+      "price",
+      "functionality"
+    ],
+    "complaints": [
+      "some features do not work well"
+    ],
+    "praise_points": [
+      "decent for the price",
+      "would buy again"
+    ],
+    "purchase_intent": "medium",
+    "authenticity_score": 7,
+    "key_insights": "The reviewer finds the car phone mount to be decent for its price, noting that while some features work well, others do not. Despite the mixed experience, they express a willingness to purchase it again.",
+    "review_id": "R0031",
+    "product_name": "Car Phone Mount - Pro Edition",
+    "category": "Automotive",
+    "rating": 3,
+    "verified_purchase": true,
+    "review_date": "2024-03-07"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "value",
+      "design"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is extremely satisfied with the bird cage, highlighting its great value and suitability for their needs. They strongly recommend it to others.",
+    "review_id": "R0032",
+    "product_name": "Bird Cage - Deluxe Edition",
+    "category": "Pet Supplies",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-06-01"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "children's book",
+      "usage duration"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "fantastic book",
+      "high satisfaction with purchase"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer expresses high satisfaction with the children's book, indicating it has been a valuable addition to their collection over several weeks.",
+    "review_id": "R0033",
+    "product_name": "Children'S Book - Basic Edition",
+    "category": "Books",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-06-01"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "eye shadow palette",
+      "price"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "extremely satisfied",
+      "works exactly as described",
+      "great price"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is very pleased with the eye shadow palette, noting its effectiveness and affordability. Overall, they express a strong intent to recommend or repurchase.",
+    "review_id": "R0034",
+    "product_name": "Eye Shadow Palette - Standard Edition",
+    "category": "Beauty",
+    "rating": 4,
+    "verified_purchase": true,
+    "review_date": "2024-10-11"
+  },
+  {
+    "sentiment": "very_negative",
+    "features_mentioned": [
+      "quality",
+      "packaging"
+    ],
+    "complaints": [
+      "didn't match the description",
+      "poor quality",
+      "overpriced"
+    ],
+    "praise_points": [
+      "great packaging"
+    ],
+    "purchase_intent": "low",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer is dissatisfied with the pet bed, citing poor quality and a mismatch with the description. However, they did appreciate the packaging.",
+    "review_id": "R0035",
+    "product_name": "Pet Bed - Deluxe Edition",
+    "category": "Pet Supplies",
+    "rating": 1,
+    "verified_purchase": true,
+    "review_date": "2024-02-28"
+  },
+  {
+    "sentiment": "very_negative",
+    "features_mentioned": [
+      "vitamin supplement",
+      "packaging"
+    ],
+    "complaints": [
+      "stopped working within a week",
+      "difficult return process"
+    ],
+    "praise_points": [
+      "great packaging"
+    ],
+    "purchase_intent": "low",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer found the vitamin supplement ineffective after a short period and faced challenges with the return process, although they appreciated the packaging.",
+    "review_id": "R0036",
+    "product_name": "Vitamin Supplement - Basic Edition",
+    "category": "Health & Personal Care",
+    "rating": 1,
+    "verified_purchase": false,
+    "review_date": "2024-08-05"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "wireless",
+      "value",
+      "shipping"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value",
+      "fast shipping"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is extremely satisfied with the wireless headphones, highlighting their value and fast shipping. They strongly recommend the product to others.",
+    "review_id": "R0037",
+    "product_name": "Wireless Headphones - Deluxe Edition",
+    "category": "Electronics",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-06-27"
+  },
+  {
+    "sentiment": "neutral",
+    "features_mentioned": [
+      "basic",
+      "car vacuum",
+      "gets the job done"
+    ],
+    "complaints": [],
+    "praise_points": [],
+    "purchase_intent": "medium",
+    "authenticity_score": 7,
+    "key_insights": "The reviewer finds the car vacuum to be basic and functional but lacks enthusiasm about its performance. Overall, they have no major complaints but also do not feel particularly impressed.",
+    "review_id": "R0038",
+    "product_name": "Car Vacuum - Deluxe Edition",
+    "category": "Automotive",
+    "rating": 4,
+    "verified_purchase": true,
+    "review_date": "2024-01-17"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "quality",
+      "delivery speed"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "exceeded expectations",
+      "outstanding quality",
+      "arrived quickly"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is highly satisfied with the leash, noting its outstanding quality and quick delivery. This positive experience suggests a strong likelihood of recommending the product.",
+    "review_id": "R0039",
+    "product_name": "Leash - Standard Edition",
+    "category": "Pet Supplies",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-09-25"
+  },
+  {
+    "sentiment": "negative",
+    "features_mentioned": [
+      "clear instructions"
+    ],
+    "complaints": [
+      "didn't match the description",
+      "poor quality",
+      "overpriced"
+    ],
+    "praise_points": [],
+    "purchase_intent": "low",
+    "authenticity_score": 7,
+    "key_insights": "The reviewer is dissatisfied with the instant pot, citing discrepancies with the description and concerns over quality and price. However, they noted that it comes with clear instructions.",
+    "review_id": "R0040",
+    "product_name": "Instant Pot - Pro Edition",
+    "category": "Home & Kitchen",
+    "rating": 2,
+    "verified_purchase": false,
+    "review_date": "2024-03-26"
+  },
+  {
+    "sentiment": "negative",
+    "features_mentioned": [
+      "foundation",
+      "return process"
+    ],
+    "complaints": [
+      "foundation stopped working within a week",
+      "difficult return process"
+    ],
+    "praise_points": [],
+    "purchase_intent": "low",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer found the foundation ineffective as it stopped working shortly after purchase and faced challenges with the return process.",
+    "review_id": "R0041",
+    "product_name": "Foundation - Standard Edition",
+    "category": "Beauty",
+    "rating": 2,
+    "verified_purchase": true,
+    "review_date": "2024-02-27"
+  },
+  {
+    "sentiment": "very_negative",
+    "features_mentioned": [
+      "materials",
+      "performance"
+    ],
+    "complaints": [
+      "cheap materials",
+      "terrible performance"
+    ],
+    "praise_points": [],
+    "purchase_intent": "none",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer strongly advises against purchasing the action figure due to its poor quality and performance. They highlight the use of cheap materials as a significant issue.",
+    "review_id": "R0042",
+    "product_name": "Action Figure - Pro Edition",
+    "category": "Toys & Games",
+    "rating": 1,
+    "verified_purchase": true,
+    "review_date": "2024-02-10"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "quality",
+      "delivery speed"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "exceeded expectations",
+      "outstanding quality",
+      "quick arrival"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is highly satisfied with the dumbbells, highlighting their outstanding quality and quick delivery. They express a strong intent to purchase again.",
+    "review_id": "R0043",
+    "product_name": "Dumbbells - Pro Edition",
+    "category": "Sports & Outdoors",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-03-24"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "value",
+      "shipping"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value",
+      "fast shipping"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is extremely satisfied with the dog food, highlighting its great value and fast shipping. They highly recommend it to others.",
+    "review_id": "R0044",
+    "product_name": "Dog Food - Standard Edition",
+    "category": "Pet Supplies",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-05-21"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "quality",
+      "delivery speed"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "exceeded expectations",
+      "outstanding quality",
+      "arrived quickly"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is highly satisfied with the car phone mount, noting its outstanding quality and quick delivery. They feel it exceeded their expectations.",
+    "review_id": "R0045",
+    "product_name": "Car Phone Mount - Standard Edition",
+    "category": "Automotive",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-05-06"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "textbook functionality",
+      "price"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "extremely satisfied",
+      "works exactly as described",
+      "great price"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is highly satisfied with the textbook, noting that it functions as expected and is priced well.",
+    "review_id": "R0046",
+    "product_name": "Textbook - Premium Edition",
+    "category": "Books",
+    "rating": 5,
+    "verified_purchase": false,
+    "review_date": "2024-10-11"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "electric toothbrush",
+      "value"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer is very satisfied with the electric toothbrush, highlighting its excellent value and suitability for their needs.",
+    "review_id": "R0047",
+    "product_name": "Electric Toothbrush - Standard Edition",
+    "category": "Health & Personal Care",
+    "rating": 4,
+    "verified_purchase": false,
+    "review_date": "2024-02-21"
+  },
+  {
+    "sentiment": "neutral",
+    "features_mentioned": [
+      "basic",
+      "running shoes"
+    ],
+    "complaints": [],
+    "praise_points": [],
+    "purchase_intent": "medium",
+    "authenticity_score": 7,
+    "key_insights": "The reviewer finds the running shoes to be basic and functional but lacks enthusiasm about their performance. Overall, they have no major complaints but are not particularly impressed.",
+    "review_id": "R0048",
+    "product_name": "Running Shoes - Deluxe Edition",
+    "category": "Sports & Outdoors",
+    "rating": 3,
+    "verified_purchase": true,
+    "review_date": "2024-11-24"
+  },
+  {
+    "sentiment": "very_positive",
+    "features_mentioned": [
+      "car phone mount"
+    ],
+    "complaints": [],
+    "praise_points": [
+      "fantastic product",
+      "satisfaction with purchase",
+      "long-term use"
+    ],
+    "purchase_intent": "high",
+    "authenticity_score": 9,
+    "key_insights": "The reviewer expresses high satisfaction with the car phone mount after weeks of use, indicating it meets their expectations.",
+    "review_id": "R0049",
+    "product_name": "Car Phone Mount - Premium Edition",
+    "category": "Automotive",
+    "rating": 5,
+    "verified_purchase": true,
+    "review_date": "2024-01-09"
+  },
+  {
+    "sentiment": "very_negative",
+    "features_mentioned": [
+      "bird cage",
+      "functionality"
+    ],
+    "complaints": [
+      "arrived damaged",
+      "doesn't work properly"
+    ],
+    "praise_points": [
+      "would buy again"
+    ],
+    "purchase_intent": "medium",
+    "authenticity_score": 8,
+    "key_insights": "The reviewer had a frustrating experience with the bird cage due to it arriving damaged and not functioning properly. Despite this, they expressed a willingness to purchase again.",
+    "review_id": "R0050",
+    "product_name": "Bird Cage - Premium Edition",
+    "category": "Pet Supplies",
+    "rating": 1,
+    "verified_purchase": true,
+    "review_date": "2024-03-21"
+  }
+]

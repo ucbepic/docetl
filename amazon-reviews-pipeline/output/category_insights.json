@@ -1,0 +1,269 @@
+{
+  "Sports & Outdoors": {
+    "total_reviews": 5,
+    "avg_rating": 4.2,
+    "sentiment_distribution": {
+      "neutral": 2,
+      "very_positive": 3
+    },
+    "top_features": [
+      "customer service",
+      "hiking",
+      "backpack",
+      "hiking backpack",
+      "value"
+    ],
+    "top_complaints": [
+      "average quality",
+      "better options available"
+    ],
+    "top_praise": [
+      "highly recommend",
+      "exactly what I was looking for",
+      "unbeatable value"
+    ],
+    "avg_authenticity": 8.2,
+    "verified_purchase_rate": 0.8
+  },
+  "Beauty": {
+    "total_reviews": 7,
+    "avg_rating": 4.0,
+    "sentiment_distribution": {
+      "very_positive": 5,
+      "negative": 2
+    },
+    "top_features": [
+      "price",
+      "foundation",
+      "eye shadow palette",
+      "quality",
+      "effectiveness"
+    ],
+    "top_complaints": [
+      "didn't match the description",
+      "poor quality",
+      "overpriced"
+    ],
+    "top_praise": [
+      "works exactly as described",
+      "great price",
+      "extremely satisfied"
+    ],
+    "avg_authenticity": 8.714285714285714,
+    "verified_purchase_rate": 0.5714285714285714
+  },
+  "Clothing": {
+    "total_reviews": 4,
+    "avg_rating": 3.75,
+    "sentiment_distribution": {
+      "very_positive": 2,
+      "neutral": 1,
+      "very_negative": 1
+    },
+    "top_features": [
+      "functionality",
+      "jacket",
+      "price",
+      "sweater",
+      "dress"
+    ],
+    "top_complaints": [
+      "arrived damaged",
+      "doesn't work properly",
+      "frustrating experience"
+    ],
+    "top_praise": [
+      "extremely satisfied",
+      "works exactly as described",
+      "great price"
+    ],
+    "avg_authenticity": 8.25,
+    "verified_purchase_rate": 1.0
+  },
+  "Toys & Games": {
+    "total_reviews": 5,
+    "avg_rating": 3.0,
+    "sentiment_distribution": {
+      "very_positive": 3,
+      "very_negative": 2
+    },
+    "top_features": [
+      "value",
+      "gift idea",
+      "action figure",
+      "works as described",
+      "price"
+    ],
+    "top_complaints": [
+      "arrived damaged",
+      "doesn't work properly",
+      "cheap materials"
+    ],
+    "top_praise": [
+      "exactly what I was looking for",
+      "unbeatable value",
+      "perfect gift idea"
+    ],
+    "avg_authenticity": 8.8,
+    "verified_purchase_rate": 0.6
+  },
+  "Health & Personal Care": {
+    "total_reviews": 3,
+    "avg_rating": 2.6666666666666665,
+    "sentiment_distribution": {
+      "neutral": 1,
+      "very_negative": 1,
+      "very_positive": 1
+    },
+    "top_features": [
+      "basic face cream",
+      "easy to set up",
+      "easy to use",
+      "vitamin supplement",
+      "packaging"
+    ],
+    "top_complaints": [
+      "stopped working within a week",
+      "difficult return process"
+    ],
+    "top_praise": [
+      "great packaging",
+      "highly recommend",
+      "exactly what I was looking for"
+    ],
+    "avg_authenticity": 8.0,
+    "verified_purchase_rate": 0.3333333333333333
+  },
+  "Electronics": {
+    "total_reviews": 4,
+    "avg_rating": 3.5,
+    "sentiment_distribution": {
+      "very_positive": 2,
+      "neutral": 1,
+      "very_negative": 1
+    },
+    "top_features": [
+      "smart watch",
+      "build quality",
+      "customer service",
+      "value for money",
+      "return process"
+    ],
+    "top_complaints": [
+      "stopped working within a week",
+      "difficult return process"
+    ],
+    "top_praise": [
+      "amazing smartphone",
+      "great build quality",
+      "excellent customer service"
+    ],
+    "avg_authenticity": 8.5,
+    "verified_purchase_rate": 0.75
+  },
+  "Home & Kitchen": {
+    "total_reviews": 2,
+    "avg_rating": 3.5,
+    "sentiment_distribution": {
+      "very_positive": 1,
+      "negative": 1
+    },
+    "top_features": [
+      "clear instructions"
+    ],
+    "top_complaints": [
+      "didn't match the description",
+      "poor quality",
+      "overpriced"
+    ],
+    "top_praise": [
+      "Fantastic coffee maker",
+      "Using it for weeks",
+      "Couldn't be happier with purchase"
+    ],
+    "avg_authenticity": 8.0,
+    "verified_purchase_rate": 0.5
+  },
+  "Pet Supplies": {
+    "total_reviews": 7,
+    "avg_rating": 3.142857142857143,
+    "sentiment_distribution": {
+      "very_positive": 4,
+      "very_negative": 3
+    },
+    "top_features": [
+      "quality",
+      "delivery speed",
+      "value",
+      "materials",
+      "performance"
+    ],
+    "top_complaints": [
+      "Cheap materials",
+      "Terrible performance",
+      "didn't match the description"
+    ],
+    "top_praise": [
+      "exceeded expectations",
+      "outstanding quality",
+      "arrived quickly"
+    ],
+    "avg_authenticity": 8.714285714285714,
+    "verified_purchase_rate": 1.0
+  },
+  "Automotive": {
+    "total_reviews": 9,
+    "avg_rating": 4.0,
+    "sentiment_distribution": {
+      "very_positive": 6,
+      "negative": 1,
+      "neutral": 2
+    },
+    "top_features": [
+      "car phone mount",
+      "functionality",
+      "price",
+      "tire inflator",
+      "seat covers"
+    ],
+    "top_complaints": [
+      "broke after just a few days of use",
+      "some features do not work well"
+    ],
+    "top_praise": [
+      "fantastic product",
+      "fantastic tire inflator",
+      "very happy with purchase"
+    ],
+    "avg_authenticity": 8.444444444444445,
+    "verified_purchase_rate": 0.7777777777777778
+  },
+  "Books": {
+    "total_reviews": 4,
+    "avg_rating": 3.75,
+    "sentiment_distribution": {
+      "neutral": 1,
+      "negative": 1,
+      "very_positive": 2
+    },
+    "top_features": [
+      "value for money",
+      "expectations",
+      "children's book",
+      "usage duration",
+      "textbook functionality"
+    ],
+    "top_complaints": [
+      "Did not match the description",
+      "Poor quality",
+      "Overpriced"
+    ],
+    "top_praise": [
+      "fantastic book",
+      "high satisfaction with purchase",
+      "extremely satisfied"
+    ],
+    "avg_authenticity": 8.25,
+    "verified_purchase_rate": 0.75
+  }
+}

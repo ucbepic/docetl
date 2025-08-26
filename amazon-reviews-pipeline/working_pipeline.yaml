@@ -1,0 +1,40 @@
+default_model: gpt-4o-mini
+output_path: output/analysis_results.json
+
+datasets:
+  reviews:
+    type: file
+    path: data/amazon_reviews.json
+
+operations:
+  - name: analyze_sentiment
+    type: map
+    prompt: |
+      Analyze this Amazon product review:
+      
+      Review text: {{ input.review_text }}
+      Rating: {{ input.rating }} stars
+      Category: {{ input.category }}
+      
+      Provide a detailed analysis with:
+      1. Overall sentiment (very_positive, positive, neutral, negative, very_negative)
+      2. Key product features mentioned
+      3. Main complaints (if any)
+      4. Main praise points (if any)
+      5. Whether the reviewer would recommend the product
+      
+      Return as JSON.
+    output:
+      schema:
+        sentiment: string
+        features_mentioned: list[str]
+        complaints: list[str]
+        praise_points: list[str]
+        would_recommend: bool
+
+pipeline:
+  steps:
+    - name: main
+      input: reviews
+      operations:
+        - analyze_sentiment

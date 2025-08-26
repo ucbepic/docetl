@@ -1,0 +1,33 @@
+{
+  "total_reviews": 50,
+  "categories_analyzed": 10,
+  "overall_sentiment_distribution": {
+    "neutral": 8,
+    "very_positive": 29,
+    "very_negative": 8,
+    "negative": 5
+  },
+  "avg_authenticity_score": 8.46,
+  "top_rated_categories": [
+    [
+      "Sports & Outdoors",
+      4.2
+    ],
+    [
+      "Beauty",
+      4.0
+    ],
+    [
+      "Automotive",
+      4.0
+    ],
+    [
+      "Clothing",
+      3.75
+    ],
+    [
+      "Books",
+      3.75
+    ]
+  ]
+}

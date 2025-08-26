@@ -1,0 +1,29 @@
+default_model: gpt-4o-mini
+
+datasets:
+  reviews:
+    type: file
+    path: data/amazon_reviews.json
+
+operations:
+  - name: analyze_sentiment
+    type: map
+    prompt: |
+      Analyze the sentiment of this review:
+      {{ input.review_text }}
+      
+      Return: positive, neutral, or negative
+    output:
+      schema:
+        sentiment: string
+
+pipeline:
+  steps:
+    - name: main
+      input: reviews
+      operations:
+        - analyze_sentiment
+
+output:
+  type: file
+  path: output/results.json

@@ -1,0 +1,92 @@
+# Amazon Product Reviews Analysis Pipeline
+default_model: gpt-4o-mini
+
+datasets:
+  amazon_reviews:
+    type: file
+    path: "data/amazon_reviews.json"
+    source: json
+
+# Global output configuration
+output:
+  type: file
+  path: "output/analysis_results.json"
+
+operations:
+  - name: extract_sentiment_entities
+    type: map
+    prompt: |
+      Analyze this product review and extract the following information:
+      
+      Review: {{ input.review_text }}
+      Category: {{ input.category }}
+      Rating: {{ input.rating }} stars
+      
+      Extract:
+      1. Overall sentiment (very_positive, positive, neutral, negative, very_negative)
+      2. Key product features mentioned (list up to 5)
+      3. Specific complaints (if any)
+      4. Specific praise points (if any)
+      5. Purchase intent indicators (would buy again, recommend to others, etc.)
+      6. Price/value mentions
+      
+      Return as JSON with these exact keys:
+      - sentiment: string
+      - features_mentioned: list of strings
+      - complaints: list of strings
+      - praise_points: list of strings
+      - purchase_intent: string (high/medium/low/none)
+      - price_value_sentiment: string (good_value/fair_value/poor_value/not_mentioned)
+    output:
+      schema:
+        sentiment: string
+        features_mentioned: "list[str]"
+        complaints: "list[str]"
+        praise_points: "list[str]"
+        purchase_intent: string
+        price_value_sentiment: string
+
+  - name: categorize_issues
+    type: map
+    prompt: |
+      Based on the complaints extracted from this review, categorize them into standard issue types:
+      
+      Complaints: {{ output.complaints }}
+      Product Category: {{ input.category }}
+      
+      Categorize each complaint into one or more of these categories:
+      - quality_issues (poor materials, breaks easily, defective)
+      - shipping_problems (damaged arrival, late delivery, wrong item)
+      - misleading_description (not as advertised, size issues, color mismatch)
+      - performance_issues (doesn't work properly, battery problems, slow)
+      - customer_service (poor support, difficult returns)
+      - value_for_money (overpriced, better alternatives exist)
+      - usability (hard to use, confusing instructions, poor design)
+      
+      Return a list of applicable categories.
+    output:
+      schema:
+        issue_categories: "list[str]"
+
+  - name: create_review_summary
+    type: map
+    prompt: |
+      Create a concise, informative summary of this review that captures the key points:
+      
+      Original review: {{ input.review_text }}
+      Extracted sentiment: {{ output.sentiment }}
+      Key features: {{ output.features_mentioned }}
+      
+      Write a 1-2 sentence summary that would be useful for other shoppers.
+    output:
+      schema:
+        review_summary: string
+
+pipeline:
+  steps:
+    - name: analyze_reviews
+      input: amazon_reviews
+      operations:
+        - extract_sentiment_entities
+        - categorize_issues
+        - create_review_summary

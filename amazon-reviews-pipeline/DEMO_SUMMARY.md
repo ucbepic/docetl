@@ -89,6 +89,9 @@ This pipeline demonstrates how businesses can:
 ## Running the Demo
 
 ```bash
+# First, set your OpenAI API key
+export OPENAI_API_KEY="your-api-key-here"
+
 # Quick start
 ./run_pipeline.sh
 
@@ -97,6 +100,8 @@ python3 collect_reviews.py          # Generate sample data
 python3 run_analysis.py             # Run AI analysis
 python3 visualize_results.py        # Display results
 ```
+
+⚠️ **Important**: You must have a valid OpenAI API key set as an environment variable. See SECURITY.md for best practices.
 
 ## Cost Efficiency
 

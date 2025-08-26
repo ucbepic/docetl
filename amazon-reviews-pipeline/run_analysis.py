@@ -16,11 +16,25 @@ from rich.table import Table
 from rich.panel import Panel
 from rich import box
 
+# Try to load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, will use system environment variables
+
 # Initialize console for pretty output
 console = Console()
 
 # Set up OpenAI client
-client = OpenAI(api_key="sk-proj-16UaWXgl0AfEef29xu3BT3BlbkFJ3hFc8VSQ9IWRKxvolMeR")
+# IMPORTANT: Set your API key as an environment variable for security
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    console.print("[red]Error: OPENAI_API_KEY environment variable not set![/red]")
+    console.print("Please set it using: export OPENAI_API_KEY='your-api-key-here'")
+    exit(1)
+
+client = OpenAI(api_key=api_key)
 
 def load_reviews(path: str, limit: int = None) -> List[Dict]:
     """Load Amazon reviews from JSON file"""

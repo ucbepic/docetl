@@ -46,12 +46,28 @@ amazon-reviews-pipeline/
    pip3 install -r requirements.txt
    ```
 
-3. **Set up OpenAI API key** (already included in run_pipeline.sh):
+3. **Set up OpenAI API key** (REQUIRED):
+   
+   **Option 1: Environment Variable (Recommended)**
    ```bash
-   export OPENAI_API_KEY="your-api-key-here"
+   export OPENAI_API_KEY="your-actual-api-key-here"
    ```
+   
+   **Option 2: Use .env file**
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your API key
+   ```
+   
+   ⚠️ **Security Warning**: Never commit API keys to version control!
 
 ## 🏃 Running the Pipeline
+
+### Pre-flight Check
+First, verify your setup:
+```bash
+python3 check_setup.py
+```
 
 ### Quick Start
 Simply run the provided shell script:

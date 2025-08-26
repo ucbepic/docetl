@@ -4,7 +4,11 @@ from docetl import Dataset, MapOp, ReduceOp, Pipeline
 import litellm
 
 # Set OpenAI API key
-os.environ["OPENAI_API_KEY"] = "sk-proj-16UaWXgl0AfEef29xu3BT3BlbkFJ3hFc8VSQ9IWRKxvolMeR"
+# IMPORTANT: Set your API key as an environment variable for security
+if not os.getenv("OPENAI_API_KEY"):
+    print("Error: OPENAI_API_KEY environment variable not set!")
+    print("Please set it using: export OPENAI_API_KEY='your-api-key-here'")
+    exit(1)
 
 # Load the data
 with open("data/amazon_reviews.json", "r") as f:

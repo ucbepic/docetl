@@ -6,7 +6,8 @@ echo "🚀 Starting Amazon Reviews Analysis Pipeline..."
 echo "================================================"
 
 # Set OpenAI API key
-export OPENAI_API_KEY="sk-proj-16UaWXgl0AfEef29xu3BT3BlbkFJ3hFc8VSQ9IWRKxvolMeR"
+# IMPORTANT: Replace with your actual API key or set as environment variable
+export OPENAI_API_KEY="${OPENAI_API_KEY:-your-openai-api-key-here}"
 
 # Check if data exists
 if [ ! -f "data/amazon_reviews.json" ]; then

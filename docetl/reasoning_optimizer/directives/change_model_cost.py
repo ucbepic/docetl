@@ -24,6 +24,16 @@ MODEL_STATS = {
     }
 }
 
+FRONTIER_MODELS = {
+    "cuad": {
+        "gemini-2.5-flash-lite",
+        "gpt-5-nano",
+        "gpt-4.1-mini",
+        "gemini-2.5-flash",
+        "gpt-4.1",
+    }
+}
+
 
 MODEL_COSTS = {
     "cuad": {

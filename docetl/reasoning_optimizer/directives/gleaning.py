@@ -157,7 +157,7 @@ class GleaningDirective(Directive):
                 azure=True,
                 response_format=GleaningInstantiateSchema,
             )
-            call_cost = resp.usage.total_tokens * resp.usage.completion_tokens
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = GleaningInstantiateSchema(**parsed_res)

@@ -190,7 +190,7 @@ class MapReduceFusionDirective(Directive):
                 azure=True,
                 response_format=MapReduceFusionInstantiateSchema
             )
-            call_cost = resp.usage.total_tokens * resp.usage.completion_tokens
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 if "new_map_name" not in parsed_res or "new_map_prompt" not in parsed_res or "new_key" not in parsed_res or "new_reduce_prompt" not in parsed_res:

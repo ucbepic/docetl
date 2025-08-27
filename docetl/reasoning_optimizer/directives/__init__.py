@@ -66,7 +66,6 @@ ALL_COST_DIRECTIVES = [
     OperatorFusionDirective(),
     TakeHeadTailDirective(),
     MapReduceFusionDirective(),
-    ChangeModelCostDirective(),
     CascadeFilteringDirective(),
     ArbitraryRewriteDirective(),
 ]
@@ -86,8 +85,6 @@ DIRECTIVE_GROUPS = {
 MULTI_INSTANCE_DIRECTIVES = [
     DocumentChunkingDirective(),
     DocumentChunkingTopKDirective(),
-    ChangeModelAccDirective(),
-    ChangeModelCostDirective(),
     DeterministicDocCompressionDirective(),
     TakeHeadTailDirective(),
     CascadeFilteringDirective(),

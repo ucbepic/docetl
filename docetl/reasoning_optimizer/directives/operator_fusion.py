@@ -182,7 +182,7 @@ class OperatorFusionDirective(Directive):
                 azure=True,
                 response_format=OperatorFusionInstantiateSchema,
             )
-            call_cost = resp.usage.total_tokens * resp.usage.completion_tokens
+            call_cost = resp._hidden_params["response_cost"]
             try:
                 parsed_res = json.loads(resp.choices[0].message.content)
                 schema = OperatorFusionInstantiateSchema(**parsed_res)

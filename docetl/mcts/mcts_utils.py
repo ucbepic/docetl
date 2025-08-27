@@ -231,12 +231,12 @@ def log_tree_to_file(root_node, iteration_num, output_dir="./outputs"):
         print_tree_visits_and_values(root_node, file_handle=f)
 
 
-def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path, dataset=None) -> tuple[str, str]:
+def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None) -> tuple[str, str]:
     """Create expansion prompt for accuracy optimization."""
     
     ### DEBUG 
     print("memo: ")
-    print(node.get_memo_for_llm(root_node))
+    print(node.get_memo_for_llm(root_node, node_accuracies))
 
     availabel_actions_str = ""
     for item in action_options:
@@ -313,7 +313,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     - High average reward indicates good historical performance
     - Consider both immediate improvement and learning about the action space
 
-    {node.get_memo_for_llm(root_node)}
+    {node.get_memo_for_llm(root_node, node_accuracies)}
 
     Make sure you read every rewrite directive carefully.
     Make sure you only choose from the valid choices above and avoid already used combinations or approaches too similar to what has already been tried in the current optimization path.
@@ -340,12 +340,12 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     return user_message, condensed_user_message
 
 
-def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path, dataset=None) -> tuple[str, str]:
+def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None) -> tuple[str, str]:
     """Create expansion prompt for cost optimization."""
 
     ### DEBUG 
     print("memo: ")
-    print(node.get_memo_for_llm(root_node))
+    print(node.get_memo_for_llm(root_node, node_accuracies))
     print("***"*50)
 
     availabel_actions_str = ""
@@ -422,7 +422,7 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     - High average reward indicates good historical performance
     - Consider both immediate improvement and learning about the action space
 
-    {node.get_memo_for_llm(root_node)}
+    {node.get_memo_for_llm(root_node, node_accuracies)}
 
     Make sure you only choose from the valid choices above and avoid already used combinations or approaches too similar to what has already been tried in the current optimization path.
 

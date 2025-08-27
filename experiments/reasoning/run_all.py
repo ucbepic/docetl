@@ -97,10 +97,9 @@ CONFIG: Dict[str, Any] = {
         {
             "dataset": "cuad",
             "build_first_layer": True,
-            "optimized_cost": 2.026396,
             # "baseline": {"iterations": 10},
             # "simple_baseline": {"iterations": 10},
-            "mcts": {"max_iterations": 20}
+            "mcts": {"max_iterations": 25}
         }
     ]
 }

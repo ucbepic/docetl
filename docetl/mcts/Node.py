@@ -358,10 +358,14 @@ class Node:
         
         return " → ".join(path_parts)
     
-    def get_exploration_tree_summary(self, root: Node) -> str:
+    def get_exploration_tree_summary(self, root: Node, node_accuracies: Optional[Dict['Node', float]] = None) -> str:
         """
         Generate a comprehensive but concise summary of the entire exploration tree.
         This gives the LLM agent complete context about what has been tried.
+        
+        Args:
+            root: Root node of the tree
+            node_accuracies: Optional dictionary mapping nodes to their accuracy values
         
         Returns:
             Formatted tree summary optimized for LLM consumption
@@ -375,7 +379,12 @@ class Node:
             # Add this node's path if it's not the root
             if node != root:
                 if hasattr(node, 'cost') and node.cost != -1:
-                    successful_paths.append(f"{current_path} (cost: ${node.cost:.2f})")
+                    # Include accuracy if available
+                    if node_accuracies and node in node_accuracies:
+                        accuracy = node_accuracies[node]
+                        successful_paths.append(f"{current_path} (cost: ${node.cost:.2f}, accuracy: {accuracy:.3f})")
+                    else:
+                        successful_paths.append(f"{current_path} (cost: ${node.cost:.2f})")
                 else:
                     failed_paths.append(f"{current_path} (failed)")
             
@@ -422,21 +431,40 @@ class Node:
         # Successful explorations
         if successful_paths:
             summary_parts.append(f"\nSUCCESSFUL EXPLORATIONS ({len(successful_paths)} total):")
-            # Show best performers first
-            sorted_successful = sorted(successful_paths, key=lambda x: float(x.split("cost: $")[1].split(")")[0]) if "cost: $" in x else float('inf'))
+            # Show best performers first - sort by accuracy (highest first), then by cost (lowest first)
+            def extract_sort_key(path):
+                if "cost: $" not in path:
+                    return (0, float('inf'))  # lowest accuracy, highest cost for failed cases
+                try:
+                    cost_part = path.split("cost: $")[1]
+                    if ", accuracy:" in cost_part:
+                        cost_str = cost_part.split(", accuracy:")[0]
+                        accuracy_str = cost_part.split(", accuracy:")[1].split(")")[0]
+                        return (-float(accuracy_str), float(cost_str))  # negative accuracy for descending order
+                    else:
+                        cost_str = cost_part.split(")")[0]
+                        return (0, float(cost_str))  # no accuracy info, sort by cost only
+                except (ValueError, IndexError):
+                    return (0, float('inf'))
+            
+            sorted_successful = sorted(successful_paths, key=extract_sort_key)
             for i, path in enumerate(sorted_successful):  
                 summary_parts.append(f"  {i+1}. {path}")
 
         return "\n".join(summary_parts)
     
-    def get_memo_for_llm(self, root_node: Node) -> str:
+    def get_memo_for_llm(self, root_node: Node, node_accuracies: Optional[Dict['Node', float]] = None) -> str:
         """
         Get a comprehensive exploration summary formatted for LLM prompts.
+        
+        Args:
+            root_node: Root node of the tree
+            node_accuracies: Optional dictionary mapping nodes to their accuracy values
         
         Returns:
             Complete exploration context to guide decision making
         """
-        return self.get_exploration_tree_summary(root_node)
+        return self.get_exploration_tree_summary(root_node, node_accuracies)
     
     def delete(self, selected_node_final_id=None):
         """

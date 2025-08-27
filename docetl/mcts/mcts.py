@@ -3,12 +3,15 @@ import math
 import os
 import re
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 import litellm
 from litellm import completion_cost
 import yaml
+import threading
 
 from docetl.reasoning_optimizer.directives import (
     ALL_COST_DIRECTIVES,
@@ -25,7 +28,8 @@ from docetl.reasoning_optimizer.directives.change_model_cost import (
     create_model_specific_directives,
     MODEL_COSTS,
     MODEL_STATS,
-    first_layer_yaml_paths
+    first_layer_yaml_paths,
+    FRONTIER_MODELS
 )
 from docetl.reasoning_optimizer.load_data import load_input_doc
 from docetl.reasoning_optimizer.op_descriptions import *
@@ -98,6 +102,8 @@ class MCTS:
         """
 
         self.root = Node(root_yaml_path, c=exploration_constant)
+        self.tree_lock = threading.RLock()
+        self.max_concurrent_agents = 3
         
         # Start with base available actions
         self.available_actions = set(available_actions)
@@ -222,9 +228,13 @@ class MCTS:
             )
             # execute root node and add it to the pareto frontier
             cost, accuracy = self.simulate(self.root)
-            self.total_search_cost += max(cost,0)
+            with self.tree_lock:
+                cost_to_add = max(cost,0)
+                print(f"💰 Adding simulation cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                self.total_search_cost += cost_to_add
             affected_nodes, is_frontier_updated = self.add_to_frontier(self.root, accuracy)
-            self.backpropagate(affected_nodes, self.root)
+            with self.tree_lock:
+                self.backpropagate(affected_nodes, self.root)
             self.root.visits = 1
 
 
@@ -271,7 +281,7 @@ class MCTS:
 
     def search(self):
         """
-        Perform MCTS search to find the optimal query plan.
+        Perform MCTS search to find the optimal query plan with concurrent agents.
 
         Returns:
             Tuple of (best_node, search_statistics)
@@ -279,22 +289,45 @@ class MCTS:
         self.start_time = time.time()
         self.iteration_count = 0
 
-        print(f"Starting MCTS search with {self.max_iterations} iterations...")
+        print(f"Starting concurrent MCTS search with {self.max_iterations} iterations and {self.max_concurrent_agents} agents...")
         print(f"Root node cost: ${self.root.cost:.2f}")
 
-        while self.should_continue():
-            if self.iteration_count < 10: 
-                if self.mcts_cost_iteration():
-                    self.iteration_count += 1
-            # elif self.iteration_count < 20:
-            #     if self.mcts_iteration():
-            #         self.iteration_count += 1
-            else:
-                if self.mcts_iteration():
-                    self.iteration_count += 1
+        with ThreadPoolExecutor(max_workers=self.max_concurrent_agents) as executor:
+            while self.should_continue():
+                # Submit up to max_concurrent_agents tasks
+                futures = []
+                agents_to_submit = min(self.max_concurrent_agents, self.max_iterations - self.iteration_count)
+                
+                for _ in range(agents_to_submit):
+                    if self.iteration_count < 5:
+                        future = executor.submit(self.mcts_cost_iteration)
+                    elif self.iteration_count < 20:
+                        future = executor.submit(self.mcts_iteration)
+                    else:
+                        future = executor.submit(self.mcts_cost_iteration)
+                    futures.append(future)
+                
+                # Wait for at least one agent to complete
+                for future in as_completed(futures):
+                    try:
+                        success = future.result()
+                        if success:
+                            with self.tree_lock:
+                                self.iteration_count += 1
+                    except Exception as e:
+                        print(f"Agent failed with error: {e}")
+                    
+                    # Check if we should continue after each completion
+                    if not self.should_continue():
+                        break
+                
+                # Cancel remaining futures if stopping
+                if not self.should_continue():
+                    for future in futures:
+                        future.cancel()
 
         # Final statistics
-        print(f"\nMCTS search completed!")
+        print(f"\nConcurrent MCTS search completed!")
         print(f"Total iterations: {self.iteration_count}")
         print(f"Pareto frontier size: {len(self.pareto_frontier)}")
         print(f"Frontier plans: {len(self.pareto_frontier.frontier_plans)}")
@@ -310,29 +343,31 @@ class MCTS:
         ]
 
         return frontier_plans
-    
-    def mcts_iteration_model(self):
-        """Perform one complete MCTS iteration changing model."""
-        pass
 
     def mcts_cost_iteration(self):
-        """Perform one complete MCTS iteration optimizing for cost."""
+        """Perform one complete MCTS iteration optimizing for cost with thread safety."""
+        thread_id = threading.current_thread().ident
+        
+        # 1. Selection: Find the best leaf node (requires tree lock)
+        with self.tree_lock:
+            print(f"[Thread {thread_id}] SELECTION (COST)")
+            leaf = self.select(self.root)
+            print(f"[Thread {thread_id}] SELECTED NODE: {leaf.get_id()}")
 
-        # 1. Selection: Find the best leaf node
-        print("SELECTION (COST)")
-        leaf = self.select(self.root)
-        print("SELECTED NODE: ", leaf.get_id())
+        # 2. Expansion: Always attempt to expand the leaf, catch errors (requires tree lock)
+        with self.tree_lock:
+            print(f"[Thread {thread_id}] EXPANSION (COST)")
+            cost_children = []
 
-        # 2. Expansion: Always attempt to expand the leaf, catch errors
-        print("EXPANSION (COST)")
-        cost_children = []
-
-        has_leaf_cost = 1
-        try:
-            cost_children = self.expand(leaf, optimize_goal="cost")
-        except RuntimeError as e:
-            print(e)
-            has_leaf_cost = 0
+            has_leaf_cost = 1
+            try:
+                cost_children = self.expand(leaf, optimize_goal="cost")
+                # Increment visit count immediately after successful expansion
+                if cost_children:
+                    self.increment_visits_up_tree(leaf)
+            except RuntimeError as e:
+                print(e)
+                has_leaf_cost = 0
 
         # 3. Simulation: Run simulations from the leaf
         is_frontier_updated = False
@@ -346,7 +381,10 @@ class MCTS:
                 # Simulate all candidates
                 for num, candidate in enumerate(cost_children):
                     cost, accuracy = self.simulate(candidate)
-                    self.total_search_cost += max(cost,0)
+                    with self.tree_lock:
+                        cost_to_add = max(cost,0)
+                        print(f"💰 Adding multi-instance candidate cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                        self.total_search_cost += cost_to_add
                     print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
                     if cost != -1 and accuracy != float("-inf"):  # Valid plan
                         candidate_results.append((candidate, accuracy, cost))
@@ -368,9 +406,10 @@ class MCTS:
                         if candidate != best_candidate:
                             candidate.delete(selected_node_final_id=new_id)
                     
-                    # Process only the best candidate
+                    # Process only the best candidate (requires tree lock for backprop)
                     affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
-                    self.backpropagate(affected_nodes, best_candidate)
+                    with self.tree_lock:
+                        self.backpropagate(affected_nodes, best_candidate)
                 else:
                     # If no candidates were successful, delete all of them
                     print("No successful candidates found, deleting all multi-instance candidates")
@@ -381,41 +420,51 @@ class MCTS:
                 # Original logic for single instantiation
                 for leaf_cost in cost_children:
                     cost, accuracy = self.simulate(leaf_cost)
-                    self.total_search_cost += max(cost,0)
+                    with self.tree_lock:
+                        cost_to_add = max(cost,0)
+                        print(f"💰 Adding leaf cost simulation: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                        self.total_search_cost += cost_to_add
                     affected_nodes, temp_updated = self.add_to_frontier(leaf_cost, accuracy)
                     if temp_updated:
                         is_frontier_updated = True
-                    # Check if any node was added to the frontier (value = 1)
-                    self.backpropagate(affected_nodes, leaf_cost)
+                    # Check if any node was added to the frontier (value = 1) - requires tree lock for backprop
+                    with self.tree_lock:
+                        self.backpropagate(affected_nodes, leaf_cost)
 
-            # Update counter for early stopping
-            if is_frontier_updated:
-                self.iterations_without_improvement = 0
-            else:
-                self.iterations_without_improvement += 1
+            # Update counter for early stopping (requires tree lock)
+            with self.tree_lock:
+                if is_frontier_updated:
+                    self.iterations_without_improvement = 0
+                else:
+                    self.iterations_without_improvement += 1
 
-        self.log_tree_to_file(self.iteration_count + 1)
+                self.log_tree_to_file(self.iteration_count + 1)
         return has_leaf_cost
 
     def mcts_iteration(self):
-        """Perform one complete MCTS iteration."""
+        """Perform one complete MCTS iteration with thread safety."""
+        thread_id = threading.current_thread().ident
+        
+        # 1. Selection: Find the best leaf node (requires tree lock)
+        with self.tree_lock:
+            print(f"[Thread {thread_id}] SELECTION")
+            leaf = self.select(self.root)
+            print(f"[Thread {thread_id}] SELECTED NODE: {leaf.get_id()}")
 
-        # 1. Selection: Find the best leaf node
-        print("SELECTION")
-        leaf = self.select(self.root)
-        print("SELECTED NODE: ", leaf.get_id())
+        # 2. Expansion: Always attempt to expand the leaf, catch errors (requires tree lock)
+        with self.tree_lock:
+            print(f"[Thread {thread_id}] EXPANSION")
+            acc_children = []
 
-        # 2. Expansion: Always attempt to expand the leaf, catch errors
-        print("EXPANSION")
-        acc_children = []
-        # cost_children = []
-
-        has_leaf_acc = 1
-        try:
-            acc_children = self.expand(leaf, optimize_goal="acc")
-        except RuntimeError as e:
-            print(e)
-            has_leaf_acc = 0
+            has_leaf_acc = 1
+            try:
+                acc_children = self.expand(leaf, optimize_goal="acc")
+                # Increment visit count immediately after successful expansion
+                if acc_children:
+                    self.increment_visits_up_tree(leaf)
+            except RuntimeError as e:
+                print(e)
+                has_leaf_acc = 0
 
         # 3. Simulation: Run simulations from the leaf
 
@@ -430,7 +479,10 @@ class MCTS:
                 # Simulate all candidates
                 for num, candidate in enumerate(acc_children):
                     cost, accuracy = self.simulate(candidate)
-                    self.total_search_cost += max(cost,0)
+                    with self.tree_lock:
+                        cost_to_add = max(cost,0)
+                        print(f"💰 Adding multi-instance acc candidate cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                        self.total_search_cost += cost_to_add
                     print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
                     if cost != -1 and accuracy != float("-inf"):  # Valid plan
                         candidate_results.append((candidate, accuracy, cost))
@@ -452,9 +504,10 @@ class MCTS:
                         if candidate != best_candidate:
                             candidate.delete(selected_node_final_id=new_id)
                     
-                    # Process only the best candidate
+                    # Process only the best candidate (requires tree lock for backprop)
                     affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
-                    self.backpropagate(affected_nodes, best_candidate)
+                    with self.tree_lock:
+                        self.backpropagate(affected_nodes, best_candidate)
                 else:
                     # If no candidates were successful, delete all of them
                     print("No successful candidates found, deleting all multi-instance candidates")
@@ -465,20 +518,25 @@ class MCTS:
                 # Original logic for single instantiations
                 for leaf_acc in acc_children:
                     cost, accuracy = self.simulate(leaf_acc)
-                    self.total_search_cost += max(cost,0)
+                    with self.tree_lock:
+                        cost_to_add = max(cost,0)
+                        print(f"💰 Adding leaf acc simulation: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                        self.total_search_cost += cost_to_add
                     affected_nodes, temp_updated = self.add_to_frontier(leaf_acc, accuracy)
                     if temp_updated:
                         is_frontier_updated = True
                     # Check if any node was added to the frontier (value = 1)
-                    self.backpropagate(affected_nodes, leaf_acc)
+                    with self.tree_lock:
+                        self.backpropagate(affected_nodes, leaf_acc)
 
-            # Update counter for early stopping
-            if is_frontier_updated:
-                self.iterations_without_improvement = 0
-            else:
-                self.iterations_without_improvement += 1
+            # Update counter for early stopping (requires tree lock)
+            with self.tree_lock:
+                if is_frontier_updated:
+                    self.iterations_without_improvement = 0
+                else:
+                    self.iterations_without_improvement += 1
 
-        self.log_tree_to_file(self.iteration_count + 1)
+                self.log_tree_to_file(self.iteration_count + 1)
         return has_leaf_acc
 
     def select(self, node: Node) -> Node:
@@ -507,14 +565,14 @@ class MCTS:
         return create_expansion_prompt_acc(
             node, action_options, input_query, self.available_actions, 
             self.action_rewards, self.action_counts, self.sample_input, 
-            self.root, node.yaml_file_path, self.dataset_name
+            self.root, node.yaml_file_path, self.dataset_name, self.pareto_frontier.plans_accuracy
         )
 
     def expansion_prompt_cost(self, node, action_options, input_query) -> tuple[str, str]:
         return create_expansion_prompt_cost(
             node, action_options, input_query, self.available_actions,
             self.action_rewards, self.action_counts, self.sample_input,
-            self.root, node.yaml_file_path, self.dataset_name
+            self.root, node.yaml_file_path, self.dataset_name, self.pareto_frontier.plans_accuracy
         )
 
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
@@ -598,7 +656,6 @@ class MCTS:
                 else:
                     used_actions = set()
 
-                print("used_actions: ", used_actions)
                 
                 # Get compression directives to exclude for code_map and extract operations
                 compression_exclusions = get_excluded_directives_for_operation(node, op_name)
@@ -612,19 +669,13 @@ class MCTS:
                 dynamic_cost_directives = []
                 
                 for directive in ALL_COST_DIRECTIVES:
-                    if isinstance(directive, ChangeModelCostDirective):
-                        continue
-                        # # Only include model changes to cheaper models
-                        # if self._is_cheaper_model(directive.target_model, current_model):
-                        #     dynamic_cost_directives.append(directive)
+                    if isinstance(directive, ChangeModelCostDirective) and directive.target_model:
+                        if self.iteration_count < 20: continue
+                        # Only include model changes to cheaper models
+                        if self._is_cheaper_model(directive.target_model, current_model) and directive.target_model in FRONTIER_MODELS[self.dataset_name]:
+                            dynamic_cost_directives.append(directive)
                     else:
                         dynamic_cost_directives.append(directive)
-                
-                # Add cheaper model-specific directives from available_actions
-                for directive in self.available_actions:
-                    if isinstance(directive, ChangeModelCostDirective) and directive.target_model:
-                        if self._is_cheaper_model(directive.target_model, current_model):
-                            dynamic_cost_directives.append(directive)
                 
                 action_space = (
                     set(dynamic_cost_directives) - banned_directives - used_actions - compression_exclusions
@@ -681,7 +732,9 @@ class MCTS:
                 response_format=ExpandResponseFormat,
             )
             call_cost = response._hidden_params["response_cost"]
-            self.total_search_cost += call_cost
+            with self.tree_lock:
+                print(f"💰 Adding LLM call cost: ${call_cost:.4f} (total before: ${self.total_search_cost:.4f})")
+                self.total_search_cost += call_cost
             reply = response.choices[0].message.content
 
             try:
@@ -740,15 +793,18 @@ class MCTS:
             if isinstance(first_dataset, dict):
                 input_file_path = first_dataset.get("path")
 
-        # Mark action as used
+        # Mark action as used and increment use count immediately
         for target_op in target_op_list:
             node.mark_action_used(target_op, directive)
+        
+        # Increment action count immediately to prevent race conditions
+        self.action_counts[directive] += 1
 
         message_length = len(messages)
         
         # Check if this directive supports multiple instantiations
         is_multi_instance = directive in MULTI_INSTANCE_DIRECTIVES
-        num_instantiations = 3 if is_multi_instance else 1
+        num_instantiations = 2 if is_multi_instance else 1
         
         print(f"Creating {num_instantiations} instantiation(s) for directive '{directive_name}'")
         
@@ -761,7 +817,6 @@ class MCTS:
                 # For multi-instance directives, add variation to each instantiation
                 if is_multi_instance:
                     # Use accumulated message history (includes previous instantiations)
-                    
                     # Add instantiation-specific context to encourage variation
                     if i == 0:
                         variation_prompt = f"This is instantiation {i+1} of {num_instantiations} for the '{directive_name}' directive. Focus on creating a distinct approach by exploring different parameter combinations or implementation strategies. For example, you can try different models, different parameter settings (chunk size, top k, etc.), or different implementation strategies."
@@ -793,7 +848,9 @@ class MCTS:
                     pipeline_code=node.parsed_yaml,
                     dataset=self.dataset_name,
                 )
-                self.total_search_cost += cost
+                with self.tree_lock:
+                    print(f"💰 Adding agent instantiation cost: ${cost:.4f} (total before: ${self.total_search_cost:.4f})")
+                    self.total_search_cost += cost
                 if new_ops_list is None:
                     print(f"Instantiation {i+1} failed: no ops list returned")
                     continue
@@ -857,28 +914,37 @@ class MCTS:
     def add_to_frontier(self, node: Node, accuracy: float):
         # Only increment action count after successful execution and evaluation
         if hasattr(node, 'latest_action') and node.latest_action is not None:
-            self.action_counts[node.latest_action] += 1
+            pass
+        else:
+            self.action_counts[node.latest_action] -= 1
 
         # Step 3: Add to frontier (this only manages frontier state, no evaluation)
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node, accuracy)
         self.action_rewards = self.pareto_frontier.action_rewards
         return affected_nodes, is_frontier_updated
 
+    def increment_visits_up_tree(self, node: Node):
+        """
+        Increment visit count up the tree from the given node to root.
+        Called immediately after expansion.
+        """
+        current = node
+        while current is not None:
+            current.update_visit()
+            current = current.parent
+
     def backpropagate(self, affected_nodes: Dict[Node, int], visit_node):
         """
-        Backpropagate the simulation value change up the tree.
+        Backpropagate only the simulation value changes up the tree.
+        Visit counts are updated separately in increment_visits_up_tree.
         """
-
         for node, val in affected_nodes.items():
             current = node
             while current is not None:
                 current.update_value(val)
                 current = current.parent
-
-        current = visit_node
-        while current is not None:
-            current.update_visit()
-            current = current.parent
+        
+        visit_node.update_visit()
 
     def should_continue(self) -> bool:
         """Check if MCTS should continue running."""

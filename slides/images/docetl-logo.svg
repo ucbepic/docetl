@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 40" width="140" height="40">
+  <!-- Lucide Scroll Icon -->
+  <g transform="translate(8, 8)">
+    <path d="M19 17V5a2 2 0 0 0-2-2H4" 
+          fill="none" stroke="#0066CC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" 
+          fill="none" stroke="#0066CC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- DocETL Text -->
+  <text x="38" y="27" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" 
+        font-size="22" font-weight="600" fill="#0066CC">DocETL</text>
+</svg>

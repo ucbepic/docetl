@@ -1,0 +1,945 @@
+:root {
+  /* UC Berkeley Colors */
+  --berkeley-blue: #003262;
+  --berkeley-gold: #FDB515;
+  --founders-rock: #3B7EA1;
+  --california-gold: #FDB515;
+  --medalist: #C4820E;
+  --bay-fog: #DDD5C7;
+  --grey: #EEEEEE;
+  --off-white: #FAFAFA;
+  --text-dark: #2E2E2E;
+  --text-light: #666666;
+  --error-red: #D32F2F;
+  --success-green: #388E3C;
+
+  /* Typography scale for 16:9 projection; adjust if needed */
+  --font-family-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
+  /* Sizes per AGENTS.md guidelines */
+  --title-size: 56px; /* H1 titles per guidelines */
+  --h2-size: 44px;    /* H2 section headings per guidelines */
+  --h3-size: 38px;    /* H3 subheadings per guidelines */
+  --body-size: 34px;  /* body 34px target per guidelines */
+  --small-size: 28px; /* footnotes minimum 28px per guidelines */
+  --authors-size: 30px;
+  --title-slide-size: 56px; /* H1 size for first slide */
+  --handwriting: 'Caveat', 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+/* Base reveal theme overrides */
+html, body {
+  height: 100%;
+}
+
+.reveal {
+  background: var(--off-white);
+  color: var(--text-dark);
+  font-family: var(--font-family-sans);
+}
+
+/* Subtle brand bar at top for identity without clutter */
+/* brand bar removed for more vertical room */
+
+.reveal .slides {
+  text-align: left;
+}
+
+.reveal a {
+  color: var(--founders-rock);
+}
+.reveal a:hover { color: var(--berkeley-blue); }
+
+/* Typography */
+.reveal h1, .reveal h2, .reveal h3, .reveal h4 {
+  color: var(--berkeley-blue);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: none; /* prevent all-caps from theme */
+  font-variant: normal;
+  font-family: var(--font-family-sans); /* force Inter on headings */
+}
+.reveal h1 { font-size: var(--title-size); }
+.reveal h2 { font-size: var(--h2-size); }
+.reveal h3 { font-size: var(--h3-size); }
+.reveal p, .reveal li { font-size: var(--body-size); line-height: 1.3; max-width: 100%; }
+.reveal small, .reveal .small { font-size: var(--small-size); color: var(--text-light); }
+
+/* Lists */
+.reveal ul, .reveal ol { margin: 0.3em 0 0 1.05em; }
+.reveal li { margin: 0.14em 0; }
+/* Emphasize bullets subtly */
+.reveal li::marker { color: var(--medalist); }
+
+/* Title slide */
+.title-slide { display: grid; gap: 0.5rem; align-content: center; height: 100%; }
+.title-slide { position: relative; }
+.title-slide > * { justify-self: start; }
+.title-slide .title-logo { width: 220px; max-width: 28vw; margin-bottom: 0.1rem; justify-self: start; }
+.title-slide .subtitle { color: var(--medalist); margin-top: -0.25rem; }
+.title-slide .authors { color: var(--text-dark); font-size: var(--authors-size); }
+.title-slide .affiliations-text { color: var(--text-light); }
+
+/* Small link styling */
+.docetl-link a { color: var(--founders-rock); text-decoration: none; }
+.docetl-link a:hover { text-decoration: underline; }
+.title-slide .affiliations { display: flex; gap: 1rem; align-items: center; justify-content: space-between; }
+.title-slide .affiliations .logos { display: flex; gap: 1rem; align-items: center; }
+.title-slide .affiliations img { height: 40px; object-fit: contain; background: transparent; }
+
+/* Meta row at bottom of title slide */
+.title-meta {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  color: var(--text-light);
+}
+.title-meta a { color: var(--founders-rock); text-decoration: none; }
+.title-meta a:hover { text-decoration: underline; }
+.title-slide .affiliations { display: flex; gap: 1rem; align-items: center; justify-content: space-between; }
+.title-slide .affiliations .logos { display: flex; gap: 1rem; align-items: center; }
+.title-slide .affiliations img { height: 40px; object-fit: contain; background: transparent; }
+
+.title-slide h1 { max-width: 34ch; line-height: 1.05; font-size: var(--title-slide-size); }
+
+/* Highlight the speaker name when trigger fragment becomes visible */
+.authors { position: relative; }
+.speaker-name { position: relative; z-index: 1; }
+.name-highlight-trigger { display: inline-block; width: 0; height: 0; }
+.name-highlight-trigger.visible + .speaker-name {
+  background-image: linear-gradient(transparent 65%, var(--california-gold) 65%);
+  background-size: 100% 0.55em;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+}
+
+/* Speaker market callout bubble + arrow */
+.market-callout.fragment {
+  position: absolute;
+  left: 0; right: 0;
+  top: 0; /* will be set precisely via JS */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+  transition: opacity 220ms ease, transform 220ms ease;
+  z-index: 5;
+  pointer-events: none;
+}
+.market-callout.fragment.visible { opacity: 1; transform: translateY(0) scale(1); }
+.market-callout .bubble {
+  background: #fff;
+  border: 2px solid var(--berkeley-gold);
+  color: var(--text-dark);
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  font-size: var(--small-size);
+  white-space: nowrap;
+  font-family: var(--handwriting);
+}
+
+/* Inline callout next to the speaker name */
+.inline-callout { 
+  position: absolute;
+  top: -40px;
+  left: 180px;
+  display: inline-flex; 
+  align-items: center; 
+  gap: 0;
+  opacity: 0;
+  transform: translateY(4px) scale(0.95);
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+.inline-callout.fragment.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.inline-callout .inline-arrow { 
+  position: absolute;
+  left: -160px;
+  top: -10px;
+}
+.inline-callout .inline-arrow path { 
+  fill: none; 
+  stroke: var(--medalist); 
+  stroke-width: 2; 
+  stroke-linecap: round; 
+  stroke-linejoin: round;
+}
+.inline-callout .inline-arrow path:first-child {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+}
+.inline-callout.fragment.visible .inline-arrow path:first-child {
+  animation: drawArrow 600ms ease-out forwards;
+}
+.inline-callout .bubble {
+  background: #fff;
+  border: 2px solid var(--berkeley-gold);
+  color: var(--text-dark);
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  font-size: var(--small-size);
+  white-space: nowrap;
+  font-family: var(--handwriting);
+  margin-left: 5px;
+  opacity: 0;
+  animation-delay: 400ms;
+}
+.inline-callout.fragment.visible .bubble {
+  animation: fadeInBubble 300ms ease-out 400ms forwards;
+}
+
+@keyframes drawArrow { 
+  to { stroke-dashoffset: 0; } 
+}
+@keyframes fadeInBubble {
+  to { opacity: 1; }
+}
+.market-callout .arrow { flex: 1 1 auto; height: 80px; width: auto; overflow: visible; }
+.market-callout .arrow path {
+  fill: none;
+  stroke: var(--medalist);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 350;
+  stroke-dashoffset: 350;
+}
+.market-callout.fragment.visible .arrow path { animation: draw 900ms ease-out forwards; }
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* Center slide content column and keep a readable measure */
+.reveal .slides section { 
+  display: grid; 
+  align-content: start; 
+  gap: 0.5rem; 
+  padding: 2rem 3rem;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.reveal .slides section > * { max-width: 100%; }
+/* Allow specific grid containers to use full width */
+.reveal .slides section .tries-grid { max-width: 100% !important; }
+.reveal .slides section .decomp-tree { max-width: 100% !important; }
+.reveal .slides section .decomp-principles { max-width: 100% !important; }
+.reveal .slides section .full-width { 
+  max-width: 100% !important; 
+  width: 100%;
+}
+
+/* Ensure list items use full width when in full-width container */
+.reveal .slides section .full-width li {
+  max-width: 100% !important;
+}
+.reveal .slides section .full-width li > div {
+  max-width: 100% !important;
+}
+
+/* Controls & progress in brand colors */
+.reveal .controls button { color: var(--berkeley-blue); }
+.reveal .progress { background: var(--grey); }
+.reveal .progress span { background: var(--berkeley-gold); }
+
+/* Footer with logos */
+.footer {
+  position: fixed;
+  left: 0; right: 0; bottom: 0.75rem;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 1.5rem; pointer-events: none;
+}
+.footer img { height: 28px; object-fit: contain; filter: none; }
+.footer .footer-right img { margin-left: 0.75rem; }
+
+/* Emphasis blocks */
+.callout {
+  border-left: 8px solid var(--berkeley-gold);
+  background: #fff;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+/* Code */
+.reveal pre code { font-size: 36px; line-height: 1.25; }
+.reveal code { background: var(--grey); padding: 0.05em 0.25em; border-radius: 4px; }
+
+/* Override default code styling for task code */
+.reveal .task-code {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Tables */
+.reveal table { font-size: var(--body-size); }
+.reveal th { background: var(--bay-fog); color: var(--berkeley-blue); }
+
+/* Question slide animation */
+.question-title {
+  text-align: center;
+  line-height: 1.4;
+  max-width: 100%;
+}
+
+/* Insert text animation for question */
+.reveal .fragment.insert-text {
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  vertical-align: bottom;
+  white-space: nowrap;
+  transition: max-width 1200ms ease-out;
+}
+.reveal .fragment.insert-text.visible {
+  max-width: 30em; /* Large enough to accommodate the text */
+}
+
+/* Highlight underline for inserted text */
+.reveal .fragment.insert-text .highlight-underline {
+  display: inline-block;
+  background-image: linear-gradient(transparent 70%, var(--california-gold) 70%);
+  background-size: 0% 0.4em;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  transition: background-size 400ms ease-out 0ms;
+}
+.reveal .fragment.insert-text.visible .highlight-underline {
+  background-size: 100% 0.4em;
+}
+
+/* Click-triggered underline animation with separate trigger */
+.reveal .highlight-underline-animate {
+  position: relative;
+  display: inline-block;
+  background-image: linear-gradient(transparent 70%, var(--california-gold) 70%);
+  background-size: 0% 0.4em;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  transition: background-size 400ms ease-out;
+}
+
+.reveal .underline-trigger {
+  position: absolute;
+  width: 0;
+  height: 0;
+  display: inline-block;
+}
+
+.reveal .underline-trigger.fragment.visible ~ .highlight-underline-animate,
+.reveal .underline-trigger.fragment.visible + span {
+  background-size: 100% 0.4em;
+}
+
+.reveal:has(.underline-trigger.fragment.visible) .highlight-underline-animate {
+  background-size: 100% 0.4em;
+}
+
+/* Footnotes */
+.footnotes {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+}
+.footnotes p {
+  margin: 0.2rem 0;
+  font-size: var(--small-size);
+  color: var(--text-light);
+}
+
+/* Slide numbers */
+.reveal .slide-number {
+  position: fixed !important;
+  bottom: 1rem !important;
+  left: 1rem !important;
+  right: auto !important;
+  top: auto !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: fit-content !important;
+  display: inline-block !important;
+  background: rgba(0, 50, 98, 0.1) !important; /* berkeley-blue with transparency */
+  color: var(--berkeley-blue) !important;
+  font-family: var(--font-family-sans) !important;
+  font-size: 24px !important;
+  font-weight: 600 !important;
+  padding: 0.4rem 0.7rem !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(0, 50, 98, 0.2) !important;
+  backdrop-filter: blur(4px) !important;
+  z-index: 100 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  min-width: auto !important;
+  box-sizing: border-box !important;
+}
+
+/* Try cards for pipeline attempts */
+.try-card {
+  background: #fff;
+  border: 2px solid var(--grey);
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  transition: all 300ms ease;
+  max-width: none;
+}
+
+.try-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+
+.try-card.success-card {
+  border-color: var(--success-green);
+  background: linear-gradient(135deg, #fff 0%, rgba(56, 142, 60, 0.02) 100%);
+}
+
+.try-header {
+  margin-bottom: 0.5rem;
+}
+
+.try-number {
+  color: var(--founders-rock);
+  font-weight: 600;
+  font-size: 28px;
+}
+
+.try-card code {
+  font-size: 24px;
+  background: var(--grey);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  margin-left: 0.5rem;
+}
+
+.try-result {
+  font-size: 28px;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.try-result.error {
+  color: var(--error-red);
+}
+
+.try-result.success {
+  color: var(--success-green);
+}
+
+/* Print to PDF tweaks: use white background for crisp output */
+@media print {
+  .reveal { background: #fff; }
+  .footer { display: none; }
+  .reveal .slide-number {
+    background: rgba(0, 50, 98, 0.05);
+    border: 1px solid rgba(0, 50, 98, 0.3);
+  }
+}
+
+/* Full-width tree layout for decomposition */
+.decomp-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+.decomp-root {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.decomp-task {
+  background: var(--berkeley-blue);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  text-align: center;
+  width: 100%;
+  max-width: none;
+  box-shadow: 0 3px 8px rgba(0, 50, 98, 0.2);
+  position: relative;
+  transform: scale(0.95);
+  transition: transform 400ms ease-out;
+}
+
+.decomp-root.fragment.visible .decomp-task {
+  transform: scale(1);
+}
+
+.task-code {
+  display: block;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: var(--small-size); /* 28px minimum */
+  line-height: 1.3;
+  text-align: center;
+  border: none;
+  color: white;
+  position: relative;
+}
+
+.map-operation {
+  font-weight: 600;
+  color: var(--berkeley-gold);
+}
+
+.map-prompt {
+  transition: opacity 400ms ease-out;
+  display: inline;
+}
+
+.map-prompt-short {
+  display: none;
+  opacity: 0;
+  transition: opacity 400ms ease-out;
+}
+
+/* Smooth transition: hide long, show short */
+.map-prompt-short.fragment.visible {
+  display: inline;
+  opacity: 1;
+}
+
+.task-code:has(.map-prompt-short.fragment.visible) .map-prompt {
+  display: none;
+}
+
+.decomp-branches {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  position: relative;
+  margin-top: 0.5rem;
+}
+
+.tree-connector {
+  position: absolute;
+  top: -0.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 0.8rem;
+  opacity: 1;
+}
+
+.branch-line {
+  position: absolute;
+  top: 0;
+  height: 0.75rem;
+  width: 3px;
+  background: var(--berkeley-gold);
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: opacity 400ms ease-out, transform 400ms ease-out;
+}
+
+.branch-line.fragment.visible {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.branch-line::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 100px;
+  height: 3px;
+  background: var(--berkeley-gold);
+  transform: scaleX(0);
+  transition: transform 400ms ease-out 200ms;
+}
+
+.branch-line.fragment.visible::after {
+  transform: scaleX(1);
+}
+
+.left-branch {
+  left: 20%;
+}
+
+.left-branch::after {
+  right: 0;
+}
+
+.right-branch {
+  right: 20%;
+}
+
+.right-branch::after {
+  left: 0;
+}
+
+.decomp-branch {
+  flex: 1;
+  text-align: center;
+  transform: translateY(30px);
+  opacity: 0;
+  transition: transform 600ms ease-out, opacity 600ms ease-out;
+}
+
+.decomp-branch.fragment.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.branch-label {
+  font-weight: 600;
+  font-size: var(--small-size); /* 28px */
+  margin-bottom: 1rem;
+  padding: 0.5rem 1.5rem;
+  background: var(--berkeley-blue);
+  color: white;
+  border-radius: 25px;
+  display: inline-block;
+}
+
+.decomp-card {
+  background: white;
+  border: 3px solid var(--berkeley-gold);
+  border-radius: 8px;
+  padding: 1rem 1rem;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  text-align: left;
+  min-width: 380px;
+  transition: opacity 400ms ease-out, transform 400ms ease-out;
+}
+
+.decomp-card.fragment.fade-out {
+  transition: opacity 400ms ease-out, transform 400ms ease-out, margin 400ms ease-out;
+}
+
+.decomp-card.fragment.fade-out.visible {
+  opacity: 0;
+  margin-bottom: -12rem;
+}
+
+.decomp-card code {
+  display: block;
+  background: white;
+  padding: 0.3rem 0.2rem;
+  margin: 0.15rem 0;
+  border-radius: 4px;
+  font-size: var(--small-size); /* 28px */
+  line-height: 1.2;
+  border: 2px solid #e0e0e0;
+  color: var(--text-dark);
+  width: 98%;
+}
+
+.decomp-arrow {
+  font-size: 32px;
+  color: var(--berkeley-gold);
+  margin: 0.2rem 0;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1;
+}
+
+.decomp-note {
+  font-size: var(--small-size); /* 28px */
+  color: var(--text-light);
+  font-style: italic;
+  margin-top: 0.25rem;
+  text-align: center;
+}
+
+.decomp-principles {
+  padding-top: 0;
+  margin-top: -2.5rem;
+}
+
+/* Roadmap cards */
+.roadmap-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  max-width: 900px;
+  align-items: stretch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.roadmap-card {
+  background: white;
+  border: 3px solid var(--berkeley-blue);
+  border-radius: 12px;
+  padding: 1rem 2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.5rem;
+  transform: scale(0.95);
+  opacity: 0;
+  transition: transform 400ms ease-out, opacity 400ms ease-out;
+  width: auto;
+  max-width: 100%;
+}
+
+.roadmap-card.fragment.visible {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* Active and inactive states for roadmap section dividers */
+.roadmap-card.active {
+  opacity: 1;
+  transform: scale(1);
+  border-color: var(--berkeley-blue);
+  background: white;
+}
+
+.roadmap-card.inactive {
+  opacity: 0.4;
+  transform: scale(0.98);
+  border-color: #ccc;
+  background: #f8f8f8;
+}
+
+.roadmap-card.inactive .roadmap-number {
+  background: #ddd;
+  color: #666;
+}
+
+.roadmap-card.inactive .roadmap-title,
+.roadmap-card.inactive .roadmap-subitems {
+  color: #888;
+}
+
+.roadmap-number {
+  background: var(--berkeley-gold);
+  color: var(--berkeley-blue);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.roadmap-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-grow: 1;
+}
+
+.roadmap-title {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--berkeley-blue);
+}
+
+.roadmap-subitems {
+  display: flex;
+  gap: 2rem;
+  font-size: 26px;
+  color: var(--text-light);
+  padding-left: 1rem;
+}
+
+.roadmap-subitems div {
+  white-space: nowrap;
+}
+
+/* DSL and Operators slide styles */
+.dsl-content {
+  position: relative;
+  max-width: 100%;
+}
+
+.operators-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 1.5rem;
+  max-width: 100%;
+}
+
+.operator-category {
+  background: white;
+  border: 2px solid var(--grey);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.operator-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.operator-item {
+  background: #f0f0f0;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 26px;
+  font-family: monospace;
+  white-space: nowrap;
+  border: 1px solid #ddd;
+}
+
+.operator-item.fragment {
+  font-weight: 600;
+}
+
+/* New operators overview styles */
+.operators-grid-full {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 100%;
+}
+
+.operator-group {
+  max-width: 100%;
+}
+
+.operator-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  max-width: 100%;
+}
+
+.op-badge {
+  display: inline-block;
+  background: white;
+  border: 2px solid var(--berkeley-blue);
+  padding: 0.4rem 1rem;
+  border-radius: 25px;
+  font-size: 28px;
+  font-family: monospace;
+  font-weight: 500;
+  color: var(--berkeley-blue);
+  transition: all 300ms ease;
+}
+
+.op-badge.new {
+  border-color: var(--medalist);
+  background: var(--california-gold);
+  color: var(--berkeley-blue);
+  font-weight: 600;
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.op-badge.new.fragment.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* For new badges inside fragment containers */
+.fragment.visible .op-badge.new {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Operator dive wrappers and cards */
+.operator-dive-wrapper {
+  opacity: 1;
+}
+
+.operator-dive-wrapper.fragment:not(.visible) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.operator-dive {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  transition: opacity 400ms ease-out, transform 400ms ease-out;
+}
+
+.operator-dive.fragment.fade-out:not(.visible) {
+  opacity: 1;
+}
+
+.operator-dive.fragment.fade-out.visible {
+  opacity: 0;
+  transform: translateX(-20px) scale(0.95);
+}
+
+/* Clean up unused styles - removed fade-in-then-out rules that are no longer needed */
+
+.dive-card {
+  background: white;
+  border: 3px solid var(--berkeley-gold);
+  border-radius: 8px;
+  padding: 1.2rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.dive-arrow {
+  overflow: visible;
+}
+
+/* Highlight the operator when its dive card shows */
+.fragment.visible#resolve-dive ~ .operators-grid-full #resolve-badge,
+.fragment.visible#gather-dive ~ .operators-grid-full #gather-badge {
+  background: var(--california-gold);
+  border-color: var(--medalist);
+  transform: scale(1.1);
+}
+
+/* DSL example styles */
+.dsl-example pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+}
+
+/* YAML syntax highlighting */
+.yaml-code {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+  tab-size: 2;
+}
+
+.yaml-code .yaml-key {
+  color: #e06c75;
+  font-weight: 600;
+}
+
+.yaml-code .yaml-string {
+  color: #98c379;
+}
+
+.yaml-code .yaml-value {
+  color: #61afef;
+  font-weight: 600;
+}
+
+.yaml-code .yaml-type {
+  color: #d19a66;
+  font-style: italic;
+}
+
+.yaml-code .yaml-pipe {
+  color: #56b6c2;
+  font-weight: 600;
+}
+
+.yaml-code .jinja {
+  color: #c678dd;
+  background: rgba(198, 120, 221, 0.1);
+  padding: 0 0.2em;
+  border-radius: 3px;
+  font-weight: 500;
+}

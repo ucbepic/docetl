@@ -100,7 +100,7 @@ CONFIG: Dict[str, Any] = {
             "optimized_cost": 2.026396,
             # "baseline": {"iterations": 10},
             # "simple_baseline": {"iterations": 10},
-            "mcts": {"max_iterations": 1}
+            "mcts": {"max_iterations": 20}
         }
     ]
 }

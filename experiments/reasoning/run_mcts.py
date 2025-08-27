@@ -285,7 +285,7 @@ def run_mcts_experiment(
                 "accuracy": mcts.pareto_frontier.plans_accuracy.get(solution, None),
                 "cost": getattr(solution, 'cost', None),
                 "value": getattr(solution, 'value', 0),
-                "config_path": getattr(solution, 'yaml_file_path', None)
+                "config_path": str(getattr(solution, 'yaml_file_path', None)) if getattr(solution, 'yaml_file_path', None) is not None else None
             })
         
         with open(pareto_file, 'w') as f:

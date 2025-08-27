@@ -458,17 +458,18 @@ html, body {
 }
 
 .decomp-task {
-  background: var(--berkeley-blue);
-  color: white;
+  background: #f8f9fa;
+  color: var(--berkeley-blue);
   padding: 1rem 2rem;
   border-radius: 8px;
   text-align: center;
   width: 100%;
   max-width: none;
-  box-shadow: 0 3px 8px rgba(0, 50, 98, 0.2);
+  box-shadow: 0 3px 8px rgba(0, 50, 98, 0.1);
   position: relative;
   transform: scale(0.95);
   transition: transform 400ms ease-out;
+  border: 2px solid var(--berkeley-blue);
 }
 
 .decomp-root.fragment.visible .decomp-task {
@@ -484,24 +485,28 @@ html, body {
   line-height: 1.3;
   text-align: center;
   border: none;
-  color: white;
+  color: var(--berkeley-blue);
   position: relative;
 }
 
 .map-operation {
-  font-weight: 600;
-  color: var(--berkeley-gold);
+  font-weight: 700;
+  color: var(--berkeley-blue);
 }
 
 .map-prompt {
   transition: opacity 400ms ease-out;
   display: inline;
+  color: var(--berkeley-blue);
+  font-weight: 500;
 }
 
 .map-prompt-short {
   display: none;
   opacity: 0;
   transition: opacity 400ms ease-out;
+  color: var(--berkeley-blue);
+  font-weight: 500;
 }
 
 /* Smooth transition: hide long, show short */

@@ -1,0 +1,18 @@
+- we are in this new era of being able to make sense of unstructured data bc we have LLMs
+- how would you use LLMs to process unstructured data at scale?
+    - this is a huge problem we should care about. lots of work to be done. i will talk about a small piece of it
+- here's our example. express in this way like a database person
+    - but the operator has issues; it's not perfectly accurate
+- what we need to do is simply the task into smaller steps so LLMs can solve it
+- give example for police misconduct
+- ok now how do we turn this into a a process / scale it up
+- all this motivated the design of Docetl
+- docetl is ...
+- the system will try to figure out how to optimize for accuracy
+- DocETL has had a lot of impact
+- now i will tell you about how we make optimization work; cant' talk about everything in the paper but i'll tell you about two key ideas. first, arbitrary rewrites, analogous to DB rerites, but invented for this setting. second, i'll tell you about how we operationalize these rewrites
+- DSL -- cut out the code. don't focus on operators too much. say that there are obvious ones; others have emerged from user needs, and are used as auxiliary operators to aid in our rewrites. no need for resolve. talk about split and gather -- if i talk about gather it needs to be on a slide. "there's some operators we need in order to do the rewrites. split you wouldnt do in a relational context for x y z reasons, but we need it here"
+- rewrite directives. emphasize again that this is novel. spend time of chunking. "these are semantic projections that the llm identifies based on the task". don't call chaining chaining
+- optimizer -- just mention that it is top down, look at prefixes of the pipeline & try rewrites. yes accuracy is hard and the only great solution we have now is use LLM as judge, so that is what we do. more details in the paper
+- a bit of evaluation / just one slide
+- high level thing is that it is open ended. unstructured data / unstructured data processing is more open ended than relational setting. everything is open ended; llm can synthesize anything, new operator, new algorithms / implementations. you can do very high level things with llm and low level things with llm. we only touch such a small space of what one could do with an llm. 

@@ -97,12 +97,12 @@
             <!-- Column 2: How existing systems work -->
             <div class="fragment" data-fragment-index="2" style="flex: 1;">
               <h3 style="font-size: 28px; color: var(--berkeley-blue);">Current Systems Assume</h3>
-              <p style="font-size: 28px; margin: 0.5rem 0;">Your task will work with the best available model</p>
+              <p style="font-size: 28px; margin: 0.5rem 0;">Your task will work with the best available model (and, you have to define this model)</p>
               <div style="background: #f5f5f5; padding: 0.6rem; margin: 0.5rem 0; border-radius: 4px; font-family: monospace;">
                 <div style="font-size: 20px; line-height: 1.4; color: #333;">
                   <span style="color: #6a737d;"># Palimpzest</span><br>
                   dataset.<span style="color: #6f42c1;">sem_add_columns</span>(<br>
-                  &nbsp;&nbsp;<span style="color: #032f62;">...</span>,<br>
+                  &nbsp;&nbsp;<span style="color: #032f62;">"misconduct..."</span>,<br>
                   &nbsp;&nbsp;model=<span style="color: #032f62;">"gpt-4.1"</span>)
                 </div>
               </div>
@@ -110,7 +110,7 @@
                 <div style="font-size: 20px; line-height: 1.4; color: #333;">
                   <span style="color: #6a737d;"># LOTUS</span><br>
                   dataframe.<span style="color: #6f42c1;">sem_map</span>(<br>
-                  &nbsp;&nbsp;<span style="color: #032f62;">...</span>,<br>
+                  &nbsp;&nbsp;<span style="color: #032f62;">"extract misconduct</span>,<br>
                   &nbsp;&nbsp;model=<span style="color: #032f62;">"gpt-4.1"</span>)
                 </div>
               </div>
@@ -119,7 +119,7 @@
             
             <!-- Column 3: The problem -->
             <div class="fragment" data-fragment-index="3" style="flex: 1;">
-              <h3 style="font-size: 28px; color: var(--berkeley-blue);">Models Can't Handle Complex Tasks</h3>
+              <h3 style="font-size: 28px; color: var(--berkeley-blue);">Unclear Whether Models Can Handle the Task</h3>
               <div style="background: #FFF3E0; padding: 1rem; border: 2px solid var(--medalist); margin: 1rem 0; border-radius: 4px;">
                 <p style="font-size: 28px; margin: 0;"><strong>&lt;50% recall</strong></p>
                 <p style="font-size: 24px; color: var(--text-light); margin: 0.3rem 0;">GPT-4.1 & Gemini-2.5<br>vs human annotators</p>
@@ -226,9 +226,10 @@
           <!-- General principles -->
           <div class="decomp-principles fragment" data-fragment-index="4">
             <ul>
-              <li class="fragment" data-fragment-index="5">There are infinitely many ways to rewrite a pipeline</li>
-              <li class="fragment" data-fragment-index="6">Humans systematically rewrite pipelines, preserving logical equivalence</li>
-              <li class="fragment" data-fragment-index="7"><strong>Key idea:</strong> the optimizer should also systematically perform such logical rewrites</li>
+              <li class="fragment" data-fragment-index="5">Infinite rewrites possible</li>
+              <li class="fragment" data-fragment-index="6">Humans rewrite systematically</li>
+              <li class="fragment" data-fragment-index="7"><strong>Key:</strong> Optimizer should too</li>
+              <li class="fragment" data-fragment-index="8">Need semantic understanding → LLM agents</li>
             </ul>
           </div>
         </section>
@@ -428,7 +429,7 @@
             </div>
 
             <!-- Gather shallow dive -->
-            <div class="operator-dive-wrapper fragment" data-fragment-index="2" style="position: absolute; top: -30px; right: 150px; width: 400px;">
+            <div class="operator-dive-wrapper fragment" data-fragment-index="2" style="position: absolute; top: -30px; right: 350px; width: 400px;">
               <div class="operator-dive fragment fade-out" data-fragment-index="3" id="gather-dive" style="position: relative;">
                 <svg class="dive-arrow" style="position: absolute; left: -250px; top: 120px; width: 280px; height: 150px; overflow: visible;">
                   <path d="M30,140 Q30,50 200,20" stroke="var(--berkeley-gold)" stroke-width="3" fill="none"/>
@@ -777,7 +778,7 @@
         </section>
 
         <!-- LLM-Centric Directives -->
-        <section>
+        <section data-visibility="hidden">
           <h2>LLM-Centric Directives</h2>
           
           <div style="margin-top: 2rem;">
@@ -1007,7 +1008,7 @@
               </div>
               
               <!-- Baseline Pipeline -->
-              <div class="fragment" data-fragment-index="1" style="flex: 1;">
+              <div style="flex: 1;">
                 <h3 style="font-size: 28px; color: var(--berkeley-blue); margin-bottom: 0.4rem;">Baseline Pipeline</h3>
                 <pre style="font-size: 18px; background: #282c34; padding: 0.6rem 0.8rem; border-radius: 6px; color: #abb2bf; line-height: 1.25; overflow-x: auto;">
 <span style="color: #e06c75;">- name:</span> <span style="color: #98c379;">extract_clauses</span>
@@ -1145,8 +1146,8 @@ warranties, indemnification, payment terms...</span></pre>
             </div>
             
             <!-- Upper right: Pipeline -->
-            <div class="fragment" data-fragment-index="1" style="grid-column: 2; grid-row: 1;">
-              <h3 style="font-size: 28px; color: var(--berkeley-blue); margin-bottom: 0.3rem;">DocETL Pipeline</h3>
+            <div style="grid-column: 2; grid-row: 1;">
+              <h3 style="font-size: 28px; color: var(--berkeley-blue); margin-bottom: 0.3rem;">Baseline Pipeline</h3>
               <pre style="font-size: 20px; background: #282c34; padding: 0.5rem 0.8rem; border-radius: 6px; color: #abb2bf; line-height: 1.2; overflow-x: auto;">
 <span style="color: #e06c75;">- name:</span> <span style="color: #98c379;">extract_reactions</span>
   <span style="color: #e06c75;">type:</span> <span style="color: #61afef;">equijoin</span>
@@ -1254,23 +1255,23 @@ the article?</span>
               <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.3rem;">Operators</h3>
               <div style="display: flex; gap: 1rem;">
                 <div style="flex: 1; background: #f8f9fa; padding: 0.6rem; border-radius: 6px; border: 2px solid #e0e0e0;">
-                  <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Deterministic, correct outputs regardless of physical implementation</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Deterministic, clean separation between logical and physical</p>
                 </div>
                 <div style="flex: 1; background: #fff3e0; padding: 0.6rem; border-radius: 6px; border: 2px solid var(--berkeley-gold);">
-                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Physical choices (batch size, gather config) affect accuracy, not just performance</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Non-deterministic, physical choices (batch size, gather config) affect accuracy</p>
                 </div>
               </div>
             </div>
 
             <!-- Rewriting -->
             <div class="fragment" data-fragment-index="2">
-              <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.3rem;">Rewriting</h3>
+              <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.3rem;">Rewrite Rules</h3>
               <div style="display: flex; gap: 1rem;">
                 <div style="flex: 1; background: #f8f9fa; padding: 0.6rem; border-radius: 6px; border: 2px solid #e0e0e0;">
-                  <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Logical, guaranteed identical output, finite rewrites</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Guaranteed identical output, finite rewrites</p>
                 </div>
                 <div style="flex: 1; background: #fff3e0; padding: 0.6rem; border-radius: 6px; border: 2px solid var(--berkeley-gold);">
-                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Semantic, LLM-instantiated, infinite variations, affects correctness</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Semantic, LLM-instantiated, infinite variations & can synthesize algos on the fly</p>
                 </div>
               </div>
             </div>
@@ -1283,7 +1284,7 @@ the article?</span>
                   <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Cost models, dynamic programming (Selinger, Cascades)</p>
                 </div>
                 <div style="flex: 1; background: #fff3e0; padding: 0.6rem; border-radius: 6px; border: 2px solid var(--berkeley-gold);">
-                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> No accuracy model, empirical evaluation, operator interdependence</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> No accuracy model, empirical evaluation, operator interdependence, may run several times</p>
                 </div>
               </div>
             </div>
@@ -1291,8 +1292,8 @@ the article?</span>
             <!-- Key Insight -->
             <div class="fragment" data-fragment-index="4" style="background: white; padding: 0.8rem; border: 2px solid var(--berkeley-blue); border-radius: 8px; margin-top: 0.5rem;">
               <p style="font-size: 28px; margin: 0; text-align: center; color: var(--berkeley-blue);">
-                <strong>Core difference:</strong> LLMs are non-deterministic and not always accurate<br/>
-                <span style="font-size: 26px;">→ Requires fundamentally different approaches at every layer</span>
+                <strong>Main difference:</strong> LLMs are non-deterministic and not always accurate<br/>
+                <span style="font-size: 26px;">→ Requires fundamentally different approaches at every layer of the database</span>
               </p>
             </div>
           </div>

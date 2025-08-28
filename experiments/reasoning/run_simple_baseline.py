@@ -306,14 +306,17 @@ class SimpleBaselineAgent:
         self.documentation = None
         self.original_config = None
         
-    def load_resources(self, dataset: str):
+    def load_resources(self, dataset: str, yaml_path: str = None):
         """Load documentation and original pipeline."""
         self.documentation = DataAnalyzer.load_documentation()
         
         # Load original pipeline
-        pipeline_path = Path(f"experiments/reasoning/pipelines/{dataset.lower()}.yaml")
-        if not pipeline_path.exists():
-            pipeline_path = Path(VOLUME_MOUNT_PATH) / f"experiments/reasoning/pipelines/{dataset.lower()}.yaml"
+        if yaml_path:
+            pipeline_path = Path(yaml_path)
+        else:
+            pipeline_path = Path(f"experiments/reasoning/pipelines/{dataset.lower()}.yaml")
+            if not pipeline_path.exists():
+                pipeline_path = Path(VOLUME_MOUNT_PATH) / f"experiments/reasoning/pipelines/{dataset.lower()}.yaml"
         
         if pipeline_path.exists():
             with open(pipeline_path, 'r') as f:
@@ -607,7 +610,8 @@ class SimpleBaselineAgent:
 
 def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
                                  experiment_name: str = None, ground_truth_path: str = None,
-                                 original_query_result: Dict[str, Any] | None = None) -> Dict[str, Any]:
+                                 original_query_result: Dict[str, Any] | None = None, 
+                                 yaml_path: str = None) -> Dict[str, Any]:
     """Run the simple baseline experiment for a dataset."""
     
     # Setup
@@ -624,7 +628,7 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
     
     # Initialize agent and executor
     agent = SimpleBaselineAgent(model=model)
-    agent.load_resources(dataset)
+    agent.load_resources(dataset, yaml_path)
     executor = PipelineExecutor(exp_dir)
     
     # Use original query result if available, otherwise run baseline
@@ -794,7 +798,8 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
 )
 def run_simple_baseline_remote(dataset: str, output_dir: str = None, model: str = DEFAULT_MODEL,
                               experiment_name: str = None, ground_truth_path: str = None,
-                              original_query_result: Dict[str, Any] | None = None):
+                              original_query_result: Dict[str, Any] | None = None,
+                              yaml_path: str = None):
     """Modal remote function for running simple baseline."""
     os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
     
@@ -808,7 +813,8 @@ def run_simple_baseline_remote(dataset: str, output_dir: str = None, model: str 
         model=model,
         experiment_name=experiment_name,
         ground_truth_path=ground_truth_path,
-        original_query_result=original_query_result
+        original_query_result=original_query_result,
+        yaml_path=yaml_path
     )
     
     volume.commit()

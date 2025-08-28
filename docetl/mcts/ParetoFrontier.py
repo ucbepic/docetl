@@ -3,7 +3,10 @@ import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
+import threading
 
 from .acc_comparator import AccuracyComparator
 from .Node import Node
@@ -64,14 +67,11 @@ class ParetoFrontier:
         # Internal state
         self.plans: List[Node] = []
         self.plans_accuracy: Dict[Node, float] = {}
-        self.plans_cost: Dict[Node, float] = {}  # Real costs for display
-        self.plans_scaled_cost: Dict[Node, float] = (
-            {}
-        )  # Scaled costs [0,1] for calculations
+        self.plans_cost: Dict[Node, float] = {}  # Real costs
         self.frontier_plans: List[Node] = []  # List of nodes on frontier
         self.frontier_data: List[List[int]] = (
             []
-        )  # List of [acc, scaled_cost] of nodes on frontier
+        )  # List of [acc, real_cost] of nodes on frontier
         self.action_rewards = action_rewards
 
         # Distance to current Pareto frontier: positive for on-frontier, negative for off-frontier
@@ -210,60 +210,40 @@ class ParetoFrontier:
         # Constrain to reasonable range
         return max(0.1, min(0.95, final_accuracy))
 
-    # Helper function to project point onto piecewise linear surface P
+    # Helper function to project point onto step function frontier
     def project_to_frontier(self, node_acc, node_cost, frontier_data):
         """
-        Project point onto the piecewise linear surface formed by frontier.
-        Returns the projected point coordinates. The projection is whichever point (frontier point or segment projection) gives the smallest distance.
+        Project point onto the step function formed by frontier.
+        For a step function interpretation, the reward is simply the vertical distance 
+        to the step function (accuracy distance only).
         """
         if not frontier_data:
-            return [node_acc, node_cost]
+            print(f"[STEP_FUNCTION] Empty frontier_data, returning node_acc: {node_acc}")
+            return node_acc  # Return just accuracy distance
 
-        # Find the closest point on the frontier envelope
-        min_distance = float("inf")
-        projected_point = [node_acc, node_cost]
-
-        # Check projection onto each frontier segment
+        # Sort frontier by cost (ascending)
         frontier_sorted = sorted(frontier_data, key=lambda x: x[1])  # Sort by cost
-
-        for i in range(len(frontier_sorted)):
-            # Project onto the point itself
-            fp_acc, fp_cost = frontier_sorted[i]
-            distance = ((node_acc - fp_acc) ** 2 + (node_cost - fp_cost) ** 2) ** 0.5
-            if distance < min_distance:
-                min_distance = distance
-                projected_point = [fp_acc, fp_cost]
-
-            # Project onto line segment between consecutive frontier points
-            if i < len(frontier_sorted) - 1:
-                p1_acc, p1_cost = frontier_sorted[i]
-                p2_acc, p2_cost = frontier_sorted[i + 1]
-
-                # Project point onto line segment
-                # Vector from p1 to p2
-                v_acc = p2_acc - p1_acc
-                v_cost = p2_cost - p1_cost
-
-                # Vector from p1 to node
-                w_acc = node_acc - p1_acc
-                w_cost = node_cost - p1_cost
-
-                # Project w onto v
-                if v_acc**2 + v_cost**2 > 0:  # Avoid division by zero
-                    t = (w_acc * v_acc + w_cost * v_cost) / (v_acc**2 + v_cost**2)
-                    t = max(0, min(1, t))  # Clamp t to [0,1] for line segment
-
-                    proj_acc = p1_acc + t * v_acc
-                    proj_cost = p1_cost + t * v_cost
-
-                    distance = (
-                        (node_acc - proj_acc) ** 2 + (node_cost - proj_cost) ** 2
-                    ) ** 0.5
-                    if distance < min_distance:
-                        min_distance = distance
-                        projected_point = [proj_acc, proj_cost]
-
-        return projected_point
+        print(f"[STEP_FUNCTION] Node: acc={node_acc:.4f}, cost={node_cost:.4f}")
+        print(f"[STEP_FUNCTION] Frontier sorted by cost: {[(acc, cost) for acc, cost in frontier_sorted]}")
+        
+        # Find the step function accuracy for this cost
+        step_function_accuracy = 0.0  # Default if cost is lower than all frontier points
+        
+        for fp_acc, fp_cost in frontier_sorted:
+            if node_cost >= fp_cost:
+                # Cost is >= this frontier point's cost, so step function is at this accuracy
+                step_function_accuracy = fp_acc
+                print(f"[STEP_FUNCTION] Node cost >= frontier cost {fp_cost:.4f}, step accuracy = {fp_acc:.4f}")
+            else:
+                # Cost is < this frontier point's cost, so we use the previous step
+                print(f"[STEP_FUNCTION] Node cost < frontier cost {fp_cost:.4f}, stopping here")
+                break
+        
+        # Return the vertical (accuracy) distance to the step function
+        vertical_distance = abs(node_acc - step_function_accuracy)
+        print(f"[STEP_FUNCTION] Final step function accuracy: {step_function_accuracy:.4f}")
+        print(f"[STEP_FUNCTION] Vertical distance: |{node_acc:.4f} - {step_function_accuracy:.4f}| = {vertical_distance:.4f}")
+        return vertical_distance
 
     def _update_action_rewards(self, node: Node, reward: float) -> None:
         """
@@ -281,37 +261,6 @@ class ParetoFrontier:
             # Update cumulative sum
             self.action_rewards[action] += reward
 
-    def _update_scaled_costs(self, valid_nodes: List[Node]) -> None:
-        """
-        Calculate and update scaled costs for all valid nodes to [0,1] range.
-        Also updates the scaled_cost attribute in each node.
-        """
-        if len(valid_nodes) <= 1:
-            # Single node or empty, set scaled cost to 0.5
-            for node in valid_nodes:
-                scaled_cost = 0.5
-                self.plans_scaled_cost[node] = scaled_cost
-                node.scaled_cost = scaled_cost
-            return
-
-        # Get min and max costs from real costs
-        min_cost = min(self.plans_cost[node] for node in valid_nodes)
-        max_cost = max(self.plans_cost[node] for node in valid_nodes)
-        cost_range = max_cost - min_cost
-
-        if cost_range > 0:
-            # Scale all costs to [0,1]
-            for node in valid_nodes:
-                real_cost = self.plans_cost[node]
-                scaled_cost = (real_cost - min_cost) / cost_range
-                self.plans_scaled_cost[node] = scaled_cost
-                node.scaled_cost = scaled_cost
-        else:
-            # All costs are the same, set to 0.5
-            for node in valid_nodes:
-                scaled_cost = 0.5
-                self.plans_scaled_cost[node] = scaled_cost
-                node.scaled_cost = scaled_cost
 
     def update_pareto_frontier_HV(self, new_node) -> Tuple[Dict[Node, int], bool]:
         """
@@ -331,24 +280,21 @@ class ParetoFrontier:
         # Save old frontier nodes before updating
         old_frontier_nodes = self.frontier_plans
 
-        # Calculate scaled costs for all valid nodes
-        self._update_scaled_costs(valid_nodes)
+        # Sort by real cost for frontier calculation
+        valid_nodes.sort(key=lambda node: self.plans_cost[node])
 
-        # Sort by scaled cost for frontier calculation
-        valid_nodes.sort(key=lambda node: self.plans_scaled_cost[node])
-
-        # Reconstruct old frontier data using NEW scaled costs
+        # Reconstruct old frontier data using real costs
         archive_frontier_data = []
+        print(f"[FRONTIER] Reconstructing OLD frontier data from {len(old_frontier_nodes)} nodes")
         for node in old_frontier_nodes:
-            if (
-                node in valid_nodes and node in self.plans_scaled_cost
-            ):  # Only include valid nodes
+            if node in valid_nodes:  # Only include valid nodes
                 acc = self.plans_accuracy.get(node, float("-inf"))
-                scaled_cost = self.plans_scaled_cost[node]
-                archive_frontier_data.append([acc, scaled_cost])
+                real_cost = self.plans_cost[node]
+                archive_frontier_data.append([acc, real_cost])
+                print(f"[FRONTIER] Old frontier node {node.get_id()}: acc={acc:.4f}, real_cost=${real_cost:.2f}")
             else:
                 print(
-                    f"INVALID NODE: {node.id}, cost: {node.cost}, in_valid_nodes: {node in valid_nodes}, in_scaled_cost: {node in self.plans_scaled_cost}"
+                    f"INVALID NODE: {node.id}, cost: {node.cost}, in_valid_nodes: {node in valid_nodes}"
                 )
 
         frontier = []
@@ -365,10 +311,8 @@ class ParetoFrontier:
         new_frontier_data = []
         for node in frontier:
             acc = self.plans_accuracy.get(node)
-            scaled_cost = self.plans_scaled_cost[
-                node
-            ]  # Use scaled cost for calculations
-            new_frontier_data.append([acc, scaled_cost])
+            real_cost = self.plans_cost[node]  # Use real cost
+            new_frontier_data.append([acc, real_cost])
 
         # Check if frontier actually changed
         old_frontier_set = set(old_frontier_nodes)
@@ -377,59 +321,55 @@ class ParetoFrontier:
 
         # Update affected nodes based on frontier changes
         for node in valid_nodes:
-            node_scaled_cost = self.plans_scaled_cost[node]
+            node_real_cost = self.plans_cost[node]
             node_acc = self.plans_accuracy[node]
 
             if node in new_frontier_set and node not in old_frontier_set:
-                # Newly on frontier - reward based on distance to OLD frontier
+                # Newly on frontier - reward based on vertical distance to OLD frontier step function
                 node.on_frontier = True
-                projected_point_old = self.project_to_frontier(
-                    node_acc, node_scaled_cost, archive_frontier_data
+                print(f"[REWARD] Node {node.get_id()} NEWLY ON FRONTIER")
+                vertical_distance_to_old = self.project_to_frontier(
+                    node_acc, node_real_cost, archive_frontier_data
                 )
-                # Weight accuracy 2x more important than cost
-                weighted_distance_to_old = (
-                    (2 * (node_acc - projected_point_old[0])) ** 2
-                    + (node_scaled_cost - projected_point_old[1]) ** 2
-                ) ** 0.5
-                affected_nodes[node] = weighted_distance_to_old
+                affected_nodes[node] = vertical_distance_to_old
                 # Update node distances - positive for on frontier
-                self.node_distances[node] = weighted_distance_to_old
+                self.node_distances[node] = vertical_distance_to_old
                 # Update action rewards
-                self._update_action_rewards(node, weighted_distance_to_old)
+                self._update_action_rewards(node, vertical_distance_to_old)
+                print(f"[REWARD] Node {node.get_id()} reward: +{vertical_distance_to_old:.4f} (on frontier)")
+                if hasattr(node, 'latest_action') and node.latest_action:
+                    print(f"[REWARD] Action '{node.latest_action.name}' gets reward: +{vertical_distance_to_old:.4f}")
             elif (node not in new_frontier_set and node in old_frontier_set) or (
                 node.id == new_node.id
             ):
-                # Newly off frontier - give negative reward based on distance to NEW frontier
+                # Newly off frontier - give negative reward based on vertical distance to NEW frontier step function
                 node.on_frontier = False
-                projected_point = self.project_to_frontier(
-                    node_acc, node_scaled_cost, new_frontier_data
+                print(f"[REWARD] Node {node.get_id()} OFF FRONTIER (was on or is new node)")
+                vertical_distance = self.project_to_frontier(
+                    node_acc, node_real_cost, new_frontier_data
                 )
-                # Weight accuracy 2x more important than cost
-                weighted_distance = (
-                    (2 * (node_acc - projected_point[0])) ** 2
-                    + (node_scaled_cost - projected_point[1]) ** 2
-                ) ** 0.5
-                affected_nodes[node] = -weighted_distance
+                affected_nodes[node] = -vertical_distance
                 # Update node distances - negative for off frontier
-                self.node_distances[node] = -weighted_distance
+                self.node_distances[node] = -vertical_distance
                 # Update action rewards
                 if node.id == new_node.id:
-                    self._update_action_rewards(node, -weighted_distance)
+                    self._update_action_rewards(node, -vertical_distance)
+                    print(f"[REWARD] Node {node.get_id()} reward: -{vertical_distance:.4f} (off frontier)")
+                    if hasattr(node, 'latest_action') and node.latest_action:
+                        print(f"[REWARD] Action '{node.latest_action.name}' gets reward: -{vertical_distance:.4f}")
             elif node not in new_frontier_set:
-                # stay off frontier nodes - update the reward to be negative distance to the NEW frontier
+                # stay off frontier nodes - update the reward to be negative vertical distance to the NEW frontier step function
                 node.on_frontier = False
-                projected_point = self.project_to_frontier(
-                    node_acc, node_scaled_cost, new_frontier_data
+                print(f"[REWARD] Node {node.get_id()} STAYS OFF FRONTIER")
+                vertical_distance = self.project_to_frontier(
+                    node_acc, node_real_cost, new_frontier_data
                 )
-                # Weight accuracy 2x more important than cost
-                weighted_distance = (
-                    (2 * (node_acc - projected_point[0])) ** 2
-                    + (node_scaled_cost - projected_point[1]) ** 2
-                ) ** 0.5
-                distance_diff = -weighted_distance - self.node_distances[node]
+                old_distance = self.node_distances.get(node, 0)
+                distance_diff = -vertical_distance - old_distance
                 affected_nodes[node] = distance_diff
                 # Update node distances - negative for off frontier
-                self.node_distances[node] = -weighted_distance
+                self.node_distances[node] = -vertical_distance
+                print(f"[REWARD] Node {node.get_id()} distance update: {old_distance:.4f} -> -{vertical_distance:.4f} (diff: {distance_diff:.4f})")
 
         self.frontier_plans = frontier
         self.frontier_data = new_frontier_data
@@ -464,7 +404,7 @@ class ParetoFrontier:
 
         # Plot non-frontier plans (grey)
         if non_frontier_nodes:
-            costs = [node.scaled_cost for node in non_frontier_nodes]
+            costs = [self.plans_cost[node] for node in non_frontier_nodes]
             accuracies = [self.plans_accuracy[node] for node in non_frontier_nodes]
             ids = [node.get_id() for node in non_frontier_nodes]
             plt.scatter(costs, accuracies, color="grey", label="Off Frontier")
@@ -481,7 +421,7 @@ class ParetoFrontier:
 
         # Plot frontier plans (blue)
         if frontier_nodes:
-            costs = [node.scaled_cost for node in frontier_nodes]
+            costs = [self.plans_cost[node] for node in frontier_nodes]
             accuracies = [self.plans_accuracy[node] for node in frontier_nodes]
             ids = [node.get_id() for node in frontier_nodes]
             plt.scatter(costs, accuracies, color="blue", label="Frontier")

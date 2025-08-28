@@ -276,7 +276,7 @@ class MCTS:
         if true_accuracy is None or (isinstance(true_accuracy, float) and (true_accuracy != true_accuracy)):  # NaN check
             print(f"⚠️ Evaluation returned NaN for node {node.get_id()}, setting to -inf")
             return float("-inf")
-            
+
         return true_accuracy
 
     def search(self):
@@ -299,13 +299,8 @@ class MCTS:
                 agents_to_submit = min(self.max_concurrent_agents, self.max_iterations - self.iteration_count)
                 
                 for _ in range(agents_to_submit):
-                    if self.iteration_count < 5:
-                        future = executor.submit(self.mcts_cost_iteration)
-                    elif self.iteration_count < 20:
-                        future = executor.submit(self.mcts_iteration)
-                    else:
-                        future = executor.submit(self.mcts_cost_iteration)
-                    futures.append(future)
+                    
+                    future = executor.submit(self.mcts_iteration)
                 
                 # Wait for at least one agent to complete
                 for future in as_completed(futures):
@@ -804,7 +799,7 @@ class MCTS:
         
         # Check if this directive supports multiple instantiations
         is_multi_instance = directive in MULTI_INSTANCE_DIRECTIVES
-        num_instantiations = 2 if is_multi_instance else 1
+        num_instantiations = 1 if is_multi_instance else 1
         
         print(f"Creating {num_instantiations} instantiation(s) for directive '{directive_name}'")
         
@@ -913,9 +908,8 @@ class MCTS:
 
     def add_to_frontier(self, node: Node, accuracy: float):
         # Only increment action count after successful execution and evaluation
-        if hasattr(node, 'latest_action') and node.latest_action is not None:
-            pass
-        else:
+
+        if node.cost != -1 and node.latest_action in self.action_counts:
             self.action_counts[node.latest_action] -= 1
 
         # Step 3: Add to frontier (this only manages frontier state, no evaluation)

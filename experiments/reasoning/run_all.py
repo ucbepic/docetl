@@ -47,22 +47,16 @@ from experiments.reasoning.evaluation.utils import run_dataset_evaluation, get_e
 from experiments.reasoning.utils import app, create_original_query_result, volume, VOLUME_MOUNT_PATH, image  # use the same App as the runners
 
 @app.function(image=image, volumes={VOLUME_MOUNT_PATH: volume}, timeout=60)
-def check_optimized_config_exists(dataset: str, output_dir: Optional[str] = None) -> Dict[str, Any]:
-    """Check if optimized config exists in Modal volume and return config if it does."""
-    if output_dir is None:
-        output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
-    else:
-        if not output_dir.startswith(VOLUME_MOUNT_PATH):
-            output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
-    
-    optimized_config_path = Path(output_dir) / f"{dataset}_test" / "optimized_config.yaml"
-    
-    if optimized_config_path.exists():
-        with open(optimized_config_path, 'r') as f:
+def check_optimized_config_exists(original_path: str) -> Dict[str, Any]:
+    print(f"Checking if original config exists at {original_path}")
+    original_path = Path(original_path)
+    if original_path.exists():
+        with open(original_path, 'r') as f:
             config = yaml.safe_load(f)
-        return {"exists": True, "config": config, "path": str(optimized_config_path)}
+        return {"exists": True, "config": config, "path": str(original_path)}
     else:
-        return {"exists": False, "config": None, "path": str(optimized_config_path)}
+        return {"exists": False, "config": None, "path": str(original_path)}
+
 from experiments.reasoning.plot_result import (
     find_pareto_frontier, calculate_hypervolume_comparison, 
     plot_pareto_frontier_comparison, dataset_metrics
@@ -96,10 +90,12 @@ CONFIG: Dict[str, Any] = {
     "experiments": [
         {
             "dataset": "cuad",
-            "build_first_layer": True,
+            # "build_first_layer": True,
+            "original_cost": 0.137882,
+            "original_config_path": "cuad_test/gpt_4o_mini_config.yaml",
             # "baseline": {"iterations": 10},
-            # "simple_baseline": {"iterations": 10},
-            "mcts": {"max_iterations": 25}
+            "simple_baseline": {"iterations": 10},
+            # "mcts": {"max_iterations": 25}
         }
     ]
 }
@@ -796,7 +792,9 @@ def run_from_config(config: Dict[str, Any]) -> int:
         data_dir: Optional[str] = exp.get("data_dir")
         output_dir: Optional[str] = exp.get("output_dir")
         ground_truth: Optional[str] = exp.get("ground_truth")
-        optimized_cost: Optional[float] = exp.get("optimized_cost", 0.0)
+        original_cost: Optional[float] = exp.get("original_cost", 0.0)
+        original_config_path: Optional[str] = exp.get("original_config_path", None)
+        
         build_first_layer: Optional[bool] = exp.get("build_first_layer", False)
         
         print(f"{'='*60}")
@@ -804,51 +802,36 @@ def run_from_config(config: Dict[str, Any]) -> int:
         print(f"{'='*60}")
         
         # Check if optimized_config.yaml already exists (check both local and Modal)
-        if output_dir is None:
-            output_dir = "./outputs"
-        
-        output_path = Path(output_dir) / f"{dataset}_test"
-        optimized_config_path = output_path / "optimized_config.yaml"
-        print(f"Optimized config path: {optimized_config_path}")
+        original_path = str(Path(VOLUME_MOUNT_PATH) / "outputs") + f"/{original_config_path}"
         
         # Check locally first, then check Modal volume
-        local_exists = optimized_config_path.exists()
-        modal_result = check_optimized_config_exists.remote(dataset, output_dir)
-
+        modal_result = check_optimized_config_exists.remote(str(original_path))
+        print(f"Modal result: {modal_result}")
         if build_first_layer:
             print(f"🚀 Building first layer of the pipeline manually...")
             original_result = None
             
-        
-        elif local_exists or modal_result["exists"]:
-            print(f"✅ Found existing optimized configuration")
-            print(f"🚀 Skipping optimization steps and jumping directly to Step 4...")
+        elif modal_result["exists"]:
+            print(f"✅ Found existing original configuration {original_path}")
+            print(f"🚀 Jumping directly to Step 4...")
             
-            # Use local config if it exists, otherwise use Modal config
-            if local_exists:
-                with open(optimized_config_path, 'r') as f:
-                    optimized_config = yaml.safe_load(f)
-                optimized_yaml_path = str(optimized_config_path)
-            else:
-                optimized_config = modal_result["config"]
-                optimized_yaml_path = modal_result["path"]
-            
-            best_model = optimized_config.get('default_model')
+            original_config = modal_result["config"]
+            original_yaml_path = modal_result["path"]
             
             # Create original_result using the provided optimized cost
             original_result = create_original_query_result(
                 success=True,
-                cost=optimized_cost,
-                output_file_path=optimized_config['pipeline']['output']['path'],
+                cost=original_cost,
+                output_file_path=original_config['pipeline']['output']['path'],
                 sample_output=[]
             )
             
             print(f"✅ Using existing optimized configuration:")
-            print(f"   Model: {best_model}")
-            print(f"   Cost: ${optimized_cost:.6f}")
-            print(f"   Config: {optimized_yaml_path}")
+            print(f"   Cost: ${original_cost:.6f}")
+            print(f"   Config: {original_yaml_path}")
             
         else:
+            original_yaml_path = yaml_path
             print(f"📋 No existing optimized configuration found, proceeding with optimization...")
             
             # Step 1: Try to apply fusion directives to the original plan
@@ -908,13 +891,13 @@ def run_from_config(config: Dict[str, Any]) -> int:
         # Baseline block
         baseline_cfg: Optional[Dict[str, Any]] = exp.get("baseline")
         if baseline_cfg:
-            bl_name: str = f"{dataset}_test_baseline"
+            bl_name: str = f"{dataset}_baseline"
             bl_iters: int = int(baseline_cfg.get("iterations", 1))
             bl_model: Optional[str] = baseline_cfg.get("model")
 
             call = _spawn_baseline(
                 dataset=dataset,
-                yaml_path=optimized_yaml_path, 
+                yaml_path=original_yaml_path,
                 experiment_name=bl_name,
                 iterations=bl_iters,
                 model=bl_model,
@@ -937,7 +920,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
             
             call = _spawn_mcts(
                 dataset=dataset,
-                yaml_path=yaml_path,  
+                yaml_path=original_yaml_path,  
                 dataset_path=ds_path,
                 experiment_name=mc_name,
                 max_iterations=mc_max,
@@ -955,7 +938,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         # Simple baseline block
         simple_baseline_cfg: Optional[Dict[str, Any]] = exp.get("simple_baseline")
         if simple_baseline_cfg:
-            sb_name: str = f"{dataset}_test_simple_baseline"
+            sb_name: str = f"{dataset}_simple_baseline"
             sb_model: Optional[str] = simple_baseline_cfg.get("model", "o3")
 
             call = _spawn_simple_baseline(
@@ -997,7 +980,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         if dataset not in datasets_processed:
             datasets_processed.add(dataset)
             output_dir = exp.get("output_dir")
-            result = generate_plots_for_experiments_remote.remote(dataset, ['test_baseline', 'test_mcts', 'test_simple_baseline'], output_dir)
+            result = generate_plots_for_experiments_remote.remote(dataset, ['baseline', 'mcts', 'simple_baseline'], output_dir)
             if result["success"]:
                 print(f"✅ Comparison plots generated for {dataset}!")
                 print(f"📈 Plot: {result['plot_path']}")

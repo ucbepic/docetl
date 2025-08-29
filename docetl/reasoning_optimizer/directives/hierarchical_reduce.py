@@ -50,7 +50,6 @@ class HierarchicalReduceDirective(Directive):
             "    name='extract_city',\n"
             "    prompt='Extract the city mentioned in this post:\\n{{ input.content }} made in this state:\\n{{ input.state }}\\nReturn the city name or \"Unknown\" if not found.',\n"
             "    output_keys=['city'],\n"
-            "    model='gpt-4o-mini'\n"
             "  ),\n"
             "  additional_key='city',\n"
             "  reduce_1_name='summarize_by_state_city',\n"
@@ -58,7 +57,6 @@ class HierarchicalReduceDirective(Directive):
             "  reduce_1_prompt='Goal: Summarize voting patterns from social media posts to understand public sentiment.\\n\\nFor this state and city, analyze these posts:\\n{% for input in inputs %}\\nPost: {{ input.content }}\\n{% endfor %}\\nReturn a summary of voting patterns and key themes.',\n"
             "  # Second reduce: Explicitly work with summaries from first reduce\n"
             "  reduce_2_prompt='Goal: Summarize voting patterns from social media posts to understand public sentiment.\\n\\nWe have already summarized voting patterns at the city level. Your task is to combine these city-level summaries into a comprehensive state-level analysis:\\n{% for input in inputs %}\\nCity: {{ input.city }}\\nCity-Level Summary: {{ input.summary }}\\n{% endfor %}\\nSynthesize these city summaries into a unified state-level summary of voting patterns.',\n"
-            "  model='gpt-4o-mini'\n"
             ")\n"
             "\n"
             "Example InstantiateSchema (using existing key):\n"
@@ -70,7 +68,6 @@ class HierarchicalReduceDirective(Directive):
             "  reduce_1_prompt='Goal: Summarize voting patterns from social media posts.\\n\\nAnalyze posts for this state and county:\\n{% for input in inputs %}\\nPost: {{ input.content }}\\n{% endfor %}\\nReturn voting pattern summary for this county.',\n"
             "  # Second reduce: Explicitly work with county summaries\n"
             "  reduce_2_prompt='Goal: Summarize voting patterns from social media posts.\\n\\nWe have already analyzed voting patterns at the county level. Your task is to synthesize these county-level summaries into a state-level overview:\\n{% for input in inputs %}\\nCounty: {{ input.county }}\\nCounty Analysis: {{ input.summary }}\\n{% endfor %}\\nCombine these county analyses into a comprehensive state voting pattern summary.',\n"
-            "  model='gpt-4o-mini'\n"
             ")"
         ),
     )
@@ -252,9 +249,7 @@ class HierarchicalReduceDirective(Directive):
             )
 
         # Determine the model to use
-        default_model = global_default_model
-        if "model" in orig_op:
-            default_model = orig_op["model"]
+        default_model = orig_op.get("model", global_default_model)
 
         operations_to_insert = []
 
@@ -264,11 +259,7 @@ class HierarchicalReduceDirective(Directive):
                 "name": rewrite.map_config.name,
                 "type": "map",
                 "prompt": rewrite.map_config.prompt,
-                "model": (
-                    rewrite.map_config.model
-                    if rewrite.map_config.model != "gpt-4o-mini"
-                    else default_model
-                ),
+                "model":  default_model,
                 "litellm_completion_kwargs": {"temperature": 0},
                 "output": {"schema": {rewrite.map_config.output_keys[0]: "string"}},
             }
@@ -283,15 +274,13 @@ class HierarchicalReduceDirective(Directive):
             else orig_op["reduce_key"] + [rewrite.additional_key]
         )
         first_reduce_op["prompt"] = rewrite.reduce_1_prompt
-        if rewrite.model != "gpt-4o-mini":
-            first_reduce_op["model"] = rewrite.model
+        first_reduce_op["model"] = default_model
         operations_to_insert.append(first_reduce_op)
 
         # Create the second reduce operation (target granularity)
         second_reduce_op = deepcopy(orig_op)
         second_reduce_op["prompt"] = rewrite.reduce_2_prompt
-        if rewrite.model != "gpt-4o-mini":
-            second_reduce_op["model"] = rewrite.model
+        second_reduce_op["model"] = default_model
         operations_to_insert.append(second_reduce_op)
 
         # Replace the original operation with the new operations

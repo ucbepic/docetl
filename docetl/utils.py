@@ -316,6 +316,7 @@ def extract_output_from_json(yaml_file_path, json_output_path=None):
     with open(yaml_file_path, 'r') as f:
         config = yaml.safe_load(f)
     
+    print("HERE: ",yaml_file_path)
 
     if json_output_path is None:
         json_output_path = config.get('pipeline', {}).get('output', {}).get('path')

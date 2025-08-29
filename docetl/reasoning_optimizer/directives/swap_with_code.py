@@ -247,7 +247,7 @@ The target reduce operation '{op['name']}' fits into this broader pipeline. Cons
             raise ValueError(f"Target operation {target_ops[0]} not found")
 
         # Get model from original reduce operation or use global default
-        model = target_op.get("model", global_default_model or "gpt-4o-mini")
+        default_model = target_op.get("model", global_default_model)
 
         # Create the code reduce operation
         code_reduce_op = {
@@ -268,7 +268,7 @@ The target reduce operation '{op['name']}' fits into this broader pipeline. Cons
                 ],  # Keep the original name for the final output
                 "type": "map",
                 "prompt": rewrite.map_prompt,
-                "model": model,
+                "model": default_model,
                 "output": target_op.get("output", {}),
             }
             replacement_ops.append(map_op)

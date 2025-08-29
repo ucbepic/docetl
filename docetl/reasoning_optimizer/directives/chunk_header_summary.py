@@ -55,7 +55,6 @@ class ChunkHeaderSummaryDirective(Directive):
             {
               "header_extraction_prompt": "Extract any section headers or subsection titles from this contract chunk: {{ input.contract_text_chunk }}. Return the headers with their hierarchical levels.",
               "summary_prompt": "Summarize the key legal concepts and clause types in this contract chunk: {{ input.contract_text_chunk }}. Focus on liability, indemnification, and related contractual obligations.",
-              "model": "gpt-4o-mini"
             }
         """,
     )
@@ -152,7 +151,6 @@ class ChunkHeaderSummaryDirective(Directive):
             f"   - Focus on key concepts relevant to the downstream processing\n"
             f"   - Should output '<split_key>_summary' field\n"
             f"   - Keep summaries concise but informative for context\n"
-            f"3. model: Use the same model as any existing map operations that process chunks, or suitable alternative\n\n"
             f"The header extraction helps maintain document structure context.\n"
             f"The summary provides condensed context from surrounding chunks.\n"
             f"The gather operation combines both for comprehensive context.\n\n"
@@ -281,7 +279,7 @@ class ChunkHeaderSummaryDirective(Directive):
                     "output_keys": [f"{split_key}_summary"],
                 },
             ],
-            "model": rewrite.model,
+            "model": global_default_model,
             "output": {
                 "schema": {
                     "headers": "list[{header: string, level: integer}]",

@@ -350,10 +350,8 @@ class IsolatingSubtasksDirective(Directive):
         parallel_map_op["output"] = {"schema": parallel_output_schema}
 
         # Use the same model as the original operation
-        if "model" in original_op:
-            parallel_map_op["model"] = original_op["model"]
-        elif global_default_model:
-            parallel_map_op["model"] = global_default_model
+        default_model = original_op.get("model", global_default_model)
+        parallel_map_op["model"] = default_model
 
         # Check if aggregation is needed by comparing subtask output keys with original keys
         subtask_output_keys = set()
@@ -382,10 +380,7 @@ class IsolatingSubtasksDirective(Directive):
             }
 
             # Use the same model as the original operation
-            if "model" in original_op:
-                aggregation_map_op["model"] = original_op["model"]
-            elif global_default_model:
-                aggregation_map_op["model"] = global_default_model
+            aggregation_map_op["model"] = default_model
 
             # Replace the original operation with both operations
             new_ops_list[pos_to_replace : pos_to_replace + 1] = [

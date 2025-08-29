@@ -208,16 +208,8 @@ def get_openai_response(
         api_base=os.environ.get("AZURE_API_BASE"),
         api_version=os.environ.get("AZURE_API_VERSION"),
         azure=True,
-        # reasoning_effort="high",  # Not supported by Azure
         response_format=ResponseFormat,
     )
-    # response = litellm.completion(
-    #     model=model,
-    #     messages=messages,
-    #     api_key=os.environ["GEMINI_API_KEY"],
-    #     # reasoning_effort = "high",
-    #     response_format=ResponseFormat
-    # )
     assistant_response = response.choices[0].message.content
 
     # Add user and assistant messages to message_history as dicts
@@ -454,7 +446,7 @@ def run_single_iteration(
         return None, message_history
 
     try:
-        new_ops_list, message_history = instantiate_directive(
+        new_ops_list, message_history, cost = instantiate_directive(
             directive_name=directive,
             operators=orig_operators,
             target_ops=target_ops,

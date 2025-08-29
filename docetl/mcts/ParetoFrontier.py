@@ -37,6 +37,8 @@ class ParetoFrontier:
         self,
         accuracy_comparator: AccuracyComparator,
         action_rewards: Dict[str, float],
+        action_cost_changes: Dict[str, float],
+        action_accuracy_changes: Dict[str, float],
         dataset_name: str,
     ):
         """
@@ -45,6 +47,8 @@ class ParetoFrontier:
         Args:
             accuracy_comparator: Comparator for evaluating plan accuracy
             action_rewards: Reference to MCTS action_rewards dictionary
+            action_cost_changes: Reference to MCTS action_cost_changes dictionary
+            action_accuracy_changes: Reference to MCTS action_accuracy_changes dictionary
             dataset_name: Name of the dataset being optimized (for evaluation and metric selection)
         """
         self.accuracy_comparator = accuracy_comparator
@@ -73,6 +77,8 @@ class ParetoFrontier:
             []
         )  # List of [acc, real_cost] of nodes on frontier
         self.action_rewards = action_rewards
+        self.action_cost_changes = action_cost_changes
+        self.action_accuracy_changes = action_accuracy_changes
 
         # Distance to current Pareto frontier: positive for on-frontier, negative for off-frontier
         self.node_distances: Dict[Node, float] = {}
@@ -247,7 +253,7 @@ class ParetoFrontier:
 
     def _update_action_rewards(self, node: Node, reward: float) -> None:
         """
-        Update action rewards based on the reward received by a node.
+        Update action rewards and track cost/accuracy changes based on the reward received by a node.
         Updates the cumulative sum for the latest action that led to this node.
 
         Args:
@@ -258,8 +264,17 @@ class ParetoFrontier:
             return
         action = node.latest_action
         if action in self.action_rewards:
-            # Update cumulative sum
+            # Update cumulative reward sum
             self.action_rewards[action] += reward
+            
+            # Track cost and accuracy changes
+            if node.parent and node.parent in self.plans_cost and node in self.plans_cost:
+                cost_change = self.plans_cost[node] - self.plans_cost[node.parent]
+                self.action_cost_changes[action] += cost_change
+                
+            if node.parent and node.parent in self.plans_accuracy and node in self.plans_accuracy:
+                accuracy_change = self.plans_accuracy[node] - self.plans_accuracy[node.parent]
+                self.action_accuracy_changes[action] += accuracy_change
 
 
     def update_pareto_frontier_HV(self, new_node) -> Tuple[Dict[Node, int], bool]:

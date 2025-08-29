@@ -49,7 +49,6 @@ class ReduceChainingDirective(Directive):
             "  map_prompt='Extract all location names mentioned in this document:\\n{{ input.document }}\\nReturn a list of locations.',\n"
             "  new_key='locations',\n"
             "  modified_reduce_prompt='Combine and deduplicate all locations from these documents:\\n{% for input in inputs %}\\nLocations from document: {{ input.locations }}\\n{% endfor %}\\nReturn a list of unique location names.',\n"
-            "  model='gpt-4o-mini'\n"
             ")"
         ),
     )
@@ -218,16 +217,14 @@ class ReduceChainingDirective(Directive):
             )
 
         # Determine the model to use
-        default_model = global_default_model
-        if "model" in orig_op:
-            default_model = orig_op["model"]
+        default_model = orig_op.get("model", global_default_model)
 
         # Create the new map operation
         new_map_op = {
             "name": rewrite.map_name,
             "type": "map",
             "prompt": rewrite.map_prompt,
-            "model": rewrite.model if rewrite.model != "gpt-4o-mini" else default_model,
+            "model": default_model,
             "litellm_completion_kwargs": {"temperature": 0},
             "output": {"schema": {rewrite.new_key: "string"}},
         }

@@ -33,15 +33,15 @@ class OperatorFusionDirective(Directive):
         default="""
         Example 1 - Map + Filter Fusion:
         Original: extract_sentiment (map) → filter_positive (filter)
-        Agent output: {"fused_prompt": "Extract sentiment from {{ input.review }} AND determine if it's positive (true/false)", "model": "gpt-4o-mini"}
+        Agent output: {"fused_prompt": "Extract sentiment from {{ input.review }} AND determine if it's positive (true/false)"}
 
         Example 2 - Map + Map Fusion:
         Original: extract_entities (map) → classify_urgency (map)
-        Agent output: {"fused_prompt": "Extract entities from {{ input.text }} AND classify urgency level", "model": "gpt-4o-mini"}
+        Agent output: {"fused_prompt": "Extract entities from {{ input.text }} AND classify urgency level"}
 
         Example 3 - Map + Reduce Fusion:
         Original: extract_themes (map) → summarize_themes (reduce)
-        Agent output: {"fused_prompt": "For each group of feedback, extract themes and summarize them: {% for item in inputs %}{{ item.feedback }}{% endfor %}", "model": "gpt-4o-mini"}
+        Agent output: {"fused_prompt": "For each group of feedback, extract themes and summarize them: {% for item in inputs %}{{ item.feedback }}{% endfor %}"}
         """
     )
 
@@ -150,7 +150,7 @@ class OperatorFusionDirective(Directive):
             f"outputs a boolean field for filtering purposes. A code_filter will be automatically added.\n\n"
             f"Example outputs:\n"
             f"{self.example}\n\n"
-            f"Please output only the OperatorFusionInstantiateSchema with 'fused_prompt' and 'model' fields "
+            f"Please output only the OperatorFusionInstantiateSchema with 'fused_prompt' field "
             f"that specifies how to combine these operations efficiently."
         )
 
@@ -228,11 +228,13 @@ class OperatorFusionDirective(Directive):
             op1_type != "reduce" and op2_type != "reduce"
         ), "Cannot apply fusion on reduce"
 
+        default_model = op1.get("model", global_default_model)
+
         # Create base fused operation
         fused_op = {
             "name": f"fused_{op1_name}_{op2_name}",
             "prompt": rewrite.fused_prompt,
-            "model": rewrite.model,
+            "model": default_model,
             "litellm_completion_kwargs": {"temperature": 0},
         }
 

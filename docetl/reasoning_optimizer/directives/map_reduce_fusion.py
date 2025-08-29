@@ -245,9 +245,7 @@ class MapReduceFusionDirective(Directive):
             raise ValueError(f"Could not find target operations: {map_target}, {reduce_target}")
         
         # Get default model
-        default_model = global_default_model
-        if "model" in orig_map_op:
-            default_model = orig_map_op["model"]
+        default_model = orig_map_op.get("model", global_default_model)
         
         # Create the new map operation with fused functionality
         new_map_op = {

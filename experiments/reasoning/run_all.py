@@ -90,12 +90,12 @@ CONFIG: Dict[str, Any] = {
     "experiments": [
         {
             "dataset": "cuad",
-            # "build_first_layer": True,
+            #"build_first_layer": True,
             "original_cost": 0.137882,
             "original_config_path": "cuad_test/gpt_4o_mini_config.yaml",
-            # "baseline": {"iterations": 10},
-            "simple_baseline": {"iterations": 10},
-            # "mcts": {"max_iterations": 25}
+            "baseline": {"iterations": 10},
+            #"simple_baseline": {"iterations": 10},
+            #"mcts": {"max_iterations": 20}
         }
     ]
 }
@@ -415,7 +415,7 @@ def test_single_model_remote(base_yaml_path: str, model: str, dataset: str, expe
                 output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
         
         # Create dataset test directory structure 
-        dataset_test_dir = Path(output_dir) / f"{dataset}_test"
+        dataset_test_dir = Path(output_dir) / f"{dataset}"
         dataset_test_dir.mkdir(parents=True, exist_ok=True)
         
         # Save the model-specific config in Modal volume with the desired naming
@@ -808,8 +808,9 @@ def run_from_config(config: Dict[str, Any]) -> int:
         modal_result = check_optimized_config_exists.remote(str(original_path))
         print(f"Modal result: {modal_result}")
         if build_first_layer:
-            print(f"🚀 Building first layer of the pipeline manually...")
+            print(f"🚀 Building first layer of the search tree manually...")
             original_result = None
+            original_yaml_path = yaml_path
             
         elif modal_result["exists"]:
             print(f"✅ Found existing original configuration {original_path}")
@@ -912,7 +913,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         # MCTS block
         mcts_cfg: Optional[Dict[str, Any]] = exp.get("mcts")
         if mcts_cfg:
-            mc_name: str = f"{dataset}_test_mcts"
+            mc_name: str = f"{dataset}_mcts"
             mc_max: int = int(mcts_cfg.get("max_iterations", 10))
             mc_c: Optional[float] = mcts_cfg.get("exploration_weight")
             mc_model: Optional[str] = mcts_cfg.get("model")

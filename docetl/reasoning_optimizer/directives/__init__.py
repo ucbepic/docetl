@@ -38,7 +38,6 @@ ALL_DIRECTIVES = [
     GleaningDirective(), 
     ReduceGleaningDirective(),
     ReduceChainingDirective(),
-    # ChangeModelAccDirective(),
     ChangeModelCostDirective(),
     DocSummarizationDirective(),
     IsolatingSubtasksDirective(),
@@ -116,7 +115,7 @@ def instantiate_directive(
     global_default_model: str = None,
     dataset: str = None,
     **kwargs
-) -> Tuple[List[Dict], list]:
+):
     """
     Centralized method to instantiate any directive by name.
     

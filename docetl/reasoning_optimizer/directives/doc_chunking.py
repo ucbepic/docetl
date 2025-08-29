@@ -46,7 +46,7 @@ class DocumentChunkingDirective(Directive):
 
             # Basic context - good for most cases:
             {
-              "chunk_size": 1000,
+              "chunk_size": 10000,
               "split_key": "contract_text",
               "sub_prompt": "You are analyzing a chunk of a larger document. Extract all payment terms, deadlines, and penalty clauses from this contract chunk: {{ input.contract_text_chunk_rendered }}. Return a comprehensive list of all terms found.",
               "reduce_prompt": "Combine results from multiple document chunks: Extract all payment terms, deadlines, and penalty clauses by combining the results from each chunk: {% for input in inputs %}{{ input.contract_terms | join(', ') }}{% if not loop.last %}, {% endif %}{% endfor %}. Remove duplicates and return a comprehensive list of all terms found.",
@@ -57,7 +57,6 @@ class DocumentChunkingDirective(Directive):
                   }
                 }
               },
-              "model": "gpt-4o-mini"
             }
 
             # Rich context - for complex documents needing document-level metadata:
@@ -193,7 +192,7 @@ class DocumentChunkingDirective(Directive):
             f"Your task is to instantiate this directive by creating a configuration that transforms the original Map operation "
             f"into a Split -> Gather -> Map -> Reduce pipeline for processing long documents in chunks.\n\n"
             f"Key requirements:\n"
-            f"1. chunk_size: Choose an appropriate token count (typically 500-2000) based on the complexity of the task\n"
+            f"1. chunk_size: Choose an appropriate token count (typically 10000-15000) based on the complexity of the task\n"
             f"2. split_key: Identify the document field to split from the original operation's prompt. Make sure to use the same field as the original operation's prompt.\n"
             f"3. sub_prompt: Take the original prompt exactly but:\n"
             f"   - Add instruction at start: 'You are analyzing a chunk of a larger document.'\n"
@@ -233,7 +232,6 @@ class DocumentChunkingDirective(Directive):
             f"   - Count can be float (e.g., 0.5 for half chunk, 1.5 for chunk and a half)\n"
             f"   - More context increases token usage and cost - be judicious\n"
             f"   - Default to 0.5 previous tail if unsure about context needs\n"
-            f"7. model: Use the same model as the original operation or a suitable alternative\n\n"
             f"The sub_prompt should focus on the main chunk content and extract the same type of information as the original.\n"
             f"The reduce_prompt must produce the same output schema as the original operation.\n\n"
             f"Example:\n"
@@ -321,6 +319,7 @@ class DocumentChunkingDirective(Directive):
         ][0]
 
         original_op = ops_list[pos_to_replace]
+        original_model = target_op_config.get("model", global_default_model)
 
         # Create operation names based on the original operation name
         split_name = f"split_{target_op}"
@@ -337,7 +336,7 @@ class DocumentChunkingDirective(Directive):
             "method": "token_count",
             "method_kwargs": {
                 "num_tokens": rewrite.chunk_size,
-                "model": target_op_config.get("model", rewrite.model),
+                "model": original_model,
             },
         }
 
@@ -366,7 +365,7 @@ class DocumentChunkingDirective(Directive):
             "name": map_name,
             "type": "map",
             "prompt": rewrite.sub_prompt,
-            "model": target_op_config.get("model", rewrite.model),
+            "model": original_model,
             "litellm_completion_kwargs": {"temperature": 0},
             "output": deepcopy(original_op["output"]),  # Same output schema as original
         }
@@ -377,7 +376,7 @@ class DocumentChunkingDirective(Directive):
             "type": "reduce",
             "reduce_key": f"{split_name}_id",
             "prompt": rewrite.reduce_prompt,
-            "model": target_op_config.get("model", rewrite.model),
+            "model": original_model,
             "litellm_completion_kwargs": {"temperature": 0},
             "output": deepcopy(original_op["output"]),  # Same output schema as original
             "associative": False,  # Order matters for chunks,

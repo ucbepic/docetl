@@ -61,10 +61,7 @@ class MapOpConfig(BaseModel):
         ...,
         description="The keys of the output of the Map operator, to be referenced in the downstream operator's prompt. Can be a single key or a list of keys. Can be new keys or existing keys from the map operator we are rewriting.",
     )
-    model: str = Field(
-        default="gpt-4o-mini", description="The model to use for the Map operator."
-    )
-
+    
     @classmethod
     def validate_prompt_contains_input_key(cls, value: str) -> str:
         """
@@ -490,9 +487,6 @@ class OperatorFusionInstantiateSchema(BaseModel):
     fused_prompt: str = Field(
         ..., description="Combined prompt that performs both operations' tasks"
     )
-    model: str = Field(
-        default="gpt-4o-mini", description="Model to use for the fused operation"
-    )
 
 
 class ChunkSubsectionConfig(BaseModel):
@@ -540,9 +534,6 @@ class ChunkHeaderSummaryInstantiateSchema(BaseModel):
     summary_prompt: str = Field(
         ...,
         description="Jinja prompt template for summarizing each chunk. Must reference {{ input.<split_key>_chunk }} to access the chunk content. Should output <split_key>_summary field with condensed chunk information.",
-    )
-    model: str = Field(
-        default="gpt-4o-mini", description="The model to use for the new map operation"
     )
 
     @field_validator("header_extraction_prompt")
@@ -643,10 +634,7 @@ class DocumentChunkingInstantiateSchema(BaseModel):
         default=None,
         description="Optional sampling configuration. If provided, inserts a Sample operation between Gather and Map. Use by default UNLESS task requires processing ALL chunks (like comprehensive extraction of all instances).",
     )
-    model: str = Field(
-        default="gpt-4o-mini", description="The model to use for the new operations"
-    )
-
+   
     def validate_split_key_exists_in_input(self, input_file_path: str) -> None:
         """
         Validates that the split_key exists in the input JSON file items.
@@ -823,9 +811,7 @@ class DocumentChunkingTopKInstantiateSchema(BaseModel):
         ...,
         description="Configuration for the topk operation to select relevant chunks",
     )
-    model: str = Field(
-        default="gpt-4o-mini", description="The model to use for the new operations"
-    )
+
 
     def validate_split_key_exists_in_input(self, input_file_path: str) -> None:
         """
@@ -905,9 +891,6 @@ class HierarchicalReduceInstantiateSchema(BaseModel):
         ...,
         description="Jinja prompt template for the second Reduce that combines the outputs of the first reduce to the target granularity (reduce_key only). Should reference the output from the first reduce.",
     )
-    model: str = Field(
-        default="gpt-4o-mini", description="The model to use for the reduce operations."
-    )
 
     @field_validator("reduce_1_prompt", "reduce_2_prompt")
     @classmethod
@@ -974,9 +957,6 @@ class ReduceChainingInstantiateSchema(BaseModel):
     modified_reduce_prompt: str = Field(
         ...,
         description="The modified reduce prompt that references the new key ({{ input.new_key }}) instead of the original document content.",
-    )
-    model: str = Field(
-        default="gpt-4o-mini", description="The model to use for the Map operator."
     )
 
     @field_validator("map_prompt")

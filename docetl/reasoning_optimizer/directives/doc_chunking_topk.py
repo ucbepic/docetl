@@ -53,7 +53,7 @@ class DocumentChunkingTopKDirective(Directive):
 
             InstantiateSchema (filter with embedding search):
             {
-              "chunk_size": 1000,
+              "chunk_size": 10000,
               "split_key": "review_text",
               "reduce_prompt": "Analyze this customer review to determine if it mentions competitor products more positively than our product.\\n\\nOur Product: {{ inputs[0].our_product }}\\nReview: the top {{ inputs|length }} most relevant chunks from the document (ordered by relevance):\\n{% for input in inputs|sort(attribute='_topk_filter_competitor_mentions_chunks_rank') %}\\nChunk (Rank {{ input._topk_filter_competitor_mentions_chunks_rank }}, Score {{ input._topk_filter_competitor_mentions_chunks_score }}):\\n{{ input.review_text_chunk }}\\n{% endfor %}\\nReview ID: {{ inputs[0].review_id }}\\n\\nReturn true if the review speaks more favorably about competitor products than ours.\\nConsider: feature comparisons, performance mentions, value assessments, recommendations.",
               "topk_config": {
@@ -62,8 +62,7 @@ class DocumentChunkingTopKDirective(Directive):
                 "query": "competitor comparison versus alternative better than superior inferior worse features performance value recommendation prefer instead",
                 "keys": ["review_text_chunk"],
                 "embedding_model": "text-embedding-3-small"
-              },
-              "model": "gpt-4o"
+              }
             }
 
             # Example 2: Map Operation - Extract Specific Sections from Long Documents
@@ -88,7 +87,7 @@ class DocumentChunkingTopKDirective(Directive):
 
             InstantiateSchema (map with embedding search):
             {
-              "chunk_size": 7000,
+              "chunk_size": 15000,
               "split_key": "paper_content",
               "reduce_prompt": "Extract detailed methodology from this research paper:\\n\\nPaper: the top {{ inputs|length }} most relevant chunks from the document (ordered by relevance):\\n{% for input in inputs|sort(attribute='_topk_extract_methodology_from_paper_chunks_rank') %}\\nChunk (Rank {{ input._topk_extract_methodology_from_paper_chunks_rank }}, Score {{ input._topk_extract_methodology_from_paper_chunks_score }}):\\n{{ input.paper_content_chunk }}\\n{% endfor %}\\nTitle: {{ inputs[0].title }}\\n\\nExtract: study design, sample size, data collection methods, statistical analyses, and validation approaches.",
               "topk_config": {
@@ -97,8 +96,7 @@ class DocumentChunkingTopKDirective(Directive):
                 "query": "methodology methods study design sample size participants data collection statistical analysis validation procedure protocol experimental",
                 "keys": ["paper_content_chunk"],
                 "embedding_model": "text-embedding-3-small"
-              },
-              "model": "gpt-4o"
+              }
             }
 
             # Example 3: Filter with FTS - Check Contract Compliance
@@ -120,7 +118,7 @@ class DocumentChunkingTopKDirective(Directive):
 
             InstantiateSchema (filter with FTS for legal terms):
             {
-              "chunk_size": 6000,
+              "chunk_size": 12000,
               "split_key": "contract_text",
               "reduce_prompt": "Determine if this contract contains liability cap provisions that limit damages to less than $1 million.\\n\\nContract: the top {{ inputs|length }} most relevant chunks from the document (ordered by relevance):\\n{% for input in inputs|sort(attribute='_topk_filter_contracts_with_liability_caps_chunks_rank') %}\\nSection (Rank {{ input._topk_filter_contracts_with_liability_caps_chunks_rank }}, Score {{ input._topk_filter_contracts_with_liability_caps_chunks_score }}):\\n{{ input.contract_text_chunk }}\\n{% endfor %}\\nContract ID: {{ inputs[0].contract_id }}\\nParty: {{ inputs[0].counterparty }}\\n\\nReturn true if contract caps liability below $1M, false otherwise.",
               "topk_config": {
@@ -128,8 +126,7 @@ class DocumentChunkingTopKDirective(Directive):
                 "k": 10,
                 "query": "liability limitation cap maximum damages indirect consequential million dollars aggregate total exposure indemnification",
                 "keys": ["contract_text_chunk"]
-              },
-              "model": "gpt-4o-mini"
+              }
             }
         """,
     )
@@ -378,7 +375,7 @@ class DocumentChunkingTopKDirective(Directive):
             f"into a Split -> TopK -> Reduce pipeline for processing very long documents with intelligent chunk selection.\n"
             f"{'For Filter operations, a final code_filter step will be automatically added to return boolean results.' if op_type == 'filter' else ''}\n\n"
             f"Key requirements:\n"
-            f"1. chunk_size: Choose an appropriate token count (typically 1000) for cost-effective processing of long documents\n"
+            f"1. chunk_size: Choose an appropriate token count (typically 10000-15000) for cost-effective processing of long documents\n"
             f"2. split_key: Identify the document field to split from the original operation's prompt (the longest text field)\n"
             f"3. reduce_prompt: Use the EXACT SAME prompt as the original, with ONE change:\n"
             f"   - Where the original references '{{{{ input.<split_key> }}}}', replace it with:\n"
@@ -398,7 +395,6 @@ class DocumentChunkingTopKDirective(Directive):
             f"     * Can use Jinja: '{{{{ input.competitor_name }}}} comparison versus {{{{ input.our_product }}}}'\n"
             f"   - keys: Always use the chunk key, typically ['<split_key>_chunk']\n"
             f"   - embedding_model: (optional, only for embedding method) defaults to 'text-embedding-3-small'\n"
-            f"5. model: Use the same model as the original operation or a suitable alternative\n\n"
             f"The topk query should be carefully crafted to find the most relevant chunks.\n"
             f"The reduce_prompt must process chunks directly and {'output a boolean decision' if op_type == 'filter' else 'preserve the original output schema'}.\n\n"
             f"Example:\n"
@@ -477,6 +473,7 @@ class DocumentChunkingTopKDirective(Directive):
         # Create a copy of the pipeline config
         new_ops_list = deepcopy(ops_list)
         target_op_config = [op for op in new_ops_list if op["name"] == target_op][0]
+        original_model = target_op_config.get("model", global_default_model)
 
         # Find position of the target op to replace
         pos_to_replace = [
@@ -498,7 +495,7 @@ class DocumentChunkingTopKDirective(Directive):
             "method": "token_count",
             "method_kwargs": {
                 "num_tokens": rewrite.chunk_size,
-                "model": target_op_config.get("model", rewrite.model),
+                "model": original_model,
             },
         }
 
@@ -553,7 +550,7 @@ class DocumentChunkingTopKDirective(Directive):
             "type": "reduce",
             "reduce_key": f"{split_name}_id",
             "prompt": rewrite.reduce_prompt,
-            "model": target_op_config.get("model", rewrite.model),
+            "model": original_model,
             "litellm_completion_kwargs": {"temperature": 0},
             "output": reduce_output,
             "associative": False,  # Order matters for chunks

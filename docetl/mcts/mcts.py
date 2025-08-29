@@ -122,6 +122,8 @@ class MCTS:
         
         # Initialize action tracking for all actions (base + model-specific)
         self.action_rewards = {action: 0.0 for action in self.available_actions}
+        self.action_cost_changes = {action: 0.0 for action in self.available_actions}
+        self.action_accuracy_changes = {action: 0.0 for action in self.available_actions}
         self.action_counts = {action: 0.0 for action in self.available_actions}
         self.exploration_constant = exploration_constant
         self.max_iterations = max_iterations
@@ -160,7 +162,8 @@ class MCTS:
 
         # Initialize Pareto frontier
         self.pareto_frontier = ParetoFrontier(
-            accuracy_comparator, self.action_rewards, dataset_name
+            accuracy_comparator, self.action_rewards, self.action_cost_changes, 
+            self.action_accuracy_changes, dataset_name
         )
 
         # Create comprehensive directive mapping 
@@ -189,6 +192,14 @@ class MCTS:
                 action = self.directive_name_to_obj[action_name]
                 child.latest_action = action
                 child.sample_result = extract_output_from_json(model_yaml_path)
+                
+                # Mark all change model directives as used for first layer nodes
+                # since they are already model-specific plans
+                for op_name in child.op_dict.keys():
+                    for directive in self.available_actions:
+                        if isinstance(directive, ChangeModelCostDirective):
+                            child.mark_action_used(op_name, directive)
+                
                 self.root.add_child(child)
                 accuracy = MODEL_STATS[dataset_name][child_model]["acc"]
                 self.pareto_frontier.add_plan_f1(child, accuracy)
@@ -299,8 +310,8 @@ class MCTS:
                 agents_to_submit = min(self.max_concurrent_agents, self.max_iterations - self.iteration_count)
                 
                 for _ in range(agents_to_submit):
-                    
                     future = executor.submit(self.mcts_iteration)
+                    futures.append(future)
                 
                 # Wait for at least one agent to complete
                 for future in as_completed(futures):
@@ -339,102 +350,6 @@ class MCTS:
 
         return frontier_plans
 
-    def mcts_cost_iteration(self):
-        """Perform one complete MCTS iteration optimizing for cost with thread safety."""
-        thread_id = threading.current_thread().ident
-        
-        # 1. Selection: Find the best leaf node (requires tree lock)
-        with self.tree_lock:
-            print(f"[Thread {thread_id}] SELECTION (COST)")
-            leaf = self.select(self.root)
-            print(f"[Thread {thread_id}] SELECTED NODE: {leaf.get_id()}")
-
-        # 2. Expansion: Always attempt to expand the leaf, catch errors (requires tree lock)
-        with self.tree_lock:
-            print(f"[Thread {thread_id}] EXPANSION (COST)")
-            cost_children = []
-
-            has_leaf_cost = 1
-            try:
-                cost_children = self.expand(leaf, optimize_goal="cost")
-                # Increment visit count immediately after successful expansion
-                if cost_children:
-                    self.increment_visits_up_tree(leaf)
-            except RuntimeError as e:
-                print(e)
-                has_leaf_cost = 0
-
-        # 3. Simulation: Run simulations from the leaf
-        is_frontier_updated = False
-        if has_leaf_cost:
-            print("HAS LEAF COST SIMULATION")
-            
-            if len(cost_children) > 1:
-                print(f"Handling {len(cost_children)} multi-instance candidates")
-                candidate_results = []
-                
-                # Simulate all candidates
-                for num, candidate in enumerate(cost_children):
-                    cost, accuracy = self.simulate(candidate)
-                    with self.tree_lock:
-                        cost_to_add = max(cost,0)
-                        print(f"💰 Adding multi-instance candidate cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
-                        self.total_search_cost += cost_to_add
-                    print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
-                    if cost != -1 and accuracy != float("-inf"):  # Valid plan
-                        candidate_results.append((candidate, accuracy, cost))
-                    else:
-                        print(f"Multi-instance candidate {num} failed during simulation")
-                
-                if candidate_results:
-                    # Select the best candidate based on accuracy
-                    best_candidate, best_accuracy, best_cost = max(candidate_results, key=lambda x: x[1])
-                    print(f"Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}")
-                    
-                    # Change the best candidate's ID back to a proper counter ID
-                    old_id = best_candidate.get_id()
-                    new_id = best_candidate.set_id_to_counter()
-                    print(f"Updated best candidate ID from {old_id} to {new_id}")
-                    
-                    # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
-                    for candidate in cost_children:
-                        if candidate != best_candidate:
-                            candidate.delete(selected_node_final_id=new_id)
-                    
-                    # Process only the best candidate (requires tree lock for backprop)
-                    affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
-                    with self.tree_lock:
-                        self.backpropagate(affected_nodes, best_candidate)
-                else:
-                    # If no candidates were successful, delete all of them
-                    print("No successful candidates found, deleting all multi-instance candidates")
-                    for candidate in cost_children:
-                        candidate.delete(selected_node_final_id=None)
-                    
-            else:
-                # Original logic for single instantiation
-                for leaf_cost in cost_children:
-                    cost, accuracy = self.simulate(leaf_cost)
-                    with self.tree_lock:
-                        cost_to_add = max(cost,0)
-                        print(f"💰 Adding leaf cost simulation: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
-                        self.total_search_cost += cost_to_add
-                    affected_nodes, temp_updated = self.add_to_frontier(leaf_cost, accuracy)
-                    if temp_updated:
-                        is_frontier_updated = True
-                    # Check if any node was added to the frontier (value = 1) - requires tree lock for backprop
-                    with self.tree_lock:
-                        self.backpropagate(affected_nodes, leaf_cost)
-
-            # Update counter for early stopping (requires tree lock)
-            with self.tree_lock:
-                if is_frontier_updated:
-                    self.iterations_without_improvement = 0
-                else:
-                    self.iterations_without_improvement += 1
-
-                self.log_tree_to_file(self.iteration_count + 1)
-        return has_leaf_cost
 
     def mcts_iteration(self):
         """Perform one complete MCTS iteration with thread safety."""
@@ -547,6 +462,7 @@ class MCTS:
         current = node
 
         while self.is_fully_explored(current):
+            print(f"Node {current.get_id()} is fully explored, selecting best child")
             current = current.best_child()
 
         return current
@@ -559,16 +475,56 @@ class MCTS:
     def expansion_prompt_acc(self, node, action_options, input_query) -> tuple[str, str]:
         return create_expansion_prompt_acc(
             node, action_options, input_query, self.available_actions, 
-            self.action_rewards, self.action_counts, self.sample_input, 
+            self.action_cost_changes, self.action_accuracy_changes, self.action_counts, self.sample_input, 
             self.root, node.yaml_file_path, self.dataset_name, self.pareto_frontier.plans_accuracy
         )
 
     def expansion_prompt_cost(self, node, action_options, input_query) -> tuple[str, str]:
         return create_expansion_prompt_cost(
             node, action_options, input_query, self.available_actions,
-            self.action_rewards, self.action_counts, self.sample_input,
+            self.action_cost_changes, self.action_accuracy_changes, self.action_counts, self.sample_input,
             self.root, node.yaml_file_path, self.dataset_name, self.pareto_frontier.plans_accuracy
         )
+
+    def get_optimize_goal(self, node: Node) -> str:
+        """
+        Determine the optimization goal based on the node's accuracy relative to other plans.
+        
+        Args:
+            node: Node to determine optimization goal for
+            
+        Returns:
+            "cost" for nodes in the top 50% accuracy plans, "acc" otherwise
+        """
+        if not self.pareto_frontier.plans_accuracy:
+            # If no plans exist yet, optimize for accuracy
+            return "acc"
+        
+        # Get all accuracy values from tracked plans
+        all_accuracies = list(self.pareto_frontier.plans_accuracy.values())
+        
+        # Filter out invalid accuracies (negative infinity indicates failed plans)
+        valid_accuracies = [acc for acc in all_accuracies if acc != float("-inf")]
+        
+        if not valid_accuracies:
+            # If no valid accuracies exist, optimize for accuracy
+            return "acc"
+        
+        # Calculate the 50th percentile threshold
+        valid_accuracies.sort()
+        n = len(valid_accuracies)
+        percentile_50_index = n // 2  # This gives us the median (50th percentile)
+        threshold = valid_accuracies[percentile_50_index]
+        
+        # Get this node's accuracy (if it exists in the frontier)
+        node_accuracy = self.pareto_frontier.plans_accuracy.get(node, float("-inf"))
+        
+        # If node accuracy is above the 50th percentile, optimize for cost
+        # Otherwise, optimize for accuracy
+        if node_accuracy > threshold:
+            return "cost"
+        else:
+            return "acc"
 
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
         """
@@ -581,8 +537,7 @@ class MCTS:
             The newly created child
         """
 
-        print("INSIDE EXPAND")
-        print(node.get_id())
+        print("INSIDE EXPAND for node: ", node.get_id())
 
         max_retries = 3
         retry_count = 0
@@ -601,7 +556,9 @@ class MCTS:
                     directive = self.directive_name_to_obj.get(last_directive)
                     if directive in DIRECTIVE_GROUPS[group]:
                         banned_directives = set(DIRECTIVE_GROUPS[group])
-        
+
+        optimize_goal = self.get_optimize_goal(node)
+        print(f"Optimize goal: {optimize_goal}")
         if optimize_goal == "acc":
             action_options = []  # a list of tuple
             for op_name in op_list:
@@ -650,7 +607,6 @@ class MCTS:
                     used_actions = node.used_actions[op_name]
                 else:
                     used_actions = set()
-
                 
                 # Get compression directives to exclude for code_map and extract operations
                 compression_exclusions = get_excluded_directives_for_operation(node, op_name)
@@ -663,10 +619,8 @@ class MCTS:
                 current_model = op_config.get("model", "gpt-5")
                 dynamic_cost_directives = []
                 
-                for directive in ALL_COST_DIRECTIVES:
+                for directive in self.available_actions:
                     if isinstance(directive, ChangeModelCostDirective) and directive.target_model:
-                        if self.iteration_count < 20: continue
-                        # Only include model changes to cheaper models
                         if self._is_cheaper_model(directive.target_model, current_model) and directive.target_model in FRONTIER_MODELS[self.dataset_name]:
                             dynamic_cost_directives.append(directive)
                     else:
@@ -799,7 +753,7 @@ class MCTS:
         
         # Check if this directive supports multiple instantiations
         is_multi_instance = directive in MULTI_INSTANCE_DIRECTIVES
-        num_instantiations = 1 if is_multi_instance else 1
+        num_instantiations = 2 if is_multi_instance else 1
         
         print(f"Creating {num_instantiations} instantiation(s) for directive '{directive_name}'")
         
@@ -907,14 +861,16 @@ class MCTS:
         return cost, accuracy
 
     def add_to_frontier(self, node: Node, accuracy: float):
-        # Only increment action count after successful execution and evaluation
+        # Only decrement action count for failed plans
 
-        if node.cost != -1 and node.latest_action in self.action_counts:
+        if node.cost == -1 and node.latest_action in self.action_counts:
             self.action_counts[node.latest_action] -= 1
 
         # Step 3: Add to frontier (this only manages frontier state, no evaluation)
         affected_nodes, is_frontier_updated = self.pareto_frontier.add_plan_f1(node, accuracy)
         self.action_rewards = self.pareto_frontier.action_rewards
+        self.action_cost_changes = self.pareto_frontier.action_cost_changes
+        self.action_accuracy_changes = self.pareto_frontier.action_accuracy_changes
         return affected_nodes, is_frontier_updated
 
     def increment_visits_up_tree(self, node: Node):
@@ -1023,13 +979,19 @@ class MCTS:
             f.write(f"ITERATION {iteration_num}\n")
             f.write(f"{'='*50}\n")
 
-            # Add action reward statistics
+            # Add action performance statistics
             f.write(f"Action Performance Statistics:\n")
             for action in self.available_actions:
-                reward = self.action_rewards.get(action, 0)
+                cost_change = self.action_cost_changes.get(action, 0)
+                accuracy_change = self.action_accuracy_changes.get(action, 0)
                 count = self.action_counts.get(action, 0)
-                avg_reward = reward / count if count > 0 else "Unknown (never tried)"
-                f.write(f"- {action.name}: {count} uses, avg reward: {avg_reward}\n")
+                
+                if count > 0:
+                    avg_cost_change = cost_change / count
+                    avg_accuracy_change = accuracy_change / count
+                    f.write(f"- {action.name}: {count} uses, avg change in cost: {avg_cost_change:+.2f}, avg change in accuracy: {avg_accuracy_change:+.4f}\n")
+                else:
+                    f.write(f"- {action.name}: {count} uses, avg change in cost: Unknown (never tried), avg change in accuracy: Unknown (never tried)\n")
             f.write(f"\n")
 
             # Add tree structure
@@ -1088,6 +1050,7 @@ class MCTS:
         else:
             # Use same directory as original pipeline
             base_path = str(node.yaml_file_path).removesuffix(".yaml")
+
 
         new_yaml_path = f"{base_path}_{node_id_for_file}.yaml"
         new_parsed_yaml["pipeline"]["output"][

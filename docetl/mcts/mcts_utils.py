@@ -176,6 +176,8 @@ def fix_models(parsed_yaml):
 
 def is_fully_explored(node, max_children_multiplier: float = 1.0) -> bool:
     """Check if a node has been fully explored based on visit count."""
+    if node.parent is None:
+        return True
     allowed_children = max(2, 1 + math.floor(math.sqrt(float(node.visits)) * max_children_multiplier))
     return len(node.children) >= allowed_children
 
@@ -231,7 +233,7 @@ def log_tree_to_file(root_node, iteration_num, output_dir="./outputs"):
         print_tree_visits_and_values(root_node, file_handle=f)
 
 
-def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None) -> tuple[str, str]:
+def create_expansion_prompt_acc(node, action_options, input_query, available_actions, action_cost_changes, action_accuracy_changes, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None) -> tuple[str, str]:
     """Create expansion prompt for accuracy optimization."""
     
     ### DEBUG 
@@ -250,12 +252,20 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
 
     action_stats = []
     for action in available_actions:
-        reward = action_rewards.get(action, 0)
+        cost_change = action_cost_changes.get(action, 0)
+        accuracy_change = action_accuracy_changes.get(action, 0)
         count = action_counts.get(action, 0)
-        avg_reward = reward / count if count > 0 else "Unknown (never tried)"
-        action_stats.append(
-            f"- {action.name}: {count} uses, avg reward: {avg_reward}"
-        )
+        
+        if count > 0:
+            avg_cost_change = cost_change / count
+            avg_accuracy_change = accuracy_change / count
+            action_stats.append(
+                f"- {action.name}: {count} uses, avg change in cost: {avg_cost_change:+.2f}, avg change in accuracy: {avg_accuracy_change:+.4f}"
+            )
+        else:
+            action_stats.append(
+                f"- {action.name}: {count} uses, avg change in cost: Unknown (never tried), avg change in accuracy: Unknown (never tried)"
+            )
 
     action_stats_str = "\n".join(action_stats)
 
@@ -309,8 +319,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     Selection Strategy:
     Consider the current query pipeline, which directive can best improve the accuracy.
     Prioritize exploration of untested actions while balancing with exploitation of proven performers:
-    - Actions with 0 uses have unknown potential, so you should explore them if applicable. Try change model directive if it has not been used in the past iterations. 
-    - High average reward indicates good historical performance
+    - Actions with 0 uses have unknown potential, so you should explore them if applicable. 
     - Consider both immediate improvement and learning about the action space
 
     {node.get_memo_for_llm(root_node, node_accuracies)}
@@ -340,7 +349,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     return user_message, condensed_user_message
 
 
-def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_rewards, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None) -> tuple[str, str]:
+def create_expansion_prompt_cost(node, action_options, input_query, available_actions, action_cost_changes, action_accuracy_changes, action_counts, sample_input, root_node, yaml_file_path, dataset=None, node_accuracies=None) -> tuple[str, str]:
     """Create expansion prompt for cost optimization."""
 
     ### DEBUG 
@@ -359,12 +368,20 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     print(availabel_actions_str)
     action_stats = []
     for action in available_actions:
-        reward = action_rewards.get(action, 0)
+        cost_change = action_cost_changes.get(action, 0)
+        accuracy_change = action_accuracy_changes.get(action, 0)
         count = action_counts.get(action, 0)
-        avg_reward = reward / count if count > 0 else "Unknown (never tried)"
-        action_stats.append(
-            f"- {action.name}: {count} uses, avg reward: {avg_reward}"
-        )
+        
+        if count > 0:
+            avg_cost_change = cost_change / count
+            avg_accuracy_change = accuracy_change / count
+            action_stats.append(
+                f"- {action.name}: {count} uses, avg change in cost: {avg_cost_change:+.2f}, avg change in accuracy: {avg_accuracy_change:+.4f}"
+            )
+        else:
+            action_stats.append(
+                f"- {action.name}: {count} uses, avg change in cost: Unknown (never tried), avg change in accuracy: Unknown (never tried)"
+            )
 
     action_stats_str = "\n".join(action_stats)
 
@@ -419,7 +436,6 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     Consider the current query pipeline, which directive can best improve cost effectiveness. 
     Prioritize exploration of untested actions while balancing with exploitation of proven performers:
     - Actions with 0 uses have unknown potential, so you should explore them if applicable.
-    - High average reward indicates good historical performance
     - Consider both immediate improvement and learning about the action space
 
     {node.get_memo_for_llm(root_node, node_accuracies)}

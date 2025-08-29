@@ -145,7 +145,12 @@ class Node:
             
             self.cost = total_cost
 
-            self.sample_result = extract_output_from_json(self.yaml_file_path)[:1]
+            try:
+                self.sample_result = extract_output_from_json(self.yaml_file_path)[:1]
+            except Exception as e:
+                print(f"Error extracting output from JSON for {self.yaml_file_path}: {e}")
+                self.sample_result = []
+                
             return total_cost
              
         except Exception as e:

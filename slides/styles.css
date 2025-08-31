@@ -222,6 +222,7 @@ html, body {
   box-sizing: border-box;
   overflow: hidden;
 }
+.reveal .slides section.top-align { top: 0 !important; transform: none !important; }
 .reveal .slides section > * { max-width: 100%; }
 /* Allow specific grid containers to use full width */
 .reveal .slides section .tries-grid { max-width: 100% !important; }
@@ -377,6 +378,11 @@ html, body {
   min-width: auto !important;
   box-sizing: border-box !important;
 }
+
+/* Slide 3-specific animation rules removed per request */
+
+/* Keep collapse-space utility for other slides if needed */
+.fragment.collapse-space:not(.visible) { display: none !important; }
 
 /* Try cards for pipeline attempts */
 .try-card {
@@ -830,7 +836,7 @@ html, body {
   border: 2px solid var(--berkeley-blue);
   padding: 0.4rem 1rem;
   border-radius: 25px;
-  font-size: 28px;
+  font-size: 30px;
   font-family: monospace;
   font-weight: 500;
   color: var(--berkeley-blue);
@@ -838,13 +844,15 @@ html, body {
 }
 
 .op-badge.new {
-  border-color: var(--medalist);
-  background: var(--california-gold);
+  /* Subtle differentiation for newly added operators */
+  border-color: var(--california-gold);
+  background: #FFF9E6; /* light gold tint */
   color: var(--berkeley-blue);
   font-weight: 600;
-  opacity: 0;
-  transform: scale(0.9);
 }
+
+/* Only animate/hide when used as a fragment */
+.op-badge.new.fragment { opacity: 0; transform: scale(0.9); }
 
 .op-badge.new.fragment.visible {
   opacity: 1;
@@ -855,6 +863,17 @@ html, body {
 .fragment.visible .op-badge.new {
   opacity: 1;
   transform: scale(1);
+}
+
+/* Non-operator inline label (subtle, not a pill) */
+.note-label {
+  font-size: 30px;
+  color: var(--medalist);
+  font-weight: 700;
+  padding: 0 0.1rem 0.05rem 0.1rem;
+  border-bottom: 3px solid var(--california-gold);
+  border-radius: 0;
+  background: transparent;
 }
 
 /* Operator dive wrappers and cards */

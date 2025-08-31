@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
     <!-- Handwriting font for playful callouts -->
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Reveal.js (CDN) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css" />
@@ -55,453 +57,484 @@
           </div>
         </section>
 
-        <!-- Opening Question with Animation -->
-        <section data-visibility="hidden">
-          <h2 class="question-title">
-            How should people use AI to analyze <span class="fragment insert-text" data-fragment-index="1"> <span class="highlight-underline">unstructured text</span> </span> data <span class="fragment insert-text" data-fragment-index="2"> <span class="highlight-underline">in complex ways</span></span>?
-          </h2>
-        </section>
+       
 
+
+
+        <!-- The New Era -->
         <section>
-          <h2 class="question-title">
-            How should people use AI to analyze unstructured data?
-          </h2>
-        </section>
-
-        <!-- Complex AI-Powered Data Processing -->
-        <section>
-          <h2>Complex, AI-Powered Data Processing</h2>
-          <ul>
-            <li class="fragment" data-fragment-index="1" style="margin-bottom: 2rem;">One way: semantic operators<sup>[1]</sup> and applications<sup>[2]</sup></li>
-            <li class="fragment" data-fragment-index="2" style="margin-left: 2rem; font-style: italic; margin-bottom: 2rem;">e.g., <code style="font-size: 28px;">filter("papers about AI systems")</code> → <code style="font-size: 28px;">map("summarize contribution")</code></li>
-            <li class="fragment" data-fragment-index="3" style="margin-bottom: 2rem;">Can be effective, but discovering the "right" logical pipeline is too hard for real-world tasks</li>
-          </ul>
-          <div class="fragment" data-fragment-index="1" style="margin-top: 2rem;">
-            <p style="margin: 0.2rem 0; font-size: 28px; color: var(--text-light); max-width: none;">[1] Patel et al. "Semantic Operators and Their Optimization" <a href="https://www.vldb.org/pvldb/vol18/p4171-patel.pdf" target="_blank">VLDB'25</a></p>
-            <p style="margin: 0.2rem 0; font-size: 28px; color: var(--text-light); max-width: none;">[2] Liu et al. "Palimpzest: Optimizing AI-Powered Analytics" <a href="https://mail.vldb.org/cidrdb/papers/2025/p12-liu.pdf" target="_blank">CIDR'25</a></p>
-          </div>
-        </section>
-
-        <!-- Discovering the Right Logical Pipeline -->
-        <section>
-          <h2>Hard to Discover the "Right" Logical Pipeline</h2>
-          <div style="display: flex; gap: 2rem; align-items: flex-start;">
-            <!-- Column 1: Police misconduct story -->
-            <div class="fragment" data-fragment-index="1" style="flex: 1;">
-              <h3 style="font-size: 28px; color: var(--berkeley-blue);">Example: Analyzing Police Misconduct</h3>
-              <img src="images/penalcode.png" alt="California Penal Code books" style="width: 80%; margin: 0.5rem auto; display: block;">
-              <p style="font-size: 28px;"><strong>Goal:</strong> Build table of officer names & misconduct instances
-              <span style="font-size: 24px; color: var(--text-light);">from heterogeneous corpus<br>(per CA Penal Code §13510.8(b))</span></p>
-            </div>
-            
-            <!-- Column 2: How existing systems work -->
-            <div class="fragment" data-fragment-index="2" style="flex: 1;">
-              <h3 style="font-size: 28px; color: var(--berkeley-blue);">Current Systems Assume</h3>
-              <p style="font-size: 28px; margin: 0.5rem 0;">Your task will work with the best available model (and, you have to define this model)</p>
-              <div style="background: #f5f5f5; padding: 0.6rem; margin: 0.5rem 0; border-radius: 4px; font-family: monospace;">
-                <div style="font-size: 20px; line-height: 1.4; color: #333;">
-                  <span style="color: #6a737d;"># Palimpzest</span><br>
-                  dataset.<span style="color: #6f42c1;">sem_add_columns</span>(<br>
-                  &nbsp;&nbsp;<span style="color: #032f62;">"misconduct..."</span>,<br>
-                  &nbsp;&nbsp;model=<span style="color: #032f62;">"gpt-4.1"</span>)
-                </div>
-              </div>
-              <div style="background: #f5f5f5; padding: 0.6rem; margin: 0.5rem 0; border-radius: 4px; font-family: monospace;">
-                <div style="font-size: 20px; line-height: 1.4; color: #333;">
-                  <span style="color: #6a737d;"># LOTUS</span><br>
-                  dataframe.<span style="color: #6f42c1;">sem_map</span>(<br>
-                  &nbsp;&nbsp;<span style="color: #032f62;">"extract misconduct</span>,<br>
-                  &nbsp;&nbsp;model=<span style="color: #032f62;">"gpt-4.1"</span>)
-                </div>
-              </div>
-              <!-- <p style="font-size: 24px; color: var(--text-light); margin-top: 0.5rem;">Optimizer finds cheaper plan,<br>but still limited by model accuracy</p> -->
-            </div>
-            
-            <!-- Column 3: The problem -->
-            <div class="fragment" data-fragment-index="3" style="flex: 1;">
-              <h3 style="font-size: 28px; color: var(--berkeley-blue);">Unclear Whether Models Can Handle the Task</h3>
-              <div style="background: #FFF3E0; padding: 1rem; border: 2px solid var(--medalist); margin: 1rem 0; border-radius: 4px;">
-                <p style="font-size: 28px; margin: 0;"><strong>&lt;50% recall</strong></p>
-                <p style="font-size: 24px; color: var(--text-light); margin: 0.3rem 0;">GPT-4.1 & Gemini-2.5<br>vs human annotators</p>
-              </div>
-              <p style="font-size: 28px; margin-top: 1rem;">10+ pg docs; 9 types of misconduct; requires complex reasoning</p>
-              <p style="font-size: 28px; margin-top: 1rem; color: var(--medalist);"><strong>The burden is on the user to discover the pipeline!</strong></p>
-            </div>
-          </div>
-        </section>
-
-        <!-- How Can We Discover More Accurate Pipelines -->
-        <section data-visibility="hidden">
-          <h2>How Can We Discover More Accurate Pipelines?</h2>
+          <h2>A New Era for Unstructured Data</h2>
           
-          <ul>
-            <li class="fragment" data-fragment-index="1" style="font-size: 28px; max-width: 100%;">One way: hire an AI engineer to try many variants</li>
-            <li class="fragment" data-fragment-index="2" style="font-size: 28px; max-width: 100%;"><em>Example: Extract misconduct from police records</em></li>
-          </ul>
-
-          <div class="tries-grid" style="margin-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 100%;">
-            <div class="fragment try-card">
-              <div class="try-header">
-                <span class="try-number">Try 1:</span>
-                <code>Map("extract all instances of misconduct")</code>
-              </div>
-              <div class="try-result error">→ poor recall</div>
-            </div>
-            
-            <div class="fragment try-card">
-              <div class="try-header">
-                <span class="try-number">Try 2:</span>
-                <code>Map for each misconduct type</code>
-              </div>
-              <div class="try-result error">→ still misses instances</div>
-            </div>
-            
-            <div class="fragment try-card">
-              <div class="try-header">
-                <span class="try-number">Try 3:</span>
-                <code>Split docs → Map</code>
-              </div>
-              <div class="try-result error">→ duplicate findings across chunks</div>
-            </div>
-            
-            <div class="fragment try-card success-card">
-              <div class="try-header">
-                <span class="try-number">Try 4:</span>
-                <code>Split → Map → Reduce</code>
-              </div>
-              <div class="try-result success">→ better!</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Humans Decompose Tasks in Predictable Ways -->
-        <section>
-          <h2>Humans decompose tasks in predictable ways</h2>
+          <p class="fragment" data-fragment-index="1" style="font-size: 32px; margin: 0.8rem 0 1.2rem;">
+            Modern AI enables powerful data systems
+          </p>
           
-          <!-- Tree structure -->
-          <div class="decomp-tree">
-            <!-- Root node -->
-            <div class="decomp-root fragment" data-fragment-index="0">
-              <div class="decomp-task">
-                <code class="task-code">
-                  <span class="map-operation">Map(</span><span class="map-prompt">"Extract misconduct: dishonesty, abuse of power, physical abuse, sexual assault, bias, law violations, gang participation, failure to cooperate, failure to intercede"</span><span class="map-prompt-short fragment" data-fragment-index="1">"Extract misconduct..."</span><span class="map-operation">)</span>
-                </code>
-              </div>
-            </div>
-
-            <!-- Tree branches -->
-            <div class="decomp-branches">
-              <!-- Branch connectors -->
-              <div class="tree-connector">
-                <div class="branch-line left-branch fragment" data-fragment-index="2"></div>
-                <div class="branch-line right-branch fragment" data-fragment-index="3"></div>
-                <div class="branch-line left-branch fragment fade-out" data-fragment-index="4"></div>
-                <div class="branch-line right-branch fragment fade-out" data-fragment-index="4"></div>
-              </div>
-
-              <!-- Left branch: Task Decomposition -->
-              <div class="decomp-branch left fragment" data-fragment-index="2">
-                <div class="branch-label">Task Decomposition</div>
-                <div class="decomp-card fragment fade-out" data-fragment-index="4">
-                  <code>Map("extract dishonesty")</code>
-                  <code>Map("extract abuse of power")</code>
-                  <div class="decomp-note">...9 separate operations</div>
+          <!-- Compact zig-zag layout with light yellow cards -->
+          <div style="margin-top: 0.5rem;">
+            <!-- Healthcare - left aligned -->
+            <div class="fragment" data-fragment-index="2" style="display: flex; align-items: center; margin-bottom: 0.3rem;">
+              <div style="display: flex; align-items: center; background: #FFF3E0; padding: 0.5rem 1rem; border-radius: 4px;">
+                <div style="text-align: center; min-width: 100px;">
+                  <i class="fas fa-stethoscope" style="font-size: 32px; color: var(--berkeley-blue);"></i>
+                  <p style="font-size: 28px; margin: 0; color: var(--berkeley-blue);">Healthcare</p>
                 </div>
-              </div>
-
-              <!-- Right branch: Data Decomposition -->
-              <div class="decomp-branch right fragment" data-fragment-index="3">
-                <div class="branch-label">Data Decomposition</div>
-                <div class="decomp-card fragment fade-out" data-fragment-index="4">
-                  <code>Split(docs into chunks)</code>
-                  <div class="decomp-arrow">↓</div>
-                  <code>Map("extract misconduct")</code>
-                  <div class="decomp-arrow">↓</div>
-                  <code>Reduce("dedup & reconcile")</code>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- General principles -->
-          <div class="decomp-principles fragment" data-fragment-index="4">
-            <ul>
-              <li class="fragment" data-fragment-index="5">Infinite rewrites possible</li>
-              <li class="fragment" data-fragment-index="6">Humans rewrite systematically</li>
-              <li class="fragment" data-fragment-index="7"><strong>Key:</strong> Optimizer should too</li>
-              <li class="fragment" data-fragment-index="8">Need semantic understanding → LLM agents</li>
-            </ul>
-          </div>
-        </section>
-
-        <!-- DocETL Solution -->
-        <section>
-          <h2>DocETL: Talk Roadmap</h2>
-          <div class="roadmap-cards">
-            <div class="roadmap-card fragment" data-fragment-index="1">
-              <div class="roadmap-number">1</div>
-              <div class="roadmap-title">DSL and Operators</div>
-            </div>
-            
-            <div class="roadmap-card fragment" data-fragment-index="2">
-              <div class="roadmap-number">2</div>
-              <div class="roadmap-content">
-                <div class="roadmap-title">Optimizer</div>
-                <div class="roadmap-subitems">
-                  <div>• Rewrite Directives</div>
-                  <div>• Search Algorithm</div>
+                <div style="margin-left: 1.2rem;">
+                  <p style="font-size: 30px; margin: 0; font-style: italic;">
+                    "What side effects do patients report for Ozempic?"
+                  </p>
                 </div>
               </div>
             </div>
             
-            <div class="roadmap-card fragment" data-fragment-index="3">
-              <div class="roadmap-number">3</div>
-              <div class="roadmap-title">Evaluation</div>
-            </div>
-            
-            <div class="roadmap-card fragment" data-fragment-index="4">
-              <div class="roadmap-number">4</div>
-              <div class="roadmap-title">Parting Thoughts</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- DSL and Operators Section Divider -->
-        <section>
-          <h2>DocETL: Talk Roadmap</h2>
-          <div class="roadmap-cards">
-            <div class="roadmap-card active">
-              <div class="roadmap-number">1</div>
-              <div class="roadmap-title">DSL and Operators</div>
-            </div>
-            
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">2</div>
-              <div class="roadmap-content">
-                <div class="roadmap-title">Optimizer</div>
-                <div class="roadmap-subitems">
-                  <div>• Rewrite Directives</div>
-                  <div>• Search Algorithm</div>
+            <!-- Legal - right aligned -->
+            <div class="fragment" data-fragment-index="3" style="display: flex; align-items: center; margin-bottom: 0.3rem; justify-content: flex-end;">
+              <div style="display: flex; align-items: center; background: #FFF3E0; padding: 0.5rem 1rem; border-radius: 4px;">
+                <div style="margin-right: 1.2rem;">
+                  <p style="font-size: 30px; margin: 0; font-style: italic;">
+                    "Which contracts have unfavorable arbitration clauses?"
+                  </p>
+                </div>
+                <div style="text-align: center; min-width: 100px;">
+                  <i class="fas fa-gavel" style="font-size: 32px; color: var(--berkeley-blue);"></i>
+                  <p style="font-size: 28px; margin: 0; color: var(--berkeley-blue);">Legal</p>
                 </div>
               </div>
             </div>
             
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">3</div>
-              <div class="roadmap-title">Evaluation</div>
+            <!-- Commerce - left aligned -->
+            <div class="fragment" data-fragment-index="4" style="display: flex; align-items: center; margin-bottom: 0.3rem;">
+              <div style="display: flex; align-items: center; background: #FFF3E0; padding: 0.5rem 1rem; border-radius: 4px;">
+                <div style="text-align: center; min-width: 100px;">
+                  <i class="fas fa-shopping-cart" style="font-size: 32px; color: var(--berkeley-blue);"></i>
+                  <p style="font-size: 28px; margin: 0; color: var(--berkeley-blue);">Commerce</p>
+                </div>
+                <div style="margin-left: 1.2rem;">
+                  <p style="font-size: 30px; margin: 0; font-style: italic;">
+                    "What are customers complaining about in reviews?"
+                  </p>
+                </div>
+              </div>
             </div>
             
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">4</div>
-              <div class="roadmap-title">Parting Thoughts</div>
+            <!-- Science - right aligned -->
+            <div class="fragment" data-fragment-index="5" style="display: flex; align-items: center; margin-bottom: 1rem; justify-content: flex-end;">
+              <div style="display: flex; align-items: center; background: #FFF3E0; padding: 0.5rem 1rem; border-radius: 4px;">
+                <div style="margin-right: 1.2rem;">
+                  <p style="font-size: 30px; margin: 0; font-style: italic;">
+                    "Which papers contradict our hypothesis?"
+                  </p>
+                </div>
+                <div style="text-align: center; min-width: 100px;">
+                  <i class="fas fa-flask" style="font-size: 32px; color: var(--berkeley-blue);"></i>
+                  <p style="font-size: 28px; margin: 0; color: var(--berkeley-blue);">Science</p>
+                </div>
+              </div>
             </div>
           </div>
-        </section>
-
-        <!-- DSL Example Slide -->
-        <section>
-          <h2>DSL</h2>
           
-          <div class="dsl-example" style="max-width: 100%;">
-            <!-- Document definition -->
-            <div class="fragment" data-fragment-index="1">
-              <p style="font-size: 30px; margin-bottom: 0.8rem; max-width: 100%;"><strong>Document:</strong> Collection of key-value pairs. E.g., <code>{"text": "..."}</code></p>
-            </div>
-
-            <!-- Map-Reduce Example -->
-            <div>
-              <p style="font-size: 30px; margin-bottom: 0.8rem; max-width: 100%;" class="fragment" data-fragment-index="2"><strong>Pipelines</strong> consist of <strong>operators</strong>. E.g., analyze police misconduct</p>
-              
-              <div style="display: flex; gap: 0.8rem; align-items: stretch; justify-content: center; max-width: 100%;">
-                <!-- Map operator -->
-                <div style="flex: 1; max-width: 50%;" class="fragment" data-fragment-index="3">
-                  <h4 style="color: var(--berkeley-blue); margin-bottom: 0.5rem; font-size: 26px; font-weight: 600;">1. Map: Extract from each document</h4>
-                  <pre class="yaml-code" style="font-size: 19px; line-height: 1.35; margin: 0; background: #282c34; padding: 1rem; border-radius: 6px; color: #abb2bf;">
-<span class="yaml-key">- name:</span> <span class="yaml-string">extract_misconduct</span>
-  <span class="yaml-key">type:</span> <span class="yaml-value">map</span>
-  <span class="yaml-key">output:</span>
-    <span class="yaml-key">schema:</span>
-      <span class="yaml-key">officer_name:</span> <span class="yaml-type">str</span>
-      <span class="yaml-key">misconduct_type:</span> <span class="yaml-type">str</span>
-      <span class="yaml-key">date:</span> <span class="yaml-type">str</span>
-      <span class="yaml-key">description:</span> <span class="yaml-type">str</span>
-  <span class="yaml-key">prompt:</span> <span class="yaml-pipe">|</span>
-    <span class="yaml-string">Analyze the following police record and extract any instances of misconduct:</span><span class="jinja">{{ input.text }}</span></pre>
-                </div>
-
-                <!-- Reduce operator -->
-                <div style="flex: 1; max-width: 50%;" class="fragment" data-fragment-index="4">
-                  <h4 style="color: var(--berkeley-blue); margin-bottom: 0.5rem; font-size: 26px; font-weight: 600;">2. Reduce: Aggregate by officer</h4>
-                  <pre class="yaml-code" style="font-size: 19px; line-height: 1.35; margin: 0; background: #282c34; padding: 1rem; border-radius: 6px; color: #abb2bf;">
-<span class="yaml-key">- name:</span> <span class="yaml-string">aggregate_by_officer</span>
-  <span class="yaml-key">type:</span> <span class="yaml-value">reduce</span>
-  <span class="yaml-key">reduce_key:</span> <span class="yaml-string">officer_name</span>
-  <span class="yaml-key">output:</span>
-    <span class="yaml-key">schema:</span>
-      <span class="yaml-key">patterns:</span> <span class="yaml-type">str</span>
-  <span class="yaml-key">prompt:</span> <span class="yaml-pipe">|</span>
-    <span class="yaml-string">Given these misconduct instances, find any patterns:
-</span><span class="jinja">{% for item in inputs %}</span>
-<span class="yaml-string">- </span><span class="jinja">{{ item.date }}</span><span class="yaml-string">: </span><span class="jinja">{{ item.misconduct_type }}</span> <span class="yaml-string">  </span><span class="jinja">{{ item.description }}</span>
-<span class="jinja">{% endfor %}</span></span></pre>
-                </div>
-              </div>
-            </div>
-
-            <div class="fragment" data-fragment-index="5" style="margin-top: 1rem;">
-              <p style="font-size: 28px; max-width: 90%; margin: 0 auto; text-align: center; color: var(--text-light);">
-                <strong>Low-code</strong> — YAML config; Jinja prompt templates
-              </p>
-            </div>
+          <!-- Final question - no card, just bold text -->
+          <div class="fragment" data-fragment-index="6" style="text-align: center; margin-top: 1.5rem;">
+            <p style="font-size: 36px; margin: 0; color: var(--berkeley-blue); font-weight: 700;">
+              How do we process unstructured data <span style="text-decoration: underline;">at scale</span>, in <span style="text-decoration: underline;">complex</span> ways?
+            </p>
           </div>
         </section>
 
-        <!-- Operators Overview Slide -->
+        <!-- Example: Police Misconduct Analysis -->
         <section>
-          <h2>Operators</h2>
+          <h2>Example: Extracting Police Misconduct</h2>
+          <p style="font-size: 24px; margin-top: -0.5rem;">
+            <a href="https://bids.berkeley.edu/california-police-records-access-project" target="_blank" style="color: var(--founders-rock); text-decoration: underline;">California Police Records Access Project</a>
+          </p>
           
-          <div class="operators-overview" style="max-width: 100%; position: relative;">
-            <!-- Operators grid -->
+          <div style="display: flex; gap: 4rem; align-items: flex-start; margin-top: -1rem;">
+            <!-- Left: Task and stacked document images (centered; no caption overlay) -->
+            <div style="flex: 0.4;">
+              <p style="font-size: 32px; margin-bottom: 0.2rem;"><strong>Task:</strong> Build table of officer misconduct (e.g., excessive use of force, evidence tampering)</p>
+              <div style="display: flex; flex-direction: column; align-items: center; margin-top: -1rem;">
+                <div style="position: relative; width: 230px; height: 240px;">
+                  <img src="images/record.png" alt="Police report" style="position: absolute; top: 0; left: 0; width: 210px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transform: rotate(-2deg);">
+                  <img src="images/record.png" alt="Police report" style="position: absolute; top: 12px; left: 12px; width: 210px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transform: rotate(1deg); opacity: 0.9;">
+                  <img src="images/record.png" alt="Police report" style="position: absolute; top: 24px; left: 24px; width: 210px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transform: rotate(-0.5deg); opacity: 0.85;">
+                </div>
+              </div>
+            </div>
+            
+            <!-- Right: Static Pipeline with simple fragments -->
+            <div style="flex: 0.6; position: relative; display: flex; flex-direction: column;">
+              <!-- Map -->
+              <div class="fragment" data-fragment-index="1" style="background: #FFF3E0; padding: 1rem 1.5rem; border-radius: 8px;">
+                <p style="font-size: 32px; margin: 0;"><strong>Map:</strong> Extract (officer, misconduct)</p>
+              </div>
+              <!-- Map problems under Map -->
+              <div class="fragment" data-fragment-index="2" style="background: white; border: 2px solid #dc3545; border-radius: 8px; padding: 0.8rem; margin: 0.5rem 0 0.8rem 2rem;">
+                <p style="font-size: 28px; color: #dc3545; font-weight: 700; margin: 0;">→ Low recall in long docs & complex misconduct types</p>
+              </div>
+              <!-- Reduce -->
+              <div class="fragment" data-fragment-index="1" style="background: #FFF3E0; padding: 1rem 1.5rem; border-radius: 8px;">
+                <p style="font-size: 32px; margin: 0;"><strong>Reduce:</strong> Group by officer & summarize misconduct</p>
+              </div>
+              <!-- Reduce problems under Reduce -->
+              <div class="fragment" data-fragment-index="4" style="background: white; border: 2px solid #dc3545; border-radius: 8px; padding: 0.8rem; margin: 0.5rem 0 0 2rem;">
+                <p style="font-size: 28px; line-height: 1.2; margin: 0;">
+                  • Officer Smith: [excessive force]<br>
+                  • Officer J. Smith: [abuse of power]
+                </p>
+                <p style="color: #dc3545; font-size: 28px; margin: 0.3rem 0 0; font-weight: bold;">→ Same person, different groups!</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Bottom message -->
+          <div class="fragment" data-fragment-index="5" style="text-align: center; margin-top: 1.4rem;">
+            <p style="font-size: 34px; color: var(--berkeley-blue); font-weight: 600; margin: 0;">
+              LLM-powered operators aren't always accurate,<br>
+              so we need to rewrite the pipeline into smaller steps
+            </p>
+          </div>
+        </section>
+
+        <!-- Decomposing Map → Reduce into Smaller Operations -->
+        <section>
+          <h2>Rewriting Our Pipeline</h2>
+
+          <div style="display: flex; flex-direction: column; gap: 1.2rem; margin-top: 0.5rem; position: relative;">
+            <!-- Row 1: Original pipeline -->
+            <div class="fragment" data-fragment-index="1" style="display: flex; align-items: stretch; gap: 0.6rem;">
+              <div style="background: #F5F5F5; border: 1px solid #DDD; border-radius: 8px; padding: 0.8rem 1rem; min-width: 240px; position: relative;">
+                <div style="font-size: 28px; font-weight: 700; color: var(--berkeley-blue);">Input</div>
+                <div style="font-size: 24px; line-height: 1.2;">200+ pg PDF (per county)</div>
+              </div>
+              <div style="font-size: 32px; line-height: 1; align-self: center;">→</div>
+              <div style="background: #FFF3E0; border: none; border-radius: 8px; padding: 0.8rem 1rem; min-width: 280px; position: relative;">
+                <div style="font-size: 28px; font-weight: 700; color: var(--medalist);">Map</div>
+                <div style="font-size: 24px; line-height: 1.2;">extract all (officer, misconduct) instances</div>
+                <div class="fragment fade-in-then-out" data-fragment-index="2" style="position: absolute; inset: -6px; border-radius: 10px; box-shadow: 0 0 26px 8px rgba(253,181,21,0.55); pointer-events: none;"></div>
+                <i class="fragment fade-in-then-out fas fa-hand-pointer" data-fragment-index="2" style="position: absolute; top: -18px; right: 10px; font-size: 28px; color: var(--berkeley-gold); transform: rotate(10deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));"></i>
+                <!-- Connector to row 2 appears with row 2 -->
+                
+              </div>
+              <div style="font-size: 32px; line-height: 1; align-self: center;">→</div>
+              <div style="background: #E8F0FE; border: none; border-radius: 8px; padding: 0.8rem 1rem; min-width: 280px; position: relative;">
+                <div style="font-size: 28px; font-weight: 700; color: var(--berkeley-blue);">Reduce</div>
+                <div style="font-size: 24px; line-height: 1.2;">group by officer, summarize misconduct</div>
+                <div class="fragment fade-in-then-out" data-fragment-index="8" style="position: absolute; inset: -6px; border-radius: 10px; box-shadow: 0 0 26px 8px rgba(59,126,161,0.45); pointer-events: none;"></div>
+                <i class="fragment fade-in-then-out fas fa-hand-pointer" data-fragment-index="8" style="position: absolute; top: -18px; right: 10px; font-size: 28px; color: var(--founders-rock); transform: rotate(10deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));"></i>
+              </div>
+            </div>
+
+            <!-- Separator between user pipeline (top) and DocETL rewrites (bottom) -->
+            <div class="fragment" data-fragment-index="3" aria-hidden="true" style="margin: 0.4rem 0 0.2rem; position: relative;">
+              <div style="border-top: 2px dashed #DDD;"></div>
+              <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: var(--off-white); padding: 0 10px; color: var(--text-light); font-size: 24px;">
+                Rewrites
+              </div>
+            </div>
+
+            <!-- Row 2: Case-level segmentation path -->
+            <div class="fragment" data-fragment-index="3" style="display: flex; align-items: stretch; justify-content: center; gap: 0.6rem;">
+              <div style="background: #FFF3E0; border: none; border-radius: 8px; padding: 0.8rem 1rem; min-width: 260px; position: relative;">
+                <div style="font-size: 28px; font-weight: 700; color: var(--medalist);">Split by Case</div>
+                <div style="font-size: 24px; line-height: 1.2;">extract case # + metadata</div>
+                <div class="fragment fade-in-then-out" data-fragment-index="4" style="position: absolute; inset: -6px; border-radius: 10px; box-shadow: 0 0 26px 8px rgba(253,181,21,0.55); pointer-events: none;"></div>
+                <i class="fragment fade-in-then-out fas fa-hand-pointer" data-fragment-index="4" style="position: absolute; top: -18px; right: 10px; font-size: 28px; color: var(--berkeley-gold); transform: rotate(10deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));"></i>
+              </div>
+              <div style="font-size: 32px; line-height: 1; align-self: center;">→</div>
+              <div style="background: #FFF3E0; border: none; border-radius: 8px; padding: 0.8rem 1rem; min-width: 260px; position: relative;">
+                <div style="font-size: 28px; font-weight: 700; color: var(--medalist);">Map</div>
+                <div style="font-size: 24px; line-height: 1.2;">per case: extract all (officer, misconduct)</div>
+                <div class="fragment fade-in-then-out" data-fragment-index="6" style="position: absolute; inset: -6px; border-radius: 10px; box-shadow: 0 0 26px 8px rgba(253,181,21,0.55); pointer-events: none;"></div>
+                <i class="fragment fade-in-then-out fas fa-hand-pointer" data-fragment-index="6" style="position: absolute; top: -18px; right: 10px; font-size: 28px; color: var(--berkeley-gold); transform: rotate(10deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));"></i>
+              </div>
+              <div class="fragment" data-fragment-index="4" style="display: flex; align-items: center; gap: 0.35rem; color: #dc3545; font-size: 26px;">
+                <i class="fas fa-times-circle"></i>
+                <span style="font-weight: 700;">still poor recall!</span>
+              </div>
+            </div>
+
+            <!-- Row 3: Token-level chunking + context, plus specialized maps -->
+            <div class="fragment" data-fragment-index="5" style="display: flex; align-items: stretch; gap: 0.6rem;">
+              <div style="background: #FFF3E0; border: none; border-radius: 8px; padding: 0.8rem 1rem; position: relative;">
+                <div style="font-size: 28px; font-weight: 700; color: var(--medalist);">Split by Token</div>
+                <div style="font-size: 24px; line-height: 1.2;">+ case metadata</div>
+                <div class="fragment fade-in-then-out" data-fragment-index="5" style="position: absolute; inset: -6px; border-radius: 10px; box-shadow: 0 0 26px 8px rgba(253,181,21,0.55); pointer-events: none;"></div>
+                <i class="fragment fade-in-then-out fas fa-hand-pointer" data-fragment-index="5" style="position: absolute; top: -18px; right: 10px; font-size: 28px; color: var(--berkeley-gold); transform: rotate(10deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));"></i>
+              </div>
+              <div class="fragment" data-fragment-index="7" style="font-size: 32px; line-height: 1; align-self: center;">→</div>
+              <div class="fragment" data-fragment-index="7" style="background: #FFF3E0; border: none; border-radius: 8px; padding: 0.6rem 0.8rem; min-width: 220px;">
+                <div style="font-size: 26px; font-weight: 700; color: var(--medalist);">Map: Force</div>
+                <div style="font-size: 24px; color: var(--text-light);">unreasonable force</div>
+              </div>
+              <div class="fragment" data-fragment-index="7" style="font-size: 32px; line-height: 1; align-self: center;">→</div>
+              <div class="fragment" data-fragment-index="7" style="background: #FFF3E0; border: none; border-radius: 8px; padding: 0.6rem 0.8rem; min-width: 220px;">
+                <div style="font-size: 26px; font-weight: 700; color: var(--medalist);">Map: Slurs</div>
+                <div style="font-size: 24px; color: var(--text-light);">racial statements</div>
+              </div>
+              <div class="fragment" data-fragment-index="7" style="font-size: 32px; line-height: 1; align-self: center;">→</div>
+              <div class="fragment" data-fragment-index="7" style="background: #FFF3E0; border: none; border-radius: 8px; padding: 0.6rem 0.8rem; min-width: 240px;">
+                <div style="font-size: 26px; font-weight: 700; color: var(--medalist);">Map: Dishonesty</div>
+                <div style="font-size: 24px; color: var(--text-light);">e.g., tampering</div>
+              </div>
+              <div class="fragment" data-fragment-index="7" style="display: flex; align-items: center; color: var(--success-green); font-size: 28px; margin-left: 0.2rem;">
+                <i class="fas fa-check-circle"></i>
+              </div>
+            </div>
+
+            <!-- Row 5: Entity Resolution → Reduce (combined) -->
+            <div class="fragment" data-fragment-index="9" style="display: flex; align-items: stretch; justify-content: flex-end; gap: 0.6rem;">
+              <div style="background: #E8F0FE; border: none; border-radius: 8px; padding: 0.8rem 1rem; display: flex; flex-direction: column; justify-content: center;">
+                <div style="font-size: 28px; font-weight: 700; color: var(--berkeley-blue);">Entity Resolution</div>
+                <div style="font-size: 24px; line-height: 1.2;">normalize officer names</div>
+              </div>
+              <div style="font-size: 32px; line-height: 1; align-self: center;">→</div>
+              <div style="background: #E8F0FE; border: none; border-radius: 8px; padding: 0.8rem 1rem; display: flex; flex-direction: column; justify-content: center;">
+                <div style="font-size: 28px; font-weight: 700; color: var(--berkeley-blue);">Reduce</div>
+                <div style="font-size: 24px; line-height: 1.2;">group by officer, summarize misconduct</div>
+              </div>
+            </div>
+            <div class="fragment" data-fragment-index="9" style="display: flex; justify-content: flex-end; margin-top: 0.1rem;">
+              <div style="font-size: 34px; color: var(--text-light); line-height: 1;">…</div>
+            </div>
+          </div>
+
+          <div class="fragment" data-fragment-index="10" style="text-align: center; margin-top: 0.8rem;">
+            <p style="font-size: 34px; color: var(--berkeley-blue); font-weight: 600; margin: 0;">
+              How can we automate and scale up such rewrites?
+            </p>
+          </div>
+
+          <aside class="notes">
+            Start with the original pipeline: Map over the entire county PDF and Reduce by officer. Highlight why Map underperforms. Next, decompose the data unit: Split by Case (bespoke case# + metadata extraction). Focus on Split by Case, then show Split by Tokens with case summary/metadata to make chunks understandable. Focus on the per-case Map, then decompose Map into targeted detectors: force, slurs, dishonesty. Finally, focus on Reduce and introduce Entity Resolution → Group by Officer → Summarize Evidence, with decomposition for long sources. The point: smaller, verifiable steps improve accuracy and control, motivating a declarative DocETL.
+          </aside>
+        </section>
+
+        <!-- DocETL Intro (Hero) -->
+        <section>
+          <div style="position: relative;">
+            <!-- Top-right GitHub badge -->
+            <div style="position: absolute; right: 0; top: -0.4rem; background: #F5F7FA; color: var(--text-dark); border-radius: 10px; padding: 0.3rem 0.6rem; font-size: 28px; white-space: nowrap;">
+              2.8k GitHub stars&nbsp;&nbsp;
+              <a href="https://github.com/ucbepic/docetl" target="_blank" style="color: var(--founders-rock); text-decoration: underline;">github.com/ucbepic/docetl</a>
+            </div>
+
+            <h2>DocETL</h2>
+            <p style="font-size: 34px; margin: -0.2rem 0 0.8rem; color: var(--text-dark); font-weight: 700;">Declarative system for LLM‑powered unstructured text</p>
+
+            <!-- Content with star image on the right -->
+            <div style="display: flex; align-items: flex-start; gap: 1.6rem;">
+              <div style="flex: 1;">
+                <div style="margin-top: 0.1rem;">
+                  <p class="fragment" data-fragment-index="1" style="font-size: 30px; line-height: 1.3; color: var(--text-dark); margin: 0 0 1.5rem;">Open‑source; traction in law, policy, public defense</p>
+                  <p class="fragment" data-fragment-index="2" style="font-size: 30px; line-height: 1.3; color: var(--medalist); font-weight: 700; margin: 0.2rem 0 1.4rem;">Key Contributions</p>
+                  <ul style="list-style: none; padding: 0; margin: 0;">
+                    <li class="fragment" data-fragment-index="3" style="font-size: 30px; line-height: 1.3; color: var(--text-dark); margin: 0 0 1.5rem; position: relative; padding-left: 2rem;">
+                      <span style="position: absolute; left: 0; top: 0.2rem; color: var(--medalist); font-size: 16px;">▶</span>
+                      <span style="text-decoration: underline;">Rewrite directives</span>: LLM‑interpreted guidelines that synthesize operators
+                    </li>
+                    <li class="fragment" data-fragment-index="4" style="font-size: 30px; line-height: 1.3; color: var(--text-dark); margin: 0; position: relative; padding-left: 2rem;">
+                      <span style="position: absolute; left: 0; top: 0.2rem; color: var(--medalist); font-size: 16px;">▶</span>
+                      Search algorithm to navigate the rewrite space for higher‑accuracy plans
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div style="flex: 0.48; display: flex; justify-content: flex-end;">
+                <img src="images/star-history-2025828.png" alt="DocETL star history" style="width: 100%; max-width: 580px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); background: white;">
+              </div>
+            </div>
+
+            <!-- Divider above logos -->
+            <div style="border-top: 1px solid #E6E8EB; margin: 3rem 0 1.5rem;"></div>
+            <!-- Logos bottom strip: single centered line, full color -->
+            <div style="display: flex; flex-wrap: nowrap; gap: 1.2rem; align-items: center; justify-content: center;">
+              <img src="images/users/AT&T_logo_2016.png" alt="AT&T" style="height: 34px; object-fit: contain;">
+              <img src="images/users/3gpp.png" alt="3GPP" style="height: 34px; object-fit: contain;">
+              <img src="images/users/usepa.png" alt="US EPA" style="height: 34px; object-fit: contain;">
+              <img src="images/users/SF-Public-Defender_LOGO_blue-1.png" alt="SF Public Defender" style="height: 34px; object-fit: contain;">
+              <img src="images/users/barassociation.png" alt="Bar Association" style="height: 34px; object-fit: contain;">
+              <img src="images/users/SCIS-logo.png" alt="SCIS" style="height: 34px; object-fit: contain;">
+              <img src="images/users/inta_logo.png" alt="INTA" style="height: 34px; object-fit: contain;">
+              <img src="images/users/mti-logo.png" alt="MTI" style="height: 34px; object-fit: contain;">
+              <img src="images/users/Zenoti-Word-Mark-Standard-Color-1920-1024x293.png" alt="Zenoti" style="height: 34px; object-fit: contain;">
+              <img src="images/users/ankihub.jpeg" alt="AnkiHub" style="height: 34px; object-fit: contain; border-radius: 4px;">
+            </div>
+          </div>
+
+          <aside class="notes">
+            I’ll talk about two ideas today. First: our novel “rewrite directives.” They’re inspired by database rewrite rules, but they’re not hard-coded rules— they’re structured guidelines interpreted by LLM agents. That means the optimizer can synthesize new algorithmic implementations on the fly for the task.
+
+            Second: how we search this very open-ended space of rewrites to find a more accurate execution plan.
+
+            We open-sourced DocETL last fall and have been gaining modest traction, especially in domains dominated by unstructured text—law, policy, public defense, and scribing. Because these domains work primarily with unstructured data, the database community has historically had less impact there. I’m excited about this vision and I hope to convince you this is an exciting new area to work in.
+          </aside>
+        </section>
+
+        <section>
+          <h2>DSL &amp; Operators</h2>
+          <div class="operators-overview" style="max-width: 100%;">
             <div class="operators-grid-full">
+        
+              <!-- LLM-Powered -->
               <div class="operator-group">
                 <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.8rem;">LLM-Powered</h3>
-                <div class="operator-items">
-                  <span class="op-badge">map</span>
-                  <span class="op-badge">reduce</span>
-                  <span class="op-badge">filter</span>
-                  <span class="op-badge">equijoin</span>
-                  <span class="op-badge" id="resolve-badge">resolve</span>
-                  <span class="op-badge">parallel_map</span>
-                  <span class="op-badge new fragment" data-fragment-index="3">extract</span>
-                  <span class="op-badge new fragment" data-fragment-index="3">rank</span>
-                  <span class="op-badge new fragment" data-fragment-index="3">topk</span>
-                  <span class="op-badge new fragment" data-fragment-index="3">cluster</span>
+                <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                  <div class="operator-items">
+                    <span class="op-badge">map</span>
+                    <span class="op-badge">reduce</span>
+                    <span class="op-badge">filter</span>
+                    <span class="op-badge">equijoin</span>
+                    <span class="op-badge">resolve</span>
+                    <span class="op-badge">parallel_map</span>
+                    <span class="op-badge new fragment" data-fragment-index="1">extract</span>
+                    <span class="op-badge new fragment" data-fragment-index="1">rank</span>
+                    <span class="op-badge new fragment" data-fragment-index="1">topk</span>
+                    <span class="op-badge new fragment" data-fragment-index="1">cluster</span>
+                  </div>
+                  <div class="fragment" data-fragment-index="1" style="background: rgba(255, 193, 7, 0.2); padding: 0.6rem 0.8rem; font-size: 28px; color: var(--text-dark); border-radius: 6px; max-width: 220px;">
+                    Not in paper; emerged from community needs
+                  </div>
                 </div>
               </div>
-
+        
+              <!-- Code-Powered -->
               <div class="operator-group">
-                <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.8rem;">Utility</h3>
+                <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.8rem;">Code-Powered</h3>
+                <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                  <div class="operator-items">
+                    <span class="op-badge new fragment" data-fragment-index="1">code_map</span>
+                    <span class="op-badge new fragment" data-fragment-index="1">code_filter</span>
+                    <span class="op-badge new fragment" data-fragment-index="1">code_reduce</span>
+                  </div>
+                 
+                </div>
+              </div>
+        
+              <!-- Utility -->
+              <div class="operator-group" style="margin-top: 2rem;">
+                <div style="display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.8rem;">
+                  <h3 style="font-size: 30px; color: var(--berkeley-blue); margin: 0;">Utility</h3>
+                  <span class="note-label">Necessary for Rewrites</span>
+                </div>
                 <div class="operator-items">
-                  <span class="op-badge">split</span>
+                  <span class="op-badge" id="split-badge">split</span>
                   <span class="op-badge" id="gather-badge">gather</span>
                   <span class="op-badge">unnest</span>
                 </div>
               </div>
-
-              <div class="operator-group fragment" data-fragment-index="3">
-                <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.8rem;">Code-Powered</h3>
-                <div class="operator-items">
-                  <span class="op-badge new">code_map</span>
-                  <span class="op-badge new">code_filter</span>
-                  <span class="op-badge new">code_reduce</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Resolve shallow dive -->
-            <div class="operator-dive-wrapper fragment" data-fragment-index="1" style="position: absolute; bottom: 0px; left: 130px; width: 400px;">
-              <div class="operator-dive fragment fade-out" data-fragment-index="2" id="resolve-dive" style="position: relative;">
-                <svg class="dive-arrow" style="position: absolute; right: -150px; top: 20px; width: 150px; height: 100px; overflow: visible;">
-                  <path d="M120,10 Q120,60 20,60" stroke="var(--berkeley-gold)" stroke-width="3" fill="none"/>
-                  <path d="M20,60 l7,-5 l0,10 Z" fill="var(--berkeley-gold)"/>
-                </svg>
-                <div class="dive-card">
-                  <h4 style="color: var(--berkeley-blue); margin: 0 0 0.8rem 0; font-size: 28px; font-weight: 600;">Entity Resolution</h4>
-                  <div style="font-size: 24px; line-height: 1.4;">
-                    <div style="margin-bottom: 0.8rem;">
-                      <strong style="color: var(--medalist);">Problem:</strong><br/>
-                      <span style="font-size: 22px;">Semantically duplicate keys like "Officer P. Weasley" and "Percy Weasley"</span>
-                    </div>
-                    <div style="margin-bottom: 0.4rem; font-size: 22px; color: var(--text-light);">
-                      <em>Operator interface:</em>
-                    </div>
-                    <div style="margin-bottom: 0.6rem;">
-                      <strong style="color: var(--medalist);"><code>comparison_prompt</code>:</strong><br/>
-                      <span style="font-size: 22px;">Determines if two values refer to the same entity</span>
-                    </div>
-                    <div>
-                      <strong style="color: var(--medalist);"><code>resolution_prompt</code>:</strong><br/>
-                      <span style="font-size: 22px;">Canonicalizes all matching values into one</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Gather shallow dive -->
-            <div class="operator-dive-wrapper fragment" data-fragment-index="2" style="position: absolute; top: -30px; right: 350px; width: 400px;">
-              <div class="operator-dive fragment fade-out" data-fragment-index="3" id="gather-dive" style="position: relative;">
-                <svg class="dive-arrow" style="position: absolute; left: -250px; top: 120px; width: 280px; height: 150px; overflow: visible;">
-                  <path d="M30,140 Q30,50 200,20" stroke="var(--berkeley-gold)" stroke-width="3" fill="none"/>
-                  <path d="M200,20 l-7,-5 l0,10 Z" fill="var(--berkeley-gold)"/>
-                </svg>
-                <div class="dive-card">
-                  <h4 style="color: var(--berkeley-blue); margin: 0 0 0.8rem 0; font-size: 28px; font-weight: 600;">Gather Peripheral Context</h4>
-                  <div style="font-size: 24px; line-height: 1.4;">
-                    <div style="margin-bottom: 0.8rem;">
-                      <strong style="color: var(--medalist);">Problem:</strong><br/>
-                      <span style="font-size: 22px;">Chunks after <code style="font-size: 20px; background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">split</code> don't make sense on their own</span>
-                    </div>
-                    <div style="margin-bottom: 0.4rem; font-size: 22px; color: var(--text-light);">
-                      <em>Operator interface:</em>
-                    </div>
-                    <div>
-                      <strong style="color: var(--medalist);">Specify number of previous or next chunks</strong><br/>
-                      <span style="font-size: 22px;">to provide surrounding context for isolated chunks</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- New operators indicator -->
-            <div class="fragment" data-fragment-index="3" style="margin-top: 2rem; text-align: center;">
-              <p style="font-size: 28px; color: var(--medalist); max-width: 100%;">
-                7 new operators added upon open-sourcing; not in the paper
-              </p>
-            </div>
-
-            <!-- Complexity note -->
-            <div class="fragment" data-fragment-index="4" style="margin-top: 0.8rem;">
-              <p style="font-size: 28px; max-width: 100%;">
-                <strong>Token Complexity:</strong> Most O(N) • resolve/equijoin O(N²) • rank/topk O(N) via crowdsourcing algos
-              </p>
+        
             </div>
           </div>
         </section>
+        
 
-        <!-- Optimizer Section Divider -->
+        <!-- Split & Gather deep dive -->
         <section>
-          <h2>DocETL: Talk Roadmap</h2>
-          <div class="roadmap-cards">
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">1</div>
-              <div class="roadmap-title">DSL and Operators</div>
-            </div>
-            
-            <div class="roadmap-card active">
-              <div class="roadmap-number">2</div>
-              <div class="roadmap-content">
-                <div class="roadmap-title">Optimizer</div>
-                <div class="roadmap-subitems">
-                  <div>• Rewrite Directives</div>
-                  <div>• Search Algorithm</div>
+          <h2>Split &amp; Gather</h2>
+          <!-- Single column layout -->
+          <div>
+              <!-- Row 1 header -->
+              <h3 class="fragment" data-fragment-index="1" style="font-size: 34px; margin: 0 0 0.3rem 0; color: #333;">Split: Turn documents into chunks</h3>
+              <!-- Row 1: 4 chunks -->
+              <div class="fragment" data-fragment-index="1" style="display: flex; gap: 0.6rem;">
+                <!-- Top third -->
+                <div style="flex: 1; border: 1px solid #E2E6EA; border-radius: 8px; overflow: hidden; background: white; position: relative; height: 160px;">
+                  <img src="images/record.png" alt="Chunk 1 slice" style="width: 100%; height: 100%; object-fit: cover; object-position: top;"/>
+                  <div style="position: absolute; bottom: 6px; left: 6px; font-size: 30px; background: rgba(250,250,250,0.9); padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #E2E6EA; color: var(--medalist);">Chunk 1</div>
+                </div>
+                <!-- Middle third -->
+                <div style="flex: 1; border: 1px solid #E2E6EA; border-radius: 8px; overflow: hidden; background: white; position: relative; height: 160px;">
+                  <img src="images/record.png" alt="Chunk 2 slice" style="width: 100%; height: 100%; object-fit: cover; object-position: 0 33%;"/>
+                  <div style="position: absolute; bottom: 6px; left: 6px; font-size: 30px; background: rgba(250,250,250,0.9); padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #E2E6EA; color: var(--medalist);">Chunk 2</div>
+                </div>
+                <!-- Third -->
+                <div style="flex: 1; border: 1px solid #E2E6EA; border-radius: 8px; overflow: hidden; background: white; position: relative; height: 160px;">
+                  <img src="images/record.png" alt="Chunk 3 slice" style="width: 100%; height: 100%; object-fit: cover; object-position: 0 66%;"/>
+                  <div style="position: absolute; bottom: 6px; left: 6px; font-size: 30px; background: rgba(250,250,250,0.9); padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #E2E6EA; color: var(--medalist);">Chunk 3</div>
+                </div>
+                <!-- Fourth -->
+                <div style="flex: 1; position: relative;">
+                  <div style="border: 1px solid #E2E6EA; border-radius: 8px; overflow: hidden; background: white; position: relative; height: 160px;">
+                    <img src="images/record.png" alt="Chunk 4 slice" style="width: 100%; height: 100%; object-fit: cover; object-position: bottom;"/>
+                    <div style="position: absolute; bottom: 6px; left: 6px; font-size: 30px; background: rgba(250,250,250,0.9); padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #E2E6EA; color: var(--medalist);">Chunk 4</div>
+                  </div>
+                  <div class="fragment" data-fragment-index="2" style="position: absolute; inset: -6px; border-radius: 10px; box-shadow: 0 0 26px 8px rgba(253,181,21,0.55); pointer-events: none; z-index: 2;"></div>
+                  <i class="fragment fas fa-hand-pointer" data-fragment-index="2" style="position: absolute; top: -18px; right: 10px; font-size: 28px; color: var(--berkeley-gold); transform: rotate(10deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25)); z-index: 3;"></i>
                 </div>
               </div>
-            </div>
-            
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">3</div>
-              <div class="roadmap-title">Evaluation</div>
-            </div>
-            
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">4</div>
-              <div class="roadmap-title">Parting Thoughts</div>
-            </div>
+              <!-- Gather configurations under chunks (inside right column) -->
+              <div class="fragment" data-fragment-index="3" style="margin-top: 2rem;">
+                <h3 style="font-size: 34px; margin: 0 0 0.3rem 0; color: #333;">Gather: augment chunks to make sense to downstream LLM operators</h3>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; align-items: start;">
+                  <!-- Prefix head: chunk 1 (small) + chunk 4 -->
+                  <div class="fragment" data-fragment-index="4">
+                    <div style="font-size: 30px; color: var(--text-light); margin-bottom: 0.3rem;">Prefix head</div>
+                  <div style="border: 1px solid #E2E6EA; border-radius: 8px; padding: 0.4rem; background: white; position: relative;">
+                  <div style="border: 1px dashed #E2E6EA; border-radius: 6px; overflow: hidden; height: 54px; margin-bottom: 0.4rem; position: relative;">
+                    <img src="images/record.png" alt="Head slice" style="width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0.9;"/>
+                    <div style="position: absolute; top: 6px; left: 6px; font-size: 20px; background: var(--berkeley-blue); color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 600;">1</div>
+                  </div>
+                  <div style="border: 1px solid #E2E6EA; border-radius: 6px; overflow: hidden; height: 110px; position: relative;">
+                    <img src="images/record.png" alt="Target chunk" style="width: 100%; height: 100%; object-fit: cover; object-position: bottom;"/>
+                    <div style="position: absolute; top: 6px; left: 6px; font-size: 20px; background: var(--berkeley-blue); color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 600;">4</div>
+                  </div>
+                  </div>
+                  </div>
+
+                  <!-- Prefix tail: chunk 2 (small) + chunk 4 -->
+                  <div class="fragment" data-fragment-index="5">
+                    <div style="font-size: 30px; color: var(--text-light); margin-bottom: 0.3rem;">Prefix tail</div>
+                  <div style="border: 1px solid #E2E6EA; border-radius: 8px; padding: 0.4rem; background: white; position: relative;">
+                  <div style="border: 1px dashed #E2E6EA; border-radius: 6px; overflow: hidden; height: 54px; margin-bottom: 0.4rem; position: relative;">
+                    <img src="images/record.png" alt="Tail slice" style="width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: 0.9;"/>
+                    <div style="position: absolute; top: 6px; left: 6px; font-size: 20px; background: var(--berkeley-blue); color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 600;">3</div>
+                  </div>
+                  <div style="border: 1px solid #E2E6EA; border-radius: 6px; overflow: hidden; height: 110px; position: relative;">
+                    <img src="images/record.png" alt="Target chunk" style="width: 100%; height: 100%; object-fit: cover; object-position: bottom;"/>
+                    <div style="position: absolute; top: 6px; left: 6px; font-size: 20px; background: var(--berkeley-blue); color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 600;">4</div>
+                  </div>
+                  </div>
+                  </div>
+
+                  <!-- Prefix summary: chunks 1, 2, 3 then chunk 4 -->
+                  <div class="fragment" data-fragment-index="6">
+                    <div style="font-size: 30px; color: var(--text-light); margin-bottom: 0.3rem;">Prefix summary</div>
+                  <div style="border: 1px solid #E2E6EA; border-radius: 8px; padding: 0.4rem; background: white; position: relative;">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.3rem; margin-bottom: 0.4rem;">
+                    <div style="border: 1px dashed #E2E6EA; border-radius: 6px; overflow: hidden; height: 36px; position: relative;">
+                      <img src="images/record.png" alt="Prefix part 1" style="width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0.9;"/>
+                      <div style="position: absolute; top: 3px; left: 3px; font-size: 14px; background: var(--berkeley-blue); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-weight: 600;">1</div>
+                    </div>
+                    <div style="border: 1px dashed #E2E6EA; border-radius: 6px; overflow: hidden; height: 36px; position: relative;">
+                      <img src="images/record.png" alt="Prefix part 2" style="width: 100%; height: 100%; object-fit: cover; object-position: 0 33%; opacity: 0.9;"/>
+                      <div style="position: absolute; top: 3px; left: 3px; font-size: 14px; background: var(--berkeley-blue); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-weight: 600;">2</div>
+                    </div>
+                    <div style="border: 1px dashed #E2E6EA; border-radius: 6px; overflow: hidden; height: 36px; position: relative;">
+                      <img src="images/record.png" alt="Prefix part 3" style="width: 100%; height: 100%; object-fit: cover; object-position: 0 66%; opacity: 0.9;"/>
+                      <div style="position: absolute; top: 3px; left: 3px; font-size: 14px; background: var(--berkeley-blue); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-weight: 600;">3</div>
+                    </div>
+                  </div>
+                  <div style="border: 1px solid #E2E6EA; border-radius: 6px; overflow: hidden; height: 128px; position: relative;">
+                    <img src="images/record.png" alt="Target chunk" style="width: 100%; height: 100%; object-fit: cover; object-position: bottom;"/>
+                    <div style="position: absolute; top: 6px; left: 6px; font-size: 20px; background: var(--berkeley-blue); color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 600;">4</div>
+                  </div>
+                  
+                  </div>
+                  </div>
+                </div>
+
+                <div class="fragment" data-fragment-index="7" style="margin-top: 0.5rem; font-size: 30px; color: var(--text-light);">
+                  Can mix &amp; match gather configs; e.g., "prefix" tail and "next" head
+                </div>
+              </div>
           </div>
+          
+          <aside class="notes">
+            Animate: (1) show three cropped slices derived from the same source; (2) overlay chunk labels; (3) reveal gather configs for a target chunk (here, chunk 3) — prefix head, prefix tail, prefix summary (compressed). Conclude with note that you can mix-and-match and also gather next-window context.
+          </aside>
         </section>
 
+       
+      
         <!-- Rewrite Directives Main Concept -->
         <section data-visibility="hidden">
           <h2>Optimizer</h2>
@@ -531,329 +564,188 @@
           </ul>
         </section>
 
-        <!-- 13 Rewrite Directives Overview -->
+        <!-- Rewrite Directives Introduction -->
         <section>
-          <h2>13 Rewrite Directives</h2>
+          <h2>Rewrite Directives: Our Novel Contribution</h2>
           
-          <div style="display: flex; gap: 1rem; justify-content: space-between; align-items: stretch; width: 100%; margin-top: 1.5rem;">
-            <!-- Data Decomposition -->
-            <div class="directive-category fragment" data-fragment-index="1" style="flex: 1; background: #f8f9fa; padding: 1rem; border-radius: 10px; border: 2px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-              <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.5rem;">Data Decomposition</h3>
-              <p style="font-size: 28px; color: var(--text-light); margin-bottom: 0.8rem;">Break down large inputs into manageable pieces</p>
-              <ul style="font-size: 28px; list-style: none; padding: 0; text-align: left;">
-                <li style="margin-bottom: 0.3rem;">• Document chunking</li>
-                <li>• Multi-level aggregation</li>
-              </ul>
-            </div>
+          <ul style="font-size: 28px; color: var(--text-dark); margin: 1rem 0; padding-left: 1.5rem;">
+            <li style="margin-bottom: 0.8rem; font-size: 28px; color: var(--text-dark);">Templates for LLMs to instantiate</li>
+            <li style="margin-bottom: 0.8rem;">
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 28px;"><strong>Example:</strong></div>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Map (extract instances of misconduct)</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Result</div>
+                </div>
+              </div>
+            </li>
             
-            <!-- Projection Synthesis -->
-            <div class="directive-category fragment" data-fragment-index="2" style="flex: 1; background: #f8f9fa; padding: 1rem; border-radius: 10px; border: 2px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-              <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.5rem;">Projection Synthesis</h3>
-              <p style="font-size: 28px; color: var(--text-light); margin-bottom: 0.8rem;">Break down the task described in the prompt into 2+ prompts</p>
-              <ul style="font-size: 28px; list-style: none; padding: 0; text-align: left;">
-                <li style="margin-bottom: 0.3rem;">• Chaining & Isolating</li>
-                <li>• Preprocessing</li>
-              </ul>
-            </div>
+            <li class="fragment" data-fragment-index="1" style="margin-bottom: 1rem;">
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 28px; color: var(--medalist); font-weight: 600; min-width: 140px;">Chunking:</div>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge new" style="padding: 0.3rem 0.6rem; font-size: 28px;">Split</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Map</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge new" style="padding: 0.3rem 0.6rem; font-size: 28px;">Reduce</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Result</div>
+                </div>
+              </div>
+              <div class="fragment" data-fragment-index="2" style="text-align: center; font-size: 28px; color: var(--text-dark); margin-top: 0.8rem;">
+                Choices: chunk size, map prompt, reduce prompt (e.g., "combine extracted misconduct")
+              </div>
+            </li>
             
-            <!-- LLM-Centric Rules -->
-            <div class="directive-category fragment" data-fragment-index="3" style="flex: 1; background: #f8f9fa; padding: 1rem; border-radius: 10px; border: 2px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-              <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.5rem;">LLM-Centric Rules</h3>
-              <p style="font-size: 28px; color: var(--text-light); margin-bottom: 0.8rem;">Refine LLM-generated outputs</p>
-              <ul style="font-size: 28px; list-style: none; padding: 0; text-align: left;">
-                <li style="margin-bottom: 0.3rem;">• Gleaning</li>
-                <li>• Duplicate detection</li>
-              </ul>
-            </div>
-          </div>
+            <li class="fragment" data-fragment-index="3" style="margin-bottom: 1rem;">
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 28px; color: var(--medalist); font-weight: 600; min-width: 140px;">Chunking with Gather:</div>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Split</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge new" style="padding: 0.3rem 0.6rem; font-size: 28px;">Gather</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Map</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Reduce</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Result</div>
+                </div>
+              </div>
+              <div class="fragment" data-fragment-index="4" style="text-align: center; font-size: 28px; color: var(--text-dark); margin-top: 0.8rem;">
+                Choices: context window, previous chunks?, headers/metadata?
+              </div>
+            </li>
+            
+            <li class="fragment" data-fragment-index="5" style="margin-bottom: 1rem;">
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 28px; color: var(--medalist); font-weight: 600; min-width: 140px;">Filter Chunks:</div>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Split</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Gather</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge new" style="padding: 0.3rem 0.6rem; font-size: 28px;">Filter</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Map</div>
+                  <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Result</div>
+                </div>
+              </div>
+              <div class="fragment" data-fragment-index="6" style="text-align: center; font-size: 28px; color: var(--text-dark); margin-top: 0.8rem;">
+                Choices: filter prompt (e.g., "is misconduct present?")
+              </div>
+            </li>
+            
+            <li class="fragment" data-fragment-index="7" style="margin-top: 1rem; font-size: 28px; color: var(--berkeley-blue); font-weight: 600;">
+              → Infinitely many possible instantiations
+            </li>
+          </ul>
           
-          <div class="key-properties fragment" data-fragment-index="4" style="margin-top: 1rem; padding: 0.8rem 1.2rem; background: #fff3e0; border: 2px solid var(--berkeley-gold); border-radius: 8px;">
-            <h4 style="font-size: 28px; color: var(--berkeley-blue); margin-bottom: 0.4rem; font-weight: 600;">KEY PROPERTIES</h4>
-            <ul style="font-size: 28px; list-style: none; padding: 0;">
-              <li style="margin-bottom: 0.3rem;">• Abstract frameworks, not concrete rules</li>
-              <li>• Infinitely many possible instantiations!</li>
-            </ul>
-          </div>
+          <aside class="notes">
+            Now I am going to explain rewrite directives. Rewrite directives are how we program LLMs to find alternative pipelines to do the task. One way to rewrite a pipeline is to split up the data. Let me give you an example. Say I have a map operation on a long document. I can simply rewrite this map op as, a split -> map -> reduce pipeline; where I split the document into chunks, run the map operation over each chunk, and run a reduce operation to unify the results together. Why do we call this a rewrite directive? Well, an LLM has to instantiate this. An LLM has to write the split logic; e.g., the chunk size or the regex that determines the chunk boundary. The LLM has to adapt the prompt to run at the chunk level. The LLM has to author a reduce operation prompt to unify the results. For example let's say we have a dead simple task like extract all names from a document. We can split into chunks extract names from each chunk, and then have an LLM reduce over the names (hoping it'll dedup and standardize in the process). Now this rewrite might not lead to good accuracy; say, the task is more complex, like extract all instances of misconduct. Here we might see a chunk like "he said ..." and not know who "he" is. So another rewrite directive is split => split -> gather; and in instantiating the rewrite, we have to pick the gather configuration (e.g., how many chunks of the prefix to augment the chunk with). Then imagine the task is actually quite selective in that you do not need most of the document to do the task / there's a lot of irrelevant content. Another rewrite directive you can do is gather -> map => gather -> filter -> map; meaning, throw out chunks that we don't need to do the task for. E.g. police misconduct; say most chunks don't describe misconduct. We can filter for "is misconduct present" and then only do the map "extract and describe the misconduct" on the remaining chunks. OK -- see what I'm saying? There are a bunch of rewrites you can do along the data decomposition axis. Rewrite directives are our formulas that programmatically match to a pipeline and can guide the LLM in writing the custom operators to do the task more accurately. Rewrite directives can have infinitely many instantiations.
+          </aside>
         </section>
 
-        <!-- Data Decomposition Directives -->
+        <!-- More Rewrite Directives -->
         <section>
-          <h2>Data Decomposition Directives</h2>
+          <h2>More Rewrite Directives: Task Decomposition</h2>
           
-          <div style="display: flex; gap: 2rem; justify-content: space-between;">
-            <!-- Document Chunking -->
-            <div style="flex: 1;">
-              <div class="fragment" data-fragment-index="1">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem;">
-                  <span class="op-badge new">+4</span>
-                  <h3 style="margin: 0;">Document chunking</h3>
-                </div>
-                
-                <div class="task-code">
-                  <code style="color: var(--berkeley-blue);">Map ⟹ Split → Gather → Map → Reduce</code>
-                </div>
-                
-                <!-- Visual diagram -->
-                <div style="display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem;">
-                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.5rem; border-radius: 4px;">
-                    <div style="font-size: var(--small-size); font-weight: 600; color: var(--text-dark);">Doc</div>
-                  </div>
-                  <span style="font-size: var(--body-size); color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="2">
-                    <div style="background: white; border: 1px solid var(--text-dark); padding: 0.1rem 1rem; margin-bottom: 0.5rem; border-radius: 4px; font-size: var(--small-size); color: var(--text-dark); width: 140px; text-align: center;">Chunk 1</div>
-                    <div style="background: white; border: 1px solid var(--text-dark); padding: 0.1rem 1rem; margin-bottom: 0.5rem; border-radius: 4px; font-size: var(--small-size); color: var(--text-dark); width: 140px; text-align: center;">Chunk 2</div>
-                    <div style="background: white; border: 1px solid var(--text-dark); padding: 0.1rem 1rem; margin-bottom: 0.5rem; border-radius: 4px; font-size: var(--small-size); color: var(--text-dark); width: 140px; text-align: center;">Chunk 3</div>
-                    <div style="background: white; border: 1px solid var(--text-dark); padding: 0.1rem 1rem; border-radius: 4px; font-size: var(--small-size); color: var(--text-dark); width: 140px; text-align: center;">Chunk 4</div>
-                  </div>
-                  <span class="fragment" data-fragment-index="3" style="font-size: var(--body-size); color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="3" style="text-align: center;">
-                    <div class="op-badge" style="margin-bottom: 0.5rem;">Map</div>
-                    <div class="op-badge" style="margin-bottom: 0.5rem;">Map</div>
-                    <div class="op-badge" style="margin-bottom: 0.5rem;">Map</div>
-                    <div class="op-badge">Map</div>
-                  </div>
-                  <span class="fragment" data-fragment-index="4" style="font-size: var(--body-size); color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="4" style="text-align: center;">
-                    <div class="op-badge">Reduce</div>
-                  </div>
-                </div>
-                
-                <div class="fragment" data-fragment-index="5">
-                  <ol style="font-size: var(--small-size); margin-left: 1.5rem; color: var(--text-dark);">
-                    <li>Split the document into chunks</li>
-                    <li>Extract names from each chunk</li>
-                    <li>Combine all the extracted names into one result</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
+          <ul style="font-size: 28px; color: var(--text-dark); margin: 1rem 0; padding-left: 1.5rem;">
+            <li style="margin-bottom: 1.2rem;">Tasks can be complex beyond just data complexity</li>
             
-            <!-- Multi-level Aggregation -->
-            <div style="flex: 1;">
-              <div class="fragment" data-fragment-index="6">
-                <h3 style="margin-bottom: 0.8rem;">Multi-level aggregation</h3>
-                
-                <div class="task-code">
-                  <code style="color: var(--berkeley-blue);">Reduce ⟹ Reduce → Reduce</code>
-                </div>
-                
-                <!-- Pipeline visualization -->
-                <div style="margin-top: 2rem;">
-                  <div class="fragment" data-fragment-index="7" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-                    <div class="op-badge" style="padding: 0.8rem 1.2rem;">
-                      <div style="font-weight: 600;">Reduce</div>
-                      <div style="font-size: calc(var(--small-size) * 0.8); margin-top: 0.3rem;">
-                        <div><strong style="background: var(--berkeley-gold); padding: 0.2rem 0.4rem; border-radius: 3px;">groupby: city, state</strong></div>
-                        <div>prompt: "summarize these news articles"</div>
-                      </div>
-                    </div>
-                    <span style="font-size: var(--body-size); color: var(--text-dark);">→</span>
-                    <div class="op-badge" style="padding: 0.8rem 1.2rem;">
-                      <div style="font-weight: 600;">Reduce</div>
-                      <div style="font-size: calc(var(--small-size) * 0.8); margin-top: 0.3rem;">
-                        <div><strong style="background: var(--berkeley-gold); padding: 0.2rem 0.4rem; border-radius: 3px;">groupby: state</strong></div>
-                        <div>prompt: "summarize these city summaries"</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="fragment" data-fragment-index="8">
-                    <ol style="font-size: var(--small-size); margin-left: 1.5rem; color: var(--text-dark);">
-                      <li>Summarize documents for each city</li>
-                      <li>"Roll up" the city summaries</li>
-                    </ol>
-                  </div>
-                </div>
+            <li class="fragment" data-fragment-index="1" style="margin-bottom: 1.2rem;">
+              <strong>Example:</strong> 9-10 types of misconduct in California penal code
+              <div style="margin-top: 0.4rem; margin-left: 1rem; font-size: 28px; color: var(--text-light);">
+                Excessive force, false arrest, evidence tampering, perjury, etc.
               </div>
-            </div>
-          </div>
+            </li>
+            
+            <li class="fragment" data-fragment-index="2" style="margin-bottom: 1.2rem;">
+              <div style="font-weight: 600; color: var(--berkeley-blue);">Projection Synthesis:</div>
+              
+              <!-- First pipeline: Multiple Maps -->
+              <div class="fragment" data-fragment-index="3" style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem; margin-bottom: 0.8rem;">
+                <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
+                <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Map: Excessive Force</div>
+                <span style="font-size: 28px; color: var(--text-dark);">+</span>
+                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Map: Perjury</div>
+                <span style="font-size: 28px; color: var(--text-dark);">+</span>
+                <span style="font-size: 28px; color: var(--text-dark);">...</span>
+                <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Result</div>
+              </div>
+              
+              <!-- Second pipeline: Decomposed Excessive Force -->
+              <div class="fragment" data-fragment-index="4" style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem;">
+                <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
+                <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">What weapons?</div>
+                <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Excessive use?</div>
+                <span style="font-size: 28px; color: var(--text-dark);">→</span>
+                <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Result</div>
+              </div>
+            </li>
+            
+            <li class="fragment" data-fragment-index="5" style="margin-bottom: 1.2rem;">
+              Can synthesize projections before <em>any</em> operation (reduce, filter, join)
+            </li>
+
+            
+            <li class="fragment" data-fragment-index="6" style="margin-bottom: 1.2rem;">
+              <u>Unlike traditional operator fission:</u> requires semantic understanding, open-ended possibilities
+            </li>
+            
+          </ul>
+          
+          <aside class="notes">
+            tasks have multiple dimensions of complexity. data is one dimension of complexity, and in the preivous slide, we saw how we could decompose along the data dimension. we can also decompose along the operation dimension itself. in our example, there are actually 9 types of misconduct in the california penal code detailed. actually 10. 9 types of misconduct in the california penal code detailed. Excessive force (unlawful assault/violence), False arrest/imprisonment (deprivation of liberty without due... ok so reasoning about the presence of all of these different factors in a docmuent is tough. one rewrite is just, have a different map operation for each thing the user requested to extract; e.g., a map operation for excessive use of force, another map .... we call this type of rewrite "projection synthesis" because we are literally synthesizing a porjection. now these projections don't have to take on different independent or isolated aspects of the task. you can also synthesize "sequential" projections to help break a task down into steps. like for use of force. we can rewrite this into two map operations: "what weapons did the officer use, if any" -> "was this an excessive use of the weapon?" and generally you can synthesize projections before any operations, like before reduce or before filter or before join, to do any type of helpful preprocessing for the task. ok so you may be wondering. hmm.this kinda reminds me of operator fission and fusion. what's new here. well the "fission" is not so clean like it is in traditional query plans. it requires some semantic understanding of the task, and really, if you think about it, you can fission into n possible operators, in any open-ended way possible, and it is not clear whether or not the agentic fission is going to give you higher accuracy. no hard coded rules can get you these rewrites. and actually before i talk about fission i'll say; see our paper for many more rewrite directives; i can't cover them all.
+          </aside>
         </section>
 
-        <!-- Projection Synthesis Directives -->
-        <section>
-          <h2>Projection Synthesis Directives</h2>
-          
-          <div style="display: flex; gap: 2rem; justify-content: space-between; align-items: flex-start;">
-            <!-- Chaining -->
-            <div style="flex: 1; min-width: 0; text-align: center;">
-              <div class="fragment" data-fragment-index="1">
-                <h3 style="margin-bottom: 1.2rem;">Chaining</h3>
-                
-                <div class="task-code" style="margin-bottom: 2rem;">
-                  <code style="color: var(--berkeley-blue);">Map ⟹ Map → Map</code>
-                </div>
-                
-                <!-- Visual diagram -->
-                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 2rem;">
-                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.4rem 0.8rem; border-radius: 4px;">
-                    <div style="font-size: calc(var(--small-size) * 0.9); font-weight: 600; color: var(--text-dark);">Task</div>
-                  </div>
-                  <span class="fragment" data-fragment-index="2" style="font-size: var(--small-size); color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="2" style="text-align: center;">
-                    <div class="op-badge" style="padding: 0.3rem 0.6rem; margin-bottom: 0.3rem;">Map</div>
-                    <div style="font-size: calc(var(--small-size) * 0.8);">Extract</div>
-                  </div>
-                  <span class="fragment" data-fragment-index="3" style="font-size: var(--small-size); color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="3" style="text-align: center;">
-                    <div class="op-badge" style="padding: 0.3rem 0.6rem; margin-bottom: 0.3rem;">Map</div>
-                    <div style="font-size: calc(var(--small-size) * 0.8);">Analyze</div>
-                  </div>
-                </div>
-                
-                <div class="fragment" data-fragment-index="4">
-                  <p style="font-size: 28px; color: var(--text-dark); margin: 0;">Break complex task into sequential steps</p>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Isolation -->
-            <div style="flex: 1; min-width: 0; text-align: center; border-left: 1px solid #e0e0e0; border-right: 1px solid #e0e0e0; padding: 0 2rem;">
-              <div class="fragment" data-fragment-index="5">
-                <h3 style="margin-bottom: 1.2rem;">Isolation</h3>
-                
-                <div class="task-code" style="margin-bottom: 2rem;">
-                  <code style="color: var(--berkeley-blue);">Map ⟹ (Map || Map) → Reduce</code>
-                </div>
-                
-                <!-- Visual diagram -->
-                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 2rem;">
-                  <div style="background: white; border: 2px solid var(--text-dark); padding: 0.4rem 0.8rem; border-radius: 4px;">
-                    <div style="font-size: calc(var(--small-size) * 0.9); font-weight: 600; color: var(--text-dark);">Task</div>
-                  </div>
-                  <span class="fragment" data-fragment-index="6" style="font-size: var(--small-size); color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="6" style="display: flex; flex-direction: column; gap: 0.3rem;">
-                    <div class="op-badge" style="padding: 0.3rem 0.6rem;">
-                      <span style="font-size: calc(var(--small-size) * 0.85);">Map 1</span>
-                    </div>
-                    <div class="op-badge" style="padding: 0.3rem 0.6rem;">
-                      <span style="font-size: calc(var(--small-size) * 0.85);">Map 2</span>
-                    </div>
-                  </div>
-                  <span class="fragment" data-fragment-index="7" style="font-size: var(--small-size); color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="7" style="text-align: center;">
-                    <div class="op-badge" style="padding: 0.3rem 0.6rem;">
-                      <span style="font-size: calc(var(--small-size) * 0.85);">Reduce</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="fragment" data-fragment-index="8">
-                  <p style="font-size: 28px; color: var(--text-dark); margin: 0;">Run parallel LLM calls for different clauses</p>
-                </div>
-              </div>
-            </div>
-            
-            <!-- General Preprocessing -->
-            <div style="flex: 1; min-width: 0; text-align: center;">
-              <div class="fragment" data-fragment-index="9">
-                <h3 style="margin-bottom: 1.2rem;">General preprocessing</h3>
-                
-                <div class="task-code" style="margin-bottom: 2rem;">
-                  <code style="color: var(--berkeley-blue);">Op ⟹ Map → Op</code>
-                </div>
-                
-                <!-- Pipeline visualization -->
-                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 2rem;">
-                  <div class="fragment" data-fragment-index="10" style="background: white; border: 2px solid var(--text-dark); padding: 0.4rem 0.8rem; border-radius: 4px;">
-                    <div style="font-size: 28px; font-weight: 600; color: var(--text-dark);">Input</div>
-                  </div>
-                  <span class="fragment" data-fragment-index="10" style="font-size: 28px; color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="10" class="op-badge" style="padding: 0.4rem 0.8rem;">
-                    <div style="font-weight: 600; font-size: 28px;">Map</div>
-                    <div style="font-size: 18px; margin-top: 0.3rem; line-height: 1.2; color: var(--text-light);">
-                      preprocessing steps
-                    </div>
-                  </div>
-                  <span class="fragment" data-fragment-index="10" style="font-size: 28px; color: var(--text-dark);">→</span>
-                  <div class="fragment" data-fragment-index="10" class="op-badge" style="padding: 0.4rem 0.8rem;">
-                    <div style="font-weight: 600; font-size: 28px;">Op</div>
-                  </div>
-                </div>
-                
-                <div class="fragment" data-fragment-index="11">
-                  <p style="font-size: 28px; color: var(--text-dark); margin: 0;">Process documents for downstream operations (e.g., cleaning, extraction)</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- LLM-Centric Directives -->
-        <section data-visibility="hidden">
-          <h2>LLM-Centric Directives</h2>
-          
-          <div style="margin-top: 2rem;">
-            <!-- Gleaning -->
-            <div class="fragment" data-fragment-index="1" style="margin-bottom: 2rem;">
-              <h3 style="font-size: 32px; color: var(--berkeley-blue); margin-bottom: 0.8rem;">Gleaning (self-refinement)</h3>
-              <ul style="margin-top: 0;">
-                <li style="font-size: 28px;">Query a validator LLM to check if the answer is correct</li>
-                <li style="font-size: 28px;">If incorrect, iteratively refine the first output (up to k iterations)</li>
-                <li style="font-size: 28px;"><strong>Cost:</strong> ~2k × original operation (validation step for each iteration)</li>
-              </ul>
-            </div>
-            
-            <!-- Duplicate Resolution -->
-            <div class="fragment" data-fragment-index="2">
-              <h3 style="font-size: 32px; color: var(--berkeley-blue); margin-bottom: 0.8rem;">Duplicate Resolution</h3>
-              <ul style="margin-top: 0;">
-                <li style="font-size: 28px;">When grouping by LLM-generated keys, add a resolve operation before reduce</li>
-                <li style="font-size: 28px;"><code>Reduce ⟹ Resolve → Reduce</code></li>
-              </ul>
-            </div>
-          </div>
-        </section>
+       
 
         <!-- Search Algorithm: Top-Down Optimization -->
         <section>
           <h2>Search Algorithm: Top-Down Optimization</h2>
           
-          <div style="display: flex; gap: 2rem; margin-top: 1rem;">
-            <!-- Column 1: Algorithm steps -->
-            <div style="flex: 1.3;">
-              <ol style="font-size: 32px; line-height: 1.5; margin: 0;">
-                <li class="fragment" data-fragment-index="1" style="margin-bottom: 1.2rem;">
-                  <strong style="color: var(--berkeley-blue);">Traverse from beginning to end</strong>
-                  <div style="font-size: 28px; color: var(--text-light); margin-top: 0.3rem; margin-left: 1.5rem;">
-                    Check if op is accurate as-defined
-                  </div>
+          <ul style="font-size: 28px; color: var(--text-dark); margin: 1rem 0; padding-left: 1.5rem;">
+            <li style="margin-bottom: 1.2rem;">There are infinitely many rewrites, and rewrites can be composed. How do we find the best pipeline?</li>
+            
+            <li class="fragment" data-fragment-index="1" style="margin-bottom: 1.2rem;">
+              <u>Unlike traditional optimizers:</u> we optimize for <strong style="color: var(--medalist);">accuracy</strong> not cost
+            </li>
+            
+            <li class="fragment" data-fragment-index="2" style="margin-bottom: 1.2rem;">
+              <strong style="color: var(--berkeley-blue);">Our 4-step search:</strong>
+              <ol style="font-size: 28px; margin-top: 0.5rem; margin-left: 1rem;">
+                <li style="margin-bottom: 0.8rem;">
+                  <strong>Traverse from beginning to end:</strong> Check if op is accurate as-defined
                 </li>
-                
-                <li class="fragment" data-fragment-index="2" style="margin-bottom: 1.2rem;">
-                  <strong style="color: var(--berkeley-blue);">Apply rewrite directives</strong>
-                  <div style="font-size: 28px; color: var(--text-light); margin-top: 0.3rem; margin-left: 1.5rem;">
-                    If not, generation agent creates plans
-                  </div>
+                <li style="margin-bottom: 0.8rem;">
+                  <strong>Apply rewrite directives:</strong> If not, generation agent creates plans
                 </li>
-                
-                <li class="fragment" data-fragment-index="3" style="margin-bottom: 1.2rem;">
-                  <strong style="color: var(--berkeley-blue);">Recursively optimize</strong>
-                  <div style="font-size: 28px; color: var(--text-light); margin-top: 0.3rem; margin-left: 1.5rem;">
-                    Optimize new operations immediately (up to depth 3 from the user-written pipeline)
-                  </div>
+                <li style="margin-bottom: 0.8rem;">
+                  <strong>Recursively optimize:</strong> Optimize new operations immediately (up to depth 3)
                 </li>
-                
-                <li class="fragment" data-fragment-index="4">
-                  <strong style="color: var(--berkeley-blue);">Select best plan with LLM-as-Judge</strong>
-                  <div style="font-size: 28px; color: var(--text-light); margin-top: 0.3rem; margin-left: 1.5rem;">
-                    • Run each plan on a sample<br/>
-                    • Rate each plan (1-5 scale)<br/>
-                    • Pairwise compare top-k<br/>
-                    • Choose winner with most "wins"
-                  </div>
+                <li style="margin-bottom: 0.8rem;">
+                  <strong>Select best plan with LLM-as-Judge</strong>
                 </li>
               </ol>
-            </div>
-            
-            <!-- Column 2: Key insight -->
-            <div style="flex: 0.7; display: flex; align-items: center;">
-              <div class="fragment" data-fragment-index="5" style="padding: 1.5rem; background: white; border: 3px solid var(--berkeley-blue); border-radius: 10px;">
-                <!-- <h3 style="font-size: 32px; color: var(--berkeley-blue); margin: 0 0 1rem 0; text-align: center;"></h3> -->
-                <p style="font-size: 28px; margin: 0; line-height: 1.4; text-align: center;">
-                  Unlike traditional optimizers, we optimize for <strong style="color: var(--medalist);">accuracy</strong> not cost
-                </p>
-              </div>
-            </div>
-          </div>
+            </li>
+          </ul>
         </section>
 
         <!-- Search Algorithm: Agent Architecture -->
@@ -901,38 +793,7 @@
           </div>
         </section>
 
-        <!-- Optimizer to Evaluation transition -->
-        <section>
-          <h2>DocETL: Talk Roadmap</h2>
-          <div class="roadmap-cards">
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">1</div>
-              <div class="roadmap-title">DSL and Operators</div>
-            </div>
-            
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">2</div>
-              <div class="roadmap-content">
-                <div class="roadmap-title">Optimizer</div>
-                <div class="roadmap-subitems">
-                  <div>• Rewrite Directives</div>
-                  <div>• Search Algorithm</div>
-                </div>
-              </div>
-            </div>
-            
-            <div class="roadmap-card active">
-              <div class="roadmap-number">3</div>
-              <div class="roadmap-title">Evaluation</div>
-            </div>
-            
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">4</div>
-              <div class="roadmap-title">Parting Thoughts</div>
-            </div>
-          </div>
-        </section>
-
+       
         <!-- Evaluation Overview -->
         <section>
           <h2>Evaluation</h2>
@@ -992,7 +853,7 @@
         </section>
 
         <!-- Legal Contract Analysis -->
-        <section>
+        <section data-visibility="hidden">
           <h2>Legal Contract Analysis</h2>
           
           <div style="margin-top: 0.5rem;">
@@ -1131,7 +992,7 @@ warranties, indemnification, payment terms...</span></pre>
         </section>
 
         <!-- Biodex: Biomedical Classification -->
-        <section>
+        <section data-visibility="hidden">
           <h2>Biodex: Biomedical Classification</h2>
           
           <div style="margin-top: 0.2rem; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 1rem;">
@@ -1213,52 +1074,25 @@ the article?</span>
           </div>
         </section>
 
-        <!-- Parting Thoughts Section Divider -->
-        <section>
-          <h2>DocETL: Talk Roadmap</h2>
-          <div class="roadmap-cards">
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">1</div>
-              <div class="roadmap-title">DSL and Operators</div>
-            </div>
-            
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">2</div>
-              <div class="roadmap-content">
-                <div class="roadmap-title">Optimizer</div>
-                <div class="roadmap-subitems">
-                  <div>• Rewrite Directives</div>
-                  <div>• Search Algorithm</div>
-                </div>
-              </div>
-            </div>
-            
-            <div class="roadmap-card inactive">
-              <div class="roadmap-number">3</div>
-              <div class="roadmap-title">Evaluation</div>
-            </div>
-            
-            <div class="roadmap-card active">
-              <div class="roadmap-number">4</div>
-              <div class="roadmap-title">Parting Thoughts</div>
-            </div>
-          </div>
-        </section>
-
+        
         <!-- Connecting to Traditional RDBMS -->
         <section>
           <h2>Revisiting Traditional Database Paradigms</h2>
           
-          <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem;">
+          <ul class="fragment" data-fragment-index="0" style="margin: 1rem 0; padding-left: 1.5rem; text-align: left;">
+            <li style="font-size: 28px; text-align: left;">Unstructured data + LLMs introduce fuzziness and creativity</li>
+          </ul>
+          
+          <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 0.3rem;">
             <!-- Operators -->
             <div class="fragment" data-fragment-index="1">
               <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.3rem;">Operators</h3>
               <div style="display: flex; gap: 1rem;">
                 <div style="flex: 1; background: #f8f9fa; padding: 0.6rem; border-radius: 6px; border: 2px solid #e0e0e0;">
-                  <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Deterministic, clean separation between logical and physical</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Deterministic, clean logical vs physical separation</p>
                 </div>
                 <div style="flex: 1; background: #fff3e0; padding: 0.6rem; border-radius: 6px; border: 2px solid var(--berkeley-gold);">
-                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Non-deterministic, physical choices (batch size, gather config) affect accuracy</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Fuzzy semantics for unstructured data; LLMs write new algorithms on-the-fly</p>
                 </div>
               </div>
             </div>
@@ -1268,10 +1102,10 @@ the article?</span>
               <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.3rem;">Rewrite Rules</h3>
               <div style="display: flex; gap: 1rem;">
                 <div style="flex: 1; background: #f8f9fa; padding: 0.6rem; border-radius: 6px; border: 2px solid #e0e0e0;">
-                  <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Guaranteed identical output, finite rewrites</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Guaranteed identical output, finite set of rewrites</p>
                 </div>
                 <div style="flex: 1; background: #fff3e0; padding: 0.6rem; border-radius: 6px; border: 2px solid var(--berkeley-gold);">
-                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Semantic, LLM-instantiated, infinite variations & can synthesize algos on the fly</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Open-ended, semantic rewrites; rewrites yield different accuracies</p>
                 </div>
               </div>
             </div>
@@ -1284,19 +1118,17 @@ the article?</span>
                   <p style="font-size: 26px; margin: 0;"><strong>Traditional:</strong> Cost models, dynamic programming (Selinger, Cascades)</p>
                 </div>
                 <div style="flex: 1; background: #fff3e0; padding: 0.6rem; border-radius: 6px; border: 2px solid var(--berkeley-gold);">
-                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> No accuracy model, empirical evaluation, operator interdependence, may run several times</p>
+                  <p style="font-size: 26px; margin: 0;"><strong>DocETL:</strong> Accuracy is empirical; operator quality is interdependent</p>
                 </div>
               </div>
             </div>
 
-            <!-- Key Insight -->
-            <div class="fragment" data-fragment-index="4" style="background: white; padding: 0.8rem; border: 2px solid var(--berkeley-blue); border-radius: 8px; margin-top: 0.5rem;">
-              <p style="font-size: 28px; margin: 0; text-align: center; color: var(--berkeley-blue);">
-                <strong>Main difference:</strong> LLMs are non-deterministic and not always accurate<br/>
-                <span style="font-size: 26px;">→ Requires fundamentally different approaches at every layer of the database</span>
-              </p>
-            </div>
           </div>
+          
+          <!-- Key Insight -->
+          <ul class="fragment" data-fragment-index="4" style="margin: 1.5rem 0; padding-left: 1.5rem; text-align: left;">
+            <li style="font-size: 28px; text-align: left;">Query optimizer must reason about inaccuracy, operator interdependence, and new algorithms authored on-the-fly</li>
+          </ul>
         </section>
 
         <!-- Promise of Agentic Query Rewrites -->
@@ -1347,9 +1179,9 @@ the article?</span>
           
           <!-- Key Takeaways -->
           <div style="background: #fff3e0; padding: 0.8rem 1.2rem; border: 2px solid var(--berkeley-gold); border-radius: 8px; margin-bottom: 1.5rem;">
-            <ul style="font-size: 28px; margin: 0; padding-left: 1.2rem; line-height: 1.3; list-style: none;">
-              <li style="margin-bottom: 0.3rem;"><strong>→</strong> DocETL is a system for LLM-powered data processing</li>
-              <li><strong>→</strong> Our optimizer leverages agentic query rewriting</li>
+            <ul style=" margin: 0; padding-left: 1.2rem; line-height: 1.3; list-style: none;">
+              <li style="margin-bottom: 0.3rem; font-size: 30px;"><strong>→</strong> DocETL is a system for LLM-powered data processing</li>
+              <li style="font-size: 30px;"><strong>→</strong> Our optimizer leverages <strong>agents</strong> to instantiate <strong>novel rewrite directives</strong></li>
             </ul>
           </div>
           
@@ -1422,6 +1254,8 @@ the article?</span>
         center: true,
         plugins: [ RevealMarkdown, RevealNotes, RevealHighlight ]
       });
+
+      // No custom animation on the police misconduct slide
     </script>
   </body>
   </html>

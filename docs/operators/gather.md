@@ -19,11 +19,12 @@ When splitting long documents, such as complex legal contracts or court transcri
 
 The Gather operation addresses these challenges by:
 
-1. Identifying relevant surrounding chunks (peripheral context)
-2. Adding this context to each chunk
-3. Preserving document structure information
+1. Identifying relevant surrounding chunks (sequential peripheral context)
+2. Optionally retrieving top-k semantically or keyword-relevant chunks (retrieval context)
+3. Adding this context to each chunk
+4. Preserving document structure information
 
-### Peripheral Context
+### Peripheral Context (sequential)
 
 Peripheral context refers to the surrounding text or information that helps provide a more complete understanding of a specific chunk of content. In legal documents, this can include:
 
@@ -31,6 +32,30 @@ Peripheral context refers to the surrounding text or information that helps prov
 - Following text that elaborates on clauses presented in the current chunk
 - Document structure information, such as article or section headers
 - Summarized versions of nearby chunks for efficient context provision
+
+### Retrieval Context (optional)
+
+In addition to sequential context, Gather can augment each main chunk with top-k relevant chunks selected via:
+
+- Embedding similarity (semantic): method: embedding
+- Full-text search (keyword): method: fts (BM25 fallback to TF-IDF if package unavailable)
+
+You can target three directions of retrieval within a document group:
+
+- previous: retrieve from chunks before the main chunk
+- next: retrieve from chunks after the main chunk
+- general: retrieve from any chunk except the main chunk
+
+Each retrieval block supports:
+
+- method: embedding or fts
+- k: integer or float (proportion of candidates)
+- keys: list of fields to build text/embeddings from
+- query: string, can be templated with {{ input.<field> }} from the main chunk
+- content_key (optional): which field to render from retrieved chunks
+- embedding_model (optional for method=embedding)
+
+Retrieved context is rendered in clearly separated sections, e.g. "Retrieved Previous Context". Rank and score are included when available.
 
 ### Document Structure
 
@@ -115,6 +140,21 @@ Now, we apply the Gather operation:
       head:
         count: 1
         content_key: agreement_text_chunk
+  retrieval_chunks:
+    previous:
+      method: embedding
+      k: 3
+      keys: [agreement_text_chunk]
+      query: |
+        Summarize the key terms referenced in:
+        {{ input.agreement_text_chunk }}
+      embedding_model: text-embedding-3-small
+      content_key: agreement_text_chunk
+    general:
+      method: fts
+      k: 2
+      keys: [agreement_text_chunk]
+      query: "representations warranties"
   doc_header_key: headers
 ```
 
@@ -169,6 +209,7 @@ The Gather operation includes several key components:
 - `order_key`: Specifies the sequence of chunks within a group
 - `content_key`: Indicates the field containing the chunk content
 - `peripheral_chunks`: Specifies how to include context from surrounding chunks
+- `retrieval_chunks` (optional): Specifies retrieval-based context blocks using top-k by embeddings or FTS
 - `doc_header_key` (optional): Denotes a field representing extracted headers for each chunk
 - `sample` (optional): Number of samples to use for the operation
 
@@ -246,16 +287,17 @@ This configuration would:
 
 4. **Consider Performance**: Including too much context can increase processing time and token usage. Use summaries and selective inclusion to optimize performance.
 
-By leveraging this flexible configuration, you can tailor the Gather operation to provide the most relevant context for your specific document processing needs, balancing completeness with efficiency.
+By leveraging sequential and retrieval configurations, you can tailor the Gather operation to provide the most relevant context for your specific document processing needs, balancing completeness with efficiency.
 
 ## Output
 
 The Gather operation adds a new field to each input document, named by appending "\_rendered" to the `content_key`. This field contains:
 
 1. The reconstructed header hierarchy (if applicable)
-2. Previous context (if any)
+2. Previous context (if any), plus optionally Retrieved Previous Context
 3. The main chunk, clearly marked
-4. Next context (if any)
+4. Next context (if any), plus optionally Retrieved Next Context
+6. Optionally a Retrieved General Context section
 5. Indications of skipped content between contexts
 
 !!! example "Sample Output for Merger Agreement"

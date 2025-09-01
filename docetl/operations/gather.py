@@ -25,7 +25,7 @@ class GatherOperation(BaseOperation):
         doc_id_key: str
         order_key: str
         peripheral_chunks: dict[str, Any] | None = None
-        retrieval_chunks: dict[str, Any] | None = None
+        retrieval: dict[str, Any] | None = None
         doc_header_key: str | None = None
         main_chunk_start: str | None = None
         main_chunk_end: str | None = None
@@ -46,46 +46,26 @@ class GatherOperation(BaseOperation):
                             )
             return v
 
-        @field_validator("retrieval_chunks")
-        def validate_retrieval_chunks(cls, v):
+        @field_validator("retrieval")
+        def validate_retrieval(cls, v):
             if v is None:
                 return v
-
-            valid_dirs = {"previous", "next", "general"}
-            for direction, cfg in v.items():
-                if direction not in valid_dirs:
-                    raise ValueError(
-                        f"Invalid retrieval direction '{direction}'. Use one of: previous, next, general"
-                    )
-                if not isinstance(cfg, dict):
-                    raise TypeError("Each retrieval config must be a dictionary")
-                for req in ["method", "k", "keys", "query"]:
-                    if req not in cfg:
-                        raise ValueError(
-                            f"Missing '{req}' in retrieval_chunks.{direction} configuration"
-                        )
-                if cfg["method"] not in {"embedding", "fts"}:
-                    raise ValueError(
-                        f"Invalid method '{cfg['method']}' in retrieval_chunks.{direction}. Use 'embedding' or 'fts'"
-                    )
-                k = cfg["k"]
-                if not isinstance(k, (int, float)) or k <= 0:
-                    raise ValueError(
-                        f"'k' in retrieval_chunks.{direction} must be a positive number"
-                    )
-                keys = cfg["keys"]
-                if not isinstance(keys, list) or not all(isinstance(x, str) for x in keys):
-                    raise TypeError(
-                        f"'keys' in retrieval_chunks.{direction} must be a list of strings"
-                    )
-                if "embedding_model" in cfg and not isinstance(cfg["embedding_model"], str):
-                    raise TypeError(
-                        f"'embedding_model' in retrieval_chunks.{direction} must be a string"
-                    )
-                if "content_key" in cfg and not isinstance(cfg["content_key"], str):
-                    raise TypeError(
-                        f"'content_key' in retrieval_chunks.{direction} must be a string"
-                    )
+            if not isinstance(v, dict):
+                raise TypeError("'retrieval' must be a dictionary")
+            for req in ["method", "k", "keys", "query"]:
+                if req not in v:
+                    raise ValueError(f"Missing '{req}' in retrieval configuration")
+            if v["method"] not in {"embedding", "fts"}:
+                raise ValueError("'retrieval.method' must be 'embedding' or 'fts'")
+            if not isinstance(v["k"], (int, float)) or v["k"] <= 0:
+                raise ValueError("'retrieval.k' must be a positive number")
+            keys = v["keys"]
+            if not isinstance(keys, list) or not all(isinstance(x, str) for x in keys):
+                raise TypeError("'retrieval.keys' must be a list of strings")
+            if "embedding_model" in v and not isinstance(v["embedding_model"], str):
+                raise TypeError("'retrieval.embedding_model' must be a string")
+            if "content_key" in v and not isinstance(v["content_key"], str):
+                raise TypeError("'retrieval.content_key' must be a string")
             return v
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -117,7 +97,7 @@ class GatherOperation(BaseOperation):
         doc_id_key = self.config["doc_id_key"]
         order_key = self.config["order_key"]
         peripheral_config = self.config.get("peripheral_chunks", {})
-        retrieval_config = self.config.get("retrieval_chunks", {}) or {}
+        retrieval_config = self.config.get("retrieval", {}) or {}
         main_chunk_start = self.config.get(
             "main_chunk_start", "--- Begin Main Chunk ---"
         )
@@ -204,21 +184,21 @@ class GatherOperation(BaseOperation):
                 order_key,
             )
         )
-        # Retrieved previous context
-        if retrieval_config.get("previous"):
-            prev_lines, c = self._retrieve_and_render_section(
-                direction="previous",
-                candidate_chunks=chunks[:current_index],
-                retrieval_cfg=retrieval_config["previous"],
+        # Retrieved context (position-agnostic) - include here if desired before main
+        if retrieval_config:
+            candidates_prev = chunks[:current_index]
+            retrieved_lines_prev, c = self._retrieve_and_render(
+                candidate_chunks=candidates_prev,
+                retrieval_cfg=retrieval_config,
                 main_chunk=chunks[current_index],
                 content_key=content_key,
                 order_key=order_key,
             )
             total_cost += c
-            if prev_lines:
-                combined_parts.append("--- Retrieved Previous Context ---")
-                combined_parts.extend(prev_lines)
-                combined_parts.append("--- End Retrieved Previous Context ---")
+            if retrieved_lines_prev:
+                combined_parts.append("--- Retrieved Context ---")
+                combined_parts.extend(retrieved_lines_prev)
+                combined_parts.append("--- End Retrieved Context ---")
 
         combined_parts.append("--- End Previous Context ---\n")
 
@@ -244,40 +224,39 @@ class GatherOperation(BaseOperation):
                 order_key,
             )
         )
-        # Retrieved next context
-        if retrieval_config.get("next"):
-            next_lines, c = self._retrieve_and_render_section(
-                direction="next",
-                candidate_chunks=chunks[current_index + 1 :],
-                retrieval_cfg=retrieval_config["next"],
+        # Retrieved context (position-agnostic) - include here if desired after main
+        if retrieval_config:
+            candidates_next = chunks[current_index + 1 :]
+            retrieved_lines_next, c = self._retrieve_and_render(
+                candidate_chunks=candidates_next,
+                retrieval_cfg=retrieval_config,
                 main_chunk=chunks[current_index],
                 content_key=content_key,
                 order_key=order_key,
             )
             total_cost += c
-            if next_lines:
-                combined_parts.append("--- Retrieved Next Context ---")
-                combined_parts.extend(next_lines)
-                combined_parts.append("--- End Retrieved Next Context ---")
+            if retrieved_lines_next:
+                combined_parts.append("--- Retrieved Context ---")
+                combined_parts.extend(retrieved_lines_next)
+                combined_parts.append("--- End Retrieved Context ---")
 
         combined_parts.append("--- End Next Context ---")
 
-        # Retrieved general context (across the document, excluding current chunk)
-        if retrieval_config.get("general"):
+        # Retrieved context across the document (excluding current chunk)
+        if retrieval_config:
             general_candidates = chunks[:current_index] + chunks[current_index + 1 :]
-            gen_lines, c = self._retrieve_and_render_section(
-                direction="general",
+            gen_lines, c = self._retrieve_and_render(
                 candidate_chunks=general_candidates,
-                retrieval_cfg=retrieval_config["general"],
+                retrieval_cfg=retrieval_config,
                 main_chunk=chunks[current_index],
                 content_key=content_key,
                 order_key=order_key,
             )
             total_cost += c
             if gen_lines:
-                combined_parts.append("\n--- Retrieved General Context ---")
+                combined_parts.append("\n--- Retrieved Context ---")
                 combined_parts.extend(gen_lines)
-                combined_parts.append("--- End Retrieved General Context ---")
+                combined_parts.append("--- End Retrieved Context ---")
 
         return "\n".join(combined_parts), total_cost
 
@@ -360,9 +339,8 @@ class GatherOperation(BaseOperation):
 
         return processed_parts
 
-    def _retrieve_and_render_section(
+    def _retrieve_and_render(
         self,
-        direction: str,
         candidate_chunks: list[dict],
         retrieval_cfg: dict,
         main_chunk: dict,
@@ -370,18 +348,7 @@ class GatherOperation(BaseOperation):
         order_key: str,
     ) -> tuple[list[str], float]:
         """
-        Retrieve top-k relevant chunks from candidates and render them as lines.
-
-        Args:
-            direction: One of "previous", "next", "general"
-            candidate_chunks: Subset of chunks to retrieve from
-            retrieval_cfg: Configuration dict for retrieval (method, k, keys, query, ...)
-            main_chunk: The current/main chunk (used for query templating)
-            content_key: Default content key to render
-            order_key: Key indicating chunk order
-
-        Returns:
-            Tuple of (rendered_lines, cost)
+        Retrieve top-k relevant chunks from candidates and render them as lines (position-agnostic).
         """
         if not candidate_chunks:
             return [], 0.0
@@ -398,7 +365,7 @@ class GatherOperation(BaseOperation):
         k = retrieval_cfg.get("k")
         keys = retrieval_cfg.get("keys", [])
         sample_config = {
-            "name": f"gather_retrieve_{direction}",
+            "name": "gather_retrieve",
             "type": "sample",
             "method": "top_embedding" if method == "embedding" else "top_fts",
             "samples": k,

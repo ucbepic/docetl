@@ -33,14 +33,19 @@ Peripheral context refers to the surrounding text or information that helps prov
 - Document structure information, such as article or section headers
 - Summarized versions of nearby chunks for efficient context provision
 
-### Retrieval Context (optional, position-agnostic)
+### Retrieval Context via `peripheral_chunks.general` (optional)
 
-In addition to sequential context, Gather can augment each main chunk with top-k relevant chunks selected across the entire document (excluding the main chunk), using:
+In addition to sequential context, Gather can augment each main chunk with top-k relevant chunks selected across the entire document (excluding the main chunk). Configure this retrieval under `peripheral_chunks.general`:
 
-- Embedding similarity (semantic): method: embedding
-- Full-text search (keyword): method: fts (BM25 with TF-IDF fallback)
+- `method`: `embedding` (semantic) or `fts` (keyword/BM25)
+- `k`: integer or float (proportion of candidates)
+- `method_kwargs`: method-specific kwargs, including:
+  - `keys`: list of fields used to build text/embeddings
+  - `query`: retrieval query (can be templated with {{ input.<field> }})
+  - `embedding_model` (for `embedding`): model name
+  - optional `content_key` at top-level to choose rendering field
 
-Configure a single `retrieval` block; results appear in a unified "Retrieved Context" section. Rank/score are included when available.
+Retrieved results appear in a unified "Retrieved Context" section. Rank/score are included when available.
 
 ### Document Structure
 
@@ -125,15 +130,16 @@ Now, we apply the Gather operation:
       head:
         count: 1
         content_key: agreement_text_chunk
-  retrieval:
-    method: embedding
-    k: 3
-    keys: [agreement_text_chunk]
-    query: |
-      Summarize the key terms referenced in:
-      {{ input.agreement_text_chunk }}
-    embedding_model: text-embedding-3-small
-    content_key: agreement_text_chunk
+    general:
+      method: embedding
+      k: 3
+      content_key: agreement_text_chunk
+      method_kwargs:
+        keys: [agreement_text_chunk]
+        query: |
+          Summarize the key terms referenced in:
+          {{ input.agreement_text_chunk }}
+        embedding_model: text-embedding-3-small
   doc_header_key: headers
 ```
 

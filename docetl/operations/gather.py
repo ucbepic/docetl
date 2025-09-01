@@ -25,7 +25,6 @@ class GatherOperation(BaseOperation):
         doc_id_key: str
         order_key: str
         peripheral_chunks: dict[str, Any] | None = None
-        retrieval: dict[str, Any] | None = None
         doc_header_key: str | None = None
         main_chunk_start: str | None = None
         main_chunk_end: str | None = None
@@ -44,28 +43,51 @@ class GatherOperation(BaseOperation):
                             raise ValueError(
                                 f"Missing 'count' in {direction}.{section} configuration"
                             )
-            return v
-
-        @field_validator("retrieval")
-        def validate_retrieval(cls, v):
-            if v is None:
-                return v
-            if not isinstance(v, dict):
-                raise TypeError("'retrieval' must be a dictionary")
-            for req in ["method", "k", "keys", "query"]:
-                if req not in v:
-                    raise ValueError(f"Missing '{req}' in retrieval configuration")
-            if v["method"] not in {"embedding", "fts"}:
-                raise ValueError("'retrieval.method' must be 'embedding' or 'fts'")
-            if not isinstance(v["k"], (int, float)) or v["k"] <= 0:
-                raise ValueError("'retrieval.k' must be a positive number")
-            keys = v["keys"]
-            if not isinstance(keys, list) or not all(isinstance(x, str) for x in keys):
-                raise TypeError("'retrieval.keys' must be a list of strings")
-            if "embedding_model" in v and not isinstance(v["embedding_model"], str):
-                raise TypeError("'retrieval.embedding_model' must be a string")
-            if "content_key" in v and not isinstance(v["content_key"], str):
-                raise TypeError("'retrieval.content_key' must be a string")
+            # Validate general retrieval spec if provided
+            if "general" in v and v["general"] is not None:
+                general_cfg = v["general"]
+                if not isinstance(general_cfg, dict):
+                    raise TypeError("'peripheral_chunks.general' must be a dictionary")
+                # Required fields
+                for req in ["method", "k", "method_kwargs"]:
+                    if req not in general_cfg:
+                        raise ValueError(
+                            f"Missing '{req}' in peripheral_chunks.general configuration"
+                        )
+                # Validate method
+                if general_cfg["method"] not in {"embedding", "fts"}:
+                    raise ValueError(
+                        "peripheral_chunks.general.method must be 'embedding' or 'fts'"
+                    )
+                # Validate k
+                k = general_cfg["k"]
+                if not isinstance(k, (int, float)) or k <= 0:
+                    raise ValueError(
+                        "peripheral_chunks.general.k must be a positive number"
+                    )
+                # Validate method_kwargs
+                mk = general_cfg["method_kwargs"]
+                if not isinstance(mk, dict):
+                    raise TypeError("peripheral_chunks.general.method_kwargs must be a dict")
+                # Common requirements for our retrieval methods
+                for req in ["keys", "query"]:
+                    if req not in mk:
+                        raise ValueError(
+                            f"Missing '{req}' in peripheral_chunks.general.method_kwargs"
+                        )
+                # Optional content_key and embedding_model types
+                if "content_key" in general_cfg and not isinstance(general_cfg["content_key"], str):
+                    raise TypeError(
+                        "peripheral_chunks.general.content_key must be a string"
+                    )
+                if (
+                    general_cfg["method"] == "embedding"
+                    and "embedding_model" in mk
+                    and not isinstance(mk["embedding_model"], str)
+                ):
+                    raise TypeError(
+                        "peripheral_chunks.general.method_kwargs.embedding_model must be a string"
+                    )
             return v
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -97,7 +119,7 @@ class GatherOperation(BaseOperation):
         doc_id_key = self.config["doc_id_key"]
         order_key = self.config["order_key"]
         peripheral_config = self.config.get("peripheral_chunks", {})
-        retrieval_config = self.config.get("retrieval", {}) or {}
+        retrieval_config = {}
         main_chunk_start = self.config.get(
             "main_chunk_start", "--- Begin Main Chunk ---"
         )
@@ -184,12 +206,12 @@ class GatherOperation(BaseOperation):
                 order_key,
             )
         )
-        # Retrieved context (position-agnostic) - include here if desired before main
-        if retrieval_config:
+        # Retrieved "general" context (position-agnostic) - include before main
+        if peripheral_config.get("general"):
             candidates_prev = chunks[:current_index]
             retrieved_lines_prev, c = self._retrieve_and_render(
                 candidate_chunks=candidates_prev,
-                retrieval_cfg=retrieval_config,
+                retrieval_cfg=peripheral_config["general"],
                 main_chunk=chunks[current_index],
                 content_key=content_key,
                 order_key=order_key,
@@ -224,12 +246,12 @@ class GatherOperation(BaseOperation):
                 order_key,
             )
         )
-        # Retrieved context (position-agnostic) - include here if desired after main
-        if retrieval_config:
+        # Retrieved "general" context (position-agnostic) - include after main
+        if peripheral_config.get("general"):
             candidates_next = chunks[current_index + 1 :]
             retrieved_lines_next, c = self._retrieve_and_render(
                 candidate_chunks=candidates_next,
-                retrieval_cfg=retrieval_config,
+                retrieval_cfg=peripheral_config["general"],
                 main_chunk=chunks[current_index],
                 content_key=content_key,
                 order_key=order_key,
@@ -243,11 +265,11 @@ class GatherOperation(BaseOperation):
         combined_parts.append("--- End Next Context ---")
 
         # Retrieved context across the document (excluding current chunk)
-        if retrieval_config:
+        if peripheral_config.get("general"):
             general_candidates = chunks[:current_index] + chunks[current_index + 1 :]
             gen_lines, c = self._retrieve_and_render(
                 candidate_chunks=general_candidates,
-                retrieval_cfg=retrieval_config,
+                retrieval_cfg=peripheral_config["general"],
                 main_chunk=chunks[current_index],
                 content_key=content_key,
                 order_key=order_key,

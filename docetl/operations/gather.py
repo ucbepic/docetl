@@ -2,9 +2,9 @@ from typing import Any
 
 from pydantic import field_validator
 
+import numpy as np
 from docetl.operations.base import BaseOperation
-from docetl.operations.sample import SampleOperation
-from docetl.operations.utils import strict_render
+from docetl.operations.clustering_utils import get_embeddings_for_clustering
 
 
 class GatherOperation(BaseOperation):
@@ -69,25 +69,26 @@ class GatherOperation(BaseOperation):
                 mk = general_cfg["method_kwargs"]
                 if not isinstance(mk, dict):
                     raise TypeError("peripheral_chunks.general.method_kwargs must be a dict")
-                # Common requirements for our retrieval methods
-                for req in ["keys", "query"]:
-                    if req not in mk:
-                        raise ValueError(
-                            f"Missing '{req}' in peripheral_chunks.general.method_kwargs"
-                        )
+                # Required for similarity computation
+                if "keys_for_similarity" not in mk:
+                    raise ValueError(
+                        "Missing 'keys_for_similarity' in peripheral_chunks.general.method_kwargs"
+                    )
+                kfs = mk["keys_for_similarity"]
+                if not isinstance(kfs, list) or not all(isinstance(x, str) for x in kfs):
+                    raise TypeError(
+                        "peripheral_chunks.general.method_kwargs.keys_for_similarity must be a list of strings"
+                    )
                 # Optional content_key and embedding_model types
                 if "content_key" in general_cfg and not isinstance(general_cfg["content_key"], str):
                     raise TypeError(
                         "peripheral_chunks.general.content_key must be a string"
                     )
-                if (
-                    general_cfg["method"] == "embedding"
-                    and "embedding_model" in mk
-                    and not isinstance(mk["embedding_model"], str)
-                ):
-                    raise TypeError(
-                        "peripheral_chunks.general.method_kwargs.embedding_model must be a string"
-                    )
+                if general_cfg["method"] == "embedding":
+                    if "embedding_model" in mk and not isinstance(mk["embedding_model"], str):
+                        raise TypeError(
+                            "peripheral_chunks.general.method_kwargs.embedding_model must be a string"
+                        )
             return v
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -209,7 +210,7 @@ class GatherOperation(BaseOperation):
         # Retrieved "general" context (position-agnostic) - include before main
         if peripheral_config.get("general"):
             candidates_prev = chunks[:current_index]
-            retrieved_lines_prev, c = self._retrieve_and_render(
+            retrieved_lines_prev, c = self._retrieve_topk_similar(
                 candidate_chunks=candidates_prev,
                 retrieval_cfg=peripheral_config["general"],
                 main_chunk=chunks[current_index],
@@ -249,7 +250,7 @@ class GatherOperation(BaseOperation):
         # Retrieved "general" context (position-agnostic) - include after main
         if peripheral_config.get("general"):
             candidates_next = chunks[current_index + 1 :]
-            retrieved_lines_next, c = self._retrieve_and_render(
+            retrieved_lines_next, c = self._retrieve_topk_similar(
                 candidate_chunks=candidates_next,
                 retrieval_cfg=peripheral_config["general"],
                 main_chunk=chunks[current_index],
@@ -267,7 +268,7 @@ class GatherOperation(BaseOperation):
         # Retrieved context across the document (excluding current chunk)
         if peripheral_config.get("general"):
             general_candidates = chunks[:current_index] + chunks[current_index + 1 :]
-            gen_lines, c = self._retrieve_and_render(
+            gen_lines, c = self._retrieve_topk_similar(
                 candidate_chunks=general_candidates,
                 retrieval_cfg=peripheral_config["general"],
                 main_chunk=chunks[current_index],
@@ -361,7 +362,7 @@ class GatherOperation(BaseOperation):
 
         return processed_parts
 
-    def _retrieve_and_render(
+    def _retrieve_topk_similar(
         self,
         candidate_chunks: list[dict],
         retrieval_cfg: dict,
@@ -370,56 +371,111 @@ class GatherOperation(BaseOperation):
         order_key: str,
     ) -> tuple[list[str], float]:
         """
-        Retrieve top-k relevant chunks from candidates and render them as lines (position-agnostic).
+        Compute top-k similar chunks to the main chunk from candidates using
+        either embedding similarity or FTS (BM25-like), without using SampleOperation.
         """
         if not candidate_chunks:
             return [], 0.0
 
-        # Resolve query with the main chunk as context if templated
-        query_template = retrieval_cfg.get("query", "")
-        if "{{" in query_template and "}}" in query_template:
-            query = strict_render(query_template, {"input": main_chunk})
-        else:
-            query = query_template
-
-        # Build SampleOperation config
         method = retrieval_cfg.get("method", "embedding")
-        k = retrieval_cfg.get("k")
-        keys = retrieval_cfg.get("keys", [])
-        sample_config = {
-            "name": "gather_retrieve",
-            "type": "sample",
-            "method": "top_embedding" if method == "embedding" else "top_fts",
-            "samples": k,
-            "method_kwargs": {"keys": keys, "query": query},
-        }
-
-        if method == "embedding" and "embedding_model" in retrieval_cfg:
-            sample_config["method_kwargs"][
-                "embedding_model"
-            ] = retrieval_cfg["embedding_model"]
-
-        sample_op = SampleOperation(
-            self.runner, sample_config, self.default_model, self.max_threads
-        )
-        retrieved, cost = sample_op.execute(candidate_chunks, is_build=False)
-
+        k_conf = retrieval_cfg.get("k", 1)
+        method_kwargs = retrieval_cfg.get("method_kwargs", {})
+        keys_for_similarity = method_kwargs.get("keys_for_similarity", [])
         render_key = retrieval_cfg.get("content_key", content_key)
-        rendered_lines: list[str] = []
-        op_name = sample_config["name"]
-        rank_field = f"_{op_name}_rank"
-        score_field = f"_{op_name}_score"
-        for item in retrieved:
-            rank_part = f" Rank {item.get(rank_field)}" if rank_field in item else ""
-            score_part = (
-                f" score={item.get(score_field):.4f}"
-                if score_field in item and isinstance(item.get(score_field), (int, float))
-                else ""
-            )
-            prefix = f"[Chunk {item.get(order_key, '?')} (Retrieved){rank_part}{score_part}]"
-            rendered_lines.extend((prefix, f"{item.get(render_key, '')}"))
 
-        return rendered_lines, cost
+        # Determine k number
+        if isinstance(k_conf, float):
+            k = max(1, int(k_conf * len(candidate_chunks)))
+        else:
+            k = min(int(k_conf), len(candidate_chunks))
+
+        # Build text for candidates and main
+        def join_keys(doc: dict) -> str:
+            return " ".join(str(doc.get(key, "")) for key in keys_for_similarity)
+
+        if method == "embedding":
+            embedding_config = {
+                "embedding_keys": keys_for_similarity,
+                "embedding_model": method_kwargs.get("embedding_model", "text-embedding-3-small"),
+            }
+            # Get embeddings for candidates and main
+            all_docs = candidate_chunks + [main_chunk]
+            embeddings, cost = get_embeddings_for_clustering(
+                all_docs, embedding_config, self.runner.api
+            )
+            embeddings = np.array(embeddings)
+            cand_embeddings = embeddings[:-1]
+            main_embedding = embeddings[-1]
+
+            # Normalize and compute cosine similarity
+            cand_norm = cand_embeddings / np.linalg.norm(cand_embeddings, axis=1, keepdims=True)
+            main_norm = main_embedding / np.linalg.norm(main_embedding)
+            scores = cand_norm.dot(main_norm)
+
+            # Top-k indices
+            top_idx = np.argsort(scores)[-k:][::-1]
+            selected = [(candidate_chunks[i], float(scores[i])) for i in top_idx]
+        else:
+            # FTS BM25 with fallback
+            try:
+                from rank_bm25 import BM25Okapi
+                import re
+
+                def preprocess(text: str) -> list[str]:
+                    text = text.lower()
+                    text = re.sub(r"[^a-z0-9\s]", " ", text)
+                    text = re.sub(r"\s+", " ", text).strip()
+                    return text.split()
+
+                tokenized_docs = [preprocess(join_keys(doc)) for doc in candidate_chunks]
+                bm25 = BM25Okapi(tokenized_docs)
+                main_tokens = preprocess(join_keys(main_chunk))
+                scores = bm25.get_scores(main_tokens)
+                top_idx = np.argsort(scores)[-k:][::-1]
+                selected = [(candidate_chunks[i], float(scores[i])) for i in top_idx]
+                cost = 0.0
+            except ImportError:
+                # TF-IDF cosine fallback
+                import re
+                from sklearn.feature_extraction.text import TfidfVectorizer
+                from sklearn.metrics.pairwise import cosine_similarity
+
+                def normalize_text(text: str) -> str:
+                    text = text.lower()
+                    text = re.sub(r"\s+", " ", text)
+                    text = re.sub(r"[^a-z0-9\s]", " ", text)
+                    return text.strip()
+
+                documents = [normalize_text(join_keys(doc)) for doc in candidate_chunks]
+                main_text = normalize_text(join_keys(main_chunk))
+                if not any(documents):
+                    return [], 0.0
+                try:
+                    vec = TfidfVectorizer(
+                        lowercase=True,
+                        stop_words="english",
+                        ngram_range=(1, 1),
+                        max_features=10000,
+                        token_pattern=r"\b[a-z0-9]+\b",
+                        min_df=1,
+                        max_df=0.95,
+                    )
+                    tfidf = vec.fit_transform(documents)
+                    main_vec = vec.transform([main_text])
+                    sims = cosine_similarity(main_vec, tfidf).flatten()
+                    top_idx = np.argsort(sims)[-k:][::-1]
+                    selected = [(candidate_chunks[i], float(sims[i])) for i in top_idx]
+                except ValueError:
+                    return [], 0.0
+                cost = 0.0
+
+        # Render
+        lines: list[str] = []
+        for rank, (item, score) in enumerate(selected, 1):
+            prefix = f"[Chunk {item.get(order_key, '?')} (Retrieved) Rank {rank} score={score:.4f}]"
+            lines.extend((prefix, f"{item.get(render_key, '')}"))
+
+        return lines, cost
 
     def render_hierarchy_headers(
         self,

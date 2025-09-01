@@ -40,8 +40,7 @@ In addition to sequential context, Gather can augment each main chunk with top-k
 - `method`: `embedding` (semantic) or `fts` (keyword/BM25)
 - `k`: integer or float (proportion of candidates)
 - `method_kwargs`: method-specific kwargs, including:
-  - `keys`: list of fields used to build text/embeddings
-  - `query`: retrieval query (can be templated with {{ input.<field> }})
+  - `keys_for_similarity`: list of fields used to build text/embeddings
   - `embedding_model` (for `embedding`): model name
   - optional `content_key` at top-level to choose rendering field
 
@@ -135,10 +134,7 @@ Now, we apply the Gather operation:
       k: 3
       content_key: agreement_text_chunk
       method_kwargs:
-        keys: [agreement_text_chunk]
-        query: |
-          Summarize the key terms referenced in:
-          {{ input.agreement_text_chunk }}
+        keys_for_similarity: [agreement_text_chunk]
         embedding_model: text-embedding-3-small
   doc_header_key: headers
 ```

@@ -31,7 +31,7 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Copy environment file
-        run: cp .env.sample .env
+        run: cp .env.example .env
 
       - name: Install dependencies
         run: |

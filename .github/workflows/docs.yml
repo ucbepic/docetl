@@ -24,7 +24,7 @@
             echo "$HOME/.local/bin" >> $GITHUB_PATH
             uv sync --group dev
         - name: Copy environment file
-          run: cp .env.sample .env
+          run: cp .env.example .env
         - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
         - uses: actions/cache@v4
           with:

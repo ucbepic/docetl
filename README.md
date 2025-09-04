@@ -43,8 +43,8 @@ There are two main ways to use DocETL:
 ![DocWrangler](docs/assets/tutorial/one-operation.png)
 
 DocWrangler is hosted at [docetl.org/playground](https://docetl.org/playground). But to run the playground locally, you can either:
-- Use Docker (recommended for quick start): `make docker`
 - Set up the development environment manually
+- Use Docker: `make docker`
 
 See the [Playground Setup Guide](https://ucbepic.github.io/docetl/playground/) for detailed instructions.
 
@@ -75,43 +75,15 @@ To see examples of how to use DocETL, check out the [tutorial](https://ucbepic.g
 
 To run DocWrangler locally, you have two options:
 
-#### Option A: Using Docker (Recommended for Quick Start)
+#### Option A: Using Docker
 
-The easiest way to get the DocWrangler playground running:
+The easiest way to get the DocWrangler playground running, assuming you already have Docker installed and are running Docker Desktop:
 
 1. Create the required environment files:
 
-Create `.env` in the root directory (for the backend Python server that executes pipelines):
-```bash
-OPENAI_API_KEY=your_api_key_here  # Used by DocETL pipeline execution engine
-# BACKEND configuration
-BACKEND_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-BACKEND_HOST=localhost
-BACKEND_PORT=8000
-BACKEND_RELOAD=True
+Create `.env` in the root directory (for the backend Python server that executes pipelines), based on the `.env.example` file.
 
-# FRONTEND configuration
-FRONTEND_HOST=0.0.0.0
-FRONTEND_PORT=3000
-
-# Host port mapping for docker-compose (if not set, defaults are used in docker-compose.yml)
-FRONTEND_DOCKER_COMPOSE_PORT=3031
-BACKEND_DOCKER_COMPOSE_PORT=8081
-
-# Supported text file encodings
-TEXT_FILE_ENCODINGS=utf-8,latin1,cp1252,iso-8859-1
-```
-
-Create `.env.local` in the `website` directory (for DocWrangler UI features like improve prompt and chatbot):
-```bash
-OPENAI_API_KEY=sk-xxx  # Used by TypeScript features: improve prompt, chatbot, etc.
-OPENAI_API_BASE=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini  # Model used by the UI assistant
-
-NEXT_PUBLIC_BACKEND_HOST=localhost
-NEXT_PUBLIC_BACKEND_PORT=8000
-NEXT_PUBLIC_HOSTED_DOCWRANGLER=false
-```
+Create `.env.local` in the `website` directory (for DocWrangler UI features like improve prompt and chatbot), based on the `.env.local.example` file.
 
 2. Run Docker:
 ```bash

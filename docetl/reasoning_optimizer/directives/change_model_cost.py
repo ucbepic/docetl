@@ -21,7 +21,66 @@ MODEL_STATS = {
         "gemini-2.5-pro": {"acc": 0.7174635945681389, "cost": 2.820552},
         "gemini-2.5-flash": {"acc": 0.7170929338182611, "cost": 1.032156},
         "gemini-2.5-flash-lite": {"acc": 0.6087973440184378, "cost": 0.097669},
-    }
+    },
+    "medec": {
+        "gpt-5": {"acc": 0.7724715715510082, "cost": 1.008255},
+        "gpt-5-mini": {"acc": 0.6665255825243509, "cost": 0.120811},
+        "gpt-5-nano": {"acc": 0.6419064045434841, "cost": 0.062694},
+        "gpt-4.1": {"acc": 0.6582786810593204, "cost": 0.099804},
+        "gpt-4.1-mini": {"acc": 0.5130606013669332, "cost": 0.019399},
+        "gpt-4.1-nano": {"acc": 0.5011682624970316, "cost": 0.004886},
+        "gpt-4o": {"acc": 0.6638914672336493, "cost": 0.135778},
+        "gpt-4o-mini": {"acc": 0.6038406827744512, "cost": 0.008168},
+        "gemini-2.5-pro": {"acc": 0.7482653668131851, "cost": 0.689124},
+        "gemini-2.5-flash-lite": {"acc": 0.3601489578058821, "cost": 0.005106},
+    },
+    "biodex": {
+        "gpt-5": {"acc": 0.35962962962962963, "cost": 10.06},
+        "gpt-5-mini": {"acc": 0.3256666666666666, "cost": 2.24},
+        "gpt-5-nano": {"acc": 0.2913333333333333, "cost": 0.45},
+        "gpt-4.1": {"acc": 0.273, "cost": 15.41},
+        "gpt-4.1-mini": {"acc": 0.24600000000000002, "cost": 3.08},
+        "gpt-4.1-nano": {"acc": 0.15433333333333335, "cost": 0.77},
+        "gpt-4o": {"acc": 0.206, "cost": 17.57},
+        "gpt-4o-mini": {"acc": 0.27033333333333326, "cost": 1.05},
+        "gemini-2.5-flash-lite": {"acc": 0.19866666666666666, "cost": 0.71},
+    },
+    "sustainability": {
+        "gpt-5": {"acc": 0.52, "cost": 8.100397},
+        "gpt-5-mini": {"acc": 0.5517241379310345, "cost": 1.608668},
+        "gpt-5-nano": {"acc": 0.48148148148148145, "cost": 0.36},
+        "gpt-4.1": {"acc": 0.5454545454545454, "cost": 14.88},
+        "gpt-4.1-mini": {"acc": 0.6521739130434783, "cost": 2.849562},
+        "gpt-4.1-nano": {"acc": 0.4666666666666667, "cost": 0.74},
+        "gpt-4o": {"acc": 0.7142857142857143, "cost": 13.23},
+        "gpt-4o-mini": {"acc": 0.5, "cost": 0.82},
+        "gemini-2.5-pro": {"acc": 0.5869565217391305, "cost": 16.68},
+        "gemini-2.5-flash": {"acc": 0.5714285714285714, "cost": 2.852281},
+        "gemini-2.5-flash-lite": {"acc": 0.7692307692307693, "cost": 0.795008},
+    },
+    "blackvault": {
+        "gpt-5": {"acc": 2.58974358974359, "cost": 2.607966},
+        "gpt-5-mini": {"acc": 7.682926829268292, "cost": 0.412403},
+        "gpt-5-nano": {"acc": 4.703703703703703, "cost": 0.111214},
+        "gpt-4.1": {"acc": 8.764705882352942, "cost": 2.449074},
+        "gpt-4.1-nano": {"acc": 0.967741935483871, "cost": 0.125311},
+        "gpt-4o": {"acc": 9.875, "cost": 2.934132},
+        "gpt-4o-mini": {"acc": 6.5625, "cost": 0.174887},
+        "gemini-2.5-pro": {"acc": 16.863636363636363, "cost": 3.129470},
+    },
+    "game_reviews": {
+        "gpt-5": {"acc": 0.7240131578947369, "cost": 6.560770},
+        "gpt-5-mini": {"acc": 0.7276842105263159, "cost": 1.370671},
+        "gpt-5-nano": {"acc": 0.7291378138974889, "cost": 0.464833},
+        "gpt-4.1": {"acc": 0.7164704162366701, "cost": 8.729372},
+        "gpt-4.1-mini": {"acc": 0.5850613521325596, "cost": 1.735382},
+        "gpt-4.1-nano": {"acc": 0.5001233000745384, "cost": 0.445612},
+        "gpt-4o": {"acc": 0.6224749823619792, "cost": 10.044458},
+        "gpt-4o-mini": {"acc": 0.4558171816143953, "cost": 0.602058},
+        "gemini-2.5-pro": {"acc": 0.72196783625731, "cost": 10.528458},
+        "gemini-2.5-flash-lite": {"acc": 0.6054982297865206, "cost": 0.497641},
+    },
+    
 }
 
 FRONTIER_MODELS = {
@@ -31,6 +90,36 @@ FRONTIER_MODELS = {
         "gpt-4.1-mini",
         "gemini-2.5-flash",
         "gpt-4.1",
+    },
+    "medec": {
+        "gpt-4.1-nano",
+        "gpt-4o-mini",
+        "gpt-5-nano",
+        "gpt-4.1",
+        "gpt-5-mini",
+        "gemini-2.5-pro",
+        "gpt-5",
+    },
+    "biodex": {
+        "gpt-5-nano",
+        "gpt-5",
+        "gpt-5-mini",
+    },
+    "sustainability": {
+        "gpt-5-nano",
+        "gemini-2.5-flash-lite",
+    },
+    "blackvault": {
+        "gpt-5-nano",
+        "gpt-4o-mini",
+        "gpt-5-mini",
+        "gpt-4.1",
+        "gpt-4o",
+        "gemini-2.5-pro",
+    },
+    "game_reviews": {
+        "gpt-4.1-nano",
+        "gpt-5-nano"
     }
 }
 
@@ -48,6 +137,64 @@ MODEL_COSTS = {
         "gemini-2.5-pro": 2.820552,
         "gemini-2.5-flash": 1.032156,
         "gemini-2.5-flash-lite": 0.097669,
+    },
+    "medec": {
+        "gpt-5": 1.008255,
+        "gpt-5-mini": 0.120811,
+        "gpt-5-nano": 0.062694,
+        "gpt-4.1": 0.099804,
+        "gpt-4.1-mini": 0.019399,
+        "gpt-4.1-nano": 0.004886,
+        "gpt-4o": 0.135778,
+        "gpt-4o-mini": 0.008168,
+        "gemini-2.5-pro": 0.689124,
+        "gemini-2.5-flash-lite": 0.005106,
+    },
+    "biodex": {
+        "gpt-5": 10.06,
+        "gpt-5-mini": 2.24,
+        "gpt-5-nano": 0.45,
+        "gpt-4.1": 15.41,
+        "gpt-4.1-mini": 3.08,
+        "gpt-4.1-nano": 0.77,
+        "gpt-4o": 17.57,
+        "gpt-4o-mini": 1.05,
+        "gemini-2.5-flash-lite": 0.71,
+    },
+    "sustainability": {
+        "gpt-5": 8.100397,
+        "gpt-5-mini": 1.608668,
+        "gpt-5-nano": 0.36,
+        "gpt-4.1": 14.88,
+        "gpt-4.1-mini": 2.849562,
+        "gpt-4.1-nano": 0.74,
+        "gpt-4o": 13.23,
+        "gpt-4o-mini": 0.82,
+        "gemini-2.5-pro": 16.68,
+        "gemini-2.5-flash": 2.852281,
+        "gemini-2.5-flash-lite": 0.795008,
+    },
+    "blackvault": {
+        "gpt-5": 2.607966,
+        "gpt-5-mini": 0.412403,
+        "gpt-5-nano": 0.111214,
+        "gpt-4.1": 2.449074,
+        "gpt-4.1-nano": 0.125311,
+        "gpt-4o": 2.934132,
+        "gpt-4o-mini": 0.174887,
+        "gemini-2.5-pro": 3.129470,
+    },
+    "game_reviews": {
+        "gpt-5": 6.560770,
+        "gpt-5-mini": 1.370671,
+        "gpt-5-nano": 0.464833,
+        "gpt-4.1": 8.729372,
+        "gpt-4.1-mini": 1.735382,
+        "gpt-4.1-nano": 0.445612,
+        "gpt-4o": 10.044458,
+        "gpt-4o-mini": 0.602058,
+        "gemini-2.5-pro": 10.528458,
+        "gemini-2.5-flash-lite": 0.497641,
     }
 }
 
@@ -58,6 +205,36 @@ first_layer_yaml_paths = {
         "gpt_4.1_mini_config.yaml",
         "gemini_2.5_flash_config.yaml",
         "gpt_4.1_config.yaml",
+    ],
+    "medec": [
+        "gpt_4.1_nano_config.yaml",
+        "gpt_4o_mini_config.yaml",
+        "gpt_5_nano_config.yaml",
+        "gpt_4.1_config.yaml",
+        "gpt_5_mini_config.yaml",
+        "gemini_2.5_pro_config.yaml",
+        "gpt_5_config.yaml",
+    ],
+    "biodex": [
+        "gpt_5_nano_config.yaml",
+        "gpt_5_config.yaml",
+        "gpt_5_mini_config.yaml",
+    ],
+    "sustainability": [
+        "gpt_5_nano_config.yaml",
+        "gemini_2.5_flash_lite_config.yaml",
+    ],
+    "blackvault": [
+        "gpt_5_nano_config.yaml",
+        "gpt_4o_mini_config.yaml",
+        "gpt_5_mini_config.yaml",
+        "gpt_4.1_config.yaml",
+        "gpt_4o_config.yaml",
+        "gemini_2.5_pro_config.yaml",
+    ],
+    "game_reviews": [
+        "gpt_4.1_nano_config.yaml",
+        "gpt_5_nano_config.yaml",
     ]
 }
 
@@ -87,25 +264,14 @@ from .base import (
 )
 
 
-def get_model_specific_directives_for_operation(op_config: Dict, dataset: str) -> List['ChangeModelCostDirective']:
-    """Get model-specific directives for an operation based on its current model."""
-    current_model = op_config.get("model", "gpt-5")  # Default model
-    return create_model_specific_directives(current_model, dataset)
-
-
-def create_model_specific_directives(current_model: str, dataset: str) -> List['ChangeModelCostDirective']:
-    """Create model-specific directives for models cheaper than the current model."""
-    cheaper_models = get_cheaper_models(current_model, dataset)
-    directives = []
+def create_model_specific_directives(current_model: str):
+    """Create model-specific directives for the current model."""
+    directive = ChangeModelCostDirective(target_model=current_model)
+    directive.name = f"change to {current_model}"
+    directive.nl_description = f"Rewrites an operator to use the {current_model} model to optimize expenses while maintaining adequate performance."
+    directive.allowed_model_list = [current_model]  # Only allow this specific model
     
-    for target_model in cheaper_models:
-        directive = ChangeModelCostDirective(target_model=target_model)
-        directive.name = f"change to {target_model}"
-        directive.nl_description = f"Rewrites an operator to use the {target_model} model to optimize expenses while maintaining adequate performance."
-        directive.allowed_model_list = [target_model]  # Only allow this specific model
-        directives.append(directive)
-    
-    return directives
+    return directive
 
 
 class ChangeModelCostDirective(Directive):

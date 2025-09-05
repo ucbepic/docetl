@@ -1,4 +1,5 @@
 import json
+import argparse
 from datetime import datetime
 from typing import Dict, List, Any
 import numpy as np
@@ -40,22 +41,57 @@ def extract_reviews_from_input(concatenated_reviews: str) -> List[Dict[str, Any]
     review_sections = concatenated_reviews.split("Review ID:")[1:]
     
     for section in review_sections:
+        # Try to parse with newlines first
         lines = section.strip().split('\n')
-        if len(lines) < 3:
-            continue
-            
+        if len(lines) >= 3:
+            # Original parsing logic for newline-separated text
+            try:
+                review_id = lines[0].strip()
+                review_text = ""
+                timestamp = None
+                
+                for line in lines[1:]:
+                    if line.startswith("Review:"):
+                        review_text = line.replace("Review:", "").strip()
+                    elif line.startswith("Timestamp:"):
+                        timestamp = line.replace("Timestamp:", "").strip()
+                    elif not line.startswith("Helpful Votes:") and review_text:
+                        review_text += " " + line.strip()
+                
+                if review_id and review_text and timestamp:
+                    reviews.append({
+                        'review_id': review_id,
+                        'review_text': review_text.strip(),
+                        'timestamp': timestamp,
+                        'is_positive': is_positive_review(review_text)
+                    })
+                    continue
+            except Exception as e:
+                print(f"Error extracting reviews from input (newline parsing): {e}")
+        
         try:
-            review_id = lines[0].strip()
+            # Look for section markers in the text without relying on newlines
+            section_text = section.strip()
+            # Extract review ID (first number/word at the beginning)
+            words = section_text.split()
+            review_id = words[0] if words else ""
+            
+            # Find section markers
+            review_start = section_text.find("Review:")
+            timestamp_start = section_text.find("Timestamp:")
+            helpful_start = section_text.find("Helpful Votes:")
+            
             review_text = ""
             timestamp = None
             
-            for line in lines[1:]:
-                if line.startswith("Review:"):
-                    review_text = line.replace("Review:", "").strip()
-                elif line.startswith("Timestamp:"):
-                    timestamp = line.replace("Timestamp:", "").strip()
-                elif not line.startswith("Helpful Votes:") and review_text:
-                    review_text += " " + line.strip()
+            if review_start != -1:
+                # Extract review text between "Review:" and next section
+                review_end = timestamp_start if timestamp_start != -1 else helpful_start if helpful_start != -1 else len(section_text)
+                review_text = section_text[review_start + 7:review_end].strip()
+            
+            if timestamp_start != -1:
+                # Extract timestamp from "Timestamp:" to end of string (it's usually last)
+                timestamp = section_text[timestamp_start + 10:].strip()
             
             if review_id and review_text and timestamp:
                 reviews.append({
@@ -64,7 +100,11 @@ def extract_reviews_from_input(concatenated_reviews: str) -> List[Dict[str, Any]
                     'timestamp': timestamp,
                     'is_positive': is_positive_review(review_text)
                 })
-        except Exception:
+            else:
+                print(f"Failed to extract required fields - ID: '{review_id}', Review: '{review_text}', Timestamp: '{timestamp}'")
+                
+        except Exception as e:
+            print(f"Error extracting reviews from input (non-newline parsing): {e}")
             continue
     
     return reviews
@@ -145,10 +185,11 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
         ground_truth_reviews = extract_reviews_from_input(result['concatenated_reviews'])
         positive_gt = [r for r in ground_truth_reviews if r['is_positive']]
         negative_gt = [r for r in ground_truth_reviews if not r['is_positive']]
-        
+
         # Get results
         positive_results = result['positive_reviews'] if isinstance(result['positive_reviews'], list) else []
         negative_results = result['negative_reviews'] if isinstance(result['negative_reviews'], list) else []
+
         all_results = positive_results + negative_results
         all_gt = ground_truth_reviews
         
@@ -186,3 +227,47 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
         "weighted_score": total_weighted_score / valid_games,
         "valid_games_processed": valid_games
     }
+
+
+def main():
+    """Main function to evaluate game reviews results from command line."""
+    parser = argparse.ArgumentParser(description='Evaluate game reviews analysis results')
+    parser.add_argument('results_file', help='Path to the JSON results file to evaluate')
+    parser.add_argument('--method-name', default='game_reviews_analysis', 
+                       help='Name of the method being evaluated (default: game_reviews_analysis)')
+    
+    args = parser.parse_args()
+    
+    try:
+        # Evaluate the results
+        evaluation_results = evaluate_results(args.method_name, args.results_file)
+        
+        # Print results to console
+        print(f"\nEvaluation Results for {args.method_name}:")
+        print(f"Results file: {args.results_file}")
+        print(f"Valid games processed: {evaluation_results['valid_games_processed']}")
+        print(f"Sentiment accuracy: {evaluation_results['sentiment_accuracy']:.4f}")
+        print(f"Kendall's tau score: {evaluation_results['kendall_tau_score']:.4f}")
+        print(f"Weighted score (50-50): {evaluation_results['weighted_score']:.4f}")
+        
+        # Save to output file if specified
+        if args.output:
+            with open(args.output, 'w') as f:
+                json.dump(evaluation_results, f, indent=2)
+            print(f"\nResults saved to: {args.output}")
+            
+    except FileNotFoundError:
+        print(f"Error: Results file '{args.results_file}' not found.")
+        return 1
+    except json.JSONDecodeError:
+        print(f"Error: Invalid JSON format in '{args.results_file}'.")
+        return 1
+    except Exception as e:
+        print(f"Error evaluating results: {str(e)}")
+        return 1
+    
+    return 0
+
+
+if __name__ == "__main__":
+    exit(main())

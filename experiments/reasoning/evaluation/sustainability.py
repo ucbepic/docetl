@@ -50,11 +50,11 @@ def evaluate_results(method_name, results_file, ground_truth_file):
             
         predicted_activity = activity_result.get("economic_activity", "unknown")
 
-        
         for company_summary in activity_result["economic_activity_summary"]:
+            if isinstance(company_summary, str):
+                continue
             company_name = company_summary.get("company_name", "").strip()
             key_findings = company_summary.get("key_findings", "")
-            
             if not company_name:
                 continue
                 
@@ -183,7 +183,7 @@ def main():
     """
     # Example file paths - update these to match your actual files
     method_name = "sustainability_analysis"
-    results_file = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/sustainability_baseline/original_output.json"
+    results_file = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/outputs/sustain_gpt4mini.json"
     ground_truth_file = "/Users/lindseywei/Documents/DocETL-optimizer/reasoning-optimizer/experiments/reasoning/data/company_reports_gt.json"
     
     try:

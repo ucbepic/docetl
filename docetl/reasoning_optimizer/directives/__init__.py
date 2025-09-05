@@ -87,6 +87,7 @@ MULTI_INSTANCE_DIRECTIVES = [
     DeterministicDocCompressionDirective(),
     TakeHeadTailDirective(),
     CascadeFilteringDirective(),
+    ClarifyInstructionsDirective(),
 ]   
 
 # Create a mapping from directive names to directive instances

@@ -320,6 +320,7 @@ def create_expansion_prompt_acc(node, action_options, input_query, available_act
     Consider the current query pipeline, which directive can best improve the accuracy.
     Prioritize exploration of untested actions while balancing with exploitation of proven performers:
     - Actions with 0 uses have unknown potential, so you should explore them if applicable. 
+    - fusion directives are helpful
     - Consider both immediate improvement and learning about the action space
 
     {node.get_memo_for_llm(root_node, node_accuracies)}
@@ -436,6 +437,7 @@ def create_expansion_prompt_cost(node, action_options, input_query, available_ac
     Consider the current query pipeline, which directive can best improve cost effectiveness. 
     Prioritize exploration of untested actions while balancing with exploitation of proven performers:
     - Actions with 0 uses have unknown potential, so you should explore them if applicable.
+    - fusion directives are helpful
     - Consider both immediate improvement and learning about the action space
 
     {node.get_memo_for_llm(root_node, node_accuracies)}

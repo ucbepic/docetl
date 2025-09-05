@@ -19,6 +19,7 @@ import modal
 from datetime import datetime
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 
 from docetl.runner import DSLRunner
 from experiments.reasoning.utils import app, volume, VOLUME_MOUNT_PATH, image
@@ -52,7 +53,8 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
         
         # Set up paths
         base_output_dir = Path(VOLUME_MOUNT_PATH) / "outputs"
-        experiment_dir = base_output_dir / f"{dataset}_{method}"
+        if method == "mcts": experiment_dir = base_output_dir / f"{dataset}_{method}"
+        else: experiment_dir = base_output_dir / f"{dataset}_{method}"
         pareto_file = experiment_dir / f"pareto_frontier_{dataset}.json"
         
         # Check if pareto frontier file exists
@@ -87,6 +89,15 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
             
             # Extract file name from point
             point_file = point.get("file")
+            print(point_file)
+            if "test_cost" in point: 
+                test_results.append({
+                    "file": point.get("file"),
+                    "cost": point.get("test_cost"),
+                    "accuracy": point.get("test_accuracy"),
+                    "accuracy_metric": point.get("test_accuracy_metric"),
+                })
+                continue
             if not point_file:
                 print("⚠️  No file field in frontier point, skipping")
                 continue
@@ -111,8 +122,11 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
                 yaml_file = experiment_dir / f"{base_name}.yaml"
             
             if not yaml_file.exists():
-                print(f"⚠️  YAML file not found: {yaml_file}, skipping")
-                continue
+                base_name = base_name.replace("_output", "_config")
+                yaml_file = base_output_dir / f"{dataset}" / f"{base_name}.yaml"
+                if not yaml_file.exists():
+                    print(f"⚠️  YAML file not found: {yaml_file}, skipping")
+                    continue
             
             print(f"📄 Processing {base_name}")
             
@@ -177,6 +191,8 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
                     
                     # Get the appropriate accuracy metric
                     accuracy_metric = dataset_accuracy_metrics.get(dataset, "accuracy")
+                    print("res: ", accuracy_results)
+                    print("accuracy_metric: ", accuracy_metric)
                     accuracy = accuracy_results.get(accuracy_metric, 0.0)
                     
                     print(f"📈 Accuracy ({accuracy_metric}): {accuracy:.4f}")
@@ -354,7 +370,7 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
             
             # Extract test results from LOTUS (only lotus_test.json entries)
             for entry in lotus_data:
-                if "lotus_test.json" in entry.get("file", ""):
+                if "lotus_test.json" in entry.get("file", "") or "lotus_full_test.json" in entry.get("file", ""):
                     # Find the accuracy metric using containment
                     accuracy_value = None
                     for key in entry.keys():
@@ -373,6 +389,11 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                             "cost": entry["cost"],
                             "accuracy": accuracy_value
                         })
+                    elif "total_cost" in entry:
+                        all_points["lotus"].append({
+                            "cost": entry["total_cost"],
+                            "accuracy": accuracy_value
+                        })
             
             print(f"  ✅ Loaded {len(all_points['lotus'])} test points from LOTUS")
         else:
@@ -385,6 +406,9 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
             print(f"  📄 Found PZ evaluation at: {pz_file}")
             with open(pz_file, 'r') as f:
                 pz_data = json.load(f)
+            
+            # direct_pz = pz_data["direct"]
+            # retrieval_pz = pz_data["retrieval"]
             
             # Extract results from each PZ configuration
             for config_name, config_data in pz_data.items():
@@ -453,21 +477,47 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
         for points in all_points.values():
             all_costs.extend([p["cost"] for p in points])
         
+        # Filter out infinite and NaN values, and convert to float
+        filtered_costs = []
+        for cost in all_costs:
+            try:
+                # Convert to float if it's not already
+                cost_float = float(cost)
+                if np.isfinite(cost_float):
+                    filtered_costs.append(cost_float)
+            except (ValueError, TypeError):
+                # Skip non-numeric values
+                continue
+        all_costs = filtered_costs
+        
         if all_costs:
             min_cost = min(all_costs)
             max_cost = max(all_costs)
+            
+            # Handle zero or negative costs for log scale
+            if min_cost <= 0:
+                # If we have zero or negative costs, use a small positive value for log scale
+                min_cost = max(0.01, min_cost)  # Use at least 0.01 for log scale
+                print(f"⚠️  Found zero or negative cost, using {min_cost} for log scale")
             
             # Set x-axis limits with some padding
             ax.set_xlim(min_cost * 0.8, max_cost * 1.2)
             
             # Use standard log scale ticks and formatting
             import matplotlib.ticker as ticker
-            import numpy as np
             
             # Create explicit ticks based on the data range
             # Find the order of magnitude range
             min_order = np.floor(np.log10(min_cost * 0.8))
             max_order = np.ceil(np.log10(max_cost * 1.2))
+            
+            # Handle infinite values
+            if not np.isfinite(min_order) or not np.isfinite(max_order):
+                print(f"⚠️  Infinite values detected in log calculation. min_order: {min_order}, max_order: {max_order}")
+                # Use a reasonable default range
+                min_order = -2  # 0.01
+                max_order = 2   # 100
+                ax.set_xlim(0.01, 100)
             
             # Create ticks at powers of 10 and some intermediate values
             tick_values = []
@@ -580,6 +630,41 @@ def run_original_baseline_test(dataset: str) -> Dict[str, Any]:
         test_output = str(base_output_dir / f"{dataset}_original" / "tests" / "original" / f"{dataset}_baseline_test.json")
         config['pipeline']['output']['path'] = test_output
         print(f"📤 Output path: {test_output}")
+        
+        # Check if output file already exists
+        if Path(test_output).exists():
+            print(f"✅ Output file already exists: {test_output}")
+            print("⏭️  Skipping execution - loading existing results")
+            
+            # Load existing results and return them
+            try:
+                with open(test_output, 'r') as f:
+                    existing_data = json.load(f)
+                
+                # Try to extract cost and accuracy from existing data
+                # This is a fallback - you might need to adjust based on your data structure
+                total_cost = 0.0
+                accuracy = None
+                accuracy_metric = None
+                
+                # If the existing file contains cost/accuracy info, use it
+                if isinstance(existing_data, dict):
+                    total_cost = existing_data.get('cost', 0.0)
+                    accuracy = existing_data.get('accuracy')
+                    accuracy_metric = existing_data.get('accuracy_metric')
+                
+                return {
+                    "success": True,
+                    "dataset": dataset,
+                    "cost": total_cost,
+                    "accuracy": accuracy,
+                    "accuracy_metric": accuracy_metric,
+                    "output_path": test_output,
+                    "skipped": True
+                }
+            except Exception as e:
+                print(f"⚠️  Could not load existing results: {e}")
+                print("🔄 Proceeding with execution...")
         
         # Create output directory
         Path(test_output).parent.mkdir(parents=True, exist_ok=True)

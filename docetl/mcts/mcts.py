@@ -24,7 +24,6 @@ from docetl.reasoning_optimizer.directives import (
 )
 from docetl.reasoning_optimizer.directives.change_model_cost import (
     ChangeModelCostDirective,
-    get_model_specific_directives_for_operation,
     create_model_specific_directives,
     MODEL_COSTS,
     MODEL_STATS,
@@ -110,9 +109,10 @@ class MCTS:
 
         # Add all possible model-specific directives to available actions
         all_models = list(MODEL_COSTS.get(dataset_name, {}).keys()) if dataset_name in MODEL_COSTS else []
+        
         for current_model in all_models:
-            model_specific_directives = create_model_specific_directives(current_model, dataset_name)
-            self.available_actions.update(model_specific_directives)
+            model_specific_directive = create_model_specific_directives(current_model)
+            self.available_actions.add(model_specific_directive)
         
         # Initialize root node's action_used to include all change model directives
         for op_name in self.root.op_dict.keys():
@@ -170,7 +170,7 @@ class MCTS:
         self.directive_name_to_obj = {
             action.name: action for action in self.available_actions
         }
-
+       
         # Track iterations without new Pareto optimal plans for early stopping
         self.iterations_without_improvement = 0
         
@@ -181,7 +181,7 @@ class MCTS:
             print("🔄 Building first layer of the pipeline manually...")
             output_dir = str(Path(VOLUME_MOUNT_PATH) / "outputs")
             for model_yaml_path in first_layer_yaml_paths[dataset_name]:
-                model_yaml_path = Path(output_dir) / f"{dataset_name}_test" / model_yaml_path
+                model_yaml_path = Path(output_dir) / f"{dataset_name}" / model_yaml_path
                 child = Node(model_yaml_path)
                 child_model = child.parsed_yaml["default_model"]
                 child_model = child_model.replace("azure/", "").replace("gemini/", "")

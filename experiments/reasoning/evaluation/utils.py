@@ -12,7 +12,7 @@ from .facility import evaluate_results as facility_evaluate
 dataset_accuracy_metrics = {
     "cuad": "avg_f1",
     "blackvault": "avg_distinct_locations", 
-    "game_reviews": "combined_accuracy_score",
+    "game_reviews": "weighted_score",
     "medec": "combined_score",
     "sustainability": "economic_activity_accuracy",
     "biodex": "avg_rp_at_5"

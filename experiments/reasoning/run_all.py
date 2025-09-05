@@ -89,13 +89,13 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "cuad",
-            #"build_first_layer": True,
-            "original_cost": 0.137882,
-            "original_config_path": "cuad_test/gpt_4o_mini_config.yaml",
-            "baseline": {"iterations": 10},
-            #"simple_baseline": {"iterations": 10},
-            #"mcts": {"max_iterations": 20}
+            "dataset": "medec",
+            "build_first_layer": True,
+            # "original_config_path": "medec/gpt_4o_mini_config.yaml",
+            # "baseline": {"iterations": 10},
+            # "simple_baseline": {"iterations": 10},
+            # "original_cost": 0.008168,
+            "mcts": {"max_iterations": 30}
         }
     ]
 }
@@ -473,9 +473,13 @@ def test_single_model_remote(base_yaml_path: str, model: str, dataset: str, expe
             try:
                 # Use the dataset's evaluation function
                 evaluate_func = get_evaluate_func(dataset)
-                print(f"Evaluate function: {evaluate_func}")
+                print(f"Evaluate function: {evaluate_func} ****")
                 if evaluate_func:
+                    print("YES")
                     accuracy = evaluate_func("test_single_model", model_result["output_file_path"])
+                    print("AFTER")
+                    print(f"Accuracy: {accuracy}")
+                    print(dataset_accuracy_metrics.get(dataset, 'accuracy'))
                     accuracy = accuracy.get(dataset_accuracy_metrics.get(dataset, 'accuracy'), None)
                     print(f"Accuracy: {accuracy}")
             except Exception as eval_e:
@@ -801,7 +805,6 @@ def run_from_config(config: Dict[str, Any]) -> int:
         print(f"PROCESSING DATASET: {dataset.upper()}")
         print(f"{'='*60}")
         
-        # Check if optimized_config.yaml already exists (check both local and Modal)
         original_path = str(Path(VOLUME_MOUNT_PATH) / "outputs") + f"/{original_config_path}"
         
         # Check locally first, then check Modal volume
@@ -832,6 +835,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
             print(f"   Config: {original_yaml_path}")
             
         else:
+            print("HERE")
             original_yaml_path = yaml_path
             print(f"📋 No existing optimized configuration found, proceeding with optimization...")
             
@@ -861,30 +865,67 @@ def run_from_config(config: Dict[str, Any]) -> int:
                 ground_truth=ground_truth
             )
             
-            # Step 3: Select the best model and create optimized configuration
-            print(f"\n🏆 Step 3: Selecting best model configuration...")
-            optimized_yaml_path, best_model, best_cost, best_accuracy = select_best_model_config(
-                model_results=model_results,
-                original_yaml_path=working_yaml_path,
-                dataset=dataset,
-                experiment_name=f"{dataset}_test",
-                output_dir=output_dir
-            )
+            # Step 3: Find Pareto frontier models and save results
+            print(f"\n🏆 Step 3: Finding Pareto frontier models...")
             
-            # Use the results from the best model directly (already executed in Step 2)
-            best_model_result = model_results[best_model]
-            original_result = create_original_query_result(
-                success=best_model_result["success"],
-                cost=best_cost,
-                output_file_path=best_model_result.get("output_file"),
-                sample_output=[]  # We don't need sample output for search methods
-            )
+            # Extract successful models with accuracy and cost data
+            successful_models = {model: result for model, result in model_results.items() 
+                               if result["success"] and result["accuracy"] is not None}
             
-            print(f"✅ Using best model results from Step 2:")
-            print(f"   Model: {best_model}")
-            print(f"   Cost: ${best_cost:.6f}")
-            if best_accuracy is not None:
-                print(f"   Accuracy: {best_accuracy:.4f}")
+            if not successful_models:
+                print("⚠️  No models succeeded with valid accuracy data")
+                raise Exception("No models succeeded with valid accuracy data")
+            else:
+                # Find Pareto frontier models on accuracy-cost trade-off
+                model_points = [(model, result["accuracy"], result["cost"]) 
+                               for model, result in successful_models.items()]
+                
+                # Sort by cost (ascending) and accuracy (descending)
+                sorted_models = sorted(model_points, key=lambda x: (x[2], -x[1]))
+                
+                pareto_models = []
+                best_accuracy = float('-inf')
+                
+                for model, accuracy, cost in sorted_models:
+                    if accuracy > best_accuracy:
+                        best_accuracy = accuracy
+                        pareto_models.append((model, accuracy, cost))
+                
+                print(f"📊 Found {len(pareto_models)} Pareto frontier models:")
+                for i, (model, accuracy, cost) in enumerate(pareto_models):
+                    print(f"   {i+1}. {model}: accuracy={accuracy:.4f}, cost=${cost:.6f}")
+                
+                # Prepare data to save
+                MODEL_COSTS = {model: result["cost"] for model, result in model_results.items() 
+                              if result["success"]}
+                MODEL_STATS = {model: {"accuracy": result["accuracy"], "cost": result["cost"], 
+                                     "success": result["success"]} 
+                              for model, result in model_results.items()}
+                first_layer_yaml_paths = {model: result.get("output_file") 
+                                        for model, result in model_results.items() if result["success"]}
+                FRONTIER_MODELS = [{"model": model, "accuracy": accuracy, "cost": cost} 
+                                  for model, accuracy, cost in pareto_models]
+                
+                # Save the results to Modal volume
+                os.environ["EXPERIMENT_OUTPUT_DIR"] = str(Path(VOLUME_MOUNT_PATH) / "outputs")
+                output_dir_path = Path(VOLUME_MOUNT_PATH) / "outputs" / f"{dataset}"
+                output_dir_path.mkdir(parents=True, exist_ok=True)
+                
+                # Save all the required data
+                pareto_results = {
+                    "MODEL_COSTS": MODEL_COSTS,
+                    "MODEL_STATS": MODEL_STATS, 
+                    "first_layer_yaml_paths": first_layer_yaml_paths,
+                    "FRONTIER_MODELS": FRONTIER_MODELS
+                }
+                
+                pareto_results_path = output_dir_path / "pareto_frontier_results.json"
+                with open(pareto_results_path, 'w') as f:
+                    json.dump(pareto_results, f, indent=2)
+                
+                print(f"💾 Pareto frontier results saved to: {pareto_results_path}")
+                
+                raise Exception("Stop here")
 
         # Now proceed with the regular search methods using the optimized plan
         print(f"\n🚀 Step 4: Starting search methods with optimized configuration...")

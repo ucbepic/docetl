@@ -195,18 +195,12 @@ operations:
       - Chief Complaint: [User's quoted complaint]
       - Complaint Category: [Selected category]
       - Frustration Level: [high/medium/low]
-      - User Status: [Yes/No, with details if applicable]
-      - Negative Comments: [Any negative feedback from the user]
-      - Positive Comments: [Any positive feedback from the user, if applicable]
 
       Example output:
       - Chief Complaint: "I was charged extra fees that were not disclosed
       during booking."
       - Complaint Category: pricing
       - Frustration Level: high
-      - User Status: No
-      - Negative Comments: "The customer service was unhelpful and dismissive."
-      - Positive Comments: "The flight attendants were friendly and attentive."
     output:
       schema:
         chief_complaint: string

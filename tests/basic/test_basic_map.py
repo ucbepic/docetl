@@ -614,3 +614,27 @@ def test_should_glean_condition(runner):
     # Case 3: No condition key -> default to True
     assert wrapper.should_glean({}, {"flag": False}) is True
     assert wrapper.should_glean(None, {"flag": False}) is True
+
+
+def test_map_type_validation_int_answer(runner):
+    # Configure a prompt likely to produce non-integer output, but require integer in schema
+    map_config = {
+        "name": "yes_no_int",
+        "type": "map",
+        "prompt": "Say yes or no.",
+        "output": {"schema": {"answer": "integer"}},
+        "model": "gpt-4o-mini",
+        "bypass_cache": True,
+        "num_retries_on_validate_failure": 1,
+        "validate": ["True"],
+    }
+
+    # Create small docs that don't influence the prompt
+    input_data = [{"text": str(i)} for i in range(8)]
+
+    operation = MapOperation(runner, map_config, "gpt-4o-mini", 4)
+    results, cost = operation.execute(input_data)
+
+    # We likely triggered type validation failures, so no results should be accepted
+    assert cost > 0
+    assert len(results) == 0

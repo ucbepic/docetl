@@ -24,7 +24,11 @@ from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
 )
-from docetl.operations.utils import rich_as_completed, strict_render, validate_output_types
+from docetl.operations.utils import (
+    rich_as_completed,
+    strict_render,
+    validate_output_types,
+)
 
 # Import OutputMode enum for structured output checks
 from docetl.operations.utils.api import OutputMode
@@ -717,8 +721,6 @@ class ReduceOperation(BaseOperation):
                     "val_rule": self.config.get("validate", []),
                     "validation_fn": self.validation_fn,
                 }
-                if self.config.get("validate", None)
-                else None
             ),
             bypass_cache=self.config.get("bypass_cache", self.bypass_cache),
             verbose=self.config.get("verbose", False),

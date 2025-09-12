@@ -349,8 +349,6 @@ Reference anchors:"""
                         "val_rule": self.config.get("validate", []),
                         "validation_fn": validation_fn,
                     }
-                    if self.config.get("validate", None)
-                    else None
                 ),
                 gleaning_config=self.config.get("gleaning", None),
                 verbose=self.config.get("verbose", False),

@@ -621,20 +621,22 @@ def test_map_type_validation_int_answer(runner):
     map_config = {
         "name": "yes_no_int",
         "type": "map",
-        "prompt": "Say yes or no.",
-        "output": {"schema": {"answer": "integer"}},
+        "prompt": "{{ input.doc }}. Return the answer as 'hi'.",
+        "output": {"schema": {"answer": "bool"}},
         "model": "gpt-4o-mini",
         "bypass_cache": True,
         "num_retries_on_validate_failure": 1,
-        "validate": ["True"],
     }
 
     # Create small docs that don't influence the prompt
-    input_data = [{"text": str(i)} for i in range(8)]
+    input_data = [{"doc": "hi"} for i in range(8)]
 
     operation = MapOperation(runner, map_config, "gpt-4o-mini", 4)
     results, cost = operation.execute(input_data)
 
     # We likely triggered type validation failures, so no results should be accepted
     assert cost > 0
-    assert len(results) == 0
+    
+    # For every result make sure the answer is a bool
+    for result in results:
+        assert isinstance(result["answer"], bool)

@@ -24,7 +24,7 @@ from docetl.operations.clustering_utils import (
     cluster_documents,
     get_embeddings_for_clustering,
 )
-from docetl.operations.utils import rich_as_completed, strict_render
+from docetl.operations.utils import rich_as_completed, strict_render, validate_output_types
 
 # Import OutputMode enum for structured output checks
 from docetl.operations.utils.api import OutputMode
@@ -658,6 +658,13 @@ class ReduceOperation(BaseOperation):
             schema=self.config["output"]["schema"],
             use_structured_output=structured_mode,
         )[0]
+        # Enforce type validation against output schema
+        is_types_valid, _errors = validate_output_types(
+            output,
+            self.config["output"]["schema"],
+        )
+        if not is_types_valid:
+            return output, False
         if self.runner.api.validate_output(self.config, output, self.console):
             return output, True
         return output, False

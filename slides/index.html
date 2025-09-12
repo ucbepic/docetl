@@ -63,7 +63,7 @@
 
         <!-- The New Era -->
         <section>
-          <h2>A New Era for Unstructured Data</h2>
+          <h2>A New Era for Unstructured Text</h2>
           
           <p class="fragment" data-fragment-index="1" style="font-size: 32px; margin: 0.8rem 0 1.2rem;">
             Modern AI enables powerful data systems
@@ -135,7 +135,7 @@
           <!-- Final question - no card, just bold text -->
           <div class="fragment" data-fragment-index="6" style="text-align: center; margin-top: 1.5rem;">
             <p style="font-size: 36px; margin: 0; color: var(--berkeley-blue); font-weight: 700;">
-              How do we process unstructured data <span style="text-decoration: underline;">at scale</span>, in <span style="text-decoration: underline;">complex</span> ways?
+              How do we process unstructured text <span style="text-decoration: underline;">at scale</span>, in <span style="text-decoration: underline;">complex</span> ways?
             </p>
           </div>
         </section>
@@ -255,8 +255,8 @@
             <!-- Row 3: Token-level chunking + context, plus specialized maps -->
             <div class="fragment" data-fragment-index="5" style="display: flex; align-items: stretch; gap: 0.6rem;">
               <div style="background: #FFF3E0; border: none; border-radius: 8px; padding: 0.8rem 1rem; position: relative;">
-                <div style="font-size: 28px; font-weight: 700; color: var(--medalist);">Split by Token</div>
-                <div style="font-size: 24px; line-height: 1.2;">+ case metadata</div>
+                <div style="font-size: 28px; font-weight: 700; color: var(--medalist);">Split More</div>
+                <div style="font-size: 24px; line-height: 1.2;">smaller chunks</div>
                 <div class="fragment fade-in-then-out" data-fragment-index="5" style="position: absolute; inset: -6px; border-radius: 10px; box-shadow: 0 0 26px 8px rgba(253,181,21,0.55); pointer-events: none;"></div>
                 <i class="fragment fade-in-then-out fas fa-hand-pointer" data-fragment-index="5" style="position: absolute; top: -18px; right: 10px; font-size: 28px; color: var(--berkeley-gold); transform: rotate(10deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));"></i>
               </div>
@@ -318,7 +318,7 @@
             </div>
 
             <h2>DocETL</h2>
-            <p style="font-size: 34px; margin: -0.2rem 0 0.8rem; color: var(--text-dark); font-weight: 700;">Declarative system for LLM‑powered unstructured text</p>
+            <p style="font-size: 34px; margin: -0.2rem 0 0.8rem; color: var(--text-dark); font-weight: 700;">Declarative system for LLM‑powered unstructured text analysis</p>
 
             <!-- Content with star image on the right -->
             <div style="display: flex; align-items: flex-start; gap: 1.6rem;">
@@ -396,21 +396,8 @@
                 </div>
               </div>
         
-              <!-- Code-Powered -->
-              <div class="operator-group">
-                <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.8rem;">Code-Powered</h3>
-                <div style="display: flex; align-items: flex-start; gap: 1rem;">
-                  <div class="operator-items">
-                    <span class="op-badge new fragment" data-fragment-index="1">code_map</span>
-                    <span class="op-badge new fragment" data-fragment-index="1">code_filter</span>
-                    <span class="op-badge new fragment" data-fragment-index="1">code_reduce</span>
-                  </div>
-                 
-                </div>
-              </div>
-        
               <!-- Utility -->
-              <div class="operator-group" style="margin-top: 2rem;">
+              <div class="operator-group">
                 <div style="display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.8rem;">
                   <h3 style="font-size: 30px; color: var(--berkeley-blue); margin: 0;">Utility</h3>
                   <span class="note-label">Necessary for Rewrites</span>
@@ -419,6 +406,19 @@
                   <span class="op-badge" id="split-badge">split</span>
                   <span class="op-badge" id="gather-badge">gather</span>
                   <span class="op-badge">unnest</span>
+                </div>
+              </div>
+        
+              <!-- Code-Powered -->
+              <div class="operator-group" style="margin-top: 2rem;">
+                <h3 style="font-size: 30px; color: var(--berkeley-blue); margin-bottom: 0.8rem;">Code-Powered</h3>
+                <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                  <div class="operator-items">
+                    <span class="op-badge new fragment" data-fragment-index="1">code_map</span>
+                    <span class="op-badge new fragment" data-fragment-index="1">code_filter</span>
+                    <span class="op-badge new fragment" data-fragment-index="1">code_reduce</span>
+                  </div>
+                 
                 </div>
               </div>
         
@@ -433,7 +433,7 @@
           <!-- Single column layout -->
           <div>
               <!-- Row 1 header -->
-              <h3 class="fragment" data-fragment-index="1" style="font-size: 34px; margin: 0 0 0.3rem 0; color: #333;">Split: Turn documents into chunks</h3>
+              <h3 class="fragment" data-fragment-index="1" style="font-size: 32px; margin: 0 0 0.3rem 0; color: #333;">Split: Turn documents into chunks</h3>
               <!-- Row 1: 4 chunks -->
               <div class="fragment" data-fragment-index="1" style="display: flex; gap: 0.6rem;">
                 <!-- Top third -->
@@ -453,6 +453,7 @@
                 </div>
                 <!-- Fourth -->
                 <div style="flex: 1; position: relative;">
+                  <div class="fragment" data-fragment-index="2" style="position: absolute; top: -40px; left: 50%; transform: translateX(-50%); font-size: 28px; color: var(--berkeley-blue); font-weight: 500; z-index: 4; white-space: nowrap;">"He said..."</div>
                   <div style="border: 1px solid #E2E6EA; border-radius: 8px; overflow: hidden; background: white; position: relative; height: 160px;">
                     <img src="images/record.png" alt="Chunk 4 slice" style="width: 100%; height: 100%; object-fit: cover; object-position: bottom;"/>
                     <div style="position: absolute; bottom: 6px; left: 6px; font-size: 30px; background: rgba(250,250,250,0.9); padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #E2E6EA; color: var(--medalist);">Chunk 4</div>
@@ -463,11 +464,11 @@
               </div>
               <!-- Gather configurations under chunks (inside right column) -->
               <div class="fragment" data-fragment-index="3" style="margin-top: 2rem;">
-                <h3 style="font-size: 34px; margin: 0 0 0.3rem 0; color: #333;">Gather: augment chunks to make sense to downstream LLM operators</h3>
+                <h3 style="font-size: 32px; margin: 0 0 0.3rem 0; color: #333;">Gather: augment chunks to make sense to downstream LLM operators; e.g.,</h3>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; align-items: start;">
                   <!-- Prefix head: chunk 1 (small) + chunk 4 -->
                   <div class="fragment" data-fragment-index="4">
-                    <div style="font-size: 30px; color: var(--text-light); margin-bottom: 0.3rem;">Prefix head</div>
+                    <div style="font-size: 30px; color: var(--text-light); margin-bottom: 0.3rem;">Previous chunks' head</div>
                   <div style="border: 1px solid #E2E6EA; border-radius: 8px; padding: 0.4rem; background: white; position: relative;">
                   <div style="border: 1px dashed #E2E6EA; border-radius: 6px; overflow: hidden; height: 54px; margin-bottom: 0.4rem; position: relative;">
                     <img src="images/record.png" alt="Head slice" style="width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0.9;"/>
@@ -482,7 +483,7 @@
 
                   <!-- Prefix tail: chunk 2 (small) + chunk 4 -->
                   <div class="fragment" data-fragment-index="5">
-                    <div style="font-size: 30px; color: var(--text-light); margin-bottom: 0.3rem;">Prefix tail</div>
+                    <div style="font-size: 30px; color: var(--text-light); margin-bottom: 0.3rem;">Previous chunks' tail</div>
                   <div style="border: 1px solid #E2E6EA; border-radius: 8px; padding: 0.4rem; background: white; position: relative;">
                   <div style="border: 1px dashed #E2E6EA; border-radius: 6px; overflow: hidden; height: 54px; margin-bottom: 0.4rem; position: relative;">
                     <img src="images/record.png" alt="Tail slice" style="width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: 0.9;"/>
@@ -523,7 +524,7 @@
                 </div>
 
                 <div class="fragment" data-fragment-index="7" style="margin-top: 0.5rem; font-size: 30px; color: var(--text-light);">
-                  Can mix &amp; match gather configs; e.g., "prefix" tail and "next" head
+                  Can mix &amp; match gather configs; e.g., "previous" tail and "next" head
                 </div>
               </div>
           </div>
@@ -569,7 +570,7 @@
           <h2>Rewrite Directives: Our Novel Contribution</h2>
           
           <ul style="font-size: 28px; color: var(--text-dark); margin: 1rem 0; padding-left: 1.5rem;">
-            <li style="margin-bottom: 0.8rem; font-size: 28px; color: var(--text-dark);">Templates for LLMs to instantiate</li>
+            <li style="margin-bottom: 0.8rem;">Templates for LLMs to instantiate</li>
             <li style="margin-bottom: 0.8rem;">
               <div style="display: flex; align-items: center; gap: 1rem;">
                 <div style="font-size: 28px;"><strong>Example:</strong></div>
@@ -585,7 +586,7 @@
             
             <li class="fragment" data-fragment-index="1" style="margin-bottom: 1rem;">
               <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="font-size: 28px; color: var(--medalist); font-weight: 600; min-width: 140px;">Chunking:</div>
+                <div style="font-size: 28px; color: var(--medalist); font-weight: 600; min-width: 140px;">Map => Split -> Map -> Reduce</div>
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
                   <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
                   <span style="font-size: 28px; color: var(--text-dark);">→</span>
@@ -678,7 +679,10 @@
               <div class="fragment" data-fragment-index="3" style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem; margin-bottom: 0.8rem;">
                 <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
                 <span style="font-size: 28px; color: var(--text-dark);">→</span>
-                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Map: Excessive Force</div>
+                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px; position: relative;">
+                  Map: Excessive Force
+                  <div class="fragment" data-fragment-index="4" style="position: absolute; inset: -4px; border-radius: 8px; box-shadow: 0 0 20px 6px rgba(253,181,21,0.6); pointer-events: none; z-index: 2;"></div>
+                </div>
                 <span style="font-size: 28px; color: var(--text-dark);">+</span>
                 <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Map: Perjury</div>
                 <span style="font-size: 28px; color: var(--text-dark);">+</span>
@@ -688,23 +692,23 @@
               </div>
               
               <!-- Second pipeline: Decomposed Excessive Force -->
-              <div class="fragment" data-fragment-index="4" style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem;">
+              <div class="fragment" data-fragment-index="5" style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem;">
                 <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Document</div>
                 <span style="font-size: 28px; color: var(--text-dark);">→</span>
-                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">What weapons?</div>
+                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Which weapons used?</div>
                 <span style="font-size: 28px; color: var(--text-dark);">→</span>
-                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Excessive use?</div>
+                <div class="op-badge" style="padding: 0.3rem 0.6rem; font-size: 28px;">Any excessive use?</div>
                 <span style="font-size: 28px; color: var(--text-dark);">→</span>
                 <div style="background: white; border: 2px solid var(--text-dark); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 28px; font-weight: 600;">Result</div>
               </div>
             </li>
             
-            <li class="fragment" data-fragment-index="5" style="margin-bottom: 1.2rem;">
+            <li class="fragment" data-fragment-index="6" style="margin-bottom: 1.2rem;">
               Can synthesize projections before <em>any</em> operation (reduce, filter, join)
             </li>
 
             
-            <li class="fragment" data-fragment-index="6" style="margin-bottom: 1.2rem;">
+            <li class="fragment" data-fragment-index="7" style="margin-bottom: 1.2rem;">
               <u>Unlike traditional operator fission:</u> requires semantic understanding, open-ended possibilities
             </li>
             
@@ -1079,9 +1083,9 @@ the article?</span>
         <section>
           <h2>Revisiting Traditional Database Paradigms</h2>
           
-          <ul class="fragment" data-fragment-index="0" style="margin: 1rem 0; padding-left: 1.5rem; text-align: left;">
+          <!-- <ul class="fragment" data-fragment-index="0" style="margin: 1rem 0; padding-left: 1.5rem; text-align: left;">
             <li style="font-size: 28px; text-align: left;">Unstructured data + LLMs introduce fuzziness and creativity</li>
-          </ul>
+          </ul> -->
           
           <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 0.3rem;">
             <!-- Operators -->
@@ -1127,7 +1131,7 @@ the article?</span>
           
           <!-- Key Insight -->
           <ul class="fragment" data-fragment-index="4" style="margin: 1.5rem 0; padding-left: 1.5rem; text-align: left;">
-            <li style="font-size: 28px; text-align: left;">Query optimizer must reason about inaccuracy, operator interdependence, and new algorithms authored on-the-fly</li>
+            <li style="font-size: 28px; text-align: left;">Overall: Query optimizer must reason about inaccuracy, operator interdependence, and new algorithms authored on-the-fly</li>
           </ul>
         </section>
 

@@ -408,7 +408,7 @@ class APIWrapper(object):
                         messages.append(
                             {
                                 "role": "user",
-                                "content": f"Your output {parsed_output} failed my validation rule: {str(val_rule)}\n\nPlease try again.",
+                                "content": f"Your output {parsed_output} either failed to match my specified schema or failed one or more of the following validation rules: {str(val_rule)}\n\nPlease try again.",
                             }
                         )
                         self.runner.console.log(

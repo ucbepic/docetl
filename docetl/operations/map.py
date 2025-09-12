@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from docetl.base_schemas import Tool, ToolFunction
 from docetl.operations.base import BaseOperation
-from docetl.operations.utils import RichLoopBar, strict_render
+from docetl.operations.utils import RichLoopBar, strict_render, validate_output_types
 from docetl.operations.utils.api import OutputMode
 
 
@@ -317,10 +317,13 @@ Reference anchors:"""
                     if isinstance(response, ModelResponse)
                     else response
                 )
-                # Check that the output has all the keys in the schema
-                for key in self.config["output"]["schema"]:
-                    if key not in output:
-                        return output, False
+                # Type-check output values against schema declarations
+                is_types_valid, _errors = validate_output_types(
+                    output,
+                    self.config["output"]["schema"],
+                )
+                if not is_types_valid:
+                    return output, False
 
                 for key, value in item.items():
                     if key not in self.config["output"]["schema"]:
@@ -346,8 +349,6 @@ Reference anchors:"""
                         "val_rule": self.config.get("validate", []),
                         "validation_fn": validation_fn,
                     }
-                    if self.config.get("validate", None)
-                    else None
                 ),
                 gleaning_config=self.config.get("gleaning", None),
                 verbose=self.config.get("verbose", False),

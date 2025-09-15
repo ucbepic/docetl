@@ -9,7 +9,7 @@ def resolve_config():
         "type": "resolve",
         "blocking_keys": ["name"],
         "blocking_threshold": 0,
-        "comparison_prompt": "Compare the following two entries and determine if they likely refer to the same person: Person 1: {{ input1 }} Person 2: {{ input2 }} Return true if they likely match, false otherwise.",
+        "comparison_prompt": "Compare the following two entries and determine if they likely refer to the same person, based on last name mostly: Person 1: {{ input1 }} Person 2: {{ input2 }} Return true if they likely match, false otherwise.",
         "output": {"schema": {"name": "string", "email": "string"}},
         "embedding_model": "text-embedding-3-small",
         "comparison_model": "gpt-4o-mini",

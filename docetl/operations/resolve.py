@@ -331,52 +331,72 @@ class ResolveOperation(BaseOperation):
                 is_match(input_data[i], input_data[j]) if blocking_conditions else False
             )
 
-        blocked_pairs = (
+        # Start with pairs that meet blocking conditions, or empty list if no conditions
+        code_blocked_pairs = (
             list(filter(meets_blocking_conditions, comparison_pairs))
             if blocking_conditions
-            else comparison_pairs
+            else []
         )
 
-        # Apply limit_comparisons to blocked pairs
-        if limit_comparisons is not None and len(blocked_pairs) > limit_comparisons:
-            self.console.log(
-                f"Randomly sampling {limit_comparisons} pairs out of {len(blocked_pairs)} blocked pairs."
-            )
-            blocked_pairs = random.sample(blocked_pairs, limit_comparisons)
-
-        # Initialize clusters with all indices
-        clusters = [{i} for i in range(len(input_data))]
-        cluster_map = {i: i for i in range(len(input_data))}
-
-        # If there are remaining comparisons, fill with highest cosine similarities
-        remaining_comparisons = (
-            limit_comparisons - len(blocked_pairs)
-            if limit_comparisons is not None
-            else float("inf")
-        )
-        if remaining_comparisons > 0 and blocking_threshold is not None:
-            # Compute cosine similarity for all pairs efficiently
+        # Apply cosine similarity blocking if threshold is specified
+        embedding_blocked_pairs = []
+        if blocking_threshold is not None and embeddings is not None:
             from sklearn.metrics.pairwise import cosine_similarity
 
             similarity_matrix = cosine_similarity(embeddings)
 
-            cosine_pairs = []
+            # Add pairs that meet the cosine similarity threshold and aren't already blocked
+            code_blocked_set = set(code_blocked_pairs)
+
             for i, j in comparison_pairs:
-                if (i, j) not in blocked_pairs and find_cluster(
-                    i, cluster_map
-                ) != find_cluster(j, cluster_map):
+                if (i, j) not in code_blocked_set:
                     similarity = similarity_matrix[i, j]
                     if similarity >= blocking_threshold:
-                        cosine_pairs.append((i, j, similarity))
+                        embedding_blocked_pairs.append((i, j))
 
-            if remaining_comparisons != float("inf"):
-                cosine_pairs.sort(key=lambda x: x[2], reverse=True)
-                additional_pairs = [
-                    (i, j) for i, j, _ in cosine_pairs[: int(remaining_comparisons)]
-                ]
-                blocked_pairs.extend(additional_pairs)
+            self.console.log(
+                f"Cosine similarity blocking: added {len(embedding_blocked_pairs)} pairs "
+                f"(threshold: {blocking_threshold})"
+            )
+
+        # Combine pairs with prioritization for sampling
+        all_blocked_pairs = code_blocked_pairs + embedding_blocked_pairs
+
+        # If no pairs are blocked at all, fall back to all comparison pairs
+        if not all_blocked_pairs:
+            all_blocked_pairs = comparison_pairs
+
+        # Apply limit_comparisons with prioritization
+        if limit_comparisons is not None and len(all_blocked_pairs) > limit_comparisons:
+            # Prioritize code-based pairs, then sample from embedding pairs if needed
+            if len(code_blocked_pairs) >= limit_comparisons:
+                # If we have enough code-based pairs, just sample from those
+                blocked_pairs = random.sample(code_blocked_pairs, limit_comparisons)
+                self.console.log(
+                    f"Using {limit_comparisons} code-based pairs (had {len(code_blocked_pairs)} available)"
+                )
             else:
-                blocked_pairs.extend((i, j) for i, j, _ in cosine_pairs)
+                # Take all code-based pairs + sample from embedding pairs
+                remaining_slots = limit_comparisons - len(code_blocked_pairs)
+                sampled_embedding_pairs = random.sample(
+                    embedding_blocked_pairs,
+                    min(remaining_slots, len(embedding_blocked_pairs)),
+                )
+                blocked_pairs = code_blocked_pairs + sampled_embedding_pairs
+                self.console.log(
+                    f"Using {len(code_blocked_pairs)} code-based + {len(sampled_embedding_pairs)} embedding-based pairs "
+                    f"(total: {len(blocked_pairs)})"
+                )
+        else:
+            blocked_pairs = all_blocked_pairs
+            if len(code_blocked_pairs) > 0 and len(embedding_blocked_pairs) > 0:
+                self.console.log(
+                    f"Using all {len(code_blocked_pairs)} code-based + {len(embedding_blocked_pairs)} embedding-based pairs"
+                )
+
+        # Initialize clusters with all indices
+        clusters = [{i} for i in range(len(input_data))]
+        cluster_map = {i: i for i in range(len(input_data))}
 
         # Modified merge_clusters to handle all indices with the same value
 
@@ -417,7 +437,7 @@ class ResolveOperation(BaseOperation):
         comparisons_made = len(blocked_pairs)
         comparisons_saved = total_possible_comparisons - comparisons_made
         self.console.log(
-            f"[green]Comparisons saved by blocking: {comparisons_saved} "
+            f"[green]Comparisons saved by deduping and blocking: {comparisons_saved} "
             f"({(comparisons_saved / total_possible_comparisons) * 100:.2f}%)[/green]"
         )
         self.console.log(

@@ -1,0 +1,2716 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../operations/">
+      
+      
+        <link rel="next" href="../../optimization/overview/">
+      
+      
+      <link rel="icon" href="../../assets/docetl-favicon-color.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.16">
+    
+    
+      
+        <title>Examples - docetl docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CSource+Code+Pro:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"Source Code Pro"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+   <link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><style>
+    html.glightbox-open { overflow: initial; height: 100%; }
+    .gslide-title { margin-top: 0px; user-select: text; }
+    .gslide-desc { color: #666; user-select: text; }
+    .gslide-image img { background: white; }
+    .gscrollbar-fixer { padding-right: 15px; }
+    .gdesc-inner { font-size: 0.75rem; }
+    body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color);}
+    body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color);}
+    body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color);}</style> <script src="../../assets/javascripts/glightbox.min.js"></script></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="#FDB515">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#examples" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="docetl docs" class="md-header__button md-logo" aria-label="docetl docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M0 112c0-41.5 31.6-75.6 72-79.6V32h280c53 0 96 43 96 96v176H272c-39.8 0-72 32.2-72 72v60c0 24.3-19.7 44-44 44s-44-19.7-44-44V208H48c-26.5 0-48-21.5-48-48zm236.8 368c7.1-13.1 11.2-28.1 11.2-44v-60c0-13.3 10.7-24 24-24h248c13.3 0 24 10.7 24 24v24c0 44.2-35.8 80-80 80zM80 80c-17.7 0-32 14.3-32 32v48h64v-48c0-17.7-14.3-32-32-32"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            docetl docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Examples
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="#FDB515"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="#FDB515"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="#FDB515"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ucbepic/docetl" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ucbepic/docetl
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../concepts/operators/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/presidential-debate-themes/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tutorials & Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/custom-parsing/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Developer Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../playground/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tools & Resources
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="docetl docs" class="md-nav__button md-logo" aria-label="docetl docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M0 112c0-41.5 31.6-75.6 72-79.6V32h280c53 0 96 43 96 96v176H272c-39.8 0-72 32.2-72 72v60c0 24.3-19.7 44-44 44s-44-19.7-44-44V208H48c-26.5 0-48-21.5-48-48zm236.8 368c7.1-13.1 11.2-28.1 11.2-44v-60c0-13.3 10.7-24 24-24h248c13.3 0 24 10.7 24 24v24c0 44.2-35.8 80-80 80zM80 80c-17.7 0-32 14.3-32 32v48h64v-48c0-17.7-14.3-32-32-32"/></svg>
+
+    </a>
+    docetl docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ucbepic/docetl" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ucbepic/docetl
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    User Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_1" id="__nav_2_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Core Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            Core Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Operators & Validation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Output Schemas
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/pipelines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Pipelines
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Optimization
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    LLM-Powered Operators
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            LLM-Powered Operators
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Map
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/resolve/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Resolve
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/reduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Reduce
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/parallel-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Parallel Map
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/filter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Filter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/equijoin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Equijoin
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/rank/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Rank
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/extract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Extract
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Auxiliary Operators
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Auxiliary Operators
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/split/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Split
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/gather/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Gather
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/unnest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Unnest
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/sample/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Sample
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/topk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    TopK
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operators/code/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Code
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    APIs
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            APIs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../python/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    Python API Guide
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4_2" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Pandas Integration
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_4_2" id="__nav_2_4_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_4_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            Pandas Integration
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Operations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#example-1-analyzing-customer-reviews" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 1: Analyzing Customer Reviews
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-2-deduplicating-customer-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 2: Deduplicating Customer Records
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-3-topic-analysis-of-news-articles" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 3: Topic Analysis of News Articles
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-4-multi-step-analysis-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 4: Multi-step Analysis Pipeline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-5-error-handling-and-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 5: Error Handling and Validation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-6-pdf-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 6: PDF Analysis
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-7-synthetic-data-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 7: Synthetic Data Generation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-8-document-processing-with-split-and-gather" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 8: Document Processing with Split and Gather
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-9-data-structure-processing-with-unnest" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 9: Data Structure Processing with Unnest
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-10-combined-document-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 10: Combined Document Workflow
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Performance
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            Performance
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimization/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Optimization Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimization/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../optimization/example/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../examples/presidential-debate-themes/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    Tutorials & Examples
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../examples/custom-parsing/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    Developer Reference
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../playground/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    Tools & Resources
+    
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#example-1-analyzing-customer-reviews" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 1: Analyzing Customer Reviews
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-2-deduplicating-customer-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 2: Deduplicating Customer Records
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-3-topic-analysis-of-news-articles" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 3: Topic Analysis of News Articles
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-4-multi-step-analysis-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 4: Multi-step Analysis Pipeline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-5-error-handling-and-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 5: Error Handling and Validation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-6-pdf-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 6: PDF Analysis
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-7-synthetic-data-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 7: Synthetic Data Generation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-8-document-processing-with-split-and-gather" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 8: Document Processing with Split and Gather
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-9-data-structure-processing-with-unnest" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 9: Data Structure Processing with Unnest
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-10-combined-document-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 10: Combined Document Workflow
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="examples">Examples</h1>
+<p>Here are some demonstrating how to use DocETL's pandas integration for various tasks.</p>
+<p>Note that caching is enabled, but intermediate outputs are not persisted like in DocETL's YAML interface.</p>
+<h2 id="example-1-analyzing-customer-reviews">Example 1: Analyzing Customer Reviews</h2>
+<p>Extract structured insights from customer reviews:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">docetl</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticAccessor</span>
+
+<span class="c1"># Load customer reviews</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;review&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="s2">&quot;Great laptop, fast processor but battery life could be better&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;The camera quality is amazing, especially in low light&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Keyboard feels cheap and the screen is too dim&quot;</span>
+    <span class="p">]</span>
+<span class="p">})</span>
+
+<span class="c1"># Configure semantic accessor</span>
+<span class="n">df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">set_config</span><span class="p">(</span><span class="n">default_model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">)</span>
+
+<span class="c1"># Extract structured insights</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Analyze this product review and extract:</span>
+<span class="s2">    1. Mentioned features</span>
+<span class="s2">    2. Sentiment per feature</span>
+<span class="s2">    3. Overall sentiment</span>
+
+<span class="s2">    Review: {{input.review}}&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;features&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;feature_sentiments&quot;</span><span class="p">:</span> <span class="s2">&quot;dict[str, str]&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;overall_sentiment&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Filter for negative reviews</span>
+<span class="n">negative_reviews</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Is this review predominantly negative? Consider the overall sentiment and feature sentiments.</span><span class="se">\n</span><span class="s2">{{input}}&quot;</span>
+<span class="p">)</span>
+</code></pre></div>
+<h2 id="example-2-deduplicating-customer-records">Example 2: Deduplicating Customer Records</h2>
+<p>Identify and merge duplicate customer records using fuzzy matching:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Customer records from two sources</span>
+<span class="n">df1</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;John Smith&quot;</span><span class="p">,</span> <span class="s2">&quot;Mary Johnson&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;john@email.com&quot;</span><span class="p">,</span> <span class="s2">&quot;mary.j@email.com&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;address&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;123 Main St&quot;</span><span class="p">,</span> <span class="s2">&quot;456 Oak Ave&quot;</span><span class="p">]</span>
+<span class="p">})</span>
+
+<span class="n">df2</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;John A Smith&quot;</span><span class="p">,</span> <span class="s2">&quot;Mary Johnson&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;john@email.com&quot;</span><span class="p">,</span> <span class="s2">&quot;mary.johnson@email.com&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;address&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;123 Main Street&quot;</span><span class="p">,</span> <span class="s2">&quot;456 Oak Avenue&quot;</span><span class="p">]</span>
+<span class="p">})</span>
+
+<span class="c1"># Merge records with fuzzy matching</span>
+<span class="n">merged</span> <span class="o">=</span> <span class="n">df1</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span>
+    <span class="n">df2</span><span class="p">,</span>
+    <span class="n">comparison_prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Compare these customer records and determine if they represent the same person.</span>
+<span class="s2">    Consider name variations, email patterns, and address formatting.</span>
+
+<span class="s2">    Record 1:</span>
+<span class="s2">    Name: {{input1.name}}</span>
+<span class="s2">    Email: {{input1.email}}</span>
+<span class="s2">    Address: {{input1.address}}</span>
+
+<span class="s2">    Record 2:</span>
+<span class="s2">    Name: {{input2.name}}</span>
+<span class="s2">    Email: {{input2.email}}</span>
+<span class="s2">    Address: {{input2.address}}&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">fuzzy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="c1"># This will automatically invoke optimization</span>
+<span class="p">)</span>
+</code></pre></div>
+<h2 id="example-3-topic-analysis-of-news-articles">Example 3: Topic Analysis of News Articles</h2>
+<p>Group and summarize news articles by topic:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># News articles</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Apple&#39;s New iPhone Launch&quot;</span><span class="p">,</span> <span class="s2">&quot;Tech Giants Face Regulation&quot;</span><span class="p">,</span> <span class="s2">&quot;AI Advances in Healthcare&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Apple announced...&quot;</span><span class="p">,</span> <span class="s2">&quot;Lawmakers propose...&quot;</span><span class="p">,</span> <span class="s2">&quot;Researchers develop...&quot;</span><span class="p">]</span>
+<span class="p">})</span>
+
+<span class="c1"># First, use a semantic map to extract the topic from each article</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Extract the topic from this article: {{input.content}}&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;topic&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">}}</span>
+<span class="p">)</span>
+
+<span class="c1"># Group similar articles and generate summaries</span>
+<span class="n">summaries</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+    <span class="c1"># First, group similar articles</span>
+    <span class="n">fuzzy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">reduce_keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;topic&quot;</span><span class="p">],</span>
+    <span class="n">comparison_prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Are these articles about the same topic or closely related topics?</span>
+
+<span class="s2">    Article 1:</span>
+<span class="s2">    Title: {{input1.title}}</span>
+<span class="s2">    Content: {{input1.content}}</span>
+
+<span class="s2">    Article 2:</span>
+<span class="s2">    Title: {{input2.title}}</span>
+<span class="s2">    Content: {{input2.content}}&quot;&quot;&quot;</span><span class="p">,</span>
+
+    <span class="c1"># Then, generate a summary for each group</span>
+    <span class="n">reduce_prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Summarize these related articles into a comprehensive overview:</span>
+
+<span class="s2">    Articles:</span>
+<span class="s2">    {{inputs}}&quot;&quot;&quot;</span><span class="p">,</span>
+
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;summary&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;key_points&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Summaries will be a df with the following columns:</span>
+<span class="c1"># - topic: str (because this was the reduce_keys)</span>
+<span class="c1"># - summary: str</span>
+<span class="c1"># - key_points: list[str]</span>
+</code></pre></div>
+<h2 id="example-4-multi-step-analysis-pipeline">Example 4: Multi-step Analysis Pipeline</h2>
+<p>Combine multiple operations for complex analysis:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Social media posts</span>
+<span class="n">posts</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Just tried the new iPhone 15!&quot;</span><span class="p">,</span> <span class="s2">&quot;Having issues with iOS 17&quot;</span><span class="p">,</span> <span class="s2">&quot;Android is better&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;timestamp&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-01-02&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-01-03&quot;</span><span class="p">]</span>
+<span class="p">})</span>
+
+<span class="c1"># 1. Extract structured information</span>
+<span class="n">analyzed</span> <span class="o">=</span> <span class="n">posts</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Analyze this social media post and extract:</span>
+<span class="s2">    1. Product mentioned</span>
+<span class="s2">    2. Sentiment</span>
+<span class="s2">    3. Issues/Praise points</span>
+
+<span class="s2">    Post: {{input.text}}&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;product&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;sentiment&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;points&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># 2. Filter relevant posts</span>
+<span class="n">relevant</span> <span class="o">=</span> <span class="n">analyzed</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Is this post about Apple products? {{input}}&quot;</span>
+<span class="p">)</span>
+
+
+<span class="c1"># 3. Group by issue and summarize</span>
+<span class="n">summaries</span> <span class="o">=</span> <span class="n">relevant</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+    <span class="n">fuzzy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">reduce_keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;product&quot;</span><span class="p">],</span>
+    <span class="n">comparison_prompt</span><span class="o">=</span><span class="s2">&quot;Do these posts discuss the same product?&quot;</span><span class="p">,</span>
+    <span class="n">reduce_prompt</span><span class="o">=</span><span class="s2">&quot;Summarize the feedback about this product&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;summary&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;frequency&quot;</span><span class="p">:</span> <span class="s2">&quot;int&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;severity&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Summaries will be a df with the following columns:</span>
+<span class="c1"># - product: str (because this was the reduce_keys)</span>
+<span class="c1"># - summary: str</span>
+<span class="c1"># - frequency: int</span>
+<span class="c1"># - severity: str</span>
+
+<span class="c1"># Track total cost</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total analysis cost: $</span><span class="si">{</span><span class="n">summaries</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">total_cost</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="example-5-error-handling-and-validation">Example 5: Error Handling and Validation</h2>
+<p>Implement robust error handling and validation:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Product descriptions</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;High-performance laptop...&quot;</span><span class="p">,</span> <span class="s2">&quot;Wireless earbuds...&quot;</span><span class="p">,</span> <span class="s2">&quot;Invalid/&quot;</span><span class="p">]</span>
+<span class="p">})</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+        <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Extract product specifications from: {{input.description}}. There should be at least one feature.&quot;</span><span class="p">,</span>
+        <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;category&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;features&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;price_range&quot;</span><span class="p">:</span> <span class="s2">&quot;enum[budget, mid-range, premium, luxury]&quot;</span>
+            <span class="p">}</span>
+        <span class="p">},</span>
+        <span class="c1"># Validation rules</span>
+        <span class="n">validate</span><span class="o">=</span><span class="p">[</span>
+            <span class="s2">&quot;len(output[&#39;features&#39;]) &gt;= 1&quot;</span><span class="p">,</span>
+        <span class="p">],</span>
+        <span class="c1"># Retry configuration</span>
+        <span class="n">num_retries_on_validate_failure</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Check operation history</span>
+    <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">history</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Operation: </span><span class="si">{</span><span class="n">op</span><span class="o">.</span><span class="n">op_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Modified columns: </span><span class="si">{</span><span class="n">op</span><span class="o">.</span><span class="n">output_columns</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error during processing: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="example-6-pdf-analysis">Example 6: PDF Analysis</h2>
+<p>DocETL supports native PDF handling with Claude and Gemini, in map and filter operations.
+Suppose you have a column in your pandas dataframe with PDF paths (1 path per row), and you want the LLM to do some analysis for each PDF. You can do this by setting the <code>pdf_url_key</code> parameter in the map or filter operation.</p>
+<div class="highlight"><pre><span></span><code><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;PdfPath&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;https://docetlcloudbank.blob.core.windows.net/ntsb-reports/Report_N617GC.pdf&quot;</span><span class="p">,</span> <span class="s2">&quot;https://docetlcloudbank.blob.core.windows.net/ntsb-reports/Report_CEN25LA075.pdf&quot;</span><span class="p">]</span>
+<span class="p">})</span>
+
+<span class="n">result_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Summarize the air crash report and determine any contributing factors&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;summary&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span> <span class="s2">&quot;contributing_factors&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">}</span>
+    <span class="p">},</span>
+    <span class="n">pdf_url_key</span><span class="o">=</span><span class="s2">&quot;PdfPath&quot;</span><span class="p">,</span> <span class="c1"># This is the column with the PDF paths</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">result_df</span><span class="o">.</span><span class="n">head</span><span class="p">())</span> <span class="c1"># The result will have the same number of rows as the input dataframe, with the summary and contributing factors added</span>
+</code></pre></div>
+<h2 id="example-7-synthetic-data-generation">Example 7: Synthetic Data Generation</h2>
+<p>DocETL supports generating multiple outputs for each input using the <code>n</code> parameter in the map operation. This is useful for synthetic data generation, A/B testing content variations, or creating multiple alternatives for each input.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Starter concepts for content generation</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;product&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Smart Watch&quot;</span><span class="p">,</span> <span class="s2">&quot;Wireless Earbuds&quot;</span><span class="p">,</span> <span class="s2">&quot;Home Security Camera&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;target_audience&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Fitness Enthusiasts&quot;</span><span class="p">,</span> <span class="s2">&quot;Music Lovers&quot;</span><span class="p">,</span> <span class="s2">&quot;Homeowners&quot;</span><span class="p">]</span>
+<span class="p">})</span>
+
+<span class="c1"># Generate 5 marketing headlines for each product-audience combination</span>
+<span class="n">variations</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Generate a compelling marketing headline for the following product and target audience:</span>
+
+<span class="s2">    Product: {{input.product}}</span>
+<span class="s2">    Target Audience: {{input.target_audience}}</span>
+
+<span class="s2">    The headline should:</span>
+<span class="s2">    - Be attention-grabbing and memorable</span>
+<span class="s2">    - Speak directly to the target audience&#39;s needs or desires</span>
+<span class="s2">    - Highlight the key benefit of the product</span>
+<span class="s2">    - Be between 5-10 words</span>
+<span class="s2">    &quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;headline&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">},</span> <span class="s2">&quot;n&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">}</span>  <span class="c1"># Generate 5 variations for each input row</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original dataframe rows: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generated variations: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">variations</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Should be 5x the original count</span>
+
+<span class="c1"># Variations dataframe will contain:</span>
+<span class="c1"># - All original columns (product, target_audience)</span>
+<span class="c1"># - The new headline column</span>
+<span class="c1"># - 5 rows for each original row (15 total for this example)</span>
+
+<span class="c1"># You can also combine this with other operations</span>
+<span class="c1"># Filter to only keep the best headlines</span>
+<span class="n">best_headlines</span> <span class="o">=</span> <span class="n">variations</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Is this headline exceptional and likely to drive high engagement?</span>
+
+<span class="s2">    Product: {{input.product}}</span>
+<span class="s2">    Target Audience: {{input.target_audience}}</span>
+<span class="s2">    Headline: {{input.headline}}</span>
+
+<span class="s2">    Consider catchiness, emotional appeal, and clarity.</span>
+<span class="s2">    &quot;&quot;&quot;</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>This example will generate 15 total variations (3 products × 5 variations each). You can adjust the <code>n</code> parameter to generate more or fewer variations as needed.</p>
+<h2 id="example-8-document-processing-with-split-and-gather">Example 8: Document Processing with Split and Gather</h2>
+<p>Process long documents by splitting them into chunks and adding contextual information:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Long documents that need to be processed in chunks</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;document_id&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;doc1&quot;</span><span class="p">,</span> <span class="s2">&quot;doc2&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Technical Manual&quot;</span><span class="p">,</span> <span class="s2">&quot;Research Paper&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="s2">&quot;Chapter 1: Introduction</span><span class="se">\n\n</span><span class="s2">This manual provides comprehensive guidance for system installation and configuration. The installation process involves several critical steps that must be followed in order.</span><span class="se">\n\n</span><span class="s2">Chapter 2: Prerequisites</span><span class="se">\n\n</span><span class="s2">Before beginning installation, ensure all system requirements are met. This includes hardware specifications, software dependencies, and network connectivity.</span><span class="se">\n\n</span><span class="s2">Chapter 3: Installation</span><span class="se">\n\n</span><span class="s2">The installation wizard guides users through the setup process. Select appropriate configuration options based on your deployment environment.&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Abstract</span><span class="se">\n\n</span><span class="s2">This research investigates the impact of machine learning on data processing efficiency. Our methodology involved testing multiple algorithms across diverse datasets.</span><span class="se">\n\n</span><span class="s2">Introduction</span><span class="se">\n\n</span><span class="s2">Machine learning has revolutionized data processing across industries. Previous studies have shown significant improvements in processing speed and accuracy.</span><span class="se">\n\n</span><span class="s2">Methodology</span><span class="se">\n\n</span><span class="s2">We conducted experiments using three different ML algorithms: neural networks, decision trees, and support vector machines. Each algorithm was tested on datasets ranging from 1,000 to 1,000,000 records.&quot;</span>
+    <span class="p">]</span>
+<span class="p">})</span>
+
+<span class="c1"># Step 1: Split documents into manageable chunks</span>
+<span class="n">chunks</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
+    <span class="n">split_key</span><span class="o">=</span><span class="s2">&quot;content&quot;</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;delimiter&quot;</span><span class="p">,</span>
+    <span class="n">method_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;delimiter&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;num_splits_to_group&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original documents: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generated chunks: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Step 2: Add contextual information to each chunk</span>
+<span class="n">enhanced_chunks</span> <span class="o">=</span> <span class="n">chunks</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span>
+    <span class="n">content_key</span><span class="o">=</span><span class="s2">&quot;content_chunk&quot;</span><span class="p">,</span>
+    <span class="n">doc_id_key</span><span class="o">=</span><span class="s2">&quot;semantic_split_0_id&quot;</span><span class="p">,</span>
+    <span class="n">order_key</span><span class="o">=</span><span class="s2">&quot;semantic_split_0_chunk_num&quot;</span><span class="p">,</span>
+    <span class="n">peripheral_chunks</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;previous&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;head&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}},</span>  <span class="c1"># Include 1 previous chunk</span>
+        <span class="s2">&quot;next&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;head&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}}</span>       <span class="c1"># Include 1 next chunk</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 3: Extract structured information from each chunk with context</span>
+<span class="n">analyzed_chunks</span> <span class="o">=</span> <span class="n">enhanced_chunks</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Analyze this document chunk with its surrounding context and extract:</span>
+<span class="s2">    1. Main topic or section</span>
+<span class="s2">    2. Key concepts discussed</span>
+<span class="s2">    3. Action items or requirements (if any)</span>
+
+<span class="s2">    Document chunk with context:</span>
+<span class="s2">    {{input.content_chunk_rendered}}&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;section_topic&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;key_concepts&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;action_items&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 4: Aggregate insights by document</span>
+<span class="n">document_summaries</span> <span class="o">=</span> <span class="n">analyzed_chunks</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+    <span class="n">reduce_keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;document_id&quot;</span><span class="p">],</span>
+    <span class="n">reduce_prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Create a comprehensive summary of this document based on all its chunks:</span>
+
+<span class="s2">    Document chunks:</span>
+<span class="s2">    {</span><span class="si">% f</span><span class="s2">or chunk in inputs %}</span>
+<span class="s2">    Section: {{chunk.section_topic}}</span>
+<span class="s2">    Key concepts: {{chunk.key_concepts | join(&#39;, &#39;)}}</span>
+<span class="s2">    Action items: {{chunk.action_items | join(&#39;, &#39;)}}</span>
+<span class="s2">    ---</span>
+<span class="s2">    {</span><span class="si">% e</span><span class="s2">ndfor %}&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;document_summary&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;all_key_concepts&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;all_action_items&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final document summaries: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">document_summaries</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total processing cost: $</span><span class="si">{</span><span class="n">document_summaries</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">total_cost</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="example-9-data-structure-processing-with-unnest">Example 9: Data Structure Processing with Unnest</h2>
+<p>Handle complex nested data structures commonly found in JSON APIs or survey responses:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Survey data with nested responses</span>
+<span class="n">survey_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;respondent_id&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>
+    <span class="s2">&quot;demographics&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span><span class="s2">&quot;age&quot;</span><span class="p">:</span> <span class="mi">25</span><span class="p">,</span> <span class="s2">&quot;location&quot;</span><span class="p">:</span> <span class="s2">&quot;NYC&quot;</span><span class="p">,</span> <span class="s2">&quot;education&quot;</span><span class="p">:</span> <span class="s2">&quot;Bachelor&#39;s&quot;</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">&quot;age&quot;</span><span class="p">:</span> <span class="mi">34</span><span class="p">,</span> <span class="s2">&quot;location&quot;</span><span class="p">:</span> <span class="s2">&quot;SF&quot;</span><span class="p">,</span> <span class="s2">&quot;education&quot;</span><span class="p">:</span> <span class="s2">&quot;Master&#39;s&quot;</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">&quot;age&quot;</span><span class="p">:</span> <span class="mi">28</span><span class="p">,</span> <span class="s2">&quot;location&quot;</span><span class="p">:</span> <span class="s2">&quot;Chicago&quot;</span><span class="p">,</span> <span class="s2">&quot;education&quot;</span><span class="p">:</span> <span class="s2">&quot;PhD&quot;</span><span class="p">}</span>
+    <span class="p">],</span>
+    <span class="s2">&quot;interests&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">[</span><span class="s2">&quot;technology&quot;</span><span class="p">,</span> <span class="s2">&quot;sports&quot;</span><span class="p">,</span> <span class="s2">&quot;music&quot;</span><span class="p">],</span>
+        <span class="p">[</span><span class="s2">&quot;science&quot;</span><span class="p">,</span> <span class="s2">&quot;reading&quot;</span><span class="p">],</span>
+        <span class="p">[</span><span class="s2">&quot;art&quot;</span><span class="p">,</span> <span class="s2">&quot;travel&quot;</span><span class="p">,</span> <span class="s2">&quot;cooking&quot;</span><span class="p">,</span> <span class="s2">&quot;photography&quot;</span><span class="p">]</span>
+    <span class="p">],</span>
+    <span class="s2">&quot;ratings&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span><span class="s2">&quot;product_quality&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;customer_service&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">&quot;product_quality&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;customer_service&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">},</span>
+        <span class="p">{</span><span class="s2">&quot;product_quality&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;customer_service&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">})</span>
+
+<span class="c1"># Step 1: Unnest demographics into separate columns</span>
+<span class="n">with_demographics</span> <span class="o">=</span> <span class="n">survey_df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">unnest</span><span class="p">(</span>
+    <span class="n">unnest_key</span><span class="o">=</span><span class="s2">&quot;demographics&quot;</span><span class="p">,</span>
+    <span class="n">expand_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;age&quot;</span><span class="p">,</span> <span class="s2">&quot;location&quot;</span><span class="p">,</span> <span class="s2">&quot;education&quot;</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 2: Unnest interests (each interest becomes a separate row)</span>
+<span class="n">individual_interests</span> <span class="o">=</span> <span class="n">with_demographics</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">unnest</span><span class="p">(</span>
+    <span class="n">unnest_key</span><span class="o">=</span><span class="s2">&quot;interests&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 3: For ratings, expand all fields </span>
+<span class="n">with_ratings</span> <span class="o">=</span> <span class="n">individual_interests</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">unnest</span><span class="p">(</span>
+    <span class="n">unnest_key</span><span class="o">=</span><span class="s2">&quot;ratings&quot;</span><span class="p">,</span>
+    <span class="n">expand_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;product_quality&quot;</span><span class="p">,</span> <span class="s2">&quot;customer_service&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original survey responses: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">survey_df</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Individual interest entries: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">individual_interests</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final flattened dataset: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">with_ratings</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Now you can analyze individual interests by demographics</span>
+<span class="n">interest_analysis</span> <span class="o">=</span> <span class="n">with_ratings</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Analyze this person&#39;s interest in the context of their demographics:</span>
+
+<span class="s2">    Person: {{input.age}} years old, {{input.education}}, from {{input.location}}</span>
+<span class="s2">    Interest: {{input.interests}}</span>
+<span class="s2">    Product ratings: Quality={{input.product_quality}}, Service={{input.customer_service}}, Value={{input.value}}</span>
+
+<span class="s2">    Provide insights about how this interest might relate to their demographics and satisfaction.&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;demographic_insight&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;interest_category&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;satisfaction_correlation&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Aggregate insights by interest category</span>
+<span class="n">category_insights</span> <span class="o">=</span> <span class="n">interest_analysis</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+    <span class="n">reduce_keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;interest_category&quot;</span><span class="p">],</span>
+    <span class="n">reduce_prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Summarize insights about people interested in {{inputs[0].interest_category}}:</span>
+
+<span class="s2">    {</span><span class="si">% f</span><span class="s2">or person in inputs %}</span>
+<span class="s2">    - {{person.age}} year old {{person.education}} from {{person.location}}: {{person.demographic_insight}}</span>
+<span class="s2">    {</span><span class="si">% e</span><span class="s2">ndfor %}&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;category_summary&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;typical_demographics&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;satisfaction_patterns&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
+<h2 id="example-10-combined-document-workflow">Example 10: Combined Document Workflow</h2>
+<p>A comprehensive example combining multiple operations for end-to-end document processing:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Research papers with metadata</span>
+<span class="n">papers_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;paper_id&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;P001&quot;</span><span class="p">,</span> <span class="s2">&quot;P002&quot;</span><span class="p">,</span> <span class="s2">&quot;P003&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="s2">&quot;Deep Learning for Natural Language Processing&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Quantum Computing Applications in Cryptography&quot;</span><span class="p">,</span> 
+        <span class="s2">&quot;Sustainable Energy Storage Solutions&quot;</span>
+    <span class="p">],</span>
+    <span class="s2">&quot;abstract&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;This paper explores...&quot;</span><span class="p">,</span> <span class="s2">&quot;We investigate...&quot;</span><span class="p">,</span> <span class="s2">&quot;This study examines...&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;full_text&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="s2">&quot;Introduction</span><span class="se">\n\n</span><span class="s2">Deep learning has revolutionized NLP...</span><span class="se">\n\n</span><span class="s2">Methodology</span><span class="se">\n\n</span><span class="s2">We employed transformer architectures...</span><span class="se">\n\n</span><span class="s2">Results</span><span class="se">\n\n</span><span class="s2">Our experiments show significant improvements...</span><span class="se">\n\n</span><span class="s2">Conclusion</span><span class="se">\n\n</span><span class="s2">The findings demonstrate...&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Introduction</span><span class="se">\n\n</span><span class="s2">Quantum computing promises...</span><span class="se">\n\n</span><span class="s2">Background</span><span class="se">\n\n</span><span class="s2">Classical cryptography relies...</span><span class="se">\n\n</span><span class="s2">Quantum Algorithms</span><span class="se">\n\n</span><span class="s2">Shor&#39;s algorithm can factor...</span><span class="se">\n\n</span><span class="s2">Conclusion</span><span class="se">\n\n</span><span class="s2">Quantum computing will require...&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Introduction</span><span class="se">\n\n</span><span class="s2">Renewable energy adoption...</span><span class="se">\n\n</span><span class="s2">Current Challenges</span><span class="se">\n\n</span><span class="s2">Energy storage remains...</span><span class="se">\n\n</span><span class="s2">Proposed Solutions</span><span class="se">\n\n</span><span class="s2">We propose novel battery...</span><span class="se">\n\n</span><span class="s2">Results</span><span class="se">\n\n</span><span class="s2">Our testing shows...&quot;</span>
+    <span class="p">],</span>
+    <span class="s2">&quot;authors&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">[</span><span class="s2">&quot;Dr. Smith&quot;</span><span class="p">,</span> <span class="s2">&quot;Prof. Johnson&quot;</span><span class="p">,</span> <span class="s2">&quot;Dr. Lee&quot;</span><span class="p">],</span>
+        <span class="p">[</span><span class="s2">&quot;Prof. Chen&quot;</span><span class="p">,</span> <span class="s2">&quot;Dr. Wilson&quot;</span><span class="p">],</span>
+        <span class="p">[</span><span class="s2">&quot;Dr. Brown&quot;</span><span class="p">,</span> <span class="s2">&quot;Prof. Davis&quot;</span><span class="p">,</span> <span class="s2">&quot;Dr. Taylor&quot;</span><span class="p">,</span> <span class="s2">&quot;Prof. Anderson&quot;</span><span class="p">]</span>
+    <span class="p">]</span>
+<span class="p">})</span>
+
+<span class="c1"># Step 1: Unnest authors for author-level analysis</span>
+<span class="n">author_papers</span> <span class="o">=</span> <span class="n">papers_df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">unnest</span><span class="p">(</span><span class="n">unnest_key</span><span class="o">=</span><span class="s2">&quot;authors&quot;</span><span class="p">)</span>
+
+<span class="c1"># Step 2: Split full text into sections</span>
+<span class="n">paper_sections</span> <span class="o">=</span> <span class="n">papers_df</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
+    <span class="n">split_key</span><span class="o">=</span><span class="s2">&quot;full_text&quot;</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;delimiter&quot;</span><span class="p">,</span>
+    <span class="n">method_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;delimiter&quot;</span><span class="p">:</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;num_splits_to_group&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 3: Add context to each section</span>
+<span class="n">contextual_sections</span> <span class="o">=</span> <span class="n">paper_sections</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span>
+    <span class="n">content_key</span><span class="o">=</span><span class="s2">&quot;full_text_chunk&quot;</span><span class="p">,</span>
+    <span class="n">doc_id_key</span><span class="o">=</span><span class="s2">&quot;semantic_split_0_id&quot;</span><span class="p">,</span>
+    <span class="n">order_key</span><span class="o">=</span><span class="s2">&quot;semantic_split_0_chunk_num&quot;</span><span class="p">,</span>
+    <span class="n">peripheral_chunks</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;previous&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;head&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}},</span>
+        <span class="s2">&quot;next&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;head&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 4: Extract insights from each section</span>
+<span class="n">section_insights</span> <span class="o">=</span> <span class="n">contextual_sections</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Analyze this paper section in context:</span>
+
+<span class="s2">Paper: {{input.title}}</span>
+<span class="s2">Section content: {{input.full_text_chunk_rendered}}</span>
+
+<span class="s2">Extract:</span>
+<span class="s2">1. Section type (Introduction, Methodology, Results, etc.)</span>
+<span class="s2">2. Key findings or claims</span>
+<span class="s2">3. Technical concepts mentioned</span>
+<span class="s2">4. Research gaps or future work mentioned&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;section_type&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;key_findings&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;technical_concepts&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;future_work&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 5: Aggregate insights by paper</span>
+<span class="n">paper_summaries</span> <span class="o">=</span> <span class="n">section_insights</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+    <span class="n">reduce_keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;paper_id&quot;</span><span class="p">],</span>
+    <span class="n">reduce_prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Create a comprehensive analysis of this research paper:</span>
+
+<span class="s2">Paper: {{inputs[0].title}}</span>
+
+<span class="s2">Sections analyzed:</span>
+<span class="s2">{</span><span class="si">% f</span><span class="s2">or section in inputs %}</span>
+<span class="s2">{{section.section_type}}: {{section.key_findings | join(&#39;, &#39;)}}</span>
+<span class="s2">Technical concepts: {{section.technical_concepts | join(&#39;, &#39;)}}</span>
+<span class="s2">{</span><span class="si">% e</span><span class="s2">ndfor %}</span>
+
+<span class="s2">Provide a structured summary.&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;comprehensive_summary&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;main_contributions&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;methodology_type&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;research_field&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Step 6: Cross-paper analysis</span>
+<span class="n">field_analysis</span> <span class="o">=</span> <span class="n">paper_summaries</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+    <span class="n">reduce_keys</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;research_field&quot;</span><span class="p">],</span>
+    <span class="n">fuzzy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Group similar research fields</span>
+    <span class="n">reduce_prompt</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;Analyze research trends in this field based on these papers:</span>
+
+<span class="s2">{</span><span class="si">% f</span><span class="s2">or paper in inputs %}</span>
+<span class="s2">Paper: {{paper.title}}</span>
+<span class="s2">Summary: {{paper.comprehensive_summary}}</span>
+<span class="s2">Contributions: {{paper.main_contributions | join(&#39;, &#39;)}}</span>
+<span class="s2">---</span>
+<span class="s2">{</span><span class="si">% e</span><span class="s2">ndfor %}&quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;field_trends&quot;</span><span class="p">:</span> <span class="s2">&quot;str&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;common_methodologies&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;emerging_themes&quot;</span><span class="p">:</span> <span class="s2">&quot;list[str]&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Papers processed: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">papers_df</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Authors identified: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">author_papers</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sections analyzed: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">section_insights</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Research fields identified: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">field_analysis</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total processing cost: $</span><span class="si">{</span><span class="n">field_analysis</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">total_cost</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../operations/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Operations">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Operations
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../optimization/overview/" class="md-footer__link md-footer__link--next" aria-label="Next: Optimization Overview">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Optimization Overview
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.expand", "navigation.path", "navigation.prune", "navigation.indexes", "navigation.top", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "toc.follow", "navigation.footer", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.50899def.min.js"></script>
+      
+    
+  <script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(() => { lightbox.reload() });
+</script></body>
+</html>

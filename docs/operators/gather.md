@@ -74,7 +74,7 @@ Next, we split the document into manageable chunks:
   split_key: agreement_text
   method: token_count
   method_kwargs:
-    token_count: 1000
+    num_tokens: 1000
 ```
 
 ### Step 3: Extract Headers (Map operation)

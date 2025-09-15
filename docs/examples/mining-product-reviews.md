@@ -306,7 +306,7 @@ These optimizations are crucial for handling the scale of our dataset, which inc
         split_key: concatenated_reviews
         method: token_count
         method_kwargs:
-          token_count: 87776
+          num_tokens: 87776
         optimize: false
 
       - name: gather_concatenated_reviews_identify_polarizing_themes

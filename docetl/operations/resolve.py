@@ -365,7 +365,6 @@ class ResolveOperation(BaseOperation):
         # If no pairs are blocked at all, fall back to all comparison pairs
         if not all_blocked_pairs:
             all_blocked_pairs = comparison_pairs
-
         # Apply limit_comparisons with prioritization
         if limit_comparisons is not None and len(all_blocked_pairs) > limit_comparisons:
             # Prioritize code-based pairs, then sample from embedding pairs if needed

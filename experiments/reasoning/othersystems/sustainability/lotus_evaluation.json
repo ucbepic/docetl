@@ -1,40 +1,36 @@
 [
   {
     "file": "experiments/reasoning/othersystems/sustainability/lotus_train.json",
-    "economic_activity_accuracy": 0.45614035087719296,
-    "combined_score": 0.5526315789473685,
-    "company_name_accuracy": 0.6491228070175439,
-    "total_companies_processed": 57,
-    "missing_companies": 20,
-    "avg_findings_length": 324.6666666666667,
-    "total_cost": 1.9336447999999995,
-    "gpt4o_cost": 1.7826623999999995,
-    "gpt4o_mini_cost": 0.15098240000000002,
+    "economic_activity_accuracy": 0.43333333333333335,
+    "combined_score": 0.5333333333333333,
+    "company_name_accuracy": 0.6333333333333333,
+    "total_companies_processed": 60,
+    "missing_companies": 22,
+    "avg_findings_length": 302.73333333333335,
+    "total_cost": 3.182599600000001,
+    "gpt4o_cost": 3.182599600000001,
+    "gpt4o_mini_cost": 0.0,
     "filter_stats": {
-      "pos_cascade_threshold": 0.88,
-      "neg_cascade_threshold": 0,
-      "filters_resolved_by_helper_model": 50,
-      "filters_resolved_by_large_model": 0,
-      "num_routed_to_helper_model": 50
-    }
+      "total_docs": 50,
+      "filtered_docs": 49
+    },
+    "execution_time": 666.1312608718872
   },
   {
     "file": "experiments/reasoning/othersystems/sustainability/lotus_test.json",
-    "economic_activity_accuracy": 0.43859649122807015,
-    "combined_score": 0.5701754385964912,
-    "company_name_accuracy": 0.7017543859649122,
-    "total_companies_processed": 114,
-    "missing_companies": 34,
-    "avg_findings_length": 333.2719298245614,
-    "total_cost": 4.719243099999999,
-    "gpt4o_cost": 4.261594399999999,
-    "gpt4o_mini_cost": 0.4576487000000002,
+    "economic_activity_accuracy": 0.5157894736842106,
+    "combined_score": 0.6631578947368421,
+    "company_name_accuracy": 0.8105263157894737,
+    "total_companies_processed": 95,
+    "missing_companies": 18,
+    "avg_findings_length": 313.30526315789473,
+    "total_cost": 6.5406464,
+    "gpt4o_cost": 6.5406464,
+    "gpt4o_mini_cost": 0.0,
     "filter_stats": {
-      "pos_cascade_threshold": 0.86,
-      "neg_cascade_threshold": 0,
-      "filters_resolved_by_helper_model": 100,
-      "filters_resolved_by_large_model": 0,
-      "num_routed_to_helper_model": 100
-    }
+      "total_docs": 100,
+      "filtered_docs": 97
+    },
+    "execution_time": 2094.904808998108
   }
 ]

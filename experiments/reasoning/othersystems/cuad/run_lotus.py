@@ -4,6 +4,7 @@ import lotus
 from lotus.models import LM
 import sys
 from pathlib import Path
+import time
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -50,6 +51,9 @@ def parse_json_output(output_str):
         return None
 
 def main():
+    # Record start time
+    start_time = time.time()
+    
     datasets = [
         {"name": "train", "path": "experiments/reasoning/data/train/cuad.json"},
         {"name": "test", "path": "experiments/reasoning/data/test/cuad.json"}
@@ -150,6 +154,9 @@ Please return your response as a JSON object with this structure:
         print(f"Processing complete! Results saved to {output_path}")
         print(f"Processed {len(results_list)} documents")
         
+        # Record execution time before evaluation
+        execution_time = time.time() - start_time
+        
         # Run evaluation using the utils function
         print(f"\n🧪 Running CUAD evaluation for {dataset['name']}...")
         try:
@@ -170,7 +177,8 @@ Please return your response as a JSON object with this structure:
                 "precision": metrics['avg_precision'],
                 "recall": metrics['avg_recall'],
                 "f1": metrics['avg_f1'],
-                "cost": cost
+                "cost": cost,
+                "execution_time": execution_time
             })
             
         except Exception as e:

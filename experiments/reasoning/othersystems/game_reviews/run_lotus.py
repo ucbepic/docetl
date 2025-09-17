@@ -5,6 +5,7 @@ from lotus.models import LM
 import sys
 from pathlib import Path
 import re
+import time
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -60,6 +61,9 @@ def parse_reviews_output(output_str):
     }
 
 def main():
+
+    start_time = time.time()
+
     datasets = [
         {"name": "train", "path": "experiments/reasoning/data/train/game_reviews.json"},
         {"name": "test", "path": "experiments/reasoning/data/test/game_reviews.json"}
@@ -136,6 +140,9 @@ Please return your response as a JSON object with this structure:
         
         print(f"Processing complete! Results saved to {output_path}")
         print(f"Processed {len(results_list)} games")
+
+        # Record execution time before evaluation
+        execution_time = time.time() - start_time
         
         # Run evaluation using the utils function
         print(f"\n🧪 Running game reviews evaluation for {dataset['name']}...")
@@ -160,7 +167,8 @@ Please return your response as a JSON object with this structure:
                 "weighted_score": metrics['weighted_score'],
                 "combined_accuracy_score": metrics['weighted_score'],  # Used by utils.py
                 "valid_games_processed": metrics['valid_games_processed'],
-                "cost": cost
+                "cost": cost,
+                "execution_time": execution_time
             })
             
         except Exception as e:

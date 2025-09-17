@@ -277,6 +277,8 @@ Guidelines:
         return result_df, (end_t - start_t)
 
 def main():
+    start_time = time.time()
+    
     datasets = [
         {"name": "train", "path": "experiments/reasoning/data/train/biodex.json"},
         {"name": "test", "path": "experiments/reasoning/data/test/biodex.json"}

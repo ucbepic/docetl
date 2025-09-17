@@ -1,16 +1,18 @@
 [
   {
     "file": "experiments/reasoning/othersystems/blackvault/lotus_train.json",
-    "avg_distinct_locations": 2.8846153846153846,
-    "total_documents": 26,
-    "total_distinct_locations": 75,
-    "cost": 0.0989788
+    "avg_distinct_locations": 6.681818181818182,
+    "total_documents": 22,
+    "total_distinct_locations": 147,
+    "cost": 0.12489169999999998,
+    "execution_time": 10.191471815109253
   },
   {
     "file": "experiments/reasoning/othersystems/blackvault/lotus_test.json",
-    "avg_distinct_locations": 4.6976744186046515,
-    "total_documents": 43,
-    "total_distinct_locations": 202,
-    "cost": 0.38868689999999995
+    "avg_distinct_locations": 3.019607843137255,
+    "total_documents": 51,
+    "total_distinct_locations": 154,
+    "cost": 0.31549130000000003,
+    "execution_time": 23.34413981437683
   }
 ]

@@ -5,6 +5,7 @@ from lotus.models import LM
 from lotus.types import CascadeArgs
 import sys
 from pathlib import Path
+import time
 import re
 
 from dotenv import load_dotenv
@@ -53,6 +54,8 @@ def parse_json_output(output_str):
         return [{"company_name": "Unknown", "key_findings": output_str.strip()}]
 
 def main():
+    start_time = time.time()
+
     datasets = [
         {"name": "train", "path": "experiments/reasoning/data/train/sustainability.json"},
         {"name": "test", "path": "experiments/reasoning/data/test/sustainability.json"}
@@ -92,20 +95,18 @@ A sustainability report typically includes information about:
 
 Return true if this document is primarily a sustainability report or contains substantial sustainability-related content, false otherwise."""
         
-        # Configure cascade args for filtering
-        cascade_args = CascadeArgs(
-            recall_target=0.9, 
-            precision_target=0.9, 
-            sampling_percentage=0.5, 
-            failure_probability=0.2
-        )
-        
-        df_filtered, filter_stats = df.sem_filter(
-            user_instruction=filter_prompt, 
-            suffix="_is_sustainability",
-            cascade_args=cascade_args,
-            return_stats=True
-        )
+        # Use simple filtering without cascade to avoid Lotus library bug
+        try:
+            df_filtered = df.sem_filter(
+                user_instruction=filter_prompt, 
+                suffix="_is_sustainability"
+            )
+            filter_stats = {"total_docs": len(df), "filtered_docs": len(df_filtered)}
+        except Exception as e:
+            print(f"⚠️  Filtering failed: {e}")
+            print("Continuing with original dataset...")
+            df_filtered = df
+            filter_stats = {"total_docs": len(df), "filtered_docs": len(df), "error": str(e)}
         print(f"After filtering: {len(df_filtered)} documents remain")
         print(f"Filter cascade stats: {filter_stats}")
         
@@ -133,7 +134,12 @@ Determine the primary economic sector/activity of the company. Choose from these
 
 Return only the economic activity category."""
         
-        df_with_activity = df_filtered.sem_map(economic_activity_prompt, suffix="economic_activity")
+        try:
+            df_with_activity = df_filtered.sem_map(economic_activity_prompt, suffix="economic_activity")
+        except Exception as e:
+            print(f"⚠️  Economic activity mapping failed: {e}")
+            print("Skipping economic activity step...")
+            df_with_activity = df_filtered
         
         # Step 3: Sustainability summary using sem_agg with group_by on raw economic activity
         print("Step 3: Creating sustainability summaries by economic activity...")
@@ -147,11 +153,18 @@ For each company, provide:
 
 Return the results as a JSON array of objects, where each object has "company_name" and "key_findings" fields."""
         
-        df_summary = df_with_activity.sem_agg(
-            summary_prompt,
-            group_by=["economic_activity"],
-            suffix="_sustainability_summary_raw"
-        )
+        try:
+            df_summary = df_with_activity.sem_agg(
+                summary_prompt,
+                group_by=["economic_activity"],
+                suffix="_sustainability_summary_raw"
+            )
+        except Exception as e:
+            print(f"⚠️  Sustainability summary aggregation failed: {e}")
+            print("Creating fallback summary...")
+            # Create a fallback structure
+            df_summary = df_with_activity.copy()
+            df_summary['_sustainability_summary_raw'] = '{"error": "API connection failed"}'
         
         # Parse the JSON outputs from sem_agg
         print("Parsing sustainability summary JSON outputs...")
@@ -170,6 +183,9 @@ Return the results as a JSON array of objects, where each object has "company_na
         
         print(f"Processing complete! Results saved to {output_path}")
         print(f"Processed {len(results_list)} documents")
+        
+        # Record execution time before evaluation
+        execution_time = time.time() - start_time
         
         # Run evaluation using the utils function
         print(f"\n🧪 Running sustainability evaluation for {dataset['name']}...")
@@ -201,7 +217,8 @@ Return the results as a JSON array of objects, where each object has "company_na
                 "total_cost": total_cost,
                 "gpt4o_cost": gpt_41_mini.stats.virtual_usage.total_cost,
                 "gpt4o_mini_cost": gpt_41_nano.stats.virtual_usage.total_cost,
-                "filter_stats": filter_stats
+                "filter_stats": filter_stats,
+                "execution_time": execution_time
             })
             
         except Exception as e:

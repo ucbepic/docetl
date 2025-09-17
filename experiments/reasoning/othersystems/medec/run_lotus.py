@@ -5,6 +5,7 @@ from lotus.models import LM
 import sys
 from pathlib import Path
 import re
+import time
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -59,6 +60,9 @@ def parse_medec_output(output_str):
         }
 
 def main():
+
+    start_time = time.time()
+
     datasets = [
         {"name": "train", "path": "experiments/reasoning/data/train/medec.json"},
         {"name": "test", "path": "experiments/reasoning/data/test/medec.json"}
@@ -140,6 +144,8 @@ Return your analysis in the following format:
         
         print(f"Processing complete! Results saved to {output_path}")
         print(f"Processed {len(results_list)} medical texts")
+
+        execution_time = time.time() - start_time
         
         # Run evaluation using the utils function
         print(f"\n🧪 Running medec evaluation for {dataset['name']}...")
@@ -166,7 +172,8 @@ Return your analysis in the following format:
                 "total_cases": metrics['total_cases'],
                 "num_error_cases": metrics['num_error_cases'],
                 "num_corrected_cases": metrics['num_corrected_cases'],
-                "cost": cost
+                "cost": cost,
+                "execution_time": execution_time
             })
             
         except Exception as e:

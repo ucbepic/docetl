@@ -4,6 +4,7 @@ import lotus
 from lotus.models import LM
 import sys
 from pathlib import Path
+import time
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -22,6 +23,9 @@ def load_blackvault_data(file_path):
     return pd.DataFrame(data)
 
 def main():
+    # Record start time
+    start_time = time.time()
+    
     datasets = [
         {"name": "train", "path": "experiments/reasoning/data/train/blackvault.json"},
         {"name": "test", "path": "experiments/reasoning/data/test/blackvault.json"}
@@ -134,6 +138,9 @@ Extract and list all unique locations of observation mentioned across these repo
         print(f"Processing complete! Results saved to {output_path}")
         print(f"Processed {len(results_list)} event types")
         
+        # Record execution time before evaluation
+        execution_time = time.time() - start_time
+        
         # Run evaluation using the utils function
         print(f"\n🧪 Running BlackVault evaluation for {dataset['name']}...")
         try:
@@ -154,7 +161,8 @@ Extract and list all unique locations of observation mentioned across these repo
                 "avg_distinct_locations": metrics['avg_distinct_locations'],
                 "total_documents": metrics['total_documents'],
                 "total_distinct_locations": metrics['total_distinct_locations'],
-                "cost": cost
+                "cost": cost,
+                "execution_time": execution_time
             })
             
         except Exception as e:

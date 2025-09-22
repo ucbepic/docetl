@@ -238,6 +238,8 @@ class OperatorFusionDirective(Directive):
             "litellm_completion_kwargs": {"temperature": 0},
         }
 
+        needs_code_filter = False
+
         # Determine type, schema, and code_filter need based on combination
         if op1_type == "map" and op2_type == "map":
             # map + map => fuse into one map

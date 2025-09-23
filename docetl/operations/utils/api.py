@@ -277,6 +277,11 @@ class APIWrapper(object):
                             "llm_tokens", weight=approx_num_tokens
                         )
 
+                        # Pop off temperature if it's gpt-5 in the model name
+                        gleaning_model = gleaning_config.get("model", model)
+                        if "gpt-5" in gleaning_model:
+                            litellm_completion_kwargs.pop("temperature", None)
+
                         # Get params for should refine
                         should_refine_params = {
                             "type": "object",
@@ -286,25 +291,19 @@ class APIWrapper(object):
                             },
                             "required": ["should_refine", "improvements"],
                         }
-                        if "gemini" not in model:
+                        if "gemini" not in gleaning_model:
                             should_refine_params["additionalProperties"] = False
 
                         # Add extra kwargs
                         extra_kwargs = {}
                         if self.default_lm_api_base:
                             extra_kwargs["api_base"] = self.default_lm_api_base
-                        if is_snowflake(model):
+                        if is_snowflake(gleaning_model):
                             extra_kwargs["allowed_openai_params"] = [
                                 "tools",
                                 "tool_choice",
                             ]
 
-                        # Remove temperature if gleaning model contains 'gpt-5'
-                        gleaning_model = gleaning_config.get("model", model)
-                        validator_kwargs = litellm_completion_kwargs.copy()
-                        if "gpt-5" in gleaning_model and "temperature" in validator_kwargs:
-                            validator_kwargs.pop("temperature")
-                        
                         validator_response = completion(
                             model=gleaning_model,
                             messages=truncate_messages(
@@ -325,7 +324,7 @@ class APIWrapper(object):
                                 }
                             ],
                             tool_choice="required",
-                            **validator_kwargs,
+                            **litellm_completion_kwargs,
                             **extra_kwargs,
                         )
                         total_cost += completion_cost(validator_response)
@@ -354,20 +353,15 @@ class APIWrapper(object):
                         Please improve your previous response. Ensure that the output adheres to the required schema and addresses any issues raised in the validation."""
                         messages.append({"role": "user", "content": improvement_prompt})
 
-                        # Call LLM again, removing temperature if gleaning model contains 'gpt-5'
-                        gleaning_completion_kwargs = litellm_completion_kwargs.copy()
-                        gleaning_model = gleaning_config.get("model", model)
-                        if "gpt-5" in gleaning_model and "temperature" in gleaning_completion_kwargs:
-                            gleaning_completion_kwargs.pop("temperature")
-                        
+                        # Call LLM again
                         response = self._call_llm_with_cache(
-                            gleaning_model,
+                            model,
                             op_type,
                             messages,
                             output_schema,
                             tools,
                             scratchpad,
-                            gleaning_completion_kwargs,
+                            litellm_completion_kwargs,
                             op_config=op_config,
                             use_structured_output=use_structured_output,
                         )

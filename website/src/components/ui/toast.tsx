@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react/prop-types */
 
 import * as React from "react";
 import { Cross2Icon } from "@radix-ui/react-icons";
@@ -106,7 +107,7 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
-    className={cn("text-sm opacity-90", className)}
+    className={cn("text-sm opacity-90 select-text", className)}
     {...props}
   />
 ));

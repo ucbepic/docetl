@@ -3,6 +3,7 @@ from platform import node
 import yaml
 import math
 import json
+import random
 from typing import Optional, List, Dict, Any
 import os
 from dotenv import load_dotenv
@@ -177,6 +178,7 @@ class Node:
     def best_child(self) -> Node:
         """
         Return the child with the highest UCB (Upper Confidence Bound) value.
+        If there are ties, randomly select among the tied children.
         
         UCB formula: value/visits + c * sqrt(ln(parent_visits) / visits)
         
@@ -195,7 +197,17 @@ class Node:
         for child in self.children:
             print(f"Child {child.yaml_file_path}: visits = {child.visits}, value = {child.value}")
         
-        return max(self.children, key=ucb)
+        # Calculate UCB values for all children
+        ucb_values = [(child, ucb(child)) for child in self.children]
+        
+        # Find the maximum UCB value
+        max_ucb = max(ucb_values, key=lambda x: x[1])[1]
+        
+        # Find all children with the maximum UCB value (ties)
+        tied_children = [child for child, ucb_val in ucb_values if ucb_val == max_ucb]
+        
+        # Randomly select among tied children
+        return random.choice(tied_children)
     
     def add_child(self, child: Node):
         """

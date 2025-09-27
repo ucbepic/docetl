@@ -719,7 +719,7 @@ def run_test_frontier_remote(dataset: str, method: str) -> Dict[str, Any]:
         
         # Set up paths
         base_output_dir = Path(VOLUME_MOUNT_PATH) / "outputs"
-        if method == "mcts": experiment_dir = base_output_dir / f"{dataset}_{method}"
+        if method == "mcts": experiment_dir = base_output_dir / f"{dataset}_{method}_lindsey_val"
         else: experiment_dir = base_output_dir / f"{dataset}_{method}"
         pareto_file = experiment_dir / f"pareto_frontier_{dataset}.json"
         
@@ -978,7 +978,8 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
             "mcts": [],
             "lotus": [],
             "pz_direct": [],
-            "pz_retrieval": []
+            "pz_retrieval": [],
+            "pz": []
         }
         
         # Method colors
@@ -989,11 +990,12 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
             "mcts": "#0f1b3c",               # Very dark navy blue
             "lotus": "#c27cf3",              # Light purple
             "pz_direct": "#ff0b50",                 # Pink/magenta
-            "pz_retrieval": "#ff6b35"        # Orange
+            "pz_retrieval": "#ff6b35",     # Orange
+            "pz": "#ff0b50"     
         }
         
         # Load test_frontier_summary.json from dataset_original folder
-        summary_file = base_output_dir / f"{dataset}_original" / "test_frontier_summary.json"
+        summary_file = base_output_dir / f"{dataset}_original_val" / "test_frontier_summary.json"
         
         if summary_file.exists():
             with open(summary_file, 'r') as f:
@@ -1005,10 +1007,14 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                 if "original" in summary_data["results"] and summary_data["results"]["original"].get("success"):
                     original_result = summary_data["results"]["original"]
                     if "cost" in original_result and "accuracy" in original_result:
-                        all_points["original"].append({
+                        point_data = {
                             "cost": original_result["cost"],
                             "accuracy": original_result["accuracy"]
-                        })
+                        }
+                        # Include file field if available
+                        if "file" in original_result:
+                            point_data["file"] = original_result["file"]
+                        all_points["original"].append(point_data)
                     print(f"  ✅ Loaded {len(all_points['original'])} test points from original")
                 else:
                     print("  ⚠️  No successful results found for original")
@@ -1019,10 +1025,14 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                         method_results = summary_data["results"][method].get("results", [])
                         for point in method_results:
                             if "cost" in point and "accuracy" in point:
-                                all_points[method].append({
+                                point_data = {
                                     "cost": point["cost"],
                                     "accuracy": point["accuracy"]
-                                })
+                                }
+                                # Include file field if available (especially for MCTS)
+                                if "file" in point:
+                                    point_data["file"] = point["file"]
+                                all_points[method].append(point_data)
                         print(f"  ✅ Loaded {len(all_points[method])} test points from {method}")
                     else:
                         print(f"  ⚠️  No successful results found for {method}")
@@ -1083,67 +1093,81 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
             with open(pz_file, 'r') as f:
                 pz_data = json.load(f)
             
-            # Load PZ direct data
-            if "direct" in pz_data:
-                print(f"  📊 Loading PZ direct data...")
-                for config_name, config_data in pz_data["direct"].items():
-                    if isinstance(config_data, dict):
-                        # Skip if "metadata" is the config_name
-                        if config_name == "metadata":
-                            continue
-                        
-                        # Find the accuracy metric using containment
-                        accuracy_value = None
-                        for key in config_data.keys():
-                            # Check if either the key contains the metric or the metric contains the key
-                            if accuracy_metric in key or key in accuracy_metric:
-                                accuracy_value = config_data[key]
-                                break
-                        
-                        if accuracy_value is None:
-                            print(f"  ❌ Could not find accuracy metric '{accuracy_metric}' in PZ direct config '{config_name}'")
-                            print(f"     Available keys: {list(config_data.keys())}")
-                            continue
-                        
-                        if "plan_execution_cost" in config_data:
-                            all_points["pz_direct"].append({
-                                "cost": config_data["plan_execution_cost"],
-                                "accuracy": accuracy_value
-                            })
-                
-                print(f"  ✅ Loaded {len(all_points['pz_direct'])} test points from PZ direct")
+            # Check PZ data structure and load accordingly
+            print(f"  📊 PZ data structure: {list(pz_data.keys())}")
             
-            # Load PZ retrieval data
-            if "retrieval" in pz_data:
-                print(f"  📊 Loading PZ retrieval data...")
-                for config_name, config_data in pz_data["retrieval"].items():
-                    if isinstance(config_data, dict):
-                        # Skip if "metadata" is the config_name
-                        if config_name == "metadata":
-                            continue
-                        
-                        # Find the accuracy metric using containment
+            # Case 1: Has direct/retrieval structure
+            if "direct" in pz_data or "retrieval" in pz_data:
+                print(f"  📊 Loading PZ data with direct/retrieval structure...")
+                
+                # Load PZ direct data
+                if "direct" in pz_data:
+                    print(f"  📊 Loading PZ direct data...")
+                    for config_name, config_data in pz_data["direct"].items():
+                        if isinstance(config_data, dict) and config_name != "metadata":
+                            # Find the accuracy metric using containment
+                            accuracy_value = None
+                            for key in config_data.keys():
+                                if accuracy_metric in key or key in accuracy_metric:
+                                    accuracy_value = config_data[key]
+                                    break
+                            
+                            if accuracy_value is not None and "plan_execution_cost" in config_data:
+                                all_points["pz_direct"].append({
+                                    "cost": config_data["plan_execution_cost"],
+                                    "accuracy": accuracy_value
+                                })
+                    
+                    print(f"  ✅ Loaded {len(all_points['pz_direct'])} test points from PZ direct")
+                
+                # Load PZ retrieval data
+                if "retrieval" in pz_data:
+                    print(f"  📊 Loading PZ retrieval data...")
+                    for config_name, config_data in pz_data["retrieval"].items():
+                        if isinstance(config_data, dict) and config_name != "metadata":
+                            # Find the accuracy metric using containment
+                            accuracy_value = None
+                            for key in config_data.keys():
+                                if accuracy_metric in key or key in accuracy_metric:
+                                    accuracy_value = config_data[key]
+                                    break
+                            
+                            if accuracy_value is not None and "plan_execution_cost" in config_data:
+                                all_points["pz_retrieval"].append({
+                                    "cost": config_data["plan_execution_cost"],
+                                    "accuracy": accuracy_value
+                                })
+                    
+                    print(f"  ✅ Loaded {len(all_points['pz_retrieval'])} test points from PZ retrieval")
+            
+            # Case 2: Only has general PZ structure (no direct/retrieval)
+            else:
+                print(f"  📊 Loading PZ data (general structure)...")
+                for config_name, config_data in pz_data.items():
+                    if isinstance(config_data, dict) and config_name != "metadata":
                         accuracy_value = None
                         for key in config_data.keys():
-                            # Check if either the key contains the metric or the metric contains the key
                             if accuracy_metric in key or key in accuracy_metric:
                                 accuracy_value = config_data[key]
                                 break
                         
-                        if accuracy_value is None:
-                            print(f"  ❌ Could not find accuracy metric '{accuracy_metric}' in PZ retrieval config '{config_name}'")
-                            print(f"     Available keys: {list(config_data.keys())}")
-                            continue
-                        
-                        if "plan_execution_cost" in config_data:
-                            all_points["pz_retrieval"].append({
+                        if accuracy_value is not None and "plan_execution_cost" in config_data:
+                            all_points["pz"].append({
                                 "cost": config_data["plan_execution_cost"],
                                 "accuracy": accuracy_value
                             })
                 
-                print(f"  ✅ Loaded {len(all_points['pz_retrieval'])} test points from PZ retrieval")
+                print(f"  ✅ Loaded {len(all_points['pz'])} test points from PZ")
         else:
             print(f"  ⚠️  No PZ evaluation found at {pz_file}")
+        
+        # Print summary of loaded data
+        print(f"\n📊 Data loading summary:")
+        for method, points in all_points.items():
+            if points:
+                print(f"  {method}: {len(points)} points")
+            else:
+                print(f"  {method}: 0 points")
         
         # Check if we have any data to plot
         total_points = sum(len(points) for points in all_points.values())
@@ -1173,6 +1197,34 @@ def generate_test_frontier_plot(dataset: str) -> Dict[str, Any]:
                               color=method_colors[method],
                               label=method.replace("_", " ").title(),
                               s=100, alpha=0.7, edgecolors='black', linewidth=1)
+                
+                # Add file name labels for MCTS points
+                if method == "mcts":
+                    print(f"  📝 Adding file name labels for {len(points)} MCTS points...")
+                    for i, point in enumerate(points):
+                        if "file" in point:
+                            cost = point["cost"]
+                            accuracy = point["accuracy"]
+                            file_name = point["file"]
+                            
+                            # Extract filename for display (with or without extension)
+                            if file_name:
+                                # Option 1: Full filename with extension
+                                display_name = Path(file_name).name
+                                # Option 2: Filename without extension (uncomment if preferred)
+                                # display_name = Path(file_name).stem
+                            else:
+                                display_name = f"point_{i+1}"
+                            
+                            print(f"    Point {i+1}: {display_name} (cost={cost}, accuracy={accuracy})")
+                            
+                            # Add text annotation for MCTS points
+                            ax.annotate(display_name, (cost, accuracy), 
+                                       xytext=(5, 5), textcoords='offset points',
+                                       fontsize=8, alpha=0.8,
+                                       bbox=dict(boxstyle='round,pad=0.3', facecolor='lightblue', alpha=0.8))
+                        else:
+                            print(f"    Point {i+1}: No file name found")
         
         # Set log scale for x-axis (cost)
         ax.set_xscale('log')
@@ -1697,7 +1749,7 @@ def run_all_test_frontiers(dataset: str) -> Dict[str, Any]:
     
     # Save test frontier summary to file
     base_output_dir = Path(VOLUME_MOUNT_PATH) / "outputs"
-    summary_path = base_output_dir / f"{dataset}_original" / "test_frontier_summary.json"
+    summary_path = base_output_dir / f"{dataset}_original_val" / "test_frontier_summary.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     
     with open(summary_path, 'w') as f:
@@ -1759,7 +1811,7 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
         }
         
         # Load test_frontier_summary.json from dataset_original folder
-        summary_file = base_output_dir / f"{dataset}_original" / "test_frontier_summary.json"
+        summary_file = base_output_dir / f"{dataset}_original_val" / "test_frontier_summary.json"
         
         if summary_file.exists():
             with open(summary_file, 'r') as f:
@@ -1771,10 +1823,14 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
                 if "original" in summary_data["results"] and summary_data["results"]["original"].get("success"):
                     original_result = summary_data["results"]["original"]
                     if "cost" in original_result and "accuracy" in original_result:
-                        all_points["original"].append({
+                        point_data = {
                             "cost": original_result["cost"],
                             "accuracy": original_result["accuracy"]
-                        })
+                        }
+                        # Include file field if available
+                        if "file" in original_result:
+                            point_data["file"] = original_result["file"]
+                        all_points["original"].append(point_data)
                     print(f"  ✅ Loaded {len(all_points['original'])} test points from original")
                 else:
                     print("  ⚠️  No successful results found for original")
@@ -1785,10 +1841,14 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
                         method_results = summary_data["results"][method].get("results", [])
                         for point in method_results:
                             if "cost" in point and "accuracy" in point:
-                                all_points[method].append({
+                                point_data = {
                                     "cost": point["cost"],
                                     "accuracy": point["accuracy"]
-                                })
+                                }
+                                # Include file field if available (especially for MCTS)
+                                if "file" in point:
+                                    point_data["file"] = point["file"]
+                                all_points[method].append(point_data)
                         print(f"  ✅ Loaded {len(all_points[method])} test points from {method}")
                     else:
                         print(f"  ⚠️  No successful results found for {method}")
@@ -1862,6 +1922,22 @@ def generate_all_matrices(dataset: str) -> Dict[str, Any]:
                         
                         if accuracy_value is not None and "plan_execution_cost" in config_data:
                             all_points["pz_retrieval"].append({
+                                "cost": config_data["plan_execution_cost"],
+                                "accuracy": accuracy_value
+                            })
+                
+                print(f"  ✅ Loaded {len(all_points['pz_retrieval'])} test points from PZ retrieval")
+            else:
+                for config_name, config_data in pz_data:
+                    if isinstance(config_data, dict) and config_name != "metadata":
+                        accuracy_value = None
+                        for key in config_data.keys():
+                            if accuracy_metric in key or key in accuracy_metric:
+                                accuracy_value = config_data[key]
+                                break
+                        
+                        if accuracy_value is not None and "plan_execution_cost" in config_data:
+                            all_points["pz"].append({
                                 "cost": config_data["plan_execution_cost"],
                                 "accuracy": accuracy_value
                             })

@@ -89,13 +89,15 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "medec",
+            "dataset": "cuad",
             "build_first_layer": True,
+            "model": "gpt-4.1",
             # "original_config_path": "medec/gpt_4o_mini_config.yaml",
             # "baseline": {"iterations": 10},
             # "simple_baseline": {"iterations": 10},
             # "original_cost": 0.008168,
-            "mcts": {"max_iterations": 30}
+            "experiment_name": "cuad_mcts_lindsey_val",
+            "mcts": {"max_iterations": 30, "model": "gpt-4.1"}
         }
     ]
 }
@@ -798,6 +800,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         ground_truth: Optional[str] = exp.get("ground_truth")
         original_cost: Optional[float] = exp.get("original_cost", 0.0)
         original_config_path: Optional[str] = exp.get("original_config_path", None)
+        experiment_name: Optional[str] = exp.get("experiment_name", None)
         
         build_first_layer: Optional[bool] = exp.get("build_first_layer", False)
         
@@ -933,7 +936,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         # Baseline block
         baseline_cfg: Optional[Dict[str, Any]] = exp.get("baseline")
         if baseline_cfg:
-            bl_name: str = f"{dataset}_baseline"
+            bl_name: str = f"{dataset}_baseline" if experiment_name is None else experiment_name
             bl_iters: int = int(baseline_cfg.get("iterations", 1))
             bl_model: Optional[str] = baseline_cfg.get("model")
 
@@ -954,7 +957,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         # MCTS block
         mcts_cfg: Optional[Dict[str, Any]] = exp.get("mcts")
         if mcts_cfg:
-            mc_name: str = f"{dataset}_mcts"
+            mc_name: str = f"{dataset}_mcts" if experiment_name is None else experiment_name
             mc_max: int = int(mcts_cfg.get("max_iterations", 10))
             mc_c: Optional[float] = mcts_cfg.get("exploration_weight")
             mc_model: Optional[str] = mcts_cfg.get("model")
@@ -980,7 +983,7 @@ def run_from_config(config: Dict[str, Any]) -> int:
         # Simple baseline block
         simple_baseline_cfg: Optional[Dict[str, Any]] = exp.get("simple_baseline")
         if simple_baseline_cfg:
-            sb_name: str = f"{dataset}_simple_baseline"
+            sb_name: str = f"{dataset}_simple_baseline" if experiment_name is None else experiment_name
             sb_model: Optional[str] = simple_baseline_cfg.get("model", "o3")
 
             call = _spawn_simple_baseline(

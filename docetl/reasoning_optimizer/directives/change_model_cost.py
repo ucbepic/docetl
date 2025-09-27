@@ -238,6 +238,44 @@ first_layer_yaml_paths = {
     ]
 }
 
+first_layer_yaml_paths_pruned = {
+    "cuad": [
+        "gemini_2.5_flash_lite_config.yaml",
+        "gpt_5_nano_config.yaml",
+        "gpt_4.1_mini_config.yaml",
+        "gemini_2.5_flash_config.yaml",
+        "gpt_4.1_config.yaml",
+    ],
+    "medec": [
+        "gpt_4o_mini_config.yaml",
+        "gpt_5_nano_config.yaml",
+        "gpt_4.1_config.yaml",
+        "gpt_5_mini_config.yaml",
+        "gemini_2.5_pro_config.yaml",
+        "gpt_5_config.yaml",
+    ],
+    "biodex": [
+        "gpt_5_nano_config.yaml",
+        "gpt_5_mini_config.yaml",
+        "gpt_5_config.yaml",
+    ],
+    "sustainability": [
+        "gemini_2.5_flash_lite_config.yaml",
+    ],
+    "blackvault": [
+        "gpt_4o_mini_config.yaml",
+        "gpt_5_mini_config.yaml",
+        "gpt_4.1_config.yaml",
+        "gpt_4o_config.yaml",
+        "gemini_2.5_pro_config.yaml",
+    ],
+    "game_reviews": [
+        "gpt_4.1_nano_config.yaml",
+        "gpt_5_nano_config.yaml",
+    ]
+}
+
+
 def get_cheaper_models(current_model: str, dataset: str) -> List[str]:
     """Get list of models that are cheaper than the current model for a given dataset."""
     if dataset not in MODEL_COSTS:

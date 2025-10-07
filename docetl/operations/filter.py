@@ -5,18 +5,28 @@ from typing import Any
 from pydantic import model_validator
 
 from docetl.operations.map import MapOperation
+from docetl.operations.utils.validation import (
+    convert_schema_to_dict_format,
+    is_pydantic_model,
+)
 
 
 class FilterOperation(MapOperation):
     class schema(MapOperation.schema):
         type: str = "filter"
         prompt: str
-        output: dict[str, Any]
+        output: dict[str, Any] | Any
 
         @model_validator(mode="after")
         def validate_filter_output_schema(self):
             # Check that schema exists and has the right structure for filtering
-            schema_dict = self.output["schema"]
+            raw_schema = self.output["schema"]
+
+            # Convert Pydantic schema to dict format for validation
+            if is_pydantic_model(raw_schema):
+                schema_dict = convert_schema_to_dict_format(raw_schema)
+            else:
+                schema_dict = raw_schema
 
             # Filter out _short_explanation for validation
             schema = {k: v for k, v in schema_dict.items() if k != "_short_explanation"}

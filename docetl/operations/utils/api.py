@@ -34,8 +34,10 @@ from .llm import (
 )
 from .validation import (
     convert_dict_schema_to_list_schema,
+    convert_schema_to_dict_format,
     convert_val,
     get_user_input_for_schema,
+    is_pydantic_model,
     safe_eval,
     strict_render,
 )
@@ -130,7 +132,7 @@ class APIWrapper(object):
         model: str,
         op_type: str,
         messages: list[dict[str, str]],
-        output_schema: dict[str, str],
+        output_schema: dict[str, str] | Any,
         verbose: bool = False,
         timeout_seconds: int = 120,
         max_retries_per_timeout: int = 2,
@@ -138,8 +140,22 @@ class APIWrapper(object):
         litellm_completion_kwargs: dict[str, Any] = {},
         op_config: dict[str, Any] = {},
     ) -> LLMResult:
+        # Handle Pydantic schemas and convert to dict format
+        original_schema = output_schema
+        if is_pydantic_model(output_schema):
+            output_schema = convert_schema_to_dict_format(output_schema, model)
+            # Auto-enable structured output for Pydantic schemas
+            op_config = op_config.copy()
+            if "output" not in op_config:
+                op_config["output"] = {}
+            if "mode" not in op_config["output"]:
+                op_config["output"]["mode"] = OutputMode.STRUCTURED_OUTPUT.value
+
         # Turn the output schema into a list of schemas
         output_schema = convert_dict_schema_to_list_schema(output_schema)
+
+        # Store original schema for validation
+        op_config["_original_schema"] = original_schema
 
         # Invoke the LLM call
         return self.call_llm(
@@ -442,7 +458,7 @@ class APIWrapper(object):
         model: str,
         op_type: str,
         messages: list[dict[str, str]],
-        output_schema: dict[str, str],
+        output_schema: dict[str, str] | Any,
         tools: list[dict[str, str]] | None = None,
         scratchpad: str | None = None,
         timeout_seconds: int = 120,
@@ -479,6 +495,20 @@ class APIWrapper(object):
         Raises:
             TimeoutError: If the call times out after retrying.
         """
+        # Handle Pydantic schemas and convert to dict format
+        original_schema = output_schema
+        if is_pydantic_model(output_schema):
+            output_schema = convert_schema_to_dict_format(output_schema, model)
+            # Auto-enable structured output for Pydantic schemas
+            op_config = op_config.copy()
+            if "output" not in op_config:
+                op_config["output"] = {}
+            if "mode" not in op_config["output"]:
+                op_config["output"]["mode"] = OutputMode.STRUCTURED_OUTPUT.value
+
+        # Store original schema for validation
+        op_config["_original_schema"] = original_schema
+
         # Determine output mode using central enum
         output_mode_str = op_config.get("output", {}).get(
             "mode", OutputMode.TOOLS.value

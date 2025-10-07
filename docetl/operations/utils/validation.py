@@ -288,14 +288,52 @@ def convert_schema_to_dict_format(
     Returns the schema in the format expected by existing DocETL code.
     """
     if is_pydantic_model(schema):
-        # Convert Pydantic model to OpenAPI schema, then extract properties
+        # Simple conversion - just get field names and basic types for internal use
         openapi_schema = pydantic_to_openapi_schema(schema)
         properties = openapi_schema.get("properties", {})
 
-        # Convert OpenAPI types back to DocETL string format
         result = {}
         for field, field_schema in properties.items():
-            result[field] = _openapi_to_docetl_type(field_schema, openapi_schema)
+            # Simple type mapping - the rich schema goes directly to LLM via OpenAPI
+            field_type = field_schema.get("type")
+
+            if field_type == "string":
+                result[field] = "str"
+            elif field_type == "integer":
+                result[field] = "int"
+            elif field_type == "number":
+                result[field] = "float"
+            elif field_type == "boolean":
+                result[field] = "bool"
+            elif field_type == "array":
+                result[field] = "list"
+            elif "$ref" in field_schema:
+                result[field] = "dict"  # Nested objects become dict
+            elif "anyOf" in field_schema:
+                # Handle Optional types - get the non-null type
+                non_null_types = [
+                    t for t in field_schema["anyOf"] if t.get("type") != "null"
+                ]
+                if non_null_types:
+                    first_type = non_null_types[0]
+                    if "$ref" in first_type:
+                        result[field] = "dict"  # Optional nested object
+                    else:
+                        sub_type = first_type.get("type", "str")
+                        if sub_type == "integer":
+                            result[field] = "int"
+                        elif sub_type == "number":
+                            result[field] = "float"
+                        elif sub_type == "boolean":
+                            result[field] = "bool"
+                        elif sub_type == "array":
+                            result[field] = "list"
+                        else:
+                            result[field] = "str"
+                else:
+                    result[field] = "str"
+            else:
+                result[field] = "str"  # Fallback
 
         return result
 
@@ -307,72 +345,3 @@ def convert_schema_to_dict_format(
         raise ValueError(
             f"Unsupported schema type: {type(schema)}. Expected dict or Pydantic BaseModel class."
         )
-
-
-def _openapi_to_docetl_type(
-    field_schema: dict[str, Any], full_schema: dict[str, Any] = None
-) -> str:
-    """Convert OpenAPI field schema back to DocETL string type format."""
-    field_type = field_schema.get("type")
-
-    # Handle $ref references to definitions
-    if "$ref" in field_schema:
-        ref_path = field_schema["$ref"]
-        if ref_path.startswith("#/$defs/") and full_schema and "$defs" in full_schema:
-            def_name = ref_path.replace("#/$defs/", "")
-            ref_schema = full_schema["$defs"].get(def_name, {})
-
-            # Handle enum definitions
-            if "enum" in ref_schema:
-                return "str"  # Enums become strings in DocETL
-
-            # Handle nested object definitions
-            if ref_schema.get("type") == "object" and "properties" in ref_schema:
-                return _convert_object_to_dict_string(ref_schema, full_schema)
-
-        # Fallback for unresolved refs
-        return "str"
-
-    # Handle nullable fields (Optional types in Pydantic)
-    if field_type is None and "anyOf" in field_schema:
-        # For Optional[T] fields, Pydantic generates {"anyOf": [{"type": "T"}, {"type": "null"}]}
-        non_null_schemas = [s for s in field_schema["anyOf"] if s.get("type") != "null"]
-        if non_null_schemas:
-            return _openapi_to_docetl_type(non_null_schemas[0], full_schema)
-
-    if field_type == "string":
-        if "enum" in field_schema:
-            enum_values = field_schema["enum"]
-            return f"enum[{', '.join(enum_values)}]"
-        return "str"
-    elif field_type == "integer":
-        return "int"
-    elif field_type == "number":
-        return "float"
-    elif field_type == "boolean":
-        return "bool"
-    elif field_type == "array":
-        items_schema = field_schema.get("items", {})
-        item_type = _openapi_to_docetl_type(items_schema, full_schema)
-        return f"list[{item_type}]"
-    elif field_type == "object":
-        return _convert_object_to_dict_string(field_schema, full_schema)
-    else:
-        # Fallback for unknown types
-        return "str"
-
-
-def _convert_object_to_dict_string(
-    object_schema: dict[str, Any], full_schema: dict[str, Any] = None
-) -> str:
-    """Convert an object schema to DocETL dict string format."""
-    properties = object_schema.get("properties", {})
-    if not properties:
-        return "dict"
-
-    prop_strings = []
-    for prop_name, prop_schema in properties.items():
-        prop_type = _openapi_to_docetl_type(prop_schema, full_schema)
-        prop_strings.append(f"{prop_name}: {prop_type}")
-
-    return "{" + ", ".join(prop_strings) + "}"

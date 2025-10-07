@@ -538,28 +538,22 @@ def test_complex_pydantic_schema_conversion():
     }
     assert set(dict_schema.keys()) == expected_fields
 
-    # Check specific type mappings
+    # Check specific type mappings (simplified - rich schema goes directly to LLM)
     assert dict_schema["name"] == "str"
     assert dict_schema["founded_year"] == "int"
-    assert dict_schema["size"] == "str"  # Enum becomes string
-    assert dict_schema["industries"] == "list[str]"
-    assert dict_schema["revenue_history"] == "list[float]"
+    assert dict_schema["size"] == "dict"  # Enum ref becomes dict
+    assert dict_schema["industries"] == "list"
+    assert dict_schema["revenue_history"] == "list"  # Optional list becomes list
     assert dict_schema["employee_count"] == "int"
-    assert dict_schema["valuation"] == "float"
+    assert dict_schema["valuation"] == "float"  # Optional float becomes float
     assert dict_schema["is_public"] == "bool"
     assert dict_schema["website"] == "str"
     assert dict_schema["description"] == "str"
 
-    # Check nested objects are converted to dict representations
-    assert dict_schema["headquarters"].startswith("{")
-    assert "city: str" in dict_schema["headquarters"]
-    assert "country: str" in dict_schema["headquarters"]
-
-    assert dict_schema["primary_contact"].startswith("{")
-    assert "name: str" in dict_schema["primary_contact"]
-    assert "email: str" in dict_schema["primary_contact"]
-
-    assert dict_schema["offices"] == "list[{city: str, country: str, coordinates: list[float]}]"
+    # Nested objects become simple dict type (rich schema preserved in OpenAPI for LLM)
+    assert dict_schema["headquarters"] == "dict"
+    assert dict_schema["primary_contact"] == "dict"  # Optional nested object in anyOf
+    assert dict_schema["offices"] == "list"
 
 
 @pytest.mark.parametrize("temp_input_file_from_data", [

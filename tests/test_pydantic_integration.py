@@ -61,6 +61,72 @@ class PersonInfo(BaseModel):
     email: str = Field(description="Email address")
 
 
+# Complex nested Pydantic model with advanced features
+class CompanySize(str, Enum):
+    """Enum for company sizes"""
+    STARTUP = "startup"
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
+    ENTERPRISE = "enterprise"
+
+
+class Contact(BaseModel):
+    """Nested model for contact information"""
+    name: str = Field(description="Contact person name")
+    email: str = Field(description="Contact email address")
+    phone: Optional[str] = Field(None, description="Phone number")
+
+
+class Location(BaseModel):
+    """Nested model for location information"""
+    city: str = Field(description="City name")
+    country: str = Field(description="Country name")
+    coordinates: Optional[List[float]] = Field(None, min_items=2, max_items=2, description="[latitude, longitude]")
+
+
+class ComplexCompanyProfile(BaseModel):
+    """Complex schema demonstrating nested objects, lists, enums, and constraints"""
+    # Basic fields
+    name: str = Field(min_length=1, max_length=200, description="Company name")
+    founded_year: int = Field(ge=1800, le=2030, description="Year the company was founded")
+
+    # Enum field
+    size: CompanySize = Field(description="Company size category")
+
+    # List of strings with constraints
+    industries: List[str] = Field(min_items=1, max_items=5, description="List of industries the company operates in")
+
+    # Optional list of numbers
+    revenue_history: Optional[List[float]] = Field(None, description="Revenue for past years in millions USD")
+
+    # Nested object
+    headquarters: Location = Field(description="Company headquarters location")
+
+    # Optional nested object
+    primary_contact: Optional[Contact] = Field(None, description="Primary business contact")
+
+    # List of nested objects
+    offices: List[Location] = Field(default_factory=list, description="Additional office locations")
+
+    # Complex constraints
+    employee_count: int = Field(ge=1, description="Number of employees")
+    valuation: Optional[float] = Field(None, ge=0, description="Company valuation in millions USD")
+
+    # Boolean with description
+    is_public: bool = Field(description="Whether the company is publicly traded")
+
+    # String with pattern constraint
+    website: str = Field(pattern=r"^https?://.*", description="Company website URL")
+
+    # Additional metadata
+    description: str = Field(max_length=1000, description="Brief company description")
+
+    class Config:
+        """Pydantic config to allow enum values"""
+        use_enum_values = True
+
+
 # =============================================================================
 # DATA FIXTURES
 # =============================================================================
@@ -457,3 +523,86 @@ def test_reduce_pydantic_format():
         model="gpt-4o-mini",
     )
     assert reduce_op.name == "pydantic_reduce"
+
+
+def test_complex_pydantic_schema_conversion():
+    """Test conversion of complex Pydantic models with nested objects, lists, enums"""
+    # Test the complex schema conversion
+    dict_schema = convert_schema_to_dict_format(ComplexCompanyProfile)
+
+    # Verify all fields are present
+    expected_fields = {
+        "name", "founded_year", "size", "industries", "revenue_history",
+        "headquarters", "primary_contact", "offices", "employee_count",
+        "valuation", "is_public", "website", "description"
+    }
+    assert set(dict_schema.keys()) == expected_fields
+
+    # Check specific type mappings
+    assert dict_schema["name"] == "str"
+    assert dict_schema["founded_year"] == "int"
+    assert dict_schema["size"] == "str"  # Enum becomes string
+    assert dict_schema["industries"] == "list[str]"
+    assert dict_schema["revenue_history"] == "list[float]"
+    assert dict_schema["employee_count"] == "int"
+    assert dict_schema["valuation"] == "float"
+    assert dict_schema["is_public"] == "bool"
+    assert dict_schema["website"] == "str"
+    assert dict_schema["description"] == "str"
+
+    # Check nested objects are converted to dict representations
+    assert dict_schema["headquarters"].startswith("{")
+    assert "city: str" in dict_schema["headquarters"]
+    assert "country: str" in dict_schema["headquarters"]
+
+    assert dict_schema["primary_contact"].startswith("{")
+    assert "name: str" in dict_schema["primary_contact"]
+    assert "email: str" in dict_schema["primary_contact"]
+
+    assert dict_schema["offices"] == "list[{city: str, country: str, coordinates: list[float]}]"
+
+
+@pytest.mark.parametrize("temp_input_file_from_data", [
+    [{"text": "Apple Inc. was founded in 1976 and is a large technology company based in Cupertino, California. Visit https://apple.com"}]
+], indirect=True)
+def test_complex_pydantic_schema_in_pipeline(temp_input_file_from_data, temp_output_file, temp_intermediate_dir):
+    """Test using a complex Pydantic schema in a real pipeline"""
+    map_op = MapOp(
+        name="extract_complex_company_info",
+        type="map",
+        prompt="""Extract detailed company information from: "{{ input.text }}"
+
+        Include all available details about:
+        - Basic company info (name, founding year, size category)
+        - Industries they operate in
+        - Location details for headquarters
+        - Whether they are publicly traded
+        - Website URL
+        - Brief description
+
+        For missing information, use reasonable defaults or omit optional fields.""",
+        output={"schema": ComplexCompanyProfile},
+        model="gpt-4o-mini",
+    )
+
+    pipeline = Pipeline(
+        name="complex_pydantic_test",
+        datasets={"test_input": Dataset(type="file", path=temp_input_file_from_data)},
+        operations=[map_op],
+        steps=[
+            PipelineStep(name="extract_step", input="test_input", operations=["extract_complex_company_info"])
+        ],
+        output=PipelineOutput(
+            type="file", path=temp_output_file, intermediate_dir=temp_intermediate_dir
+        ),
+        default_model="gpt-4o-mini",
+    )
+
+    # Test that pipeline can be created successfully
+    assert isinstance(pipeline, Pipeline)
+    assert len(pipeline.operations) == 1
+
+    # Test that the operation configuration contains the complex Pydantic model
+    config = pipeline._to_dict()
+    op_config = config["operations"][0]
+    assert op_config["output"]["schema"] == ComplexCompanyProfile

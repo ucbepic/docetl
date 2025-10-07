@@ -140,10 +140,8 @@ class APIWrapper(object):
         litellm_completion_kwargs: dict[str, Any] = {},
         op_config: dict[str, Any] = {},
     ) -> LLMResult:
-        # Handle Pydantic schemas and convert to dict format
-        original_schema = output_schema
+        # Handle Pydantic schemas
         if is_pydantic_model(output_schema):
-            output_schema = convert_schema_to_dict_format(output_schema, model)
             # Auto-enable structured output for Pydantic schemas
             op_config = op_config.copy()
             if "output" not in op_config:
@@ -151,11 +149,15 @@ class APIWrapper(object):
             if "mode" not in op_config["output"]:
                 op_config["output"]["mode"] = OutputMode.STRUCTURED_OUTPUT.value
 
-        # Turn the output schema into a list of schemas
-        output_schema = convert_dict_schema_to_list_schema(output_schema)
-
-        # Store original schema for validation
-        op_config["_original_schema"] = original_schema
+            # For structured output mode, pass the Pydantic model directly
+            # The LLM API will handle the OpenAPI conversion internally
+            op_config["_pydantic_schema"] = output_schema
+            # Convert to dict format only for the list schema wrapper
+            dict_schema = convert_schema_to_dict_format(output_schema, model)
+            output_schema = convert_dict_schema_to_list_schema(dict_schema)
+        else:
+            # Regular dict schema processing
+            output_schema = convert_dict_schema_to_list_schema(output_schema)
 
         # Invoke the LLM call
         return self.call_llm(
@@ -495,10 +497,8 @@ class APIWrapper(object):
         Raises:
             TimeoutError: If the call times out after retrying.
         """
-        # Handle Pydantic schemas and convert to dict format
-        original_schema = output_schema
+        # Handle Pydantic schemas
         if is_pydantic_model(output_schema):
-            output_schema = convert_schema_to_dict_format(output_schema, model)
             # Auto-enable structured output for Pydantic schemas
             op_config = op_config.copy()
             if "output" not in op_config:
@@ -506,8 +506,10 @@ class APIWrapper(object):
             if "mode" not in op_config["output"]:
                 op_config["output"]["mode"] = OutputMode.STRUCTURED_OUTPUT.value
 
-        # Store original schema for validation
-        op_config["_original_schema"] = original_schema
+            # Store the Pydantic schema for structured output
+            op_config["_pydantic_schema"] = output_schema
+            # Convert to dict format for internal processing
+            output_schema = convert_schema_to_dict_format(output_schema, model)
 
         # Determine output mode using central enum
         output_mode_str = op_config.get("output", {}).get(
@@ -704,15 +706,38 @@ class APIWrapper(object):
         # Prepare structured output schema if using structured output mode
         response_format = None
         if use_structured_output:
-            if scratchpad is not None:
-                props["updated_scratchpad"] = {"type": "string"}
+            # Check if we have a Pydantic schema to use directly
+            pydantic_schema = op_config.get("_pydantic_schema")
+            if pydantic_schema and is_pydantic_model(pydantic_schema):
+                # Use the OpenAPI schema from Pydantic directly
+                from .validation import pydantic_to_openapi_schema
 
-            schema = {
-                "type": "object",
-                "properties": props,
-                "required": list(props.keys()),
-                "additionalProperties": False,
-            }
+                openapi_schema = pydantic_to_openapi_schema(pydantic_schema)
+
+                if scratchpad is not None:
+                    # Add scratchpad to the schema properties
+                    openapi_schema = openapi_schema.copy()
+                    openapi_schema["properties"] = openapi_schema["properties"].copy()
+                    openapi_schema["properties"]["updated_scratchpad"] = {
+                        "type": "string"
+                    }
+                    if "required" in openapi_schema:
+                        openapi_schema["required"] = list(
+                            openapi_schema["required"]
+                        ) + ["updated_scratchpad"]
+
+                schema = openapi_schema
+            else:
+                # Use the converted dict schema
+                if scratchpad is not None:
+                    props["updated_scratchpad"] = {"type": "string"}
+
+                schema = {
+                    "type": "object",
+                    "properties": props,
+                    "required": list(props.keys()),
+                    "additionalProperties": False,
+                }
 
             response_format = {
                 "type": "json_schema",

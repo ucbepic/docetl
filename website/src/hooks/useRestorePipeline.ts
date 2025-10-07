@@ -15,6 +15,17 @@ interface YAMLOperation {
   type: string;
   name?: string;
   prompt?: string;
+  prompts?: Array<{
+    name?: string;
+    prompt: string;
+    output_keys: string[];
+    model?: string;
+    gleaning?: {
+      num_rounds: number;
+      validation_prompt: string;
+      model?: string;
+    };
+  }>;
   output?: {
     schema: Record<string, unknown>;
   };
@@ -84,6 +95,7 @@ export const useRestorePipeline = ({
                     type,
                     name,
                     prompt,
+                    prompts, // For parallel_map operations
                     output,
                     validate,
                     sample,
@@ -130,14 +142,30 @@ export const useRestorePipeline = ({
                       : [op.document_keys];
                   }
 
+                  // If the operation type is 'parallel_map', preserve the prompts array
+                  if (type === "parallel_map") {
+                    if (prompts) {
+                      stringifiedKwargs.prompts = prompts;
+                    } else if (stringifiedKwargs.prompts) {
+                      // Handle case where prompts might have been stringified
+                      try {
+                        if (typeof stringifiedKwargs.prompts === "string") {
+                          stringifiedKwargs.prompts = JSON.parse(stringifiedKwargs.prompts);
+                        }
+                      } catch (e) {
+                        console.error("Error parsing stringified prompts:", e);
+                      }
+                    }
+                  }
+
                   return {
                     id: id || uuidv4(),
                     llmType:
                       type === "map" ||
-                      type === "reduce" ||
-                      type === "resolve" ||
-                      type === "filter" ||
-                      type === "parallel_map"
+                        type === "reduce" ||
+                        type === "resolve" ||
+                        type === "filter" ||
+                        type === "parallel_map"
                         ? "LLM"
                         : "non-LLM",
                     type: type as Operation["type"],
@@ -145,10 +173,10 @@ export const useRestorePipeline = ({
                     prompt,
                     output: output
                       ? {
-                          schema: schemaDictToItemSet(
-                            output.schema as Record<string, string>
-                          ),
-                        }
+                        schema: schemaDictToItemSet(
+                          output.schema as Record<string, string>
+                        ),
+                      }
                       : undefined,
                     validate,
                     sample,
@@ -205,10 +233,12 @@ export const useRestorePipeline = ({
 
               resolve();
             } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
               console.error("Error parsing YAML:", error);
+              console.error("Error details:", errorMessage);
               toast({
                 title: "Error",
-                description: "Failed to parse the uploaded YAML file.",
+                description: `Failed to parse the uploaded YAML file: ${errorMessage}`,
                 variant: "destructive",
               });
               reject(error);

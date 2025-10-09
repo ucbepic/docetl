@@ -310,7 +310,7 @@ class APIWrapper(object):
                             messages=truncate_messages(
                                 validator_messages
                                 + [{"role": "user", "content": validator_prompt}],
-                                model,
+                                gleaning_model,
                             ),
                             tools=[
                                 {

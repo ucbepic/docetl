@@ -4,6 +4,7 @@ from typing import Any
 from asteval import Interpreter
 from jinja2 import Environment, StrictUndefined, Template
 from jinja2.exceptions import UndefinedError
+from pydantic import BaseModel
 from rich import print as rprint
 from rich.prompt import Prompt
 
@@ -122,7 +123,7 @@ def _is_integer(value: Any) -> bool:
 
 def _is_number(value: Any) -> bool:
     """Return True if value is a real number (int or float) but not a bool."""
-    return (isinstance(value, (int, float)) and not isinstance(value, bool))
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _validate_scalar(value: Any, schema: dict[str, Any]) -> bool:
@@ -176,7 +177,9 @@ def _validate_value_against_schema(value: Any, schema: dict[str, Any]) -> bool:
                 return False
         # Validate known properties
         for key, prop_schema in properties.items():
-            if key in value and not _validate_value_against_schema(value[key], prop_schema):
+            if key in value and not _validate_value_against_schema(
+                value[key], prop_schema
+            ):
                 return False
         # additionalProperties constraint
         if not additional_props_allowed:
@@ -249,3 +252,96 @@ def get_user_input_for_schema(schema: dict[str, Any]) -> dict[str, Any]:
             return get_user_input_for_schema(schema)
 
     return user_input
+
+
+def is_pydantic_model(obj: Any) -> bool:
+    """Check if an object is a Pydantic BaseModel class."""
+    # Check if it's a class that inherits from BaseModel
+    return isinstance(obj, type) and issubclass(obj, BaseModel)
+
+
+def pydantic_to_openapi_schema(model_class: type[BaseModel]) -> dict[str, Any]:
+    """Convert a Pydantic model to OpenAPI JSON schema format."""
+    if not is_pydantic_model(model_class):
+        raise ValueError(f"Expected Pydantic BaseModel class, got {type(model_class)}")
+
+    # Get the JSON schema from the model
+    schema = model_class.model_json_schema()
+
+    # Remove the title if it's just the class name (cleaner for LLM)
+    if schema.get("title") == model_class.__name__:
+        schema.pop("title", None)
+
+    return schema
+
+
+def convert_schema_to_dict_format(
+    schema: Any, model: str = "gpt-4o-mini"
+) -> dict[str, Any]:
+    """
+    Convert various schema formats to the internal dict format used by DocETL.
+
+    Supports:
+    - Existing dict format: {"field": "str", "count": "int"}
+    - Pydantic BaseModel classes
+
+    Returns the schema in the format expected by existing DocETL code.
+    """
+    if is_pydantic_model(schema):
+        # Simple conversion - just get field names and basic types for internal use
+        openapi_schema = pydantic_to_openapi_schema(schema)
+        properties = openapi_schema.get("properties", {})
+
+        result = {}
+        for field, field_schema in properties.items():
+            # Simple type mapping - the rich schema goes directly to LLM via OpenAPI
+            field_type = field_schema.get("type")
+
+            if field_type == "string":
+                result[field] = "str"
+            elif field_type == "integer":
+                result[field] = "int"
+            elif field_type == "number":
+                result[field] = "float"
+            elif field_type == "boolean":
+                result[field] = "bool"
+            elif field_type == "array":
+                result[field] = "list"
+            elif "$ref" in field_schema:
+                result[field] = "dict"  # Nested objects become dict
+            elif "anyOf" in field_schema:
+                # Handle Optional types - get the non-null type
+                non_null_types = [
+                    t for t in field_schema["anyOf"] if t.get("type") != "null"
+                ]
+                if non_null_types:
+                    first_type = non_null_types[0]
+                    if "$ref" in first_type:
+                        result[field] = "dict"  # Optional nested object
+                    else:
+                        sub_type = first_type.get("type", "str")
+                        if sub_type == "integer":
+                            result[field] = "int"
+                        elif sub_type == "number":
+                            result[field] = "float"
+                        elif sub_type == "boolean":
+                            result[field] = "bool"
+                        elif sub_type == "array":
+                            result[field] = "list"
+                        else:
+                            result[field] = "str"
+                else:
+                    result[field] = "str"
+            else:
+                result[field] = "str"  # Fallback
+
+        return result
+
+    elif isinstance(schema, dict):
+        # Already in the expected format
+        return schema
+
+    else:
+        raise ValueError(
+            f"Unsupported schema type: {type(schema)}. Expected dict or Pydantic BaseModel class."
+        )

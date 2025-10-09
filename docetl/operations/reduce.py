@@ -32,6 +32,10 @@ from docetl.operations.utils import (
 
 # Import OutputMode enum for structured output checks
 from docetl.operations.utils.api import OutputMode
+from docetl.operations.utils.validation import (
+    convert_schema_to_dict_format,
+    is_pydantic_model,
+)
 from docetl.utils import completion_cost
 
 
@@ -46,7 +50,7 @@ class ReduceOperation(BaseOperation):
     class schema(BaseOperation.schema):
         type: str = "reduce"
         reduce_key: str | list[str]
-        output: dict[str, Any]
+        output: dict[str, Any] | Any
         prompt: str
         optimize: bool | None = None
         synthesize_resolve: bool | None = None
@@ -199,6 +203,15 @@ class ReduceOperation(BaseOperation):
             self.console.log(
                 f"Using gleaning with validation prompt: {self.config.get('gleaning', {}).get('validation_prompt', '')}"
             )
+
+        # Handle both dict and Pydantic schemas
+        if self.config.get("output") and "schema" in self.config["output"]:
+            raw_schema = self.config["output"]["schema"]
+            if is_pydantic_model(raw_schema):
+                # Convert Pydantic schema to dict format for internal processing
+                self.config["output"]["schema"] = convert_schema_to_dict_format(
+                    raw_schema
+                )
 
         reduce_keys = self.config["reduce_key"]
         if isinstance(reduce_keys, str):

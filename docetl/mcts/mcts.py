@@ -62,7 +62,7 @@ class MCTS:
     This class implements the four phases of MCTS with Pareto frontier integration:
     1. Selection: Choose the best child using UCB with Pareto value consideration
     2. Expansion: Add new children to the tree
-    3. Simulation: Execute a random policy to get a value
+    3. Simulation: Execute a pipeline to get value
     4. Backpropagation: Update node values up the tree
 
     The MCTS optimizes for both cost and accuracy using the Pareto frontier.
@@ -138,7 +138,7 @@ class MCTS:
         self.output_dir = output_dir
         
         # Set up evaluation function and dataset metrics
-        self.evaluate_func = get_evaluate_func(dataset_name)
+        self.evaluate_func = get_evaluate_func(dataset_name, mode="train")
         self.dataset_metrics = {
             "cuad": "avg_f1",
             "blackvault": "avg_distinct_locations",
@@ -280,12 +280,16 @@ class MCTS:
                 
         except Exception as e:
             print(f"⚠️ Evaluation failed for node {node.get_id()}: {e}")
+            # Log -inf occurrence for debugging
+            node._log_inf_occurrence("evaluation_failure", str(e), node.yaml_file_path)
             # Return -inf when evaluation fails, same as unexecutable plans
             return float("-inf")
             
         # Guard against NaN values
         if true_accuracy is None or (isinstance(true_accuracy, float) and (true_accuracy != true_accuracy)):  # NaN check
             print(f"⚠️ Evaluation returned NaN for node {node.get_id()}, setting to -inf")
+            # Log -inf occurrence for debugging
+            node._log_inf_occurrence("nan_evaluation", f"Evaluation returned NaN or None: {true_accuracy}", node.yaml_file_path)
             return float("-inf")
 
         return true_accuracy
@@ -317,9 +321,11 @@ class MCTS:
                 for future in as_completed(futures):
                     try:
                         success = future.result()
+                        print(f"Agent completed with success={success}, current iteration_count={self.iteration_count}")
                         if success:
                             with self.tree_lock:
                                 self.iteration_count += 1
+                                print(f"Updated iteration_count to {self.iteration_count}")
                     except Exception as e:
                         print(f"Agent failed with error: {e}")
                     
@@ -356,98 +362,146 @@ class MCTS:
         thread_id = threading.current_thread().ident
         
         # 1. Selection: Find the best leaf node (requires tree lock)
+        dual_expand = False
         with self.tree_lock:
             print(f"[Thread {thread_id}] SELECTION")
             leaf = self.select(self.root)
             print(f"[Thread {thread_id}] SELECTED NODE: {leaf.get_id()}")
+            if self.is_first_layer_node(leaf) and leaf.visits == 1:
+                dual_expand = True
+                self.increment_visits_up_tree(leaf)
+            self.increment_visits_up_tree(leaf)
+
 
         # 2. Expansion: Always attempt to expand the leaf, catch errors (requires tree lock)
         with self.tree_lock:
             print(f"[Thread {thread_id}] EXPANSION")
             acc_children = []
+            cost_children = []
+            if dual_expand:
+                print(f"[Thread {thread_id}] node {leaf.get_id()} is a FIRST LAYER NODE")
+                try:
+                    acc_children =self.expand(leaf,"acc")
+                    has_leaf_acc = 1
+                    print("HAS LEAF ACC")
+                except RuntimeError as e:
+                    print(e)
+                    has_leaf_acc= 0
+                try:
+                    cost_children =self.expand(leaf,"cost")
+                    has_leaf_cost = 1
+                    print("HAS LEAF COST")
+                except RuntimeError as e:
+                    print(e)
+                    has_leaf_cost= 0
+            else: 
+                print(f"[Thread {thread_id}] node {leaf.get_id()} is NOT a FIRST LAYER NODE")
+                optimize_goal = self.get_optimize_goal(leaf)
+                if optimize_goal == "acc":
+                    acc_children = self.expand(leaf, optimize_goal="acc")
+                    has_leaf_acc = 1
+                    has_leaf_cost = 0  
+                else:
+                    cost_children = self.expand(leaf, optimize_goal="cost")
+                    has_leaf_cost = 1
+                    has_leaf_acc = 0  
 
-            has_leaf_acc = 1
-            try:
-                acc_children = self.expand(leaf, optimize_goal="acc")
-                # Increment visit count immediately after successful expansion
-                if acc_children:
-                    self.increment_visits_up_tree(leaf)
-            except RuntimeError as e:
-                print(e)
-                has_leaf_acc = 0
 
         # 3. Simulation: Run simulations from the leaf
-
         is_frontier_updated = False
         if has_leaf_acc:
             print("HAS LEAF ACC SIMULATION")
+            is_frontier_updated = self._simulate_children(acc_children, "acc")
             
-            if len(acc_children) > 1:
-                print(f"Handling {len(acc_children)} multi-instance candidates")
-                candidate_results = []
-                
-                # Simulate all candidates
-                for num, candidate in enumerate(acc_children):
-                    cost, accuracy = self.simulate(candidate)
-                    with self.tree_lock:
-                        cost_to_add = max(cost,0)
-                        print(f"💰 Adding multi-instance acc candidate cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
-                        self.total_search_cost += cost_to_add
-                    print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
-                    if cost != -1 and accuracy != float("-inf"):  # Valid plan
-                        candidate_results.append((candidate, accuracy, cost))
-                    else:
-                        print(f"Multi-instance candidate {num} failed during simulation")
-                
-                if candidate_results:
-                    # Select the best candidate based on accuracy
-                    best_candidate, best_accuracy, best_cost = max(candidate_results, key=lambda x: x[1])
-                    print(f"Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}")
-                    
-                    # Change the best candidate's ID back to a proper counter ID
-                    old_id = best_candidate.get_id()
-                    new_id = best_candidate.set_id_to_counter()
-                    print(f"Updated best candidate ID from {old_id} to {new_id}")
-                    
-                    # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
-                    for candidate in acc_children:
-                        if candidate != best_candidate:
-                            candidate.delete(selected_node_final_id=new_id)
-                    
-                    # Process only the best candidate (requires tree lock for backprop)
-                    affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
-                    with self.tree_lock:
-                        self.backpropagate(affected_nodes, best_candidate)
-                else:
-                    # If no candidates were successful, delete all of them
-                    print("No successful candidates found, deleting all multi-instance candidates")
-                    for candidate in acc_children:
-                        candidate.delete(selected_node_final_id=None)
-                    
+        if has_leaf_cost:
+            print("HAS LEAF COST SIMULATION")
+            cost_frontier_updated = self._simulate_children(cost_children, "cost")
+            is_frontier_updated = is_frontier_updated or cost_frontier_updated
+
+        # Update counter for early stopping (requires tree lock)
+        with self.tree_lock:
+            if is_frontier_updated:
+                self.iterations_without_improvement = 0
             else:
-                # Original logic for single instantiations
-                for leaf_acc in acc_children:
-                    cost, accuracy = self.simulate(leaf_acc)
-                    with self.tree_lock:
-                        cost_to_add = max(cost,0)
-                        print(f"💰 Adding leaf acc simulation: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
-                        self.total_search_cost += cost_to_add
-                    affected_nodes, temp_updated = self.add_to_frontier(leaf_acc, accuracy)
-                    if temp_updated:
-                        is_frontier_updated = True
-                    # Check if any node was added to the frontier (value = 1)
-                    with self.tree_lock:
-                        self.backpropagate(affected_nodes, leaf_acc)
+                self.iterations_without_improvement += 1
 
-            # Update counter for early stopping (requires tree lock)
-            with self.tree_lock:
-                if is_frontier_updated:
-                    self.iterations_without_improvement = 0
+            self.log_tree_to_file(self.iteration_count + 1)
+        
+        success = has_leaf_acc or has_leaf_cost
+        print(f"[Thread {thread_id}] MCTS iteration completed: success={success}, has_leaf_acc={has_leaf_acc}, has_leaf_cost={has_leaf_cost}")
+        return success
+
+    def _simulate_children(self, children: List[Node], goal_type: str) -> bool:
+        """
+        Simulate a list of children and handle multi-instance vs single instance logic.
+        
+        Args:
+            children: List of child nodes to simulate
+            goal_type: Type of goal ("acc" or "cost") for logging purposes
+            
+        Returns:
+            True if frontier was updated, False otherwise
+        """
+        is_frontier_updated = False
+        
+        if len(children) > 1:
+            print(f"Handling {len(children)} multi-instance candidates")
+            candidate_results = []
+            
+            # Simulate all candidates
+            for num, candidate in enumerate(children):
+                cost, accuracy = self.simulate(candidate)
+                with self.tree_lock:
+                    cost_to_add = max(cost, 0)
+                    print(f"💰 Adding multi-instance {goal_type} candidate cost: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                    self.total_search_cost += cost_to_add
+                print(f"Multi-instance candidate {num} - Cost: ${cost:.2f}, Accuracy: {accuracy:.4f}")
+                if cost != -1 and accuracy != float("-inf"):  # Valid plan
+                    candidate_results.append((candidate, accuracy, cost))
                 else:
-                    self.iterations_without_improvement += 1
-
-                self.log_tree_to_file(self.iteration_count + 1)
-        return has_leaf_acc
+                    print(f"Multi-instance candidate {num} failed during simulation")
+            
+            if candidate_results:
+                # Select the best candidate based on accuracy
+                best_candidate, best_accuracy, best_cost = max(candidate_results, key=lambda x: x[1])
+                print(f"Selected best multi-instance candidate {best_candidate.get_id()} with accuracy {best_accuracy:.4f} and cost ${best_cost:.2f}")
+                
+                # Change the best candidate's ID back to a proper counter ID
+                old_id = best_candidate.get_id()
+                new_id = best_candidate.set_id_to_counter()
+                print(f"Updated best candidate ID from {old_id} to {new_id}")
+                
+                # Delete ALL non-selected candidates (both failed and successful ones that weren't chosen)
+                for candidate in children:
+                    if candidate != best_candidate:
+                        candidate.delete(selected_node_final_id=new_id)
+                
+                # Process only the best candidate (requires tree lock for backprop)
+                affected_nodes, is_frontier_updated = self.add_to_frontier(best_candidate, best_accuracy)
+                with self.tree_lock:
+                    self.backpropagate(affected_nodes, best_candidate)
+            else:
+                # If no candidates were successful, delete all of them
+                print("No successful candidates found, deleting all multi-instance candidates")
+                for candidate in children:
+                    candidate.delete(selected_node_final_id=None)
+                
+        else:
+            # Original logic for single instantiations
+            for child in children:
+                cost, accuracy = self.simulate(child)
+                with self.tree_lock:
+                    cost_to_add = max(cost, 0)
+                    print(f"💰 Adding leaf {goal_type} simulation: ${cost_to_add:.4f} (total before: ${self.total_search_cost:.4f})")
+                    self.total_search_cost += cost_to_add
+                affected_nodes, temp_updated = self.add_to_frontier(child, accuracy)
+                if temp_updated:
+                    is_frontier_updated = True
+                # Check if any node was added to the frontier (value = 1)
+                with self.tree_lock:
+                    self.backpropagate(affected_nodes, child)
+        
+        return is_frontier_updated
 
     def select(self, node: Node) -> Node:
         """
@@ -485,6 +539,27 @@ class MCTS:
             self.action_cost_changes, self.action_accuracy_changes, self.action_counts, self.sample_input,
             self.root, node.yaml_file_path, self.dataset_name, self.pareto_frontier.plans_accuracy
         )
+
+    def is_first_layer_node(self, node: Node) -> bool:
+        """
+        Check if a node is a first layer node (direct child of root with model change action).
+        
+        Args:
+            node: Node to check
+            
+        Returns:
+            True if this is a first layer node, False otherwise
+        """
+        # First layer nodes are direct children of root
+        if node.parent != self.root:
+            return False
+        
+        # First layer nodes have a model change action
+        if not hasattr(node, 'latest_action') or node.latest_action is None:
+            return False
+        
+        # Check if the action is a model change directive
+        return isinstance(node.latest_action, ChangeModelCostDirective)
 
     def get_optimize_goal(self, node: Node) -> str:
         """
@@ -528,17 +603,15 @@ class MCTS:
 
     def expand(self, node: Node, optimize_goal: str) -> List[Node]:
         """
-        Expand a leaf node by adding one new child and return the child.
-
+        Expand a node with a specific optimization goal.
+        
         Args:
-            node: Leaf node to expand
-            optimize_goal: The optimization goal, e.g., 'acc' or 'cost'
+            node: Node to expand
+            optimize_goal: The optimization goal to use
+            
         Returns:
-            The newly created child
+            List of newly created child nodes
         """
-
-        print("INSIDE EXPAND for node: ", node.get_id())
-
         max_retries = 3
         retry_count = 0
 
@@ -557,8 +630,6 @@ class MCTS:
                     if directive in DIRECTIVE_GROUPS[group]:
                         banned_directives = set(DIRECTIVE_GROUPS[group])
 
-        optimize_goal = self.get_optimize_goal(node)
-        print(f"Optimize goal: {optimize_goal}")
         if optimize_goal == "acc":
             action_options = []  # a list of tuple
             for op_name in op_list:
@@ -780,11 +851,6 @@ class MCTS:
                     }
                     instantiation_messages.append(variation_msg)
 
-                with open("instantiation_messages_debug.txt", "w", encoding="utf-8") as f:
-                    f.write(f"i: {i}\n")
-                    f.write("instantiation_messages: \n")
-                    f.write(str(instantiation_messages))
-                    f.write("\n\n")
                 
                 new_ops_list, updated_message_history, cost = directive.instantiate(
                     operators=node.parsed_yaml["operations"],
@@ -808,7 +874,7 @@ class MCTS:
 
                 # Create child node for this instantiation
                 # For multi-instance directives, use parent_id-instantiation_num format
-                custom_id = f"{node.get_id()}-{i+1}" if is_multi_instance else None
+                custom_id = f"{node.get_id()}-{i+1}-{optimize_goal}" if is_multi_instance else None
                 child = self.instantiate_node(
                     node, new_ops_list, directive_name, target_op_list, optimize_goal, 
                     message_condensed + updated_message_history[message_length:], custom_id
@@ -845,6 +911,8 @@ class MCTS:
             node.execute_plan()
         except Exception as e:
             print(f"Failed to execute plan for node {node.get_id()}: {str(e)}")
+            # Log -inf occurrence for debugging
+            node._log_inf_occurrence("simulation_execution_failure", str(e), node.yaml_file_path)
             # Set cost to -1 to indicate failure (this is already done in Node.execute_plan)
             # Do not add failed plans to the frontier
             return cost, accuracy
@@ -856,6 +924,8 @@ class MCTS:
             print(f"Node {node.get_id()} evaluation - cost: ${cost:.2f}, accuracy: {accuracy:.4f}")
         except Exception as e:
             print(f"Failed to evaluate plan for node {node.get_id()}: {str(e)}")
+            # Log -inf occurrence for debugging
+            node._log_inf_occurrence("simulation_evaluation_failure", str(e), node.yaml_file_path)
             return cost, accuracy
         
         return cost, accuracy

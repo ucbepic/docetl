@@ -1,6 +1,6 @@
 import json
 
-def evaluate_results(method_name, results_file, ground_truth_file=None):
+def evaluate_results(method_name, results_file, ground_truth_file=None, original_json_file=None):
     """
     Evaluate blackvault results by calculating average number of distinct locations per event type.
     
@@ -15,6 +15,14 @@ def evaluate_results(method_name, results_file, ground_truth_file=None):
     # Read the DocETL results JSON file
     with open(results_file, "r") as f:
         docetl_results = json.load(f)
+    
+
+    if not original_json_file: num_files = len(docetl_results)
+    else:
+        with open(original_json_file, "r") as f:
+            original_json_content = json.load(f)
+        
+        num_files = len(original_json_content)
     
     if not docetl_results:
         return {
@@ -53,7 +61,7 @@ def evaluate_results(method_name, results_file, ground_truth_file=None):
         total_distinct_locations += distinct_count
     
     # Calculate average distinct locations per document
-    num_documents = len(docetl_results)
+    num_documents = num_files
     avg_distinct_locations = total_distinct_locations / num_documents if num_documents > 0 else 0.0
     
     return {

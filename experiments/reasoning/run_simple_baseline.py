@@ -13,6 +13,7 @@ import os
 import json
 import yaml
 import argparse
+import time
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Literal
 from pydantic import BaseModel, Field
@@ -56,7 +57,6 @@ class PathResolver:
             "cuad": "experiments/reasoning/data/train/cuad.json",
             "blackvault": "experiments/reasoning/data/train/blackvault.json", 
             "game_reviews": "experiments/reasoning/data/train/game_reviews.json",
-            "reviews": "experiments/reasoning/data/train/game_reviews.json",
             "sustainability": "experiments/reasoning/data/train/sustainability.json",
             "biodex": "experiments/reasoning/data/train/biodex.json",
             "medec": "experiments/reasoning/data/train/medec.json",
@@ -251,8 +251,9 @@ class DataAnalyzer:
 class AgentCommunicator:
     """Handles LLM communication and JSON parsing."""
     
-    def __init__(self, model: str):
+    def __init__(self, model: str, agent=None):
         self.model = model
+        self.agent = agent  # Reference to parent agent for cost tracking
     
     def safe_json_parse(self, response_content: str, fallback: Dict = None) -> Dict:
         """Safely parse JSON response with fallback."""
@@ -274,6 +275,12 @@ class AgentCommunicator:
                 response_format={"type": "json_object"}
             )
             
+            # Track LLM call cost
+            if self.agent and hasattr(response, '_hidden_params') and 'response_cost' in response._hidden_params:
+                call_cost = response._hidden_params["response_cost"]
+                print(f"💰 Adding LLM call cost: ${call_cost:.4f} (total before: ${self.agent.total_search_cost:.4f})")
+                self.agent.total_search_cost += call_cost
+            
             decision_json = self.safe_json_parse(response.choices[0].message.content)
             return AgentAction(**decision_json)
         except Exception:
@@ -292,6 +299,12 @@ class AgentCommunicator:
                 response_format={"type": "json_object"}
             )
             
+            # Track LLM call cost
+            if self.agent and hasattr(response, '_hidden_params') and 'response_cost' in response._hidden_params:
+                call_cost = response._hidden_params["response_cost"]
+                print(f"💰 Adding LLM call cost: ${call_cost:.4f} (total before: ${self.agent.total_search_cost:.4f})")
+                self.agent.total_search_cost += call_cost
+            
             result = self.safe_json_parse(response.choices[0].message.content)
             return result.get("operators", [])
         except Exception:
@@ -302,9 +315,12 @@ class SimpleBaselineAgent:
     
     def __init__(self, model: str = DEFAULT_MODEL):
         self.model = model
-        self.communicator = AgentCommunicator(model)
+        self.communicator = AgentCommunicator(model, self)
         self.documentation = None
         self.original_config = None
+        self.total_search_cost = 0.0  # Track total LLM call costs
+        self.start_time = None  # Track experiment start time
+        self.end_time = None    # Track experiment end time
         
     def load_resources(self, dataset: str, yaml_path: str = None):
         """Load documentation and original pipeline."""
@@ -628,6 +644,7 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
     
     # Initialize agent and executor
     agent = SimpleBaselineAgent(model=model)
+    agent.start_time = time.time()  # Track experiment start time
     agent.load_resources(dataset, yaml_path)
     executor = PipelineExecutor(exp_dir)
     
@@ -779,14 +796,26 @@ def run_simple_baseline_experiment(dataset: str, output_dir: str = None, model: 
         )
         results.update({"evaluation": eval_results, "pareto_auc": pareto_auc})
     
+    # Track experiment end time and calculate total latency
+    agent.end_time = time.time()
+    total_latency = agent.end_time - agent.start_time if agent.start_time else 0.0
+    
     # Save results
     results.update({
         "dataset": dataset,
         "operators": operators,
-        "experiment_name": experiment_name
+        "experiment_name": experiment_name,
+        "total_search_cost": agent.total_search_cost,  # Add LLM call costs
+        "total_cost": results.get("cost", 0.0) + agent.total_search_cost,  # Pipeline + LLM costs
+        "total_latency": total_latency,  # Add total latency
+        "start_time": agent.start_time,
+        "end_time": agent.end_time
     })
     
     print(f"\n✅ Experiment complete! Results saved to: {exp_dir}")
+    print(f"💰 Total LLM call cost: ${agent.total_search_cost:.4f}")
+    print(f"💰 Total experiment cost: ${results.get('total_cost', 0.0):.4f}")
+    print(f"⏱️  Total latency: {total_latency:.2f} seconds ({total_latency/60:.2f} minutes)")
     return results
 
 # Modal functions
@@ -839,7 +868,7 @@ def main():
     """Local main function."""
     parser = argparse.ArgumentParser(description="Run simple baseline agent")
     parser.add_argument("--dataset", type=str, required=True,
-                       choices=["cuad", "reviews", "blackvault", "sustainability", "biodex", "medec", "facility"])
+                       choices=["cuad", "game_reviews", "blackvault", "sustainability", "biodex", "medec", "facility"])
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL)
     parser.add_argument("--output_dir", type=str)
     parser.add_argument("--experiment_name", type=str)
@@ -856,7 +885,10 @@ def main():
     )
     
     if results["success"]:
-        print(f"✅ Success! Cost: ${results['cost']:.4f}")
+        print(f"✅ Success! Pipeline cost: ${results['cost']:.4f}")
+        print(f"💰 LLM call cost: ${results.get('total_search_cost', 0.0):.4f}")
+        print(f"💰 Total cost: ${results.get('total_cost', 0.0):.4f}")
+        print(f"⏱️  Total latency: {results.get('total_latency', 0.0):.2f} seconds ({results.get('total_latency', 0.0)/60:.2f} minutes)")
         if "evaluation" in results:
             print(f"Evaluation metrics saved")
     else:

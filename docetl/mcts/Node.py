@@ -6,6 +6,7 @@ import json
 import random
 from typing import Optional, List, Dict, Any
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 from docetl.runner import DSLRunner
 from docetl.reasoning_optimizer.directives import Directive
@@ -84,6 +85,7 @@ class Node:
         self.scaled_cost = -1.0  # Scaled cost in [0,1] range for reward calculations
         self.sample_result = []
         self.latest_action = None  # Latest action that led to this node
+        self.optimization_goal = None  # The optimization goal used for this node (e.g., 'acc', 'cost')
         
         # Message history from root to this node (accumulated LLM conversations)
         self.message_history = message_history
@@ -157,6 +159,10 @@ class Node:
         except Exception as e:
             self.cost = -1  # Indicate failure
             self.value = -float('inf')
+            
+            # Log -inf occurrence for debugging
+            self._log_inf_occurrence("execution_failure", str(e), self.yaml_file_path)
+            
             raise Exception(f"Failed to execute plan {self.yaml_file_path}: {str(e)}")
 
 
@@ -187,7 +193,7 @@ class Node:
         """
             
         def ucb(child: Node) -> float:
-            if child.cost == -1:
+            if child.cost == -1 or child.visits == 0:
                 return float('-inf')
             exploitation = child.value / child.visits
             exploration = self.c * math.sqrt(math.log(self.visits) / child.visits)
@@ -261,6 +267,8 @@ class Node:
         # Don't backpropagate -inf (failed evaluations) or NaN to parent nodes
         if value is None or (isinstance(value, float) and (value != value)) or value == float("-inf"):  # NaN or -inf check
             print(f"⚠️ Skipping backpropagation of -inf / NaN value to node {self.get_id()}")
+            # Log -inf occurrence for debugging
+            self._log_inf_occurrence("backpropagation_skipped", f"Skipped backpropagation of value: {value}", self.yaml_file_path)
             return
         self.value = self.value + value
     
@@ -311,6 +319,51 @@ class Node:
         
         self.id = new_id
         return self.id
+    
+    def _log_inf_occurrence(self, failure_type: str, error_message: str, yaml_path: str):
+        """
+        Log -inf occurrences to a dedicated log file for debugging.
+        
+        Args:
+            failure_type: Type of failure (e.g., "execution_failure", "evaluation_failure")
+            error_message: The error message that caused the failure
+            yaml_path: Path to the YAML file that failed
+        """
+        try:
+            # Create log directory if it doesn't exist
+            log_dir = os.path.join(os.path.dirname(yaml_path), "inf_logs")
+            os.makedirs(log_dir, exist_ok=True)
+            
+            # Create log file path
+            log_file = os.path.join(log_dir, "inf_occurrences.txt")
+            
+            # Get current timestamp
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Get node information
+            node_id = getattr(self, 'id', 'unknown')
+            latest_action = getattr(self, 'latest_action', 'unknown')
+            parent_id = getattr(self.parent, 'id', 'root') if self.parent else 'root'
+            
+            # Format log entry
+            log_entry = f"""
+                {'='*80}
+                Timestamp: {timestamp}
+                Node ID: {node_id}
+                Parent ID: {parent_id}
+                Latest Action: {latest_action}
+                Failure Type: {failure_type}
+                YAML Path: {yaml_path}
+                Error Message: {error_message}
+                {'='*80}
+                """
+            
+            # Append to log file
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(log_entry)
+                
+        except Exception as log_error:
+            print(f"Warning: Failed to log -inf occurrence: {log_error}")
     
     def _rename_files_for_new_id(self, old_id, new_id):
         """

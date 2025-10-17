@@ -1,22 +1,5 @@
 [
   {
-    "file": "experiments/reasoning/othersystems/sustainability/lotus_train.json",
-    "economic_activity_accuracy": 0.43333333333333335,
-    "combined_score": 0.5333333333333333,
-    "company_name_accuracy": 0.6333333333333333,
-    "total_companies_processed": 60,
-    "missing_companies": 22,
-    "avg_findings_length": 302.73333333333335,
-    "total_cost": 3.182599600000001,
-    "gpt4o_cost": 3.182599600000001,
-    "gpt4o_mini_cost": 0.0,
-    "filter_stats": {
-      "total_docs": 50,
-      "filtered_docs": 49
-    },
-    "execution_time": 666.1312608718872
-  },
-  {
     "file": "experiments/reasoning/othersystems/sustainability/lotus_test.json",
     "economic_activity_accuracy": 0.5157894736842106,
     "combined_score": 0.6631578947368421,

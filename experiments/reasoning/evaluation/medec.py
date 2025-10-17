@@ -20,7 +20,7 @@ def jaccard_similarity(text1: str, text2: str) -> float:
     return len(intersection) / len(union)
 
 
-def evaluate_results(method_name: str, results_file: str, ground_truth_file: str = None) -> Dict[str, Any]:
+def evaluate_results(method_name: str, results_file: str, ground_truth_file: str = None, original_json_file: str = None) -> Dict[str, Any]:
     """
     Evaluate MEDEC results against ground truth.
     
@@ -35,7 +35,7 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
     # Load results
     with open(results_file, 'r') as f:
         results = json.load(f)
-    
+
     # Ground truth is embedded in the results data itself
     # Create a mapping from Text ID to ground truth from the results
     gt_mapping = {}

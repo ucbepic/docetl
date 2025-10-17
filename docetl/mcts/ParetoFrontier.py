@@ -167,55 +167,6 @@ class ParetoFrontier:
 
         return summaries
 
-    def estimate_accuracy_via_comparisons(self, new_node: Node) -> float:
-        """
-        Estimate accuracy of new plan through pairwise comparisons.
-        """
-        # Compare the new node with all nodes on the frontier
-        comparison_nodes = self.frontier_plans
-
-        if not comparison_nodes:
-            return 0.5
-
-        accuracy_estimates = []
-
-        for existing_node in comparison_nodes:
-            try:
-                # Get comparison score (-3, -1, 0, 1, 3)
-                comparison_score = self.accuracy_comparator.compare(
-                    new_node, existing_node
-                )
-
-                existing_accuracy = self.plans_accuracy[existing_node]
-
-                # Convert score to accuracy adjustment
-                score_to_adjustment = {
-                    -3: -0.15,  # Much worse
-                    -1: -0.05,  # Slightly worse
-                    0: 0.0,  # About the same
-                    1: 0.05,  # Slightly better
-                    3: 0.15,  # Much better
-                }
-
-                adjustment = score_to_adjustment.get(int(comparison_score), 0.0)
-                estimated_accuracy = existing_accuracy + adjustment
-                accuracy_estimates.append(estimated_accuracy)
-
-            except Exception as e:
-                print(
-                    f"Comparison failed between {new_node.yaml_file_path} and {existing_node.yaml_file_path}: {e}"
-                )
-                continue
-
-        if not accuracy_estimates:
-            return 0.5
-
-        # Use average of all accuracy estimates
-        final_accuracy = sum(accuracy_estimates) / len(accuracy_estimates)
-
-        # Constrain to reasonable range
-        return max(0.1, min(0.95, final_accuracy))
-
     # Helper function to project point onto step function frontier
     def project_to_frontier(self, node_acc, node_cost, frontier_data):
         """

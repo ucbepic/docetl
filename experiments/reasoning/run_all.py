@@ -89,14 +89,14 @@ DEFAULT_DATASET_PATHS: Dict[str, str] = {
 CONFIG: Dict[str, Any] = {
     "experiments": [
         {
-            "dataset": "cuad",
+            "dataset": "sustainability",
             "build_first_layer": True,
             "model": "gpt-4.1",
             # "original_config_path": "medec/gpt_4o_mini_config.yaml",
             # "baseline": {"iterations": 10},
             # "simple_baseline": {"iterations": 10},
             # "original_cost": 0.008168,
-            "experiment_name": "cuad_mcts_lindsey_val",
+            "experiment_name": "sustainability_mcts_final",
             "mcts": {"max_iterations": 30, "model": "gpt-4.1"}
         }
     ]

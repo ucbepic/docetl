@@ -213,7 +213,7 @@ def save_pareto_frontier_results(eval_results, dataset, output_path):
     
     print(f"💾 Pareto frontier results saved to: {frontier_file}")
 
-def get_evaluate_func(dataset):
+def get_evaluate_func(dataset, mode="train"):
     """
     Get the appropriate evaluation function for a dataset.
     
@@ -226,33 +226,57 @@ def get_evaluate_func(dataset):
     if dataset.lower() == "cuad":
         def cuad_eval_func(method_name, results_file_path):
             ground_truth_path = "experiments/reasoning/data/CUAD-master_clauses.csv"
-            return cuad_evaluate(method_name, results_file_path, ground_truth_path)
+            if mode == "train":
+                original_json_path = "experiments/reasoning/data/train/cuad.json"
+            else:
+                original_json_path = "experiments/reasoning/data/test/cuad.json"
+            return cuad_evaluate(method_name, results_file_path, ground_truth_path, original_json_path)
         return cuad_eval_func
     
     elif dataset.lower() == "blackvault":
         def blackvault_eval_func(method_name, results_file_path):
-            return blackvault_evaluate(method_name, results_file_path)
+            if mode == "train":
+                original_json_path = "experiments/reasoning/data/train/blackvault.json"
+            else:
+                original_json_path = "experiments/reasoning/data/test/blackvault.json"
+            return blackvault_evaluate(method_name, results_file_path, original_json_path)
         return blackvault_eval_func
     
     elif dataset.lower() == "game_reviews":
         def game_reviews_eval_func(method_name, results_file_path):
-            return game_reviews_evaluate(method_name, results_file_path)
+            if mode == "train":
+                original_json_path = "experiments/reasoning/data/train/game_reviews.json"
+            else:
+                original_json_path = "experiments/reasoning/data/test/game_reviews.json"
+            return game_reviews_evaluate(method_name, results_file_path, original_json_path)
         return game_reviews_eval_func
     
     elif dataset.lower() == "medec":
         def medec_eval_func(method_name, results_file_path):
-            return medec_evaluate(method_name, results_file_path)
+            if mode == "train":
+                original_json_path = "experiments/reasoning/data/train/medec.json"
+            else:
+                original_json_path = "experiments/reasoning/data/test/medec.json"
+            return medec_evaluate(method_name, results_file_path, original_json_path)
         return medec_eval_func
     
     elif dataset.lower() == "sustainability":
         def sustainability_eval_func(method_name, results_file_path):
             ground_truth_path = "experiments/reasoning/data/company_reports_gt.json"
-            return sustainability_evaluate(method_name, results_file_path, ground_truth_path)
+            if mode == "train":
+                original_json_path = "experiments/reasoning/data/train/sustainability.json"
+            else:
+                original_json_path = "experiments/reasoning/data/test/sustainability.json"
+            return sustainability_evaluate(method_name, results_file_path, ground_truth_path, original_json_path)
         return sustainability_eval_func
     
     elif dataset.lower() == "biodex":
         def biodex_eval_func(method_name, results_file_path):
-            return biodex_evaluate(method_name, results_file_path)
+            if mode == "train":
+                original_json_path = "experiments/reasoning/data/train/biodex.json"
+            else:
+                original_json_path = "experiments/reasoning/data/test/biodex.json"
+            return biodex_evaluate(method_name, results_file_path, original_json_path)
         return biodex_eval_func
     
     elif dataset.lower() == "facility":
@@ -416,7 +440,8 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 continue
             
             try:
-                metrics = cuad_evaluate(method_name, jf, ground_truth_path)
+                original_json_path = "experiments/reasoning/data/train/cuad.json"
+                metrics = cuad_evaluate(method_name, jf, ground_truth_path, original_json_path)
                 jp = Path(jf).resolve()
                 op_root = output_path.resolve()
                 if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
@@ -475,7 +500,8 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 continue
             
             try:
-                metrics = blackvault_evaluate(method_name, jf)
+                original_json_path = "experiments/reasoning/data/train/blackvault.json"
+                metrics = blackvault_evaluate(method_name, jf, original_json_path)
                 jp = Path(jf).resolve()
                 op_root = output_path.resolve()
                 if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
@@ -534,7 +560,8 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 continue
             
             try:
-                metrics = game_reviews_evaluate(method_name, jf)
+                original_json_path = "experiments/reasoning/data/train/game_reviews.json"
+                metrics = game_reviews_evaluate(method_name, jf, original_json_path)
                 jp = Path(jf).resolve()
                 op_root = output_path.resolve()
                 if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
@@ -594,7 +621,8 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 continue
             
             try:
-                metrics = medec_evaluate(method_name, jf)
+                original_json_path = "experiments/reasoning/data/train/medec.json"
+                metrics = medec_evaluate(method_name, jf, original_json_path)
                 jp = Path(jf).resolve()
                 op_root = output_path.resolve()
                 if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
@@ -661,7 +689,8 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 continue
             
             try:
-                metrics = sustainability_evaluate(method_name, jf, ground_truth_path)
+                original_json_path = "experiments/reasoning/data/train/sustainability.json"
+                metrics = sustainability_evaluate(method_name, jf, ground_truth_path, original_json_path)
                 jp = Path(jf).resolve()
                 op_root = output_path.resolve()
                 if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):
@@ -722,7 +751,8 @@ def run_dataset_evaluation(dataset, nodes_or_files, output_path, ground_truth_pa
                 continue
             
             try:
-                metrics = biodex_evaluate(method_name, jf)
+                original_json_path = "experiments/reasoning/data/train/biodex.json"
+                metrics = biodex_evaluate(method_name, jf, original_json_path)
                 jp = Path(jf).resolve()
                 op_root = output_path.resolve()
                 if hasattr(jp, "is_relative_to") and jp.is_relative_to(op_root):

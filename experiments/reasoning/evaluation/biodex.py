@@ -79,7 +79,7 @@ def term_recall(preds: List[str], targets: List[str]) -> float:
         return 0.0
 
 
-def evaluate_results(method_name: str, results_file: str, ground_truth_file: str = None) -> Dict[str, Any]:
+def evaluate_results(method_name: str, results_file: str, ground_truth_file: str = None, original_json_file: str = None) -> Dict[str, Any]:
     """
     Evaluate BioDEX results against ground truth.
     
@@ -94,6 +94,14 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
     # Load results (which already contain ground truth)
     with open(results_file, 'r') as f:
         results = json.load(f)
+
+    if original_json_file:
+        with open(original_json_file, "r") as f:
+            original_json_content = json.load(f)
+        
+        total_orig_docs = len(original_json_content)
+    else:
+        total_orig_docs = 0
     
     # Evaluation metrics
     total_docs = 0

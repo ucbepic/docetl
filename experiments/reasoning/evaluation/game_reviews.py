@@ -155,7 +155,7 @@ def calculate_sentiment_accuracy(positive_results: List[Dict], negative_results:
     return correct_sentiment / len(all_results)
 
 
-def evaluate_results(method_name: str, results_file: str, ground_truth_file: str = None) -> Dict[str, Any]:
+def evaluate_results(method_name: str, results_file: str, ground_truth_file: str = None, original_json_file: str = None) -> Dict[str, Any]:
     """
     Evaluate game reviews analysis results using weighted score (50-50 Kendall's tau + sentiment).
     
@@ -170,6 +170,19 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
     
     with open(results_file, 'r') as f:
         results = json.load(f)
+    
+    if original_json_file:
+        with open(original_json_file, "r") as f:
+            original_json_content = json.load(f)
+        
+        original_json_content_cleaned = {}
+        for item in original_json_content:
+            filename = item["name"].split("/")[-1].upper().rstrip(".TXT").replace(".", "").replace(",", "").replace(" ", "").replace("_", "").replace("-", "").replace("'", "").replace(r'[^a-zA-Z0-9]$', '')
+            original_json_content_cleaned[filename] = item
+        
+        orig_valid_games = len(original_json_content_cleaned)
+    else: 
+        orig_valid_games = 0
     
     total_sentiment_accuracy = 0
     total_kendall_tau_score = 0
@@ -213,6 +226,8 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
         total_kendall_tau_score += kendall_tau_score
         total_weighted_score += weighted_score
     
+    
+    
     if valid_games == 0:
         return {
             "sentiment_accuracy": 0.0,
@@ -220,6 +235,8 @@ def evaluate_results(method_name: str, results_file: str, ground_truth_file: str
             "weighted_score": 0.0,
             "valid_games_processed": 0
         }
+    
+    if orig_valid_games > 0: valid_games = orig_valid_games
     
     return {
         "sentiment_accuracy": total_sentiment_accuracy / valid_games,

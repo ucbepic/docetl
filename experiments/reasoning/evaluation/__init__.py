@@ -31,7 +31,8 @@ from .cuad import evaluate_results as _cuad_evaluate
 
 def _cuad_scorer(results_file: str, ground_truth: str):
     # method_name is informational only
-    return _cuad_evaluate("docetl", results_file, ground_truth)
+    original_json_path = "experiments/reasoning/data/train/cuad.json"
+    return _cuad_evaluate("docetl", results_file, ground_truth, original_json_path)
 
 
 register_scorer("cuad", _cuad_scorer) 

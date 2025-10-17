@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict
 
-def evaluate_results(method_name, results_file, ground_truth_file):
+def evaluate_results(method_name, results_file, ground_truth_file, original_json_file=None):
     """
     Evaluate sustainability analysis results against ground truth.
     
@@ -23,6 +23,14 @@ def evaluate_results(method_name, results_file, ground_truth_file):
     # Read the ground truth file (original company reports dataset)
     with open(ground_truth_file, "r") as f:
         ground_truth_data = json.load(f)
+
+    
+    if original_json_file:
+        with open(original_json_file, "r") as f:
+            original_json_content = json.load(f)
+        orig_total_processed = len(original_json_content)
+    else: 
+        orig_total_processed = 0
     
     # Create ground truth mapping by ID
     gt_by_id = {item["id"]: item for item in ground_truth_data}
@@ -100,6 +108,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
                 metrics["missing_companies"] += 1
     
     # Calculate final metrics
+    if orig_total_processed > 0: total_processed = orig_total_processed
     if total_processed > 0:
         metrics["economic_activity_accuracy"] = economic_activity_correct / total_processed
         metrics["company_name_accuracy"] = company_name_correct / total_processed

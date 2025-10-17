@@ -5,11 +5,20 @@ import numpy as np
 from Levenshtein import distance
 import random
 
-def evaluate_results(method_name, results_file, ground_truth_file):
+def evaluate_results(method_name, results_file, ground_truth_file, original_json_file):
+
     # Read the DocETL results JSON file
     with open(results_file, "r") as f:
         docetl_results = json.load(f)
         docetl_results = pd.DataFrame(docetl_results)
+
+    with open(original_json_file, "r") as f:
+        original_json_content = json.load(f)
+    
+    original_json_content_cleaned = {}
+    for item in original_json_content:
+        filename = item["name"].split("/")[-1].upper().rstrip(".TXT").replace(".", "").replace(",", "").replace(" ", "").replace("_", "").replace("-", "").replace("'", "").replace(r'[^a-zA-Z0-9]$', '')
+        original_json_content_cleaned[filename] = item
 
     # Variables to track total clause length for calculating average
     all_text_spans = []
@@ -47,6 +56,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
         .replace(r'[^a-zA-Z0-9]$', '')
     )
 
+
     # Function to calculate precision and recall
     def calculate_metrics(metric, predicted_results, ground_truth):
         true_positives = 0
@@ -66,11 +76,23 @@ def evaluate_results(method_name, results_file, ground_truth_file):
         predicted_results_cleaned = {k: clean_text(v) for k, v in predicted_results.items()}
         ground_truth_cleaned = {k: clean_text(v) for k, v in ground_truth.items()}
 
+        # print(len(ground_truth_cleaned.keys()))
+        # print("___________________________________")
+        # print(len(original_json_content_cleaned.keys()))
+
         # Calculate metrics across all filenames
         #print(f"----- {metric} -----")
-        for filename in predicted_results_cleaned:
-            pred = predicted_results_cleaned[filename]
-            truth = ground_truth_cleaned.get(filename, "")
+        
+        for filename in original_json_content_cleaned:
+            if filename not in predicted_results_cleaned:
+                # print(f"Filename not in predicted results: {filename}")
+                pred = ""
+            else:
+                pred = predicted_results_cleaned[filename]
+            if filename not in ground_truth_cleaned:
+                truth = "ground truth not found"
+            else: 
+                truth = ground_truth_cleaned[filename]
             
             # Calculate Jaccard similarity between truth and pred
             def get_jaccard_sim(str1, str2):
@@ -81,6 +103,7 @@ def evaluate_results(method_name, results_file, ground_truth_file):
                 return len(intersection) / len(union) if union else 0
 
             if truth != "" and pred != "":
+                #print(f"True positive (correct span)")
                 if get_jaccard_sim(truth, pred) > 0.15:
                     true_positives += 1
                 else:
@@ -92,9 +115,11 @@ def evaluate_results(method_name, results_file, ground_truth_file):
                     print(f"False positive (no span) for {method_name}, {pred}")
                 false_positives += 1
             elif truth != "" and pred == "":
+                #print(f"False negative (no span) for {method_name}, {truth}")
                 false_negatives += 1
             elif truth == "" and pred == "":
                 true_negatives += 1
+                #print(f"True negative")
 
         # Calculate precision and recall
         total_predictions = true_positives + false_positives
@@ -259,7 +284,9 @@ if __name__ == "__main__":
                        help="Path to the ground truth CSV file (default: experiments/reasoning/data/train/cuad_train.csv)")
     parser.add_argument("--method_name", "-m", default="evaluation", 
                        help="Name of the method being evaluated (default: evaluation)")
-    
+    parser.add_argument("--original_json", "-oj", 
+                    help="Path to the original JSON file containing the list of files to evaluate (optional)")
+
     args = parser.parse_args()
     
 
@@ -281,7 +308,7 @@ if __name__ == "__main__":
         print("-" * 50)
         
         # Evaluate the results
-        results = evaluate_results(args.method_name, args.results_file, args.ground_truth)
+        results = evaluate_results(args.method_name, args.results_file, args.ground_truth, args.original_json)
         
         # Print results in a formatted way
         print(f"Evaluation Results for {args.method_name}:")

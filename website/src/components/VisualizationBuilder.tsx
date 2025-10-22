@@ -13,7 +13,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Info } from "lucide-react";
+import { Info, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Types for the visualization grammar
 interface BlockOp {
@@ -184,6 +192,154 @@ export default function VisualizationBuilder(): JSX.Element {
   };
 
   const pipelines = useMemo(() => parsed.pipelines ?? [], [parsed]);
+  // --- Helpers for visual editor (single source of truth is `parsed`) ---
+  const setConfig = useCallback((next: PipelineConfig) => {
+    setParsed(next);
+    setConfigText(JSON.stringify(next, null, 2));
+    setError("");
+  }, []);
+
+  const newDefaultBlock = useCallback(
+    (): BlockOp => ({ type: "llm-cheap", label: "New Block", width: 0.5, height: 1.0 }),
+    [],
+  );
+
+  const addPipeline = useCallback(() => {
+    const next: PipelineConfig = {
+      pipelines: [...pipelines, { name: `New Pipeline ${pipelines.length + 1}`, operators: [] }],
+    };
+    setConfig(next);
+  }, [pipelines, setConfig]);
+
+  const removePipeline = useCallback(
+    (pIdx: number) => {
+      const next: PipelineConfig = { pipelines: pipelines.filter((_, i) => i !== pIdx) };
+      setConfig(next);
+    },
+    [pipelines, setConfig],
+  );
+
+  const updatePipelineName = useCallback(
+    (pIdx: number, name: string) => {
+      const next: PipelineConfig = {
+        pipelines: pipelines.map((p, i) => (i === pIdx ? { ...p, name } : p)),
+      };
+      setConfig(next);
+    },
+    [pipelines, setConfig],
+  );
+
+  const addBlock = useCallback(
+    (pIdx: number) => {
+      const nextPipes = pipelines.map((p, i) => (i === pIdx ? { ...p, operators: [...p.operators, newDefaultBlock()] } : p));
+      setConfig({ pipelines: nextPipes });
+    },
+    [pipelines, newDefaultBlock, setConfig],
+  );
+
+  const removeBlock = useCallback(
+    (pIdx: number, bIdx: number) => {
+      const nextPipes = pipelines.map((p, i) => (i === pIdx ? { ...p, operators: p.operators.filter((_, j) => j !== bIdx) } : p));
+      setConfig({ pipelines: nextPipes });
+    },
+    [pipelines, setConfig],
+  );
+
+  const reorderBlock = useCallback(
+    (pIdx: number, bIdx: number, dir: -1 | 1) => {
+      const p = pipelines[pIdx];
+      if (!p) return;
+      const j = bIdx + dir;
+      if (j < 0 || j >= p.operators.length) return;
+      const ops = [...p.operators];
+      [ops[bIdx], ops[j]] = [ops[j], ops[bIdx]];
+      const next = pipelines.map((pp, i) => (i === pIdx ? { ...pp, operators: ops } : pp));
+      setConfig({ pipelines: next });
+    },
+    [pipelines, setConfig],
+  );
+
+  const updateBlockField = useCallback(
+    (pIdx: number, bIdx: number, field: keyof BlockOp | "type", value: any) => {
+      const next = pipelines.map((p, i) => {
+        if (i !== pIdx) return p;
+        const op = p.operators[bIdx] as Operator;
+        let newOp: Operator = op;
+        if (field === "type" && value === "stack") {
+          newOp = { type: "stack", operators: [] } as StackOp;
+        } else if (field === "type" && value !== "stack") {
+          // convert stack -> block
+          newOp = { ...newDefaultBlock(), type: String(value) } as BlockOp;
+        } else if ((op as StackOp).type === "stack") {
+          // stacks do not have label/width/height directly
+          newOp = op;
+        } else {
+          newOp = { ...(op as BlockOp), [field]: value } as BlockOp;
+        }
+        const ops = p.operators.map((o, j) => (j === bIdx ? newOp : o));
+        return { ...p, operators: ops };
+      });
+      setConfig({ pipelines: next });
+    },
+    [pipelines, setConfig, newDefaultBlock],
+  );
+
+  // Stack children helpers
+  const addSubBlock = useCallback(
+    (pIdx: number, bIdx: number) => {
+      const next = pipelines.map((p, i) => {
+        if (i !== pIdx) return p;
+        const op = p.operators[bIdx] as StackOp;
+        if (op.type !== "stack") return p;
+        const children = [...op.operators, newDefaultBlock()];
+        const newStack: StackOp = { ...op, operators: children };
+        const ops = p.operators.map((o, j) => (j === bIdx ? newStack : o));
+        return { ...p, operators: ops };
+      });
+      setConfig({ pipelines: next });
+    },
+    [pipelines, setConfig, newDefaultBlock],
+  );
+
+  const updateSubBlockField = useCallback(
+    (pIdx: number, bIdx: number, sIdx: number, field: keyof BlockOp | "type", value: any) => {
+      const next = pipelines.map((p, i) => {
+        if (i !== pIdx) return p;
+        const op = p.operators[bIdx] as StackOp;
+        if (op.type !== "stack") return p;
+        const child = op.operators[sIdx];
+        let updated: BlockOp = child;
+        if (field === "type" && value === "stack") {
+          // Prevent nesting stacks for simplicity
+          updated = { ...child, type: "code" };
+        } else {
+          updated = { ...child, [field]: value } as BlockOp;
+        }
+        const children = op.operators.map((c, k) => (k === sIdx ? updated : c));
+        const newStack: StackOp = { ...op, operators: children };
+        const ops = p.operators.map((o, j) => (j === bIdx ? newStack : o));
+        return { ...p, operators: ops };
+      });
+      setConfig({ pipelines: next });
+    },
+    [pipelines, setConfig],
+  );
+
+  const removeSubBlock = useCallback(
+    (pIdx: number, bIdx: number, sIdx: number) => {
+      const next = pipelines.map((p, i) => {
+        if (i !== pIdx) return p;
+        const op = p.operators[bIdx] as StackOp;
+        if (op.type !== "stack") return p;
+        const children = op.operators.filter((_, k) => k !== sIdx);
+        const newStack: StackOp = { ...op, operators: children };
+        const ops = p.operators.map((o, j) => (j === bIdx ? newStack : o));
+        return { ...p, operators: ops };
+      });
+      setConfig({ pipelines: next });
+    },
+    [pipelines, setConfig],
+  );
 
   return (
     <div className="space-y-6">
@@ -207,26 +363,34 @@ export default function VisualizationBuilder(): JSX.Element {
             <div className="space-y-6">
               <div>
                 <h4 className="text-sm font-semibold mb-2">Grammar</h4>
-                <ul className="text-sm list-disc pl-5 space-y-1 text-muted-foreground">
-                  <li>
-                    <b>Block:</b> One pipeline operator (e.g., <code>map</code>, <code>code</code>).
-                  </li>
-                  <li>
-                    <b>Height:</b> Data size (e.g., full vs. trimmed document).
-                  </li>
-                  <li>
-                    <b>Width:</b> Task complexity (e.g., 1-factor vs. 8-factor).
-                  </li>
-                  <li>
-                    <b>Left-to-Right:</b> Operator sequence.
-                  </li>
-                  <li>
-                    <b>Color/Label:</b> Computation type: <code>llm-powerful</code>, <code>llm-cheap</code>, <code>code</code>.
-                  </li>
-                  <li>
-                    <b>Vertical Stack (type: "stack"):</b> Dynamic routing in a single step.
-                  </li>
-                </ul>
+                <div className="text-sm text-muted-foreground space-y-2">
+                  <p>
+                    A <b>pipeline</b> is a left-to-right sequence of <b>blocks</b> (operators). Each block’s <b>height</b> encodes
+                    the data size at that step, and its <b>width</b> encodes task complexity. Color and label encode computation type.
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><b>Block:</b> A single operator like <code>map</code>, <code>reduce</code>, or <code>code</code>.</li>
+                    <li><b>Height:</b> Relative data size (e.g., 1.0 = full doc; 0.5 = trimmed).</li>
+                    <li><b>Width:</b> Relative complexity (e.g., 0.5 = simple; 2.0 = complex or multi-factor).</li>
+                    <li><b>Sequence:</b> Left → right shows execution order.</li>
+                    <li><b>Type → Color/Label:</b> <code>llm-powerful</code>, <code>llm-cheap</code>, <code>code</code>.</li>
+                    <li>
+                      <b>Stack:</b> <code>type: "stack"</code> models a dynamic fork where inputs are routed to different sub-paths in the same step.
+                      The stack’s width is the <i>max</i> child width; its height is the <i>sum</i> of child heights.
+                    </li>
+                  </ul>
+                  <div className="grid grid-cols-3 gap-2 pt-2">
+                    <div className="text-xs">Powerful LLM</div>
+                    <div className={`h-8 rounded border ${TYPE_CLASS["llm-powerful"]}`} />
+                    <div className="text-xs">type: llm-powerful</div>
+                    <div className="text-xs">Cheap LLM</div>
+                    <div className={`h-8 rounded border ${TYPE_CLASS["llm-cheap"]}`} />
+                    <div className="text-xs">type: llm-cheap</div>
+                    <div className="text-xs">Code</div>
+                    <div className={`h-8 rounded border ${TYPE_CLASS["code"]}`} />
+                    <div className="text-xs">type: code</div>
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -258,28 +422,202 @@ export default function VisualizationBuilder(): JSX.Element {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="h-full">
           <CardHeader className="pb-3">
-            <CardTitle className="text-xl">Configuration (JSON)</CardTitle>
+            <CardTitle className="text-xl">Configuration</CardTitle>
           </CardHeader>
           <CardContent>
-            {error && <div className="mb-2 text-sm font-medium text-destructive">Error: {error}</div>}
-            <div className="border rounded-md" style={{ minHeight: 360 }}>
-              <Editor
-                height="400px"
-                defaultLanguage="json"
-                value={configText}
-                onChange={handleEditorChange}
-                options={{
-                  minimap: { enabled: false },
-                  lineNumbers: "on",
-                  scrollBeyondLastLine: false,
-                  wordWrap: "on",
-                  wrappingIndent: "indent",
-                  automaticLayout: true,
-                  tabSize: 2,
-                  fontSize: 14,
-                }}
-              />
-            </div>
+            <Tabs defaultValue="visual" className="w-full">
+              <TabsList>
+                <TabsTrigger value="visual">Visual Editor</TabsTrigger>
+                <TabsTrigger value="json">JSON</TabsTrigger>
+              </TabsList>
+              <TabsContent value="visual" className="mt-3">
+                <div className="space-y-4">
+                  {pipelines.map((pipeline, pIdx) => (
+                    <Card key={`p-card-${pIdx}`} className="border-border">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Input
+                            value={pipeline.name}
+                            onChange={(e) => updatePipelineName(pIdx, e.target.value)}
+                            className="h-8 text-sm font-semibold"
+                          />
+                          <Button variant="ghost" size="icon" onClick={() => removePipeline(pIdx)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {pipeline.operators.length === 0 && (
+                          <p className="text-xs text-muted-foreground">No blocks yet. Add your first block.</p>
+                        )}
+                        {pipeline.operators.map((op, bIdx) => {
+                          const isStack = (op as any).type === "stack";
+                          return (
+                            <div key={`op-${pIdx}-${bIdx}`} className="rounded-md border p-3 space-y-2">
+                              <div className="flex flex-wrap items-end gap-2">
+                                <div className="w-36">
+                                  <Label className="text-xs">Type</Label>
+                                  <Select
+                                    value={(op as any).type}
+                                    onValueChange={(v) => updateBlockField(pIdx, bIdx, "type", v)}
+                                  >
+                                    <SelectTrigger className="h-8 text-sm" />
+                                    <SelectContent>
+                                      <SelectItem value="llm-powerful">llm-powerful</SelectItem>
+                                      <SelectItem value="llm-cheap">llm-cheap</SelectItem>
+                                      <SelectItem value="code">code</SelectItem>
+                                      <SelectItem value="stack">stack</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                {!isStack && (
+                                  <div className="flex-1 min-w-[160px]">
+                                    <Label className="text-xs">Label</Label>
+                                    <Input
+                                      className="h-8 text-sm"
+                                      value={(op as any).label || ""}
+                                      onChange={(e) => updateBlockField(pIdx, bIdx, "label", e.target.value)}
+                                    />
+                                  </div>
+                                )}
+                                {!isStack && (
+                                  <div className="w-28">
+                                    <Label className="text-xs">Width</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.25"
+                                      min="0"
+                                      className={`h-8 text-sm ${(op as any).width && (op as any).width! <= 0 ? "border-destructive" : ""}`}
+                                      value={String((op as any).width ?? 1)}
+                                      onChange={(e) => updateBlockField(pIdx, bIdx, "width", parseFloat(e.target.value) || 0)}
+                                    />
+                                  </div>
+                                )}
+                                {!isStack && (
+                                  <div className="w-28">
+                                    <Label className="text-xs">Height</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.25"
+                                      min="0"
+                                      className={`h-8 text-sm ${(op as any).height && (op as any).height! <= 0 ? "border-destructive" : ""}`}
+                                      value={String((op as any).height ?? 1)}
+                                      onChange={(e) => updateBlockField(pIdx, bIdx, "height", parseFloat(e.target.value) || 0)}
+                                    />
+                                  </div>
+                                )}
+                                <div className="ml-auto flex items-center gap-1">
+                                  <Button variant="ghost" size="icon" onClick={() => reorderBlock(pIdx, bIdx, -1)}>
+                                    <ChevronLeft className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => reorderBlock(pIdx, bIdx, 1)}>
+                                    <ChevronRight className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => removeBlock(pIdx, bIdx)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {isStack && (
+                                <div className="mt-1 space-y-2">
+                                  <div className="text-xs text-muted-foreground">Stack paths (vertical):</div>
+                                  {((op as any).operators || []).map((child: any, sIdx: number) => (
+                                    <div key={`s-${pIdx}-${bIdx}-${sIdx}`} className="rounded-sm border p-2">
+                                      <div className="flex flex-wrap items-end gap-2">
+                                        <div className="w-36">
+                                          <Label className="text-xs">Type</Label>
+                                          <Select
+                                            value={child.type}
+                                            onValueChange={(v) => updateSubBlockField(pIdx, bIdx, sIdx, "type", v)}
+                                          >
+                                            <SelectTrigger className="h-8 text-sm" />
+                                            <SelectContent>
+                                              <SelectItem value="llm-powerful">llm-powerful</SelectItem>
+                                              <SelectItem value="llm-cheap">llm-cheap</SelectItem>
+                                              <SelectItem value="code">code</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div className="flex-1 min-w-[160px]">
+                                          <Label className="text-xs">Label</Label>
+                                          <Input
+                                            className="h-8 text-sm"
+                                            value={child.label || ""}
+                                            onChange={(e) => updateSubBlockField(pIdx, bIdx, sIdx, "label", e.target.value)}
+                                          />
+                                        </div>
+                                        <div className="w-28">
+                                          <Label className="text-xs">Width</Label>
+                                          <Input
+                                            type="number"
+                                            step="0.25"
+                                            min="0"
+                                            className={`h-8 text-sm ${child.width && child.width <= 0 ? "border-destructive" : ""}`}
+                                            value={String(child.width ?? 1)}
+                                            onChange={(e) => updateSubBlockField(pIdx, bIdx, sIdx, "width", parseFloat(e.target.value) || 0)}
+                                          />
+                                        </div>
+                                        <div className="w-28">
+                                          <Label className="text-xs">Height</Label>
+                                          <Input
+                                            type="number"
+                                            step="0.25"
+                                            min="0"
+                                            className={`h-8 text-sm ${child.height && child.height <= 0 ? "border-destructive" : ""}`}
+                                            value={String(child.height ?? 1)}
+                                            onChange={(e) => updateSubBlockField(pIdx, bIdx, sIdx, "height", parseFloat(e.target.value) || 0)}
+                                          />
+                                        </div>
+                                        <div className="ml-auto">
+                                          <Button variant="ghost" size="icon" onClick={() => removeSubBlock(pIdx, bIdx, sIdx)}>
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  <Button variant="outline" size="sm" onClick={() => addSubBlock(pIdx, bIdx)}>
+                                    <Plus className="h-4 w-4 mr-1" /> Add Stack Path
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <Button variant="outline" size="sm" onClick={() => addBlock(pIdx)}>
+                          <Plus className="h-4 w-4 mr-1" /> Add Block
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  <Button onClick={addPipeline}>
+                    <Plus className="h-4 w-4 mr-1" /> Add Pipeline
+                  </Button>
+                </div>
+              </TabsContent>
+              <TabsContent value="json" className="mt-3">
+                {error && <div className="mb-2 text-sm font-medium text-destructive">Error: {error}</div>}
+                <div className="border rounded-md" style={{ minHeight: 360 }}>
+                  <Editor
+                    height="400px"
+                    defaultLanguage="json"
+                    value={configText}
+                    onChange={handleEditorChange}
+                    options={{
+                      minimap: { enabled: false },
+                      lineNumbers: "on",
+                      scrollBeyondLastLine: false,
+                      wordWrap: "on",
+                      wrappingIndent: "indent",
+                      automaticLayout: true,
+                      tabSize: 2,
+                      fontSize: 14,
+                    }}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 

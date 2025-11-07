@@ -127,7 +127,6 @@ export async function POST(req: Request) {
         }
 
         result = await streamText(openAiOptions);
-    } else {
       } else {
         // Use Azure OpenAI as before
         const azure = createAzure({
@@ -179,7 +178,7 @@ export async function POST(req: Request) {
         }
 
         result = await streamText(azureOptions);
-    }
+      }
 
     return result.toDataStreamResponse();
   } catch (error) {

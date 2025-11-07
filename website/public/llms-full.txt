@@ -152,11 +152,11 @@ Pipelines are defined in YAML with the following key components:
 
 2. Model Configuration:
    ```yaml
-   default_model: gpt-4o-mini
+   default_model: gpt-5-nano
    ```
 
    DocETL uses LiteLLM under the hood, supporting a wide range of LLM providers including:
-   - OpenAI (gpt-4, gpt-3.5-turbo)
+   - OpenAI (gpt-5 family such as gpt-5-nano)
    - Anthropic (claude-3, claude-2)
    - Google (gemini-pro)
    - Mistral AI
@@ -420,7 +420,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
         Focus on paragraphs that mention outcomes, statistics, or discovered insights.
       document_keys:
         - report_text
-      model: gpt-4.1-mini
+      model: gpt-5-nano
     ```
 
     Extract keeps the selected text verbatim and appends it to the document with an `_extracted_` suffix.
@@ -434,6 +434,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
           prompt: "List the top 5 relevant engineering skills from {{ input.resume }}."
           output_keys:
             - skills
+          model: gpt-5-nano
           gleaning:
             num_rounds: 1
             validation_prompt: |
@@ -442,10 +443,12 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
           prompt: "Estimate total years of relevant experience from {{ input.resume }}."
           output_keys:
             - years_experience
+          model: gpt-5-nano
         - name: evaluate_cultural_fit
           prompt: "Rate the cultural fit from {{ input.cover_letter }} on a 1-10 scale."
           output_keys:
             - cultural_fit_score
+          model: gpt-5-nano
       output:
         schema:
           skills: "list[string]"
@@ -482,6 +485,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
       direction: desc
       rerank_call_budget: 10
       initial_ordering_method: likert
+      model: gpt-5-nano
     ```
 
     Rank outputs a semantic ordering (`_rank`). Use code when you need deterministic numeric sorting.
@@ -510,8 +514,8 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
       id_key: title
       link_key: related_to
       blocking_threshold: 0.85
-      embedding_model: text-embedding-ada-002
-      comparison_model: gpt-4o-mini
+      embedding_model: text-embedding-3-small
+      comparison_model: gpt-5-nano
       comparison_prompt: |
         Compare the link value "{{ link_value }}" with the canonical record "{{ id_value }}".
         Consider the description: {{ item.description }}.
@@ -549,7 +553,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
       method: token_count
       method_kwargs:
         num_tokens: 600
-        model: gpt-4o-mini
+        model: gpt-5-nano
     - name: analyze_segment
       type: map
       input:
@@ -662,7 +666,7 @@ DocETL supports Python code operations for cases where you need deterministic pr
 Here's a pipeline that combines code and LLM operations to analyze customer reviews:
 
 ```yaml
-default_model: gpt-4o-mini
+default_model: gpt-5-nano
 
 system_prompt:
   dataset_description: a collection of customer reviews with ratings and text
@@ -783,7 +787,7 @@ This pipeline demonstrates how to:
 Here's a full pipeline that processes medical transcripts:
 
 ```yaml
-default_model: gpt-4o-mini
+default_model: gpt-5-nano
 
 system_prompt:
   dataset_description: a collection of medical transcripts from doctor-patient conversations
@@ -815,6 +819,8 @@ operations:
     type: resolve
     blocking_keys:
       - name
+    blocking_threshold: 0.35
+    comparison_model: gpt-5-nano
     comparison_prompt: |
       Are these medications the same or closely related?
       Med 1: {{ input1.name }} ({{ input1.dosage }})
@@ -1067,7 +1073,7 @@ Validation is a first-class citizen in DocETL, ensuring the quality and correctn
 
 1. Create initial pipeline (`pipeline.yaml`):
    ```yaml
-   default_model: gpt-4o-mini
+   default_model: gpt-5-nano
 
    datasets:
      documents:

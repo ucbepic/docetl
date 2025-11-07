@@ -458,10 +458,20 @@ Format your response exactly as follows:
 
   const handleApplyPipeline = async () => {
     try {
-      if (!uploadedFile) {
+      const datasetFile = uploadedFile ?? currentFile;
+      if (!datasetFile) {
         toast({
-          title: "No file uploaded",
-          description: "Cannot apply pipeline without an uploaded file.",
+          title: "No dataset available",
+          description: "Please upload or select a dataset before applying the pipeline.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!generatedYaml) {
+        toast({
+          title: "Pipeline not ready",
+          description: "Generate a pipeline before applying it.",
           variant: "destructive",
         });
         return;
@@ -470,16 +480,19 @@ Format your response exactly as follows:
       // Use the generated name or default
       const pipelineName = generatedName || "generated-pipeline";
 
+      const datasetPath = datasetFile.path || datasetFile.name;
+      const pathWithoutExtension = datasetPath.replace(/\.(json|csv)$/i, "");
+
       // Replace placeholders in the YAML with actual paths
       const updatedYaml = generatedYaml
-        .replace(/DATASET_PATH_PLACEHOLDER/g, uploadedFile.path)
+        .replace(/DATASET_PATH_PLACEHOLDER/g, datasetPath)
         .replace(
           /DATASET_PATH_PLACEHOLDER_OUTPUT/g,
-          `${uploadedFile.path.replace(/\.(json|csv)$/i, "")}_output.json`
+          `${pathWithoutExtension}_output.json`
         )
         .replace(
           /DATASET_PATH_PLACEHOLDER_INTERMEDIATES/g,
-          `${uploadedFile.path.replace(/\.(json|csv)$/i, "")}_intermediates`
+          `${pathWithoutExtension}_intermediates`
         );
 
       // Create pipeline file object with the generated name

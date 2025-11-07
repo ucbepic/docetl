@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { File as FileType, Operation, OutputType } from "@/app/types";
 import { toast } from "@/hooks/use-toast";
 import { useDatasetUpload } from "@/hooks/useDatasetUpload";
@@ -549,18 +548,18 @@ Format your response exactly as follows:
 
           <div className="space-y-6 pb-2">
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                 {steps.map((step, index) => {
                   const isActive = index === activeStepIndex;
                   const isComplete = index < activeStepIndex;
                   const disabled = step.id === "review" && !canAccessReview;
                   const baseClasses =
-                    "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors";
+                      "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors";
                   const stateClasses = isActive
                     ? "border-primary bg-primary/10 text-primary shadow-sm"
                     : isComplete
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-border/60 bg-muted text-muted-foreground";
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-border/60 bg-muted text-muted-foreground";
                   return (
                     <React.Fragment key={step.id}>
                       <button
@@ -572,8 +571,8 @@ Format your response exactly as follows:
                             ? "cursor-not-allowed opacity-60"
                             : "hover:border-primary/40"
                         }`}
-                      >
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-current text-xs font-semibold">
+                        >
+                          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-current text-xs font-semibold">
                           {index + 1}
                         </span>
                         <span className="whitespace-nowrap text-sm font-medium">
@@ -609,14 +608,14 @@ Format your response exactly as follows:
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <label
-                        htmlFor="file-upload"
-                        className={`relative flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border border-dashed transition-colors ${
-                          uploadedFile
-                            ? "border-primary/60 bg-primary/5"
-                            : "border-border bg-muted/30 hover:border-primary/60"
-                        }`}
-                      >
+                        <label
+                          htmlFor="file-upload"
+                          className={`relative flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-4 rounded-lg border border-dashed transition-colors ${
+                            uploadedFile
+                              ? "border-primary/60 bg-primary/5"
+                              : "border-border bg-muted/30 hover:border-primary/60"
+                          }`}
+                        >
                         <input
                           type="file"
                           id="file-upload"
@@ -625,7 +624,7 @@ Format your response exactly as follows:
                           onChange={handleFileChange}
                           disabled={isUploading}
                         />
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white shadow-sm">
                           <Upload className="h-6 w-6 text-primary" />
                         </div>
                         <div className="text-center">
@@ -651,7 +650,7 @@ Format your response exactly as follows:
                       )}
 
                       {uploadedFile && !isUploading && (
-                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
                           <div className="flex items-start justify-between gap-2">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 font-medium text-primary">
@@ -748,24 +747,18 @@ Format your response exactly as follows:
                     </CardContent>
                   </Card>
 
-                  <Card className="border shadow-sm">
-                    <CardHeader className="space-y-2">
-                      <CardTitle className="text-sm font-semibold">
-                        Prompt scaffolding
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        These guardrails are appended to your request to keep the
-                        pipeline well-formed.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-[220px] pr-2">
-                        <pre className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                          {instructions || "Loading instructions..."}
-                        </pre>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
+                    <div className="rounded-md border border-dashed border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                      Want to inspect our full prompt scaffolding?{" "}
+                      <a
+                        href="https://docetl.org/llms-full.txt"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-primary underline-offset-4 hover:underline"
+                      >
+                        Open the reference guide
+                      </a>
+                      .
+                    </div>
                 </div>
               </div>
             ) : (
@@ -806,7 +799,7 @@ Format your response exactly as follows:
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-auto pt-0">
-                      <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
+                      <div className="rounded-md border border-dashed border-border bg-muted/40 p-4">
                         <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                           {previewText}
                         </pre>

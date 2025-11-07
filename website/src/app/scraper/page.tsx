@@ -22,6 +22,7 @@ import {
   Square,
   Link as LinkIcon,
   Download,
+  RefreshCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -72,12 +73,31 @@ export default function ScraperPage() {
       schema: schema || undefined,
       sessionId: sessionId || undefined,
     },
-    onFinish: () => {
+    onFinish: async () => {
       // Reset isStarting when the stream finishes
       setIsStarting(false);
       // Clear refining state when agent finishes
       setIsRefiningDataset(false);
-      // Tool invocations are now processed in useEffect that watches messages
+      // Automatically fetch the dataset when agent finishes
+      if (sessionId) {
+        try {
+          const response = await fetch(
+            `/api/scraper/dataset?sessionId=${sessionId}`
+          );
+          const result = await response.json();
+          if (result.data && Array.isArray(result.data)) {
+            const typedData = result.data.filter(
+              (item: unknown): item is Record<string, unknown> =>
+                typeof item === "object" &&
+                item !== null &&
+                !Array.isArray(item)
+            );
+            setDataset(typedData);
+          }
+        } catch (error) {
+          console.error("Failed to fetch dataset:", error);
+        }
+      }
     },
     onError: () => {
       // Reset isStarting on error
@@ -319,6 +339,36 @@ export default function ScraperPage() {
     }
   };
 
+  // Fetch dataset from backend
+  const [isRefreshingDataset, setIsRefreshingDataset] = useState(false);
+  const refreshDataset = async () => {
+    if (!sessionId) {
+      console.warn("No session ID available");
+      return;
+    }
+    setIsRefreshingDataset(true);
+    try {
+      const response = await fetch(
+        `/api/scraper/dataset?sessionId=${sessionId}`
+      );
+      const result = await response.json();
+      if (result.data && Array.isArray(result.data)) {
+        const typedData = result.data.filter(
+          (item: unknown): item is Record<string, unknown> =>
+            typeof item === "object" && item !== null && !Array.isArray(item)
+        );
+        setDataset(typedData);
+        console.log(`Dataset refreshed: ${typedData.length} items`);
+      } else {
+        console.warn("No data in response:", result);
+      }
+    } catch (error) {
+      console.error("Failed to refresh dataset:", error);
+    } finally {
+      setIsRefreshingDataset(false);
+    }
+  };
+
   // Get column keys from dataset
   const columnKeys = React.useMemo(() => {
     if (dataset.length === 0) return [];
@@ -371,7 +421,7 @@ export default function ScraperPage() {
                       </Label>
                       <Textarea
                         id="query"
-                        placeholder="e.g., Scrape blog posts written by academics about NSF budget cuts and government spending reductions on science research from the past two years..."
+                        placeholder="e.g., Scrape travel blog posts about hidden gems in Japan from the past year, find food blog posts about best restaurants in Lisbon, or collect adventure travel stories about hiking trails in Patagonia..."
                         value={userQuery}
                         onChange={(e) => setUserQuery(e.target.value)}
                         className="min-h-[80px]"
@@ -387,7 +437,7 @@ export default function ScraperPage() {
                       </Label>
                       <Textarea
                         id="schema"
-                        placeholder="e.g., author, institution, publication date, scraped text"
+                        placeholder="e.g., url, scraped_text, publication_date"
                         value={schema}
                         onChange={(e) => setSchema(e.target.value)}
                         className="min-h-[60px]"
@@ -397,17 +447,14 @@ export default function ScraperPage() {
                         type="button"
                         onClick={() => {
                           setUserQuery(
-                            "Scrape blog posts written by academics about NSF budget cuts and government spending reductions on science research from the past two years"
+                            "Scrape travel blog posts about hidden gem destinations in Japan that locals recommend, published within the last year"
                           );
-                          setSchema(
-                            "author, institution, publication date, scraped text"
-                          );
+                          setSchema("url, scraped_text, author");
                         }}
                         className="text-xs text-muted-foreground hover:text-foreground mt-1 underline"
                         disabled={isLoading || isStarting}
                       >
-                        Use example: author, institution, publication date,
-                        scraped text
+                        Use example: hidden gems in Japan
                       </button>
                     </div>
                     <Button
@@ -748,28 +795,47 @@ export default function ScraperPage() {
                       <Loader2 className="h-4 w-4 animate-spin text-primary ml-2" />
                     )}
                   </h2>
-                  {dataset.length > 0 && (
-                    <div className="flex gap-2">
+                  <div className="flex gap-2">
+                    {sessionId && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={downloadJSON}
+                        onClick={refreshDataset}
+                        disabled={isRefreshingDataset}
                         className="h-8"
                       >
-                        <Download className="h-3 w-3 mr-1" />
-                        JSON
+                        <RefreshCcw
+                          className={cn(
+                            "h-3 w-3 mr-1",
+                            isRefreshingDataset && "animate-spin"
+                          )}
+                        />
+                        Refresh
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={downloadCSV}
-                        className="h-8"
-                      >
-                        <Download className="h-3 w-3 mr-1" />
-                        CSV
-                      </Button>
-                    </div>
-                  )}
+                    )}
+                    {dataset.length > 0 && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={downloadJSON}
+                          className="h-8"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          JSON
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={downloadCSV}
+                          className="h-8"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          CSV
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="flex-1 overflow-auto">
                   {dataset.length === 0 ? (

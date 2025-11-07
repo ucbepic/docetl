@@ -108,14 +108,18 @@ export async function POST(req: Request) {
         compatibility: "strict",
       });
 
+      const modelName = process.env.MODEL_NAME || "gpt-4o-mini";
+      const isGpt5 = modelName.toLowerCase().includes("gpt-5");
+
       result = await streamText({
-        model: openai(process.env.MODEL_NAME || "gpt-4o-mini"),
+        model: openai(modelName),
         system:
           truncatedMessages.find((m: ChatMessage) => m.role === "system")
             ?.content || "You are a helpful assistant.",
         messages: truncatedMessages.filter(
           (m: ChatMessage) => m.role !== "system"
         ),
+        ...(isGpt5 && { temperature: 1 }),
       });
     } else {
       // Use Azure OpenAI as before
@@ -125,14 +129,18 @@ export async function POST(req: Request) {
         resourceName: process.env.AZURE_RESOURCE_NAME,
       });
 
+      const modelName = process.env.AZURE_DEPLOYMENT_NAME || "gpt-4o-mini";
+      const isGpt5 = modelName.toLowerCase().includes("gpt-5");
+
       result = await streamText({
-        model: azure(process.env.AZURE_DEPLOYMENT_NAME || "gpt-4o-mini"),
+        model: azure(modelName),
         system:
           truncatedMessages.find((m: ChatMessage) => m.role === "system")
             ?.content || "You are a helpful assistant.",
         messages: truncatedMessages.filter(
           (m: ChatMessage) => m.role !== "system"
         ),
+        ...(isGpt5 && { temperature: 1 }),
         onFinish: async ({ usage }) => {
           if (!supabase) return;
 

@@ -1,8 +1,15 @@
 import { createAzure } from "@ai-sdk/azure";
-import { streamText, tool } from "ai";
+import { streamText, tool, CoreMessage } from "ai";
 import { z } from "zod";
+import { createClient } from "@supabase/supabase-js";
 // Modal JavaScript SDK - see https://modal-labs.github.io/libmodal/ for documentation
 import { ModalClient } from "modal";
+
+// Initialize Supabase client
+const supabase =
+  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
+    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+    : null;
 
 // Initialize Modal client
 let modalClient: ModalClient | null = null;
@@ -69,7 +76,7 @@ async function executeModalSandbox(
     // Create Python image with common scraping libraries
     const baseImage = modalClient.images.fromRegistry("python:3.13-slim");
     const image = baseImage.dockerfileCommands([
-      "RUN pip install --no-cache-dir requests httpx beautifulsoup4 lxml selenium playwright pandas PyPDF2 pdfplumber openpyxl cloudscraper aiohttp rich",
+      "RUN pip install --no-cache-dir requests httpx beautifulsoup4 lxml selenium playwright pandas PyPDF2 pdfplumber openpyxl cloudscraper aiohttp",
     ]);
 
     // Create sandbox with volume mounted
@@ -113,8 +120,11 @@ except Exception as e:
       const stdout = await process.stdout.readText();
       const stderr = await process.stderr.readText();
 
-      // Clean up sandbox
+      // Clean up sandbox - data persists automatically after termination
       await sb.terminate();
+      console.log(
+        `[Volume] Sandbox terminated for session ${sessionId}, data should be persisted`
+      );
 
       if (exitCode !== 0) {
         return {
@@ -228,21 +238,31 @@ except Exception as e:
   }
 }
 
+interface ToolInvocation {
+  toolName: string;
+  toolCallId: string;
+  state?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+}
+
 interface ChatMessage {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
+  toolInvocations?: ToolInvocation[];
+  experimental_attachments?: unknown[];
+  [key: string]: unknown; // Allow additional fields from AI SDK
 }
 
 // Track search API calls per session (in-memory, resets on server restart)
 // In production, consider using Redis or a database for persistence
 const searchCounts = new Map<string, number>();
 const tavilyCredits = new Map<string, number>();
-const MAX_SEARCHES_PER_SESSION = 5; // Limit searches per session
-const MAX_TAVILY_CREDITS = 25;
+const MAX_SEARCHES_PER_SESSION = 8; // Limit searches per session (increased since we're using basic only)
+const MAX_TAVILY_CREDITS = 15; // Reduced budget - focus on basic searches + code-based scraping
 const BASIC_SEARCH_CREDITS = 1;
-const ADVANCED_SEARCH_CREDITS = 2;
-const CRAWL_CREDITS = 3;
-const MAP_CREDITS = 2;
+const CRAWL_CREDITS = 3; // Expensive - use sparingly
+const MAP_CREDITS = 2; // Expensive - use sparingly
 const getSearchCount = (sid: string) => searchCounts.get(sid) || 0;
 const incrementSearchCount = (sid: string) => {
   const current = getSearchCount(sid);
@@ -266,31 +286,26 @@ const createSearchInternetTool = (
 ) =>
   tool({
     description:
-      "Discover new sources with Tavily. Modes: search (default), crawl (site sweep), map (topology). Stay within ~25 credits per session.",
-    inputSchema: z.object({
+      "Discover new sources with Tavily. Returns up to 20 URLs per search. **IMMEDIATELY SCRAPE THESE URLs WITH execute_code AFTER CALLING THIS!** ONLY use 'search' mode (1 credit). Avoid crawl (3 credits) and map (2 credits) - use execute_code to extract links instead. Budget: ~15 credits per session.",
+    parameters: z.object({
       query: z
         .string()
         .describe(
-          "Search query or crawl instructions. Provide concise, targeted language."
+          "Search query. Provide concise, targeted language. Returns up to 20 URLs. Use execute_code to discover additional URLs from scraped pages."
         ),
       mode: z
         .enum(["search", "crawl", "map"])
         .default("search")
         .describe(
-          "Tavily capability: search (SERP style), crawl (content extraction), map (link discovery)."
+          "Tavily capability. STRONGLY PREFER 'search' (1 credit). Only use crawl/map if absolutely necessary and user explicitly requests it."
         ),
       url: z
         .string()
         .optional()
         .describe("Starting URL for crawl or map operations."),
-      depth: z
-        .enum(["basic", "advanced"])
-        .optional()
-        .describe(
-          "Search depth for search mode. Advanced costs extra credits but returns richer snippets."
-        ),
+      // Removed depth parameter - always use basic to save credits
     }),
-    execute: async ({ query, mode, url, depth }) => {
+    execute: async ({ query, mode, url }) => {
       const usedCredits = getCreditsUsed(sessionId);
       if (usedCredits >= MAX_TAVILY_CREDITS) {
         return {
@@ -315,7 +330,8 @@ const createSearchInternetTool = (
         };
       }
 
-      const selectedDepth = depth ?? "basic";
+      // Always use basic depth to minimize costs
+      const selectedDepth = "basic";
       const creditCost = (() => {
         if (mode === "crawl") {
           return CRAWL_CREDITS;
@@ -323,9 +339,8 @@ const createSearchInternetTool = (
         if (mode === "map") {
           return MAP_CREDITS;
         }
-        return selectedDepth === "advanced"
-          ? ADVANCED_SEARCH_CREDITS
-          : BASIC_SEARCH_CREDITS;
+        // Always basic search, always 1 credit
+        return BASIC_SEARCH_CREDITS;
       })();
 
       if (usedCredits + creditCost > MAX_TAVILY_CREDITS) {
@@ -394,8 +409,8 @@ const createSearchInternetTool = (
           search_depth: selectedDepth,
           include_answer: false,
           include_images: false,
-          include_raw_content: selectedDepth === "advanced",
-          max_results: 5,
+          include_raw_content: false, // Always false since we only use basic
+          max_results: 20, // Max free results per search - maximize value per credit
         };
       }
 
@@ -483,37 +498,52 @@ const createExecuteCodeTool = (sessionId: string) =>
   tool({
     description: `Execute Python in a Modal sandbox with internet access.
 
-LOGGING (REQUIRED):
-- from rich.console import Console
-- console = Console()
-- Use console.rule(), console.log(), and console.print_exception() so output renders cleanly.
-- Wrap long tasks with console.status("Scraping …", spinner="dots").
+**SCRAPE ALL TAVILY URLs IMMEDIATELY**: When you get URLs from search_internet, use this tool RIGHT AWAY to scrape ALL of them!
+
+PARALLEL FETCHING (REQUIRED):
+- ALWAYS fetch multiple URLs in parallel, NEVER serially in a loop
+- Use asyncio + aiohttp or concurrent.futures.ThreadPoolExecutor
+- Example with aiohttp:
+  import asyncio, aiohttp
+  async def fetch_url(session, url):
+      async with session.get(url) as resp:
+          return await resp.text()
+  async def fetch_all(urls):
+      async with aiohttp.ClientSession() as session:
+          tasks = [fetch_url(session, url) for url in urls]
+          return await asyncio.gather(*tasks, return_exceptions=True)
+  results = asyncio.run(fetch_all(urls))
+
+LOGGING:
+- Use simple print() statements for all output
+- Print progress: "Fetching 10 URLs in parallel..."
+- Print results: "Successfully scraped 8/10 URLs"
+- Print summary: "Dataset updated: +15 new items, 45 total"
 
 DATASET PATTERN:
 - Filepath: /data/${sessionId}.json
-- import json, import os
-- console.log("Loading dataset", filepath=filepath)
+- import json, os
 - dataset = json.load(open(filepath)) if os.path.exists(filepath) else []
-- console.log("Existing rows", total=len(dataset))
-- Build new_items, extend dataset, json.dump(..., indent=2)
-- console.log("Dataset updated", added=len(new_items), total=len(dataset))
-- Immediately scrape any URLs returned by Tavily search/crawl/map outputs before issuing new searches.
+- print(f"Loaded existing dataset: {len(dataset)} items")
+- Build new_items in parallel, extend dataset, json.dump(..., indent=2)
+- print(f"Dataset updated: +{len(new_items)} new items, {len(dataset)} total")
+- Immediately scrape any URLs returned by Tavily before issuing new searches
 
 PDF HANDLING:
-- Detect PDFs by URL or response headers.
-- Use pdfplumber (preferred) or PyPDF2.
+- Detect PDFs by URL or response headers
+- Use pdfplumber (preferred) or PyPDF2
 - Example:
   import pdfplumber
   with pdfplumber.open("local.pdf") as pdf:
-      console.log("PDF loaded", pages=len(pdf.pages))
+      print(f"PDF loaded: {len(pdf.pages)} pages")
       for page in pdf.pages:
           text = page.extract_text() or ""
           # parse text into structured rows
 
 ERROR REPORTING:
-- Catch exceptions and surface them with console.print_exception(show_locals=True).
-- Always finish with dataset stats so the agent can decide next steps.`,
-    inputSchema: z.object({
+- Use try/except and print error messages
+- Always finish with dataset stats so agent can decide next steps`,
+    parameters: z.object({
       code: z.string().describe("The Python code to execute"),
       description: z
         .string()
@@ -541,7 +571,7 @@ ERROR REPORTING:
 const createReadJsonTool = (sessionId: string) =>
   tool({
     description: `Read a JSON file from the Modal volume. Use this to check the current state of the dataset being collected. The default filepath is /data/${sessionId}.json.`,
-    inputSchema: z.object({
+    parameters: z.object({
       filepath: z
         .string()
         .default(`/data/${sessionId}.json`)
@@ -574,12 +604,42 @@ export async function POST(req: Request) {
   let messages: ChatMessage[] = [];
   let schema: string | undefined = undefined;
   let sessionId: string | undefined = undefined;
+  let namespace: string | null = null;
+  let source: string | null = null;
 
   try {
     const body = await req.json();
     messages = body.messages || [];
     schema = body.schema;
     sessionId = body.sessionId;
+    namespace = req.headers.get("x-namespace");
+    source = req.headers.get("x-source");
+
+    // Log message history for debugging
+    console.log(`[Scraper] Request for session ${sessionId}`);
+    console.log(`[Scraper] Message count: ${messages.length}`);
+    const toolCallMessages = messages.filter(
+      (m) => m.toolInvocations && m.toolInvocations.length > 0
+    );
+    const totalToolCalls = toolCallMessages.reduce(
+      (sum, m) => sum + (m.toolInvocations?.length || 0),
+      0
+    );
+    console.log(
+      `[Scraper] Messages with tool calls: ${toolCallMessages.length}, Total tool calls: ${totalToolCalls}`
+    );
+
+    // Log which tools were called previously
+    if (totalToolCalls > 0) {
+      const toolNames = toolCallMessages.flatMap(
+        (m) => m.toolInvocations?.map((inv) => inv.toolName) || []
+      );
+      console.log(
+        `[Scraper] Previous tools used: ${Array.from(new Set(toolNames)).join(
+          ", "
+        )}`
+      );
+    }
 
     // Generate session ID if not provided (for backward compatibility)
     // Format: YYYYMMDD-{uuid} (e.g., 20250130-abc123-def456-...)
@@ -591,51 +651,89 @@ export async function POST(req: Request) {
     }
 
     // Build system prompt
-    const systemPrompt = `You are DocScraper, an iterative web scraping agent.
+    const systemPrompt = `You are DocScraper, an iterative web scraping agent focused on cost-effective data collection.
 
 MISSION:
 - Deliver a clean, structured dataset saved at /data/${sessionId}.json that satisfies the user's request.
-- Example objective: collect blog posts from academics covering NSF and government budget cuts for science funding (titles, authors, publication dates, summaries, URLs).
+- Your job is to SCRAPE RAW TEXT from articles, not to summarize or transform it.
+- Example objectives: scrape travel blog posts about Japan (url, scraped_text, author), food blog posts about Lisbon restaurants (url, scraped_text, date), or adventure travel stories (url, scraped_text).
 
 TOOLS & BUDGET:
-- search_internet → Tavily API. Default to basic search depth (~1 credit). Escalate to advanced (≈2 credits) only when richer snippets are essential. Use crawl for structured extraction sweeps (~3 credits) and map to expand URL frontiers (~2 credits). Total allowance ≈25 credits and ${MAX_SEARCHES_PER_SESSION} searches per session. Reference parameter behaviour in Tavily's SDK guide (https://docs.tavily.com/sdk/javascript/reference).
-- execute_code → Python sandbox with requests, httpx, BeautifulSoup, lxml, selenium, playwright, pandas, PyPDF2, pdfplumber, openpyxl, cloudscraper, aiohttp, rich, and more installed.
-- read_json → Inspect the persisted dataset after each mutation.
+- search_internet → Tavily API (BASIC SEARCH ONLY, 1 credit each). Returns up to 20 URLs per search. Total allowance: ${MAX_TAVILY_CREDITS} credits, ${MAX_SEARCHES_PER_SESSION} searches per session.
+  * Use when you need fresh URL sources or different angles on the topic
+  * Each search gives you 20 URLs, so you can gather many sources with just a few searches
+  * AVOID crawl (3 credits) and map (2 credits) modes - they're expensive
+- execute_code → Python sandbox with requests, httpx, BeautifulSoup, lxml, selenium, playwright, pandas, PyPDF2, pdfplumber, openpyxl, cloudscraper, aiohttp installed.
+  * PRIMARY TOOL for scraping and URL discovery
+  * ALWAYS fetch URLs in parallel using asyncio/aiohttp or concurrent.futures - NEVER loop serially
+  * Extract links from scraped pages using BeautifulSoup instead of Tavily map/crawl
+  * Parse pagination, sitemaps, RSS feeds, article lists to find more URLs
+- read_json → (Optional) Inspect dataset if you need to check current state. Dataset is automatically loaded when you finish.
+
+COST-EFFECTIVE WORKFLOW:
+1. Use search_internet to get initial seed URLs (costs 1 credit, returns up to 20 URLs)
+2. **IMMEDIATELY use execute_code to scrape ALL URLs returned by Tavily in parallel** - don't wait, scrape them right away!
+3. In the same code execution: extract additional links from the scraped pages using BeautifulSoup
+4. Continue with execute_code to scrape discovered URLs - no additional Tavily calls needed
+5. Extract more links from: pagination buttons, "related posts", sitemaps, category pages, author pages
+6. If results are sparse or you need a different angle, use search_internet again with a refined query
+7. Continue iterating: scrape → extract more URLs → scrape more → until you have enough quality data
+
+CRITICAL: After EVERY search_internet call, your VERY NEXT action must be execute_code to scrape those URLs!
 
 ITERATIVE LOOP:
-1. Inspect prior messages and the dataset (via read_json when needed).
-2. Plan the next step: search/crawl/map for new sources only when URLs are missing or stale; otherwise scrape, clean, or enrich existing data.
-3. Use execute_code to scrape or transform data, logging every stage with rich.
-4. Immediately verify the dataset with read_json, summarise quality, and decide whether to continue scraping, cleaning, or stop.
+1. **REVIEW CONVERSATION HISTORY**: Check all previous tool calls - what URLs were searched, what code was executed, what data was collected
+2. **CHECK WHAT'S ALREADY DONE**: Look at previous execute_code outputs to see which URLs were already scraped and what data is in the dataset
+3. Plan next step: ALWAYS prefer execute_code for scraping and link discovery over new searches
+4. **AVOID REDUNDANCY**: Don't re-search or re-scrape URLs that were already processed in previous tool calls
+5. Use execute_code to scrape AND discover more URLs with parallel fetching
+6. Summarize what was added to the dataset in your response, decide next action
+7. Use read_json only if you need to inspect the current dataset state
 
-RICH LOGGING STANDARD:
-- Always import from rich.console import Console and instantiate console = Console().
-- Use console.rule() for section separators, console.status() for long tasks, console.log() for structured key/value updates, and console.print_exception(show_locals=True) for errors.
-- Finish every run with console.log("dataset_summary", added=..., total=...).
+LOGGING STANDARD:
+- Use simple print() statements for all logging
+- Print progress updates: "Fetching 10 URLs in parallel..."
+- Print results: "Successfully scraped 8/10 URLs"
+- Print dataset summary at end: "Dataset updated: +15 new items, 45 total, 12 new URLs discovered"
+
+URL DISCOVERY PATTERNS (in execute_code):
+- Parse <a href> tags for links to similar content
+- Check for pagination: next page, page numbers, "load more"
+- Look for sitemaps: /sitemap.xml, /sitemap_index.xml
+- Parse RSS/Atom feeds if available
+- Extract links from article lists, category pages, tag pages, author pages
+- Follow "related articles" or "you might also like" sections
 
 PDF & BINARY CONTENT:
-- When a URL is or returns a PDF, download it and parse with pdfplumber (preferred) or PyPDF2. Log page counts and how each page contributes to structured rows before writing data.
-- Skip images or binary formats you cannot parse; log the limitation.
+- Detect PDFs, download, parse with pdfplumber or PyPDF2
+- Log page counts and extraction quality
 
 DATASET QUALITY GATES:
-- Every record must include source url plus fields that match the target schema.
-- De-duplicate on meaningful keys, normalise dates, and fill missing values when reasonable.
-- Aim for ≈30 high-quality rows unless the user requests fewer or the domain cannot yield that many.
-- Use load → append → write pattern; never overwrite without merging.
+- Every record MUST include: url + scraped_text (raw article content)
+- SCRAPE RAW TEXT - extract the full article/blog post content as-is, don't summarize or transform
+- Keep schemas simple: typically just url, scraped_text, and maybe 1-2 metadata fields (author, date)
+- De-duplicate on url, aim for ~30+ high-quality rows unless user specifies otherwise
+- Load → append → write pattern; never overwrite
 
 SEARCH DISCIPLINE:
-- Track Tavily credits and searches. Avoid repeat queries unless needed. Prefer exploring additional pages from already discovered domains with execute_code.
+- Budget: ${MAX_TAVILY_CREDITS} credits, ${MAX_SEARCHES_PER_SESSION} searches max
+- Track usage carefully - each search costs 1 credit
+- Make searches count: use specific, targeted queries
+- Prioritize execute_code for URL expansion over new searches
 
 COMMUNICATION:
-- Narrate decisions clearly. After each tool call, explain what happened, what data is now available, and the next action you plan.
+- Narrate decisions clearly
+- After each tool call: explain what happened, what data exists, next planned action
+- Emphasize how you're discovering URLs via scraping vs expensive Tavily calls
+- When user sends a follow-up message: First summarize what you've already done (URLs searched, pages scraped, data collected) before proceeding
 
 SCHEMA:
 ${
   schema
     ? `Match the provided schema exactly:
 ${schema}
-Include a url field for every item.`
-    : `Infer a consistent schema from the user's query and include a url field for every item.`
+ALWAYS include url and scraped_text fields (the raw article content).`
+    : `Keep it simple: url, scraped_text (raw article content), and optionally 1-2 metadata fields like author or date.`
 }`;
 
     // Use Azure OpenAI - apiVersion defaults to 'v1'
@@ -647,10 +745,10 @@ Include a url field for every item.`
     // Use GPT-5 as default model
     const modelName = process.env.SCRAPER_AZURE_DEPLOYMENT_NAME || "gpt-4.1";
 
-    const result = streamText({
+    const result = await streamText({
       model: azure(modelName),
       system: systemPrompt,
-      messages: messages.filter((m) => m.role !== "system"),
+      messages: messages.filter((m) => m.role !== "system") as CoreMessage[], // Cast to AI SDK message type
       tools: {
         search_internet: createSearchInternetTool(
           sessionId,
@@ -662,13 +760,34 @@ Include a url field for every item.`
         read_json: createReadJsonTool(sessionId),
       },
       temperature: 1,
-      maxRetries: 20,
-      onStepFinish: async () => {
-        // Tool execution completed
+      maxSteps: 50,
+      onFinish: async ({ usage }) => {
+        if (!supabase) return;
+
+        const cost =
+          (usage.promptTokens * 2.5) / 1_000_000 +
+          (usage.completionTokens * 10) / 1_000_000;
+
+        try {
+          const { error } = await supabase.from("frontend_ai_requests").insert({
+            messages,
+            namespace: namespace || sessionId, // Use sessionId as namespace if not provided
+            cost,
+            source: source || "scraper",
+          });
+
+          if (error) {
+            console.error("Supabase insert error:", error);
+          } else {
+            console.log("Successfully logged scraper request to Supabase");
+          }
+        } catch (err) {
+          console.error("Failed to log to Supabase:", err);
+        }
       },
     });
 
-    return result.toUIMessageStreamResponse();
+    return result.toDataStreamResponse();
   } catch (error) {
     console.error("Scraper API error:", error);
 

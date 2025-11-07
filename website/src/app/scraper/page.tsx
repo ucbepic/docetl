@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChat } from "ai/react";
-import { Send, Loader2, Code2, Database } from "lucide-react";
+import { Send, Loader2, Code2, Database, Scroll, Home } from "lucide-react";
 import ResizableDataTable, {
   ColumnType,
 } from "@/components/ResizableDataTable";
@@ -152,55 +152,24 @@ export default function ScraperPage() {
     }));
   }, [dataset]);
 
+  const hasMessages = messages.length > 0;
+
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <div className="border-b p-4 bg-card">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold">Web Scraper</h1>
-          <div className="flex-1 flex gap-4">
-            <div className="flex-1">
-              <Label htmlFor="query" className="text-sm mb-2 block">
-                What data do you want to scrape?
-              </Label>
-              <Textarea
-                id="query"
-                placeholder="e.g., Find all restaurants in San Francisco with ratings above 4.5 stars..."
-                value={userQuery}
-                onChange={(e) => setUserQuery(e.target.value)}
-                className="min-h-[60px]"
-                disabled={isLoading || isStarting}
-              />
-            </div>
-            <div className="flex-1">
-              <Label htmlFor="schema" className="text-sm mb-2 block">
-                Schema (optional - JSON format)
-              </Label>
-              <Textarea
-                id="schema"
-                placeholder='e.g., {"name": "string", "rating": "float", "address": "string"}'
-                value={schema}
-                onChange={(e) => setSchema(e.target.value)}
-                className="min-h-[60px] font-mono text-xs"
-                disabled={isLoading || isStarting}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button
-                onClick={handleStartScraping}
-                disabled={!userQuery.trim() || isLoading || isStarting}
-                className="h-[60px]"
-              >
-                {isStarting || isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Scraping...
-                  </>
-                ) : (
-                  "Start Scraping"
-                )}
-              </Button>
-            </div>
-          </div>
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Header matching DocWrangler style */}
+      <div className="p-2 flex justify-between items-center border-b bg-white shadow-sm">
+        <div className="flex items-center gap-2">
+          <Scroll className="text-primary" size={20} />
+          <h1 className="text-lg font-bold text-primary">DocScraper</h1>
+          <a
+            href="https://docetl.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-4 flex items-center gap-1 text-sm text-gray-600 hover:text-primary transition-colors"
+          >
+            <Home size={14} />
+            <span>Back to DocETL</span>
+          </a>
         </div>
       </div>
 
@@ -216,7 +185,54 @@ export default function ScraperPage() {
             </div>
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
-                {messages.map((message, index) => (
+                {/* Show form when no messages */}
+                {!hasMessages && (
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="query" className="text-sm mb-2 block font-medium">
+                        What data do you want to scrape?
+                      </Label>
+                      <Textarea
+                        id="query"
+                        placeholder="e.g., Find all restaurants in San Francisco with ratings above 4.5 stars..."
+                        value={userQuery}
+                        onChange={(e) => setUserQuery(e.target.value)}
+                        className="min-h-[80px]"
+                        disabled={isLoading || isStarting}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="schema" className="text-sm mb-2 block font-medium">
+                        Schema (optional - JSON format)
+                      </Label>
+                      <Textarea
+                        id="schema"
+                        placeholder='e.g., {"name": "string", "rating": "float", "address": "string"}'
+                        value={schema}
+                        onChange={(e) => setSchema(e.target.value)}
+                        className="min-h-[60px] font-mono text-xs"
+                        disabled={isLoading || isStarting}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleStartScraping}
+                      disabled={!userQuery.trim() || isLoading || isStarting}
+                      className="w-full"
+                    >
+                      {isStarting || isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Scraping...
+                        </>
+                      ) : (
+                        "Start Scraping"
+                      )}
+                    </Button>
+                  </div>
+                )}
+                
+                {/* Show messages when chat has started */}
+                {hasMessages && messages.map((message, index) => (
                   <div
                     key={index}
                     className={cn(
@@ -240,28 +256,30 @@ export default function ScraperPage() {
                 <div ref={chatEndRef} />
               </div>
             </ScrollArea>
-            <div className="p-4 border-t">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (input.trim() && !isLoading) {
-                    handleSubmit(e);
-                  }
-                }}
-                className="flex gap-2"
-              >
-                <Input
-                  value={input}
-                  onChange={handleInputChange}
-                  placeholder="Ask the agent..."
-                  disabled={isLoading || isStarting}
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={!input.trim() || isLoading || isStarting}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              </form>
-            </div>
+            {hasMessages && (
+              <div className="p-4 border-t">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (input.trim() && !isLoading) {
+                      handleSubmit(e);
+                    }
+                  }}
+                  className="flex gap-2"
+                >
+                  <Input
+                    value={input}
+                    onChange={handleInputChange}
+                    placeholder="Ask the agent..."
+                    disabled={isLoading || isStarting}
+                    className="flex-1"
+                  />
+                  <Button type="submit" disabled={!input.trim() || isLoading || isStarting}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </form>
+              </div>
+            )}
           </div>
         </ResizablePanel>
 

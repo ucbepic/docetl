@@ -276,7 +276,7 @@ const NaturalLanguagePipelineDialog: React.FC<
 
   // Generate pipeline using the new endpoint
   const handleGenerate = async () => {
-    if (!uploadedFile) {
+    if (!uploadedFile && !currentFile) {
       toast({
         title: "No file uploaded",
         description: "Please upload a data file first.",

@@ -31,6 +31,7 @@ import {
   Gamepad2,
   Menu,
   GalleryVertical,
+  Globe,
 } from "lucide-react";
 
 export default function Home() {
@@ -229,12 +230,18 @@ export default function Home() {
                 <DropdownMenuContent align="center" className="w-48">
                   <DropdownMenuItem onClick={toggleDemo}>
                     <Play className="mr-2 h-4 w-4" />
-                    Play Example
+                    Example
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/playground">
                       <Gamepad2 className="mr-2 h-4 w-4" />
                       Playground
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/scraper">
+                      <Globe className="mr-2 h-4 w-4" />
+                      Scraper
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -315,7 +322,7 @@ export default function Home() {
                   className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
                 >
                   <Play className="mr-2 h-4 w-4" />
-                  Play Example
+                  Example
                   {showDemo ? (
                     <ChevronUp className="ml-2 h-4 w-4" />
                   ) : (
@@ -330,6 +337,16 @@ export default function Home() {
                   <Link href="/playground">
                     <Gamepad2 className="mr-2 h-4 w-4" />
                     Playground
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  className="flex-1 h-10 btn btn-primary flex items-center justify-center font-bold min-w-[120px]"
+                >
+                  <Link href="/scraper">
+                    <Globe className="mr-2 h-4 w-4" />
+                    Scraper
                   </Link>
                 </Button>
 

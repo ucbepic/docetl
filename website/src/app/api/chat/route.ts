@@ -89,7 +89,7 @@ function truncateMessages(messages: ChatMessage[]): ChatMessage[] {
 export async function POST(req: Request) {
   let messages: ChatMessage[] = [];
   let personalApiKey: string | null = null;
-  let useOpenAI: boolean = false;
+  let useOpenAI = false;
   let source: string | null = null;
 
   try {
@@ -102,83 +102,77 @@ export async function POST(req: Request) {
 
     let result;
 
-      // Use OpenAI if explicitly requested via header
-      if (useOpenAI) {
-        const openai = createOpenAI({
-          // Use personal API key if provided, otherwise fall back to environment variable
-          apiKey: personalApiKey || process.env.OPENAI_API_KEY!,
-          baseURL: process.env.OPENAI_API_BASE || "https://api.openai.com/v1",
-          compatibility: "strict",
-        });
+    // Use OpenAI if explicitly requested via header
+    if (useOpenAI) {
+      const openai = createOpenAI({
+        apiKey: personalApiKey || process.env.OPENAI_API_KEY!,
+        baseURL: process.env.OPENAI_API_BASE || "https://api.openai.com/v1",
+        compatibility: "strict",
+      });
 
-        const openAiModelName = process.env.MODEL_NAME || "gpt-4o-mini";
-        const openAiOptions: Parameters<typeof streamText>[0] = {
-          model: openai(openAiModelName),
-          system:
-            truncatedMessages.find((m: ChatMessage) => m.role === "system")
-              ?.content || "You are a helpful assistant.",
-          messages: truncatedMessages.filter(
-            (m: ChatMessage) => m.role !== "system"
-          ),
-        };
+      const openAiModelName = process.env.MODEL_NAME || "gpt-4o-mini";
+      const openAiOptions: Parameters<typeof streamText>[0] = {
+        model: openai(openAiModelName),
+        system:
+          truncatedMessages.find((m: ChatMessage) => m.role === "system")
+            ?.content || "You are a helpful assistant.",
+        messages: truncatedMessages.filter((m: ChatMessage) => m.role !== "system"),
+      };
 
-        if (shouldUseTemperatureOne(openAiModelName)) {
-          openAiOptions.temperature = 1;
-        }
-
-        result = await streamText(openAiOptions);
-      } else {
-        // Use Azure OpenAI as before
-        const azure = createAzure({
-          apiKey: process.env.AZURE_API_KEY!,
-          apiVersion: process.env.AZURE_API_VERSION,
-          resourceName: process.env.AZURE_RESOURCE_NAME,
-        });
-
-        const azureModelName =
-          process.env.AZURE_DEPLOYMENT_NAME || "gpt-4o-mini";
-        const azureOptions: Parameters<typeof streamText>[0] = {
-          model: azure(azureModelName),
-          system:
-            truncatedMessages.find((m: ChatMessage) => m.role === "system")
-              ?.content || "You are a helpful assistant.",
-          messages: truncatedMessages.filter(
-            (m: ChatMessage) => m.role !== "system"
-          ),
-          onFinish: async ({ usage }) => {
-            if (!supabase) return;
-
-            const cost =
-              (usage.promptTokens * 2.5) / 1_000_000 +
-              (usage.completionTokens * 10) / 1_000_000;
-
-            try {
-              const { error } = await supabase
-                .from("frontend_ai_requests")
-                .insert({
-                  messages,
-                  namespace,
-                  cost,
-                  source: source || "unknown",
-                });
-
-              if (error) {
-                console.error("Supabase insert error:", error);
-              } else {
-                console.log("Successfully logged to Supabase");
-              }
-            } catch (err) {
-              console.error("Failed to log to Supabase:", err);
-            }
-          },
-        };
-
-        if (shouldUseTemperatureOne(azureModelName)) {
-          azureOptions.temperature = 1;
-        }
-
-        result = await streamText(azureOptions);
+      if (shouldUseTemperatureOne(openAiModelName)) {
+        openAiOptions.temperature = 1;
       }
+
+      result = await streamText(openAiOptions);
+    } else {
+      // Use Azure OpenAI
+      const azure = createAzure({
+        apiKey: process.env.AZURE_API_KEY!,
+        apiVersion: process.env.AZURE_API_VERSION,
+        resourceName: process.env.AZURE_RESOURCE_NAME,
+      });
+
+      const azureModelName = process.env.AZURE_DEPLOYMENT_NAME || "gpt-4o-mini";
+      const azureOptions: Parameters<typeof streamText>[0] = {
+        model: azure(azureModelName),
+        system:
+          truncatedMessages.find((m: ChatMessage) => m.role === "system")
+            ?.content || "You are a helpful assistant.",
+        messages: truncatedMessages.filter((m: ChatMessage) => m.role !== "system"),
+        onFinish: async ({ usage }) => {
+          if (!supabase) return;
+
+          const cost =
+            (usage.promptTokens * 2.5) / 1_000_000 +
+            (usage.completionTokens * 10) / 1_000_000;
+
+          try {
+            const { error } = await supabase
+              .from("frontend_ai_requests")
+              .insert({
+                messages,
+                namespace,
+                cost,
+                source: source || "unknown",
+              });
+
+            if (error) {
+              console.error("Supabase insert error:", error);
+            } else {
+              console.log("Successfully logged to Supabase");
+            }
+          } catch (err) {
+            console.error("Failed to log to Supabase:", err);
+          }
+        },
+      };
+
+      if (shouldUseTemperatureOne(azureModelName)) {
+        azureOptions.temperature = 1;
+      }
+
+      result = await streamText(azureOptions);
+    }
 
     return result.toDataStreamResponse();
   } catch (error) {

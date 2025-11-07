@@ -63,6 +63,7 @@
     "lodash.throttle": "^4.1.1",
     "lucide-react": "^0.441.0",
     "lz-string": "^1.5.0",
+    "modal": "^0.5.2",
     "next": "14.2.32",
     "re-resizable": "^6.10.0",
     "react": "^18",

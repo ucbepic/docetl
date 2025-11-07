@@ -15,20 +15,33 @@ We have an integrated development environment for building and testing pipelines
 - [Agentic Optimization Research Paper](https://arxiv.org/abs/2410.12189)
 - [Discord Community](https://discord.gg/fHp7B2X3xx)
 
-### Core Operators
-- [Map Operation](https://ucbepic.github.io/docetl/operators/map/)
-- [Reduce Operation](https://ucbepic.github.io/docetl/operators/reduce/)
-- [Resolve Operation](https://ucbepic.github.io/docetl/operators/resolve/)
-- [Parallel Map Operation](https://ucbepic.github.io/docetl/operators/parallel-map/)
-- [Filter Operation](https://ucbepic.github.io/docetl/operators/filter/)
-- [Equijoin Operation](https://ucbepic.github.io/docetl/operators/equijoin/)
+### Operation Catalog
 
-### Auxiliary Operators
-- [Split Operation](https://ucbepic.github.io/docetl/operators/split/)
-- [Gather Operation](https://ucbepic.github.io/docetl/operators/gather/)
-- [Unnest Operation](https://ucbepic.github.io/docetl/operators/unnest/)
-- [Sample Operation](https://ucbepic.github.io/docetl/operators/sample)
-- [Code Operation](https://ucbepic.github.io/docetl/operators/code/)
+#### LLM Transformations
+- [Map Operation](https://ucbepic.github.io/docetl/operators/map/) - Transform individual documents with LLM reasoning.
+- [Parallel Map Operation](https://ucbepic.github.io/docetl/operators/parallel-map/) - Run map transformations concurrently when latency matters.
+- [Extract Operation](https://ucbepic.github.io/docetl/operators/extract/) - Pull verbatim passages that match structured extraction criteria.
+- [Filter Operation](https://ucbepic.github.io/docetl/operators/filter/) - Keep or drop documents based on LLM-evaluated conditions.
+- [Reduce Operation](https://ucbepic.github.io/docetl/operators/reduce/) - Aggregate sets of documents into structured summaries.
+
+#### Entity & Relationship Operations
+- [Resolve Operation](https://ucbepic.github.io/docetl/operators/resolve/) - Canonicalize duplicate entities across documents.
+- [Link Resolve Operation](https://ucbepic.github.io/docetl/operators/link-resolve/) - Repair references between canonicalized entities.
+- [Equijoin Operation](https://ucbepic.github.io/docetl/operators/equijoin/) - Join datasets by semantic equality.
+- [Cluster Operation](https://ucbepic.github.io/docetl/operators/cluster/) - Build hierarchical clusters with LLM-generated summaries.
+
+#### Retrieval & Ranking
+- [TopK Operation](https://ucbepic.github.io/docetl/operators/topk/) - Retrieve the most relevant items via embeddings, BM25, or LLM comparison.
+- [Rank Operation](https://ucbepic.github.io/docetl/operators/rank/) - Order documents by nuanced criteria using iterative LLM ranking.
+
+#### Data Structuring & Flow
+- [Split Operation](https://ucbepic.github.io/docetl/operators/split/) - Break documents into chunks for downstream processing.
+- [Gather Operation](https://ucbepic.github.io/docetl/operators/gather/) - Reassemble split outputs while preserving context.
+- [Unnest Operation](https://ucbepic.github.io/docetl/operators/unnest/) - Flatten nested list structures, with optional recursion.
+- [Sample Operation](https://ucbepic.github.io/docetl/operators/sample/) - Select representative subsets for fast iteration.
+
+#### Code-Powered Operations
+- [Code Operation](https://ucbepic.github.io/docetl/operators/code/) - Execute deterministic Python transforms within the pipeline.
 
 ### LLM Providers
 - [LiteLLM Supported Providers](https://docs.litellm.ai/docs/providers)
@@ -99,22 +112,33 @@ datasets:
     - All documents in a dataset should have consistent fields
     - For other formats, use parsing tools to convert to the required format
 
-### Core Operators
+### Operation Guide
 
-1. LLM-Powered Operators:
+1. LLM Transformations:
    - Map: Transform individual documents using LLM reasoning. https://ucbepic.github.io/docetl/operators/map/
-   - Reduce: Combine multiple documents or results into aggregated insights. https://ucbepic.github.io/docetl/operators/reduce/
-   - Resolve: Perform entity resolution across documents. https://ucbepic.github.io/docetl/operators/resolve/
-   - Parallel Map: Process multiple documents concurrently. https://ucbepic.github.io/docetl/operators/parallel-map/
-   - Filter: Select documents based on LLM-powered criteria. https://ucbepic.github.io/docetl/operators/filter/
-   - Equijoin: Join documents based on semantic equality. https://ucbepic.github.io/docetl/operators/equijoin/
+   - Parallel Map: Process multiple documents concurrently to reduce latency. https://ucbepic.github.io/docetl/operators/parallel-map/
+   - Extract: Pull verbatim passages that match extraction criteria. https://ucbepic.github.io/docetl/operators/extract/
+   - Filter: Select documents based on LLM-powered conditions. https://ucbepic.github.io/docetl/operators/filter/
+   - Reduce: Combine document sets into structured insights. https://ucbepic.github.io/docetl/operators/reduce/
 
-2. Auxiliary Operators:
+2. Entity & Relationship Operations:
+   - Resolve: Perform entity resolution across documents. https://ucbepic.github.io/docetl/operators/resolve/
+   - Link Resolve: Repair cross-document references after canonicalization. https://ucbepic.github.io/docetl/operators/link-resolve/
+   - Equijoin: Join documents based on semantic equality. https://ucbepic.github.io/docetl/operators/equijoin/
+   - Cluster: Group items into hierarchical clusters with LLM-generated summaries. https://ucbepic.github.io/docetl/operators/cluster/
+
+3. Retrieval & Ranking:
+   - TopK: Retrieve the most relevant items using embeddings, BM25, or LLM comparison. https://ucbepic.github.io/docetl/operators/topk/
+   - Rank: Order documents by nuanced criteria via iterative LLM ranking. https://ucbepic.github.io/docetl/operators/rank/
+
+4. Data Structuring & Flow:
    - Split: Break large documents into manageable chunks. https://ucbepic.github.io/docetl/operators/split/
-   - Gather: Maintain context when processing split documents. https://ucbepic.github.io/docetl/operators/gather/
-   - Unnest: Flatten nested data structures. https://ucbepic.github.io/docetl/operators/unnest/
-   - Sample: Select representative document subsets. https://ucbepic.github.io/docetl/operators/sample
-   - Code: Execute custom Python code within the pipeline. https://ucbepic.github.io/docetl/operators/code/
+   - Gather: Maintain context when reassembling split documents. https://ucbepic.github.io/docetl/operators/gather/
+   - Unnest: Flatten nested data structures, including recursive lists. https://ucbepic.github.io/docetl/operators/unnest/
+   - Sample: Select representative subsets for rapid iteration. https://ucbepic.github.io/docetl/operators/sample/
+
+5. Code-Powered Utilities:
+   - Code: Execute custom Python code within the pipeline for deterministic logic. https://ucbepic.github.io/docetl/operators/code/
 
 ### Pipeline Structure
 

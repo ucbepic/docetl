@@ -385,9 +385,16 @@ Be methodical and thorough. Explain what you're doing at each step.`;
       resourceName: process.env.AZURE_RESOURCE_NAME,
     });
 
-    // Use GPT-5 (or latest available model) - set AZURE_DEPLOYMENT_NAME to "gpt-5" when available
-    const modelName = process.env.AZURE_DEPLOYMENT_NAME || "gpt-4o";
+    // Use GPT-5 as default model
+    const modelName = process.env.AZURE_DEPLOYMENT_NAME || "gpt-5";
     
+    // Agent loop control: stop when we have sufficient data or hit limits
+    let datasetItemCount = 0;
+    let stepCount = 0;
+    const maxSteps = 20;
+    const minDatasetSize = 10;
+    const maxDatasetSize = 100;
+
     const result = await streamText({
       model: azure(modelName),
       system: systemPrompt,
@@ -397,7 +404,38 @@ Be methodical and thorough. Explain what you're doing at each step.`;
         execute_code: executeCodeTool,
         read_json: readJsonTool,
       },
-      maxSteps: 20, // Allow multiple tool calls in sequence
+      maxSteps,
+      onStepFinish: async ({ toolCalls, toolResults, finishReason }) => {
+        stepCount++;
+        
+        // Update dataset count from read_json tool results
+        for (let i = 0; i < toolCalls.length; i++) {
+          const toolCall = toolCalls[i];
+          const toolResult = toolResults[i];
+          
+          if (toolCall.toolName === "read_json" && toolResult && typeof toolResult === "object") {
+            const result = toolResult as { data?: unknown[]; count?: number };
+            if (Array.isArray(result.data)) {
+              datasetItemCount = result.data.length;
+            } else if (typeof result.count === "number") {
+              datasetItemCount = result.count;
+            }
+          }
+        }
+
+        // Stop condition: we have enough data or hit max steps
+        if (datasetItemCount >= minDatasetSize || stepCount >= maxSteps) {
+          return {
+            finishReason: "stop" as const,
+            text: datasetItemCount >= minDatasetSize
+              ? `Successfully collected ${datasetItemCount} items. Task complete!`
+              : `Reached maximum steps (${maxSteps}). Collected ${datasetItemCount} items.`,
+          };
+        }
+
+        // Continue if we need more data
+        return undefined;
+      },
     });
 
     return result.toDataStreamResponse();

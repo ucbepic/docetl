@@ -106,6 +106,62 @@ const formatFileSize = (bytes?: number | null): string => {
   return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[exponent]}`;
 };
 
+const getFileExtension = (input?: string | null): string => {
+  if (!input) {
+    return "";
+  }
+  const lastSegment = input.split("/").pop() || input;
+  const parts = lastSegment.split(".");
+  if (parts.length < 2) {
+    return "";
+  }
+  return parts.pop()?.toLowerCase() || "";
+};
+
+const parseDatasetContent = (text: string, extension: string): unknown[] => {
+  if (extension === "csv") {
+    const lines = text.split("\n").map((line) => line.trim());
+    if (lines.length === 0) {
+      return [];
+    }
+    const headers = lines[0]
+      .split(",")
+      .map((header) => header.trim())
+      .filter(Boolean);
+    if (headers.length === 0) {
+      return [];
+    }
+    const rows: Record<string, string>[] = [];
+    for (let i = 1; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (!line) {
+        continue;
+      }
+      const values = line.split(",");
+      const record: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        record[header] = values[index]?.trim() ?? "";
+      });
+      rows.push(record);
+    }
+    return rows;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    if (parsed && typeof parsed === "object") {
+      return [parsed];
+    }
+  } catch (error) {
+    console.error("Failed to parse dataset content:", error);
+  }
+
+  return [];
+};
+
 interface NaturalLanguagePipelineDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -303,8 +359,56 @@ const NaturalLanguagePipelineDialog: React.FC<
     setActiveTab("review");
 
     try {
-      // Extract sample data
-      const sampleData = extractSampleData(fileData);
+      const datasetFile = uploadedFile ?? currentFile;
+      let datasetRecords = fileData;
+
+      if (
+        datasetRecords.length === 0 &&
+        datasetFile?.path
+      ) {
+        try {
+          const response = await fetch(
+            `/api/readFile?path=${encodeURIComponent(datasetFile.path)}`
+          );
+          if (response.ok) {
+            const text = await response.text();
+            const extension =
+              getFileExtension(datasetFile.path) ||
+              getFileExtension(datasetFile.name);
+            datasetRecords = parseDatasetContent(
+              text,
+              extension || "json"
+            );
+            if (datasetRecords.length > 0) {
+              setFileData(datasetRecords);
+            }
+          } else {
+            console.error(
+              "Failed to read dataset for pipeline generation:",
+              response.statusText
+            );
+          }
+        } catch (error) {
+          console.error("Error loading dataset for pipeline generation:", error);
+        }
+      }
+
+      if (datasetRecords.length === 0 && uploadedFile?.blob) {
+        try {
+          const text = await uploadedFile.blob.text();
+          const extension =
+            getFileExtension(uploadedFile.path) ||
+            getFileExtension(uploadedFile.name);
+          datasetRecords = parseDatasetContent(text, extension || "json");
+          if (datasetRecords.length > 0) {
+            setFileData(datasetRecords);
+          }
+        } catch (error) {
+          console.error("Error reading uploaded dataset blob:", error);
+        }
+      }
+
+      const sampleData = extractSampleData(datasetRecords);
 
       // Create the combined user message
       const promptText = `You are a DocETL pipeline generator. Your task is to create a YAML pipeline configuration based on the user's requirements and data.
@@ -394,9 +498,10 @@ Format your response exactly as follows:
     setIsUploading(true);
     try {
       const uploadedFile = e.target.files[0];
-      const fileExtension = uploadedFile.name.split(".").pop()?.toLowerCase();
+      const fileExtension =
+        uploadedFile.name.split(".").pop()?.toLowerCase() || "json";
 
-      if (!["json", "csv"].includes(fileExtension || "")) {
+      if (!["json", "csv"].includes(fileExtension)) {
         toast({
           title: "Invalid file type",
           description: "Please upload a JSON or CSV file",
@@ -415,26 +520,7 @@ Format your response exactly as follows:
 
       // Read file for sample data extraction
       const text = await uploadedFile.text();
-      let parsedData: unknown[] = [];
-
-      if (fileExtension === "json") {
-        parsedData = JSON.parse(text);
-      } else {
-        // For CSV, we'll use a simple parser
-        // In a real implementation, you'd want to use Papa.parse like in useDatasetUpload
-        const lines = text.split("\n");
-        const headers = lines[0].split(",").map((h) => h.trim());
-
-        for (let i = 1; i < lines.length; i++) {
-          if (!lines[i].trim()) continue;
-          const values = lines[i].split(",");
-          const obj: Record<string, string> = {};
-          headers.forEach((header, index) => {
-            obj[header] = values[index]?.trim() || "";
-          });
-          parsedData.push(obj);
-        }
-      }
+      const parsedData = parseDatasetContent(text, fileExtension);
 
       setFileData(parsedData);
       await uploadLocalDataset(fileToUpload);

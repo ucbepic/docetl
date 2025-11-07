@@ -146,42 +146,42 @@ const NaturalLanguagePipelineDialog: React.FC<
     setCurrentFile,
   });
 
-  const { restoreFromYAML } = useRestorePipeline({
-    setOperations,
-    setPipelineName,
-    setSampleSize,
-    setDefaultModel,
-    setFiles,
-    setCurrentFile,
-    setSystemPrompt,
-    files,
-    setOutput,
-  });
+    const { restoreFromYAML } = useRestorePipeline({
+      setOperations,
+      setPipelineName,
+      setSampleSize,
+      setDefaultModel,
+      setFiles,
+      setCurrentFile,
+      setSystemPrompt,
+      files,
+      setOutput,
+    });
 
-  // Setup request headers
-  const getRequestHeaders = useMemo(() => {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "x-source": "nl-pipeline-generator",
-      "x-model": "o1-mini",
-      "x-namespace": namespace,
-    };
+    // Setup request headers
+    const getRequestHeaders = useMemo(() => {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-source": "nl-pipeline-generator",
+        "x-model": "gpt-5",
+        "x-namespace": namespace,
+      };
 
-    // Check if personal OpenAI API key should be used
-    const usePersonalOpenAI =
-      localStorage.getItem("USE_PERSONAL_OPENAI") === "true";
+      // Check if personal OpenAI API key should be used
+      const usePersonalOpenAI =
+        localStorage.getItem("USE_PERSONAL_OPENAI") === "true";
 
-    if (usePersonalOpenAI) {
-      headers["x-use-openai"] = "true";
-      // Try to get API key from localStorage
-      const openAiKey = localStorage.getItem("OPENAI_API_KEY");
-      if (openAiKey) {
-        headers["x-openai-key"] = openAiKey;
+      if (usePersonalOpenAI) {
+        headers["x-use-openai"] = "true";
+        // Try to get API key from localStorage
+        const openAiKey = localStorage.getItem("OPENAI_API_KEY");
+        if (openAiKey) {
+          headers["x-openai-key"] = openAiKey;
+        }
       }
-    }
 
-    return headers;
-  }, [namespace]);
+      return headers;
+    }, [namespace]);
 
   // Get instructions on component mount
   useEffect(() => {
@@ -597,59 +597,59 @@ Format your response exactly as follows:
                       Generate Pipeline
                     </>
                   )}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
 
-          <TabsContent value="review" className="space-y-4 mt-4">
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                      {generatedName ||
-                        "Generating Pipeline with o1-mini (this may take a minute)..."}
-                    </>
-                  ) : generatedName ? (
-                    <>
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      {generatedName}
-                    </>
-                  ) : (
-                    "Generated Pipeline"
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="bg-slate-50 rounded-md p-3 overflow-hidden border border-slate-100">
-                  <pre className="text-xs overflow-x-auto whitespace-pre-wrap text-slate-700">
-                    {isGenerating
-                      ? "Generating pipeline..."
-                      : generatedYaml || generatedOutput}
-                  </pre>
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between pt-0">
-                <Button
-                  variant="outline"
-                  onClick={() => setActiveTab("upload")}
-                  size="sm"
-                  disabled={isGenerating}
-                >
-                  Back to Upload
-                </Button>
-                <Button
-                  onClick={handleApplyPipeline}
-                  size="sm"
-                  disabled={isGenerating || !generatedYaml}
-                >
-                  Apply Pipeline
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
+            <TabsContent value="review" className="space-y-4 mt-4">
+              <Card className="border shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                        {generatedName ||
+                          "Generating Pipeline with gpt-5 (this may take a minute)..."}
+                      </>
+                    ) : generatedName ? (
+                      <>
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        {generatedName}
+                      </>
+                    ) : (
+                      "Generated Pipeline"
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="bg-slate-50 rounded-md p-3 overflow-hidden border border-slate-100">
+                    <pre className="text-xs overflow-x-auto whitespace-pre-wrap text-slate-700">
+                      {isGenerating
+                        ? "Generating pipeline..."
+                        : generatedYaml || generatedOutput}
+                    </pre>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between pt-0">
+                  <Button
+                    variant="outline"
+                    onClick={() => setActiveTab("upload")}
+                    size="sm"
+                    disabled={isGenerating}
+                  >
+                    Back to Upload
+                  </Button>
+                  <Button
+                    onClick={handleApplyPipeline}
+                    size="sm"
+                    disabled={isGenerating || !generatedYaml}
+                  >
+                    Apply Pipeline
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>

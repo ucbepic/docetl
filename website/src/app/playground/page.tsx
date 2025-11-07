@@ -289,6 +289,8 @@ const CodeEditorPipelineApp: React.FC = () => {
   const [selectedTutorial, setSelectedTutorial] =
     useState<(typeof TUTORIALS)[0]>();
   const [showNLPipelineDialog, setShowNLPipelineDialog] = useState(false);
+  const [hasAutoOpenedNLPipelineDialog, setHasAutoOpenedNLPipelineDialog] =
+    useState(false);
   const { theme, setTheme } = useTheme();
 
   const {
@@ -303,6 +305,7 @@ const CodeEditorPipelineApp: React.FC = () => {
     namespace,
     setNamespace,
     setOperations,
+    operations,
     setPipelineName,
     pipelineName,
     setSampleSize,
@@ -311,6 +314,10 @@ const CodeEditorPipelineApp: React.FC = () => {
     setOutput,
     defaultModel,
   } = usePipelineContext();
+  const hasWorkspaceContent =
+    (operations?.length ?? 0) > 0 ||
+    (files?.length ?? 0) > 0 ||
+    Boolean(currentFile);
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -331,6 +338,28 @@ const CodeEditorPipelineApp: React.FC = () => {
       setShowNamespaceDialog(true);
     }
   }, [isMounted, namespace]);
+
+  useEffect(() => {
+    if (!isMounted || !namespace) {
+      return;
+    }
+    if (hasWorkspaceContent) {
+      if (hasAutoOpenedNLPipelineDialog) {
+        setHasAutoOpenedNLPipelineDialog(false);
+      }
+      return;
+    }
+    if (!hasAutoOpenedNLPipelineDialog) {
+      setShowNLPipelineDialog(true);
+      setHasAutoOpenedNLPipelineDialog(true);
+    }
+  }, [
+    hasAutoOpenedNLPipelineDialog,
+    hasWorkspaceContent,
+    isMounted,
+    namespace,
+    setShowNLPipelineDialog,
+  ]);
 
   if (isLoading) {
     return <LoadingScreen />;

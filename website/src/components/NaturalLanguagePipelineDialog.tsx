@@ -641,9 +641,22 @@ Format your response exactly as follows:
             <DialogDescription>
               Upload your data and describe what you want to do with it. We&apos;ll
               use AI to generate a DocETL pipeline. Review the prompts before
-              running anything in production.
+              running anything in production. You can close this dialog at any time
+              to upload PDFs or author your pipeline manually in the workspace.
             </DialogDescription>
           </DialogHeader>
+
+          <Alert className="border-blue-200 bg-blue-50/50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-sm font-semibold text-blue-900">
+              Need to upload PDFs or author manually?
+            </AlertTitle>
+            <AlertDescription className="text-xs text-blue-800">
+              You can close this dialog at any time to return to the workspace, where
+              you can upload PDFs or manually author your pipeline using the visual
+              editor.
+            </AlertDescription>
+          </Alert>
 
           <div className="space-y-6 pb-2">
             <div className="flex flex-col gap-2">

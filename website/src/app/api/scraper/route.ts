@@ -618,7 +618,32 @@ export async function POST(req: Request) {
     // Log message history for debugging
     console.log(`[Scraper] Request for session ${sessionId}`);
     console.log(`[Scraper] Message count: ${messages.length}`);
-    const toolCallMessages = messages.filter(
+    
+    // Clean up messages: remove tool invocations in "call" state without results
+    // The AI SDK requires that tool invocations either have results or be properly formatted
+    const cleanedMessages = messages.map((message) => {
+      if (!message.toolInvocations || message.toolInvocations.length === 0) {
+        return message;
+      }
+
+      // Filter out incomplete tool invocations (state: "call" without result)
+      const validToolInvocations = message.toolInvocations.filter(
+        (inv) => inv.state !== "call" || inv.result !== undefined
+      );
+
+      // If all tool invocations were filtered out, remove the toolInvocations field
+      if (validToolInvocations.length === 0) {
+        const { toolInvocations, ...rest } = message;
+        return rest;
+      }
+
+      return {
+        ...message,
+        toolInvocations: validToolInvocations,
+      };
+    });
+    
+    const toolCallMessages = cleanedMessages.filter(
       (m) => m.toolInvocations && m.toolInvocations.length > 0
     );
     const totalToolCalls = toolCallMessages.reduce(
@@ -748,7 +773,7 @@ ALWAYS include url and scraped_text fields (the raw article content).`
     const result = await streamText({
       model: azure(modelName),
       system: systemPrompt,
-      messages: messages.filter((m) => m.role !== "system") as CoreMessage[], // Cast to AI SDK message type
+      messages: cleanedMessages.filter((m) => m.role !== "system") as CoreMessage[], // Cast to AI SDK message type
       tools: {
         search_internet: createSearchInternetTool(
           sessionId,
@@ -770,7 +795,7 @@ ALWAYS include url and scraped_text fields (the raw article content).`
 
         try {
           const { error } = await supabase.from("frontend_ai_requests").insert({
-            messages,
+            messages: cleanedMessages,
             namespace: namespace || sessionId, // Use sessionId as namespace if not provided
             cost,
             source: source || "scraper",

@@ -727,7 +727,9 @@ Format your response exactly as follows:
                         <Button
                           onClick={handleGenerate}
                           disabled={
-                            !uploadedFile || !userPrompt.trim() || isGenerating
+                            (!uploadedFile && !currentFile) ||
+                            !userPrompt.trim() ||
+                            isGenerating
                           }
                           size="sm"
                         >

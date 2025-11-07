@@ -644,10 +644,10 @@ export async function POST(req: Request) {
     });
     
     const toolCallMessages = cleanedMessages.filter(
-      (m) => m.toolInvocations && m.toolInvocations.length > 0
+      (m) => Array.isArray(m.toolInvocations) && m.toolInvocations.length > 0
     );
     const totalToolCalls = toolCallMessages.reduce(
-      (sum, m) => sum + (m.toolInvocations?.length || 0),
+      (sum, m) => sum + (Array.isArray(m.toolInvocations) ? m.toolInvocations.length : 0),
       0
     );
     console.log(
@@ -657,7 +657,7 @@ export async function POST(req: Request) {
     // Log which tools were called previously
     if (totalToolCalls > 0) {
       const toolNames = toolCallMessages.flatMap(
-        (m) => m.toolInvocations?.map((inv) => inv.toolName) || []
+        (m) => (Array.isArray(m.toolInvocations) ? m.toolInvocations.map((inv) => inv.toolName) : [])
       );
       console.log(
         `[Scraper] Previous tools used: ${Array.from(new Set(toolNames)).join(

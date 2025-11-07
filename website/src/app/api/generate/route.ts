@@ -8,6 +8,9 @@ const supabase =
     ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
     : null;
 
+const shouldUseTemperatureOne = (name?: string | null) =>
+  typeof name === "string" && name.toLowerCase().includes("gpt-5");
+
 export async function POST(req: Request) {
   let prompt: string = "";
   let personalApiKey: string | null = null;
@@ -33,10 +36,17 @@ export async function POST(req: Request) {
         compatibility: "strict",
       });
 
-      const result = await generateText({
-        model: openai(process.env.MODEL_NAME || "gpt-4o-mini"),
+      const openAiModelName = process.env.MODEL_NAME || "gpt-4o-mini";
+      const openAiOptions: Parameters<typeof generateText>[0] = {
+        model: openai(openAiModelName),
         prompt,
-      });
+      };
+
+      if (shouldUseTemperatureOne(openAiModelName)) {
+        openAiOptions.temperature = 1;
+      }
+
+      const result = await generateText(openAiOptions);
 
       text = result.text;
     } else {
@@ -47,10 +57,16 @@ export async function POST(req: Request) {
         resourceName: process.env.AZURE_RESOURCE_NAME,
       });
 
-      const result = await generateText({
+      const azureOptions: Parameters<typeof generateText>[0] = {
         model: azure(modelName),
         prompt,
-      });
+      };
+
+      if (shouldUseTemperatureOne(modelName)) {
+        azureOptions.temperature = 1;
+      }
+
+      const result = await generateText(azureOptions);
 
       text = result.text;
 

@@ -6,6 +6,9 @@ import os from "os";
 import path from "path";
 import fs from "fs/promises";
 
+const LLMS_INSTRUCTIONS_URL =
+  process.env.DWLITE_LLMS_URL || "https://www.docetl.org/llms-full.txt";
+
 const FASTAPI_URL = `${
   process.env.NEXT_PUBLIC_BACKEND_HTTPS ? "https" : "http"
 }://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${
@@ -96,6 +99,34 @@ async function readDatasetSample(datasetPath: string): Promise<unknown[]> {
   } catch (error) {
     console.error("Failed to read dataset sample:", error);
     return [];
+  }
+}
+
+let cachedInstructions: string | null = null;
+
+async function fetchPlannerInstructions(): Promise<string> {
+  if (cachedInstructions) {
+    return cachedInstructions;
+  }
+
+  try {
+    const response = await fetch(LLMS_INSTRUCTIONS_URL, {
+      headers: { "User-Agent": "DocWrangler-Lite/1.0" },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const text = await response.text();
+    cachedInstructions = text;
+    return text;
+  } catch (error) {
+    console.warn(
+      "DocWrangler Lite: failed to load llms-full instructions – using fallback message.",
+      error
+    );
+    return "DocETL instructions unavailable. Use best judgment based on provided context.";
   }
 }
 
@@ -300,7 +331,11 @@ async function ensureOutputPaths(
   return { outputPath, intermediateDir };
 }
 
-function buildPrompt(request: DwliteRequest, sampleRows: unknown[]): string {
+async function buildPrompt(
+  request: DwliteRequest,
+  sampleRows: unknown[]
+): Promise<string> {
+  const llmInstructions = await fetchPlannerInstructions();
   const sampleText = formatSampleForPrompt(sampleRows);
   const desiredColumns = formatDesiredColumns(request.desiredColumns);
   const feedbackText = formatFeedback(request.feedback);
@@ -337,6 +372,7 @@ Context for this run:
 - Additional feedback to address:\n${feedbackText}
 - ${previousSummary}
 - ${previousPipeline}
+- DocETL system description and detailed instructions:\n${llmInstructions}
 
 Respond in the following XML-inspired format without Markdown code fences:
 <name>Concise pipeline name</name>
@@ -449,7 +485,7 @@ export async function POST(request: Request) {
 
   try {
     const datasetSample = await readDatasetSample(dataset.path);
-    const prompt = buildPrompt(body, datasetSample);
+    const prompt = await buildPrompt(body, datasetSample);
     const plannerResult = await callPlanner(prompt);
 
     const pipelineYaml = extractTagContent(plannerResult.text, "pipeline");

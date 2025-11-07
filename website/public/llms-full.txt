@@ -122,10 +122,10 @@ datasets:
    - Rank: Produce semantic ranking results; implement strict ordering in code if LLM fuzziness is unacceptable. https://ucbepic.github.io/docetl/operators/rank/
 
 2. Canonicalization & Linking (Use sparingly—they are slow and expensive):
-   - Resolve: Perform entity resolution across documents. https://ucbepic.github.io/docetl/operators/resolve/
-   - Link Resolve: Repair cross-document references after canonicalization. https://ucbepic.github.io/docetl/operators/link-resolve/
-   - Equijoin: Join documents based on semantic equality. https://ucbepic.github.io/docetl/operators/equijoin/
-   - Cluster: Group items into hierarchical clusters with LLM-generated summaries. https://ucbepic.github.io/docetl/operators/cluster/
+   - Resolve: Perform entity resolution across documents; only reach for it when deduplication is essential. https://ucbepic.github.io/docetl/operators/resolve/
+   - Link Resolve: Repair cross-document references after canonicalization; expect high LLM usage. https://ucbepic.github.io/docetl/operators/link-resolve/
+   - Equijoin: Join documents based on semantic equality; still experimental and costly. https://ucbepic.github.io/docetl/operators/equijoin/
+   - Cluster: Group items into hierarchical clusters with LLM-generated summaries; token-heavy. https://ucbepic.github.io/docetl/operators/cluster/
 
 3. Data Structuring & Flow:
    - Split: Break large documents into manageable chunks. https://ucbepic.github.io/docetl/operators/split/
@@ -418,11 +418,12 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
       prompt: |
         Extract all sections that discuss key findings, results, or conclusions.
         Focus on paragraphs that mention outcomes, statistics, or discovered insights.
-      document_keys: ["report_text"]
+      document_keys:
+        - report_text
       model: gpt-4.1-mini
     ```
 
-    The extract operation keeps the selected text verbatim and appends it to the document with an `_extracted_` suffix.
+    Extract keeps the selected text verbatim and appends it to the document with an `_extracted_` suffix.
 
 7. Parallel Map Operation for Concurrent Prompts:
     ```yaml
@@ -433,6 +434,10 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
           prompt: "List the top 5 relevant engineering skills from {{ input.resume }}."
           output_keys:
             - skills
+          gleaning:
+            num_rounds: 1
+            validation_prompt: |
+              Confirm the skills list contains exactly five items.
         - name: calculate_experience
           prompt: "Estimate total years of relevant experience from {{ input.resume }}."
           output_keys:
@@ -448,7 +453,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
           cultural_fit_score: integer
     ```
 
-    The prompts execute concurrently, producing a unified output document per input item.
+    Prompts run concurrently, returning a single enriched document per input item.
 
 8. TopK Operation for Semantic Retrieval:
     ```yaml
@@ -464,7 +469,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
       embedding_model: text-embedding-3-small
     ```
 
-    TopK surfaces the five most semantically similar support tickets. Use code-based retrieval if you need hard keyword guarantees.
+    TopK surfaces the five most semantically similar support tickets. For deterministic keyword retrieval, implement a code operation instead.
 
 9. Rank Operation for Nuanced Ordering:
     ```yaml
@@ -476,22 +481,27 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
       input_keys: ["content", "title", "date"]
       direction: desc
       rerank_call_budget: 10
-      initial_ordering_method: "likert"
+      initial_ordering_method: likert
     ```
 
-    Rank produces a semantic ordering (`_rank` field). For strict numeric sorting, implement the logic in a code operation instead.
+    Rank outputs a semantic ordering (`_rank`). Use code when you need deterministic numeric sorting.
 
 10. Equijoin Operation for Semantic Joins:
     ```yaml
     - name: match_candidates_to_jobs
       type: equijoin
+      blocking_keys:
+        left: [skills]
+        right: [required_skills]
+      blocking_threshold: 0.4
+      embedding_model: text-embedding-3-small
       comparison_prompt: |
         Compare the candidate (skills: {{ left.skills }}, experience: {{ left.years_experience }})
         to the job requirements (skills: {{ right.required_skills }}, experience: {{ right.desired_experience }}).
         Respond with "True" if the alignment is strong, otherwise "False".
     ```
 
-    Equijoin is powerful but costly; always add blocking rules and run the optimizer when joining large datasets.
+    Equijoin is powerful but costly; use blocking and run `docetl build` to optimize generated comparisons.
 
 11. Link Resolve Operation for Fixing References:
     ```yaml
@@ -508,7 +518,7 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
         Respond with "True" if they refer to the same concept.
     ```
 
-    Link resolve assumes item IDs are already canonical and only rewrites broken references.
+    Link resolve assumes item IDs are canonical and only rewrites broken references.
 
 12. Cluster Operation for Hierarchical Grouping:
     ```yaml
@@ -520,8 +530,8 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
         - description
       output_key: categories
       summary_schema:
-        concept: string
-        description: string
+        concept: str
+        description: str
       summary_prompt: |
         Given these related concepts, name the overarching concept and summarize why they belong together.
         {% for input in inputs %}
@@ -536,31 +546,49 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
     - name: split_transcript
       type: split
       split_key: transcript
-      target_token_count: 600
+      method: token_count
+      method_kwargs:
+        num_tokens: 600
+        model: gpt-4o-mini
     - name: analyze_segment
       type: map
+      input:
+        - transcript_chunk
       prompt: |
         Summarize this transcript segment:
-        {{ input.transcript_split }}
+        {{ input.transcript_chunk }}
       output:
         schema:
           summary: string
     - name: gather_transcript
       type: gather
-      gather_key: transcript
+      content_key: transcript_chunk
+      doc_id_key: split_transcript_id
+      order_key: split_transcript_chunk_num
+      peripheral_chunks:
+        previous:
+          tail:
+            count: 1
+            content_key: transcript_chunk
+        next:
+          head:
+            count: 1
+            content_key: transcript_chunk
     ```
 
-    Split chunks large documents, and gather reassembles results with context after downstream processing.
+    Split emits chunk-level rows; gather adds adjacent context and a `_rendered` field ready for downstream LLMs.
 
 14. Sample Operation for Quick Iteration:
     ```yaml
     - name: observe_subset
       type: sample
-      sample_count: 25
-      strategy: random
+      method: uniform
+      samples: 0.1
+      stratify_key: category
+      random_state: 42
     ```
 
-    Sampling helps prototype pipelines without running the full dataset; remove it before production runs.
+    Sampling limits processing to 10% of the data while maintaining category balance; remove it before production runs.
 
 #### Common Pipeline Patterns
 

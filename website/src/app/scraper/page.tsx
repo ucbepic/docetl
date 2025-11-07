@@ -11,6 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useChat } from "@ai-sdk/react";
 import {
   Send,
@@ -23,6 +31,7 @@ import {
   Link as LinkIcon,
   Download,
   RefreshCcw,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -54,6 +63,7 @@ export default function ScraperPage() {
   const [isStarting, setIsStarting] = useState(false);
   const [isRefiningDataset, setIsRefiningDataset] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [showInfoDialog, setShowInfoDialog] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const codeEndRef = useRef<HTMLDivElement>(null);
 
@@ -393,6 +403,69 @@ export default function ScraperPage() {
         <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
           <Scroll className="text-primary" size={20} />
           <h1 className="text-lg font-bold text-primary">DocScraper</h1>
+          <Dialog open={showInfoDialog} onOpenChange={setShowInfoDialog}>
+            <DialogTrigger asChild>
+              <button
+                className="text-gray-400 hover:text-primary transition-colors"
+                aria-label="Information about DocScraper"
+              >
+                <Info size={18} />
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-2xl flex items-center gap-2">
+                  <Scroll className="text-primary" size={24} />
+                  About DocScraper
+                </DialogTitle>
+                <DialogDescription className="text-base pt-4 space-y-4">
+                  <p className="text-muted-foreground">
+                    AI-powered web scraper that collects raw text from articles
+                    and blog posts to build datasets for{" "}
+                    <a
+                      href="https://docetl.org"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      DocETL
+                    </a>{" "}
+                    pipelines.
+                  </p>
+
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-2">
+                      Quick Start:
+                    </h3>
+                    <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                      <li>
+                        Describe what content you want (e.g., "travel blog posts
+                        about Japan")
+                      </li>
+                      <li>
+                        Optionally specify 2-3 columns like "url, scraped_text,
+                        author"
+                      </li>
+                      <li>
+                        Agent searches, scrapes in parallel, and discovers more
+                        links
+                      </li>
+                      <li>Download as JSON or CSV for your DocETL pipeline</li>
+                    </ol>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Note:</strong> The agent extracts raw article text,
+                    not summaries. The{" "}
+                    <code className="bg-muted px-1 py-0.5 rounded text-xs">
+                      scraped_text
+                    </code>{" "}
+                    field is ready for DocETL processing.
+                  </p>
+                </DialogDescription>
+              </DialogHeader>
+            </DialogContent>
+          </Dialog>
         </div>
         <div className="w-[120px]"></div>
       </div>

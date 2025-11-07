@@ -17,22 +17,20 @@ We have an integrated development environment for building and testing pipelines
 
 ### Operation Catalog
 
-#### LLM Transformations
+#### LLM Transformations (Semantic-first)
 - [Map Operation](https://ucbepic.github.io/docetl/operators/map/) - Transform individual documents with LLM reasoning.
 - [Parallel Map Operation](https://ucbepic.github.io/docetl/operators/parallel-map/) - Run map transformations concurrently when latency matters.
 - [Extract Operation](https://ucbepic.github.io/docetl/operators/extract/) - Pull verbatim passages that match structured extraction criteria.
 - [Filter Operation](https://ucbepic.github.io/docetl/operators/filter/) - Keep or drop documents based on LLM-evaluated conditions.
 - [Reduce Operation](https://ucbepic.github.io/docetl/operators/reduce/) - Aggregate sets of documents into structured summaries.
+- [TopK Operation](https://ucbepic.github.io/docetl/operators/topk/) - Perform semantic retrieval; use code operations for deterministic, absolute selection.
+- [Rank Operation](https://ucbepic.github.io/docetl/operators/rank/) - Produce semantic rankings; switch to code for strict, absolute ordering.
 
-#### Entity & Relationship Operations
-- [Resolve Operation](https://ucbepic.github.io/docetl/operators/resolve/) - Canonicalize duplicate entities across documents.
-- [Link Resolve Operation](https://ucbepic.github.io/docetl/operators/link-resolve/) - Repair references between canonicalized entities.
-- [Equijoin Operation](https://ucbepic.github.io/docetl/operators/equijoin/) - Join datasets by semantic equality.
-- [Cluster Operation](https://ucbepic.github.io/docetl/operators/cluster/) - Build hierarchical clusters with LLM-generated summaries.
-
-#### Retrieval & Ranking
-- [TopK Operation](https://ucbepic.github.io/docetl/operators/topk/) - Retrieve the most relevant items via embeddings, BM25, or LLM comparison.
-- [Rank Operation](https://ucbepic.github.io/docetl/operators/rank/) - Order documents by nuanced criteria using iterative LLM ranking.
+#### Canonicalization & Linking (Use Sparingly)
+- [Resolve Operation](https://ucbepic.github.io/docetl/operators/resolve/) - Canonicalize duplicate entities across documents; expensive and rarely optimized automatically.
+- [Link Resolve Operation](https://ucbepic.github.io/docetl/operators/link-resolve/) - Repair references between canonicalized entities; high cost, avoid unless required.
+- [Equijoin Operation](https://ucbepic.github.io/docetl/operators/equijoin/) - Join datasets by semantic equality when exact keys are unavailable.
+- [Cluster Operation](https://ucbepic.github.io/docetl/operators/cluster/) - Build hierarchical clusters with LLM-generated summaries; heavy on tokens and calls.
 
 #### Data Structuring & Flow
 - [Split Operation](https://ucbepic.github.io/docetl/operators/split/) - Break documents into chunks for downstream processing.
@@ -114,30 +112,28 @@ datasets:
 
 ### Operation Guide
 
-1. LLM Transformations:
+1. LLM Transformations (Semantic-first):
    - Map: Transform individual documents using LLM reasoning. https://ucbepic.github.io/docetl/operators/map/
    - Parallel Map: Process multiple documents concurrently to reduce latency. https://ucbepic.github.io/docetl/operators/parallel-map/
    - Extract: Pull verbatim passages that match extraction criteria. https://ucbepic.github.io/docetl/operators/extract/
    - Filter: Select documents based on LLM-powered conditions. https://ucbepic.github.io/docetl/operators/filter/
    - Reduce: Combine document sets into structured insights. https://ucbepic.github.io/docetl/operators/reduce/
+   - TopK: Run semantic retrieval; reach for code operations when you need deterministic absolute selection. https://ucbepic.github.io/docetl/operators/topk/
+   - Rank: Produce semantic ranking results; implement strict ordering in code if LLM fuzziness is unacceptable. https://ucbepic.github.io/docetl/operators/rank/
 
-2. Entity & Relationship Operations:
+2. Canonicalization & Linking (Use sparingly—they are slow and expensive):
    - Resolve: Perform entity resolution across documents. https://ucbepic.github.io/docetl/operators/resolve/
    - Link Resolve: Repair cross-document references after canonicalization. https://ucbepic.github.io/docetl/operators/link-resolve/
    - Equijoin: Join documents based on semantic equality. https://ucbepic.github.io/docetl/operators/equijoin/
    - Cluster: Group items into hierarchical clusters with LLM-generated summaries. https://ucbepic.github.io/docetl/operators/cluster/
 
-3. Retrieval & Ranking:
-   - TopK: Retrieve the most relevant items using embeddings, BM25, or LLM comparison. https://ucbepic.github.io/docetl/operators/topk/
-   - Rank: Order documents by nuanced criteria via iterative LLM ranking. https://ucbepic.github.io/docetl/operators/rank/
-
-4. Data Structuring & Flow:
+3. Data Structuring & Flow:
    - Split: Break large documents into manageable chunks. https://ucbepic.github.io/docetl/operators/split/
    - Gather: Maintain context when reassembling split documents. https://ucbepic.github.io/docetl/operators/gather/
    - Unnest: Flatten nested data structures, including recursive lists. https://ucbepic.github.io/docetl/operators/unnest/
    - Sample: Select representative subsets for rapid iteration. https://ucbepic.github.io/docetl/operators/sample/
 
-5. Code-Powered Utilities:
+4. Code-Powered Utilities:
    - Code: Execute custom Python code within the pipeline for deterministic logic. https://ucbepic.github.io/docetl/operators/code/
 
 ### Pipeline Structure
@@ -414,6 +410,157 @@ All LLM-powered operations (map, filter, reduce, resolve) use Jinja2 templates f
    - Processing of hierarchical categories
    - Depth control for recursive operations
    - Handling of unnested data in subsequent operations
+
+6. Extract Operation for Verbatim Passages:
+    ```yaml
+    - name: findings
+      type: extract
+      prompt: |
+        Extract all sections that discuss key findings, results, or conclusions.
+        Focus on paragraphs that mention outcomes, statistics, or discovered insights.
+      document_keys: ["report_text"]
+      model: gpt-4.1-mini
+    ```
+
+    The extract operation keeps the selected text verbatim and appends it to the document with an `_extracted_` suffix.
+
+7. Parallel Map Operation for Concurrent Prompts:
+    ```yaml
+    - name: process_job_application
+      type: parallel_map
+      prompts:
+        - name: extract_skills
+          prompt: "List the top 5 relevant engineering skills from {{ input.resume }}."
+          output_keys:
+            - skills
+        - name: calculate_experience
+          prompt: "Estimate total years of relevant experience from {{ input.resume }}."
+          output_keys:
+            - years_experience
+        - name: evaluate_cultural_fit
+          prompt: "Rate the cultural fit from {{ input.cover_letter }} on a 1-10 scale."
+          output_keys:
+            - cultural_fit_score
+      output:
+        schema:
+          skills: "list[string]"
+          years_experience: number
+          cultural_fit_score: integer
+    ```
+
+    The prompts execute concurrently, producing a unified output document per input item.
+
+8. TopK Operation for Semantic Retrieval:
+    ```yaml
+    - name: find_relevant_tickets
+      type: topk
+      method: embedding
+      k: 5
+      keys:
+        - subject
+        - description
+        - customer_feedback
+      query: "payment processing errors with international transactions"
+      embedding_model: text-embedding-3-small
+    ```
+
+    TopK surfaces the five most semantically similar support tickets. Use code-based retrieval if you need hard keyword guarantees.
+
+9. Rank Operation for Nuanced Ordering:
+    ```yaml
+    - name: rank_by_controversy
+      type: rank
+      prompt: |
+        Order these debates by how controversial they are.
+        Consider disagreement, divisive topics, emotional language, and public reaction.
+      input_keys: ["content", "title", "date"]
+      direction: desc
+      rerank_call_budget: 10
+      initial_ordering_method: "likert"
+    ```
+
+    Rank produces a semantic ordering (`_rank` field). For strict numeric sorting, implement the logic in a code operation instead.
+
+10. Equijoin Operation for Semantic Joins:
+    ```yaml
+    - name: match_candidates_to_jobs
+      type: equijoin
+      comparison_prompt: |
+        Compare the candidate (skills: {{ left.skills }}, experience: {{ left.years_experience }})
+        to the job requirements (skills: {{ right.required_skills }}, experience: {{ right.desired_experience }}).
+        Respond with "True" if the alignment is strong, otherwise "False".
+    ```
+
+    Equijoin is powerful but costly; always add blocking rules and run the optimizer when joining large datasets.
+
+11. Link Resolve Operation for Fixing References:
+    ```yaml
+    - name: fix_links
+      type: link_resolve
+      id_key: title
+      link_key: related_to
+      blocking_threshold: 0.85
+      embedding_model: text-embedding-ada-002
+      comparison_model: gpt-4o-mini
+      comparison_prompt: |
+        Compare the link value "{{ link_value }}" with the canonical record "{{ id_value }}".
+        Consider the description: {{ item.description }}.
+        Respond with "True" if they refer to the same concept.
+    ```
+
+    Link resolve assumes item IDs are already canonical and only rewrites broken references.
+
+12. Cluster Operation for Hierarchical Grouping:
+    ```yaml
+    - name: cluster_concepts
+      type: cluster
+      max_batch_size: 5
+      embedding_keys:
+        - concept
+        - description
+      output_key: categories
+      summary_schema:
+        concept: string
+        description: string
+      summary_prompt: |
+        Given these related concepts, name the overarching concept and summarize why they belong together.
+        {% for input in inputs %}
+        {{ input.concept }}: {{ input.description }}
+        {% endfor %}
+    ```
+
+    Cluster builds a binary tree of summaries; keep an eye on token usage.
+
+13. Split and Gather Operations for Long Documents:
+    ```yaml
+    - name: split_transcript
+      type: split
+      split_key: transcript
+      target_token_count: 600
+    - name: analyze_segment
+      type: map
+      prompt: |
+        Summarize this transcript segment:
+        {{ input.transcript_split }}
+      output:
+        schema:
+          summary: string
+    - name: gather_transcript
+      type: gather
+      gather_key: transcript
+    ```
+
+    Split chunks large documents, and gather reassembles results with context after downstream processing.
+
+14. Sample Operation for Quick Iteration:
+    ```yaml
+    - name: observe_subset
+      type: sample
+      sample_count: 25
+      strategy: random
+    ```
+
+    Sampling helps prototype pipelines without running the full dataset; remove it before production runs.
 
 #### Common Pipeline Patterns
 
